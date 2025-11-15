@@ -13,11 +13,11 @@ This document outlines the key entities, modules, and APIs in the NestJS backend
 - **Purpose**: Represents each event center for multi-tenancy.
 
 ### Event
-- **Fields**: id, name, description, date, dayOfWeek, startTime, endTime, setupTime, venue, maxGuests, tenantId, ownerId, status (draft/scheduled/completed), services (caterer, decorator, balloonDecorator, marquee, musicType: dj/band/mc), barOption (type of bar), createdAt, updatedAt
+- **Fields**: id, name, description, date, dayOfWeek, startTime, endTime, setupTime, venue, maxGuests, tenantId, ownerId, status (draft/scheduled/completed), services (caterer, decorator, balloonDecorator, marquee, musicType: dj/band/mc), barOption (type of bar), eventType (enum), createdAt, updatedAt
 - **Purpose**: Core event details managed by owners/planners.
 
 ### Booking
-- **Fields**: id, userId, eventId, status (pending/confirmed/cancelled), totalPrice, deposit, paymentStatus, createdAt, updatedAt
+- **Fields**: id, userId, eventId, status (pending/confirmed/cancelled), totalPrice, deposit, paymentStatus, clientStatus (enum), totalAmountPaid, contractId (FK), insuranceId (FK), doorListId (FK optional), createdAt, updatedAt
 - **Relations**: One-to-many with BookingItem
 - **Purpose**: Customer bookings for events.
 
@@ -40,6 +40,37 @@ This document outlines the key entities, modules, and APIs in the NestJS backend
 ### Reminder
 - **Fields**: id, bookingId, type (email/sms), message, scheduledAt, sentAt
 - **Purpose**: Scheduled notifications.
+
+### DoorList
+- **Fields**: id, bookingId, hostess (string), upload (file ref), deadline (datetime), vipNotes (text), parkingDetails (text), createdAt, updatedAt
+- **Relation**: One per Booking (or per Event), created by Customer/Planner
+- **Purpose**: Tracks guest-facing door/hostess instructions and attachments.
+
+### SecurityAssignment
+- **Fields**: id, bookingId, name, phone, arrivalTime (time), notes (text), createdAt, updatedAt
+- **Relation**: Many per Event or Booking
+- **Purpose**: Records security personnel and schedule.
+
+### Contract
+- **Fields**: id, bookingId, status (sent/signed), documentUpload (file ref), sentAt, signedAt, createdAt, updatedAt
+- **Relation**: One per Booking (versioning optional)
+- **Purpose**: Manages contract workflow and storage.
+
+### Insurance
+- **Fields**: id, bookingId, provided (boolean yes/no), certificateUpload (file ref), verifiedAt (nullable), createdAt, updatedAt
+- **Relation**: One per Booking
+- **Purpose**: Stores COI (certificate of insurance) evidence.
+
+## Enums
+
+### EventType
+- **Values**: wedding_reception, birthday_party, retirement, anniversary, baby_shower, corporate_event, fundraiser_gala, concert_show, conference_meeting, workshop, quinceanera, sweet_16, prom_formal, family_reunion, memorial_service, product_launch, holiday_party, engagement_party, graduation_party
+- **Applied To**: Event.eventType (required)
+
+### ClientStatus
+- **States**: contacted_by_phone → walkthrough_completed → booked → deposit_paid → completed/cancelled
+- **Applied To**: Booking.clientStatus (string enum)
+- **Notes**: Enforce valid transitions with service-level checks.
 
 ## Modules
 
@@ -80,6 +111,22 @@ This document outlines the key entities, modules, and APIs in the NestJS backend
 - **Controllers**: NotificationsController (schedule reminders)
 - **Services**: NotificationsService
 
+### ContractsModule
+- **Controllers**: ContractsController (manage contracts, upload/sign)
+- **Services**: ContractsService
+
+### InsuranceModule
+- **Controllers**: InsuranceController (manage insurance certificates)
+- **Services**: InsuranceService
+
+### DoorListModule
+- **Controllers**: DoorListController (manage door lists)
+- **Services**: DoorListService
+
+### SecurityModule
+- **Controllers**: SecurityController (manage security assignments)
+- **Services**: SecurityService
+
 ## API Endpoints (Examples)
 
 - `POST /auth/register` - Register user
@@ -103,3 +150,22 @@ This document outlines the key entities, modules, and APIs in the NestJS backend
 - Rate limiting, CORS
 
 This structure provides a solid foundation for the app's features.
+
+---
+
+## Notes for Implementation
+
+### File Uploads
+- Use a Files table or storage service; store metadata and signed URLs.
+
+### Validation
+- Deadlines must be before event start; security arrivalTime within venue access hours.
+
+### Permissions
+- Customers can view/upload their own contract/insurance; planners/owners can manage all within tenant.
+
+### Migrations
+- Add enums and new tables; backfill existing records with defaults (e.g., `clientStatus = 'contacted_by_phone'`).
+
+### Payment Tracking
+- **Total Paid**: compute SUM(payments.amount where status='paid') and sync to `Booking.totalAmountPaid` on webhook/cron.

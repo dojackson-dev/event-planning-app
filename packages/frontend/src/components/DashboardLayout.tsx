@@ -18,7 +18,8 @@ import {
   LogOut,
   Menu,
   X,
-  ClipboardList
+  ClipboardList,
+  Bell
 } from 'lucide-react'
 
 const navigation = [
@@ -39,6 +40,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname()
   const { user, logout } = useAuth()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [notificationCount] = useState(5) // Placeholder notification count
 
   // Placeholder user for development when not logged in
   const displayUser = user || {
@@ -60,12 +62,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             height={107}
             className="h-24 w-auto"
           />
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 rounded-md text-gray-600 hover:bg-gray-100"
-          >
-            {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-          </button>
+          <div className="flex items-center gap-3">
+            {/* Notification Bell */}
+            <button className="relative p-2 rounded-md text-gray-600 hover:bg-gray-100">
+              <Bell className="h-6 w-6" />
+              {notificationCount > 0 && (
+                <span className="absolute top-1 right-1 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-white bg-red-600 rounded-full min-w-[18px]">
+                  {notificationCount > 9 ? '9+' : notificationCount}
+                </span>
+              )}
+            </button>
+            
+            {/* Menu Toggle */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-2 rounded-md text-gray-600 hover:bg-gray-100"
+            >
+              {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -153,6 +168,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Main content */}
       <div className="lg:pl-64 pt-16 lg:pt-0 min-h-screen">
+        {/* Desktop Top Bar with Notifications */}
+        <div className="hidden lg:flex items-center justify-end h-16 px-8 bg-white border-b border-gray-100 sticky top-0 z-30">
+          <div className="flex items-center gap-4">
+            {/* Notification Bell - Desktop */}
+            <button className="relative p-2 rounded-md text-gray-600 hover:bg-gray-100 transition-colors">
+              <Bell className="h-5 w-5" />
+              {notificationCount > 0 && (
+                <span className="absolute top-0.5 right-0.5 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-white bg-red-600 rounded-full min-w-[18px]">
+                  {notificationCount > 9 ? '9+' : notificationCount}
+                </span>
+              )}
+            </button>
+            
+            {/* User Info - Desktop */}
+            <div className="flex items-center gap-3 pl-3 border-l border-gray-200">
+              <div className="text-right">
+                <p className="text-sm font-medium text-gray-900">
+                  {displayUser.firstName} {displayUser.lastName}
+                </p>
+                <p className="text-xs text-gray-500">{displayUser.role}</p>
+              </div>
+              <div className="h-10 w-10 rounded-full bg-primary-600 text-white flex items-center justify-center font-semibold">
+                {displayUser.firstName[0]}{displayUser.lastName[0]}
+              </div>
+            </div>
+          </div>
+        </div>
+        
         <main className="p-4 sm:p-6 lg:p-8">
           {children}
         </main>

@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Event, Booking, ClientStatus } from '@/types'
-import { Calendar, Users, DollarSign, CheckCircle } from 'lucide-react'
+import { Calendar, Users, DollarSign, CheckCircle, Clock, ArrowRight } from 'lucide-react'
 
 export default function DashboardPage() {
   const { user } = useAuth()
@@ -17,6 +18,7 @@ export default function DashboardPage() {
     pendingPayments: 0,
   })
   const [recentBookings, setRecentBookings] = useState<Booking[]>([])
+  const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -50,6 +52,23 @@ export default function DashboardPage() {
         totalRevenue,
         pendingPayments,
       })
+
+      // Get upcoming bookings (next 7 days)
+      const now = new Date()
+      const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+      const upcoming = bookings
+        .filter(b => {
+          const bookingDate = new Date(b.event?.date || b.createdAt)
+          return bookingDate >= now && bookingDate <= weekFromNow && b.status !== 'cancelled'
+        })
+        .sort((a, b) => {
+          const dateA = new Date(a.event?.date || a.createdAt)
+          const dateB = new Date(b.event?.date || b.createdAt)
+          return dateA.getTime() - dateB.getTime()
+        })
+        .slice(0, 5)
+
+      setUpcomingBookings(upcoming)
 
       // Get recent bookings
       setRecentBookings(bookings.slice(0, 5))
@@ -134,6 +153,90 @@ export default function DashboardPage() {
               <CheckCircle className="h-8 w-8 sm:h-10 sm:w-10 text-orange-600" />
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Upcoming Bookings - Next 7 Days */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 mb-6 sm:mb-8">
+        <div className="p-4 sm:p-6 border-b border-gray-100 flex items-center justify-between">
+          <div className="flex items-center">
+            <Clock className="h-5 w-5 text-primary-600 mr-2" />
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900">Upcoming This Week</h2>
+          </div>
+          <Link 
+            href="/dashboard/bookings"
+            className="text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center"
+          >
+            View All
+            <ArrowRight className="h-4 w-4 ml-1" />
+          </Link>
+        </div>
+        <div className="divide-y divide-gray-100">
+          {upcomingBookings.length > 0 ? (
+            upcomingBookings.map((booking) => (
+              <div key={booking.id} className="p-4 sm:p-6 hover:bg-gray-50 transition-colors">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="flex-1">
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <h3 className="text-base font-semibold text-gray-900">
+                          {booking.event?.name || 'Event'}
+                        </h3>
+                        <p className="text-sm text-gray-600 mt-1">
+                          Client: {booking.user?.firstName} {booking.user?.lastName}
+                        </p>
+                      </div>
+                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ml-2 ${
+                        booking.clientStatus === ClientStatus.DEPOSIT_PAID
+                          ? 'bg-green-100 text-green-800'
+                          : booking.clientStatus === ClientStatus.BOOKED
+                          ? 'bg-blue-100 text-blue-800'
+                          : booking.clientStatus === ClientStatus.WALKTHROUGH_COMPLETED
+                          ? 'bg-purple-100 text-purple-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {getClientStatusLabel(booking.clientStatus)}
+                      </span>
+                    </div>
+                    
+                    <div className="flex flex-wrap gap-4 text-sm text-gray-500">
+                      <div className="flex items-center">
+                        <Calendar className="h-4 w-4 mr-1.5" />
+                        {booking.event?.date ? new Date(booking.event.date).toLocaleDateString() : 'Date TBD'}
+                      </div>
+                      <div className="flex items-center">
+                        <Users className="h-4 w-4 mr-1.5" />
+                        {booking.event?.maxGuests || 0} guests
+                      </div>
+                      <div className="flex items-center font-medium text-gray-900">
+                        <DollarSign className="h-4 w-4 mr-1" />
+                        ${booking.totalPrice.toFixed(2)}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2 sm:flex-col sm:items-end">
+                    <Link
+                      href={`/dashboard/bookings`}
+                      className="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 transition-colors"
+                    >
+                      View Details
+                    </Link>
+                    {booking.totalAmountPaid < booking.totalPrice && (
+                      <span className="text-xs text-orange-600 font-medium">
+                        ${(booking.totalPrice - booking.totalAmountPaid).toFixed(2)} due
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="p-8 text-center text-gray-500">
+              <Clock className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+              <p className="text-sm">No upcoming bookings in the next 7 days</p>
+            </div>
+          )}
         </div>
       </div>
 

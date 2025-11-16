@@ -50,6 +50,7 @@ CREATE TABLE tenants (
   subdomain VARCHAR(100) UNIQUE NOT NULL,
   owner_id UUID,
   subscription_status VARCHAR(50) DEFAULT 'active',
+  custom_url VARCHAR(255),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );

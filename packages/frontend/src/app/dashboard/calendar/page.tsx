@@ -44,7 +44,10 @@ export default function CalendarPage() {
   // Month view calculations
   const monthStart = startOfMonth(currentDate)
   const monthEnd = endOfMonth(currentDate)
-  const monthDays = eachDayOfInterval({ start: monthStart, end: monthEnd })
+  // For month view, we need to show the full calendar grid starting from Sunday
+  const calendarStart = startOfWeek(monthStart)
+  const calendarEnd = endOfWeek(monthEnd)
+  const monthDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd })
 
   // Week view calculations
   const weekStart = startOfWeek(currentDate)

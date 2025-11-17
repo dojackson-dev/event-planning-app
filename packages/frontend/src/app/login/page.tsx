@@ -29,8 +29,13 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
+          <div className="text-center mb-4">
+            <Link href="/" className="text-primary-600 hover:text-primary-700 text-sm font-medium">
+              ← Back to Home
+            </Link>
+          </div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Event Center Owner Portal
+            Welcome Back
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
             Sign in to manage your event center
@@ -88,9 +93,12 @@ export default function LoginPage() {
           </div>
 
           <div className="text-center">
-            <Link href="/register" className="text-sm text-primary-600 hover:text-primary-500">
-              Don't have an account? Register here
-            </Link>
+            <p className="text-sm text-gray-600">
+              Don't have an account?{' '}
+              <Link href="/register" className="font-medium text-primary-600 hover:text-primary-500">
+                Sign up
+              </Link>
+            </p>
           </div>
         </form>
       </div>

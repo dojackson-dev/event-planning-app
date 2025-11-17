@@ -30,7 +30,10 @@ export class User {
   role: UserRole;
 
   @Column({ nullable: true })
-  tenantId: string; // For multi-tenancy
+  ownerId: number; // References the owner (for customers, planners, and staff)
+
+  @Column({ nullable: true })
+  tenantId: number; // Only for owners who host their website with us (optional)
 
   @CreateDateColumn()
   createdAt: Date;

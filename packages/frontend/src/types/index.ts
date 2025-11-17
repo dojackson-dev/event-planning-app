@@ -82,18 +82,21 @@ export interface User {
   firstName: string
   lastName: string
   role: UserRole
-  tenantId: string
+  ownerId?: string // For customers/planners/staff - references their owner
+  tenantId?: string // Only for owners who host their website with us (optional)
   createdAt: string
   updatedAt: string
 }
 
-// Tenant
+// Tenant - Represents owners who host their website with us
 export interface Tenant {
   id: string
-  name: string
-  subdomain: string
-  ownerId: string
-  subscriptionStatus: string
+  name: string // Business/Venue name
+  subdomain: string // Subdomain for hosted website
+  ownerId: string // Reference to the owner user
+  customDomain?: string // Optional custom domain
+  subscriptionStatus: string // active, suspended, cancelled, trial
+  websiteSettings?: string // JSON string of website customization
   createdAt: string
   updatedAt: string
 }

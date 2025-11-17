@@ -6,6 +6,7 @@ import { AppService } from './app.service';
 import { User } from './entities/user.entity';
 import { Event } from './entities/event.entity';
 import { Booking } from './entities/booking.entity';
+import { Tenant } from './entities/tenant.entity';
 import { UsersModule } from './users/users.module';
 import { EventsModule } from './events/events.module';
 import { BookingsModule } from './bookings/bookings.module';
@@ -22,7 +23,7 @@ import { BookingsModule } from './bookings/bookings.module';
       username: process.env.DB_USERNAME || 'postgres',
       password: process.env.DB_PASSWORD || 'password',
       database: process.env.DB_NAME || 'event_planning',
-      entities: [User, Event, Booking],
+      entities: [User, Event, Booking, Tenant],
       synchronize: true, // For development; disable in production
     }),
     UsersModule,

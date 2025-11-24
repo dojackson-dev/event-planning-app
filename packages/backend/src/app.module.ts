@@ -7,9 +7,14 @@ import { User } from './entities/user.entity';
 import { Event } from './entities/event.entity';
 import { Booking } from './entities/booking.entity';
 import { Tenant } from './entities/tenant.entity';
+import { Invoice } from './entities/invoice.entity';
+import { InvoiceItem } from './entities/invoice-item.entity';
+import { ServiceItem } from './entities/service-item.entity';
 import { UsersModule } from './users/users.module';
 import { EventsModule } from './events/events.module';
 import { BookingsModule } from './bookings/bookings.module';
+import { InvoicesModule } from './invoices/invoices.module';
+import { ServiceItemsModule } from './service-items/service-items.module';
 
 @Module({
   imports: [
@@ -23,12 +28,14 @@ import { BookingsModule } from './bookings/bookings.module';
       username: process.env.DB_USERNAME || 'postgres',
       password: process.env.DB_PASSWORD || 'password',
       database: process.env.DB_NAME || 'event_planning',
-      entities: [User, Event, Booking, Tenant],
+      entities: [User, Event, Booking, Tenant, Invoice, InvoiceItem, ServiceItem],
       synchronize: true, // For development; disable in production
     }),
     UsersModule,
     EventsModule,
     BookingsModule,
+    InvoicesModule,
+    ServiceItemsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

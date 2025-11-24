@@ -27,6 +27,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     if (token && storedUser) {
       setUser(JSON.parse(storedUser))
+    } else {
+      // Temporary: Create a mock admin user for testing
+      const mockAdmin = {
+        id: '1',
+        email: 'admin@dovenue.com',
+        firstName: 'Admin',
+        lastName: 'User',
+        role: 'owner',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+      setUser(mockAdmin)
+      localStorage.setItem('user', JSON.stringify(mockAdmin))
+      localStorage.setItem('access_token', 'mock-token')
     }
     setLoading(false)
   }, [])

@@ -19,7 +19,8 @@ import {
   Menu,
   X,
   ClipboardList,
-  Bell
+  Bell,
+  Receipt
 } from 'lucide-react'
 
 const navigation = [
@@ -29,6 +30,7 @@ const navigation = [
   { name: 'Bookings', href: '/dashboard/bookings', icon: Users },
   { name: 'Client Intake', href: '/dashboard/intake', icon: ClipboardList },
   { name: 'Items & Packages', href: '/dashboard/items', icon: Package },
+  { name: 'Invoices', href: '/dashboard/invoices', icon: Receipt },
   { name: 'Contracts', href: '/dashboard/contracts', icon: FileText },
   { name: 'Door Lists', href: '/dashboard/door-lists', icon: ListChecks },
   { name: 'Security', href: '/dashboard/security', icon: Shield },

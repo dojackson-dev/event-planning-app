@@ -75,6 +75,37 @@ export enum ItemType {
   ENTERTAINMENT = 'entertainment',
 }
 
+export enum InvoiceStatus {
+  DRAFT = 'draft',
+  SENT = 'sent',
+  PAID = 'paid',
+  OVERDUE = 'overdue',
+  CANCELLED = 'cancelled',
+}
+
+export enum ServiceItemCategory {
+  FACILITY = 'facility',
+  CATERING = 'catering',
+  ITEMS = 'items',
+  SECURITY = 'security',
+  BAR = 'bar',
+  DEPOSIT = 'deposit',
+  SOUND_SYSTEM = 'sound_system',
+  AV = 'av',
+  PLANNING = 'planning',
+  DECORATIONS = 'decorations',
+  ADDITIONAL_TIME = 'additional_time',
+  SALES_TAX = 'sales_tax',
+  HOSTING = 'hosting',
+  MISC = 'misc',
+}
+
+export enum DiscountType {
+  NONE = 'none',
+  PERCENTAGE = 'percentage',
+  FIXED = 'fixed',
+}
+
 // User
 export interface User {
   id: string
@@ -183,6 +214,61 @@ export interface Payment {
   currency: string
   status: PaymentStatus
   stripePaymentIntentId?: string
+  createdAt: string
+  updatedAt: string
+}
+
+// Invoice
+export interface Invoice {
+  id: string
+  invoiceNumber: string
+  ownerId?: string
+  bookingId: string
+  booking?: Booking
+  subtotal: number
+  taxAmount: number
+  taxRate: number
+  discountAmount: number
+  totalAmount: number
+  amountPaid: number
+  amountDue: number
+  status: InvoiceStatus
+  issueDate: string
+  dueDate: string
+  paidDate?: string
+  notes?: string
+  terms?: string
+  items: InvoiceItem[]
+  createdAt: string
+  updatedAt: string
+}
+
+// InvoiceItem
+export interface InvoiceItem {
+  id: string
+  invoiceId: string
+  description: string
+  quantity: number
+  standardPrice: number // Original/standard price
+  unitPrice: number // Actual price being charged
+  subtotal: number // quantity * unitPrice (before item discount)
+  discountType: DiscountType
+  discountValue: number // Percentage or fixed amount
+  discountAmount: number // Calculated discount
+  amount: number // Final amount after discount
+  sortOrder: number
+}
+
+// ServiceItem
+export interface ServiceItem {
+  id: string
+  name: string
+  description: string
+  category: ServiceItemCategory
+  defaultPrice: number
+  isActive: boolean
+  sortOrder: number
+  tenantId?: string
   createdAt: string
   updatedAt: string
 }

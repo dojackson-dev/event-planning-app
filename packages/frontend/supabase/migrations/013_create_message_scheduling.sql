@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS scheduled_messages (
   content TEXT NOT NULL,
   scheduled_for TIMESTAMP NOT NULL,
   status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'cancelled', 'failed')),
-  message_id INTEGER REFERENCES messages(id) ON DELETE SET NULL,
+  message_id UUID REFERENCES messages(id) ON DELETE SET NULL,
   sent_at TIMESTAMP,
   error_message TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

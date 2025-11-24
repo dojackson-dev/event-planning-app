@@ -30,6 +30,9 @@ export class User {
   role: UserRole;
 
   @Column({ nullable: true })
+  phone?: string;
+
+  @Column({ nullable: true })
   ownerId: number; // References the owner (for customers, planners, and staff)
 
   @Column({ nullable: true })

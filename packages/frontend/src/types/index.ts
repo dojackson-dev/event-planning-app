@@ -120,6 +120,7 @@ export interface User {
   firstName: string
   lastName: string
   role: UserRole
+  phone?: string
   ownerId?: string // For customers/planners/staff - references their owner
   tenantId?: string // Only for owners who host their website with us (optional)
   createdAt: string
@@ -403,6 +404,25 @@ export interface Guest {
   arrivedAt?: string
   createdAt: string
   updatedAt: string
+}
+
+// Message
+export interface Message {
+  id: number
+  recipientPhone: string
+  recipientName: string
+  recipientType: 'client' | 'guest' | 'security' | 'custom'
+  userId?: number
+  user?: User
+  eventId?: number
+  event?: Event
+  messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom'
+  content: string
+  status: 'pending' | 'sent' | 'delivered' | 'failed'
+  twilioSid?: string
+  errorMessage?: string
+  sentAt?: string
+  createdAt: string
 }
 
 // Auth

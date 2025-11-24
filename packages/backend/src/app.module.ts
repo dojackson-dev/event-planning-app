@@ -15,6 +15,8 @@ import { Security } from './entities/security.entity';
 import { GuestList } from './entities/guest-list.entity';
 import { Guest } from './entities/guest.entity';
 import { Message } from './entities/message.entity';
+import { MessageTemplate } from './entities/message-template.entity';
+import { ScheduledMessage } from './entities/scheduled-message.entity';
 import { UsersModule } from './users/users.module';
 import { EventsModule } from './events/events.module';
 import { BookingsModule } from './bookings/bookings.module';
@@ -37,7 +39,7 @@ import { MessagingModule } from './messaging/messaging.module';
       username: process.env.DB_USERNAME || 'postgres',
       password: process.env.DB_PASSWORD || 'password',
       database: process.env.DB_NAME || 'event_planning',
-      entities: [User, Event, Booking, Tenant, Invoice, InvoiceItem, ServiceItem, Contract, Security, GuestList, Guest, Message],
+      entities: [User, Event, Booking, Tenant, Invoice, InvoiceItem, ServiceItem, Contract, Security, GuestList, Guest, Message, MessageTemplate, ScheduledMessage],
       synchronize: true, // For development; disable in production
     }),
     UsersModule,

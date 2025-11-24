@@ -425,6 +425,39 @@ export interface Message {
   createdAt: string
 }
 
+// Message Template
+export interface MessageTemplate {
+  id: number
+  name: string
+  messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom'
+  content: string
+  isActive: boolean
+  sendBeforeDays?: number
+  sendTime?: string
+  repeatIntervalDays?: number
+  recipientType: 'client' | 'guest' | 'security' | 'all'
+  autoSend: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+// Scheduled Message
+export interface ScheduledMessage {
+  id: number
+  eventId: number
+  event?: Event
+  templateId?: number
+  template?: MessageTemplate
+  recipientType: 'client' | 'guest' | 'security' | 'all'
+  content: string
+  scheduledFor: string
+  status: 'pending' | 'sent' | 'cancelled' | 'failed'
+  messageId?: number
+  sentAt?: string
+  errorMessage?: string
+  createdAt: string
+}
+
 // Auth
 export interface AuthResponse {
   access_token: string

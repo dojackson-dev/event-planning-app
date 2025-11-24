@@ -106,6 +106,13 @@ export enum DiscountType {
   FIXED = 'fixed',
 }
 
+export enum ContractStatus {
+  DRAFT = 'draft',
+  SENT = 'sent',
+  SIGNED = 'signed',
+  CANCELLED = 'cancelled',
+}
+
 // User
 export interface User {
   id: string
@@ -276,11 +283,25 @@ export interface ServiceItem {
 // Contract
 export interface Contract {
   id: string
-  bookingId: string
+  contractNumber: string
+  ownerId: string
+  owner?: User
+  clientId: string
+  client?: User
+  bookingId?: string
+  booking?: Booking
+  title: string
+  description?: string
+  fileUrl: string
+  fileName?: string
+  fileSize?: number
   status: ContractStatus
-  documentUpload?: string
-  sentAt?: string
-  signedAt?: string
+  sentDate?: string
+  signedDate?: string
+  signatureData?: string
+  signerName?: string
+  signerIpAddress?: string
+  notes?: string
   createdAt: string
   updatedAt: string
 }

@@ -12,6 +12,8 @@ import { InvoiceItem } from './entities/invoice-item.entity';
 import { ServiceItem } from './entities/service-item.entity';
 import { Contract } from './entities/contract.entity';
 import { Security } from './entities/security.entity';
+import { GuestList } from './entities/guest-list.entity';
+import { Guest } from './entities/guest.entity';
 import { UsersModule } from './users/users.module';
 import { EventsModule } from './events/events.module';
 import { BookingsModule } from './bookings/bookings.module';
@@ -19,6 +21,7 @@ import { InvoicesModule } from './invoices/invoices.module';
 import { ServiceItemsModule } from './service-items/service-items.module';
 import { ContractsModule } from './contracts/contracts.module';
 import { SecurityModule } from './security/security.module';
+import { GuestListsModule } from './guest-lists/guest-lists.module';
 
 @Module({
   imports: [
@@ -32,7 +35,7 @@ import { SecurityModule } from './security/security.module';
       username: process.env.DB_USERNAME || 'postgres',
       password: process.env.DB_PASSWORD || 'password',
       database: process.env.DB_NAME || 'event_planning',
-      entities: [User, Event, Booking, Tenant, Invoice, InvoiceItem, ServiceItem, Contract, Security],
+      entities: [User, Event, Booking, Tenant, Invoice, InvoiceItem, ServiceItem, Contract, Security, GuestList, Guest],
       synchronize: true, // For development; disable in production
     }),
     UsersModule,
@@ -42,6 +45,7 @@ import { SecurityModule } from './security/security.module';
     ServiceItemsModule,
     ContractsModule,
     SecurityModule,
+    GuestListsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

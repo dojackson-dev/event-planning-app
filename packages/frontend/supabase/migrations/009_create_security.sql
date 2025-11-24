@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS security (
   id SERIAL PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
   phone VARCHAR(50) NOT NULL,
-  event_id INTEGER REFERENCES events(id) ON DELETE SET NULL,
+  event_id UUID REFERENCES events(id) ON DELETE SET NULL,
   arrival_time TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -38,9 +38,9 @@ CREATE POLICY security_owner_select_policy ON security
   FOR SELECT
   USING (
     EXISTS (
-      SELECT 1 FROM "user"
-      WHERE "user".id = auth.uid()
-      AND "user".role = 'owner'
+      SELECT 1 FROM users
+      WHERE users.id = auth.uid()
+      AND users.role = 'owner'
     )
   );
 
@@ -49,9 +49,9 @@ CREATE POLICY security_owner_insert_policy ON security
   FOR INSERT
   WITH CHECK (
     EXISTS (
-      SELECT 1 FROM "user"
-      WHERE "user".id = auth.uid()
-      AND "user".role = 'owner'
+      SELECT 1 FROM users
+      WHERE users.id = auth.uid()
+      AND users.role = 'owner'
     )
   );
 
@@ -60,9 +60,9 @@ CREATE POLICY security_owner_update_policy ON security
   FOR UPDATE
   USING (
     EXISTS (
-      SELECT 1 FROM "user"
-      WHERE "user".id = auth.uid()
-      AND "user".role = 'owner'
+      SELECT 1 FROM users
+      WHERE users.id = auth.uid()
+      AND users.role = 'owner'
     )
   );
 
@@ -71,9 +71,9 @@ CREATE POLICY security_owner_delete_policy ON security
   FOR DELETE
   USING (
     EXISTS (
-      SELECT 1 FROM "user"
-      WHERE "user".id = auth.uid()
-      AND "user".role = 'owner'
+      SELECT 1 FROM users
+      WHERE users.id = auth.uid()
+      AND users.role = 'owner'
     )
   );
 

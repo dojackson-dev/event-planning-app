@@ -374,6 +374,37 @@ export interface Security {
   updatedAt: string
 }
 
+// Guest List
+export interface GuestList {
+  id: number
+  clientId: number
+  client?: User
+  eventId: number
+  event?: Event
+  maxGuestsPerPerson: number
+  accessCode: string
+  shareToken: string
+  arrivalToken: string
+  isLocked: boolean
+  guests?: Guest[]
+  createdAt: string
+  updatedAt: string
+}
+
+// Guest
+export interface Guest {
+  id: number
+  guestListId: number
+  guestList?: GuestList
+  name: string
+  phone: string
+  plusOneCount: number
+  hasArrived: boolean
+  arrivedAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
 // Auth
 export interface AuthResponse {
   access_token: string

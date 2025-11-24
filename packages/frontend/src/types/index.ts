@@ -362,6 +362,18 @@ export interface Reminder {
   sentAt?: string
 }
 
+// Security
+export interface Security {
+  id: number
+  name: string
+  phone: string
+  eventId?: number
+  event?: Event
+  arrivalTime?: string
+  createdAt: string
+  updatedAt: string
+}
+
 // Auth
 export interface AuthResponse {
   access_token: string

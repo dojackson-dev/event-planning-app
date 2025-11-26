@@ -111,11 +111,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="p-4 border-b mt-16 lg:mt-0">
             <div className="flex items-center">
               <div className="h-12 w-12 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-bold text-lg">
-                {displayUser.firstName[0]}{displayUser.lastName[0]}
+                {displayUser.firstName?.[0] || 'U'}{displayUser.lastName?.[0] || 'U'}
               </div>
               <div className="ml-3 flex-1">
                 <p className="text-sm font-medium text-gray-900">
-                  {displayUser.firstName} {displayUser.lastName}
+                  {displayUser.firstName || 'User'} {displayUser.lastName || ''}
                 </p>
                 <p className="text-xs text-gray-500">{displayUser.email}</p>
                 <span className="inline-block mt-1 px-2 py-0.5 text-xs font-medium bg-primary-100 text-primary-700 rounded">
@@ -187,12 +187,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="flex items-center gap-3 pl-3 border-l border-gray-200">
               <div className="text-right">
                 <p className="text-sm font-medium text-gray-900">
-                  {displayUser.firstName} {displayUser.lastName}
+                  {displayUser.firstName || 'User'} {displayUser.lastName || ''}
                 </p>
                 <p className="text-xs text-gray-500">{displayUser.role}</p>
               </div>
               <div className="h-10 w-10 rounded-full bg-primary-600 text-white flex items-center justify-center font-semibold">
-                {displayUser.firstName[0]}{displayUser.lastName[0]}
+                {displayUser.firstName?.[0] || 'U'}{displayUser.lastName?.[0] || 'U'}
               </div>
             </div>
           </div>

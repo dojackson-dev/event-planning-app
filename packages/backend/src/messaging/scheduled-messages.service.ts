@@ -195,7 +195,15 @@ export class ScheduledMessagesService {
 
   private async sendScheduledMessage(scheduledMessage: ScheduledMessage): Promise<void> {
     const event = scheduledMessage.event;
-    const messages = [];
+    const messages: Array<{
+      recipientPhone: string;
+      recipientName: string;
+      recipientType: 'client' | 'guest' | 'security' | 'custom';
+      userId?: number;
+      eventId?: number;
+      messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom';
+      content: string;
+    }> = [];
 
     // Determine recipients based on recipientType
     if (scheduledMessage.recipientType === 'client' || scheduledMessage.recipientType === 'all') {
@@ -233,6 +241,6 @@ export class ScheduledMessagesService {
       .replace(/\{event_name\}/g, event.name)
       .replace(/\{event_date\}/g, eventDate.toLocaleDateString())
       .replace(/\{event_time\}/g, eventDate.toLocaleTimeString())
-      .replace(/\{event_location\}/g, event.location || 'TBD');
+      .replace(/\{event_location\}/g, event.venue || 'TBD');
   }
 }

@@ -1,156 +1,101 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { ServiceItem, ServiceItemCategory } from '../entities/service-item.entity';
+import { SupabaseService } from '../supabase/supabase.service';
+import { ServiceItemCategory } from '../entities/service-item.entity';
+
+export interface ServiceItem {
+  id?: string;
+  name: string;
+  description: string;
+  category: ServiceItemCategory;
+  default_price: number;
+  is_active: boolean;
+  sort_order: number;
+  owner_id?: string;
+  created_at?: string;
+  updated_at?: string;
+}
 
 @Injectable()
 export class ServiceItemsService {
-  constructor(
-    @InjectRepository(ServiceItem)
-    private serviceItemRepository: Repository<ServiceItem>,
-  ) {}
+  constructor(private readonly supabaseService: SupabaseService) {}
 
   async findAll(): Promise<ServiceItem[]> {
-    return this.serviceItemRepository.find({
-      where: { isActive: true },
-      order: { sortOrder: 'ASC', name: 'ASC' },
-    });
+    const supabase = this.supabaseService.getAdminClient();
+    const { data, error } = await supabase
+      .from('service_items')
+      .select('*')
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true })
+      .order('name', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
   }
 
   async findByCategory(category: ServiceItemCategory): Promise<ServiceItem[]> {
-    return this.serviceItemRepository.find({
-      where: { category, isActive: true },
-      order: { sortOrder: 'ASC', name: 'ASC' },
-    });
+    const supabase = this.supabaseService.getAdminClient();
+    const { data, error } = await supabase
+      .from('service_items')
+      .select('*')
+      .eq('category', category)
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true })
+      .order('name', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
   }
 
-  async findOne(id: number): Promise<ServiceItem | null> {
-    return this.serviceItemRepository.findOne({ where: { id } });
+  async findOne(id: string): Promise<ServiceItem | null> {
+    const supabase = this.supabaseService.getAdminClient();
+    const { data, error } = await supabase
+      .from('service_items')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null; // Not found
+      throw error;
+    }
+    return data;
   }
 
   async create(item: Partial<ServiceItem>): Promise<ServiceItem> {
-    const serviceItem = this.serviceItemRepository.create(item);
-    return this.serviceItemRepository.save(serviceItem);
+    const supabase = this.supabaseService.getAdminClient();
+    const { data, error } = await supabase
+      .from('service_items')
+      .insert(item)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   }
 
-  async update(id: number, item: Partial<ServiceItem>): Promise<ServiceItem | null> {
-    await this.serviceItemRepository.update(id, item);
-    return this.findOne(id);
-  }
+  async update(id: string, item: Partial<ServiceItem>): Promise<ServiceItem | null> {
+    const supabase = this.supabaseService.getAdminClient();
+    const { data, error } = await supabase
+      .from('service_items')
+      .update(item)
+      .eq('id', id)
+      .select()
+      .single();
 
-  async delete(id: number): Promise<void> {
-    await this.serviceItemRepository.delete(id);
-  }
-
-  async seedDefaultItems(): Promise<void> {
-    const count = await this.serviceItemRepository.count();
-    if (count > 0) {
-      return; // Already seeded
+    if (error) {
+      if (error.code === 'PGRST116') return null; // Not found
+      throw error;
     }
+    return data;
+  }
 
-    const defaultItems: Partial<ServiceItem>[] = [
-      {
-        name: 'Facility Rental',
-        description: 'Venue space rental for the duration of the event',
-        category: ServiceItemCategory.FACILITY,
-        defaultPrice: 2500.00,
-        sortOrder: 1,
-      },
-      {
-        name: 'Catering Services',
-        description: 'Full catering service including food preparation and serving',
-        category: ServiceItemCategory.CATERING,
-        defaultPrice: 0.00,
-        sortOrder: 2,
-      },
-      {
-        name: 'Tables & Chairs',
-        description: 'Event furniture rental - tables, chairs, and linens',
-        category: ServiceItemCategory.ITEMS,
-        defaultPrice: 0.00,
-        sortOrder: 3,
-      },
-      {
-        name: 'Security Services',
-        description: 'Professional security personnel for event duration',
-        category: ServiceItemCategory.SECURITY,
-        defaultPrice: 0.00,
-        sortOrder: 4,
-      },
-      {
-        name: 'Bar Service',
-        description: 'Bar setup and service including bartender',
-        category: ServiceItemCategory.BAR,
-        defaultPrice: 0.00,
-        sortOrder: 5,
-      },
-      {
-        name: 'Security Deposit',
-        description: 'Refundable security deposit for venue protection',
-        category: ServiceItemCategory.DEPOSIT,
-        defaultPrice: 500.00,
-        sortOrder: 6,
-      },
-      {
-        name: 'Sound System',
-        description: 'Professional audio system with speakers and microphones',
-        category: ServiceItemCategory.SOUND_SYSTEM,
-        defaultPrice: 500.00,
-        sortOrder: 7,
-      },
-      {
-        name: 'A/V Equipment',
-        description: 'Audio/Visual equipment including projector, screens, and lighting',
-        category: ServiceItemCategory.AV,
-        defaultPrice: 750.00,
-        sortOrder: 8,
-      },
-      {
-        name: 'Event Planning',
-        description: 'Professional event planning and coordination services',
-        category: ServiceItemCategory.PLANNING,
-        defaultPrice: 1000.00,
-        sortOrder: 9,
-      },
-      {
-        name: 'Decorations',
-        description: 'Event decorations including centerpieces, balloons, and themed decor',
-        category: ServiceItemCategory.DECORATIONS,
-        defaultPrice: 0.00,
-        sortOrder: 10,
-      },
-      {
-        name: 'Additional Time',
-        description: 'Extended rental time beyond standard package (per hour)',
-        category: ServiceItemCategory.ADDITIONAL_TIME,
-        defaultPrice: 250.00,
-        sortOrder: 11,
-      },
-      {
-        name: 'Sales Tax',
-        description: 'Applicable sales tax on taxable items and services',
-        category: ServiceItemCategory.SALES_TAX,
-        defaultPrice: 0.00,
-        sortOrder: 12,
-      },
-      {
-        name: 'Event Hosting',
-        description: 'Professional host/MC services for event coordination',
-        category: ServiceItemCategory.HOSTING,
-        defaultPrice: 500.00,
-        sortOrder: 13,
-      },
-      {
-        name: 'Miscellaneous',
-        description: 'Miscellaneous services or items',
-        category: ServiceItemCategory.MISC,
-        defaultPrice: 0.00,
-        sortOrder: 14,
-      },
-    ];
+  async delete(id: string): Promise<void> {
+    const supabase = this.supabaseService.getAdminClient();
+    const { error } = await supabase
+      .from('service_items')
+      .delete()
+      .eq('id', id);
 
-    for (const item of defaultItems) {
-      await this.create(item);
-    }
+    if (error) throw error;
   }
 }

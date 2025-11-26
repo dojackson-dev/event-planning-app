@@ -1,47 +1,77 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, ParseIntPipe } from '@nestjs/common';
-import { ServiceItemsService } from './service-items.service';
-import { ServiceItem, ServiceItemCategory } from '../entities/service-item.entity';
+import { Controller, Get, Post, Put, Delete, Body, Param, Headers, UnauthorizedException } from '@nestjs/common';
+import { ServiceItemsService, ServiceItem } from './service-items.service';
+import { ServiceItemCategory } from '../entities/service-item.entity';
+import { SupabaseService } from '../supabase/supabase.service';
 
 @Controller('service-items')
 export class ServiceItemsController {
-  constructor(private readonly serviceItemsService: ServiceItemsService) {}
+  constructor(
+    private readonly serviceItemsService: ServiceItemsService,
+    private readonly supabaseService: SupabaseService,
+  ) {}
+
+  private extractToken(authorization: string): string {
+    if (!authorization) {
+      throw new UnauthorizedException('No authorization header');
+    }
+    return authorization.replace('Bearer ', '');
+  }
 
   @Get()
-  async findAll(): Promise<ServiceItem[]> {
+  async findAll(@Headers('authorization') authorization: string): Promise<ServiceItem[]> {
+    const token = this.extractToken(authorization);
+    this.supabaseService.setAuthContext(token);
     return this.serviceItemsService.findAll();
   }
 
   @Get('category/:category')
-  async findByCategory(@Param('category') category: ServiceItemCategory): Promise<ServiceItem[]> {
+  async findByCategory(
+    @Param('category') category: ServiceItemCategory,
+    @Headers('authorization') authorization: string,
+  ): Promise<ServiceItem[]> {
+    const token = this.extractToken(authorization);
+    this.supabaseService.setAuthContext(token);
     return this.serviceItemsService.findByCategory(category);
   }
 
   @Get(':id')
-  async findOne(@Param('id', ParseIntPipe) id: number): Promise<ServiceItem | null> {
+  async findOne(
+    @Param('id') id: string,
+    @Headers('authorization') authorization: string,
+  ): Promise<ServiceItem | null> {
+    const token = this.extractToken(authorization);
+    this.supabaseService.setAuthContext(token);
     return this.serviceItemsService.findOne(id);
   }
 
   @Post()
-  async create(@Body() item: Partial<ServiceItem>): Promise<ServiceItem> {
+  async create(
+    @Body() item: Partial<ServiceItem>,
+    @Headers('authorization') authorization: string,
+  ): Promise<ServiceItem> {
+    const token = this.extractToken(authorization);
+    this.supabaseService.setAuthContext(token);
     return this.serviceItemsService.create(item);
-  }
-
-  @Post('seed')
-  async seed(): Promise<{ message: string }> {
-    await this.serviceItemsService.seedDefaultItems();
-    return { message: 'Default service items seeded successfully' };
   }
 
   @Put(':id')
   async update(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id') id: string,
     @Body() item: Partial<ServiceItem>,
+    @Headers('authorization') authorization: string,
   ): Promise<ServiceItem | null> {
+    const token = this.extractToken(authorization);
+    this.supabaseService.setAuthContext(token);
     return this.serviceItemsService.update(id, item);
   }
 
   @Delete(':id')
-  async delete(@Param('id', ParseIntPipe) id: number): Promise<void> {
+  async delete(
+    @Param('id') id: string,
+    @Headers('authorization') authorization: string,
+  ): Promise<void> {
+    const token = this.extractToken(authorization);
+    this.supabaseService.setAuthContext(token);
     return this.serviceItemsService.delete(id);
   }
 }

@@ -5,6 +5,16 @@ import api from '@/lib/api'
 import { Item } from '@/types'
 import { Plus, Edit, Trash2, Package } from 'lucide-react'
 
+const categoryLabels: Record<string, string> = {
+  sound_system: 'Sound System',
+  lighting: 'Lighting',
+  staging: 'Staging',
+  furniture: 'Furniture',
+  catering: 'Catering',
+  decoration: 'Decoration',
+  other: 'Other'
+}
+
 export default function ItemsPage() {
   const [items, setItems] = useState<Item[]>([])
   const [loading, setLoading] = useState(true)
@@ -198,15 +208,15 @@ export default function ItemsPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Type *
+                  Category *
                 </label>
                 <select
                   required
-                  value={formData.type}
-                  onChange={(e) => setFormData({ ...formData, type: e.target.value as ItemType })}
+                  value={formData.category}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
                 >
-                  {Object.entries(itemTypeLabels).map(([value, label]) => (
+                  {Object.entries(categoryLabels).map(([value, label]) => (
                     <option key={value} value={value}>
                       {label}
                     </option>
@@ -223,8 +233,8 @@ export default function ItemsPage() {
                   step="0.01"
                   min="0"
                   required
-                  value={formData.price}
-                  onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                  value={formData.default_price}
+                  onChange={(e) => setFormData({ ...formData, default_price: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
                 />
               </div>

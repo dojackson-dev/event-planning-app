@@ -2,26 +2,21 @@
 
 import { useState, useEffect } from 'react'
 import api from '@/lib/api'
-import { Item, ItemType } from '@/types'
+import { Item } from '@/types'
 import { Plus, Edit, Trash2, Package } from 'lucide-react'
-
-const itemTypeLabels: Record<ItemType, string> = {
-  [ItemType.SETUP]: 'Setup',
-  [ItemType.CATERING]: 'Catering',
-  [ItemType.ENTERTAINMENT]: 'Entertainment',
-}
 
 export default function ItemsPage() {
   const [items, setItems] = useState<Item[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<'all' | ItemType>('all')
+  const [filter, setFilter] = useState<string>('all')
   const [showModal, setShowModal] = useState(false)
   const [editingItem, setEditingItem] = useState<Item | null>(null)
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    type: ItemType.SETUP,
-    price: '',
+    category: 'sound_system',
+    default_price: '',
+    is_active: true,
   })
 
   useEffect(() => {
@@ -30,7 +25,7 @@ export default function ItemsPage() {
 
   const fetchItems = async () => {
     try {
-      const response = await api.get<Item[]>('/items')
+      const response = await api.get<Item[]>('/service-items')
       setItems(response.data)
     } catch (error) {
       console.error('Failed to fetch items:', error)
@@ -43,19 +38,22 @@ export default function ItemsPage() {
     e.preventDefault()
     try {
       const payload = {
-        ...formData,
-        price: parseFloat(formData.price),
+        name: formData.name,
+        description: formData.description,
+        category: formData.category,
+        default_price: parseFloat(formData.default_price),
+        is_active: formData.is_active,
       }
 
       if (editingItem) {
-        await api.put(`/items/${editingItem.id}`, payload)
+        await api.put(`/service-items/${editingItem.id}`, payload)
       } else {
-        await api.post('/items', payload)
+        await api.post('/service-items', payload)
       }
 
       setShowModal(false)
       setEditingItem(null)
-      setFormData({ name: '', description: '', type: ItemType.SETUP, price: '' })
+      setFormData({ name: '', description: '', category: 'sound_system', default_price: '', is_active: true })
       fetchItems()
     } catch (error) {
       console.error('Failed to save item:', error)
@@ -67,8 +65,9 @@ export default function ItemsPage() {
     setFormData({
       name: item.name,
       description: item.description || '',
-      type: item.type,
-      price: item.price.toString(),
+      category: item.category,
+      default_price: item.default_price.toString(),
+      is_active: item.is_active,
     })
     setShowModal(true)
   }
@@ -77,14 +76,14 @@ export default function ItemsPage() {
     if (!confirm('Are you sure you want to delete this item?')) return
 
     try {
-      await api.delete(`/items/${id}`)
+      await api.delete(`/service-items/${id}`)
       fetchItems()
     } catch (error) {
       console.error('Failed to delete item:', error)
     }
   }
 
-  const filteredItems = filter === 'all' ? items : items.filter(i => i.type === filter)
+  const filteredItems = filter === 'all' ? items : items.filter(i => i.category === filter)
 
   if (loading) {
     return <div>Loading...</div>
@@ -119,19 +118,6 @@ export default function ItemsPage() {
         >
           All Items
         </button>
-        {Object.entries(itemTypeLabels).map(([value, label]) => (
-          <button
-            key={value}
-            onClick={() => setFilter(value as ItemType)}
-            className={`px-4 py-2 rounded-md transition-colors ${
-              filter === value
-                ? 'bg-primary-600 text-white'
-                : 'bg-white text-gray-700 hover:bg-gray-100'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
       </div>
 
       {/* Items Grid */}
@@ -143,7 +129,7 @@ export default function ItemsPage() {
                 <Package className="h-8 w-8 text-primary-500 mr-3" />
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">{item.name}</h3>
-                  <span className="text-xs text-gray-500">{itemTypeLabels[item.type]}</span>
+                  <span className="text-xs text-gray-500">{item.category}</span>
                 </div>
               </div>
               <div className="flex gap-2">
@@ -165,7 +151,7 @@ export default function ItemsPage() {
               <p className="text-sm text-gray-600 mb-4">{item.description}</p>
             )}
             <div className="pt-4 border-t">
-              <p className="text-2xl font-bold text-gray-900">${item.price.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-gray-900">${item.default_price.toFixed(2)}</p>
             </div>
           </div>
         ))}

@@ -197,11 +197,13 @@ export interface Item {
   id: string
   name: string
   description?: string
-  type: ItemType
-  price: number
-  tenantId: string
-  createdAt: string
-  updatedAt: string
+  category: string
+  default_price: number
+  is_active: boolean
+  sort_order?: number
+  owner_id?: string | null
+  created_at: string
+  updated_at: string
 }
 
 // BookingItem

@@ -48,7 +48,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (credentials: LoginCredentials) => {
     try {
       const response = await api.post<AuthResponse>('/auth/login', credentials)
-      const { access_token, user } = response.data
+      const { access_token, user: supabaseUser } = response.data
+      
+      // Transform Supabase user to our User interface
+      const user: User = {
+        id: supabaseUser.id,
+        email: supabaseUser.email || '',
+        firstName: supabaseUser.user_metadata?.first_name || '',
+        lastName: supabaseUser.user_metadata?.last_name || '',
+        role: supabaseUser.user_metadata?.role || 'owner',
+        createdAt: supabaseUser.created_at || new Date().toISOString(),
+        updatedAt: supabaseUser.updated_at || new Date().toISOString()
+      }
       
       localStorage.setItem('access_token', access_token)
       localStorage.setItem('user', JSON.stringify(user))

@@ -77,9 +77,25 @@ export default function ClientDetailPage() {
     }
   }
 
-  const handleConvertToBooking = () => {
-    // TODO: Implement conversion to booking
-    alert('Convert to booking feature coming soon!')
+  const handleConvertToBooking = async () => {
+    if (!client) return
+    
+    if (!confirm('Are you sure you want to convert this intake form to a booking? This will create a new event and booking.')) {
+      return
+    }
+    
+    setUpdating(true)
+    try {
+      const response = await api.post(`/intake-forms/${client.id}/convert-to-booking`, {})
+      alert('Successfully converted to booking!')
+      // Redirect to the bookings page
+      router.push('/dashboard/bookings')
+    } catch (error: any) {
+      console.error('Error converting to booking:', error)
+      alert(error.response?.data?.message || 'Error converting to booking')
+    } finally {
+      setUpdating(false)
+    }
   }
 
   const formatEventType = (type: string) => {
@@ -364,10 +380,15 @@ export default function ClientDetailPage() {
               <div className="space-y-3">
                 <button
                   onClick={handleConvertToBooking}
-                  className="w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center justify-center gap-2"
+                  disabled={updating || client.status === 'converted'}
+                  className="w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   <CheckCircle className="h-4 w-4" />
-                  Convert to Booking
+                  {client.status === 'converted' 
+                    ? 'Already Converted' 
+                    : updating 
+                    ? 'Converting...' 
+                    : 'Convert to Booking'}
                 </button>
                 <button
                   onClick={() => window.location.href = `mailto:${client.contact_email}`}

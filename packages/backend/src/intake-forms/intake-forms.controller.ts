@@ -73,4 +73,12 @@ export class IntakeFormsController {
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
     return this.intakeFormsService.remove(supabaseWithAuth, userId, id);
   }
+
+  @Post(':id/convert-to-booking')
+  async convertToBooking(@Headers('authorization') authorization: string, @Param('id') id: string) {
+    const token = this.extractToken(authorization);
+    const userId = await this.getUserId(authorization);
+    const supabaseWithAuth = this.supabaseService.setAuthContext(token);
+    return this.intakeFormsService.convertToBooking(supabaseWithAuth, userId, id);
+  }
 }

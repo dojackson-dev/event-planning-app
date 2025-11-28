@@ -66,4 +66,77 @@ export class IntakeFormsService {
     if (error) throw error;
     return { message: 'Intake form deleted successfully' };
   }
+
+  async convertToBooking(supabase: SupabaseClient, userId: string, intakeFormId: string) {
+    // Get the intake form
+    const { data: intakeForm, error: intakeError } = await supabase
+      .from('intake_forms')
+      .select('*')
+      .eq('id', intakeFormId)
+      .eq('user_id', userId)
+      .single();
+
+    if (intakeError) throw intakeError;
+    if (!intakeForm) throw new Error('Intake form not found');
+
+    // Create an event first
+    const eventData = {
+      user_id: userId,
+      name: `${intakeForm.event_type} Event - ${intakeForm.contact_name}`,
+      date: intakeForm.event_date,
+      time: intakeForm.event_time || '00:00',
+      description: intakeForm.special_requests || '',
+      status: 'pending',
+      max_guests: intakeForm.guest_count,
+    };
+
+    const { data: event, error: eventError } = await supabase
+      .from('event')
+      .insert([eventData])
+      .select()
+      .single();
+
+    if (eventError) throw eventError;
+
+    // Create the booking
+    const bookingData = {
+      user_id: userId,
+      event_id: event.id,
+      booking_date: new Date().toISOString().split('T')[0],
+      status: 'pending',
+      contact_name: intakeForm.contact_name,
+      contact_email: intakeForm.contact_email,
+      contact_phone: intakeForm.contact_phone,
+      special_requests: [
+        intakeForm.special_requests,
+        intakeForm.catering_requirements ? `Catering: ${intakeForm.catering_requirements}` : null,
+        intakeForm.equipment_needs ? `Equipment: ${intakeForm.equipment_needs}` : null,
+        intakeForm.dietary_restrictions ? `Dietary: ${intakeForm.dietary_restrictions}` : null,
+        intakeForm.accessibility_requirements ? `Accessibility: ${intakeForm.accessibility_requirements}` : null,
+      ].filter(Boolean).join('\n'),
+      notes: `Converted from intake form. Budget range: ${intakeForm.budget_range || 'Not specified'}`,
+    };
+
+    const { data: booking, error: bookingError } = await supabase
+      .from('booking')
+      .insert([bookingData])
+      .select('*, event(*)')
+      .single();
+
+    if (bookingError) throw bookingError;
+
+    // Update intake form status to 'converted'
+    await supabase
+      .from('intake_forms')
+      .update({ status: 'converted' })
+      .eq('id', intakeFormId)
+      .eq('user_id', userId);
+
+    return {
+      booking,
+      event,
+      message: 'Successfully converted intake form to booking',
+    };
+  }
 }
+

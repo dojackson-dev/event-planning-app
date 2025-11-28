@@ -1,33 +1,84 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Headers, UnauthorizedException } from '@nestjs/common';
 import { BookingsService } from './bookings.service';
 import { Booking } from '../entities/booking.entity';
+import { SupabaseService } from '../supabase/supabase.service';
 
 @Controller('bookings')
 export class BookingsController {
-  constructor(private readonly bookingsService: BookingsService) {}
+  constructor(
+    private readonly bookingsService: BookingsService,
+    private readonly supabaseService: SupabaseService,
+  ) {}
+
+  private extractToken(authorization?: string): string {
+    if (!authorization) {
+      throw new UnauthorizedException('No authorization header');
+    }
+    return authorization.replace('Bearer ', '');
+  }
+
+  private async getUserId(authorization?: string): Promise<string> {
+    const token = this.extractToken(authorization);
+    const supabaseWithAuth = this.supabaseService.setAuthContext(token);
+    const { data: { user }, error } = await supabaseWithAuth.auth.getUser(token);
+    
+    if (error || !user) {
+      throw new UnauthorizedException('Invalid token');
+    }
+    
+    return user.id;
+  }
 
   @Post()
-  async create(@Body() createBookingDto: Partial<Booking>): Promise<Booking> {
-    return this.bookingsService.create(createBookingDto);
+  async create(
+    @Headers('authorization') authorization: string,
+    @Body() createBookingDto: any
+  ): Promise<any> {
+    const userId = await this.getUserId(authorization);
+    const token = this.extractToken(authorization);
+    const supabaseWithAuth = this.supabaseService.setAuthContext(token);
+    return this.bookingsService.create(supabaseWithAuth, { ...createBookingDto, userId });
   }
 
   @Get()
-  async findAll(): Promise<Booking[]> {
-    return this.bookingsService.findAll();
+  async findAll(@Headers('authorization') authorization: string): Promise<any[]> {
+    await this.getUserId(authorization);
+    const token = this.extractToken(authorization);
+    const supabaseWithAuth = this.supabaseService.setAuthContext(token);
+    return this.bookingsService.findAll(supabaseWithAuth);
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: string): Promise<Booking | null> {
-    return this.bookingsService.findOne(+id);
+  async findOne(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string
+  ): Promise<any | null> {
+    await this.getUserId(authorization);
+    const token = this.extractToken(authorization);
+    const supabaseWithAuth = this.supabaseService.setAuthContext(token);
+    return this.bookingsService.findOne(supabaseWithAuth, +id);
   }
 
   @Patch(':id')
-  async update(@Param('id') id: string, @Body() updateBookingDto: Partial<Booking>): Promise<Booking | null> {
-    return this.bookingsService.update(+id, updateBookingDto);
+  async update(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+    @Body() updateBookingDto: any
+  ): Promise<any | null> {
+    await this.getUserId(authorization);
+    const token = this.extractToken(authorization);
+    const supabaseWithAuth = this.supabaseService.setAuthContext(token);
+    return this.bookingsService.update(supabaseWithAuth, +id, updateBookingDto);
   }
 
   @Delete(':id')
-  async remove(@Param('id') id: string): Promise<void> {
-    return this.bookingsService.remove(+id);
+  async remove(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string
+  ): Promise<void> {
+    await this.getUserId(authorization);
+    const token = this.extractToken(authorization);
+    const supabaseWithAuth = this.supabaseService.setAuthContext(token);
+    return this.bookingsService.remove(supabaseWithAuth, +id);
   }
 }

@@ -1,34 +1,64 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseService } from '../supabase/supabase.service';
 import { Event } from '../entities/event.entity';
 
 @Injectable()
 export class EventsService {
   constructor(
-    @InjectRepository(Event)
-    private eventRepository: Repository<Event>,
+    private readonly supabaseService: SupabaseService,
   ) {}
 
-  async findAll(): Promise<Event[]> {
-    return this.eventRepository.find({ relations: ['owner'] });
+  async findAll(supabase: SupabaseClient): Promise<Event[]> {
+    const { data, error } = await supabase
+      .from('event')
+      .select('*')
+      .order('date', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
   }
 
-  async findOne(id: number): Promise<Event | null> {
-    return this.eventRepository.findOne({ where: { id }, relations: ['owner'] });
+  async findOne(supabase: SupabaseClient, id: number): Promise<Event | null> {
+    const { data, error } = await supabase
+      .from('event')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) throw error;
+    return data;
   }
 
-  async create(event: Partial<Event>): Promise<Event> {
-    const newEvent = this.eventRepository.create(event);
-    return this.eventRepository.save(newEvent);
+  async create(supabase: SupabaseClient, event: Partial<Event>): Promise<Event> {
+    const { data, error } = await supabase
+      .from('event')
+      .insert([event])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   }
 
-  async update(id: number, event: Partial<Event>): Promise<Event | null> {
-    await this.eventRepository.update(id, event);
-    return this.findOne(id);
+  async update(supabase: SupabaseClient, id: number, event: Partial<Event>): Promise<Event | null> {
+    const { data, error } = await supabase
+      .from('event')
+      .update(event)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   }
 
-  async remove(id: number): Promise<void> {
-    await this.eventRepository.delete(id);
+  async remove(supabase: SupabaseClient, id: number): Promise<void> {
+    const { error } = await supabase
+      .from('event')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
   }
 }

@@ -1,34 +1,64 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseService } from '../supabase/supabase.service';
 import { Booking } from '../entities/booking.entity';
 
 @Injectable()
 export class BookingsService {
   constructor(
-    @InjectRepository(Booking)
-    private bookingRepository: Repository<Booking>,
+    private readonly supabaseService: SupabaseService,
   ) {}
 
-  async findAll(): Promise<Booking[]> {
-    return this.bookingRepository.find({ relations: ['user', 'event'] });
+  async findAll(supabase: SupabaseClient): Promise<Booking[]> {
+    const { data, error } = await supabase
+      .from('booking')
+      .select('*, event(*)')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
   }
 
-  async findOne(id: number): Promise<Booking | null> {
-    return this.bookingRepository.findOne({ where: { id }, relations: ['user', 'event'] });
+  async findOne(supabase: SupabaseClient, id: number): Promise<Booking | null> {
+    const { data, error } = await supabase
+      .from('booking')
+      .select('*, event(*)')
+      .eq('id', id)
+      .single();
+
+    if (error) throw error;
+    return data;
   }
 
-  async create(booking: Partial<Booking>): Promise<Booking> {
-    const newBooking = this.bookingRepository.create(booking);
-    return this.bookingRepository.save(newBooking);
+  async create(supabase: SupabaseClient, booking: Partial<Booking>): Promise<Booking> {
+    const { data, error } = await supabase
+      .from('booking')
+      .insert([booking])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   }
 
-  async update(id: number, booking: Partial<Booking>): Promise<Booking | null> {
-    await this.bookingRepository.update(id, booking);
-    return this.findOne(id);
+  async update(supabase: SupabaseClient, id: number, booking: Partial<Booking>): Promise<Booking | null> {
+    const { data, error } = await supabase
+      .from('booking')
+      .update(booking)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   }
 
-  async remove(id: number): Promise<void> {
-    await this.bookingRepository.delete(id);
+  async remove(supabase: SupabaseClient, id: number): Promise<void> {
+    const { error } = await supabase
+      .from('booking')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
   }
 }

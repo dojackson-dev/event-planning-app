@@ -5,11 +5,12 @@ import { AppService } from './app.service';
 import { SupabaseModule } from './supabase/supabase.module';
 import { AuthModule } from './auth/auth.module';
 import { ServiceItemsModule } from './service-items/service-items.module';
+import { IntakeFormsModule } from './intake-forms/intake-forms.module';
+import { EventsModule } from './events/events.module';
+import { BookingsModule } from './bookings/bookings.module';
 // Commenting out feature modules that use TypeORM for now
 // We'll refactor these to use Supabase client one by one
 // import { UsersModule } from './users/users.module';
-// import { EventsModule } from './events/events.module';
-// import { BookingsModule } from './bookings/bookings.module';
 // import { InvoicesModule } from './invoices/invoices.module';
 // import { ContractsModule } from './contracts/contracts.module';
 // import { SecurityModule } from './security/security.module';
@@ -24,9 +25,10 @@ import { ServiceItemsModule } from './service-items/service-items.module';
     SupabaseModule,
     AuthModule,
     ServiceItemsModule,
+    IntakeFormsModule,
+    EventsModule,
+    BookingsModule,
     // UsersModule,
-    // EventsModule,
-    // BookingsModule,
     // InvoicesModule,
     // ContractsModule,
     // SecurityModule,

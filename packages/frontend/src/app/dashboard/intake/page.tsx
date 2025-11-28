@@ -34,6 +34,32 @@ export default function ClientIntakePage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  // Map frontend event types to database enum values
+  const mapEventTypeToDb = (eventType: EventType): string => {
+    const mapping: Record<string, string> = {
+      [EventType.WEDDING_RECEPTION]: 'wedding',
+      [EventType.ANNIVERSARY]: 'anniversary',
+      [EventType.BIRTHDAY_PARTY]: 'birthday',
+      [EventType.SWEET_16]: 'birthday',
+      [EventType.RETIREMENT]: 'party',
+      [EventType.BABY_SHOWER]: 'party',
+      [EventType.QUINCEANERA]: 'party',
+      [EventType.PROM_FORMAL]: 'party',
+      [EventType.FAMILY_REUNION]: 'party',
+      [EventType.HOLIDAY_PARTY]: 'party',
+      [EventType.ENGAGEMENT_PARTY]: 'party',
+      [EventType.GRADUATION_PARTY]: 'party',
+      [EventType.CORPORATE_EVENT]: 'corporate',
+      [EventType.FUNDRAISER_GALA]: 'corporate',
+      [EventType.PRODUCT_LAUNCH]: 'corporate',
+      [EventType.CONFERENCE_MEETING]: 'conference',
+      [EventType.WORKSHOP]: 'workshop',
+      [EventType.CONCERT_SHOW]: 'party',
+      [EventType.MEMORIAL_SERVICE]: 'party',
+    }
+    return mapping[eventType] || 'other'
+  }
+
   const [formData, setFormData] = useState({
     // Client Information
     firstName: '',
@@ -136,14 +162,50 @@ export default function ClientIntakePage() {
     setLoading(true)
 
     try {
+      // Transform frontend data to match database schema
+      const dbData = {
+        event_type: mapEventTypeToDb(formData.eventType),
+        event_date: formData.eventDate,
+        event_time: formData.startTime || null,
+        guest_count: parseInt(formData.estimatedGuests) || null,
+        venue_preference: formData.preferredVenue || null,
+        contact_name: `${formData.firstName} ${formData.lastName}`.trim() || 'Unknown',
+        contact_email: formData.email || 'unknown@example.com',
+        contact_phone: formData.phone || null,
+        services_needed: [
+          formData.needsCatering && 'Catering',
+          formData.needsDecorator && 'Decoration',
+          formData.musicType && `Music: ${formData.musicType}`,
+          formData.needsPhotographer && 'Photography',
+          formData.needsVideographer && 'Videography',
+          formData.needsSecurity && 'Security',
+          formData.needsValet && 'Valet Parking'
+        ].filter(Boolean).join(', ') || null,
+        catering_requirements: formData.needsCatering ? `${formData.cateringStyle || ''} | Bar: ${formData.barOption}`.trim() : null,
+        equipment_needs: [
+          formData.needsDanceFloor && 'Dance Floor',
+          formData.needsStage && 'Stage',
+          formData.needsBalloons && 'Balloons',
+          formData.needsMarquee && 'Marquee'
+        ].filter(Boolean).join(', ') || null,
+        special_requests: formData.specialRequests || null,
+        dietary_restrictions: formData.dietaryRestrictions || null,
+        accessibility_requirements: formData.accessibility || null,
+        budget_range: formData.estimatedBudget || null,
+        how_did_you_hear: formData.referralSource || null
+      }
+
+      console.log('Submitting intake form data:', dbData)
+
       // Submit intake form
-      await api.post('/intake-forms', formData)
+      await api.post('/intake-forms', dbData)
       
       // Show success message
       alert('Client intake form submitted successfully!')
       router.push('/dashboard/bookings')
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to submit intake form')
+      console.error('Intake form submission error:', err.response?.data || err.message)
+      setError(err.response?.data?.message || err.message || 'Failed to submit intake form')
     } finally {
       setLoading(false)
     }

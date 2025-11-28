@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { BookingsController } from './bookings.controller';
 import { BookingsService } from './bookings.service';
-import { Booking } from '../entities/booking.entity';
+import { SupabaseModule } from '../supabase/supabase.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Booking])],
+  imports: [SupabaseModule],
   controllers: [BookingsController],
-  providers: [BookingsService]
+  providers: [BookingsService],
+  exports: [BookingsService]
 })
 export class BookingsModule {}

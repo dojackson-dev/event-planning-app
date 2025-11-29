@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import api from '@/lib/api'
-import { Item } from '@/types'
+import { Item, ItemType } from '@/types'
 import { Plus, Edit, Trash2, Package } from 'lucide-react'
 
 const categoryLabels: Record<string, string> = {
+  facility_rental: 'Facility Rental',
   sound_system: 'Sound System',
   lighting: 'Lighting',
   staging: 'Staging',
@@ -106,7 +107,7 @@ export default function ItemsPage() {
         <button
           onClick={() => {
             setEditingItem(null)
-            setFormData({ name: '', description: '', type: ItemType.SETUP, price: '' })
+            setFormData({ name: '', description: '', category: 'sound_system', default_price: '', is_active: true })
             setShowModal(true)
           }}
           className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"

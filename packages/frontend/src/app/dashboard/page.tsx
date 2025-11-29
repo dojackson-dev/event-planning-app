@@ -388,10 +388,10 @@ export default function DashboardPage() {
                     <span className="text-xs sm:text-sm">{getClientStatusLabel(booking.clientStatus)}</span>
                   </td>
                   <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    ${booking.totalPrice.toFixed(2)}
+                    ${booking.totalPrice?.toFixed(2) ?? '0.00'}
                   </td>
                   <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden sm:table-cell">
-                    ${booking.totalAmountPaid.toFixed(2)}
+                    ${booking.totalAmountPaid?.toFixed(2) ?? '0.00'}
                   </td>
                   <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${

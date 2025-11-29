@@ -56,7 +56,7 @@ export class BookingsController {
     await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.bookingsService.findOne(supabaseWithAuth, +id);
+    return this.bookingsService.findOne(supabaseWithAuth, id);
   }
 
   @Patch(':id')
@@ -68,7 +68,7 @@ export class BookingsController {
     await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.bookingsService.update(supabaseWithAuth, +id, updateBookingDto);
+    return this.bookingsService.update(supabaseWithAuth, id, updateBookingDto);
   }
 
   @Delete(':id')
@@ -79,6 +79,6 @@ export class BookingsController {
     await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.bookingsService.remove(supabaseWithAuth, +id);
+    return this.bookingsService.remove(supabaseWithAuth, id);
   }
 }

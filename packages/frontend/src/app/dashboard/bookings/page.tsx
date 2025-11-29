@@ -182,10 +182,10 @@ export default function BookingsPage() {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    ${booking.totalPrice.toFixed(2)}
+                    ${booking.totalPrice?.toFixed(2) ?? '0.00'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    ${booking.totalAmountPaid.toFixed(2)}
+                    ${booking.totalAmountPaid?.toFixed(2) ?? '0.00'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex gap-2">

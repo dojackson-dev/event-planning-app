@@ -19,7 +19,7 @@ export class BookingsService {
     return data || [];
   }
 
-  async findOne(supabase: SupabaseClient, id: number): Promise<Booking | null> {
+  async findOne(supabase: SupabaseClient, id: string): Promise<Booking | null> {
     const { data, error } = await supabase
       .from('booking')
       .select('*, event(*)')
@@ -41,7 +41,7 @@ export class BookingsService {
     return data;
   }
 
-  async update(supabase: SupabaseClient, id: number, booking: Partial<Booking>): Promise<Booking | null> {
+  async update(supabase: SupabaseClient, id: string, booking: Partial<Booking>): Promise<Booking | null> {
     const { data, error } = await supabase
       .from('booking')
       .update(booking)
@@ -53,7 +53,7 @@ export class BookingsService {
     return data;
   }
 
-  async remove(supabase: SupabaseClient, id: number): Promise<void> {
+  async remove(supabase: SupabaseClient, id: string): Promise<void> {
     const { error } = await supabase
       .from('booking')
       .delete()

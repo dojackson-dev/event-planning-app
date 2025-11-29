@@ -44,7 +44,7 @@ export class ServiceItem {
   sortOrder: number;
 
   @Column({ nullable: true })
-  tenantId: number;
+  ownerId: string;
 
   @CreateDateColumn()
   createdAt: Date;

@@ -10,6 +10,7 @@ export interface ServiceItem {
   default_price: number;
   is_active: boolean;
   sort_order: number;
+  image_url?: string;
   owner_id?: string;
   created_at?: string;
   updated_at?: string;
@@ -19,11 +20,11 @@ export interface ServiceItem {
 export class ServiceItemsService {
   constructor(private readonly supabaseService: SupabaseService) {}
 
-  async findAll(): Promise<ServiceItem[]> {
-    const supabase = this.supabaseService.getAdminClient();
+  async findAll(supabase: any, userId: string): Promise<ServiceItem[]> {
     const { data, error } = await supabase
       .from('service_items')
       .select('*')
+      .or(`owner_id.eq.${userId},owner_id.is.null`)
       .eq('is_active', true)
       .order('sort_order', { ascending: true })
       .order('name', { ascending: true });
@@ -32,12 +33,12 @@ export class ServiceItemsService {
     return data || [];
   }
 
-  async findByCategory(category: ServiceItemCategory): Promise<ServiceItem[]> {
-    const supabase = this.supabaseService.getAdminClient();
+  async findByCategory(supabase: any, userId: string, category: ServiceItemCategory): Promise<ServiceItem[]> {
     const { data, error } = await supabase
       .from('service_items')
       .select('*')
       .eq('category', category)
+      .or(`owner_id.eq.${userId},owner_id.is.null`)
       .eq('is_active', true)
       .order('sort_order', { ascending: true })
       .order('name', { ascending: true });
@@ -46,12 +47,12 @@ export class ServiceItemsService {
     return data || [];
   }
 
-  async findOne(id: string): Promise<ServiceItem | null> {
-    const supabase = this.supabaseService.getAdminClient();
+  async findOne(supabase: any, userId: string, id: string): Promise<ServiceItem | null> {
     const { data, error } = await supabase
       .from('service_items')
       .select('*')
       .eq('id', id)
+      .or(`owner_id.eq.${userId},owner_id.is.null`)
       .single();
 
     if (error) {
@@ -61,11 +62,11 @@ export class ServiceItemsService {
     return data;
   }
 
-  async create(item: Partial<ServiceItem>): Promise<ServiceItem> {
-    const supabase = this.supabaseService.getAdminClient();
+  async create(supabase: any, userId: string, item: Partial<ServiceItem>): Promise<ServiceItem> {
+    const itemWithOwner = { ...item, owner_id: userId };
     const { data, error } = await supabase
       .from('service_items')
-      .insert(item)
+      .insert(itemWithOwner)
       .select()
       .single();
 
@@ -73,12 +74,12 @@ export class ServiceItemsService {
     return data;
   }
 
-  async update(id: string, item: Partial<ServiceItem>): Promise<ServiceItem | null> {
-    const supabase = this.supabaseService.getAdminClient();
+  async update(supabase: any, userId: string, id: string, item: Partial<ServiceItem>): Promise<ServiceItem | null> {
     const { data, error } = await supabase
       .from('service_items')
       .update(item)
       .eq('id', id)
+      .eq('owner_id', userId)
       .select()
       .single();
 
@@ -89,12 +90,12 @@ export class ServiceItemsService {
     return data;
   }
 
-  async delete(id: string): Promise<void> {
-    const supabase = this.supabaseService.getAdminClient();
+  async delete(supabase: any, userId: string, id: string): Promise<void> {
     const { error } = await supabase
       .from('service_items')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('owner_id', userId);
 
     if (error) throw error;
   }

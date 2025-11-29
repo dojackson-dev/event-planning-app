@@ -81,13 +81,13 @@ export class IntakeFormsService {
 
     // Create an event first
     const eventData = {
-      user_id: userId,
+      owner_id: userId,
       name: `${intakeForm.event_type} Event - ${intakeForm.contact_name}`,
       date: intakeForm.event_date,
-      time: intakeForm.event_time || '00:00',
+      start_time: intakeForm.event_time || '00:00',
       description: intakeForm.special_requests || '',
-      status: 'pending',
-      max_guests: intakeForm.guest_count,
+      status: 'scheduled' as const,
+      guest_count: intakeForm.guest_count,
     };
 
     const { data: event, error: eventError } = await supabase

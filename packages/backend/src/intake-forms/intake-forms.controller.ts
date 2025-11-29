@@ -76,9 +76,18 @@ export class IntakeFormsController {
 
   @Post(':id/convert-to-booking')
   async convertToBooking(@Headers('authorization') authorization: string, @Param('id') id: string) {
-    const token = this.extractToken(authorization);
-    const userId = await this.getUserId(authorization);
-    const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.intakeFormsService.convertToBooking(supabaseWithAuth, userId, id);
+    try {
+      console.log('Converting intake form to booking:', id);
+      const token = this.extractToken(authorization);
+      const userId = await this.getUserId(authorization);
+      console.log('User ID:', userId);
+      const supabaseWithAuth = this.supabaseService.setAuthContext(token);
+      const result = await this.intakeFormsService.convertToBooking(supabaseWithAuth, userId, id);
+      console.log('Successfully converted to booking:', result);
+      return result;
+    } catch (error) {
+      console.error('Error converting to booking:', error);
+      throw error;
+    }
   }
 }

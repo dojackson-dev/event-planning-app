@@ -1,8 +1,10 @@
 -- Migration: Add owner support to service_items and setup RLS
 -- Run this in Supabase SQL Editor
 
--- Note: In your schema, owners are users with role='owner'
--- Service items belong to owner users (owner_id = user.id where user.role='owner')
+-- Note: Service items belong to owners (owner_id references users.id where role='owner')
+-- - Items are owned and managed by owner users
+-- - Staff users in the same tenant can VIEW items from their owner
+-- - Global items (owner_id IS NULL) are visible to everyone
 
 -- 1. Add owner_id column if it doesn't exist
 ALTER TABLE service_items 

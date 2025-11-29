@@ -17,11 +17,24 @@ export class ServiceItemsController {
     return authorization.replace('Bearer ', '');
   }
 
+  private async getUserId(authorization: string): Promise<string> {
+    const token = this.extractToken(authorization);
+    const supabaseWithAuth = this.supabaseService.setAuthContext(token);
+    const { data: { user }, error } = await supabaseWithAuth.auth.getUser(token);
+    
+    if (error || !user) {
+      throw new UnauthorizedException('Invalid token');
+    }
+    
+    return user.id;
+  }
+
   @Get()
   async findAll(@Headers('authorization') authorization: string): Promise<ServiceItem[]> {
+    const userId = await this.getUserId(authorization);
     const token = this.extractToken(authorization);
-    this.supabaseService.setAuthContext(token);
-    return this.serviceItemsService.findAll();
+    const supabaseWithAuth = this.supabaseService.setAuthContext(token);
+    return this.serviceItemsService.findAll(supabaseWithAuth, userId);
   }
 
   @Get('category/:category')
@@ -29,9 +42,10 @@ export class ServiceItemsController {
     @Param('category') category: ServiceItemCategory,
     @Headers('authorization') authorization: string,
   ): Promise<ServiceItem[]> {
+    const userId = await this.getUserId(authorization);
     const token = this.extractToken(authorization);
-    this.supabaseService.setAuthContext(token);
-    return this.serviceItemsService.findByCategory(category);
+    const supabaseWithAuth = this.supabaseService.setAuthContext(token);
+    return this.serviceItemsService.findByCategory(supabaseWithAuth, userId, category);
   }
 
   @Get(':id')
@@ -39,9 +53,10 @@ export class ServiceItemsController {
     @Param('id') id: string,
     @Headers('authorization') authorization: string,
   ): Promise<ServiceItem | null> {
+    const userId = await this.getUserId(authorization);
     const token = this.extractToken(authorization);
-    this.supabaseService.setAuthContext(token);
-    return this.serviceItemsService.findOne(id);
+    const supabaseWithAuth = this.supabaseService.setAuthContext(token);
+    return this.serviceItemsService.findOne(supabaseWithAuth, userId, id);
   }
 
   @Post()
@@ -49,9 +64,10 @@ export class ServiceItemsController {
     @Body() item: Partial<ServiceItem>,
     @Headers('authorization') authorization: string,
   ): Promise<ServiceItem> {
+    const userId = await this.getUserId(authorization);
     const token = this.extractToken(authorization);
-    this.supabaseService.setAuthContext(token);
-    return this.serviceItemsService.create(item);
+    const supabaseWithAuth = this.supabaseService.setAuthContext(token);
+    return this.serviceItemsService.create(supabaseWithAuth, userId, item);
   }
 
   @Put(':id')
@@ -60,9 +76,10 @@ export class ServiceItemsController {
     @Body() item: Partial<ServiceItem>,
     @Headers('authorization') authorization: string,
   ): Promise<ServiceItem | null> {
+    const userId = await this.getUserId(authorization);
     const token = this.extractToken(authorization);
-    this.supabaseService.setAuthContext(token);
-    return this.serviceItemsService.update(id, item);
+    const supabaseWithAuth = this.supabaseService.setAuthContext(token);
+    return this.serviceItemsService.update(supabaseWithAuth, userId, id, item);
   }
 
   @Delete(':id')
@@ -70,8 +87,9 @@ export class ServiceItemsController {
     @Param('id') id: string,
     @Headers('authorization') authorization: string,
   ): Promise<void> {
+    const userId = await this.getUserId(authorization);
     const token = this.extractToken(authorization);
-    this.supabaseService.setAuthContext(token);
-    return this.serviceItemsService.delete(id);
+    const supabaseWithAuth = this.supabaseService.setAuthContext(token);
+    return this.serviceItemsService.delete(supabaseWithAuth, userId, id);
   }
 }

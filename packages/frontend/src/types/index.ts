@@ -201,6 +201,7 @@ export interface Item {
   default_price: number
   is_active: boolean
   sort_order?: number
+  image_url?: string | null
   owner_id?: string | null
   created_at: string
   updated_at: string

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import api from '@/lib/api'
 import { Item, ItemType } from '@/types'
-import { Plus, Edit, Trash2, Package } from 'lucide-react'
+import { Plus, Edit, Trash2, Package, Music, Lightbulb, Users, Utensils, Sparkles, Building2, Grid3x3 } from 'lucide-react'
 
 const categoryLabels: Record<string, string> = {
   facility_rental: 'Facility Rental',
@@ -14,6 +14,29 @@ const categoryLabels: Record<string, string> = {
   catering: 'Catering',
   decoration: 'Decoration',
   other: 'Other'
+}
+
+// Category fallback icons and colors
+const categoryIcons: Record<string, React.ComponentType<any>> = {
+  facility_rental: Building2,
+  sound_system: Music,
+  lighting: Lightbulb,
+  staging: Users,
+  furniture: Package,
+  catering: Utensils,
+  decoration: Sparkles,
+  other: Grid3x3
+}
+
+const categoryColors: Record<string, string> = {
+  facility_rental: 'bg-blue-100 text-blue-600',
+  sound_system: 'bg-purple-100 text-purple-600',
+  lighting: 'bg-yellow-100 text-yellow-600',
+  staging: 'bg-green-100 text-green-600',
+  furniture: 'bg-orange-100 text-orange-600',
+  catering: 'bg-red-100 text-red-600',
+  decoration: 'bg-pink-100 text-pink-600',
+  other: 'bg-gray-100 text-gray-600'
 }
 
 export default function ItemsPage() {
@@ -27,6 +50,7 @@ export default function ItemsPage() {
     description: '',
     category: 'sound_system',
     default_price: '',
+    image_url: '',
     is_active: true,
   })
 
@@ -53,6 +77,7 @@ export default function ItemsPage() {
         description: formData.description,
         category: formData.category,
         default_price: parseFloat(formData.default_price),
+        image_url: formData.image_url || null,
         is_active: formData.is_active,
       }
 
@@ -64,7 +89,7 @@ export default function ItemsPage() {
 
       setShowModal(false)
       setEditingItem(null)
-      setFormData({ name: '', description: '', category: 'sound_system', default_price: '', is_active: true })
+      setFormData({ name: '', description: '', category: 'sound_system', default_price: '', image_url: '', is_active: true })
       fetchItems()
     } catch (error) {
       console.error('Failed to save item:', error)
@@ -78,6 +103,7 @@ export default function ItemsPage() {
       description: item.description || '',
       category: item.category,
       default_price: item.default_price.toString(),
+      image_url: item.image_url || '',
       is_active: item.is_active,
     })
     setShowModal(true)
@@ -107,7 +133,7 @@ export default function ItemsPage() {
         <button
           onClick={() => {
             setEditingItem(null)
-            setFormData({ name: '', description: '', category: 'sound_system', default_price: '', is_active: true })
+            setFormData({ name: '', description: '', category: 'sound_system', default_price: '', image_url: '', is_active: true })
             setShowModal(true)
           }}
           className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
@@ -133,39 +159,61 @@ export default function ItemsPage() {
 
       {/* Items Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredItems.map((item) => (
-          <div key={item.id} className="bg-white rounded-lg shadow p-6">
-            <div className="flex justify-between items-start mb-4">
-              <div className="flex items-center">
-                <Package className="h-8 w-8 text-primary-500 mr-3" />
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">{item.name}</h3>
-                  <span className="text-xs text-gray-500">{item.category}</span>
+        {filteredItems.map((item) => {
+          const CategoryIcon = categoryIcons[item.category] || Package
+          const colorClass = categoryColors[item.category] || 'bg-gray-100 text-gray-600'
+          
+          return (
+            <div key={item.id} className="bg-white rounded-lg shadow overflow-hidden">
+              {/* Image or Category Icon */}
+              <div className="relative h-48 bg-gray-50">
+                {item.image_url ? (
+                  <img
+                    src={item.image_url}
+                    alt={item.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className={`w-full h-full flex items-center justify-center ${colorClass} opacity-30`}>
+                    <CategoryIcon className="h-24 w-24" />
+                  </div>
+                )}
+              </div>
+
+              {/* Content */}
+              <div className="p-6">
+                <div className="flex justify-between items-start mb-2">
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-gray-900">{item.name}</h3>
+                    <span className="inline-block mt-1 text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">
+                      {categoryLabels[item.category]}
+                    </span>
+                  </div>
+                  <div className="flex gap-2 ml-2">
+                    <button
+                      onClick={() => handleEdit(item)}
+                      className="text-blue-600 hover:text-blue-900"
+                    >
+                      <Edit className="h-5 w-5" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(item.id)}
+                      className="text-red-600 hover:text-red-900"
+                    >
+                      <Trash2 className="h-5 w-5" />
+                    </button>
+                  </div>
+                </div>
+                {item.description && (
+                  <p className="text-sm text-gray-600 mb-4">{item.description}</p>
+                )}
+                <div className="pt-4 border-t">
+                  <p className="text-2xl font-bold text-gray-900">${item.default_price.toFixed(2)}</p>
                 </div>
               </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleEdit(item)}
-                  className="text-blue-600 hover:text-blue-900"
-                >
-                  <Edit className="h-5 w-5" />
-                </button>
-                <button
-                  onClick={() => handleDelete(item.id)}
-                  className="text-red-600 hover:text-red-900"
-                >
-                  <Trash2 className="h-5 w-5" />
-                </button>
-              </div>
             </div>
-            {item.description && (
-              <p className="text-sm text-gray-600 mb-4">{item.description}</p>
-            )}
-            <div className="pt-4 border-t">
-              <p className="text-2xl font-bold text-gray-900">${item.default_price.toFixed(2)}</p>
-            </div>
-          </div>
-        ))}
+          )
+        })}
 
         {filteredItems.length === 0 && (
           <div className="col-span-full text-center py-12 text-gray-500">
@@ -223,6 +271,22 @@ export default function ItemsPage() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Image URL
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://example.com/image.jpg"
+                  value={formData.image_url}
+                  onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Leave empty to use category icon as fallback
+                </p>
               </div>
 
               <div>

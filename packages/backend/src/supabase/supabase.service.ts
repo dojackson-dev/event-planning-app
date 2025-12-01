@@ -17,11 +17,22 @@ export class SupabaseService {
     }
 
     // Regular client for user operations (respects RLS)
-    this.supabase = createClient(supabaseUrl, supabaseAnonKey);
+    this.supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      db: {
+        schema: 'public',
+      },
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
 
     // Admin client for bypassing RLS (use carefully!)
     if (supabaseServiceKey) {
       this.supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+        db: {
+          schema: 'public',
+        },
         auth: {
           autoRefreshToken: false,
           persistSession: false,
@@ -55,6 +66,13 @@ export class SupabaseService {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
+      },
+      db: {
+        schema: 'public',
+      },
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
       },
     });
   }

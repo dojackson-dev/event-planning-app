@@ -1,14 +1,13 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { InvoicesController } from './invoices.controller';
-import { InvoicesService } from './invoices.service';
-import { Invoice } from '../entities/invoice.entity';
-import { InvoiceItem } from '../entities/invoice-item.entity';
-import { Booking } from '../entities/booking.entity';
+import { InvoicesSupabaseController } from './invoices-supabase.controller';
+import { InvoicesService } from './invoices-supabase.service';
+import { SupabaseModule } from '../supabase/supabase.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Invoice, InvoiceItem, Booking])],
-  controllers: [InvoicesController],
+  imports: [
+    SupabaseModule,
+  ],
+  controllers: [InvoicesSupabaseController],
   providers: [InvoicesService],
   exports: [InvoicesService],
 })

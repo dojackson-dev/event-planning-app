@@ -234,8 +234,10 @@ export interface Invoice {
   id: string
   invoiceNumber: string
   ownerId?: string
-  bookingId: string
+  bookingId?: string // Made optional to support quotes without bookings
+  intakeFormId?: string // New: Link to intake form for quotes
   booking?: Booking
+  intakeForm?: any // Optional populated intake form data
   subtotal: number
   taxAmount: number
   taxRate: number
@@ -258,6 +260,8 @@ export interface Invoice {
 export interface InvoiceItem {
   id: string
   invoiceId: string
+  serviceItemId?: string // New: Link to service item from catalog
+  serviceItem?: ServiceItem // Optional populated service item data
   description: string
   quantity: number
   standardPrice: number // Original/standard price

@@ -118,7 +118,7 @@ export class IntakeFormsService {
     };
 
     const { data: booking, error: bookingError } = await supabase
-      .from('booking')
+      .from('bookings')
       .insert([bookingData])
       .select('*, event(*)')
       .single();

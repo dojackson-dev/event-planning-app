@@ -16,7 +16,8 @@ export class BookingsService {
       .select(`
         *,
         event:events(*),
-        user:users(*)
+        user:users!bookings_user_id_fkey(*),
+        owner:users!bookings_owner_id_fkey(*)
       `)
       .order('created_at', { ascending: false });
 
@@ -31,7 +32,12 @@ export class BookingsService {
   async findOne(supabase: SupabaseClient, id: string): Promise<Booking | null> {
     const { data, error } = await supabase
       .from('bookings')
-      .select('*, event(*), user:users(*)')
+      .select(`
+        *,
+        event:events(*),
+        user:users!bookings_user_id_fkey(*),
+        owner:users!bookings_owner_id_fkey(*)
+      `)
       .eq('id', id)
       .single();
 

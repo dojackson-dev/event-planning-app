@@ -78,7 +78,7 @@ export class InvoicesService {
       .from('invoices')
       .select(`
         *,
-        booking:bookings(*),
+        booking:booking(*),
         intake_form:intake_forms(*),
         items:invoice_items(*)
       `)
@@ -93,7 +93,7 @@ export class InvoicesService {
       .from('invoices')
       .select(`
         *,
-        booking:bookings(*),
+        booking:booking(*),
         intake_form:intake_forms(*),
         items:invoice_items(*)
       `)
@@ -109,7 +109,7 @@ export class InvoicesService {
       .from('invoices')
       .select(`
         *,
-        booking:bookings(*),
+        booking:booking(*),
         intake_form:intake_forms(*),
         items:invoice_items(*)
       `)
@@ -125,7 +125,7 @@ export class InvoicesService {
       .from('invoices')
       .select(`
         *,
-        booking:bookings(*),
+        booking:booking(*),
         intake_form:intake_forms(*),
         items:invoice_items(*)
       `)
@@ -228,7 +228,7 @@ export class InvoicesService {
         .eq('id', invoice.id)
         .select(`
           *,
-          booking:bookings(*),
+          booking:booking(*),
           intake_form:intake_forms(*),
           items:invoice_items(*)
         `)

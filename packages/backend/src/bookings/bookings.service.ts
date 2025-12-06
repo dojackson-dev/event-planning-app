@@ -12,12 +12,10 @@ export class BookingsService {
   async findAll(supabase: SupabaseClient): Promise<Booking[]> {
     console.log('Fetching bookings...');
     const { data, error } = await supabase
-      .from('bookings')
+      .from('booking')
       .select(`
         *,
-        event:events(*),
-        user:users!bookings_user_id_fkey(*),
-        owner:users!bookings_owner_id_fkey(*)
+        event:event(*)
       `)
       .order('created_at', { ascending: false });
 
@@ -31,12 +29,10 @@ export class BookingsService {
 
   async findOne(supabase: SupabaseClient, id: string): Promise<Booking | null> {
     const { data, error } = await supabase
-      .from('bookings')
+      .from('booking')
       .select(`
         *,
-        event:events(*),
-        user:users!bookings_user_id_fkey(*),
-        owner:users!bookings_owner_id_fkey(*)
+        event:event(*)
       `)
       .eq('id', id)
       .single();
@@ -47,7 +43,7 @@ export class BookingsService {
 
   async create(supabase: SupabaseClient, booking: Partial<Booking>): Promise<Booking> {
     const { data, error } = await supabase
-      .from('bookings')
+      .from('booking')
       .insert([booking])
       .select()
       .single();
@@ -58,7 +54,7 @@ export class BookingsService {
 
   async update(supabase: SupabaseClient, id: string, booking: Partial<Booking>): Promise<Booking | null> {
     const { data, error } = await supabase
-      .from('bookings')
+      .from('booking')
       .update(booking)
       .eq('id', id)
       .select()
@@ -70,7 +66,7 @@ export class BookingsService {
 
   async remove(supabase: SupabaseClient, id: string): Promise<void> {
     const { error } = await supabase
-      .from('bookings')
+      .from('booking')
       .delete()
       .eq('id', id);
 

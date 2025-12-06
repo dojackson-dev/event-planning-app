@@ -166,8 +166,8 @@ export default function NewInvoicePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedBooking || lineItems.length === 0) {
-      alert('Please select a booking and add at least one line item')
+    if (lineItems.length === 0) {
+      alert('Please add at least one line item')
       return
     }
 
@@ -175,11 +175,11 @@ export default function NewInvoicePage() {
     try {
       const invoiceData = {
         invoice: {
-          bookingId: selectedBooking,
-          ownerId: user?.id,
-          taxRate: Number(taxRate),
-          discountAmount: Number(discountAmount),
-          amountPaid: 0,
+          booking_id: selectedBooking && selectedBooking !== '' ? selectedBooking : null,
+          owner_id: user?.id,
+          tax_rate: Number(taxRate),
+          discount_amount: Number(discountAmount),
+          amount_paid: 0,
           issue_date: issueDate,
           due_date: dueDate,
           notes,
@@ -191,6 +191,8 @@ export default function NewInvoicePage() {
           description: item.description,
           quantity: Number(item.quantity),
           unit_price: Number(item.unitPrice),
+          discount_type: 'none',
+          discount_value: 0,
           sort_order: index,
         })),
       }
@@ -215,15 +217,14 @@ export default function NewInvoicePage() {
         {/* Booking Selection */}
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Select Booking *
+            Select Booking (Optional)
           </label>
           <select
             value={selectedBooking}
             onChange={(e) => setSelectedBooking(e.target.value)}
-            required
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
-            <option value="">-- Select a booking --</option>
+            <option value="">-- Select a booking (optional) --</option>
             {bookings.map((booking) => (
               <option key={booking.id} value={booking.id}>
                 {booking.event?.name || 'Event'} - {booking.user ? `${booking.user.firstName} ${booking.user.lastName}` : 'Customer'}

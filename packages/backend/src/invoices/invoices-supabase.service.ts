@@ -79,7 +79,8 @@ export class InvoicesService {
       .select(`
         *,
         booking:bookings(*),
-        intake_form:intake_forms(*)
+        intake_form:intake_forms(*),
+        items:invoice_items(*)
       `)
       .order('created_at', { ascending: false });
 
@@ -93,7 +94,8 @@ export class InvoicesService {
       .select(`
         *,
         booking:bookings(*),
-        intake_form:intake_forms(*)
+        intake_form:intake_forms(*),
+        items:invoice_items(*)
       `)
       .eq('owner_id', ownerId)
       .order('created_at', { ascending: false });
@@ -108,7 +110,8 @@ export class InvoicesService {
       .select(`
         *,
         booking:bookings(*),
-        intake_form:intake_forms(*)
+        intake_form:intake_forms(*),
+        items:invoice_items(*)
       `)
       .eq('intake_form_id', intakeFormId)
       .order('created_at', { ascending: false });
@@ -123,7 +126,8 @@ export class InvoicesService {
       .select(`
         *,
         booking:bookings(*),
-        intake_form:intake_forms(*)
+        intake_form:intake_forms(*),
+        items:invoice_items(*)
       `)
       .eq('id', id)
       .single();
@@ -203,7 +207,35 @@ export class InvoicesService {
 
     // Create invoice items if provided
     if (items && items.length > 0) {
-      await this.createInvoiceItems(supabase, userId, invoice.id!, items);
+      const createdItems = await this.createInvoiceItems(supabase, userId, invoice.id!, items);
+      
+      // Recalculate totals based on actual created items
+      const { subtotal, taxAmount, totalAmount, amountDue } = this.calculateInvoiceTotals(
+        createdItems,
+        Number(invoiceData.tax_rate) || 0,
+        Number(invoiceData.discount_amount) || 0
+      );
+
+      // Update invoice with correct totals
+      const { data: updatedInvoice, error: updateError } = await supabase
+        .from('invoices')
+        .update({
+          subtotal,
+          tax_amount: taxAmount,
+          total_amount: totalAmount,
+          amount_due: amountDue,
+        })
+        .eq('id', invoice.id)
+        .select(`
+          *,
+          booking:bookings(*),
+          intake_form:intake_forms(*),
+          items:invoice_items(*)
+        `)
+        .single();
+
+      if (updateError) throw updateError;
+      return updatedInvoice as Invoice;
     }
 
     return invoice;
@@ -220,6 +252,8 @@ export class InvoicesService {
         quantity: item.quantity || 1,
         unit_price: item.unit_price || 0,
         subtotal,
+        discount_type: item.discount_type || 'none',
+        discount_value: item.discount_value || 0,
         discount_amount: discountAmount,
         amount,
         sort_order: item.sort_order ?? index,

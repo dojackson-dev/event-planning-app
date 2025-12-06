@@ -30,6 +30,20 @@ export default function InvoicesPage() {
     }
   }
 
+  const handleDelete = async (invoiceId: string, invoiceNumber: string) => {
+    if (!confirm(`Are you sure you want to delete invoice ${invoiceNumber}? This action cannot be undone.`)) {
+      return
+    }
+
+    try {
+      await api.delete(`/invoices/${invoiceId}`)
+      fetchInvoices()
+    } catch (error) {
+      console.error('Failed to delete invoice:', error)
+      alert('Failed to delete invoice')
+    }
+  }
+
   const getStatusColor = (status: InvoiceStatus) => {
     switch (status) {
       case InvoiceStatus.PAID:
@@ -103,7 +117,7 @@ export default function InvoicesPage() {
       </div>
 
       {/* Invoices Table */}
-      <div className="bg-white shadow-md rounded-lg overflow-hidden">
+      <div className="bg-white shadow-md rounded-lg overflow-hidden overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
@@ -125,7 +139,7 @@ export default function InvoicesPage() {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Status
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-48">
                 Actions
               </th>
             </tr>
@@ -141,7 +155,7 @@ export default function InvoicesPage() {
               filteredInvoices.map((invoice) => (
                 <tr key={invoice.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {invoice.invoiceNumber}
+                    {invoice.invoice_number}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {invoice.booking?.user
@@ -149,13 +163,13 @@ export default function InvoicesPage() {
                       : 'N/A'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(invoice.issueDate).toLocaleDateString()}
+                    {new Date(invoice.issue_date).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(invoice.dueDate).toLocaleDateString()}
+                    {new Date(invoice.due_date).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    ${Number(invoice.totalAmount).toFixed(2)}
+                    ${Number(invoice.total_amount).toFixed(2)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span
@@ -176,11 +190,17 @@ export default function InvoicesPage() {
                     {invoice.status !== InvoiceStatus.PAID && (
                       <button
                         onClick={() => router.push(`/dashboard/invoices/${invoice.id}/edit`)}
-                        className="text-blue-600 hover:text-blue-900"
+                        className="text-blue-600 hover:text-blue-900 mr-4"
                       >
                         Edit
                       </button>
                     )}
+                    <button
+                      onClick={() => handleDelete(invoice.id, invoice.invoice_number)}
+                      className="text-red-600 hover:text-red-900"
+                    >
+                      Delete
+                    </button>
                   </td>
                 </tr>
               ))

@@ -22,16 +22,36 @@ export class GuestListsService {
 
   async findAll(): Promise<any[]> {
     const supabase = this.supabaseService.getAdminClient();
-    const { data, error } = await supabase
+    
+    // Fetch all guest lists
+    const { data: guestLists, error } = await supabase
       .from('guest_lists')
-      .select(`
-        *,
-        *
-      `)
+      .select('*')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data || [];
+    if (!guestLists || guestLists.length === 0) return [];
+
+    // Fetch guests for all guest lists
+    const guestListIds = guestLists.map(gl => gl.id);
+    const { data: allGuests, error: guestsError } = await supabase
+      .from('guests')
+      .select('*')
+      .in('guest_list_id', guestListIds);
+
+    // Fetch events for all guest lists
+    const eventIds = [...new Set(guestLists.map(gl => gl.event_id).filter(Boolean))];
+    const { data: events, error: eventsError } = await supabase
+      .from('event')
+      .select('*')
+      .in('id', eventIds);
+
+    // Map guests and events to guest lists
+    return guestLists.map(gl => ({
+      ...gl,
+      guests: allGuests?.filter(g => g.guest_list_id === gl.id) || [],
+      event: events?.find(e => e.id === gl.event_id) || null
+    }));
   }
 
   async findByClient(clientId: string): Promise<any[]> {
@@ -66,17 +86,36 @@ export class GuestListsService {
 
   async findOne(id: number): Promise<any | null> {
     const supabase = this.supabaseService.getAdminClient();
-    const { data, error } = await supabase
+    
+    // Fetch guest list
+    const { data: guestListData, error: guestListError } = await supabase
       .from('guest_lists')
-      .select(`
-        *,
-        *
-      `)
+      .select('*')
       .eq('id', id)
       .single();
 
-    if (error && error.code !== 'PGRST116') throw error;
-    return data;
+    if (guestListError && guestListError.code !== 'PGRST116') throw guestListError;
+    if (!guestListData) return null;
+
+    // Fetch event details
+    const { data: eventData, error: eventError } = await supabase
+      .from('event')
+      .select('*')
+      .eq('id', guestListData.event_id)
+      .single();
+
+    // Fetch guests
+    const { data: guestsData, error: guestsError } = await supabase
+      .from('guests')
+      .select('*')
+      .eq('guest_list_id', id)
+      .order('created_at', { ascending: true });
+
+    return {
+      ...guestListData,
+      event: eventData,
+      guests: guestsData || []
+    };
   }
 
   async findByShareToken(token: string): Promise<any | null> {

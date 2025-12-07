@@ -36,7 +36,7 @@ export default function DoorListsPage() {
 
   useEffect(() => {
     if (selectedEvent && guestLists.length > 0) {
-      const list = guestLists.find(gl => gl.eventId.toString() === selectedEvent)
+      const list = guestLists.find(gl => gl.event_id?.toString() === selectedEvent)
       setSelectedGuestList(list || null)
     }
   }, [selectedEvent, guestLists])
@@ -104,9 +104,9 @@ export default function DoorListsPage() {
 
     // Apply status filter
     if (filterStatus === 'arrived') {
-      filtered = filtered.filter(guest => guest.hasArrived)
+      filtered = filtered.filter(guest => guest.has_arrived)
     } else if (filterStatus === 'pending') {
-      filtered = filtered.filter(guest => !guest.hasArrived)
+      filtered = filtered.filter(guest => !guest.has_arrived)
     }
 
     return filtered
@@ -116,8 +116,8 @@ export default function DoorListsPage() {
     if (!selectedGuestList?.guests) return { total: 0, arrived: 0, pending: 0, totalWithPlus: 0 }
     
     const guests = selectedGuestList.guests
-    const arrived = guests.filter(g => g.hasArrived).length
-    const totalWithPlus = guests.reduce((sum, g) => sum + 1 + g.plusOneCount, 0)
+    const arrived = guests.filter(g => g.has_arrived).length
+    const totalWithPlus = guests.reduce((sum, g) => sum + 1 + (g.plus_one_count || 0), 0)
     
     return {
       total: guests.length,
@@ -189,6 +189,24 @@ export default function DoorListsPage() {
 
         {selectedGuestList ? (
           <>
+            {/* Action Buttons */}
+            <div className="mb-6 flex gap-3">
+              <button
+                onClick={() => router.push(`/dashboard/guest-lists/${selectedGuestList.id}`)}
+                className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+              >
+                <Users className="w-4 h-4" />
+                Manage Guest List
+              </button>
+              <button
+                onClick={() => router.push(`/dashboard/door-lists/${selectedGuestList.id}`)}
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <ChevronRight className="w-4 h-4" />
+                Full Door List View
+              </button>
+            </div>
+
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -311,14 +329,14 @@ export default function DoorListsPage() {
                     <div
                       key={guest.id}
                       className={`px-6 py-4 hover:bg-gray-50 transition-colors ${
-                        guest.hasArrived ? 'bg-green-50' : ''
+                        guest.has_arrived ? 'bg-green-50' : ''
                       }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-3">
                             <div className={`h-12 w-12 rounded-full flex items-center justify-center font-bold text-lg ${
-                              guest.hasArrived 
+                              guest.has_arrived 
                                 ? 'bg-green-100 text-green-700'
                                 : 'bg-gray-100 text-gray-600'
                             }`}>
@@ -332,22 +350,22 @@ export default function DoorListsPage() {
                         </div>
 
                         <div className="flex items-center gap-4">
-                          {guest.plusOneCount > 0 && (
+                          {guest.plus_one_count > 0 && (
                             <div className="text-center px-3 py-1 bg-purple-100 rounded-lg">
                               <p className="text-xs text-purple-600 font-medium">Plus</p>
-                              <p className="text-lg font-bold text-purple-700">{guest.plusOneCount}</p>
+                              <p className="text-lg font-bold text-purple-700">{guest.plus_one_count}</p>
                             </div>
                           )}
 
-                          {guest.hasArrived ? (
+                          {guest.has_arrived ? (
                             <div className="text-right mr-4">
                               <div className="flex items-center gap-2 text-green-600 mb-1">
                                 <CheckCircle2 className="h-5 w-5" />
                                 <span className="font-semibold">Checked In</span>
                               </div>
-                              {guest.arrivedAt && (
+                              {guest.arrived_at && (
                                 <p className="text-xs text-gray-500">
-                                  {new Date(guest.arrivedAt).toLocaleTimeString('en-US', {
+                                  {new Date(guest.arrived_at).toLocaleTimeString('en-US', {
                                     hour: 'numeric',
                                     minute: '2-digit'
                                   })}
@@ -363,7 +381,7 @@ export default function DoorListsPage() {
                             </div>
                           )}
 
-                          {guest.hasArrived ? (
+                          {guest.has_arrived ? (
                             <button
                               onClick={() => handleCheckOut(guest.id)}
                               className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2"

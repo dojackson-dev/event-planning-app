@@ -14,7 +14,7 @@ import { InvoicesModule } from './invoices/invoices.module';
 // import { UsersModule } from './users/users.module';
 // import { ContractsModule } from './contracts/contracts.module';
 // import { SecurityModule } from './security/security.module';
-// import { GuestListsModule } from './guest-lists/guest-lists.module';
+import { GuestListsModule } from './guest-lists/guest-lists.module';
 // import { MessagingModule } from './messaging/messaging.module';
 
 @Module({
@@ -29,6 +29,7 @@ import { InvoicesModule } from './invoices/invoices.module';
     EventsModule,
     BookingsModule,
     InvoicesModule,
+    GuestListsModule,
     // UsersModule,
     // ContractsModule,
     // SecurityModule,

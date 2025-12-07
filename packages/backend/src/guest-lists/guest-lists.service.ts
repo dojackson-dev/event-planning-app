@@ -1,18 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { GuestList } from '../entities/guest-list.entity';
-import { Guest } from '../entities/guest.entity';
+import { SupabaseService } from '../supabase/supabase.service';
 import * as crypto from 'crypto';
 
 @Injectable()
 export class GuestListsService {
-  constructor(
-    @InjectRepository(GuestList)
-    private guestListRepository: Repository<GuestList>,
-    @InjectRepository(Guest)
-    private guestRepository: Repository<Guest>,
-  ) {}
+  constructor(private supabaseService: SupabaseService) {}
 
   private generateToken(): string {
     return crypto.randomBytes(32).toString('hex');
@@ -28,141 +20,260 @@ export class GuestListsService {
     return code;
   }
 
-  async findAll(): Promise<GuestList[]> {
-    return this.guestListRepository.find({
-      relations: ['client', 'event', 'guests'],
-      order: { createdAt: 'DESC' },
-    });
+  async findAll(): Promise<any[]> {
+    const supabase = this.supabaseService.getAdminClient();
+    const { data, error } = await supabase
+      .from('guest_lists')
+      .select(`
+        *,
+        *
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
   }
 
-  async findByClient(clientId: number): Promise<GuestList[]> {
-    return this.guestListRepository.find({
-      where: { clientId },
-      relations: ['client', 'event', 'guests'],
-      order: { createdAt: 'DESC' },
-    });
+  async findByClient(clientId: string): Promise<any[]> {
+    const supabase = this.supabaseService.getAdminClient();
+    const { data, error } = await supabase
+      .from('guest_lists')
+      .select(`
+        *,
+        *
+      `)
+      .eq('client_id', clientId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
   }
 
-  async findByEvent(eventId: number): Promise<GuestList | null> {
-    return this.guestListRepository.findOne({
-      where: { eventId },
-      relations: ['client', 'event', 'guests'],
-    });
+  async findByEvent(eventId: number): Promise<any | null> {
+    const supabase = this.supabaseService.getAdminClient();
+    const { data, error } = await supabase
+      .from('guest_lists')
+      .select(`
+        *,
+        *
+      `)
+      .eq('event_id', eventId)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    return data;
   }
 
-  async findOne(id: number): Promise<GuestList | null> {
-    return this.guestListRepository.findOne({
-      where: { id },
-      relations: ['client', 'event', 'guests'],
-    });
+  async findOne(id: number): Promise<any | null> {
+    const supabase = this.supabaseService.getAdminClient();
+    const { data, error } = await supabase
+      .from('guest_lists')
+      .select(`
+        *,
+        *
+      `)
+      .eq('id', id)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    return data;
   }
 
-  async findByShareToken(token: string): Promise<GuestList | null> {
-    return this.guestListRepository.findOne({
-      where: { shareToken: token },
-      relations: ['client', 'event', 'guests'],
-    });
+  async findByShareToken(token: string): Promise<any | null> {
+    const supabase = this.supabaseService.getAdminClient();
+    const { data, error } = await supabase
+      .from('guest_lists')
+      .select(`
+        *,
+        *
+      `)
+      .eq('share_token', token)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    return data;
   }
 
-  async findByAccessCode(code: string): Promise<GuestList | null> {
-    return this.guestListRepository.findOne({
-      where: { accessCode: code.toUpperCase() },
-      relations: ['client', 'event', 'guests'],
-    });
+  async findByAccessCode(code: string): Promise<any | null> {
+    const supabase = this.supabaseService.getAdminClient();
+    const { data, error } = await supabase
+      .from('guest_lists')
+      .select(`
+        *,
+        *
+      `)
+      .eq('access_code', code.toUpperCase())
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    return data;
   }
 
-  async findByArrivalToken(token: string): Promise<GuestList | null> {
-    return this.guestListRepository.findOne({
-      where: { arrivalToken: token },
-      relations: ['client', 'event', 'guests'],
-    });
+  async findByArrivalToken(token: string): Promise<any | null> {
+    const supabase = this.supabaseService.getAdminClient();
+    const { data, error } = await supabase
+      .from('guest_lists')
+      .select(`
+        *,
+        *
+      `)
+      .eq('arrival_token', token)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    return data;
   }
 
-  async create(guestListData: Partial<GuestList>): Promise<GuestList> {
-    const guestList = this.guestListRepository.create({
-      ...guestListData,
-      accessCode: this.generateAccessCode(),
-      shareToken: this.generateToken(),
-      arrivalToken: this.generateToken(),
-    });
-    return this.guestListRepository.save(guestList);
+  async create(guestListData: any): Promise<any> {
+    const supabase = this.supabaseService.getAdminClient();
+    const { data, error } = await supabase
+      .from('guest_lists')
+      .insert({
+        client_id: guestListData.clientId,
+        event_id: guestListData.eventId,
+        max_guests_per_person: guestListData.maxGuestsPerPerson || 0,
+        access_code: this.generateAccessCode(),
+        share_token: this.generateToken(),
+        arrival_token: this.generateToken(),
+        is_locked: false,
+      })
+      .select(`
+        *,
+        *
+      `)
+      .single();
+
+    if (error) throw error;
+    return data;
   }
 
-  async update(id: number, guestListData: Partial<GuestList>): Promise<GuestList | null> {
-    const guestList = await this.findOne(id);
+  async update(id: number, guestListData: any): Promise<any | null> {
+    const supabase = this.supabaseService.getAdminClient();
     
-    if (!guestList) {
-      return null;
-    }
+    const updateData: any = {};
+    if (guestListData.maxGuestsPerPerson !== undefined) updateData.max_guests_per_person = guestListData.maxGuestsPerPerson;
+    if (guestListData.isLocked !== undefined) updateData.is_locked = guestListData.isLocked;
 
-    await this.guestListRepository.update(id, guestListData);
-    return this.findOne(id);
+    const { data, error } = await supabase
+      .from('guest_lists')
+      .update(updateData)
+      .eq('id', id)
+      .select(`
+        *,
+        *
+      `)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    return data;
   }
 
-  async lock(id: number): Promise<GuestList | null> {
+  async lock(id: number): Promise<any | null> {
     return this.update(id, { isLocked: true });
   }
 
-  async unlock(id: number): Promise<GuestList | null> {
+  async unlock(id: number): Promise<any | null> {
     return this.update(id, { isLocked: false });
   }
 
   async delete(id: number): Promise<void> {
-    await this.guestRepository.delete({ guestListId: id });
-    await this.guestListRepository.delete(id);
+    const supabase = this.supabaseService.getAdminClient();
+    
+    // Delete guests first
+    await supabase.from('guests').delete().eq('guest_list_id', id);
+    
+    // Delete guest list
+    const { error } = await supabase.from('guest_lists').delete().eq('id', id);
+    if (error) throw error;
   }
 
   // Guest management
-  async addGuest(guestListId: number, guestData: Partial<Guest>): Promise<Guest> {
-    const guest = this.guestRepository.create({
-      ...guestData,
-      guestListId,
-    });
-    return this.guestRepository.save(guest);
+  async getGuests(guestListId: number): Promise<any[]> {
+    const supabase = this.supabaseService.getAdminClient();
+    const { data, error } = await supabase
+      .from('guests')
+      .select('*')
+      .eq('guest_list_id', guestListId)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
   }
 
-  async updateGuest(guestId: number, guestData: Partial<Guest>): Promise<Guest | null> {
-    const guest = await this.guestRepository.findOne({ where: { id: guestId } });
-    
-    if (!guest) {
-      return null;
-    }
+  async addGuest(guestListId: number, guestData: any): Promise<any> {
+    const supabase = this.supabaseService.getAdminClient();
+    const { data, error } = await supabase
+      .from('guests')
+      .insert({
+        guest_list_id: guestListId,
+        name: guestData.name,
+        phone: guestData.phone,
+        plus_one_count: guestData.plusOnes || 0,
+        has_arrived: false,
+      })
+      .select()
+      .single();
 
-    await this.guestRepository.update(guestId, guestData);
-    return this.guestRepository.findOne({ where: { id: guestId } });
+    if (error) throw error;
+    return data;
+  }
+
+  async updateGuest(guestId: number, guestData: any): Promise<any | null> {
+    const supabase = this.supabaseService.getAdminClient();
+    
+    const updateData: any = {};
+    if (guestData.name !== undefined) updateData.name = guestData.name;
+    if (guestData.phone !== undefined) updateData.phone = guestData.phone;
+    if (guestData.plusOnes !== undefined) updateData.plus_one_count = guestData.plusOnes;
+    if (guestData.hasArrived !== undefined) updateData.has_arrived = guestData.hasArrived;
+    if (guestData.arrivedAt !== undefined) updateData.arrived_at = guestData.arrivedAt;
+
+    const { data, error } = await supabase
+      .from('guests')
+      .update(updateData)
+      .eq('id', guestId)
+      .select()
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    return data;
   }
 
   async deleteGuest(guestId: number): Promise<void> {
-    await this.guestRepository.delete(guestId);
+    const supabase = this.supabaseService.getAdminClient();
+    const { error } = await supabase.from('guests').delete().eq('id', guestId);
+    if (error) throw error;
   }
 
-  async markArrival(guestId: number): Promise<Guest | null> {
-    const guest = await this.guestRepository.findOne({ where: { id: guestId } });
-    
-    if (!guest) {
-      return null;
-    }
+  async markArrival(guestId: number): Promise<any | null> {
+    const supabase = this.supabaseService.getAdminClient();
+    const { data, error } = await supabase
+      .from('guests')
+      .update({
+        has_arrived: true,
+        arrived_at: new Date().toISOString(),
+      })
+      .eq('id', guestId)
+      .select()
+      .single();
 
-    await this.guestRepository.update(guestId, {
-      hasArrived: true,
-      arrivedAt: new Date(),
-    });
-
-    return this.guestRepository.findOne({ where: { id: guestId } });
+    if (error && error.code !== 'PGRST116') throw error;
+    return data;
   }
 
-  async unmarkArrival(guestId: number): Promise<Guest | null> {
-    const guest = await this.guestRepository.findOne({ where: { id: guestId } });
-    
-    if (!guest) {
-      return null;
-    }
+  async unmarkArrival(guestId: number): Promise<any | null> {
+    const supabase = this.supabaseService.getAdminClient();
+    const { data, error } = await supabase
+      .from('guests')
+      .update({
+        has_arrived: false,
+        arrived_at: null,
+      })
+      .eq('id', guestId)
+      .select()
+      .single();
 
-    await this.guestRepository.update(guestId, {
-      hasArrived: false,
-      arrivedAt: undefined,
-    });
-
-    return this.guestRepository.findOne({ where: { id: guestId } });
+    if (error && error.code !== 'PGRST116') throw error;
+    return data;
   }
 }

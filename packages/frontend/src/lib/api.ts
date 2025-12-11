@@ -29,9 +29,16 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       // Token expired or invalid
-      localStorage.removeItem('access_token')
-      localStorage.removeItem('user')
-      window.location.href = '/login'
+      // During debugging we avoid auto-logout which triggers a hard navigation
+      // and clears the console. Enable automatic logout in production by
+      // setting NEXT_PUBLIC_ENABLE_AUTO_LOGOUT=true in the frontend env.
+      console.warn('API interceptor: 401 received', error.response)
+      if (process.env.NEXT_PUBLIC_ENABLE_AUTO_LOGOUT === 'true') {
+        localStorage.removeItem('access_token')
+        localStorage.removeItem('user')
+        window.location.href = '/login'
+      }
+      // Otherwise, just reject so the app can handle/diagnose the error.
     }
     return Promise.reject(error)
   }

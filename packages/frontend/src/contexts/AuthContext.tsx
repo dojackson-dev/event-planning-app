@@ -16,42 +16,40 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
-  const router = useRouter()
-
-  useEffect(() => {
-    // Check if user is logged in on mount
-    const token = localStorage.getItem('access_token')
-    const storedUser = localStorage.getItem('user')
+  const [user, setUser] = useState<User | null>(() => {
+    // Try to load from localStorage on initial mount
+    if (typeof window === 'undefined') return null
     
-    if (token && storedUser) {
-      setUser(JSON.parse(storedUser))
-    } else {
-      // Temporary: Create a mock admin user for testing
-      const mockAdmin = {
-        id: '1',
-        email: 'admin@dovenue.com',
-        firstName: 'Admin',
-        lastName: 'User',
-        role: 'owner',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+    try {
+      const stored = localStorage.getItem('user')
+      const token = localStorage.getItem('access_token')
+      
+      if (stored && token) {
+        const parsed = JSON.parse(stored)
+        console.log('✅ [INIT] Loaded user from localStorage:', parsed.email)
+        return parsed
       }
-      setUser(mockAdmin)
-      localStorage.setItem('user', JSON.stringify(mockAdmin))
-      localStorage.setItem('access_token', 'mock-token')
+    } catch (e) {
+      console.error('[INIT] Error loading from localStorage:', e)
     }
-    setLoading(false)
-  }, [])
+    
+    console.log('📭 [INIT] No user in storage')
+    return null
+  })
+
+  const router = useRouter()
 
   const login = async (credentials: LoginCredentials) => {
     try {
-      const response = await api.post<AuthResponse>('/auth/login', credentials)
+      const endpoint = process.env.NEXT_PUBLIC_USE_DEV_AUTH === 'true' ? '/auth/dev-login' : '/auth/login'
+      console.log('🔐 [LOGIN] Starting:', credentials.email)
+      
+      const response = await api.post<AuthResponse>(endpoint, credentials)
       const { access_token, user: supabaseUser } = response.data
       
-      // Transform Supabase user to our User interface
-      const user: User = {
+      console.log('✅ [LOGIN] Got response:', supabaseUser.email)
+      
+      const newUser: User = {
         id: supabaseUser.id,
         email: supabaseUser.email || '',
         firstName: supabaseUser.user_metadata?.first_name || '',
@@ -61,39 +59,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         updatedAt: supabaseUser.updated_at || new Date().toISOString()
       }
       
+      // Save to localStorage IMMEDIATELY
+      console.log('💾 [LOGIN] Saving to localStorage')
       localStorage.setItem('access_token', access_token)
-      localStorage.setItem('user', JSON.stringify(user))
-      setUser(user)
+      localStorage.setItem('user', JSON.stringify(newUser))
       
+      // Verify
+      const check = localStorage.getItem('user')
+      console.log('✔️ [LOGIN] Verified - user in storage:', !!check)
+      
+      // Update state
+      console.log('📝 [LOGIN] Setting React state')
+      setUser(newUser)
+      
+      // Wait a moment
+      await new Promise(r => setTimeout(r, 100))
+      
+      // Navigate - the key is that localStorage already has the data
+      console.log('🚀 [LOGIN] Navigating to /dashboard')
       router.push('/dashboard')
-    } catch (error) {
-      console.error('Login failed:', error)
+      
+    } catch (error: any) {
+      console.error('❌ [LOGIN] Error:', error?.response?.data?.message || error?.message)
       throw error
     }
   }
 
   const logout = () => {
+    console.log('🚪 [LOGOUT]')
     localStorage.removeItem('access_token')
     localStorage.removeItem('user')
     setUser(null)
     router.push('/login')
   }
 
-  const value = {
-    user,
-    loading,
-    login,
-    logout,
-    isAuthenticated: !!user,
-  }
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={{
+      user,
+      loading: false,
+      login,
+      logout,
+      isAuthenticated: !!user,
+    }}>
+      {children}
+    </AuthContext.Provider>
+  )
 }
 
 export function useAuth() {
   const context = useContext(AuthContext)
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider')
+    throw new Error('useAuth must be used within AuthProvider')
   }
   return context
 }

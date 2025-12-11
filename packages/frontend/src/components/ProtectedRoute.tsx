@@ -5,29 +5,27 @@ import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 
 export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, loading } = useAuth()
+  const { isAuthenticated, user } = useAuth()
   const router = useRouter()
 
-  useEffect(() => {
-    if (!loading && !isAuthenticated) {
-      router.push('/login')
-    }
-  }, [isAuthenticated, loading, router])
+  console.log('[PROTECTED] Render - isAuth:', isAuthenticated, 'user:', user?.email)
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-          <p className="mt-2 text-gray-600">Loading...</p>
-        </div>
-      </div>
-    )
-  }
+  useEffect(() => {
+    console.log('[PROTECTED] Effect - isAuth:', isAuthenticated, 'user:', user?.email)
+    
+    if (!isAuthenticated) {
+      console.log('🔴 [PROTECTED] NOT authenticated - redirecting to /login')
+      router.push('/login')
+    } else {
+      console.log('✅ [PROTECTED] Authenticated - allowing access')
+    }
+  }, [isAuthenticated, router, user])
 
   if (!isAuthenticated) {
+    console.log('[PROTECTED] Returning null - not authenticated')
     return null
   }
 
+  console.log('[PROTECTED] Rendering children')
   return <>{children}</>
 }

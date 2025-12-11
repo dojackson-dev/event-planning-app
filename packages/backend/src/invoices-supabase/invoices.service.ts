@@ -152,11 +152,70 @@ export class InvoicesService {
     const invoice = await this.findOne(supabase, id);
     if (!invoice) return null;
 
-    const amountPaid = invoice.amount_paid + amount;
+    const prevAmountPaid = Number(invoice.amount_paid || 0);
+    const amountPaid = prevAmountPaid + amount;
     const amountDue = invoice.total_amount - amountPaid;
     const status = amountDue <= 0 ? 'paid' : invoice.status;
 
-    return this.update(supabase, id, { amount_paid: amountPaid, amount_due: amountDue, status });
+    const updated = await this.update(supabase, id, { amount_paid: amountPaid, amount_due: amountDue, status });
+
+    // Try to create a message record in the 'messages' table (if present in the DB)
+    try {
+      // Fetch booking to get deposit amount and user_id
+      const { data: booking } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('id', invoice.booking_id)
+        .single();
+
+      // Fetch user to get phone and name
+      let user: any = null;
+      if (booking?.user_id) {
+        const { data: u } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', booking.user_id)
+          .single();
+        user = u;
+      }
+
+      const prevStatus = invoice.status;
+
+      // Deposit notification: if deposit exists and this payment crossed that threshold
+      const depositAmount = Number(booking?.deposit || 0);
+      if (depositAmount > 0 && prevAmountPaid < depositAmount && amountPaid >= depositAmount) {
+        const msg = `Deposit of $${depositAmount.toFixed(2)} received for booking (invoice ${updated?.invoice_number || id}).`;
+        await supabase.from('messages').insert([{
+          recipient_phone: user?.phone || null,
+          recipient_name: user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : null,
+          recipient_type: 'client',
+          user_id: user?.id || null,
+          event_id: booking?.event_id || null,
+          message_type: 'invoice',
+          content: msg,
+          status: 'pending',
+        }]);
+      }
+
+      // Invoice fully paid notification
+      if (status === 'paid' && prevStatus !== 'paid') {
+        const msg = `Your invoice ${updated?.invoice_number || id} has been paid in full. Thank you!`;
+        await supabase.from('messages').insert([{
+          recipient_phone: user?.phone || null,
+          recipient_name: user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : null,
+          recipient_type: 'client',
+          user_id: user?.id || null,
+          event_id: booking?.event_id || null,
+          message_type: 'invoice',
+          content: msg,
+          status: 'pending',
+        }]);
+      }
+    } catch (err) {
+      console.error('Failed to create supabase message record for payment notification:', err?.message || err);
+    }
+
+    return updated;
   }
 
   async delete(supabase: any, id: string): Promise<void> {

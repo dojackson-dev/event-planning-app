@@ -48,5 +48,30 @@
     "ownerId": "9b23108b-b95d-41f7-acb8-4387d9b45eef",
     "createdAt": "2025-12-12T22:55:02.609Z",
     "updatedAt": "2025-12-12T22:55:02.609Z"
+  },
+  {
+    "id": 57178,
+    "name": "test 2",
+    "description": "",
+    "date": "2025-12-16",
+    "startTime": "22:15",
+    "endTime": "23:15",
+    "setupTime": "",
+    "venue": "test",
+    "maxGuests": 5,
+    "eventType": "conference_meeting",
+    "status": "draft",
+    "services": {
+      "caterer": "",
+      "decorator": "",
+      "balloonDecorator": "",
+      "marquee": "",
+      "musicType": ""
+    },
+    "barOption": "",
+    "dayOfWeek": "Monday",
+    "ownerId": "9b23108b-b95d-41f7-acb8-4387d9b45eef",
+    "createdAt": "2025-12-12T23:16:06.153Z",
+    "updatedAt": "2025-12-12T23:16:06.153Z"
   }
 ]

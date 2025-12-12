@@ -1,0 +1,52 @@
+[
+  {
+    "id": 33725,
+    "name": "test",
+    "description": "",
+    "date": "2025-12-15",
+    "startTime": "19:43",
+    "endTime": "19:45",
+    "setupTime": "19:43",
+    "venue": "test",
+    "maxGuests": 5,
+    "eventType": "birthday_party",
+    "status": "draft",
+    "services": {
+      "caterer": "",
+      "decorator": "",
+      "balloonDecorator": "",
+      "marquee": "",
+      "musicType": ""
+    },
+    "barOption": "",
+    "dayOfWeek": "Sunday",
+    "ownerId": "9b23108b-b95d-41f7-acb8-4387d9b45eef",
+    "createdAt": "2025-12-12T22:55:01.932Z",
+    "updatedAt": "2025-12-12T22:55:01.932Z"
+  },
+  {
+    "id": 15266,
+    "name": "test",
+    "description": "",
+    "date": "2025-12-15",
+    "startTime": "19:43",
+    "endTime": "19:45",
+    "setupTime": "19:43",
+    "venue": "test",
+    "maxGuests": 5,
+    "eventType": "birthday_party",
+    "status": "draft",
+    "services": {
+      "caterer": "",
+      "decorator": "",
+      "balloonDecorator": "",
+      "marquee": "",
+      "musicType": ""
+    },
+    "barOption": "",
+    "dayOfWeek": "Sunday",
+    "ownerId": "9b23108b-b95d-41f7-acb8-4387d9b45eef",
+    "createdAt": "2025-12-12T22:55:02.609Z",
+    "updatedAt": "2025-12-12T22:55:02.609Z"
+  }
+]

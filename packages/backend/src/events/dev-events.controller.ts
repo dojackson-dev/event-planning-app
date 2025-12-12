@@ -57,6 +57,35 @@ export class DevEventsController {
     }
 
     const events = await readEvents();
+    
+    // Check for time conflicts on the same date and venue
+    const conflicting = events.filter((e) => {
+      if (e.date !== body.date || e.venue !== body.venue) {
+        return false;
+      }
+      
+      // Check if time ranges overlap
+      const toMinutes = (time: string) => {
+        const parts = time.split(':').map((p: string) => parseInt(p, 10));
+        return (parts[0] || 0) * 60 + (parts[1] || 0);
+      };
+      
+      const newStart = toMinutes(body.startTime);
+      const newEnd = toMinutes(body.endTime);
+      const existingStart = toMinutes(e.startTime);
+      const existingEnd = toMinutes(e.endTime);
+      
+      // Times overlap if: max(start1, start2) < min(end1, end2)
+      return Math.max(newStart, existingStart) < Math.min(newEnd, existingEnd);
+    });
+    
+    if (conflicting.length > 0) {
+      const conflicts = conflicting.map((c) => `${c.name} (${c.startTime}-${c.endTime})`).join(', ');
+      throw new BadRequestException(
+        `Cannot create event at this time. Conflicts with: ${conflicts}`
+      );
+    }
+
     const id = parseInt(Math.random().toString().substring(2, 7)); // Simple numeric ID
     const event = {
       id,

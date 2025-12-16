@@ -68,6 +68,9 @@ export class IntakeFormsService {
   }
 
   async convertToBooking(supabase: SupabaseClient, userId: string, intakeFormId: string) {
+    // Use admin client to bypass RLS for events and bookings tables
+    const supabaseAdmin = this.supabaseService.getAdminClient();
+    
     // Get the intake form
     const { data: intakeForm, error: intakeError } = await supabase
       .from('intake_forms')
@@ -81,16 +84,18 @@ export class IntakeFormsService {
 
     // Create an event first
     const eventData = {
-      owner_id: userId,
       name: `${intakeForm.event_type} Event - ${intakeForm.contact_name}`,
       date: intakeForm.event_date,
       start_time: intakeForm.event_time || '00:00',
+      end_time: '23:59', // Default end time
       description: intakeForm.special_requests || '',
       status: 'scheduled' as const,
       guest_count: intakeForm.guest_count,
+      venue: 'TBD', // Default venue value
+      owner_id: userId, // Required field
     };
 
-    const { data: event, error: eventError } = await supabase
+    const { data: event, error: eventError } = await supabaseAdmin
       .from('event')
       .insert([eventData])
       .select()
@@ -117,7 +122,7 @@ export class IntakeFormsService {
       notes: `Converted from intake form. Budget range: ${intakeForm.budget_range || 'Not specified'}`,
     };
 
-    const { data: booking, error: bookingError } = await supabase
+    const { data: booking, error: bookingError } = await supabaseAdmin
       .from('booking')
       .insert([bookingData])
       .select('*, event(*)')

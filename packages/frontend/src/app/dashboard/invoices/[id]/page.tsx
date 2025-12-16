@@ -60,6 +60,22 @@ export default function InvoiceDetailPage() {
     }
   }
 
+  const handleDelete = async () => {
+    if (!invoice) return
+
+    if (!confirm('Are you sure you want to delete this invoice? This action cannot be undone.')) {
+      return
+    }
+
+    try {
+      await api.delete(`/invoices/${invoice.id}`)
+      router.push('/dashboard/invoices')
+    } catch (error) {
+      console.error('Failed to delete invoice:', error)
+      alert('Failed to delete invoice')
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -111,6 +127,12 @@ export default function InvoiceDetailPage() {
           >
             Print
           </button>
+          <button
+            onClick={handleDelete}
+            className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
+          >
+            Delete
+          </button>
         </div>
       </div>
 
@@ -120,7 +142,7 @@ export default function InvoiceDetailPage() {
         <div className="flex justify-between items-start mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">INVOICE</h1>
-            <p className="text-gray-600 mt-2">{invoice.invoiceNumber}</p>
+            <p className="text-gray-600 mt-2">{invoice.invoice_number}</p>
           </div>
           <div className="text-right">
             <p className="font-semibold">Your Company Name</p>
@@ -144,13 +166,13 @@ export default function InvoiceDetailPage() {
             <div className="mb-2">
               <span className="text-gray-600">Issue Date: </span>
               <span className="font-semibold">
-                {new Date(invoice.issueDate).toLocaleDateString()}
+                {new Date(invoice.issue_date).toLocaleDateString()}
               </span>
             </div>
             <div>
               <span className="text-gray-600">Due Date: </span>
               <span className="font-semibold">
-                {new Date(invoice.dueDate).toLocaleDateString()}
+                {new Date(invoice.due_date).toLocaleDateString()}
               </span>
             </div>
           </div>
@@ -172,7 +194,7 @@ export default function InvoiceDetailPage() {
                 <td className="px-4 py-3 text-sm text-gray-900">{item.description}</td>
                 <td className="px-4 py-3 text-sm text-gray-900 text-right">{item.quantity}</td>
                 <td className="px-4 py-3 text-sm text-gray-900 text-right">
-                  ${Number(item.unitPrice).toFixed(2)}
+                  ${Number(item.unit_price).toFixed(2)}
                 </td>
                 <td className="px-4 py-3 text-sm text-gray-900 text-right">
                   ${Number(item.amount).toFixed(2)}
@@ -189,31 +211,31 @@ export default function InvoiceDetailPage() {
               <span className="text-gray-600">Subtotal:</span>
               <span className="font-semibold">${Number(invoice.subtotal).toFixed(2)}</span>
             </div>
-            {invoice.taxRate > 0 && (
+            {invoice.tax_rate > 0 && (
               <div className="flex justify-between py-2">
-                <span className="text-gray-600">Tax ({invoice.taxRate}%):</span>
-                <span className="font-semibold">${Number(invoice.taxAmount).toFixed(2)}</span>
+                <span className="text-gray-600">Tax ({invoice.tax_rate}%):</span>
+                <span className="font-semibold">${Number(invoice.tax_amount).toFixed(2)}</span>
               </div>
             )}
-            {invoice.discountAmount > 0 && (
+            {invoice.discount_amount > 0 && (
               <div className="flex justify-between py-2 text-red-600">
                 <span>Discount:</span>
-                <span>-${Number(invoice.discountAmount).toFixed(2)}</span>
+                <span>-${Number(invoice.discount_amount).toFixed(2)}</span>
               </div>
             )}
             <div className="flex justify-between py-2 border-t border-gray-300 text-lg font-bold">
               <span>Total:</span>
-              <span>${Number(invoice.totalAmount).toFixed(2)}</span>
+              <span>${Number(invoice.total_amount).toFixed(2)}</span>
             </div>
-            {invoice.amountPaid > 0 && (
+            {invoice.amount_paid > 0 && (
               <>
                 <div className="flex justify-between py-2 text-green-600">
                   <span>Paid:</span>
-                  <span>-${Number(invoice.amountPaid).toFixed(2)}</span>
+                  <span>-${Number(invoice.amount_paid).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between py-2 border-t border-gray-300 text-lg font-bold text-red-600">
                   <span>Balance Due:</span>
-                  <span>${Number(invoice.amountDue).toFixed(2)}</span>
+                  <span>${Number(invoice.amount_due).toFixed(2)}</span>
                 </div>
               </>
             )}
@@ -257,7 +279,7 @@ export default function InvoiceDetailPage() {
                 placeholder="0.00"
               />
               <p className="text-sm text-gray-500 mt-1">
-                Amount due: ${Number(invoice.amountDue).toFixed(2)}
+                Amount due: ${Number(invoice.amount_due).toFixed(2)}
               </p>
             </div>
             <div className="flex gap-2">

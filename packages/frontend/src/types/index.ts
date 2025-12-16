@@ -106,13 +106,6 @@ export enum DiscountType {
   FIXED = 'fixed',
 }
 
-export enum ContractStatus {
-  DRAFT = 'draft',
-  SENT = 'sent',
-  SIGNED = 'signed',
-  CANCELLED = 'cancelled',
-}
-
 // User
 export interface User {
   id: string
@@ -232,42 +225,46 @@ export interface Payment {
 // Invoice
 export interface Invoice {
   id: string
-  invoiceNumber: string
-  ownerId?: string
-  bookingId: string
+  invoice_number: string
+  owner_id?: string
+  booking_id?: string // Made optional to support quotes without bookings
+  intake_form_id?: string // New: Link to intake form for quotes
   booking?: Booking
+  intake_form?: any // Optional populated intake form data
   subtotal: number
-  taxAmount: number
-  taxRate: number
-  discountAmount: number
-  totalAmount: number
-  amountPaid: number
-  amountDue: number
+  tax_amount: number
+  tax_rate: number
+  discount_amount: number
+  total_amount: number
+  amount_paid: number
+  amount_due: number
   status: InvoiceStatus
-  issueDate: string
-  dueDate: string
-  paidDate?: string
+  issue_date: string
+  due_date: string
+  paid_date?: string
   notes?: string
   terms?: string
   items: InvoiceItem[]
-  createdAt: string
-  updatedAt: string
+  created_at: string
+  updated_at: string
 }
 
 // InvoiceItem
 export interface InvoiceItem {
   id: string
-  invoiceId: string
+  invoice_id: string
+  service_item_id?: string // New: Link to service item from catalog
+  service_item?: ServiceItem // Optional populated service item data
   description: string
   quantity: number
-  standardPrice: number // Original/standard price
-  unitPrice: number // Actual price being charged
-  subtotal: number // quantity * unitPrice (before item discount)
-  discountType: DiscountType
-  discountValue: number // Percentage or fixed amount
-  discountAmount: number // Calculated discount
+  standard_price: number // Original/standard price
+  unit_price: number // Actual price being charged
+  subtotal: number // quantity * unit_price (before item discount)
+  discount_type: DiscountType
+  discount_value: number // Percentage or fixed amount
+  discount_amount: number // Calculated discount
   amount: number // Final amount after discount
-  sortOrder: number
+  sort_order: number
 }
 
 // ServiceItem
@@ -411,13 +408,13 @@ export interface Guest {
 
 // Message
 export interface Message {
-  id: number
+  id: string
   recipientPhone: string
   recipientName: string
   recipientType: 'client' | 'guest' | 'security' | 'custom'
-  userId?: number
+  userId?: string
   user?: User
-  eventId?: number
+  eventId?: string
   event?: Event
   messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom'
   content: string
@@ -430,7 +427,7 @@ export interface Message {
 
 // Message Template
 export interface MessageTemplate {
-  id: number
+  id: string
   name: string
   messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom'
   content: string

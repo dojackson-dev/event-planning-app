@@ -8,13 +8,13 @@ import { ServiceItemsModule } from './service-items/service-items.module';
 import { IntakeFormsModule } from './intake-forms/intake-forms.module';
 import { EventsModule } from './events/events.module';
 import { BookingsModule } from './bookings/bookings.module';
+import { InvoicesModule } from './invoices/invoices.module';
 // Commenting out feature modules that use TypeORM for now
 // We'll refactor these to use Supabase client one by one
 // import { UsersModule } from './users/users.module';
-// import { InvoicesModule } from './invoices/invoices.module';
 // import { ContractsModule } from './contracts/contracts.module';
 // import { SecurityModule } from './security/security.module';
-// import { GuestListsModule } from './guest-lists/guest-lists.module';
+import { GuestListsModule } from './guest-lists/guest-lists.module';
 // import { MessagingModule } from './messaging/messaging.module';
 
 @Module({
@@ -28,8 +28,9 @@ import { BookingsModule } from './bookings/bookings.module';
     IntakeFormsModule,
     EventsModule,
     BookingsModule,
+    InvoicesModule,
+    GuestListsModule,
     // UsersModule,
-    // InvoicesModule,
     // ContractsModule,
     // SecurityModule,
     // GuestListsModule,

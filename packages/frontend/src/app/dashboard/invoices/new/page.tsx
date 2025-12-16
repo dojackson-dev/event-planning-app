@@ -8,6 +8,7 @@ import { ServiceItem, ServiceItemCategory, Booking, DiscountType } from '@/types
 
 interface InvoiceLineItem {
   id: string
+  service_item_id?: string | null
   description: string
   quantity: number
   standardPrice: number
@@ -30,6 +31,8 @@ export default function NewInvoicePage() {
   const [discountAmount, setDiscountAmount] = useState<number>(0)
   const [notes, setNotes] = useState('')
   const [terms, setTerms] = useState('Payment due within 30 days')
+  const [issueDate, setIssueDate] = useState(new Date().toISOString().split('T')[0])
+  const [dueDate, setDueDate] = useState(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -73,9 +76,10 @@ export default function NewInvoicePage() {
   }
 
   const addServiceItem = (serviceItem: ServiceItem) => {
-    const price = Number(serviceItem.defaultPrice)
+    const price = Number(serviceItem.defaultPrice) || 0
     const newItem: InvoiceLineItem = {
       id: `temp-${Date.now()}`,
+      service_item_id: serviceItem.id,
       description: serviceItem.description,
       quantity: 1,
       standardPrice: price,
@@ -92,6 +96,7 @@ export default function NewInvoicePage() {
   const addCustomItem = () => {
     const newItem: InvoiceLineItem = {
       id: `temp-${Date.now()}`,
+      service_item_id: null,
       description: '',
       quantity: 1,
       standardPrice: 0,
@@ -161,39 +166,35 @@ export default function NewInvoicePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedBooking || lineItems.length === 0) {
-      alert('Please select a booking and add at least one line item')
+    if (lineItems.length === 0) {
+      alert('Please add at least one line item')
       return
     }
 
     setLoading(true)
     try {
-      const issueDate = new Date().toISOString().split('T')[0]
-      const dueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-
       const invoiceData = {
-        bookingId: Number(selectedBooking),
-        ownerId: user?.id ? Number(user.id) : undefined,
+        invoice: {
+          booking_id: selectedBooking && selectedBooking !== '' ? selectedBooking : null,
+          owner_id: user?.id,
+          tax_rate: Number(taxRate),
+          discount_amount: Number(discountAmount),
+          amount_paid: 0,
+          issue_date: issueDate,
+          due_date: dueDate,
+          notes,
+          terms,
+          status: 'draft',
+        },
         items: lineItems.map((item, index) => ({
+          service_item_id: item.service_item_id || null,
           description: item.description,
           quantity: Number(item.quantity),
-          standardPrice: Number(item.standardPrice),
-          unitPrice: Number(item.unitPrice),
-          subtotal: Number(item.subtotal),
-          discountType: item.discountType,
-          discountValue: Number(item.discountValue),
-          discountAmount: Number(item.discountAmount),
-          amount: Number(item.amount),
-          sortOrder: index,
+          unit_price: Number(item.unitPrice),
+          discount_type: 'none',
+          discount_value: 0,
+          sort_order: index,
         })),
-        taxRate: Number(taxRate),
-        discountAmount: Number(discountAmount),
-        amountPaid: 0,
-        issueDate,
-        dueDate,
-        notes,
-        terms,
-        status: 'draft',
       }
 
       const response = await api.post('/invoices', invoiceData)
@@ -216,21 +217,48 @@ export default function NewInvoicePage() {
         {/* Booking Selection */}
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Select Booking *
+            Select Booking (Optional)
           </label>
           <select
             value={selectedBooking}
             onChange={(e) => setSelectedBooking(e.target.value)}
-            required
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
-            <option value="">-- Select a booking --</option>
+            <option value="">-- Select a booking (optional) --</option>
             {bookings.map((booking) => (
               <option key={booking.id} value={booking.id}>
                 {booking.event?.name || 'Event'} - {booking.user ? `${booking.user.firstName} ${booking.user.lastName}` : 'Customer'}
               </option>
             ))}
           </select>
+        </div>
+
+        {/* Invoice Dates */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Issue Date *
+            </label>
+            <input
+              type="date"
+              value={issueDate}
+              onChange={(e) => setIssueDate(e.target.value)}
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Due Date *
+            </label>
+            <input
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+          </div>
         </div>
 
         {/* Service Items Quick Add */}
@@ -254,7 +282,7 @@ export default function NewInvoicePage() {
                 >
                   <span className="font-medium text-gray-900">{item.name}</span>
                   <span className="text-xs text-blue-600 mt-1">
-                    ${Number(item.defaultPrice).toFixed(2)}
+                    ${(Number(item.defaultPrice) || 0).toFixed(2)}
                   </span>
                 </button>
               ))}

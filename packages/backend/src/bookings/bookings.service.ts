@@ -10,19 +10,30 @@ export class BookingsService {
   ) {}
 
   async findAll(supabase: SupabaseClient): Promise<Booking[]> {
+    console.log('Fetching bookings...');
     const { data, error } = await supabase
       .from('booking')
-      .select('*, event(*)')
+      .select(`
+        *,
+        event:event(*)
+      `)
       .order('created_at', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error fetching bookings:', error);
+      throw error;
+    }
+    console.log('Bookings fetched:', data?.length || 0);
     return data || [];
   }
 
   async findOne(supabase: SupabaseClient, id: string): Promise<Booking | null> {
     const { data, error } = await supabase
       .from('booking')
-      .select('*, event(*)')
+      .select(`
+        *,
+        event:event(*)
+      `)
       .eq('id', id)
       .single();
 

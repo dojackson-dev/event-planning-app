@@ -27,7 +27,8 @@ import {
   Car,
   Lock,
   List,
-  Briefcase
+  Briefcase,
+  Trash2
 } from 'lucide-react';
 import DashboardLayout from '@/components/DashboardLayout';
 import api from '@/lib/api';
@@ -154,6 +155,7 @@ export default function EventManagementPage() {
 
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [formData, setFormData] = useState<EventManagementData>({
     eventId: '',
     eventType: EventType.WEDDING_RECEPTION,
@@ -350,6 +352,22 @@ export default function EventManagementPage() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!window.confirm('Are you sure you want to delete this event? This action cannot be undone.')) {
+      return;
+    }
+    setIsDeleting(true);
+    try {
+      await api.delete(`/events/${eventId}`);
+      alert('Event deleted successfully!');
+      router.push('/dashboard/events');
+    } catch (error) {
+      console.error('Error deleting event:', error);
+      alert('Error deleting event. Please try again.');
+      setIsDeleting(false);
+    }
+  };
+
   const getVendorIcon = (category: string) => {
     switch (category) {
       case 'catering': return <UtensilsCrossed className="h-5 w-5" />;
@@ -375,13 +393,23 @@ export default function EventManagementPage() {
           
           <div className="flex gap-2">
             {!isEditing ? (
-              <button
-                onClick={() => setIsEditing(true)}
-                className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
-              >
-                <Edit className="h-4 w-4 mr-2" />
-                Edit
-              </button>
+              <>
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                >
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  className="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  {isDeleting ? 'Deleting...' : 'Delete'}
+                </button>
+              </>
             ) : (
               <>
                 <button

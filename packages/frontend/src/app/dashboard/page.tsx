@@ -238,7 +238,7 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex items-center font-medium text-gray-900">
                         <DollarSign className="h-4 w-4 mr-1" />
-                        ${booking.totalPrice.toFixed(2)}
+                        ${booking.totalPrice?.toFixed(2) || '0.00'}
                       </div>
                     </div>
                   </div>

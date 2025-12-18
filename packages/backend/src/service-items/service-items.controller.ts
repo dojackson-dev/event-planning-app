@@ -29,7 +29,7 @@ export class ServiceItemsController {
     
     // Handle Supabase tokens
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    const { data: { user }, error } = await supabaseWithAuth.auth.getUser(token);
+    const { data: { user }, error } = await supabaseWithAuth.auth.getUser();
     
     if (error || !user) {
       throw new UnauthorizedException('Invalid token');

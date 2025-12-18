@@ -6,7 +6,7 @@ import { SupabaseModule } from '../supabase/supabase.module';
 
 @Module({
   imports: [SupabaseModule],
-  controllers: [DevEventsController, EventsController],
+  controllers: [EventsController, DevEventsController],
   providers: [EventsService],
   exports: [EventsService]
 })

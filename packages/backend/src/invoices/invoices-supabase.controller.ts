@@ -18,6 +18,15 @@ export class InvoicesSupabaseController {
 
   private async getUserId(authorization: string): Promise<string> {
     const token = this.extractToken(authorization);
+    
+    // Handle dev tokens (local-<uuid> format)
+    if (token.startsWith('local-')) {
+      const userId = token.replace('local-', '');
+      if (userId) return userId;
+      throw new UnauthorizedException('Invalid dev token format');
+    }
+    
+    // Handle Supabase tokens
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
     const { data: { user }, error } = await supabaseWithAuth.auth.getUser(token);
     

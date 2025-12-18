@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Invoice, InvoiceStatus } from '../entities/invoice.entity';
+import { MessagingService } from '../messaging/messaging.service';
 import { InvoiceItem, DiscountType } from '../entities/invoice-item.entity';
 import { Booking } from '../entities/booking.entity';
 
@@ -14,7 +15,10 @@ export class InvoicesService {
     private invoiceItemRepository: Repository<InvoiceItem>,
     @InjectRepository(Booking)
     private bookingRepository: Repository<Booking>,
+    private messagingService: MessagingService,
   ) {}
+
+  // NOTE: MessagingService injected lazily to avoid circular imports in some setups.
 
   async findAll(): Promise<Invoice[]> {
     return this.invoiceRepository.find({
@@ -100,8 +104,27 @@ export class InvoicesService {
       }
     }
 
+    const prevStatus = invoice.status;
+
     await this.invoiceRepository.update(id, invoiceData);
-    return this.findOne(id);
+
+    const updated = await this.findOne(id);
+
+    // Notify user if invoice transitioned to PAID
+    try {
+      if (invoiceData.status === InvoiceStatus.PAID && prevStatus !== InvoiceStatus.PAID && updated) {
+        const userId = updated.booking?.userId;
+        if (userId) {
+          const msg = `Your invoice ${updated.invoiceNumber} has been paid in full. Thank you!`;
+          await this.messagingService.sendInvoiceUpdate(userId, updated.id, msg);
+        }
+      }
+    } catch (err) {
+      // Log and continue — messaging failures should not break invoice update
+      console.error('Failed to send invoice-paid notification:', err?.message || err);
+    }
+
+    return updated;
   }
 
   async delete(id: number): Promise<void> {
@@ -115,9 +138,28 @@ export class InvoicesService {
       return null;
     }
     
-    const newAmountPaid = Number(invoice.amountPaid) + amount;
-    
-    return this.update(id, { amountPaid: newAmountPaid });
+    const prevAmountPaid = Number(invoice.amountPaid) || 0;
+    const newAmountPaid = prevAmountPaid + amount;
+
+    const updated = await this.update(id, { amountPaid: newAmountPaid });
+
+    // Check deposit-specific notification: if booking.deposit exists and this payment crossed that threshold
+    try {
+      if (updated && updated.booking) {
+        const depositAmount = Number(updated.booking.deposit || 0);
+        if (depositAmount > 0 && prevAmountPaid < depositAmount && newAmountPaid >= depositAmount) {
+          const userId = updated.booking.userId;
+          if (userId) {
+            const msg = `Deposit of $${depositAmount.toFixed(2)} received for booking associated with invoice ${updated.invoiceNumber}.`; 
+            await this.messagingService.sendInvoiceUpdate(userId, updated.id, msg);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to send deposit notification:', err?.message || err);
+    }
+
+    return updated;
   }
 
   async generateFromBooking(bookingId: number): Promise<Invoice> {

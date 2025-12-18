@@ -28,6 +28,7 @@ const navigation = [
   { name: 'Calendar', href: '/dashboard/calendar', icon: Calendar },
   { name: 'Events', href: '/dashboard/events', icon: Calendar },
   { name: 'Bookings', href: '/dashboard/bookings', icon: Users },
+  { name: 'Clients', href: '/dashboard/clients', icon: Users },
   { name: 'Client Intake', href: '/dashboard/intake', icon: ClipboardList },
   { name: 'Items & Packages', href: '/dashboard/items', icon: Package },
   { name: 'Invoices', href: '/dashboard/invoices', icon: Receipt },

@@ -9,6 +9,26 @@ export class EventsService {
     private readonly supabaseService: SupabaseService,
   ) {}
 
+  private camelToSnakeCase(obj: any): any {
+    if (!obj || typeof obj !== 'object') return obj;
+    
+    // Field mapping for special cases where frontend field doesn't match database column
+    const fieldMapping: Record<string, string> = {
+      maxGuests: 'guest_count',
+      specialRequirements: 'special_requirements',
+    };
+    
+    const result = {};
+    for (const key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        // Use field mapping if available, otherwise convert camelCase to snake_case
+        const snakeKey = fieldMapping[key] || key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+        result[snakeKey] = obj[key];
+      }
+    }
+    return result;
+  }
+
   async findAll(supabase: SupabaseClient): Promise<Event[]> {
     const { data, error } = await supabase
       .from('event')
@@ -19,7 +39,7 @@ export class EventsService {
     return data || [];
   }
 
-  async findOne(supabase: SupabaseClient, id: number): Promise<Event | null> {
+  async findOne(supabase: SupabaseClient, id: string): Promise<Event | null> {
     const { data, error } = await supabase
       .from('event')
       .select('*')
@@ -31,20 +51,27 @@ export class EventsService {
   }
 
   async create(supabase: SupabaseClient, event: Partial<Event>): Promise<Event> {
+    const convertedEvent = this.camelToSnakeCase(event);
+    console.log('Creating event with converted data:', JSON.stringify(convertedEvent, null, 2));
+    
     const { data, error } = await supabase
       .from('event')
-      .insert([event])
+      .insert([convertedEvent])
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase create error:', error);
+      throw error;
+    }
     return data;
   }
 
-  async update(supabase: SupabaseClient, id: number, event: Partial<Event>): Promise<Event | null> {
+  async update(supabase: SupabaseClient, id: string, event: Partial<Event>): Promise<Event | null> {
+    const convertedEvent = this.camelToSnakeCase(event);
     const { data, error } = await supabase
       .from('event')
-      .update(event)
+      .update(convertedEvent)
       .eq('id', id)
       .select()
       .single();
@@ -53,7 +80,7 @@ export class EventsService {
     return data;
   }
 
-  async remove(supabase: SupabaseClient, id: number): Promise<void> {
+  async remove(supabase: SupabaseClient, id: string): Promise<void> {
     const { error } = await supabase
       .from('event')
       .delete()

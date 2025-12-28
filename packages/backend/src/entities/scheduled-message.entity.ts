@@ -8,7 +8,7 @@ export class ScheduledMessage {
   id: number;
 
   @Column({ name: 'event_id' })
-  eventId: number;
+  eventId: string;
 
   @ManyToOne(() => Event)
   @JoinColumn({ name: 'event_id' })

@@ -12,7 +12,7 @@ export class MessagingController {
     @Query('userId') userId?: string,
   ): Promise<Message[]> {
     if (eventId) {
-      return this.messagingService.findByEvent(parseInt(eventId));
+      return this.messagingService.findByEvent(eventId);
     }
     if (userId) {
       return this.messagingService.findByUser(parseInt(userId));
@@ -36,7 +36,7 @@ export class MessagingController {
     recipientName: string;
     recipientType: 'client' | 'guest' | 'security' | 'custom';
     userId?: number;
-    eventId?: number;
+    eventId?: string;
     messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom';
     content: string;
   }): Promise<Message> {
@@ -50,7 +50,7 @@ export class MessagingController {
       recipientName: string;
       recipientType: 'client' | 'guest' | 'security' | 'custom';
       userId?: number;
-      eventId?: number;
+      eventId?: string;
       messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom';
       content: string;
     }>;
@@ -60,7 +60,7 @@ export class MessagingController {
 
   @Post('event-reminder/:eventId')
   async sendEventReminder(
-    @Param('eventId', ParseIntPipe) eventId: number,
+    @Param('eventId') eventId: string,
     @Body() data?: { message?: string },
   ): Promise<Message[]> {
     return this.messagingService.sendEventReminder(eventId, data?.message);

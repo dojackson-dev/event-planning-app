@@ -25,7 +25,7 @@ export class MessagingService {
     });
   }
 
-  async findByEvent(eventId: number): Promise<Message[]> {
+  async findByEvent(eventId: string): Promise<Message[]> {
     return this.messageRepository.find({
       where: { eventId },
       relations: ['user', 'event'],
@@ -53,7 +53,7 @@ export class MessagingService {
     recipientName: string;
     recipientType: 'client' | 'guest' | 'security' | 'custom';
     userId?: number;
-    eventId?: number;
+    eventId?: string;
     messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom';
     content: string;
   }): Promise<Message> {
@@ -86,7 +86,7 @@ export class MessagingService {
     recipientName: string;
     recipientType: 'client' | 'guest' | 'security' | 'custom';
     userId?: number;
-    eventId?: number;
+    eventId?: string;
     messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom';
     content: string;
   }>): Promise<Message[]> {
@@ -110,15 +110,18 @@ export class MessagingService {
     return results;
   }
 
-  async sendEventReminder(eventId: number, customMessage?: string): Promise<Message[]> {
+  async sendEventReminder(eventId: string, customMessage?: string): Promise<Message[]> {
     const event = await this.eventRepository.findOne({
-      where: { id: eventId as any },
-      relations: ['owner'],
+      where: { id: eventId },
     });
 
     if (!event) {
       throw new Error('Event not found');
     }
+
+    const owner = await this.userRepository.findOne({
+      where: { id: parseInt(event.ownerId) },
+    });
 
     const eventDate = new Date(event.date);
     const message = customMessage || 
@@ -129,18 +132,18 @@ export class MessagingService {
       recipientName: string;
       recipientType: 'client' | 'guest' | 'security' | 'custom';
       userId?: number;
-      eventId?: number;
+      eventId?: string;
       messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom';
       content: string;
     }> = [];
 
     // Send to client if phone exists
-    if (event.owner?.phone) {
+    if (owner?.phone) {
       messagesData.push({
-        recipientPhone: event.owner.phone,
-        recipientName: `${event.owner.firstName} ${event.owner.lastName}`,
+        recipientPhone: owner.phone,
+        recipientName: `${owner.firstName} ${owner.lastName}`,
         recipientType: 'client' as const,
-        userId: event.owner.id,
+        userId: owner.id,
         eventId: event.id,
         messageType: 'reminder' as const,
         content: message,

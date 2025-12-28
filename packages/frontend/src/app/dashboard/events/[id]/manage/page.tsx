@@ -209,85 +209,24 @@ export default function EventManagementPage() {
       setFormData(response.data);
     } catch (error) {
       console.error('Error loading event management data:', error);
-      // For now, set demo data
-      setFormData({
-        ...formData,
-        eventId: eventId,
-        eventName: 'Johnson Wedding Reception',
-        eventType: EventType.WEDDING_RECEPTION,
-        eventDate: '2025-12-15',
-        startTime: '18:00',
-        endTime: '23:00',
-        clientName: 'Sarah Johnson',
-        clientEmail: 'sarah.johnson@email.com',
-        clientPhone: '555-0123',
-        clientStatus: ClientStatus.DEPOSIT_PAID,
-        estimatedGuests: 150,
-        confirmedGuests: 142,
-        contractStatus: ContractStatus.SIGNED,
-        contractSignedDate: '2025-11-01',
-        contractAmount: '$15,000',
-        depositAmount: '$5,000',
-        depositPaid: true,
-        depositPaidDate: '2025-11-05',
-        balanceDue: '$10,000',
-        balanceDueDate: '2025-12-08',
-        insuranceStatus: InsuranceStatus.VERIFIED,
-        insuranceProvider: 'State Farm',
-        insurancePolicyNumber: 'POL-12345',
-        insuranceExpiryDate: '2025-12-31',
-        certificateReceived: true,
-        securityRequired: true,
-        securityCompany: 'Elite Security Services',
-        securityContactName: 'Mike Peterson',
-        securityContactPhone: '555-0199',
-        numberOfSecurityStaff: 2,
-        doorListLink: '/dashboard/door-list/' + eventId,
-        doorListLastUpdated: '2025-11-14',
-        venueSetup: 'Round tables with dance floor',
-        setupTime: '14:00',
-        breakdownTime: '01:00',
-        indoorOutdoor: 'Indoor',
-        vendors: [
-          {
-            id: '1',
-            category: 'catering',
-            companyName: 'Gourmet Catering Co',
-            contactPerson: 'Chef Antonio',
-            phone: '555-0145',
-            email: 'antonio@gourmetcatering.com',
-            contractStatus: 'signed',
-            estimatedCost: '$4,500',
-            notes: 'Menu finalized - Italian cuisine'
-          },
-          {
-            id: '2',
-            category: 'music',
-            companyName: 'DJ Premier Events',
-            contactPerson: 'DJ Marcus',
-            phone: '555-0167',
-            email: 'marcus@djpremier.com',
-            contractStatus: 'signed',
-            estimatedCost: '$1,200',
-            notes: 'Playing from 7pm-11pm'
-          },
-          {
-            id: '3',
-            category: 'photography',
-            companyName: 'Moments Photography',
-            contactPerson: 'Lisa Chen',
-            phone: '555-0189',
-            email: 'lisa@momentsphotos.com',
-            contractStatus: 'signed',
-            estimatedCost: '$2,800',
-            notes: '8 hours coverage + album'
-          }
-        ],
-        specialRequests: 'Gluten-free meal options for 12 guests',
-        allergies: 'Nut allergies - 3 guests',
-        accessibility: 'Wheelchair accessible entrance required',
-        internalNotes: 'VIP client - previous booking last year. Extra attention to detail.'
-      });
+      // Initialize with basic event data from the events API as fallback
+      try {
+        const eventResponse = await api.get(`/events/${eventId}`);
+        const event = eventResponse.data;
+        setFormData(prev => ({
+          ...prev,
+          eventId: eventId,
+          eventName: event.name || '',
+          eventType: event.eventType || EventType.WEDDING_RECEPTION,
+          eventDate: event.date || '',
+          startTime: event.startTime || '',
+          endTime: event.endTime || '',
+          venue: event.venue || '',
+        }));
+      } catch (fallbackError) {
+        console.error('Error loading event data:', fallbackError);
+        alert('Unable to load event data. Please try again.');
+      }
     }
   };
 

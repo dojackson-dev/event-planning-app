@@ -1,38 +1,21 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useParams, useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { EventType, EventStatus, Event } from '@/types'
+import { EventStatus, Event } from '@/types'
 
-const eventTypeLabels: Record<EventType, string> = {
-  [EventType.WEDDING_RECEPTION]: 'Wedding Reception',
-  [EventType.BIRTHDAY_PARTY]: 'Birthday Party',
-  [EventType.RETIREMENT]: 'Retirement',
-  [EventType.ANNIVERSARY]: 'Anniversary',
-  [EventType.BABY_SHOWER]: 'Baby Shower',
-  [EventType.CORPORATE_EVENT]: 'Corporate Event',
-  [EventType.FUNDRAISER_GALA]: 'Fundraiser Gala',
-  [EventType.CONCERT_SHOW]: 'Concert/Show',
-  [EventType.CONFERENCE_MEETING]: 'Conference/Meeting',
-  [EventType.WORKSHOP]: 'Workshop',
-  [EventType.QUINCEANERA]: 'Quinceañera',
-  [EventType.SWEET_16]: 'Sweet 16',
-  [EventType.PROM_FORMAL]: 'Prom/Formal',
-  [EventType.FAMILY_REUNION]: 'Family Reunion',
-  [EventType.MEMORIAL_SERVICE]: 'Memorial Service',
-  [EventType.PRODUCT_LAUNCH]: 'Product Launch',
-  [EventType.HOLIDAY_PARTY]: 'Holiday Party',
-  [EventType.ENGAGEMENT_PARTY]: 'Engagement Party',
-  [EventType.GRADUATION_PARTY]: 'Graduation Party',
-}
-
-export default function NewEventPage() {
+export default function EditEventPage() {
+  const params = useParams()
   const router = useRouter()
-  const [loading, setLoading] = useState(false)
+  const eventId = params.id as string
+  
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [showConflictWarning, setShowConflictWarning] = useState(false)
   const [conflictingEvents, setConflictingEvents] = useState<Event[]>([])
+  
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -48,9 +31,36 @@ export default function NewEventPage() {
     status: EventStatus.DRAFT,
   })
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target
-    setFormData(prev => ({ ...prev, [name]: value }))
+  useEffect(() => {
+    loadEvent()
+  }, [eventId])
+
+  const loadEvent = async () => {
+    try {
+      setLoading(true)
+      const response = await api.get<Event>(`/events/${eventId}`)
+      const event = response.data
+      
+      setFormData({
+        name: event.name,
+        description: event.description || '',
+        date: event.date,
+        startTime: event.startTime || '',
+        endTime: event.endTime || '',
+        venue: event.venue || '',
+        location: event.location || '',
+        maxGuests: event.maxGuests?.toString() || '',
+        budget: event.budget?.toString() || '',
+        notes: event.notes || '',
+        specialRequirements: event.specialRequirements || '',
+        status: event.status,
+      })
+    } catch (err: any) {
+      setError('Failed to load event')
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const checkForConflicts = async () => {
@@ -58,11 +68,13 @@ export default function NewEventPage() {
       const response = await api.get<Event[]>(`/events`)
       const allEvents = response.data
 
-      // Filter for events on the same date and draft status
+      // Filter for events on the same date and draft status (excluding current event)
       const conflicts = allEvents.filter(event => 
+        event.id !== eventId &&
         event.date === formData.date &&
         event.status === EventStatus.DRAFT &&
-        // Check if times overlap
+        // Check if times overlap (only if both events have times)
+        formData.startTime && formData.endTime && event.startTime && event.endTime &&
         (
           (event.startTime < formData.endTime && event.endTime > formData.startTime)
         )
@@ -81,6 +93,11 @@ export default function NewEventPage() {
     }
   }
 
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target
+    setFormData(prev => ({ ...prev, [name]: value }))
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -91,29 +108,31 @@ export default function NewEventPage() {
       return
     }
 
-    setLoading(true)
+    setSaving(true)
 
     try {
-      const eventDate = new Date(formData.date)
+      const payload = {
+        ...formData,
+        maxGuests: formData.maxGuests ? parseInt(formData.maxGuests) : null,
+        budget: formData.budget ? parseInt(formData.budget) : null,
+      }
 
-        const payload = {
-          ...formData,
-          maxGuests: formData.maxGuests ? parseInt(formData.maxGuests) : null,
-          budget: formData.budget ? parseFloat(formData.budget) : null,
-        }
-
-      await api.post('/events', payload)
+      await api.patch(`/events/${eventId}`, payload)
       router.push('/dashboard/events')
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to create event')
+      setError(err.response?.data?.message || 'Failed to update event')
     } finally {
-      setLoading(false)
+      setSaving(false)
     }
+  }
+
+  if (loading) {
+    return <div className="text-center py-8">Loading event...</div>
   }
 
   return (
     <div>
-      <h1 className="text-3xl font-bold text-gray-900 mb-6">Create New Event</h1>
+      <h1 className="text-3xl font-bold text-gray-900 mb-6">Edit Event</h1>
 
       <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6 max-w-3xl">
         {error && (
@@ -156,25 +175,6 @@ export default function NewEventPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Event Type *
-                </label>
-                <select
-                  name="eventType"
-                  required
-                  value={formData.eventType}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                >
-                  {Object.entries(eventTypeLabels).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Status
                 </label>
                 <select
@@ -211,25 +211,11 @@ export default function NewEventPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Setup Time
-                </label>
-                <input
-                  type="time"
-                  name="setupTime"
-                  value={formData.setupTime}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Start Time *
+                  Start Time
                 </label>
                 <input
                   type="time"
                   name="startTime"
-                  required
                   value={formData.startTime}
                   onChange={handleChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
@@ -238,12 +224,11 @@ export default function NewEventPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  End Time *
+                  End Time
                 </label>
                 <input
                   type="time"
                   name="endTime"
-                  required
                   value={formData.endTime}
                   onChange={handleChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
@@ -252,18 +237,17 @@ export default function NewEventPage() {
             </div>
           </div>
 
-          {/* Venue & Capacity */}
+          {/* Venue & Location */}
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Venue & Capacity</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Venue & Location</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Venue *
+                  Venue
                 </label>
                 <input
                   type="text"
                   name="venue"
-                  required
                   value={formData.venue}
                   onChange={handleChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
@@ -272,14 +256,72 @@ export default function NewEventPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Max Guests *
+                  Location
+                </label>
+                <input
+                  type="text"
+                  name="location"
+                  value={formData.location}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Max Guests
                 </label>
                 <input
                   type="number"
                   name="maxGuests"
-                  required
                   min="1"
                   value={formData.maxGuests}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Budget
+                </label>
+                <input
+                  type="number"
+                  name="budget"
+                  min="0"
+                  value={formData.budget}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Additional Details */}
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Additional Details</h2>
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Notes
+                </label>
+                <textarea
+                  name="notes"
+                  rows={2}
+                  value={formData.notes}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Special Requirements
+                </label>
+                <textarea
+                  name="specialRequirements"
+                  rows={2}
+                  value={formData.specialRequirements}
                   onChange={handleChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
                 />
@@ -291,10 +333,10 @@ export default function NewEventPage() {
           <div className="flex gap-4 pt-4 border-t">
             <button
               type="submit"
-              disabled={loading}
+              disabled={saving}
               className="px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Creating...' : 'Create Event'}
+              {saving ? 'Saving...' : 'Save Changes'}
             </button>
             <button
               type="button"
@@ -329,10 +371,16 @@ export default function NewEventPage() {
               </div>
 
               <p className="text-gray-600 mb-6 text-sm">
-                You must delete one of these conflicting draft events before proceeding. Please go back and delete the conflicting event.
+                You must delete one of these conflicting draft events before saving. Would you like to proceed anyway?
               </p>
               
               <div className="flex gap-3">
+                <button
+                  onClick={() => setShowConflictWarning(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
                 <button
                   onClick={() => setShowConflictWarning(false)}
                   className="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
@@ -343,6 +391,7 @@ export default function NewEventPage() {
             </div>
           </div>
         </div>
-      )}    </div>
+      )}
+    </div>
   )
 }

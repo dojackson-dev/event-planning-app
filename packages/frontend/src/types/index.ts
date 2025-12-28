@@ -132,31 +132,22 @@ export interface Tenant {
   createdAt: string
   updatedAt: string
 }
-
 // Event
 export interface Event {
   id: string
   name: string
   description?: string
   date: string
-  dayOfWeek: string
-  startTime: string
-  endTime: string
-  setupTime?: string
-  venue: string
-  maxGuests: number
-  tenantId: string
+  startTime?: string
+  endTime?: string
+  venue?: string
+  location?: string
+  maxGuests?: number
   ownerId: string
   status: EventStatus
-  eventType: EventType
-  services?: {
-    caterer?: string
-    decorator?: string
-    balloonDecorator?: string
-    marquee?: string
-    musicType?: 'dj' | 'band' | 'mc'
-  }
-  barOption?: string
+  budget?: number
+  notes?: string
+  specialRequirements?: string
   createdAt: string
   updatedAt: string
 }

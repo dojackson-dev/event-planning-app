@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThanOrEqual } from 'typeorm';
 import { ScheduledMessage } from '../entities/scheduled-message.entity';
 import { Event } from '../entities/event.entity';
+import { User } from '../entities/user.entity';
 import { MessageTemplate } from '../entities/message-template.entity';
 import { MessagingService } from './messaging.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
@@ -14,6 +15,8 @@ export class ScheduledMessagesService {
     private scheduledMessageRepository: Repository<ScheduledMessage>,
     @InjectRepository(Event)
     private eventRepository: Repository<Event>,
+    @InjectRepository(User)
+    private userRepository: Repository<User>,
     @InjectRepository(MessageTemplate)
     private templateRepository: Repository<MessageTemplate>,
     private messagingService: MessagingService,
@@ -26,7 +29,7 @@ export class ScheduledMessagesService {
     });
   }
 
-  async findByEvent(eventId: number): Promise<ScheduledMessage[]> {
+  async findByEvent(eventId: string): Promise<ScheduledMessage[]> {
     return this.scheduledMessageRepository.find({
       where: { eventId },
       relations: ['template'],
@@ -50,7 +53,7 @@ export class ScheduledMessagesService {
   }
 
   async create(scheduledMessageData: {
-    eventId: number;
+    eventId: string;
     templateId?: number;
     recipientType: 'client' | 'guest' | 'security' | 'all';
     content: string;
@@ -60,9 +63,9 @@ export class ScheduledMessagesService {
     return this.scheduledMessageRepository.save(scheduledMessage);
   }
 
-  async scheduleFromTemplate(eventId: number, templateId: number): Promise<ScheduledMessage> {
+  async scheduleFromTemplate(eventId: string, templateId: number): Promise<ScheduledMessage> {
     const event = await this.eventRepository.findOne({
-      where: { id: eventId as any },
+      where: { id: eventId },
     });
 
     if (!event) {
@@ -102,7 +105,7 @@ export class ScheduledMessagesService {
     });
   }
 
-  async scheduleMultipleFromTemplate(eventId: number, templateId: number): Promise<ScheduledMessage[]> {
+  async scheduleMultipleFromTemplate(eventId: string, templateId: number): Promise<ScheduledMessage[]> {
     const template = await this.templateRepository.findOne({
       where: { id: templateId },
     });
@@ -200,19 +203,22 @@ export class ScheduledMessagesService {
       recipientName: string;
       recipientType: 'client' | 'guest' | 'security' | 'custom';
       userId?: number;
-      eventId?: number;
+      eventId?: string;
       messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom';
       content: string;
     }> = [];
 
     // Determine recipients based on recipientType
     if (scheduledMessage.recipientType === 'client' || scheduledMessage.recipientType === 'all') {
-      if (event.owner?.phone) {
+      const owner = await this.userRepository.findOne({
+        where: { id: parseInt(event.ownerId) },
+      });
+      if (owner?.phone) {
         messages.push({
-          recipientPhone: event.owner.phone,
-          recipientName: `${event.owner.firstName} ${event.owner.lastName}`,
+          recipientPhone: owner.phone,
+          recipientName: `${owner.firstName} ${owner.lastName}`,
           recipientType: 'client' as const,
-          userId: event.owner.id,
+          userId: owner.id,
           eventId: event.id,
           messageType: 'reminder' as const,
           content: scheduledMessage.content,

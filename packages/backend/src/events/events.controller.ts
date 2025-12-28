@@ -56,7 +56,7 @@ export class EventsController {
     await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.eventsService.findOne(supabaseWithAuth, +id);
+    return this.eventsService.findOne(supabaseWithAuth, id);
   }
 
   @Patch(':id')
@@ -68,7 +68,7 @@ export class EventsController {
     await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.eventsService.update(supabaseWithAuth, +id, updateEventDto);
+    return this.eventsService.update(supabaseWithAuth, id, updateEventDto);
   }
 
   @Delete(':id')
@@ -79,6 +79,6 @@ export class EventsController {
     await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.eventsService.remove(supabaseWithAuth, +id);
+    return this.eventsService.remove(supabaseWithAuth, id);
   }
 }

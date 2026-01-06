@@ -17,9 +17,29 @@ import {
   addWeeks,
   subWeeks
 } from 'date-fns'
-import { ChevronLeft, ChevronRight, CalendarDays, CalendarRange, X, Edit2, Trash2, Clock, MapPin, Users } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CalendarDays, CalendarRange, X, Edit2, Trash2, Clock, MapPin, Users, DollarSign, FileText, AlertCircle } from 'lucide-react'
 
 type ViewType = 'month' | 'week'
+
+// Parse date string without timezone conversion (YYYY-MM-DD -> Date at midnight local time)
+const parseLocalDate = (dateString: string): Date => {
+  const [year, month, day] = dateString.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
+const formatTime = (timeString: string | undefined): string => {
+  if (!timeString) return 'Not set'
+  
+  // Parse time string (HH:MM or HH:MM:SS)
+  const [hours, minutes] = timeString.split(':').slice(0, 2)
+  const hour = parseInt(hours, 10)
+  const min = minutes
+  
+  const ampm = hour >= 12 ? 'PM' : 'AM'
+  const displayHour = hour % 12 || 12
+  
+  return `${displayHour}:${min} ${ampm}`
+}
 
 export default function CalendarPage() {
   const router = useRouter()
@@ -62,7 +82,7 @@ export default function CalendarPage() {
   const displayDays = viewType === 'month' ? monthDays : weekDays
 
   const getEventsForDay = (day: Date) => {
-    return events.filter(event => isSameDay(new Date(event.date), day))
+    return events.filter(event => isSameDay(parseLocalDate(event.date), day))
   }
 
   const previousPeriod = () => {
@@ -229,9 +249,9 @@ export default function CalendarPage() {
                             ? 'bg-gray-100 text-gray-800'
                             : 'bg-blue-100 text-blue-800'
                         }`}
-                        title={`${event.name} - ${event.startTime}`}
+                        title={`${event.name} - ${formatTime(event.startTime)} to ${formatTime(event.endTime)}`}
                       >
-                        <div className="font-medium truncate">{event.startTime}</div>
+                        <div className="font-medium truncate">{formatTime(event.startTime)} - {formatTime(event.endTime)}</div>
                         <div className="truncate">{event.name}</div>
                       </div>
                     ))}
@@ -262,8 +282,8 @@ export default function CalendarPage() {
       {/* Event Details Modal */}
       {selectedEvent && !showDeleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-            <div className="flex justify-between items-start p-6 border-b">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-start p-6 border-b sticky top-0 bg-white">
               <h2 className="text-xl font-bold text-gray-900">{selectedEvent.name}</h2>
               <button onClick={closeModal} className="text-gray-500 hover:text-gray-700">
                 <X className="h-6 w-6" />
@@ -276,7 +296,7 @@ export default function CalendarPage() {
                 <CalendarDays className="h-5 w-5 text-primary-600 mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase">Date</p>
-                  <p className="text-base font-semibold text-gray-900">{format(new Date(selectedEvent.date), 'PPP')}</p>
+                  <p className="text-base font-semibold text-gray-900">{format(parseLocalDate(selectedEvent.date), 'PPP')}</p>
                 </div>
               </div>
               
@@ -288,11 +308,11 @@ export default function CalendarPage() {
                   <div className="flex gap-4">
                     <div className="flex-1">
                       <p className="text-sm text-gray-600">Start</p>
-                      <p className="text-base font-semibold text-gray-900">{selectedEvent.startTime || 'Not set'}</p>
+                      <p className="text-base font-semibold text-gray-900">{formatTime(selectedEvent.startTime)}</p>
                     </div>
                     <div className="flex-1">
                       <p className="text-sm text-gray-600">End</p>
-                      <p className="text-base font-semibold text-gray-900">{selectedEvent.endTime || 'Not set'}</p>
+                      <p className="text-base font-semibold text-gray-900">{formatTime(selectedEvent.endTime)}</p>
                     </div>
                   </div>
                 </div>
@@ -315,6 +335,61 @@ export default function CalendarPage() {
                   <p className="text-base font-semibold text-gray-900">{selectedEvent.maxGuests ? `${selectedEvent.maxGuests} guests` : 'Not specified'}</p>
                 </div>
               </div>
+
+              {/* Location */}
+              {selectedEvent.location && (
+                <div className="flex items-start gap-3 pb-4 border-b">
+                  <MapPin className="h-5 w-5 text-primary-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 uppercase">Location</p>
+                    <p className="text-base font-semibold text-gray-900">{selectedEvent.location}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Budget */}
+              {selectedEvent.budget && (
+                <div className="flex items-start gap-3 pb-4 border-b">
+                  <DollarSign className="h-5 w-5 text-primary-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 uppercase">Budget</p>
+                    <p className="text-base font-semibold text-gray-900">${selectedEvent.budget.toLocaleString()}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Description */}
+              {selectedEvent.description && (
+                <div className="flex items-start gap-3 pb-4 border-b">
+                  <FileText className="h-5 w-5 text-primary-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 uppercase">Description</p>
+                    <p className="text-base text-gray-900">{selectedEvent.description}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Notes */}
+              {selectedEvent.notes && (
+                <div className="flex items-start gap-3 pb-4 border-b">
+                  <FileText className="h-5 w-5 text-primary-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 uppercase">Notes</p>
+                    <p className="text-base text-gray-900">{selectedEvent.notes}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Special Requirements */}
+              {selectedEvent.specialRequirements && (
+                <div className="flex items-start gap-3 pb-4 border-b">
+                  <AlertCircle className="h-5 w-5 text-primary-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 uppercase">Special Requirements</p>
+                    <p className="text-base text-gray-900">{selectedEvent.specialRequirements}</p>
+                  </div>
+                </div>
+              )}
               
               {/* Status */}
               <div>
@@ -331,7 +406,7 @@ export default function CalendarPage() {
               </div>
             </div>
             
-            <div className="flex gap-3 p-6 border-t bg-gray-50">
+            <div className="flex gap-3 p-6 border-t bg-gray-50 sticky bottom-0">
               <button
                 onClick={handleEditEvent}
                 className="flex-1 inline-flex items-center justify-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"

@@ -7,6 +7,26 @@ import { Event } from '@/types'
 import { Plus, Calendar, MapPin, Users, Settings, Edit2, Trash2, ChevronDown } from 'lucide-react'
 import { format } from 'date-fns'
 
+// Parse date string without timezone conversion (YYYY-MM-DD -> Date at midnight local time)
+const parseLocalDate = (dateString: string): Date => {
+  const [year, month, day] = dateString.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
+const formatTime = (timeString: string | undefined): string => {
+  if (!timeString) return 'Not set'
+  
+  // Parse time string (HH:MM or HH:MM:SS)
+  const [hours, minutes] = timeString.split(':').slice(0, 2)
+  const hour = parseInt(hours, 10)
+  const min = minutes
+  
+  const ampm = hour >= 12 ? 'PM' : 'AM'
+  const displayHour = hour % 12 || 12
+  
+  return `${displayHour}:${min} ${ampm}`
+}
+
 export default function EventsPage() {
   const [events, setEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
@@ -47,7 +67,7 @@ export default function EventsPage() {
   }
 
   const filteredEvents = events.filter(event => {
-    const eventDate = new Date(event.date)
+    const eventDate = parseLocalDate(event.date)
     const now = new Date()
     
     if (filter === 'upcoming') {
@@ -173,7 +193,7 @@ export default function EventsPage() {
 
               <div className="mt-4 pt-4 border-t flex justify-between items-center">
                 <p className="text-xs text-gray-500">
-                  {event.startTime} - {event.endTime}
+                  {formatTime(event.startTime)} - {formatTime(event.endTime)}
                 </p>
                 <div className="relative" ref={el => { if (el) dropdownRefs.current[event.id] = el }}>
                   <button

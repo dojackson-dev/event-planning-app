@@ -4,6 +4,21 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { EventStatus, Event } from '@/types'
+import { Trash2, X } from 'lucide-react'
+
+const formatTime = (timeString: string | undefined): string => {
+  if (!timeString) return 'Not set'
+  
+  // Parse time string (HH:MM or HH:MM:SS)
+  const [hours, minutes] = timeString.split(':').slice(0, 2)
+  const hour = parseInt(hours, 10)
+  const min = minutes
+  
+  const ampm = hour >= 12 ? 'PM' : 'AM'
+  const displayHour = hour % 12 || 12
+  
+  return `${displayHour}:${min} ${ampm}`
+}
 
 export default function EditEventPage() {
   const params = useParams()
@@ -12,8 +27,10 @@ export default function EditEventPage() {
   
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
   const [showConflictWarning, setShowConflictWarning] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [conflictingEvents, setConflictingEvents] = useState<Event[]>([])
   
   const [formData, setFormData] = useState({
@@ -123,6 +140,19 @@ export default function EditEventPage() {
       setError(err.response?.data?.message || 'Failed to update event')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleDeleteEvent = async () => {
+    setDeleting(true)
+    try {
+      await api.delete(`/events/${eventId}`)
+      router.push('/dashboard/events')
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to delete event')
+      setShowDeleteConfirm(false)
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -345,6 +375,14 @@ export default function EditEventPage() {
             >
               Cancel
             </button>
+            <button
+              type="button"
+              onClick={() => setShowDeleteConfirm(true)}
+              className="ml-auto px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors inline-flex items-center gap-2"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete Event
+            </button>
           </div>
         </div>
       </form>
@@ -386,6 +424,45 @@ export default function EditEventPage() {
                   className="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
                 >
                   Go Back
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-sm w-full">
+            <div className="flex items-center justify-between p-6 border-b">
+              <h2 className="text-lg font-bold text-gray-900">Delete Event?</h2>
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <p className="text-gray-600 mb-6">
+                Are you sure you want to delete this event? This action cannot be undone.
+              </p>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteEvent}
+                  disabled={deleting}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {deleting ? 'Deleting...' : 'Delete'}
                 </button>
               </div>
             </div>

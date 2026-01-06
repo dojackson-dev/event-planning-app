@@ -40,11 +40,7 @@ export default function NewEventPage() {
     startTime: '',
     endTime: '',
     venue: '',
-    location: '',
     maxGuests: '',
-    budget: '',
-    notes: '',
-    specialRequirements: '',
     status: EventStatus.DRAFT,
   })
 
@@ -58,14 +54,16 @@ export default function NewEventPage() {
       const response = await api.get<Event[]>(`/events`)
       const allEvents = response.data
 
-      // Filter for events on the same date and draft status
+      // Filter for events on the same date with time overlap
+      // Check all events (not just draft), and validate that both events have times
       const conflicts = allEvents.filter(event => 
         event.date === formData.date &&
-        event.status === EventStatus.DRAFT &&
-        // Check if times overlap
-        (
-          (event.startTime < formData.endTime && event.endTime > formData.startTime)
-        )
+        formData.startTime &&
+        formData.endTime &&
+        event.startTime &&
+        event.endTime &&
+        // Check if times overlap: event starts before new event ends AND event ends after new event starts
+        (event.startTime < formData.endTime && event.endTime > formData.startTime)
       )
 
       if (conflicts.length > 0) {
@@ -94,14 +92,18 @@ export default function NewEventPage() {
     setLoading(true)
 
     try {
-      const eventDate = new Date(formData.date)
+      const payload = {
+        name: formData.name,
+        description: formData.description,
+        date: formData.date, // YYYY-MM-DD format from date input
+        startTime: formData.startTime,
+        endTime: formData.endTime,
+        venue: formData.venue,
+        maxGuests: formData.maxGuests ? parseInt(formData.maxGuests) : null,
+        status: formData.status,
+      }
 
-        const payload = {
-          ...formData,
-          maxGuests: formData.maxGuests ? parseInt(formData.maxGuests) : null,
-          budget: formData.budget ? parseFloat(formData.budget) : null,
-        }
-
+      console.log('Creating event with payload:', payload)
       await api.post('/events', payload)
       router.push('/dashboard/events')
     } catch (err: any) {
@@ -156,25 +158,6 @@ export default function NewEventPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Event Type *
-                </label>
-                <select
-                  name="eventType"
-                  required
-                  value={formData.eventType}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                >
-                  {Object.entries(eventTypeLabels).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Status
                 </label>
                 <select
@@ -204,19 +187,6 @@ export default function NewEventPage() {
                   name="date"
                   required
                   value={formData.date}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Setup Time
-                </label>
-                <input
-                  type="time"
-                  name="setupTime"
-                  value={formData.setupTime}
                   onChange={handleChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
                 />
@@ -312,32 +282,33 @@ export default function NewEventPage() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
             <div className="p-6">
-              <h2 className="text-lg font-bold text-red-900 mb-4">Schedule Conflict Detected!</h2>
+              <h2 className="text-lg font-bold text-red-900 mb-4">⚠️ Schedule Conflict Detected!</h2>
               <p className="text-gray-600 mb-4">
-                The following draft event(s) conflict with your selected time:
+                The following event(s) conflict with your selected time on the same day:
               </p>
               
               <div className="mb-6 max-h-48 overflow-y-auto bg-gray-50 p-4 rounded">
                 {conflictingEvents.map(event => (
-                  <div key={event.id} className="mb-2 pb-2 border-b last:border-b-0">
+                  <div key={event.id} className="mb-3 pb-3 border-b last:border-b-0">
                     <p className="font-semibold text-gray-900">{event.name}</p>
                     <p className="text-sm text-gray-600">
                       {event.startTime} - {event.endTime}
                     </p>
+                    <p className="text-xs text-gray-500 mt-1">Status: {event.status}</p>
                   </div>
                 ))}
               </div>
 
               <p className="text-gray-600 mb-6 text-sm">
-                You must delete one of these conflicting draft events before proceeding. Please go back and delete the conflicting event.
+                You cannot create an event at the same time as an existing event. Please choose a different time or date.
               </p>
               
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowConflictWarning(false)}
-                  className="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                  className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
                 >
-                  Go Back
+                  Go Back & Change Time
                 </button>
               </div>
             </div>

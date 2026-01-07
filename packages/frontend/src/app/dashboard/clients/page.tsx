@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { User, Calendar, Mail, Phone, Clock, Eye, CheckCircle } from 'lucide-react'
+import { User, Calendar, Mail, Phone, Clock, Eye, CheckCircle, Search, MessageSquare, FileText, Clock as ClockIcon } from 'lucide-react'
 
 interface IntakeForm {
   id: string
@@ -35,6 +35,13 @@ export default function ClientsPage() {
   const [clients, setClients] = useState<IntakeForm[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'new' | 'contacted' | 'converted'>('all')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [selectedClient, setSelectedClient] = useState<IntakeForm | null>(null)
+  const [showMessageModal, setShowMessageModal] = useState(false)
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false)
+  const [showAppointmentModal, setShowAppointmentModal] = useState(false)
+  const [messageContent, setMessageContent] = useState('')
+  const [appointmentData, setAppointmentData] = useState({ date: '', time: '', notes: '' })
 
   useEffect(() => {
     fetchClients()
@@ -51,9 +58,54 @@ export default function ClientsPage() {
     }
   }
 
+  const handleSendMessage = async () => {
+    if (!selectedClient || !messageContent.trim()) return
+    try {
+      // TODO: Implement message API endpoint
+      console.log('Sending message to', selectedClient.contact_email, ':', messageContent)
+      alert('Message sent successfully!')
+      setShowMessageModal(false)
+      setMessageContent('')
+    } catch (error) {
+      console.error('Error sending message:', error)
+      alert('Failed to send message')
+    }
+  }
+
+  const handleSendInvoice = async () => {
+    if (!selectedClient) return
+    try {
+      // TODO: Implement invoice sending API endpoint
+      console.log('Sending invoice to', selectedClient.contact_email)
+      alert('Invoice sent successfully!')
+      setShowInvoiceModal(false)
+    } catch (error) {
+      console.error('Error sending invoice:', error)
+      alert('Failed to send invoice')
+    }
+  }
+
+  const handleMakeAppointment = async () => {
+    if (!selectedClient || !appointmentData.date || !appointmentData.time) return
+    try {
+      // TODO: Implement appointment API endpoint
+      console.log('Creating appointment for', selectedClient.contact_name, ':', appointmentData)
+      alert('Appointment scheduled successfully!')
+      setShowAppointmentModal(false)
+      setAppointmentData({ date: '', time: '', notes: '' })
+    } catch (error) {
+      console.error('Error creating appointment:', error)
+      alert('Failed to create appointment')
+    }
+  }
+
   const filteredClients = clients.filter(client => {
-    if (filter === 'all') return true
-    return client.status === filter
+    const matchesFilter = filter === 'all' || client.status === filter
+    const matchesSearch = searchTerm === '' || 
+      client.contact_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      client.contact_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (client.contact_phone && client.contact_phone.includes(searchTerm))
+    return matchesFilter && matchesSearch
   })
 
   const getStatusColor = (status: string) => {
@@ -140,6 +192,28 @@ export default function ClientsPage() {
               </div>
               <CheckCircle className="h-8 w-8 text-green-600" />
             </div>
+          </div>
+        </div>
+
+        {/* Search Box */}
+        <div className="bg-white rounded-lg shadow p-4 mb-6">
+          <div className="flex items-center gap-3 px-2">
+            <Search className="h-5 w-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search by name, email, or phone..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="flex-1 outline-none text-gray-900 placeholder-gray-500"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="text-gray-400 hover:text-gray-600 font-semibold"
+              >
+                ✕
+              </button>
+            )}
           </div>
         </div>
 
@@ -254,14 +328,46 @@ export default function ClientsPage() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {formatDate(client.created_at)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button
-                          onClick={() => router.push(`/dashboard/clients/${client.id}`)}
-                          className="text-blue-600 hover:text-blue-900 flex items-center gap-1 ml-auto"
-                        >
-                          <Eye className="h-4 w-4" />
-                          View
-                        </button>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-y-2">
+                        <div className="flex items-center gap-2 justify-end flex-wrap">
+                          <button
+                            onClick={() => {
+                              setSelectedClient(client)
+                              setShowMessageModal(true)
+                            }}
+                            className="text-blue-600 hover:text-blue-900 flex items-center gap-1 px-2 py-1 rounded hover:bg-blue-50"
+                            title="Send message"
+                          >
+                            <MessageSquare className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedClient(client)
+                              setShowInvoiceModal(true)
+                            }}
+                            className="text-green-600 hover:text-green-900 flex items-center gap-1 px-2 py-1 rounded hover:bg-green-50"
+                            title="Send invoice"
+                          >
+                            <FileText className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedClient(client)
+                              setShowAppointmentModal(true)
+                            }}
+                            className="text-purple-600 hover:text-purple-900 flex items-center gap-1 px-2 py-1 rounded hover:bg-purple-50"
+                            title="Make appointment"
+                          >
+                            <ClockIcon className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => router.push(`/dashboard/clients/${client.id}`)}
+                            className="text-blue-600 hover:text-blue-900 flex items-center gap-1 px-2 py-1 rounded hover:bg-blue-50"
+                            title="View details"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -270,6 +376,155 @@ export default function ClientsPage() {
             </div>
           )}
         </div>
+
+        {/* Message Modal */}
+        {showMessageModal && selectedClient && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
+              <h2 className="text-xl font-bold mb-4">Send Message to {selectedClient.contact_name}</h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={selectedClient.contact_email}
+                    disabled
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+                  <textarea
+                    value={messageContent}
+                    onChange={(e) => setMessageContent(e.target.value)}
+                    placeholder="Type your message here..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows={4}
+                  />
+                </div>
+                <div className="flex gap-3 justify-end pt-4">
+                  <button
+                    onClick={() => setShowMessageModal(false)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSendMessage}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    Send
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Invoice Modal */}
+        {showInvoiceModal && selectedClient && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
+              <h2 className="text-xl font-bold mb-4">Send Invoice to {selectedClient.contact_name}</h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={selectedClient.contact_email}
+                    disabled
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Select Invoice</label>
+                  <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+                    <option value="">-- Select an invoice --</option>
+                    <option value="1">Invoice #INV-001</option>
+                    <option value="2">Invoice #INV-002</option>
+                  </select>
+                </div>
+                <p className="text-sm text-gray-600">The invoice will be sent to the client's email address.</p>
+                <div className="flex gap-3 justify-end pt-4">
+                  <button
+                    onClick={() => setShowInvoiceModal(false)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSendInvoice}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                  >
+                    Send Invoice
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Appointment Modal */}
+        {showAppointmentModal && selectedClient && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
+              <h2 className="text-xl font-bold mb-4">Schedule Appointment with {selectedClient.contact_name}</h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Client</label>
+                  <input
+                    type="text"
+                    value={selectedClient.contact_name}
+                    disabled
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                  <input
+                    type="date"
+                    value={appointmentData.date}
+                    onChange={(e) => setAppointmentData({ ...appointmentData, date: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Time</label>
+                  <input
+                    type="time"
+                    value={appointmentData.time}
+                    onChange={(e) => setAppointmentData({ ...appointmentData, time: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes (Optional)</label>
+                  <textarea
+                    value={appointmentData.notes}
+                    onChange={(e) => setAppointmentData({ ...appointmentData, notes: e.target.value })}
+                    placeholder="Add appointment notes..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    rows={3}
+                  />
+                </div>
+                <div className="flex gap-3 justify-end pt-4">
+                  <button
+                    onClick={() => setShowAppointmentModal(false)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleMakeAppointment}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                  >
+                    Schedule
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -28,7 +28,7 @@ export default function MessageTemplatesPage() {
     }
   }
 
-  const handleToggleActive = async (id: number) => {
+  const handleToggleActive = async (id: string) => {
     try {
       await api.post(`/message-templates/${id}/toggle`)
       fetchTemplates()
@@ -38,7 +38,7 @@ export default function MessageTemplatesPage() {
     }
   }
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this template?')) return
 
     try {

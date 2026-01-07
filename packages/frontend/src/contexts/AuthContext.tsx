@@ -51,11 +51,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const newUser: User = {
         id: supabaseUser.id,
         email: supabaseUser.email || '',
-        firstName: supabaseUser.user_metadata?.first_name || '',
-        lastName: supabaseUser.user_metadata?.last_name || '',
-        role: supabaseUser.user_metadata?.role || 'owner',
-        createdAt: supabaseUser.created_at || new Date().toISOString(),
-        updatedAt: supabaseUser.updated_at || new Date().toISOString()
+        firstName: (supabaseUser as any).user_metadata?.first_name || '',
+        lastName: (supabaseUser as any).user_metadata?.last_name || '',
+        role: (supabaseUser as any).user_metadata?.role || 'owner',
+        createdAt: (supabaseUser as any).created_at || new Date().toISOString(),
+        updatedAt: (supabaseUser as any).updated_at || new Date().toISOString()
       }
       
       // Save to localStorage IMMEDIATELY

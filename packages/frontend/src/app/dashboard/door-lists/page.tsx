@@ -36,7 +36,10 @@ export default function DoorListsPage() {
 
   useEffect(() => {
     if (selectedEvent && guestLists.length > 0) {
-      const list = guestLists.find(gl => gl.event_id?.toString() === selectedEvent)
+      const list = guestLists.find(gl => {
+        const eventId = (gl as any).event_id || gl.eventId
+        return eventId?.toString() === selectedEvent
+      })
       setSelectedGuestList(list || null)
     }
   }, [selectedEvent, guestLists])
@@ -104,9 +107,9 @@ export default function DoorListsPage() {
 
     // Apply status filter
     if (filterStatus === 'arrived') {
-      filtered = filtered.filter(guest => guest.has_arrived)
+      filtered = filtered.filter(guest => (guest as any).hasArrived || ((guest as any).has_arrived || guest.hasArrived))
     } else if (filterStatus === 'pending') {
-      filtered = filtered.filter(guest => !guest.has_arrived)
+      filtered = filtered.filter(guest => !((guest as any).hasArrived || ((guest as any).has_arrived || guest.hasArrived)))
     }
 
     return filtered
@@ -116,8 +119,8 @@ export default function DoorListsPage() {
     if (!selectedGuestList?.guests) return { total: 0, arrived: 0, pending: 0, totalWithPlus: 0 }
     
     const guests = selectedGuestList.guests
-    const arrived = guests.filter(g => g.has_arrived).length
-    const totalWithPlus = guests.reduce((sum, g) => sum + 1 + (g.plus_one_count || 0), 0)
+    const arrived = guests.filter(g => (g as any).hasArrived || g.hasArrived).length
+    const totalWithPlus = guests.reduce((sum, g) => sum + 1 + ((g as any).plusOneCount || g.plusOneCount || 0), 0)
     
     return {
       total: guests.length,
@@ -329,14 +332,14 @@ export default function DoorListsPage() {
                     <div
                       key={guest.id}
                       className={`px-6 py-4 hover:bg-gray-50 transition-colors ${
-                        guest.has_arrived ? 'bg-green-50' : ''
+                        ((guest as any).has_arrived || guest.hasArrived) ? 'bg-green-50' : ''
                       }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-3">
                             <div className={`h-12 w-12 rounded-full flex items-center justify-center font-bold text-lg ${
-                              guest.has_arrived 
+                              ((guest as any).has_arrived || guest.hasArrived) 
                                 ? 'bg-green-100 text-green-700'
                                 : 'bg-gray-100 text-gray-600'
                             }`}>
@@ -350,22 +353,22 @@ export default function DoorListsPage() {
                         </div>
 
                         <div className="flex items-center gap-4">
-                          {guest.plus_one_count > 0 && (
+                          {((guest as any).plus_one_count || guest.plusOneCount || 0) > 0 && (
                             <div className="text-center px-3 py-1 bg-purple-100 rounded-lg">
                               <p className="text-xs text-purple-600 font-medium">Plus</p>
-                              <p className="text-lg font-bold text-purple-700">{guest.plus_one_count}</p>
+                              <p className="text-lg font-bold text-purple-700">{((guest as any).plus_one_count || guest.plusOneCount || 0)}</p>
                             </div>
                           )}
 
-                          {guest.has_arrived ? (
+                          {((guest as any).has_arrived || guest.hasArrived) ? (
                             <div className="text-right mr-4">
                               <div className="flex items-center gap-2 text-green-600 mb-1">
                                 <CheckCircle2 className="h-5 w-5" />
                                 <span className="font-semibold">Checked In</span>
                               </div>
-                              {guest.arrived_at && (
+                              {((guest as any).arrived_at || guest.arrivedAt) && (
                                 <p className="text-xs text-gray-500">
-                                  {new Date(guest.arrived_at).toLocaleTimeString('en-US', {
+                                  {new Date(((guest as any).arrived_at || guest.arrivedAt)).toLocaleTimeString('en-US', {
                                     hour: 'numeric',
                                     minute: '2-digit'
                                   })}
@@ -381,7 +384,7 @@ export default function DoorListsPage() {
                             </div>
                           )}
 
-                          {guest.has_arrived ? (
+                          {((guest as any).has_arrived || guest.hasArrived) ? (
                             <button
                               onClick={() => handleCheckOut(guest.id)}
                               className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2"

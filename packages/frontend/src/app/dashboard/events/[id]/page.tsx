@@ -121,7 +121,7 @@ export default function EventDetailsPage() {
               <h3 className="text-sm font-semibold text-gray-600">Date</h3>
             </div>
             <p className="text-lg text-gray-900">{format(new Date(event.date), 'PPPP')}</p>
-            {event.dayOfWeek && <p className="text-sm text-gray-600 mt-1">{event.dayOfWeek}</p>}
+            {(event as any).dayOfWeek && <p className="text-sm text-gray-600 mt-1">{(event as any).dayOfWeek}</p>}
           </div>
 
           {/* Time */}
@@ -163,32 +163,32 @@ export default function EventDetailsPage() {
         </div>
 
         {/* Services Section */}
-        {(event.caterer || event.decorator || event.musicType || event.barOption) && (
+        {((event as any).caterer || (event as any).decorator || (event as any).musicType || (event as any).barOption) && (
           <div className="mt-8 pt-8 border-t">
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Services</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {event.caterer && (
+              {(event as any).caterer && (
                 <div className="p-4 bg-blue-50 rounded-lg">
                   <p className="text-sm text-gray-600">Caterer</p>
-                  <p className="text-lg font-semibold text-gray-900">{event.caterer}</p>
+                  <p className="text-lg font-semibold text-gray-900">{(event as any).caterer}</p>
                 </div>
               )}
-              {event.decorator && (
+              {(event as any).decorator && (
                 <div className="p-4 bg-blue-50 rounded-lg">
                   <p className="text-sm text-gray-600">Decorator</p>
-                  <p className="text-lg font-semibold text-gray-900">{event.decorator}</p>
+                  <p className="text-lg font-semibold text-gray-900">{(event as any).decorator}</p>
                 </div>
               )}
-              {event.musicType && (
+              {(event as any).musicType && (
                 <div className="p-4 bg-blue-50 rounded-lg">
                   <p className="text-sm text-gray-600">Music Type</p>
-                  <p className="text-lg font-semibold text-gray-900">{event.musicType}</p>
+                  <p className="text-lg font-semibold text-gray-900">{(event as any).musicType}</p>
                 </div>
               )}
-              {event.barOption && (
+              {(event as any).barOption && (
                 <div className="p-4 bg-blue-50 rounded-lg">
                   <p className="text-sm text-gray-600">Bar Option</p>
-                  <p className="text-lg font-semibold text-gray-900">{event.barOption}</p>
+                  <p className="text-lg font-semibold text-gray-900">{(event as any).barOption}</p>
                 </div>
               )}
             </div>

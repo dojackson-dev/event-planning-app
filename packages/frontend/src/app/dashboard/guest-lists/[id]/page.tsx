@@ -147,6 +147,7 @@ export default function GuestListDetailPage() {
             <h1 className="text-2xl font-bold">Guest List Details</h1>
             <p className="text-sm text-gray-600">Access Code: {guestList.access_code}</p>
           </div>
+        </div>
         <div className="flex gap-3">
           <button
             onClick={() => setShowShareModal(true)}
@@ -172,8 +173,7 @@ export default function GuestListDetailPage() {
         shareToken={guestList.share_token}
         arrivalToken={guestList.arrival_token}
         accessCode={guestList.access_code}
-      /utton>
-      </div>
+      />
 
       {/* Add Guest Form */}
       {showAddForm && (

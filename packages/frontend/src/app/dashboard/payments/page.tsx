@@ -51,12 +51,12 @@ export default function PaymentsPage() {
     const currentYear = now.getFullYear()
 
     const stats = invoiceData.reduce((acc, invoice) => {
-      const amountPaid = Number(invoice.amountPaid)
-      const amountDue = Number(invoice.amountDue)
+      const amountPaid = Number((invoice as any).amountPaid || (invoice as any).amount_paid || 0)
+      const amountDue = Number((invoice as any).amountDue || (invoice as any).amount_due || 0)
 
       // Total received
       if (invoice.status === InvoiceStatus.PAID) {
-        acc.totalReceived += Number(invoice.totalAmount)
+        acc.totalReceived += Number((invoice as any).totalAmount || (invoice as any).total_amount || 0)
       } else {
         acc.totalReceived += amountPaid
       }
@@ -72,7 +72,7 @@ export default function PaymentsPage() {
       }
 
       // This month
-      const issueDate = new Date(invoice.issueDate)
+      const issueDate = new Date((invoice as any).issueDate || (invoice as any).issue_date)
       if (issueDate.getMonth() === currentMonth && issueDate.getFullYear() === currentYear) {
         acc.thisMonth += amountPaid
       }
@@ -223,7 +223,7 @@ export default function PaymentsPage() {
                 invoices.map((invoice) => (
                   <tr key={invoice.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {invoice.invoiceNumber}
+                      {(invoice as any).invoiceNumber || (invoice as any).invoice_number}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {invoice.booking?.user
@@ -231,16 +231,16 @@ export default function PaymentsPage() {
                         : 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(invoice.issueDate).toLocaleDateString()}
+                      {new Date((invoice as any).issueDate || (invoice as any).issue_date).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
-                      ${Number(invoice.totalAmount).toFixed(2)}
+                      ${Number((invoice as any).totalAmount || (invoice as any).total_amount).toFixed(2)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">
-                      ${Number(invoice.amountPaid).toFixed(2)}
+                      ${Number((invoice as any).amountPaid || (invoice as any).amount_paid || 0).toFixed(2)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-medium">
-                      ${Number(invoice.amountDue).toFixed(2)}
+                      ${Number((invoice as any).amountDue || (invoice as any).amount_due || 0).toFixed(2)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
@@ -258,7 +258,7 @@ export default function PaymentsPage() {
                       >
                         <FileText className="h-5 w-5 inline" />
                       </button>
-                      {invoice.status !== InvoiceStatus.PAID && Number(invoice.amountDue) > 0 && (
+                      {invoice.status !== InvoiceStatus.PAID && Number((invoice as any).amountDue || (invoice as any).amount_due || 0) > 0 && (
                         <button
                           onClick={() => router.push(`/dashboard/invoices/${invoice.id}`)}
                           className="text-green-600 hover:text-green-900"
@@ -312,12 +312,12 @@ export default function PaymentsPage() {
   function generateCSV(): string {
     const headers = ['Invoice Number', 'Customer', 'Issue Date', 'Total Amount', 'Amount Paid', 'Amount Due', 'Status']
     const rows = invoices.map(inv => [
-      inv.invoiceNumber,
+      (inv as any).invoiceNumber || (inv as any).invoice_number,
       inv.booking?.user ? `${inv.booking.user.firstName} ${inv.booking.user.lastName}` : 'N/A',
-      new Date(inv.issueDate).toLocaleDateString(),
-      Number(inv.totalAmount).toFixed(2),
-      Number(inv.amountPaid).toFixed(2),
-      Number(inv.amountDue).toFixed(2),
+      new Date((inv as any).issueDate || (inv as any).issue_date).toLocaleDateString(),
+      Number((inv as any).totalAmount || (inv as any).total_amount).toFixed(2),
+      Number((inv as any).amountPaid || (inv as any).amount_paid || 0).toFixed(2),
+      Number((inv as any).amountDue || (inv as any).amount_due || 0).toFixed(2),
       inv.status
     ])
     

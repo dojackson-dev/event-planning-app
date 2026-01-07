@@ -54,7 +54,7 @@ export default function MessagesPage() {
     }
   }
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this message record?')) return
 
     try {
@@ -67,7 +67,7 @@ export default function MessagesPage() {
     }
   }
 
-  const handleRefreshStatus = async (id: number) => {
+  const handleRefreshStatus = async (id: string) => {
     try {
       await api.post(`/messages/${id}/refresh-status`)
       fetchMessages()

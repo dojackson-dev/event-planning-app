@@ -34,7 +34,9 @@ export class AuthFlowService {
       },
     });
 
-    if (authError) throw new BadRequestException(authError.message);
+    if (authError || !authData.user) {
+      throw new BadRequestException(authError?.message || 'Failed to create user');
+    }
 
     const userId = authData.user.id;
 
@@ -192,12 +194,13 @@ export class AuthFlowService {
       .eq('user_id', ownerUserId)
       .single();
 
-    if (!membership?.owner_accounts?.stripe_customer_id) {
+    const ownerAccounts = membership?.owner_accounts as any;
+    if (!ownerAccounts?.stripe_customer_id) {
       throw new BadRequestException('No billing account found');
     }
 
     const portalUrl = await this.stripeService.createBillingPortalSession(
-      membership.owner_accounts.stripe_customer_id
+      ownerAccounts.stripe_customer_id
     );
 
     return { portalUrl };
@@ -289,7 +292,9 @@ export class AuthFlowService {
         password: dto.password,
       });
 
-      if (authError) throw new BadRequestException(authError.message);
+      if (authError || !authData.user) {
+        throw new BadRequestException(authError?.message || 'Failed to create user');
+      }
       userId = authData.user.id;
 
       // Create user record

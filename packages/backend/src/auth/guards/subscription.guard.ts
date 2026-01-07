@@ -1,5 +1,5 @@
 import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
-import { SupabaseService } from '../supabase/supabase.service';
+import { SupabaseService } from '../../supabase/supabase.service';
 
 /**
  * Route guard to check subscription status for owner routes

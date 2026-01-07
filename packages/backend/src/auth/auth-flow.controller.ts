@@ -2,7 +2,7 @@ import { Controller, Post, Body, Get, Query, Req, UseGuards } from '@nestjs/comm
 import { AuthFlowService } from './auth-flow.service';
 import { OwnerSignupDto, OwnerLoginDto } from './dto/owner-signup.dto';
 import { CreateInviteDto, AcceptInviteDto } from './dto/client-invite.dto';
-import { Request } from 'express';
+import type { Request } from 'express';
 
 @Controller('auth/flow')
 export class AuthFlowController {
@@ -28,7 +28,7 @@ export class AuthFlowController {
 
   @Get('owner/billing-portal')
   async getBillingPortal(@Req() req: Request) {
-    const ownerUserId = req.headers.authorization?.split('Bearer ')[1];
+    const ownerUserId = req.headers.authorization?.split('Bearer ')[1] || '';
     return this.authFlowService.getBillingPortal(ownerUserId);
   }
 
@@ -41,7 +41,7 @@ export class AuthFlowController {
     @Req() req: Request,
   ) {
     // Get owner user ID from auth token (would use guard in production)
-    const ownerUserId = req.headers.authorization?.split('Bearer ')[1];
+    const ownerUserId = req.headers.authorization?.split('Bearer ')[1] || '';
     return this.authFlowService.createClientInvite(dto, ownerUserId);
   }
 

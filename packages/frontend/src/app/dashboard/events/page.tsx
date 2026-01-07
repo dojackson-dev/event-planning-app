@@ -1,20 +1,59 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
 import { Event } from '@/types'
-import { Plus, Calendar, MapPin, Users, Settings } from 'lucide-react'
+import { Plus, Calendar, MapPin, Users, Settings, Edit2, Trash2, ChevronDown } from 'lucide-react'
 import { format } from 'date-fns'
+
+// Parse date string without timezone conversion (YYYY-MM-DD -> Date at midnight local time)
+const parseLocalDate = (dateString: string): Date => {
+  const [year, month, day] = dateString.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
+const formatTime = (timeString: string | undefined): string => {
+  if (!timeString) return 'Not set'
+  
+  // Parse time string (HH:MM or HH:MM:SS)
+  const [hours, minutes] = timeString.split(':').slice(0, 2)
+  const hour = parseInt(hours, 10)
+  const min = minutes
+  
+  const ampm = hour >= 12 ? 'PM' : 'AM'
+  const displayHour = hour % 12 || 12
+  
+  return `${displayHour}:${min} ${ampm}`
+}
 
 export default function EventsPage() {
   const [events, setEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'past'>('all')
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const dropdownRefs = useRef<{ [key: string]: HTMLDivElement | null }>({})
 
   useEffect(() => {
     fetchEvents()
   }, [])
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        openDropdown &&
+        dropdownRefs.current[openDropdown] &&
+        !dropdownRefs.current[openDropdown]?.contains(event.target as Node)
+      ) {
+        setOpenDropdown(null)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [openDropdown])
 
   const fetchEvents = async () => {
     try {
@@ -28,7 +67,7 @@ export default function EventsPage() {
   }
 
   const filteredEvents = events.filter(event => {
-    const eventDate = new Date(event.date)
+    const eventDate = parseLocalDate(event.date)
     const now = new Date()
     
     if (filter === 'upcoming') {
@@ -49,6 +88,22 @@ export default function EventsPage() {
         return 'bg-blue-100 text-blue-800'
       default:
         return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const handleDeleteEvent = async (eventId: string) => {
+    setIsDeleting(true)
+    try {
+      await api.delete(`/events/${eventId}`)
+      setEvents(events.filter(e => e.id !== eventId))
+      setShowDeleteConfirm(null)
+      setOpenDropdown(null)
+      alert('Event deleted successfully')
+    } catch (error) {
+      console.error('Failed to delete event:', error)
+      alert('Failed to delete event. Please try again.')
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -123,7 +178,8 @@ export default function EventsPage() {
               <div className="space-y-2 text-sm text-gray-600">
                 <div className="flex items-center">
                   <Calendar className="h-4 w-4 mr-2" />
-                  {format(new Date(event.date), 'PPP')} ({event.dayOfWeek})
+                  {format(new Date(event.date), 'PPP')}
+                  ({format(new Date(event.date), 'EEEE')})
                 </div>
                 <div className="flex items-center">
                   <MapPin className="h-4 w-4 mr-2" />
@@ -137,15 +193,39 @@ export default function EventsPage() {
 
               <div className="mt-4 pt-4 border-t flex justify-between items-center">
                 <p className="text-xs text-gray-500">
-                  {event.startTime} - {event.endTime}
+                  {formatTime(event.startTime)} - {formatTime(event.endTime)}
                 </p>
-                <Link
-                  href={`/dashboard/events/${event.id}/manage`}
-                  className="inline-flex items-center px-3 py-1 bg-primary-600 text-white text-xs font-medium rounded-lg hover:bg-primary-700"
-                >
-                  <Settings className="h-3 w-3 mr-1" />
-                  Manage
-                </Link>
+                <div className="relative" ref={el => { if (el) dropdownRefs.current[event.id] = el }}>
+                  <button
+                    onClick={() => setOpenDropdown(openDropdown === event.id ? null : event.id)}
+                    className="inline-flex items-center px-3 py-1 bg-primary-600 text-white text-xs font-medium rounded-lg hover:bg-primary-700 transition-colors"
+                  >
+                    <Settings className="h-3 w-3 mr-1" />
+                    Manage
+                    <ChevronDown className="h-3 w-3 ml-1" />
+                  </button>
+                  
+                  {/* Dropdown Menu */}
+                  {openDropdown === event.id && (
+                    <div className="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+                      <Link
+                        href={`/dashboard/events/${event.id}/edit`}
+                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors border-b"
+                        onClick={() => setOpenDropdown(null)}
+                      >
+                        <Edit2 className="h-4 w-4 mr-2" />
+                        Edit Event
+                      </Link>
+                      <button
+                        onClick={() => setShowDeleteConfirm(event.id)}
+                        className="w-full flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete Event
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -157,6 +237,36 @@ export default function EventsPage() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-sm w-full">
+            <div className="p-6">
+              <h2 className="text-lg font-bold text-gray-900 mb-4">Delete Event?</h2>
+              <p className="text-gray-600 mb-6">
+                Are you sure you want to delete this event? This action cannot be undone.
+              </p>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(null)}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleDeleteEvent(showDeleteConfirm)}
+                  disabled={isDeleting}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                >
+                  {isDeleting ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -1,5 +1,4 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
-import { User } from './user.entity';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
 export enum EventStatus {
   DRAFT = 'draft',
@@ -8,10 +7,10 @@ export enum EventStatus {
   CANCELLED = 'cancelled',
 }
 
-@Entity()
+@Entity('event')
 export class Event {
-  @PrimaryGeneratedColumn()
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
   @Column()
   name: string;
@@ -22,33 +21,20 @@ export class Event {
   @Column({ type: 'date' })
   date: string;
 
-  @Column({ nullable: true })
-  dayOfWeek: string; // e.g., 'Monday'
-
-  @Column({ type: 'time' })
+  @Column({ name: 'start_time', type: 'time', nullable: true })
   startTime: string;
 
-  @Column({ type: 'time' })
+  @Column({ name: 'end_time', type: 'time', nullable: true })
   endTime: string;
 
-  @Column({ type: 'time', nullable: true })
-  setupTime: string;
-
-  @Column()
+  @Column({ nullable: true })
   venue: string;
 
   @Column({ nullable: true })
+  location: string;
+
+  @Column({ name: 'guest_count', nullable: true })
   maxGuests: number;
-
-  @Column()
-  tenantId: string;
-
-  @ManyToOne(() => User)
-  @JoinColumn({ name: 'ownerId' })
-  owner: User;
-
-  @Column()
-  ownerId: number;
 
   @Column({
     type: 'enum',
@@ -57,28 +43,21 @@ export class Event {
   })
   status: EventStatus;
 
-  // Services
-  @Column({ nullable: true })
-  caterer: string;
+  @Column({ name: 'owner_id' })
+  ownerId: string;
 
   @Column({ nullable: true })
-  decorator: string;
+  budget: number;
 
   @Column({ nullable: true })
-  balloonDecorator: string;
+  notes: string;
 
-  @Column({ nullable: true })
-  marquee: string;
+  @Column({ name: 'special_requirements', nullable: true })
+  specialRequirements: string;
 
-  @Column({ nullable: true })
-  musicType: string; // 'dj', 'band', 'mc'
-
-  @Column({ nullable: true })
-  barOption: string; // type of bar
-
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 }

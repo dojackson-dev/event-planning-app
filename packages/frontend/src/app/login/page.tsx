@@ -17,9 +17,12 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
+      console.log('Attempting login with:', email)
       await login({ email, password })
+      console.log('Login successful, redirecting...')
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Login failed. Please try again.')
+      console.error('Login error:', err)
+      setError(err.response?.data?.message || err.message || 'Login failed. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -43,8 +46,9 @@ export default function LoginPage() {
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           {error && (
-            <div className="rounded-md bg-red-50 p-4">
-              <p className="text-sm text-red-800">{error}</p>
+            <div className="rounded-md bg-red-50 p-4 border border-red-200">
+              <p className="text-sm text-red-800 font-semibold">Error: {error}</p>
+              <p className="text-xs text-red-700 mt-2">Check browser console (F12) for details</p>
             </div>
           )}
           <div className="rounded-md shadow-sm -space-y-px">

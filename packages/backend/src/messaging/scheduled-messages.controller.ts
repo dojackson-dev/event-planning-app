@@ -17,7 +17,7 @@ export class ScheduledMessagesController {
   }
 
   @Get('event/:eventId')
-  async findByEvent(@Param('eventId', ParseIntPipe) eventId: number): Promise<ScheduledMessage[]> {
+  async findByEvent(@Param('eventId') eventId: string): Promise<ScheduledMessage[]> {
     return this.scheduledMessagesService.findByEvent(eventId);
   }
 
@@ -28,7 +28,7 @@ export class ScheduledMessagesController {
 
   @Post()
   async create(@Body() data: {
-    eventId: number;
+    eventId: string;
     templateId?: number;
     recipientType: 'client' | 'guest' | 'security' | 'all';
     content: string;
@@ -39,7 +39,7 @@ export class ScheduledMessagesController {
 
   @Post('from-template')
   async scheduleFromTemplate(@Body() data: {
-    eventId: number;
+    eventId: string;
     templateId: number;
   }): Promise<ScheduledMessage> {
     return this.scheduledMessagesService.scheduleFromTemplate(data.eventId, data.templateId);
@@ -47,7 +47,7 @@ export class ScheduledMessagesController {
 
   @Post('from-template-recurring')
   async scheduleMultipleFromTemplate(@Body() data: {
-    eventId: number;
+    eventId: string;
     templateId: number;
   }): Promise<ScheduledMessage[]> {
     return this.scheduledMessagesService.scheduleMultipleFromTemplate(data.eventId, data.templateId);

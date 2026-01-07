@@ -24,7 +24,7 @@ export class Message {
   user?: User;
 
   @Column({ nullable: true, name: 'event_id' })
-  eventId?: number;
+  eventId?: string;
 
   @ManyToOne(() => Event, { nullable: true })
   @JoinColumn({ name: 'event_id' })

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { EventType, EventStatus } from '@/types'
+import { EventType, EventStatus, Event } from '@/types'
 
 const eventTypeLabels: Record<EventType, string> = {
   [EventType.WEDDING_RECEPTION]: 'Wedding Reception',
@@ -31,58 +31,79 @@ export default function NewEventPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showConflictWarning, setShowConflictWarning] = useState(false)
+  const [conflictingEvents, setConflictingEvents] = useState<Event[]>([])
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     date: '',
     startTime: '',
     endTime: '',
-    setupTime: '',
     venue: '',
     maxGuests: '',
-    eventType: EventType.BIRTHDAY_PARTY,
     status: EventStatus.DRAFT,
-    services: {
-      caterer: '',
-      decorator: '',
-      balloonDecorator: '',
-      marquee: '',
-      musicType: '' as 'dj' | 'band' | 'mc' | '',
-    },
-    barOption: '',
   })
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target
-    if (name.startsWith('services.')) {
-      const serviceName = name.split('.')[1]
-      setFormData(prev => ({
-        ...prev,
-        services: {
-          ...prev.services,
-          [serviceName]: value,
-        },
-      }))
-    } else {
-      setFormData(prev => ({ ...prev, [name]: value }))
+    setFormData(prev => ({ ...prev, [name]: value }))
+  }
+
+  const checkForConflicts = async () => {
+    try {
+      const response = await api.get<Event[]>(`/events`)
+      const allEvents = response.data
+
+      // Filter for events on the same date with time overlap
+      // Check all events (not just draft), and validate that both events have times
+      const conflicts = allEvents.filter(event => 
+        event.date === formData.date &&
+        formData.startTime &&
+        formData.endTime &&
+        event.startTime &&
+        event.endTime &&
+        // Check if times overlap: event starts before new event ends AND event ends after new event starts
+        (event.startTime < formData.endTime && event.endTime > formData.startTime)
+      )
+
+      if (conflicts.length > 0) {
+        setConflictingEvents(conflicts)
+        setShowConflictWarning(true)
+        return false
+      }
+
+      return true
+    } catch (err) {
+      console.error('Error checking conflicts:', err)
+      return true // Continue anyway if check fails
     }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    
+    // Check for conflicts
+    const hasNoConflicts = await checkForConflicts()
+    if (!hasNoConflicts) {
+      return
+    }
+
     setLoading(true)
 
     try {
-      const eventDate = new Date(formData.date)
-      const dayOfWeek = eventDate.toLocaleDateString('en-US', { weekday: 'long' })
-
       const payload = {
-        ...formData,
-        dayOfWeek,
-        maxGuests: parseInt(formData.maxGuests),
+        name: formData.name,
+        description: formData.description,
+        date: formData.date, // YYYY-MM-DD format from date input
+        startTime: formData.startTime,
+        endTime: formData.endTime,
+        venue: formData.venue,
+        maxGuests: formData.maxGuests ? parseInt(formData.maxGuests) : null,
+        status: formData.status,
       }
 
+      console.log('Creating event with payload:', payload)
       await api.post('/events', payload)
       router.push('/dashboard/events')
     } catch (err: any) {
@@ -137,25 +158,6 @@ export default function NewEventPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Event Type *
-                </label>
-                <select
-                  name="eventType"
-                  required
-                  value={formData.eventType}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                >
-                  {Object.entries(eventTypeLabels).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Status
                 </label>
                 <select
@@ -185,19 +187,6 @@ export default function NewEventPage() {
                   name="date"
                   required
                   value={formData.date}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Setup Time
-                </label>
-                <input
-                  type="time"
-                  name="setupTime"
-                  value={formData.setupTime}
                   onChange={handleChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
                 />
@@ -268,95 +257,6 @@ export default function NewEventPage() {
             </div>
           </div>
 
-          {/* Services */}
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Services</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Caterer
-                </label>
-                <input
-                  type="text"
-                  name="services.caterer"
-                  value={formData.services.caterer}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Decorator
-                </label>
-                <input
-                  type="text"
-                  name="services.decorator"
-                  value={formData.services.decorator}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Balloon Decorator
-                </label>
-                <input
-                  type="text"
-                  name="services.balloonDecorator"
-                  value={formData.services.balloonDecorator}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Marquee
-                </label>
-                <input
-                  type="text"
-                  name="services.marquee"
-                  value={formData.services.marquee}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Music Type
-                </label>
-                <select
-                  name="services.musicType"
-                  value={formData.services.musicType}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                >
-                  <option value="">None</option>
-                  <option value="dj">DJ</option>
-                  <option value="band">Band</option>
-                  <option value="mc">MC</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Bar Option
-                </label>
-                <input
-                  type="text"
-                  name="barOption"
-                  value={formData.barOption}
-                  onChange={handleChange}
-                  placeholder="e.g., Open Bar, Cash Bar"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                />
-              </div>
-            </div>
-          </div>
-
           {/* Actions */}
           <div className="flex gap-4 pt-4 border-t">
             <button
@@ -376,6 +276,44 @@ export default function NewEventPage() {
           </div>
         </div>
       </form>
-    </div>
+
+      {/* Conflict Warning Modal */}
+      {showConflictWarning && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <h2 className="text-lg font-bold text-red-900 mb-4">⚠️ Schedule Conflict Detected!</h2>
+              <p className="text-gray-600 mb-4">
+                The following event(s) conflict with your selected time on the same day:
+              </p>
+              
+              <div className="mb-6 max-h-48 overflow-y-auto bg-gray-50 p-4 rounded">
+                {conflictingEvents.map(event => (
+                  <div key={event.id} className="mb-3 pb-3 border-b last:border-b-0">
+                    <p className="font-semibold text-gray-900">{event.name}</p>
+                    <p className="text-sm text-gray-600">
+                      {event.startTime} - {event.endTime}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">Status: {event.status}</p>
+                  </div>
+                ))}
+              </div>
+
+              <p className="text-gray-600 mb-6 text-sm">
+                You cannot create an event at the same time as an existing event. Please choose a different time or date.
+              </p>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowConflictWarning(false)}
+                  className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                >
+                  Go Back & Change Time
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}    </div>
   )
 }

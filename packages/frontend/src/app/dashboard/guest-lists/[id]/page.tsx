@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { ArrowLeft, Plus, Trash2, Edit2, Save, X } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Edit2, Save, X, Share2 } from 'lucide-react'
+import ShareLinkModal from '@/components/ShareLinkModal'
 
 interface Guest {
   id: number
@@ -35,6 +36,7 @@ export default function GuestListDetailPage() {
   const [loading, setLoading] = useState(true)
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingGuest, setEditingGuest] = useState<number | null>(null)
+  const [showShareModal, setShowShareModal] = useState(false)
   
   // Form state
   const [name, setName] = useState('')
@@ -145,14 +147,32 @@ export default function GuestListDetailPage() {
             <h1 className="text-2xl font-bold">Guest List Details</h1>
             <p className="text-sm text-gray-600">Access Code: {guestList.access_code}</p>
           </div>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setShowShareModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
+          >
+            <Share2 className="w-4 h-4" />
+            Share Link & Code
+          </button>
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
+          >
+            <Plus className="w-4 h-4" />
+            Add Guest
+          </button>
         </div>
-        <button
-          onClick={() => setShowAddForm(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
-        >
-          <Plus className="w-4 h-4" />
-          Add Guest
-        </button>
+      </div>
+
+      {/* Share Modal */}
+      <ShareLinkModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        shareToken={guestList.share_token}
+        arrivalToken={guestList.arrival_token}
+        accessCode={guestList.access_code}
+      /utton>
       </div>
 
       {/* Add Guest Form */}

@@ -16,9 +16,13 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => {
-    // Try to load from localStorage on initial mount
-    if (typeof window === 'undefined') return null
+  const [user, setUser] = useState<User | null>(null)
+  const [isClient, setIsClient] = useState(false)
+  const router = useRouter()
+
+  // Load user from localStorage only on client side
+  useEffect(() => {
+    setIsClient(true)
     
     try {
       const stored = localStorage.getItem('user')
@@ -27,17 +31,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (stored && token) {
         const parsed = JSON.parse(stored)
         console.log('✅ [INIT] Loaded user from localStorage:', parsed.email)
-        return parsed
+        setUser(parsed)
       }
     } catch (e) {
       console.error('[INIT] Error loading from localStorage:', e)
     }
-    
-    console.log('📭 [INIT] No user in storage')
-    return null
-  })
-
-  const router = useRouter()
+  }, [])
 
   const login = async (credentials: LoginCredentials) => {
     try {
@@ -93,10 +92,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push('/login')
   }
 
+  // Always provide the context, but mark as loading during SSR
   return (
     <AuthContext.Provider value={{
       user,
-      loading: false,
+      loading: !isClient,
       login,
       logout,
       isAuthenticated: !!user,

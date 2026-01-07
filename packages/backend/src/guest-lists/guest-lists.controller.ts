@@ -28,6 +28,17 @@ export class GuestListsController {
     return this.guestListsService.findByAccessCode(code);
   }
 
+  @Post('validate-access')
+  async validateAccess(
+    @Body() body: { guestListId: number; accessCode: string }
+  ): Promise<{ valid: boolean }> {
+    const valid = await this.guestListsService.validateAccessCode(
+      body.guestListId,
+      body.accessCode
+    );
+    return { valid };
+  }
+
   @Get('arrival/:token')
   async findByArrivalToken(@Param('token') token: string): Promise<any | null> {
     return this.guestListsService.findByArrivalToken(token);

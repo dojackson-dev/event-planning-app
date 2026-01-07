@@ -135,17 +135,48 @@ export class GuestListsService {
 
   async findByAccessCode(code: string): Promise<any | null> {
     const supabase = this.supabaseService.getAdminClient();
-    const { data, error } = await supabase
+    
+    // Fetch guest list
+    const { data: guestListData, error } = await supabase
       .from('guest_lists')
-      .select(`
-        *,
-        *
-      `)
+      .select('*')
       .eq('access_code', code.toUpperCase())
       .single();
 
     if (error && error.code !== 'PGRST116') throw error;
-    return data;
+    if (!guestListData) return null;
+
+    // Fetch event details
+    const { data: eventData } = await supabase
+      .from('event')
+      .select('*')
+      .eq('id', guestListData.event_id)
+      .single();
+
+    // Fetch guests
+    const { data: guestsData } = await supabase
+      .from('guests')
+      .select('*')
+      .eq('guest_list_id', guestListData.id)
+      .order('created_at', { ascending: true });
+
+    return {
+      ...guestListData,
+      event: eventData,
+      guests: guestsData || []
+    };
+  }
+
+  async validateAccessCode(guestListId: number, accessCode: string): Promise<boolean> {
+    const supabase = this.supabaseService.getAdminClient();
+    const { data, error } = await supabase
+      .from('guest_lists')
+      .select('access_code')
+      .eq('id', guestListId)
+      .eq('access_code', accessCode.toUpperCase())
+      .single();
+
+    return !error && data !== null;
   }
 
   async findByArrivalToken(token: string): Promise<any | null> {

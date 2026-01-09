@@ -1,0 +1,25 @@
+# Backend (not deployed to Vercel)
+packages/backend
+
+# Mobile (not deployed to Vercel)
+packages/mobile
+
+# Documentation
+*.md
+!README.md
+
+# Development
+.env.local
+.env*.local
+.DS_Store
+*.log
+
+# Tests
+**/__tests__
+**/*.test.*
+**/*.spec.*
+coverage
+
+# Editor
+.vscode
+.idea

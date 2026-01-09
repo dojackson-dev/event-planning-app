@@ -10,6 +10,9 @@ build/
 .next/
 out/
 
+# Vercel
+.vercel
+
 # Environment variables
 .env
 .env.local

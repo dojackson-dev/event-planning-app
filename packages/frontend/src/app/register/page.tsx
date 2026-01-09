@@ -13,6 +13,10 @@ export default function RegisterPage() {
     confirmPassword: '',
     firstName: '',
     lastName: '',
+    phone: '',
+    companyName: '',
+    venueName: '',
+    address: '',
     role: UserRole.OWNER,
   })
   const [error, setError] = useState('')
@@ -52,6 +56,10 @@ export default function RegisterPage() {
         password: formData.password,
         firstName: formData.firstName,
         lastName: formData.lastName,
+        phone: formData.phone,
+        companyName: formData.companyName,
+        venueName: formData.venueName,
+        address: formData.address,
         role: formData.role,
       })
       
@@ -101,10 +109,10 @@ export default function RegisterPage() {
             </Link>
           </div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Create your account
+            Create your venue owner account
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Start managing your event venue today
+            Start managing your event venue today. Staff and client accounts are created by invitation only.
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
@@ -166,21 +174,67 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label htmlFor="role" className="block text-sm font-medium text-gray-700">
-                I am a...
+              <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
+                Phone Number
               </label>
-              <select
-                id="role"
-                name="role"
+              <input
+                id="phone"
+                name="phone"
+                type="tel"
+                autoComplete="tel"
                 required
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-                value={formData.role}
+                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
+                placeholder="(555) 123-4567"
+                value={formData.phone}
                 onChange={handleChange}
-              >
-                <option value={UserRole.OWNER}>Venue Owner</option>
-                <option value={UserRole.PLANNER}>Event Planner</option>
-                <option value={UserRole.CUSTOMER}>Customer</option>
-              </select>
+              />
+            </div>
+
+            <div>
+              <label htmlFor="companyName" className="block text-sm font-medium text-gray-700">
+                Company Name <span className="text-gray-400">(optional)</span>
+              </label>
+              <input
+                id="companyName"
+                name="companyName"
+                type="text"
+                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
+                placeholder="ABC Events LLC"
+                value={formData.companyName}
+                onChange={handleChange}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="venueName" className="block text-sm font-medium text-gray-700">
+                Venue Name
+              </label>
+              <input
+                id="venueName"
+                name="venueName"
+                type="text"
+                required
+                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
+                placeholder="Grand Ballroom Downtown"
+                value={formData.venueName}
+                onChange={handleChange}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="address" className="block text-sm font-medium text-gray-700">
+                Address <span className="text-gray-400">(optional)</span>
+              </label>
+              <input
+                id="address"
+                name="address"
+                type="text"
+                autoComplete="street-address"
+                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
+                placeholder="123 Main St, City, State ZIP"
+                value={formData.address}
+                onChange={handleChange}
+              />
             </div>
 
             <div>

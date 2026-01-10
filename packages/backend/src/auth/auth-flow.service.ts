@@ -287,6 +287,10 @@ export class AuthFlowService {
       userId = existingUser.id;
     } else {
       // Create new user account
+      if (!dto.password) {
+        throw new BadRequestException('Password is required for new accounts');
+      }
+
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: invite.email,
         password: dto.password,

@@ -172,7 +172,7 @@ export default function GuestListDetailPage() {
         shareToken={guestList.share_token}
         arrivalToken={guestList.arrival_token}
         accessCode={guestList.access_code}
-      /utton>
+      />
       </div>
 
       {/* Add Guest Form */}

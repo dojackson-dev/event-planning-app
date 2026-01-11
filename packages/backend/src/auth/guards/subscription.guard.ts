@@ -1,4 +1,5 @@
 import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { SupabaseService } from '../../supabase/supabase.service';
 
 /**
@@ -72,7 +73,7 @@ export class SubscriptionGuard implements CanActivate {
 export class RoleGuard implements CanActivate {
   constructor(
     private readonly supabaseService: SupabaseService,
-    private readonly requiredRoles: string[],
+    private readonly reflector: Reflector,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -96,8 +97,10 @@ export class RoleGuard implements CanActivate {
       .eq('id', user.id)
       .single();
 
-    if (!userData || !this.requiredRoles.includes(userData.role)) {
-      throw new UnauthorizedException(`Required role: ${this.requiredRoles.join(' or ')}`);
+    const requiredRoles = this.reflector.get<string[]>('roles', context.getHandler());
+    
+    if (!userData || (requiredRoles && !requiredRoles.includes(userData.role))) {
+      throw new UnauthorizedException(`Required role: ${requiredRoles?.join(' or ')}`);
     }
 
     request.user = userData;

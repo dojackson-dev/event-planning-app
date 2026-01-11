@@ -36,10 +36,7 @@ export default function DoorListsPage() {
 
   useEffect(() => {
     if (selectedEvent && guestLists.length > 0) {
-      const list = guestLists.find(gl => {
-        const eventId = (gl as any).event_id || gl.eventId
-        return eventId?.toString() === selectedEvent
-      })
+      const list = guestLists.find(gl => gl.eventId?.toString() === selectedEvent)
       setSelectedGuestList(list || null)
     }
   }, [selectedEvent, guestLists])

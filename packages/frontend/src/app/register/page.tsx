@@ -56,8 +56,10 @@ export default function RegisterPage() {
       })
       
       setSuccess(true)
+      // Redirect based on role - customers go to customer portal, others to onboarding
+      const redirectPath = formData.role === UserRole.CUSTOMER ? '/login' : '/login?redirect=onboarding'
       setTimeout(() => {
-        router.push('/login')
+        router.push(redirectPath)
       }, 3000)
     } catch (err: any) {
       setError(err.response?.data?.message || 'Registration failed. Please try again.')
@@ -104,7 +106,7 @@ export default function RegisterPage() {
             Create your account
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Start managing your event venue today
+            Join DoVenue to plan or host amazing events
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
@@ -177,10 +179,17 @@ export default function RegisterPage() {
                 value={formData.role}
                 onChange={handleChange}
               >
-                <option value={UserRole.OWNER}>Venue Owner</option>
-                <option value={UserRole.PLANNER}>Event Planner</option>
-                <option value={UserRole.CUSTOMER}>Customer</option>
+                <option value={UserRole.CUSTOMER}>Customer - I want to book events</option>
+                <option value={UserRole.OWNER}>Venue Owner - I manage event venues</option>
+                <option value={UserRole.PLANNER}>Event Planner - I plan events for clients</option>
               </select>
+              <p className="mt-1 text-xs text-gray-500">
+                {formData.role === UserRole.CUSTOMER 
+                  ? 'You\'ll be able to browse services, book events, and manage your reservations.'
+                  : formData.role === UserRole.OWNER
+                  ? 'You\'ll be able to manage your venue, bookings, clients, and staff.'
+                  : 'You\'ll be able to manage events and coordinate with venues.'}
+              </p>
             </div>
 
             <div>

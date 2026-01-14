@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
 export default function LoginPage() {
@@ -10,6 +11,8 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { login } = useAuth()
+  const searchParams = useSearchParams()
+  const redirect = searchParams.get('redirect')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -18,7 +21,8 @@ export default function LoginPage() {
 
     try {
       console.log('Attempting login with:', email)
-      await login({ email, password })
+      // Pass undefined to let AuthContext determine the redirect based on role
+      await login({ email, password }, redirect === 'onboarding' ? '/onboarding' : undefined)
       console.log('Login successful, redirecting...')
     } catch (err: any) {
       console.error('Login error:', err)

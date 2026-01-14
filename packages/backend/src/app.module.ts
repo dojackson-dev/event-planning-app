@@ -1,14 +1,15 @@
-import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
-import { SupabaseModule } from './supabase/supabase.module';
-import { AuthModule } from './auth/auth.module';
-import { ServiceItemsModule } from './service-items/service-items.module';
-import { IntakeFormsModule } from './intake-forms/intake-forms.module';
-import { EventsModule } from './events/events.module';
-import { BookingsModule } from './bookings/bookings.module';
-import { InvoicesModule } from './invoices/invoices.module';
+import { Module } from '@nestjs/common'
+import { ConfigModule } from '@nestjs/config'
+import { AppController } from './app.controller'
+import { AppService } from './app.service'
+import { SupabaseModule } from './supabase/supabase.module'
+import { AuthModule } from './auth/auth.module'
+import { ServiceItemsModule } from './service-items/service-items.module'
+import { IntakeFormsModule } from './intake-forms/intake-forms.module'
+import { EventsModule } from './events/events.module'
+import { BookingsModule } from './bookings/bookings.module'
+import { InvoicesModule } from './invoices/invoices.module'
+import { OwnersModule } from './owners/owners.module'
 // Commenting out feature modules that use TypeORM for now
 // We'll refactor these to use Supabase client one by one
 // import { UsersModule } from './users/users.module';
@@ -29,6 +30,7 @@ import { InvoicesModule } from './invoices/invoices.module';
     EventsModule,
     BookingsModule,
     InvoicesModule,
+    OwnersModule,
     // UsersModule,
     // ContractsModule,
     // SecurityModule,

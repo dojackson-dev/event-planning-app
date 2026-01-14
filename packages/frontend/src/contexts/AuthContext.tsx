@@ -8,7 +8,7 @@ import { User, AuthResponse, LoginCredentials } from '@/types'
 interface AuthContextType {
   user: User | null
   loading: boolean
-  login: (credentials: LoginCredentials) => Promise<void>
+  login: (credentials: LoginCredentials, redirectPath?: string) => Promise<void>
   logout: () => void
   isAuthenticated: boolean
 }
@@ -45,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false)
   }, [])
 
-  const login = async (credentials: LoginCredentials) => {
+  const login = async (credentials: LoginCredentials, redirectPath?: string) => {
     try {
       const response = await api.post<AuthResponse>('/auth/login', credentials)
       const { access_token, user: supabaseUser } = response.data
@@ -65,7 +65,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('user', JSON.stringify(user))
       setUser(user)
       
-      router.push('/dashboard')
+      // Route based on user role if no specific redirect path provided
+      const finalRedirect = redirectPath || (user.role === 'customer' ? '/customer' : '/dashboard')
+      router.push(finalRedirect)
     } catch (error) {
       console.error('Login failed:', error)
       throw error

@@ -20,10 +20,13 @@ import {
   X,
   ClipboardList,
   Bell,
-  Receipt
+  Receipt,
+  User,
+  Home
 } from 'lucide-react'
 
-const navigation = [
+// Owner/Admin navigation
+const ownerNavigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Calendar', href: '/dashboard/calendar', icon: Calendar },
   { name: 'Events', href: '/dashboard/events', icon: Calendar },
@@ -37,6 +40,15 @@ const navigation = [
   { name: 'Security', href: '/dashboard/security', icon: Shield },
   { name: 'Payments', href: '/dashboard/payments', icon: DollarSign },
   { name: 'Messages', href: '/dashboard/messages', icon: MessageSquare },
+]
+
+// Customer/Client navigation
+const customerNavigation = [
+  { name: 'My Account', href: '/dashboard/client-account', icon: Home },
+  { name: 'Browse Services', href: '/dashboard/client-account?tab=services', icon: Package },
+  { name: 'My Messages', href: '/dashboard/client-account?tab=messages', icon: MessageSquare },
+  { name: 'My Finances', href: '/dashboard/client-account?tab=financial', icon: DollarSign },
+  { name: 'Book an Event', href: '/dashboard/intake', icon: Calendar },
 ]
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -128,8 +140,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           {/* Navigation */}
           <nav className="flex-1 overflow-y-auto p-4 space-y-1">
-            {navigation.map((item) => {
-              const isActive = pathname === item.href
+            {(displayUser.role === 'customer' ? customerNavigation : ownerNavigation).map((item) => {
+              const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
               const Icon = item.icon
               return (
                 <Link

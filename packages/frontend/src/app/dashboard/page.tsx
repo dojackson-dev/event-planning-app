@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Event, Booking, ClientStatus } from '@/types'
@@ -21,6 +22,15 @@ interface IntakeForm {
 
 export default function DashboardPage() {
   const { user } = useAuth()
+  const router = useRouter()
+  
+  // Redirect customers to their account page
+  useEffect(() => {
+    if (user?.role === 'customer') {
+      router.replace('/dashboard/client-account')
+    }
+  }, [user, router])
+  
   const [stats, setStats] = useState({
     totalEvents: 0,
     upcomingEvents: 0,

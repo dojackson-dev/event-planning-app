@@ -1,0 +1,4 @@
+// Placeholder icon - Replace with actual 1024x1024 PNG
+module.exports = {
+  note: "This is a placeholder. Replace icon.png with a 1024x1024 PNG before building for production."
+};

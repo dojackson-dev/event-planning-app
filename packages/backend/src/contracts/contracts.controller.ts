@@ -4,7 +4,6 @@ import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { ContractsService } from './contracts.service';
 import { Contract } from '../entities/contract.entity';
-import type { Multer } from 'multer';
 
 @Controller('contracts')
 export class ContractsController {
@@ -44,7 +43,7 @@ export class ContractsController {
       limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
     }),
   )
-  async uploadFile(@UploadedFile() file: Multer.File) {
+  async uploadFile(@UploadedFile() file: Express.Multer.File) {
     return {
       filename: file.filename,
       originalname: file.originalname,

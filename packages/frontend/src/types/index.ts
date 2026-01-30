@@ -468,3 +468,34 @@ export interface RegisterData {
   role: UserRole
   tenantId?: string
 }
+
+// Notification Types
+export enum NotificationType {
+  EVENT_UPCOMING = 'event_upcoming',
+  EVENT_TODAY = 'event_today',
+  NEW_CLIENT = 'new_client',
+  NEW_BOOKING = 'new_booking',
+  PAYMENT_RECEIVED = 'payment_received',
+  PAYMENT_OVERDUE = 'payment_overdue',
+  CONTRACT_SIGNED = 'contract_signed',
+  CONTRACT_SENT = 'contract_sent',
+  MESSAGE_RECEIVED = 'message_received',
+  INVOICE_OVERDUE = 'invoice_overdue',
+  GUEST_LIST_UPDATE = 'guest_list_update',
+  SYSTEM = 'system',
+}
+
+export interface Notification {
+  id: string
+  type: NotificationType
+  title: string
+  message: string
+  read: boolean
+  link?: string
+  eventId?: string
+  event?: Event
+  bookingId?: string
+  booking?: Booking
+  clientId?: string
+  createdAt: string
+}

@@ -5,6 +5,8 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
+import { NotificationProvider } from '@/contexts/NotificationContext'
+import NotificationPanel from '@/components/NotificationPanel'
 import { 
   LayoutDashboard, 
   Calendar, 
@@ -19,7 +21,6 @@ import {
   Menu,
   X,
   ClipboardList,
-  Bell,
   Receipt
 } from 'lucide-react'
 
@@ -43,7 +44,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname()
   const { user, logout } = useAuth()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [notificationCount] = useState(5) // Placeholder notification count
 
   // Placeholder user for development when not logged in
   const displayUser = user || {
@@ -54,6 +54,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
+    <NotificationProvider>
     <div className="min-h-screen bg-gray-50">
       {/* Mobile Header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 bg-white border-b border-gray-200 z-50">
@@ -66,15 +67,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             className="h-24 w-auto"
           />
           <div className="flex items-center gap-3">
-            {/* Notification Bell */}
-            <button className="relative p-2 rounded-md text-gray-600 hover:bg-gray-100">
-              <Bell className="h-6 w-6" />
-              {notificationCount > 0 && (
-                <span className="absolute top-1 right-1 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-white bg-red-600 rounded-full min-w-[18px]">
-                  {notificationCount > 9 ? '9+' : notificationCount}
-                </span>
-              )}
-            </button>
+            {/* Notification Bell - Mobile */}
+            <NotificationPanel />
             
             {/* Menu Toggle */}
             <button
@@ -175,14 +169,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="hidden lg:flex items-center justify-end h-16 px-8 bg-white border-b border-gray-100 sticky top-0 z-30">
           <div className="flex items-center gap-4">
             {/* Notification Bell - Desktop */}
-            <button className="relative p-2 rounded-md text-gray-600 hover:bg-gray-100 transition-colors">
-              <Bell className="h-5 w-5" />
-              {notificationCount > 0 && (
-                <span className="absolute top-0.5 right-0.5 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-white bg-red-600 rounded-full min-w-[18px]">
-                  {notificationCount > 9 ? '9+' : notificationCount}
-                </span>
-              )}
-            </button>
+            <NotificationPanel />
             
             {/* User Info - Desktop */}
             <div className="flex items-center gap-3 pl-3 border-l border-gray-200">
@@ -204,5 +191,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </main>
       </div>
     </div>
+    </NotificationProvider>
   )
 }

@@ -28,7 +28,18 @@ export default function LoginScreen() {
         router.replace('/(tabs)/events');
       }
     } catch (error: any) {
-      Alert.alert('Login Failed', error.message);
+      // Check if error is related to email verification
+      const errorMessage = error.message || 'Login failed';
+      if (errorMessage.toLowerCase().includes('email not confirmed') || 
+          errorMessage.toLowerCase().includes('verify your email')) {
+        Alert.alert(
+          'Email Not Verified',
+          'Please check your email and click the verification link to activate your account.',
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert('Login Failed', errorMessage);
+      }
     } finally {
       setLoading(false);
     }

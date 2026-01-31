@@ -90,6 +90,9 @@ export default function RegisterPage() {
             <p className="mt-4 text-sm text-gray-600">
               Please check your email and click the verification link to activate your account.
             </p>
+            <p className="mt-4 text-sm text-orange-600 font-medium">
+              ⚠️ You must verify your email before you can sign in.
+            </p>
             <p className="mt-4 text-sm text-gray-500">
               Redirecting to login page...
             </p>

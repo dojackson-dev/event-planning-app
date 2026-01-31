@@ -77,11 +77,11 @@ export default function AdminSignupPage() {
           console.warn('Could not insert user record:', userError)
         }
 
-        setMessage('Admin account created successfully! Please check your email to confirm, then login.')
+        setMessage('Admin account created successfully! ⚠️ You must verify your email before you can sign in. Please check your inbox for the confirmation link.')
         
         setTimeout(() => {
           router.push('/admin/login')
-        }, 3000)
+        }, 5000)
       }
     } catch (error) {
       setMessage(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`)

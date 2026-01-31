@@ -22,7 +22,15 @@ export default function LoginPage() {
       console.log('Login successful, redirecting...')
     } catch (err: any) {
       console.error('Login error:', err)
-      setError(err.response?.data?.message || err.message || 'Login failed. Please try again.')
+      const errorMessage = err.response?.data?.message || err.message || 'Login failed. Please try again.'
+      
+      // Check if error is related to email verification
+      if (errorMessage.toLowerCase().includes('email not confirmed') || 
+          errorMessage.toLowerCase().includes('verify your email')) {
+        setError('Please verify your email address. Check your inbox for the confirmation link.')
+      } else {
+        setError(errorMessage)
+      }
     } finally {
       setLoading(false)
     }

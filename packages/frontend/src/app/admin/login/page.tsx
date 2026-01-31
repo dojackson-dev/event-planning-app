@@ -52,7 +52,15 @@ export default function AdminLoginPage() {
         router.push('/admin')
       }
     } catch (error) {
-      setMessage(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      
+      // Check if error is related to email verification
+      if (errorMessage.toLowerCase().includes('email not confirmed') || 
+          errorMessage.toLowerCase().includes('verify your email')) {
+        setMessage('Error: Please verify your email address. Check your inbox for the confirmation link.')
+      } else {
+        setMessage(`Error: ${errorMessage}`)
+      }
     } finally {
       setLoading(false)
     }

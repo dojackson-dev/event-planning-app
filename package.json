@@ -14,5 +14,8 @@
   },
   "devDependencies": {
     "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@expo/config-plugins": "^54.0.4"
   }
 }

@@ -1,0 +1,4 @@
+// Placeholder splash - Replace with actual PNG
+module.exports = {
+  note: "This is a placeholder. Replace splash.png with appropriate dimensions before building for production."
+};

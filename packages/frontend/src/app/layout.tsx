@@ -24,6 +24,8 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: 'cover',
+  // @ts-ignore - mobileWebAppCapable is not in the types yet but is valid
+  mobileWebAppCapable: true,
 }
 
 export default function RootLayout({

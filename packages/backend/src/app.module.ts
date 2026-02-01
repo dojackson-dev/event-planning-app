@@ -29,11 +29,10 @@ import { GuestListsModule } from './guest-lists/guest-lists.module';
     EventsModule,
     BookingsModule,
     InvoicesModule,
+    ContractsModule,
     GuestListsModule,
     // UsersModule,
-    // ContractsModule,
     // SecurityModule,
-    // GuestListsModule,
     // MessagingModule,  // Keep this for scheduled messages
   ],
   controllers: [AppController],

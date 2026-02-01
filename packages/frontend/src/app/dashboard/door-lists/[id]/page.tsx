@@ -22,6 +22,7 @@ import {
   Trash2,
   Edit
 } from 'lucide-react'
+import { parseLocalDate } from '@/lib/dateUtils'
 
 export default function DoorListDetailPage() {
   const router = useRouter()
@@ -210,7 +211,7 @@ export default function DoorListDetailPage() {
             <div>
               <h1 className="text-3xl font-bold text-gray-900">{guestList.event?.name}</h1>
               <p className="text-gray-600 mt-1">
-                {guestList.event && new Date(guestList.event.date).toLocaleDateString('en-US', {
+                {guestList.event && parseLocalDate(guestList.event.date).toLocaleDateString('en-US', {
                   weekday: 'long',
                   month: 'long',
                   day: 'numeric',

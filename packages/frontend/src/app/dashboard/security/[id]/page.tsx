@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Security, Event } from '@/types'
 import { ArrowLeft, Phone, Calendar, Clock, Check } from 'lucide-react'
+import { parseLocalDate } from '@/lib/dateUtils'
 
 export default function SecurityDetailPage() {
   const params = useParams()
@@ -206,7 +207,7 @@ export default function SecurityDetailPage() {
               <option value="">-- No Event Assignment --</option>
               {events.map((event) => (
                 <option key={event.id} value={event.id}>
-                  {event.name} - {new Date(event.date).toLocaleDateString()}
+                  {event.name} - {parseLocalDate(event.date).toLocaleDateString()}
                   {event.startTime && ` at ${event.startTime}`}
                 </option>
               ))}
@@ -266,7 +267,7 @@ export default function SecurityDetailPage() {
                 <div className="flex items-center gap-4 mt-2 text-sm text-blue-700">
                   <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4" />
-                    {new Date(security.event.date).toLocaleDateString()}
+                    {parseLocalDate(security.event.date).toLocaleDateString()}
                   </div>
                   {security.event.startTime && (
                     <div className="flex items-center gap-2">

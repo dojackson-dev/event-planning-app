@@ -178,8 +178,8 @@ export default function EventsPage() {
               <div className="space-y-2 text-sm text-gray-600">
                 <div className="flex items-center">
                   <Calendar className="h-4 w-4 mr-2" />
-                  {format(new Date(event.date), 'PPP')}
-                  ({format(new Date(event.date), 'EEEE')})
+                  {format(parseLocalDate(event.date), 'PPP')}
+                  ({format(parseLocalDate(event.date), 'EEEE')})
                 </div>
                 <div className="flex items-center">
                   <MapPin className="h-4 w-4 mr-2" />

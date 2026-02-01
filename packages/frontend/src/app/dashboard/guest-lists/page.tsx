@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { GuestList, Event } from '@/types'
 import { Plus, Search, Users, Lock, Unlock, Share2, ExternalLink } from 'lucide-react'
+import { parseLocalDate } from '@/lib/dateUtils'
 
 export default function GuestListsPage() {
   const router = useRouter()
@@ -142,7 +143,7 @@ export default function GuestListsPage() {
             <option value="">All Events</option>
             {events.map((event) => (
               <option key={event.id} value={event.id}>
-                {event.name} - {new Date(event.date).toLocaleDateString()}
+                {event.name} - {parseLocalDate(event.date).toLocaleDateString()}
               </option>
             ))}
           </select>
@@ -195,7 +196,7 @@ export default function GuestListsPage() {
                     <td className="px-6 py-4">
                       <div className="text-sm font-medium text-gray-900">{list.event?.name}</div>
                       <div className="text-xs text-gray-500">
-                        {list.event && new Date(list.event.date).toLocaleDateString()}
+                        {list.event && parseLocalDate(list.event.date).toLocaleDateString()}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

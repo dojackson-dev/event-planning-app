@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Event, Booking, ClientStatus } from '@/types'
 import { Calendar, Users, DollarSign, CheckCircle, Clock, ArrowRight, UserPlus, Mail, Phone } from 'lucide-react'
+import { parseLocalDate } from '@/lib/dateUtils'
 
 interface IntakeForm {
   id: string
@@ -45,7 +46,7 @@ export default function DashboardPage() {
       // Fetch events
       const eventsRes = await api.get<Event[]>('/events')
       const events = eventsRes.data
-      const upcomingEvents = events.filter(e => new Date(e.date) >= new Date())
+      const upcomingEvents = events.filter(e => parseLocalDate(e.date) >= new Date(new Date().setHours(0, 0, 0, 0)))
 
       // Fetch bookings
       const bookingsRes = await api.get<Booking[]>('/bookings')
@@ -230,7 +231,7 @@ export default function DashboardPage() {
                     <div className="flex flex-wrap gap-4 text-sm text-gray-500">
                       <div className="flex items-center">
                         <Calendar className="h-4 w-4 mr-1.5" />
-                        {booking.event?.date ? new Date(booking.event.date).toLocaleDateString() : 'Date TBD'}
+                        {booking.event?.date ? parseLocalDate(booking.event.date).toLocaleDateString() : 'Date TBD'}
                       </div>
                       <div className="flex items-center">
                         <Users className="h-4 w-4 mr-1.5" />

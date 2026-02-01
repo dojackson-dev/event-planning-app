@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { User, Booking } from '@/types'
 import { Upload, X, Calendar, Clock } from 'lucide-react'
+import { parseLocalDate } from '@/lib/dateUtils'
 
 export default function NewContractPage() {
   const router = useRouter()
@@ -140,7 +141,7 @@ export default function NewContractPage() {
             {bookings.map((booking) => (
               <option key={booking.id} value={booking.id}>
                 {booking.event?.name || 'Event'} - {booking.user ? `${booking.user.firstName} ${booking.user.lastName}` : 'Customer'}
-                {booking.event?.date && ` - ${new Date(booking.event.date).toLocaleDateString()}`}
+                {booking.event?.date && ` - ${parseLocalDate(booking.event.date).toLocaleDateString()}`}
               </option>
             ))}
           </select>
@@ -168,7 +169,7 @@ export default function NewContractPage() {
                   <div>
                     <span className="text-blue-700 font-medium">Date:</span>
                     <p className="text-blue-900">
-                      {new Date(selectedBookingData.event.date).toLocaleDateString('en-US', {
+                      {parseLocalDate(selectedBookingData.event.date).toLocaleDateString('en-US', {
                         weekday: 'long',
                         year: 'numeric',
                         month: 'long',

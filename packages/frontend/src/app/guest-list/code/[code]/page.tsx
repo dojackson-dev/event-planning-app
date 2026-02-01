@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import api from '@/lib/api'
 import { GuestList, Guest } from '@/types'
 import { Users, Lock, Plus, Edit2, Trash2, Save, X } from 'lucide-react'
+import { parseLocalDate } from '@/lib/dateUtils'
 
 export default function GuestListCodePage() {
   const params = useParams()
@@ -135,7 +136,7 @@ export default function GuestListCodePage() {
             <div>
               <h1 className="text-3xl font-bold text-gray-900 mb-2">{guestList.event?.name}</h1>
               <p className="text-gray-600 mb-1">
-                {guestList.event && new Date(guestList.event.date).toLocaleDateString('en-US', {
+                {guestList.event && parseLocalDate(guestList.event.date).toLocaleDateString('en-US', {
                   weekday: 'long',
                   year: 'numeric',
                   month: 'long',

@@ -7,6 +7,7 @@ import api from '@/lib/api'
 import { Event } from '@/types'
 import { Calendar, Clock, MapPin, Users, ArrowLeft, Edit, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
+import { parseLocalDate } from '@/lib/dateUtils'
 
 export default function EventDetailsPage() {
   const params = useParams()
@@ -120,7 +121,7 @@ export default function EventDetailsPage() {
               <Calendar className="h-5 w-5 text-primary-600 mr-3" />
               <h3 className="text-sm font-semibold text-gray-600">Date</h3>
             </div>
-            <p className="text-lg text-gray-900">{format(new Date(event.date), 'PPPP')}</p>
+            <p className="text-lg text-gray-900">{format(parseLocalDate(event.date), 'PPPP')}</p>
             {(event as any).dayOfWeek && <p className="text-sm text-gray-600 mt-1">{(event as any).dayOfWeek}</p>}
           </div>
 

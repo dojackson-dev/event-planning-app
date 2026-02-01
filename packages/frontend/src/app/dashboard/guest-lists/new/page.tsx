@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import api from '@/lib/api'
 import { Event, User } from '@/types'
 import { ArrowLeft } from 'lucide-react'
+import { parseLocalDate } from '@/lib/dateUtils'
 
 export default function NewGuestListPage() {
   const router = useRouter()
@@ -185,7 +186,7 @@ export default function NewGuestListPage() {
             <option value="">-- Select an event --</option>
             {events.map((event) => (
               <option key={event.id} value={event.id}>
-                {event.name} - {new Date(event.date).toLocaleDateString()}
+                {event.name} - {parseLocalDate(event.date).toLocaleDateString()}
                 {event.startTime && ` at ${event.startTime}`}
               </option>
             ))}

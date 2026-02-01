@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
 import api from '@/lib/api'
 import { Event, Booking, Notification, NotificationType, InvoiceStatus, ContractStatus } from '@/types'
+import { parseLocalDate } from '@/lib/dateUtils'
 
 interface IntakeForm {
   id: string
@@ -65,7 +66,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
         // Events happening today
         events.forEach(event => {
-          const eventDate = new Date(event.date)
+          const eventDate = parseLocalDate(event.date)
           const eventDateOnly = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate())
           
           if (eventDateOnly.getTime() === today.getTime()) {

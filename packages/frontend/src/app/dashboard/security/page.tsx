@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Security, Event } from '@/types'
 import { Plus, Search, Phone, Calendar, Clock, Check } from 'lucide-react'
+import { parseLocalDate } from '@/lib/dateUtils'
 
 export default function SecurityPage() {
   const router = useRouter()
@@ -129,7 +130,7 @@ export default function SecurityPage() {
             <option value="">All Events</option>
             {events.map((event) => (
               <option key={event.id} value={event.id}>
-                {event.name} - {new Date(event.date).toLocaleDateString()}
+                {event.name} - {parseLocalDate(event.date).toLocaleDateString()}
               </option>
             ))}
           </select>
@@ -188,7 +189,7 @@ export default function SecurityPage() {
                           <div className="text-sm font-medium text-gray-900">{s.event.name}</div>
                           <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
                             <Calendar className="h-3 w-3" />
-                            {new Date(s.event.date).toLocaleDateString()}
+                            {parseLocalDate(s.event.date).toLocaleDateString()}
                             {s.event.startTime && (
                               <>
                                 <Clock className="h-3 w-3 ml-2" />

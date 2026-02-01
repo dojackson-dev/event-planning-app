@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { User, Event, Guest } from '@/types'
 import { Send, ArrowLeft, Users as UsersIcon } from 'lucide-react'
+import { parseLocalDate } from '@/lib/dateUtils'
 
 export default function SendMessagePage() {
   const router = useRouter()
@@ -152,7 +153,7 @@ export default function SendMessagePage() {
 
   const getMessageTemplate = () => {
     const selectedEvent = events.find(e => e.id.toString() === formData.eventId)
-    const eventDate = selectedEvent ? new Date(selectedEvent.date) : null
+    const eventDate = selectedEvent ? parseLocalDate(selectedEvent.date) : null
 
     switch (formData.messageType) {
       case 'reminder':
@@ -235,7 +236,7 @@ export default function SendMessagePage() {
             <option value="">Select an event...</option>
             {events.map((event) => (
               <option key={event.id} value={event.id}>
-                {event.name} - {new Date(event.date).toLocaleDateString()}
+                {event.name} - {parseLocalDate(event.date).toLocaleDateString()}
               </option>
             ))}
           </select>

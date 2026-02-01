@@ -17,6 +17,7 @@ import {
   Filter,
   Download
 } from 'lucide-react'
+import { parseLocalDate } from '@/lib/dateUtils'
 
 export default function DoorListsPage() {
   const router = useRouter()
@@ -48,8 +49,7 @@ export default function DoorListsPage() {
       const today = new Date()
       today.setHours(0, 0, 0, 0)
       const upcomingEvents = response.data.filter(event => {
-        const eventDate = new Date(event.date)
-        eventDate.setHours(0, 0, 0, 0)
+        const eventDate = parseLocalDate(event.date)
         return eventDate >= today
       })
       setEvents(upcomingEvents)
@@ -171,7 +171,7 @@ export default function DoorListsPage() {
             <option value="">-- Choose an event --</option>
             {events.map((event) => (
               <option key={event.id} value={event.id}>
-                {event.name} - {new Date(event.date).toLocaleDateString('en-US', {
+                {event.name} - {parseLocalDate(event.date).toLocaleDateString('en-US', {
                   weekday: 'short',
                   month: 'short',
                   day: 'numeric',

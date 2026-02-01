@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Event } from '@/types'
 import { ArrowLeft } from 'lucide-react'
+import { parseLocalDate } from '@/lib/dateUtils'
 
 export default function NewSecurityPage() {
   const router = useRouter()
@@ -127,7 +128,7 @@ export default function NewSecurityPage() {
             <option value="">-- No Event Assignment --</option>
             {events.map((event) => (
               <option key={event.id} value={event.id}>
-                {event.name} - {new Date(event.date).toLocaleDateString()}
+                {event.name} - {parseLocalDate(event.date).toLocaleDateString()}
                 {event.startTime && ` at ${event.startTime}`}
               </option>
             ))}

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import api from '@/lib/api'
 import { Lock, Users, Check, X, AlertCircle, Calendar, Search, UserCheck } from 'lucide-react'
+import { parseLocalDate } from '@/lib/dateUtils'
 
 interface Guest {
   id: number
@@ -159,7 +160,7 @@ export default function PublicGuestListArrivalPage() {
                 <div className="flex items-center gap-4 mt-2 text-sm text-green-100">
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4" />
-                    {new Date(guestList.event.date).toLocaleDateString('en-US', {
+                    {parseLocalDate(guestList.event.date).toLocaleDateString('en-US', {
                       weekday: 'long',
                       month: 'long',
                       day: 'numeric',

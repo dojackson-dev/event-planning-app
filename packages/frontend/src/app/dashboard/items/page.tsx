@@ -97,11 +97,12 @@ export default function ItemsPage() {
     try {
       const payload = {
         name: formData.name,
-        description: formData.description,
+        description: formData.description || formData.name, // Description is required in DB
         category: formData.category,
-        default_price: parseFloat(formData.default_price),
+        default_price: parseFloat(formData.default_price) || 0,
         image_url: formData.image_url || null,
         is_active: formData.is_active,
+        sort_order: 0,
       }
 
       if (editingItem) {

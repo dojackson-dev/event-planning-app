@@ -127,7 +127,7 @@ export default function ItemsPage() {
     setFormData({
       name: item.name,
       description: item.description || '',
-      category: item.category,
+      category: item.category as ServiceItemCategory,
       default_price: item.default_price.toString(),
       image_url: item.image_url || '',
       is_active: item.is_active,

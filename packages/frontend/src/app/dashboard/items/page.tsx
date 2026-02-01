@@ -2,41 +2,60 @@
 
 import { useState, useEffect } from 'react'
 import api from '@/lib/api'
-import { Item, ItemType } from '@/types'
-import { Plus, Edit, Trash2, Package, Music, Lightbulb, Users, Utensils, Sparkles, Building2, Grid3x3 } from 'lucide-react'
+import { Item, ItemType, ServiceItemCategory } from '@/types'
+import { Plus, Edit, Trash2, Package, Music, Lightbulb, Users, Utensils, Sparkles, Building2, Grid3x3, Clock, Percent, Mic, Wine, Shield, DollarSign, Monitor, Calendar } from 'lucide-react'
 
+// Use ServiceItemCategory enum values to match backend
 const categoryLabels: Record<string, string> = {
-  facility_rental: 'Facility Rental',
-  sound_system: 'Sound System',
-  lighting: 'Lighting',
-  staging: 'Staging',
-  furniture: 'Furniture',
-  catering: 'Catering',
-  decoration: 'Decoration',
-  other: 'Other'
+  [ServiceItemCategory.FACILITY]: 'Facility',
+  [ServiceItemCategory.CATERING]: 'Catering',
+  [ServiceItemCategory.ITEMS]: 'Items',
+  [ServiceItemCategory.SECURITY]: 'Security',
+  [ServiceItemCategory.BAR]: 'Bar',
+  [ServiceItemCategory.DEPOSIT]: 'Deposit',
+  [ServiceItemCategory.SOUND_SYSTEM]: 'Sound System',
+  [ServiceItemCategory.AV]: 'AV Equipment',
+  [ServiceItemCategory.PLANNING]: 'Planning',
+  [ServiceItemCategory.DECORATIONS]: 'Decorations',
+  [ServiceItemCategory.ADDITIONAL_TIME]: 'Additional Time',
+  [ServiceItemCategory.SALES_TAX]: 'Sales Tax',
+  [ServiceItemCategory.HOSTING]: 'Hosting',
+  [ServiceItemCategory.MISC]: 'Miscellaneous',
 }
 
 // Category fallback icons and colors
 const categoryIcons: Record<string, React.ComponentType<any>> = {
-  facility_rental: Building2,
-  sound_system: Music,
-  lighting: Lightbulb,
-  staging: Users,
-  furniture: Package,
-  catering: Utensils,
-  decoration: Sparkles,
-  other: Grid3x3
+  [ServiceItemCategory.FACILITY]: Building2,
+  [ServiceItemCategory.CATERING]: Utensils,
+  [ServiceItemCategory.ITEMS]: Package,
+  [ServiceItemCategory.SECURITY]: Shield,
+  [ServiceItemCategory.BAR]: Wine,
+  [ServiceItemCategory.DEPOSIT]: DollarSign,
+  [ServiceItemCategory.SOUND_SYSTEM]: Music,
+  [ServiceItemCategory.AV]: Monitor,
+  [ServiceItemCategory.PLANNING]: Calendar,
+  [ServiceItemCategory.DECORATIONS]: Sparkles,
+  [ServiceItemCategory.ADDITIONAL_TIME]: Clock,
+  [ServiceItemCategory.SALES_TAX]: Percent,
+  [ServiceItemCategory.HOSTING]: Mic,
+  [ServiceItemCategory.MISC]: Grid3x3,
 }
 
 const categoryColors: Record<string, string> = {
-  facility_rental: 'bg-blue-100 text-blue-600',
-  sound_system: 'bg-purple-100 text-purple-600',
-  lighting: 'bg-yellow-100 text-yellow-600',
-  staging: 'bg-green-100 text-green-600',
-  furniture: 'bg-orange-100 text-orange-600',
-  catering: 'bg-red-100 text-red-600',
-  decoration: 'bg-pink-100 text-pink-600',
-  other: 'bg-gray-100 text-gray-600'
+  [ServiceItemCategory.FACILITY]: 'bg-blue-100 text-blue-600',
+  [ServiceItemCategory.CATERING]: 'bg-red-100 text-red-600',
+  [ServiceItemCategory.ITEMS]: 'bg-orange-100 text-orange-600',
+  [ServiceItemCategory.SECURITY]: 'bg-slate-100 text-slate-600',
+  [ServiceItemCategory.BAR]: 'bg-purple-100 text-purple-600',
+  [ServiceItemCategory.DEPOSIT]: 'bg-green-100 text-green-600',
+  [ServiceItemCategory.SOUND_SYSTEM]: 'bg-indigo-100 text-indigo-600',
+  [ServiceItemCategory.AV]: 'bg-cyan-100 text-cyan-600',
+  [ServiceItemCategory.PLANNING]: 'bg-amber-100 text-amber-600',
+  [ServiceItemCategory.DECORATIONS]: 'bg-pink-100 text-pink-600',
+  [ServiceItemCategory.ADDITIONAL_TIME]: 'bg-yellow-100 text-yellow-600',
+  [ServiceItemCategory.SALES_TAX]: 'bg-gray-100 text-gray-600',
+  [ServiceItemCategory.HOSTING]: 'bg-teal-100 text-teal-600',
+  [ServiceItemCategory.MISC]: 'bg-gray-100 text-gray-600',
 }
 
 export default function ItemsPage() {
@@ -45,10 +64,12 @@ export default function ItemsPage() {
   const [filter, setFilter] = useState<string>('all')
   const [showModal, setShowModal] = useState(false)
   const [editingItem, setEditingItem] = useState<Item | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    category: 'sound_system',
+    category: ServiceItemCategory.MISC,
     default_price: '',
     image_url: '',
     is_active: true,
@@ -71,6 +92,8 @@ export default function ItemsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError(null)
+    setSaving(true)
     try {
       const payload = {
         name: formData.name,
@@ -89,10 +112,13 @@ export default function ItemsPage() {
 
       setShowModal(false)
       setEditingItem(null)
-      setFormData({ name: '', description: '', category: 'sound_system', default_price: '', image_url: '', is_active: true })
+      setFormData({ name: '', description: '', category: ServiceItemCategory.MISC, default_price: '', image_url: '', is_active: true })
       fetchItems()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to save item:', error)
+      setError(error.response?.data?.message || 'Failed to save item. Please try again.')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -133,7 +159,7 @@ export default function ItemsPage() {
         <button
           onClick={() => {
             setEditingItem(null)
-            setFormData({ name: '', description: '', category: 'sound_system', default_price: '', image_url: '', is_active: true })
+            setFormData({ name: '', description: '', category: ServiceItemCategory.MISC, default_price: '', image_url: '', is_active: true })
             setShowModal(true)
           }}
           className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
@@ -304,20 +330,29 @@ export default function ItemsPage() {
                 />
               </div>
 
+              {error && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
+                  {error}
+                </div>
+              )}
+
               <div className="flex gap-4 pt-4">
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
+                  disabled={saving}
+                  className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {editingItem ? 'Update' : 'Create'}
+                  {saving ? 'Saving...' : editingItem ? 'Update' : 'Create'}
                 </button>
                 <button
                   type="button"
+                  disabled={saving}
                   onClick={() => {
                     setShowModal(false)
                     setEditingItem(null)
+                    setError(null)
                   }}
-                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
+                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors disabled:opacity-50"
                 >
                   Cancel
                 </button>

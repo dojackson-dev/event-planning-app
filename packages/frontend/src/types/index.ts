@@ -84,19 +84,19 @@ export enum InvoiceStatus {
 }
 
 export enum ServiceItemCategory {
-  FACILITY = 'facility',
-  CATERING = 'catering',
-  ITEMS = 'items',
-  SECURITY = 'security',
-  BAR = 'bar',
-  DEPOSIT = 'deposit',
+  FACILITY_RENTAL = 'facility_rental',
+  SECURITY_DEPOSIT = 'security_deposit',
   SOUND_SYSTEM = 'sound_system',
-  AV = 'av',
-  PLANNING = 'planning',
-  DECORATIONS = 'decorations',
+  AV_EQUIPMENT = 'av_equipment',
+  PLANNING_SERVICES = 'planning_services',
   ADDITIONAL_TIME = 'additional_time',
+  HOSTING_SERVICES = 'hosting_services',
+  CATERING = 'catering',
+  BAR_SERVICES = 'bar_services',
+  SECURITY_SERVICES = 'security_services',
+  DECORATIONS = 'decorations',
   SALES_TAX = 'sales_tax',
-  HOSTING = 'hosting',
+  ITEMS = 'items',
   MISC = 'misc',
 }
 

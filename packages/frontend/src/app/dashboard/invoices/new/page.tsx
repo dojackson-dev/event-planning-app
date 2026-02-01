@@ -57,16 +57,16 @@ export default function NewInvoicePage() {
       console.error('Failed to fetch service items:', error)
       // Fallback to hardcoded items if backend is unavailable
       setServiceItems([
-        { id: '1', name: 'Facility Rental', description: 'Venue rental fee', category: ServiceItemCategory.FACILITY, defaultPrice: 2500, isActive: true, sortOrder: 1, createdAt: '', updatedAt: '' },
-        { id: '2', name: 'Security Deposit', description: 'Refundable security deposit', category: ServiceItemCategory.DEPOSIT, defaultPrice: 500, isActive: true, sortOrder: 2, createdAt: '', updatedAt: '' },
+        { id: '1', name: 'Facility Rental', description: 'Venue rental fee', category: ServiceItemCategory.FACILITY_RENTAL, defaultPrice: 2500, isActive: true, sortOrder: 1, createdAt: '', updatedAt: '' },
+        { id: '2', name: 'Security Deposit', description: 'Refundable security deposit', category: ServiceItemCategory.SECURITY_DEPOSIT, defaultPrice: 500, isActive: true, sortOrder: 2, createdAt: '', updatedAt: '' },
         { id: '3', name: 'Sound System', description: 'Professional sound system', category: ServiceItemCategory.SOUND_SYSTEM, defaultPrice: 500, isActive: true, sortOrder: 3, createdAt: '', updatedAt: '' },
-        { id: '4', name: 'A/V Equipment', description: 'Audio/visual equipment', category: ServiceItemCategory.AV, defaultPrice: 750, isActive: true, sortOrder: 4, createdAt: '', updatedAt: '' },
-        { id: '5', name: 'Planning Services', description: 'Event planning and coordination', category: ServiceItemCategory.PLANNING, defaultPrice: 1000, isActive: true, sortOrder: 5, createdAt: '', updatedAt: '' },
+        { id: '4', name: 'A/V Equipment', description: 'Audio/visual equipment', category: ServiceItemCategory.AV_EQUIPMENT, defaultPrice: 750, isActive: true, sortOrder: 4, createdAt: '', updatedAt: '' },
+        { id: '5', name: 'Planning Services', description: 'Event planning and coordination', category: ServiceItemCategory.PLANNING_SERVICES, defaultPrice: 1000, isActive: true, sortOrder: 5, createdAt: '', updatedAt: '' },
         { id: '6', name: 'Additional Time', description: 'Extended rental time per hour', category: ServiceItemCategory.ADDITIONAL_TIME, defaultPrice: 250, isActive: true, sortOrder: 6, createdAt: '', updatedAt: '' },
-        { id: '7', name: 'Hosting Services', description: 'Professional event hosting', category: ServiceItemCategory.HOSTING, defaultPrice: 500, isActive: true, sortOrder: 7, createdAt: '', updatedAt: '' },
+        { id: '7', name: 'Hosting Services', description: 'Professional event hosting', category: ServiceItemCategory.HOSTING_SERVICES, defaultPrice: 500, isActive: true, sortOrder: 7, createdAt: '', updatedAt: '' },
         { id: '8', name: 'Catering', description: 'Food and beverage services', category: ServiceItemCategory.CATERING, defaultPrice: 0, isActive: true, sortOrder: 8, createdAt: '', updatedAt: '' },
-        { id: '9', name: 'Bar Services', description: 'Bar setup and service', category: ServiceItemCategory.BAR, defaultPrice: 0, isActive: true, sortOrder: 9, createdAt: '', updatedAt: '' },
-        { id: '10', name: 'Security Services', description: 'Professional security personnel', category: ServiceItemCategory.SECURITY, defaultPrice: 0, isActive: true, sortOrder: 10, createdAt: '', updatedAt: '' },
+        { id: '9', name: 'Bar Services', description: 'Bar setup and service', category: ServiceItemCategory.BAR_SERVICES, defaultPrice: 0, isActive: true, sortOrder: 9, createdAt: '', updatedAt: '' },
+        { id: '10', name: 'Security Services', description: 'Professional security personnel', category: ServiceItemCategory.SECURITY_SERVICES, defaultPrice: 0, isActive: true, sortOrder: 10, createdAt: '', updatedAt: '' },
         { id: '11', name: 'Decorations', description: 'Event decorations', category: ServiceItemCategory.DECORATIONS, defaultPrice: 0, isActive: true, sortOrder: 11, createdAt: '', updatedAt: '' },
         { id: '12', name: 'Sales Tax', description: 'Applicable sales tax', category: ServiceItemCategory.SALES_TAX, defaultPrice: 0, isActive: true, sortOrder: 12, createdAt: '', updatedAt: '' },
         { id: '13', name: 'Items', description: 'Miscellaneous items', category: ServiceItemCategory.ITEMS, defaultPrice: 0, isActive: true, sortOrder: 13, createdAt: '', updatedAt: '' },

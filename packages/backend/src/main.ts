@@ -20,12 +20,23 @@ async function bootstrap() {
       // Allow requests with no origin (mobile apps, curl, etc.)
       if (!origin) return callback(null, true);
       
+      // Allow exact matches
       if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        console.log(`CORS blocked origin: ${origin}`);
-        callback(null, false);
+        return callback(null, true);
       }
+      
+      // Allow all Vercel preview URLs for this project
+      if (origin.includes('event-planning-app') && origin.includes('vercel.app')) {
+        return callback(null, true);
+      }
+      
+      // Allow do-venue-suites Vercel deployments
+      if (origin.includes('do-venue-suites') && origin.includes('vercel.app')) {
+        return callback(null, true);
+      }
+      
+      console.log(`CORS blocked origin: ${origin}`);
+      callback(null, false);
     },
     credentials: true,
   });

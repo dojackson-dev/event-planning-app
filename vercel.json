@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npm run build --workspace=@event-planning-app/frontend",
+  "buildCommand": "cd packages/frontend && npm run build",
   "outputDirectory": "packages/frontend/.next",
-  "installCommand": "npm install",
+  "installCommand": "cd packages/frontend && npm install",
   "framework": null
 }

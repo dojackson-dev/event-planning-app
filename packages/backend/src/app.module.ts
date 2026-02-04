@@ -29,7 +29,7 @@ import { GuestListsModule } from './guest-lists/guest-lists.module';
     EventsModule,
     BookingsModule,
     InvoicesModule,
-    ContractsModule,
+    // ContractsModule, // Commented out - import is also commented
     GuestListsModule,
     // UsersModule,
     // SecurityModule,

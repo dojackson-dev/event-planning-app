@@ -132,7 +132,7 @@ export default function DashboardPage() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
-        <div className="bg-white rounded-xl shadow-sm p-5 sm:p-6 border border-gray-100">
+        <Link href="/dashboard/events" className="bg-white rounded-xl shadow-sm p-5 sm:p-6 border border-gray-100 hover:shadow-md hover:border-primary-200 transition-all cursor-pointer">
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">Total Events</p>
@@ -143,9 +143,9 @@ export default function DashboardPage() {
               <Calendar className="h-8 w-8 sm:h-10 sm:w-10 text-primary-600" />
             </div>
           </div>
-        </div>
+        </Link>
 
-        <div className="bg-white rounded-xl shadow-sm p-5 sm:p-6 border border-gray-100">
+        <Link href="/dashboard/bookings" className="bg-white rounded-xl shadow-sm p-5 sm:p-6 border border-gray-100 hover:shadow-md hover:border-green-200 transition-all cursor-pointer">
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">Total Bookings</p>
@@ -156,9 +156,9 @@ export default function DashboardPage() {
               <Users className="h-8 w-8 sm:h-10 sm:w-10 text-green-600" />
             </div>
           </div>
-        </div>
+        </Link>
 
-        <div className="bg-white rounded-xl shadow-sm p-5 sm:p-6 border border-gray-100">
+        <Link href="/dashboard/clients" className="bg-white rounded-xl shadow-sm p-5 sm:p-6 border border-gray-100 hover:shadow-md hover:border-purple-200 transition-all cursor-pointer">
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">New Clients</p>
@@ -169,9 +169,9 @@ export default function DashboardPage() {
               <UserPlus className="h-8 w-8 sm:h-10 sm:w-10 text-purple-600" />
             </div>
           </div>
-        </div>
+        </Link>
 
-        <div className="bg-white rounded-xl shadow-sm p-5 sm:p-6 border border-gray-100">
+        <Link href="/dashboard/invoices" className="bg-white rounded-xl shadow-sm p-5 sm:p-6 border border-gray-100 hover:shadow-md hover:border-blue-200 transition-all cursor-pointer">
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">Total Revenue</p>
@@ -182,7 +182,7 @@ export default function DashboardPage() {
               <DollarSign className="h-8 w-8 sm:h-10 sm:w-10 text-blue-600" />
             </div>
           </div>
-        </div>
+        </Link>
       </div>
 
       {/* Upcoming Bookings - Next 7 Days */}

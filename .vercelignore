@@ -4,9 +4,13 @@ packages/backend
 # Mobile (not deployed to Vercel)
 packages/mobile
 
+# Keep frontend
+!packages/frontend
+
 # Documentation
 *.md
 !README.md
+!packages/frontend/**/*.md
 
 # Development
 .env.local

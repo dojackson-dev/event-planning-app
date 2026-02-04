@@ -5,6 +5,19 @@ import { extname } from 'path';
 import { ContractsService } from './contracts.service';
 import { Contract } from '../entities/contract.entity';
 
+// Type for multer file
+interface MulterFile {
+  fieldname: string;
+  originalname: string;
+  encoding: string;
+  mimetype: string;
+  size: number;
+  destination: string;
+  filename: string;
+  path: string;
+  buffer: Buffer;
+}
+
 @Controller('contracts')
 export class ContractsController {
   constructor(private readonly contractsService: ContractsService) {}
@@ -43,7 +56,7 @@ export class ContractsController {
       limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
     }),
   )
-  async uploadFile(@UploadedFile() file: Express.Multer.File) {
+  async uploadFile(@UploadedFile() file: MulterFile) {
     return {
       filename: file.filename,
       originalname: file.originalname,

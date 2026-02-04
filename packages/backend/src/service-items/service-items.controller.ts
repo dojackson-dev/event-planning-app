@@ -74,9 +74,9 @@ export class ServiceItemsController {
     @Headers('authorization') authorization: string,
   ): Promise<ServiceItem> {
     const userId = await this.getUserId(authorization);
-    const token = this.extractToken(authorization);
-    const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.serviceItemsService.create(supabaseWithAuth, userId, item);
+    // Use admin client to bypass RLS for inserts
+    const supabaseAdmin = this.supabaseService.getAdminClient();
+    return this.serviceItemsService.create(supabaseAdmin, userId, item);
   }
 
   @Put(':id')
@@ -86,9 +86,9 @@ export class ServiceItemsController {
     @Headers('authorization') authorization: string,
   ): Promise<ServiceItem | null> {
     const userId = await this.getUserId(authorization);
-    const token = this.extractToken(authorization);
-    const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.serviceItemsService.update(supabaseWithAuth, userId, id, item);
+    // Use admin client to bypass RLS for updates
+    const supabaseAdmin = this.supabaseService.getAdminClient();
+    return this.serviceItemsService.update(supabaseAdmin, userId, id, item);
   }
 
   @Delete(':id')
@@ -97,8 +97,8 @@ export class ServiceItemsController {
     @Headers('authorization') authorization: string,
   ): Promise<void> {
     const userId = await this.getUserId(authorization);
-    const token = this.extractToken(authorization);
-    const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.serviceItemsService.delete(supabaseWithAuth, userId, id);
+    // Use admin client to bypass RLS for deletes
+    const supabaseAdmin = this.supabaseService.getAdminClient();
+    return this.serviceItemsService.delete(supabaseAdmin, userId, id);
   }
 }

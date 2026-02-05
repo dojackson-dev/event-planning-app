@@ -72,6 +72,19 @@ export class InvoicesService {
   }
 
   async create(supabase: any, invoice: Partial<Invoice>): Promise<Invoice> {
+    // Verify the owner exists in the users table (required by foreign key constraint)
+    if (invoice.owner_id) {
+      const { data: ownerUser, error: userError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', invoice.owner_id)
+        .single();
+      
+      if (userError || !ownerUser) {
+        throw new Error(`Cannot create invoice: User with ID ${invoice.owner_id} not found in users table. Please ensure the user account is properly set up.`);
+      }
+    }
+    
     // Generate invoice number
     const year = new Date().getFullYear();
     const { count } = await supabase

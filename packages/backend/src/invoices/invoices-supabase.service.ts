@@ -148,6 +148,20 @@ export class InvoicesService {
   }
 
   async create(supabase: SupabaseClient, userId: string, invoiceData: Partial<Invoice>, items?: Partial<InvoiceItem>[]): Promise<Invoice> {
+    // Determine the owner_id to use
+    const ownerId = invoiceData.owner_id || userId;
+    
+    // Verify the owner exists in the users table (required by foreign key constraint)
+    const { data: ownerUser, error: userError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', ownerId)
+      .single();
+    
+    if (userError || !ownerUser) {
+      throw new Error(`Cannot create invoice: User with ID ${ownerId} not found in users table. Please ensure the user account is properly set up.`);
+    }
+    
     // Generate unique invoice number with timestamp to avoid duplicates
     const { data: maxInvoice } = await supabase
       .from('invoices')
@@ -178,7 +192,7 @@ export class InvoicesService {
       .from('invoices')
       .insert({
         invoice_number: invoiceNumber,
-        owner_id: invoiceData.owner_id || userId,
+        owner_id: ownerId,
         created_by: userId,
         booking_id: invoiceData.booking_id || null,
         intake_form_id: invoiceData.intake_form_id || null,

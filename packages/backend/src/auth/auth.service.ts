@@ -9,6 +9,17 @@ export class AuthService {
   async register(registerDto: RegisterDto) {
     const supabase = this.supabaseService.getClient();
 
+    // Check if email already exists in users table
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', registerDto.email.toLowerCase())
+      .single();
+
+    if (existingUser) {
+      throw new UnauthorizedException('An account with this email already exists');
+    }
+
     const { data, error } = await supabase.auth.signUp({
       email: registerDto.email,
       password: registerDto.password,
@@ -24,6 +35,12 @@ export class AuthService {
 
     if (error) {
       throw new UnauthorizedException(error.message);
+    }
+
+    // Check for Supabase's "fake success" response when email already exists
+    // If user has no identities, it means the email already exists in Supabase Auth
+    if (data.user && (!data.user.identities || data.user.identities.length === 0)) {
+      throw new UnauthorizedException('An account with this email already exists');
     }
 
     return {

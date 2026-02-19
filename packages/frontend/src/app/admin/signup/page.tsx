@@ -41,6 +41,19 @@ export default function AdminSignupPage() {
     try {
       const supabase = createClient()
 
+      // Check if email already exists
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', formData.email.toLowerCase())
+        .single()
+
+      if (existingUser) {
+        setMessage('Error: An account with this email already exists')
+        setLoading(false)
+        return
+      }
+
       // Create auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
@@ -55,6 +68,13 @@ export default function AdminSignupPage() {
       })
 
       if (authError) throw authError
+
+      // Check for Supabase's "fake success" response when email already exists
+      if (authData.user && (!authData.user.identities || authData.user.identities.length === 0)) {
+        setMessage('Error: An account with this email already exists')
+        setLoading(false)
+        return
+      }
 
       if (authData.user) {
         // Try to create user record with admin role

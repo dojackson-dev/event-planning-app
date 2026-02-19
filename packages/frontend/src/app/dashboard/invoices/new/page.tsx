@@ -27,6 +27,7 @@ export default function NewInvoicePage() {
   const [serviceItems, setServiceItems] = useState<ServiceItem[]>([])
   const [selectedBooking, setSelectedBooking] = useState<string>('')
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([])
+  const [includeTax, setIncludeTax] = useState<boolean>(false)
   const [taxRate, setTaxRate] = useState<number>(0)
   const [discountAmount, setDiscountAmount] = useState<number>(0)
   const [notes, setNotes] = useState('')
@@ -75,12 +76,15 @@ export default function NewInvoicePage() {
     }
   }
 
-  const addServiceItem = (serviceItem: ServiceItem) => {
-    const price = Number(serviceItem.defaultPrice) || 0
+  const addServiceItem = (serviceItem: ServiceItem | any) => {
+    // Handle both snake_case (from API) and camelCase (from type) price fields
+    const price = Number(serviceItem.default_price ?? serviceItem.defaultPrice) || 0
+    const itemName = serviceItem.name || 'Item'
+    const itemDescription = serviceItem.description || itemName
     const newItem: InvoiceLineItem = {
       id: `temp-${Date.now()}`,
       service_item_id: serviceItem.id,
-      description: serviceItem.description,
+      description: itemDescription,
       quantity: 1,
       standardPrice: price,
       unitPrice: price,
@@ -157,6 +161,7 @@ export default function NewInvoicePage() {
   }
 
   const calculateTax = () => {
+    if (!includeTax || taxRate <= 0) return 0
     return calculateSubtotal() * (taxRate / 100)
   }
 
@@ -177,7 +182,7 @@ export default function NewInvoicePage() {
         invoice: {
           booking_id: selectedBooking && selectedBooking !== '' ? selectedBooking : null,
           owner_id: user?.id,
-          tax_rate: Number(taxRate),
+          tax_rate: includeTax ? Number(taxRate) : 0,
           discount_amount: Number(discountAmount),
           amount_paid: 0,
           issue_date: issueDate,
@@ -272,20 +277,23 @@ export default function NewInvoicePage() {
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-4">
-              {serviceItems.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => addServiceItem(item)}
-                  className="flex flex-col items-start p-3 text-sm bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg text-left transition-colors"
-                  title={item.description}
-                >
-                  <span className="font-medium text-gray-900">{item.name}</span>
-                  <span className="text-xs text-blue-600 mt-1">
-                    ${(Number(item.defaultPrice) || 0).toFixed(2)}
-                  </span>
-                </button>
-              ))}
+              {serviceItems.map((item: any) => {
+                const itemPrice = Number(item.default_price ?? item.defaultPrice) || 0
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => addServiceItem(item)}
+                    className="flex flex-col items-start p-3 text-sm bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg text-left transition-colors"
+                    title={item.description}
+                  >
+                    <span className="font-medium text-gray-900">{item.name}</span>
+                    <span className="text-xs text-blue-600 mt-1">
+                      ${itemPrice.toFixed(2)}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
           )}
           <button
@@ -441,20 +449,34 @@ export default function NewInvoicePage() {
             </div>
 
             <div className="mb-3">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Tax Rate (%)
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={taxRate}
-                onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md"
-              />
-              <div className="text-right text-sm text-gray-600 mt-1">
-                Tax Amount: ${calculateTax().toFixed(2)}
+              <div className="flex items-center mb-2">
+                <input
+                  type="checkbox"
+                  id="includeTax"
+                  checked={includeTax}
+                  onChange={(e) => setIncludeTax(e.target.checked)}
+                  className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                />
+                <label htmlFor="includeTax" className="ml-2 text-sm font-medium text-gray-700">
+                  Include Sales Tax (Optional)
+                </label>
               </div>
+              {includeTax && (
+                <>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={taxRate}
+                    onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    placeholder="Enter tax rate %"
+                  />
+                  <div className="text-right text-sm text-gray-600 mt-1">
+                    Tax Amount: ${calculateTax().toFixed(2)}
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="mb-3">

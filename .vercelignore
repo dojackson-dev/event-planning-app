@@ -4,25 +4,14 @@ packages/backend
 # Mobile (not deployed to Vercel)
 packages/mobile
 
-# Keep frontend
-!packages/frontend
-
-# Documentation
+# Root documentation files
+docs
 *.md
-!README.md
-!packages/frontend/**/*.md
+!packages/frontend/README.md
 
 # Development
 .env.local
-.env*.local
 .DS_Store
-*.log
-
-# Tests
-**/__tests__
-**/*.test.*
-**/*.spec.*
-coverage
 
 # Editor
 .vscode

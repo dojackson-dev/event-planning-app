@@ -22,6 +22,17 @@ export class AuthFlowService {
   async ownerSignup(dto: OwnerSignupDto) {
     const supabase = this.supabaseService.getClient();
 
+    // Check if email already exists
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', dto.email.toLowerCase())
+      .single();
+
+    if (existingUser) {
+      throw new BadRequestException('An account with this email already exists');
+    }
+
     // 1. Create auth user
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: dto.email,
@@ -36,6 +47,11 @@ export class AuthFlowService {
 
     if (authError || !authData.user) {
       throw new BadRequestException(authError?.message || 'Failed to create user');
+    }
+
+    // Check for Supabase's "fake success" response when email already exists
+    if (!authData.user.identities || authData.user.identities.length === 0) {
+      throw new BadRequestException('An account with this email already exists');
     }
 
     const userId = authData.user.id;

@@ -148,6 +148,43 @@ export class InvoicesService {
   }
 
   async create(supabase: SupabaseClient, userId: string, invoiceData: Partial<Invoice>, items?: Partial<InvoiceItem>[]): Promise<Invoice> {
+    // Determine the owner_id to use
+    const ownerId = invoiceData.owner_id || userId;
+    
+    // Check if the owner exists in the users table (required by foreign key constraint)
+    const { data: ownerUser, error: userError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', ownerId)
+      .single();
+    
+    // If user doesn't exist, try to create them from auth.users
+    if (userError || !ownerUser) {
+      // Get user info from auth.users
+      const { data: authUser } = await supabase.auth.admin.getUserById(ownerId);
+      
+      if (authUser?.user) {
+        // Create the user record in public.users
+        const { error: insertError } = await supabase
+          .from('users')
+          .insert({
+            id: ownerId,
+            email: authUser.user.email,
+            role: 'owner',
+            status: 'active',
+            first_name: authUser.user.user_metadata?.first_name || '',
+            last_name: authUser.user.user_metadata?.last_name || '',
+          });
+        
+        if (insertError) {
+          console.error('Failed to create user record:', insertError);
+          throw new Error(`Cannot create invoice: Failed to create user record. ${insertError.message}`);
+        }
+      } else {
+        throw new Error(`Cannot create invoice: User with ID ${ownerId} not found.`);
+      }
+    }
+    
     // Generate unique invoice number with timestamp to avoid duplicates
     const { data: maxInvoice } = await supabase
       .from('invoices')
@@ -178,7 +215,7 @@ export class InvoicesService {
       .from('invoices')
       .insert({
         invoice_number: invoiceNumber,
-        owner_id: invoiceData.owner_id || userId,
+        owner_id: ownerId,
         created_by: userId,
         booking_id: invoiceData.booking_id || null,
         intake_form_id: invoiceData.intake_form_id || null,

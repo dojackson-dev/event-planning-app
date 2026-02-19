@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { ArrowLeft, Calendar, Mail, Phone, Users, Clock, MapPin, Utensils, Wrench, Heart, Accessibility, DollarSign, Info, CheckCircle, MessageSquare, FileText, Clock as ClockIcon } from 'lucide-react'
+import { ArrowLeft, Calendar, Mail, Phone, Users, Clock, MapPin, Utensils, Wrench, Heart, Accessibility, DollarSign, Info, CheckCircle, MessageSquare, FileText, Clock as ClockIcon, Pencil } from 'lucide-react'
 
 interface IntakeForm {
   id: string
@@ -41,6 +41,9 @@ export default function ClientDetailPage() {
   const [showMessageModal, setShowMessageModal] = useState(false)
   const [showInvoiceModal, setShowInvoiceModal] = useState(false)
   const [showAppointmentModal, setShowAppointmentModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editData, setEditData] = useState<Partial<IntakeForm>>({})
+  const [saving, setSaving] = useState(false)
   const [messageContent, setMessageContent] = useState('')
   const [appointmentData, setAppointmentData] = useState({ date: '', time: '', notes: '' })
 
@@ -56,6 +59,7 @@ export default function ClientDetailPage() {
       setClient(response.data)
       setStatus(response.data.status)
       setNotes(response.data.notes || '')
+      setEditData(response.data)
     } catch (error) {
       console.error('Error fetching client:', error)
     } finally {
@@ -100,6 +104,21 @@ export default function ClientDetailPage() {
       alert(error.response?.data?.message || 'Error converting to booking')
     } finally {
       setUpdating(false)
+    }
+  }
+
+  const handleSaveEdit = async () => {
+    if (!client) return
+    setSaving(true)
+    try {
+      await api.put(`/intake-forms/${client.id}`, editData)
+      await fetchClient()
+      setShowEditModal(false)
+    } catch (error) {
+      console.error('Error saving client:', error)
+      alert('Failed to save changes')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -425,6 +444,14 @@ export default function ClientDetailPage() {
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Actions</h2>
               <div className="space-y-3">
                 <button
+                  onClick={() => { setEditData(client!); setShowEditModal(true) }}
+                  className="w-full bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center justify-center gap-2"
+                >
+                  <Pencil className="h-4 w-4" />
+                  Edit Client Details
+                </button>
+
+                <button
                   onClick={handleConvertToBooking}
                   disabled={updating || client.status === 'converted'}
                   className="w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
@@ -590,6 +617,104 @@ export default function ClientDetailPage() {
                     Send Invoice
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Client Modal */}
+        {showEditModal && client && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              <h2 className="text-xl font-bold mb-6">Edit Client Details</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                  <input type="text" value={editData.contact_name || ''} onChange={e => setEditData({ ...editData, contact_name: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <input type="email" value={editData.contact_email || ''} onChange={e => setEditData({ ...editData, contact_email: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                  <input type="tel" value={editData.contact_phone || ''} onChange={e => setEditData({ ...editData, contact_phone: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Event Type</label>
+                  <input type="text" value={editData.event_type || ''} onChange={e => setEditData({ ...editData, event_type: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Event Date</label>
+                  <input type="date" value={editData.event_date ? editData.event_date.slice(0, 10) : ''} onChange={e => setEditData({ ...editData, event_date: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Event Time</label>
+                  <input type="time" value={editData.event_time || ''} onChange={e => setEditData({ ...editData, event_time: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Guest Count</label>
+                  <input type="number" value={editData.guest_count ?? ''} onChange={e => setEditData({ ...editData, guest_count: Number(e.target.value) })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Budget Range</label>
+                  <input type="text" value={editData.budget_range || ''} onChange={e => setEditData({ ...editData, budget_range: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Services Needed</label>
+                  <textarea value={editData.services_needed || ''} onChange={e => setEditData({ ...editData, services_needed: e.target.value })} rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Venue Preference</label>
+                  <input type="text" value={editData.venue_preference || ''} onChange={e => setEditData({ ...editData, venue_preference: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Catering Requirements</label>
+                  <textarea value={editData.catering_requirements || ''} onChange={e => setEditData({ ...editData, catering_requirements: e.target.value })} rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Equipment Needs</label>
+                  <textarea value={editData.equipment_needs || ''} onChange={e => setEditData({ ...editData, equipment_needs: e.target.value })} rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Dietary Restrictions</label>
+                  <input type="text" value={editData.dietary_restrictions || ''} onChange={e => setEditData({ ...editData, dietary_restrictions: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Accessibility Requirements</label>
+                  <input type="text" value={editData.accessibility_requirements || ''} onChange={e => setEditData({ ...editData, accessibility_requirements: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Special Requests</label>
+                  <textarea value={editData.special_requests || ''} onChange={e => setEditData({ ...editData, special_requests: e.target.value })} rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">How Did They Hear About Us</label>
+                  <input type="text" value={editData.how_did_you_hear || ''} onChange={e => setEditData({ ...editData, how_did_you_hear: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+
+              </div>
+              <div className="flex gap-3 justify-end pt-6">
+                <button onClick={() => setShowEditModal(false)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+                <button onClick={handleSaveEdit} disabled={saving} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </button>
               </div>
             </div>
           </div>

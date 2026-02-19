@@ -14,6 +14,7 @@ import { InvoicesModule } from './invoices/invoices.module';
 // import { SecurityModule } from './security/security.module';
 import { GuestListsModule } from './guest-lists/guest-lists.module';
 import { ContractsModule } from './contracts/contracts.module';
+import { EstimatesModule } from './estimates/estimates.module';
 // import { MessagingModule } from './messaging/messaging.module';
 
 @Module({
@@ -30,6 +31,7 @@ import { ContractsModule } from './contracts/contracts.module';
     InvoicesModule,
     GuestListsModule,
     ContractsModule,
+    EstimatesModule,
     // UsersModule,
     // SecurityModule,
     // MessagingModule,  // Keep this for scheduled messages

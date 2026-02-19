@@ -33,6 +33,7 @@ const navigation = [
   { name: 'Client Intake', href: '/dashboard/intake', icon: ClipboardList },
   { name: 'Items & Packages', href: '/dashboard/items', icon: Package },
   { name: 'Invoices', href: '/dashboard/invoices', icon: Receipt },
+  { name: 'Estimates', href: '/dashboard/estimates', icon: FileText },
   { name: 'Contracts', href: '/dashboard/contracts', icon: FileText },
   { name: 'Door Lists', href: '/dashboard/door-lists', icon: ListChecks },
   { name: 'Security', href: '/dashboard/security', icon: Shield },

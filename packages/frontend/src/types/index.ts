@@ -258,6 +258,59 @@ export interface InvoiceItem {
   sort_order: number
 }
 
+// Estimate
+export enum EstimateStatus {
+  DRAFT = 'draft',
+  SENT = 'sent',
+  APPROVED = 'approved',
+  REJECTED = 'rejected',
+  EXPIRED = 'expired',
+  CONVERTED = 'converted',
+}
+
+export interface EstimateItem {
+  id: string
+  estimate_id: string
+  service_item_id?: string
+  service_item?: ServiceItem
+  description: string
+  quantity: number
+  standard_price: number
+  unit_price: number
+  subtotal: number
+  discount_type: DiscountType
+  discount_value: number
+  discount_amount: number
+  amount: number
+  sort_order: number
+}
+
+export interface Estimate {
+  id: string
+  estimate_number: string
+  owner_id?: string
+  booking_id?: string
+  intake_form_id?: string
+  booking?: Booking
+  subtotal: number
+  tax_amount: number
+  tax_rate: number
+  discount_amount: number
+  total_amount: number
+  status: EstimateStatus
+  issue_date: string
+  expiration_date: string
+  approved_date?: string
+  rejected_date?: string
+  converted_invoice_id?: string
+  converted_at?: string
+  notes?: string
+  terms?: string
+  items: EstimateItem[]
+  created_at: string
+  updated_at: string
+}
+
 // ServiceItem
 export interface ServiceItem {
   id: string

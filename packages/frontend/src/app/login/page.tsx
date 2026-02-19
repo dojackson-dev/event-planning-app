@@ -12,7 +12,7 @@ export default function LoginPage() {
   const { login } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault()  // Must be first — prevents any native form submission
     setError('')
     setLoading(true)
 
@@ -52,7 +52,7 @@ export default function LoginPage() {
             Sign in to manage your event center
           </p>
         </div>
-        <form className="mt-8 space-y-6" action="#" method="post" onSubmit={handleSubmit}>
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           {error && (
             <div className="rounded-md bg-red-50 p-4 border border-red-200">
               <p className="text-sm text-red-800 font-semibold">Error: {error}</p>
@@ -66,7 +66,6 @@ export default function LoginPage() {
               </label>
               <input
                 id="email"
-                name="email"
                 type="email"
                 autoComplete="email"
                 required
@@ -82,7 +81,6 @@ export default function LoginPage() {
               </label>
               <input
                 id="password"
-                name="password"
                 type="password"
                 autoComplete="current-password"
                 required

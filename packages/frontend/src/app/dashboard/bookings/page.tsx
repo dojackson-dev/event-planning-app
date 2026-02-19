@@ -47,7 +47,7 @@ export default function BookingsPage() {
 
   const updateClientStatus = async (bookingId: string, newStatus: ClientStatus) => {
     try {
-      await api.patch(`/bookings/${bookingId}`, { clientStatus: newStatus })
+      await api.patch(`/bookings/${bookingId}`, { client_status: newStatus })
       // Refresh bookings
       fetchBookings()
     } catch (error) {

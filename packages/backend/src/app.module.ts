@@ -9,12 +9,11 @@ import { IntakeFormsModule } from './intake-forms/intake-forms.module';
 import { EventsModule } from './events/events.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { InvoicesModule } from './invoices/invoices.module';
-// Commenting out feature modules that use TypeORM for now
-// We'll refactor these to use Supabase client one by one
+// Commenting out feature modules that still use TypeORM
 // import { UsersModule } from './users/users.module';
-// import { ContractsModule } from './contracts/contracts.module';
 // import { SecurityModule } from './security/security.module';
 import { GuestListsModule } from './guest-lists/guest-lists.module';
+import { ContractsModule } from './contracts/contracts.module';
 // import { MessagingModule } from './messaging/messaging.module';
 
 @Module({
@@ -29,8 +28,8 @@ import { GuestListsModule } from './guest-lists/guest-lists.module';
     EventsModule,
     BookingsModule,
     InvoicesModule,
-    // ContractsModule, // Commented out - import is also commented
     GuestListsModule,
+    ContractsModule,
     // UsersModule,
     // SecurityModule,
     // MessagingModule,  // Keep this for scheduled messages

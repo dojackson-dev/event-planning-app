@@ -1,93 +1,121 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, ParseIntPipe, Query, UseInterceptors, UploadedFile } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Headers, UnauthorizedException } from '@nestjs/common';
 import { ContractsService } from './contracts.service';
-import { Contract } from '../entities/contract.entity';
-
-// Type for multer file
-interface MulterFile {
-  fieldname: string;
-  originalname: string;
-  encoding: string;
-  mimetype: string;
-  size: number;
-  destination: string;
-  filename: string;
-  path: string;
-  buffer: Buffer;
-}
+import { SupabaseService } from '../supabase/supabase.service';
 
 @Controller('contracts')
 export class ContractsController {
-  constructor(private readonly contractsService: ContractsService) {}
+  constructor(
+    private readonly contractsService: ContractsService,
+    private readonly supabaseService: SupabaseService,
+  ) {}
+
+  private extractToken(authorization?: string): string {
+    if (!authorization) {
+      throw new UnauthorizedException('No authorization header');
+    }
+    return authorization.replace('Bearer ', '');
+  }
+
+  private async getUserId(authorization?: string): Promise<string> {
+    const token = this.extractToken(authorization);
+
+    if (token.startsWith('local-')) {
+      const userId = token.replace('local-', '');
+      if (userId) return userId;
+      throw new UnauthorizedException('Invalid dev token format');
+    }
+
+    const supabaseWithAuth = this.supabaseService.setAuthContext(token);
+    const { data: { user }, error } = await supabaseWithAuth.auth.getUser();
+
+    if (error || !user) {
+      throw new UnauthorizedException('Invalid token');
+    }
+
+    return user.id;
+  }
 
   @Get()
-  async findAll(@Query('ownerId') ownerId?: string, @Query('clientId') clientId?: string): Promise<Contract[]> {
-    if (ownerId) {
-      return this.contractsService.findByOwner(parseInt(ownerId));
-    }
-    if (clientId) {
-      return this.contractsService.findByClient(parseInt(clientId));
-    }
-    return this.contractsService.findAll();
+  async findAll(
+    @Headers('authorization') authorization: string,
+    @Query('ownerId') ownerId?: string,
+    @Query('clientId') clientId?: string,
+  ): Promise<any[]> {
+    const userId = await this.getUserId(authorization);
+    const token = this.extractToken(authorization);
+    const supabase = this.supabaseService.setAuthContext(token);
+
+    if (ownerId) return this.contractsService.findByOwner(supabase, ownerId);
+    if (clientId) return this.contractsService.findByClient(supabase, clientId);
+    return this.contractsService.findByOwner(supabase, userId);
   }
 
   @Get(':id')
-  async findOne(@Param('id', ParseIntPipe) id: number): Promise<Contract | null> {
-    return this.contractsService.findOne(id);
+  async findOne(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+  ): Promise<any | null> {
+    await this.getUserId(authorization);
+    const token = this.extractToken(authorization);
+    const supabase = this.supabaseService.setAuthContext(token);
+    return this.contractsService.findOne(supabase, id);
   }
 
   @Post()
-  async create(@Body() contract: Partial<Contract>): Promise<Contract> {
-    return this.contractsService.create(contract);
-  }
-
-  @Post('upload')
-  @UseInterceptors(
-    FileInterceptor('file', {
-      storage: diskStorage({
-        destination: './uploads/contracts',
-        filename: (req, file, cb) => {
-          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-          cb(null, `contract-${uniqueSuffix}${extname(file.originalname)}`);
-        },
-      }),
-      limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
-    }),
-  )
-  async uploadFile(@UploadedFile() file: MulterFile) {
-    return {
-      filename: file.filename,
-      originalname: file.originalname,
-      size: file.size,
-      path: `/uploads/contracts/${file.filename}`,
-    };
+  async create(
+    @Headers('authorization') authorization: string,
+    @Body() contractData: any,
+  ): Promise<any> {
+    const userId = await this.getUserId(authorization);
+    const token = this.extractToken(authorization);
+    const supabase = this.supabaseService.setAuthContext(token);
+    return this.contractsService.create(supabase, { ...contractData, owner_id: userId });
   }
 
   @Put(':id')
+  @Patch(':id')
   async update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() contract: Partial<Contract>,
-  ): Promise<Contract | null> {
-    return this.contractsService.update(id, contract);
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+    @Body() contractData: any,
+  ): Promise<any | null> {
+    await this.getUserId(authorization);
+    const token = this.extractToken(authorization);
+    const supabase = this.supabaseService.setAuthContext(token);
+    return this.contractsService.update(supabase, id, contractData);
   }
 
   @Post(':id/sign')
   async signContract(
-    @Param('id', ParseIntPipe) id: number,
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
     @Body() signatureData: { signatureData: string; signerName: string; ipAddress?: string },
-  ): Promise<Contract | null> {
-    return this.contractsService.signContract(id, signatureData);
+  ): Promise<any | null> {
+    await this.getUserId(authorization);
+    const token = this.extractToken(authorization);
+    const supabase = this.supabaseService.setAuthContext(token);
+    return this.contractsService.signContract(supabase, id, signatureData);
   }
 
   @Post(':id/send')
-  async sendContract(@Param('id', ParseIntPipe) id: number): Promise<Contract | null> {
-    return this.contractsService.sendContract(id);
+  async sendContract(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+  ): Promise<any | null> {
+    await this.getUserId(authorization);
+    const token = this.extractToken(authorization);
+    const supabase = this.supabaseService.setAuthContext(token);
+    return this.contractsService.sendContract(supabase, id);
   }
 
   @Delete(':id')
-  async delete(@Param('id', ParseIntPipe) id: number): Promise<void> {
-    return this.contractsService.delete(id);
+  async remove(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+  ): Promise<void> {
+    await this.getUserId(authorization);
+    const token = this.extractToken(authorization);
+    const supabase = this.supabaseService.setAuthContext(token);
+    return this.contractsService.delete(supabase, id);
   }
 }

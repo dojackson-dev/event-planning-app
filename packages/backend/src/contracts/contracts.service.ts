@@ -1,131 +1,115 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Contract, ContractStatus } from '../entities/contract.entity';
-import { MailService } from '../mail/mail.service';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 @Injectable()
 export class ContractsService {
-  constructor(
-    @InjectRepository(Contract)
-    private contractRepository: Repository<Contract>,
-    private mailService: MailService,
-  ) {}
+  constructor() {}
 
-  async findAll(): Promise<Contract[]> {
-    return this.contractRepository.find({
-      relations: ['owner', 'client', 'booking'],
-      order: { createdAt: 'DESC' },
-    });
+  async findAll(supabase: SupabaseClient): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('contracts')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
   }
 
-  async findByOwner(ownerId: number): Promise<Contract[]> {
-    return this.contractRepository.find({
-      where: { ownerId },
-      relations: ['owner', 'client', 'booking'],
-      order: { createdAt: 'DESC' },
-    });
+  async findByOwner(supabase: SupabaseClient, ownerId: string): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('contracts')
+      .select('*')
+      .eq('owner_id', ownerId)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
   }
 
-  async findByClient(clientId: number): Promise<Contract[]> {
-    return this.contractRepository.find({
-      where: { clientId },
-      relations: ['owner', 'client', 'booking'],
-      order: { createdAt: 'DESC' },
-    });
+  async findByClient(supabase: SupabaseClient, clientId: string): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('contracts')
+      .select('*')
+      .eq('client_id', clientId)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
   }
 
-  async findOne(id: number): Promise<Contract | null> {
-    return this.contractRepository.findOne({
-      where: { id },
-      relations: ['owner', 'client', 'booking'],
-    });
+  async findOne(supabase: SupabaseClient, id: string): Promise<any | null> {
+    const { data, error } = await supabase
+      .from('contracts')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (error) throw error;
+    return data;
   }
 
-  async create(contractData: Partial<Contract>): Promise<Contract> {
-    // Generate contract number
-    const count = await this.contractRepository.count();
-    const contractNumber = `CON-${new Date().getFullYear()}-${String(count + 1).padStart(5, '0')}`;
+  async create(supabase: SupabaseClient, contractData: any): Promise<any> {
+    const { count } = await supabase
+      .from('contracts')
+      .select('*', { count: 'exact', head: true });
+    const contractNumber = `CON-${new Date().getFullYear()}-${String((count || 0) + 1).padStart(5, '0')}`;
 
-    const contract = this.contractRepository.create({
-      ...contractData,
-      contractNumber,
-      status: contractData.status || ContractStatus.DRAFT,
-    });
-
-    return this.contractRepository.save(contract);
+    const { data, error } = await supabase
+      .from('contracts')
+      .insert([{ ...contractData, contract_number: contractNumber, status: contractData.status || 'draft' }])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
   }
 
-  async update(id: number, contractData: Partial<Contract>): Promise<Contract | null> {
-    const contract = await this.findOne(id);
-    
-    if (!contract) {
-      return null;
-    }
-
-    await this.contractRepository.update(id, contractData);
-    return this.findOne(id);
+  async update(supabase: SupabaseClient, id: string, contractData: any): Promise<any | null> {
+    const { data, error } = await supabase
+      .from('contracts')
+      .update(contractData)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
   }
 
   async signContract(
-    id: number,
+    supabase: SupabaseClient,
+    id: string,
     signatureData: { signatureData: string; signerName: string; ipAddress?: string },
-  ): Promise<Contract | null> {
-    const contract = await this.findOne(id);
-    
-    if (!contract) {
-      return null;
-    }
-
-    await this.contractRepository.update(id, {
-      signatureData: signatureData.signatureData,
-      signerName: signatureData.signerName,
-      signerIpAddress: signatureData.ipAddress,
-      signedDate: new Date(),
-      status: ContractStatus.SIGNED,
-    });
-
-    const updatedContract = await this.findOne(id);
-    
-    // Send email notification to owner
-    if (updatedContract && updatedContract.client && updatedContract.owner) {
-      await this.mailService.sendContractSignedNotification(
-        updatedContract,
-        updatedContract.client,
-        updatedContract.owner,
-      );
-    }
-
-    return updatedContract;
+  ): Promise<any | null> {
+    const { data, error } = await supabase
+      .from('contracts')
+      .update({
+        signature_data: signatureData.signatureData,
+        signer_name: signatureData.signerName,
+        signer_ip_address: signatureData.ipAddress,
+        signed_date: new Date().toISOString(),
+        status: 'signed',
+      })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
   }
 
-  async sendContract(id: number): Promise<Contract | null> {
-    const contract = await this.findOne(id);
-    
-    if (!contract) {
-      return null;
-    }
-
-    await this.contractRepository.update(id, {
-      sentDate: new Date(),
-      status: ContractStatus.SENT,
-    });
-
-    const updatedContract = await this.findOne(id);
-    
-    // Send email notification to client
-    if (updatedContract && updatedContract.client && updatedContract.owner) {
-      await this.mailService.sendContractNotification(
-        updatedContract,
-        updatedContract.client,
-        updatedContract.owner,
-      );
-    }
-
-    return updatedContract;
+  async sendContract(supabase: SupabaseClient, id: string): Promise<any | null> {
+    const { data, error } = await supabase
+      .from('contracts')
+      .update({
+        sent_date: new Date().toISOString(),
+        status: 'sent',
+      })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
   }
 
-  async delete(id: number): Promise<void> {
-    await this.contractRepository.delete(id);
+  async delete(supabase: SupabaseClient, id: string): Promise<void> {
+    const { error } = await supabase
+      .from('contracts')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
   }
 }

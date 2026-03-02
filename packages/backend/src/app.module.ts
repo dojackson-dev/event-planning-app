@@ -15,6 +15,7 @@ import { InvoicesModule } from './invoices/invoices.module';
 import { GuestListsModule } from './guest-lists/guest-lists.module';
 import { ContractsModule } from './contracts/contracts.module';
 import { EstimatesModule } from './estimates/estimates.module';
+import { StripeModule } from './stripe/stripe.module';
 // import { MessagingModule } from './messaging/messaging.module';
 
 @Module({
@@ -32,6 +33,7 @@ import { EstimatesModule } from './estimates/estimates.module';
     GuestListsModule,
     ContractsModule,
     EstimatesModule,
+    StripeModule,
     // UsersModule,
     // SecurityModule,
     // MessagingModule,  // Keep this for scheduled messages

@@ -2,7 +2,8 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // rawBody: true is required for Stripe webhook signature verification
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   
   // Enable CORS for frontend - support multiple origins
   const allowedOrigins = [

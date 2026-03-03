@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/
 import { SupabaseService } from '../supabase/supabase.service';
 import { StripeService } from '../stripe/stripe.service';
 import { SmsService } from '../sms/sms.service';
+import { TrialService } from '../trial/trial.service';
 import { OwnerSignupDto, OwnerLoginDto, VerifyPhoneDto } from './dto/owner-signup.dto';
 import { CreateInviteDto, AcceptInviteDto, ClientSmsOptInDto } from './dto/client-invite.dto';
 import { randomBytes } from 'crypto';
@@ -12,6 +13,7 @@ export class AuthFlowService {
     private readonly supabaseService: SupabaseService,
     private readonly stripeService: StripeService,
     private readonly smsService: SmsService,
+    private readonly trialService: TrialService,
   ) {}
 
   /**
@@ -56,18 +58,21 @@ export class AuthFlowService {
 
     const userId = authData.user.id;
 
-    // 2. Create owner_account
+    // 2. Create owner_account with trial
     const { data: ownerAccount, error: accountError } = await supabase
       .from('owner_accounts')
       .insert({
         business_name: dto.businessName,
         primary_owner_id: userId,
-        subscription_status: 'active', // Skip Stripe for now
+        subscription_status: 'trial', // Start with free trial
       })
       .select()
       .single();
 
     if (accountError) throw new BadRequestException(accountError.message);
+
+    // Create trial period (30 days default, or configurable)
+    await this.trialService.createTrial(ownerAccount.id);
 
     // 3. Create user record
     const { error: userError } = await supabase

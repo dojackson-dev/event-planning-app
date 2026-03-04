@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
@@ -21,7 +21,9 @@ import {
   Menu,
   X,
   ClipboardList,
-  Receipt
+  Receipt,
+  Settings,
+  ChevronDown
 } from 'lucide-react'
 
 const navigation = [
@@ -45,6 +47,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname()
   const { user, logout } = useAuth()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const userMenuRef = useRef<HTMLDivElement>(null)
+
+  // Close user menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setUserMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   // Placeholder user for development when not logged in
   const displayUser = user || {
@@ -145,7 +160,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </nav>
 
           {/* Logout */}
-          <div className="p-4 border-t">
+          <div className="p-4 border-t space-y-1">
+            <Link
+              href="/dashboard/settings"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center w-full px-4 py-3 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors"
+            >
+              <Settings className="mr-3 h-5 w-5" />
+              Settings
+            </Link>
             <button
               onClick={() => {
                 setMobileMenuOpen(false)
@@ -172,17 +195,52 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {/* Notification Bell - Desktop */}
             <NotificationPanel />
             
-            {/* User Info - Desktop */}
-            <div className="flex items-center gap-3 pl-3 border-l border-gray-200">
-              <div className="text-right">
-                <p className="text-sm font-medium text-gray-900">
-                  {displayUser.firstName || 'User'} {displayUser.lastName || ''}
-                </p>
-                <p className="text-xs text-gray-500">{displayUser.role}</p>
-              </div>
-              <div className="h-10 w-10 rounded-full bg-primary-600 text-white flex items-center justify-center font-semibold">
-                {displayUser.firstName?.[0] || 'U'}{displayUser.lastName?.[0] || 'U'}
-              </div>
+            {/* User Info - Desktop with Dropdown */}
+            <div className="relative pl-3 border-l border-gray-200" ref={userMenuRef}>
+              <button
+                onClick={() => setUserMenuOpen(!userMenuOpen)}
+                className="flex items-center gap-3 hover:bg-gray-50 rounded-lg px-2 py-1 transition-colors"
+              >
+                <div className="text-right">
+                  <p className="text-sm font-medium text-gray-900">
+                    {displayUser.firstName || 'User'} {displayUser.lastName || ''}
+                  </p>
+                  <p className="text-xs text-gray-500">{displayUser.role}</p>
+                </div>
+                <div className="h-10 w-10 rounded-full bg-primary-600 text-white flex items-center justify-center font-semibold">
+                  {displayUser.firstName?.[0] || 'U'}{displayUser.lastName?.[0] || 'U'}
+                </div>
+                <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+              
+              {/* Dropdown Menu */}
+              {userMenuOpen && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                  <Link
+                    href="/dashboard/settings"
+                    onClick={() => setUserMenuOpen(false)}
+                    className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    <Settings className="h-4 w-4" />
+                    Settings
+                  </Link>
+                  <div className="border-t border-gray-100 my-1"></div>
+                  <button
+                    onClick={() => {
+                      setUserMenuOpen(false)
+                      if (user) {
+                        logout()
+                      } else {
+                        alert('Authentication disabled for development')
+                      }
+                    }}
+                    className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    {user ? 'Logout' : 'Login (Dev)'}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

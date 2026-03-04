@@ -1,6 +1,6 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
-import { RegisterDto, LoginDto } from './dto/auth.dto';
+import { RegisterDto, LoginDto, UpdateProfileDto, ChangePasswordDto } from './dto/auth.dto';
 
 @Injectable()
 export class AuthService {
@@ -87,5 +87,125 @@ export class AuthService {
     }
 
     return data.user;
+  }
+
+  async updateProfile(accessToken: string, updateProfileDto: UpdateProfileDto) {
+    const supabase = this.supabaseService.setAuthContext(accessToken);
+    
+    // Get current user
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError) {
+      throw new UnauthorizedException(userError.message);
+    }
+
+    // Build update data for auth metadata
+    const updateData: any = {};
+    if (updateProfileDto.firstName !== undefined) {
+      updateData.first_name = updateProfileDto.firstName;
+    }
+    if (updateProfileDto.lastName !== undefined) {
+      updateData.last_name = updateProfileDto.lastName;
+    }
+    if (updateProfileDto.phone !== undefined) {
+      updateData.phone = updateProfileDto.phone;
+    }
+
+    // Update auth user metadata
+    const { data, error } = await supabase.auth.updateUser({
+      data: updateData,
+      ...(updateProfileDto.email && updateProfileDto.email !== userData.user.email 
+        ? { email: updateProfileDto.email } 
+        : {}),
+    });
+
+    if (error) {
+      throw new BadRequestException(error.message);
+    }
+
+    // Also update users table if it exists
+    const { error: dbError } = await supabase
+      .from('users')
+      .update({
+        first_name: updateProfileDto.firstName,
+        last_name: updateProfileDto.lastName,
+        email: updateProfileDto.email,
+        phone: updateProfileDto.phone,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', userData.user.id);
+
+    if (dbError) {
+      console.warn('Failed to update users table:', dbError.message);
+    }
+
+    return {
+      message: 'Profile updated successfully',
+      user: data.user,
+    };
+  }
+
+  async changePassword(accessToken: string, changePasswordDto: ChangePasswordDto) {
+    const supabase = this.supabaseService.setAuthContext(accessToken);
+    
+    // Get current user to get email
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError) {
+      throw new UnauthorizedException(userError.message);
+    }
+
+    // Verify current password by attempting to sign in
+    const adminSupabase = this.supabaseService.getClient();
+    const { error: verifyError } = await adminSupabase.auth.signInWithPassword({
+      email: userData.user.email!,
+      password: changePasswordDto.currentPassword,
+    });
+
+    if (verifyError) {
+      throw new BadRequestException('Current password is incorrect');
+    }
+
+    // Update password
+    const { error } = await supabase.auth.updateUser({
+      password: changePasswordDto.newPassword,
+    });
+
+    if (error) {
+      throw new BadRequestException(error.message);
+    }
+
+    return { message: 'Password changed successfully' };
+  }
+
+  async deleteAccount(accessToken: string) {
+    const supabase = this.supabaseService.setAuthContext(accessToken);
+    
+    // Get current user
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError) {
+      throw new UnauthorizedException(userError.message);
+    }
+
+    const userId = userData.user.id;
+
+    // Delete user data from database tables
+    // Order matters due to foreign key constraints
+    try {
+      // Delete in order to respect foreign keys
+      await supabase.from('notifications').delete().eq('user_id', userId);
+      await supabase.from('messages').delete().eq('sender_id', userId);
+      await supabase.from('users').delete().eq('id', userId);
+    } catch (dbError) {
+      console.warn('Error deleting user data from tables:', dbError);
+    }
+
+    // Delete the auth user using admin client
+    const adminSupabase = this.supabaseService.getClient();
+    const { error } = await adminSupabase.auth.admin.deleteUser(userId);
+
+    if (error) {
+      throw new BadRequestException(error.message);
+    }
+
+    return { message: 'Account deleted successfully' };
   }
 }

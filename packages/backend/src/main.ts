@@ -13,6 +13,7 @@ async function bootstrap() {
     'https://event-planning-app-frontend-alpha.vercel.app',
     'https://dovenuesuite.com',
     'https://www.dovenuesuite.com',
+    'https://dev.dovenuesuite.com',
     process.env.FRONTEND_URL,
   ].filter(Boolean);
 

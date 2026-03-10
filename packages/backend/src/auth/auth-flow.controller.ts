@@ -72,6 +72,19 @@ export class AuthFlowController {
   }
 
   /**
+   * VENDOR ROUTES
+   */
+  @Post('vendor/signup')
+  async vendorSignup(@Body() dto: any) {
+    return this.authFlowService.vendorSignup(dto);
+  }
+
+  @Post('vendor/login')
+  async vendorLogin(@Body() dto: { email: string; password: string }) {
+    return this.authFlowService.vendorLogin(dto.email, dto.password);
+  }
+
+  /**
    * ADMIN ROUTES
    */
   @Post('admin/login')

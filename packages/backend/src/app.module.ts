@@ -17,6 +17,7 @@ import { ContractsModule } from './contracts/contracts.module';
 import { EstimatesModule } from './estimates/estimates.module';
 import { StripeModule } from './stripe/stripe.module';
 import { TrialModule } from './trial/trial.module';
+import { VendorsModule } from './vendors/vendors.module';
 // import { MessagingModule } from './messaging/messaging.module';
 
 @Module({
@@ -36,6 +37,7 @@ import { TrialModule } from './trial/trial.module';
     EstimatesModule,
     StripeModule,
     TrialModule,
+    VendorsModule,
     // UsersModule,
     // SecurityModule,
     // MessagingModule,  // Keep this for scheduled messages

@@ -37,6 +37,12 @@ export default function Home() {
             </div>
             <div className="flex items-center gap-4">
               <Link
+                href="/vendors"
+                className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium"
+              >
+                Find Vendors
+              </Link>
+              <Link
                 href="/login"
                 className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium"
               >
@@ -171,6 +177,42 @@ export default function Home() {
                   Get insights into your business with comprehensive analytics and reporting.
                 </p>
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* CTA Section */}
+      {/* Vendor Directory Banner */}
+      <div className="py-16 bg-gradient-to-br from-purple-600 to-primary-700">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="lg:flex lg:items-center lg:justify-between">
+            <div className="text-white">
+              <h2 className="text-3xl font-extrabold sm:text-4xl">
+                Find Local Vendors & Venues
+              </h2>
+              <p className="mt-3 text-lg text-purple-100 max-w-xl">
+                Browse DJs, photographers, decorators, planners, musicians, and more — all searchable by location within your chosen radius. Venues listed too.
+              </p>
+              <div className="mt-6 flex flex-wrap gap-2">
+                {['🎵 DJs', '📷 Photographers', '🌸 Decorators', '📋 Planners', '🎸 Musicians', '🎤 MC/Host', '🪑 Furniture'].map(c => (
+                  <span key={c} className="bg-white/20 text-white text-sm px-3 py-1 rounded-full">{c}</span>
+                ))}
+              </div>
+            </div>
+            <div className="mt-8 lg:mt-0 flex flex-col sm:flex-row gap-3 lg:flex-col xl:flex-row">
+              <Link
+                href="/vendors"
+                className="inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-xl text-purple-700 bg-white hover:bg-purple-50"
+              >
+                Browse Directory
+              </Link>
+              <Link
+                href="/vendors/register"
+                className="inline-flex items-center justify-center px-8 py-3 border-2 border-white text-base font-medium rounded-xl text-white hover:bg-white/10"
+              >
+                List Your Business
+              </Link>
             </div>
           </div>
         </div>

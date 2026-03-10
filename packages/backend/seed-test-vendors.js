@@ -124,16 +124,19 @@ async function seedTestVendors() {
           ];
 
           for (const review of reviews) {
-            await supabase
-              .from('vendor_reviews')
-              .insert([{
-                vendor_account_id: data[0].id,
-                reviewer_user_id: testUser.id,
-                rating: review.rating,
-                review_text: review.text,
-                is_public: true
-              }])
-              .catch(err => console.log(`  (Review insert info: ${err.message})`));
+            try {
+              await supabase
+                .from('vendor_reviews')
+                .insert([{
+                  vendor_account_id: data[0].id,
+                  reviewer_user_id: testUser.id,
+                  rating: review.rating,
+                  review_text: review.text,
+                  is_public: true
+                }]);
+            } catch (err) {
+              // Skip review if error
+            }
           }
         }
       }

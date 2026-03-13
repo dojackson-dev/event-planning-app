@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import ImageUpload from '@/components/ImageUpload'
+import ConnectBankButton from '@/components/ConnectBankButton'
 
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-700',
@@ -53,7 +54,7 @@ export default function VendorDashboard() {
   const [profile, setProfile] = useState<VendorProfile | null>(null)
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'profile'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'profile' | 'payouts'>('overview')
   const [statusFilter, setStatusFilter] = useState('all')
   const [updating, setUpdating] = useState<string | null>(null)
 
@@ -175,7 +176,7 @@ export default function VendorDashboard() {
 
         {/* Tabs */}
         <div className="flex border-b mb-6 gap-1 bg-white rounded-t-xl px-4 pt-4">
-          {(['overview', 'bookings', 'profile'] as const).map(tab => (
+          {(['overview', 'bookings', 'profile', 'payouts'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -185,7 +186,7 @@ export default function VendorDashboard() {
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              {tab === 'overview' ? '📊 Overview' : tab === 'bookings' ? '📅 Bookings' : '✏️ Profile'}
+              {tab === 'overview' ? '📊 Overview' : tab === 'bookings' ? '📅 Bookings' : tab === 'profile' ? '✏️ Profile' : '🏦 Payouts'}
             </button>
           ))}
         </div>
@@ -320,6 +321,31 @@ export default function VendorDashboard() {
         {/* PROFILE TAB */}
         {activeTab === 'profile' && profile && (
           <EditProfileTab profile={profile} onUpdate={(updated) => setProfile(prev => prev ? { ...prev, ...updated } : prev)} />
+        )}
+
+        {/* PAYOUTS TAB */}
+        {activeTab === 'payouts' && (
+          <div className="bg-white rounded-xl shadow-sm p-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-1">🏦 Bank Account &amp; Payouts</h2>
+            <p className="text-sm text-gray-500 mb-6">
+              Connect your bank account to receive payments from event owners directly
+              through DoVenueSuite. Powered by Stripe.
+            </p>
+
+            <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-6">
+              <h4 className="text-sm font-semibold text-blue-800 mb-2">💰 How vendor payouts work</h4>
+              <ul className="text-sm text-blue-700 space-y-1">
+                <li>• Event owners pay you directly through DoVenueSuite</li>
+                <li>• DoVenueSuite collects a <strong>1.5% platform fee</strong> per payout</li>
+                <li>• Funds arrive in your bank within 2 business days</li>
+                <li>• Stripe handles all payment compliance and security</li>
+              </ul>
+            </div>
+
+            {profile && (
+              <ConnectBankButton role="vendor" email={profile.email || ''} />
+            )}
+          </div>
         )}
       </div>
     </div>

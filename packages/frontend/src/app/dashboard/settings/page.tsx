@@ -16,10 +16,12 @@ import {
   ArrowLeft,
   CheckCircle,
   ImageIcon,
-  Building2
+  Building2,
+  Banknote
 } from 'lucide-react'
 import { useOwnerBrand } from '@/contexts/OwnerBrandContext'
 import ImageUpload from '@/components/ImageUpload'
+import ConnectBankButton from '@/components/ConnectBankButton'
 import Link from 'next/link'
 
 export default function SettingsPage() {
@@ -45,7 +47,7 @@ export default function SettingsPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   
   // UI state
-  const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'delete' | 'branding'>('profile')
+  const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'delete' | 'branding' | 'payouts'>('profile')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   
@@ -229,6 +231,17 @@ export default function SettingsPage() {
             >
               <ImageIcon className="h-4 w-4 inline-block mr-2" />
               Branding
+            </button>
+            <button
+              onClick={() => setActiveTab('payouts')}
+              className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'payouts'
+                  ? 'border-primary-600 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <Banknote className="h-4 w-4 inline-block mr-2" />
+              Payouts
             </button>
             <button
               onClick={() => setActiveTab('delete')}
@@ -474,6 +487,36 @@ export default function SettingsPage() {
                     </button>
                   </div>
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* Payouts Tab */}
+          {activeTab === 'payouts' && (
+            <div className="space-y-6 max-w-xl">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                  <Banknote className="h-5 w-5 text-primary-600" />
+                  Bank Account &amp; Payouts
+                </h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  Connect your bank account to receive client payments directly through
+                  DoVenueSuite. All payouts are processed securely by Stripe.
+                </p>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
+                <h4 className="text-sm font-semibold text-blue-800 mb-2">💰 How payouts work</h4>
+                <ul className="text-sm text-blue-700 space-y-1">
+                  <li>• Clients pay you directly through DoVenueSuite</li>
+                  <li>• DoVenueSuite collects a <strong>1.5% platform fee</strong> per transaction</li>
+                  <li>• Funds are deposited to your bank within 2 business days</li>
+                  <li>• Pay your vendors directly from your DoVenueSuite balance</li>
+                </ul>
+              </div>
+
+              {user && (
+                <ConnectBankButton role="owner" email={user.email || ''} />
               )}
             </div>
           )}

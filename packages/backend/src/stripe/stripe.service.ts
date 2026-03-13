@@ -159,6 +159,9 @@ export class StripeService {
       case 'invoice.payment_failed':
         await this.handlePaymentFailed(event.data.object as Stripe.Invoice);
         break;
+      case 'account.updated':
+        await this.handleConnectAccountUpdated(event.data.object as Stripe.Account);
+        break;
       default:
         this.logger.debug(`Unhandled event type: ${event.type}`);
     }
@@ -285,5 +288,290 @@ export class StripeService {
     if (error) {
       this.logger.error(`Failed to sync subscription for Stripe customer ${stripeCustomerId}`, error);
     }
+  }
+
+  // ─── Stripe Connect ────────────────────────────────────────────────────────
+
+  private readonly APP_FEE_RATE = 0.015; // 1.5% DoVenueSuite fee
+
+  /**
+   * Create (or retrieve) a Stripe Connect Express account for an owner,
+   * then return a one-time onboarding URL.
+   */
+  async createOwnerConnectOnboarding(userId: string, email: string): Promise<string> {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: owner } = await admin
+      .from('owner_accounts')
+      .select('id, stripe_connect_id, stripe_connect_status')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!owner) throw new Error('Owner account not found');
+
+    let connectId = owner.stripe_connect_id;
+
+    if (!connectId) {
+      const account = await this.stripe.accounts.create({
+        type: 'express',
+        email,
+        capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+        metadata: { owner_account_id: String(owner.id) },
+      });
+      connectId = account.id;
+
+      await admin
+        .from('owner_accounts')
+        .update({ stripe_connect_id: connectId, stripe_connect_status: 'pending' })
+        .eq('id', owner.id);
+    }
+
+    const accountLink = await this.stripe.accountLinks.create({
+      account: connectId,
+      refresh_url: `${this.frontendUrl}/dashboard/settings?connect=refresh&role=owner`,
+      return_url: `${this.frontendUrl}/dashboard/settings?connect=success&role=owner`,
+      type: 'account_onboarding',
+    });
+
+    return accountLink.url;
+  }
+
+  /**
+   * Create (or retrieve) a Stripe Connect Express account for a vendor,
+   * then return a one-time onboarding URL.
+   */
+  async createVendorConnectOnboarding(userId: string, email: string): Promise<string> {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: vendor } = await admin
+      .from('vendor_accounts')
+      .select('id, stripe_account_id, stripe_connect_status')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!vendor) throw new Error('Vendor account not found');
+
+    let connectId = vendor.stripe_account_id;
+
+    if (!connectId) {
+      const account = await this.stripe.accounts.create({
+        type: 'express',
+        email,
+        capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+        metadata: { vendor_account_id: vendor.id },
+      });
+      connectId = account.id;
+
+      await admin
+        .from('vendor_accounts')
+        .update({ stripe_account_id: connectId, stripe_connect_status: 'pending' })
+        .eq('id', vendor.id);
+    }
+
+    const accountLink = await this.stripe.accountLinks.create({
+      account: connectId,
+      refresh_url: `${this.frontendUrl}/vendors/dashboard?connect=refresh`,
+      return_url: `${this.frontendUrl}/vendors/dashboard?connect=success`,
+      type: 'account_onboarding',
+    });
+
+    return accountLink.url;
+  }
+
+  /**
+   * Get the Connect account status for an owner.
+   */
+  async getOwnerConnectStatus(userId: string): Promise<{ status: string; connectId: string | null }> {
+    const admin = this.supabaseService.getAdminClient();
+    const { data } = await admin
+      .from('owner_accounts')
+      .select('stripe_connect_id, stripe_connect_status')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    return {
+      status: data?.stripe_connect_status ?? 'not_connected',
+      connectId: data?.stripe_connect_id ?? null,
+    };
+  }
+
+  /**
+   * Get the Connect account status for a vendor.
+   */
+  async getVendorConnectStatus(userId: string): Promise<{ status: string; connectId: string | null }> {
+    const admin = this.supabaseService.getAdminClient();
+    const { data } = await admin
+      .from('vendor_accounts')
+      .select('stripe_account_id, stripe_connect_status')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    return {
+      status: data?.stripe_connect_status ?? 'not_connected',
+      connectId: data?.stripe_account_id ?? null,
+    };
+  }
+
+  /**
+   * Charge a client and route funds to an owner's Connect account.
+   * DoVenueSuite takes 1.5% as application_fee_amount.
+   *
+   * Flow: Client card → Stripe → DoVenueSuite takes 1.5% → owner receives the rest
+   * Returns a PaymentIntent client_secret for the frontend to complete payment.
+   */
+  async createClientPaymentIntent(
+    amountCents: number,
+    ownerUserId: string,
+    description: string,
+  ): Promise<{ clientSecret: string; paymentIntentId: string; feeCents: number }> {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: owner } = await admin
+      .from('owner_accounts')
+      .select('id, stripe_connect_id, stripe_connect_status')
+      .eq('user_id', ownerUserId)
+      .maybeSingle();
+
+    if (!owner?.stripe_connect_id || owner.stripe_connect_status !== 'active') {
+      throw new Error('Owner has not completed Stripe Connect onboarding');
+    }
+
+    const feeCents = Math.round(amountCents * this.APP_FEE_RATE);
+
+    const paymentIntent = await this.stripe.paymentIntents.create({
+      amount: amountCents,
+      currency: 'usd',
+      application_fee_amount: feeCents,
+      transfer_data: { destination: owner.stripe_connect_id },
+      description,
+      metadata: { owner_account_id: String(owner.id) },
+    });
+
+    // Record in payments table
+    await admin.from('payments').insert({
+      type: 'client_to_owner',
+      amount_cents: amountCents,
+      fee_cents: feeCents,
+      net_cents: amountCents - feeCents,
+      stripe_payment_intent_id: paymentIntent.id,
+      owner_account_id: owner.id,
+      description,
+      status: 'pending',
+    });
+
+    return {
+      clientSecret: paymentIntent.client_secret!,
+      paymentIntentId: paymentIntent.id,
+      feeCents,
+    };
+  }
+
+  /**
+   * Transfer funds from owner to vendor for a completed booking.
+   * DoVenueSuite takes 1.5% as fee (paid by vendor — deducted from transfer).
+   *
+   * Flow: Owner's balance → transfer to vendor → DoVenueSuite keeps 1.5%
+   */
+  async payVendor(
+    amountCents: number,
+    ownerUserId: string,
+    vendorAccountId: string,
+    vendorBookingId: string,
+    description: string,
+  ): Promise<{ transferId: string; feeCents: number; netCents: number }> {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: owner } = await admin
+      .from('owner_accounts')
+      .select('id, stripe_connect_id')
+      .eq('user_id', ownerUserId)
+      .maybeSingle();
+
+    const { data: vendor } = await admin
+      .from('vendor_accounts')
+      .select('stripe_account_id, stripe_connect_status')
+      .eq('id', vendorAccountId)
+      .maybeSingle();
+
+    if (!vendor?.stripe_account_id || vendor.stripe_connect_status !== 'active') {
+      throw new Error('Vendor has not completed Stripe Connect onboarding');
+    }
+
+    const feeCents = Math.round(amountCents * this.APP_FEE_RATE);
+    const netCents = amountCents - feeCents;
+
+    // Transfer net amount to vendor; fee stays on platform
+    const transfer = await this.stripe.transfers.create({
+      amount: netCents,
+      currency: 'usd',
+      destination: vendor.stripe_account_id,
+      description,
+      metadata: {
+        owner_account_id: owner ? String(owner.id) : '',
+        vendor_account_id: vendorAccountId,
+        vendor_booking_id: vendorBookingId,
+      },
+    });
+
+    await admin.from('payments').insert({
+      type: 'owner_to_vendor',
+      amount_cents: amountCents,
+      fee_cents: feeCents,
+      net_cents: netCents,
+      stripe_transfer_id: transfer.id,
+      owner_account_id: owner?.id ?? null,
+      vendor_account_id: vendorAccountId,
+      vendor_booking_id: vendorBookingId,
+      description,
+      status: 'succeeded',
+    });
+
+    this.logger.log(`Vendor payout ${transfer.id}: $${(netCents / 100).toFixed(2)} to ${vendor.stripe_account_id}`);
+
+    return { transferId: transfer.id, feeCents, netCents };
+  }
+
+  /**
+   * Handle account.updated webhook — mark Connect account active when onboarding complete.
+   */
+  async handleConnectAccountUpdated(account: Stripe.Account): Promise<void> {
+    const isActive =
+      account.details_submitted &&
+      account.charges_enabled &&
+      account.payouts_enabled;
+
+    const newStatus = isActive ? 'active' : 'pending';
+    const admin = this.supabaseService.getAdminClient();
+
+    // Check owner_accounts
+    if (account.metadata?.owner_account_id) {
+      await admin
+        .from('owner_accounts')
+        .update({ stripe_connect_status: newStatus })
+        .eq('id', account.metadata.owner_account_id);
+      this.logger.log(`Owner Connect ${account.id} → ${newStatus}`);
+      return;
+    }
+
+    // Check vendor_accounts
+    if (account.metadata?.vendor_account_id) {
+      await admin
+        .from('vendor_accounts')
+        .update({ stripe_connect_status: newStatus })
+        .eq('id', account.metadata.vendor_account_id);
+      this.logger.log(`Vendor Connect ${account.id} → ${newStatus}`);
+      return;
+    }
+
+    // Fallback: match by stripe_account_id / stripe_connect_id
+    await admin
+      .from('owner_accounts')
+      .update({ stripe_connect_status: newStatus })
+      .eq('stripe_connect_id', account.id);
+
+    await admin
+      .from('vendor_accounts')
+      .update({ stripe_connect_status: newStatus })
+      .eq('stripe_account_id', account.id);
   }
 }

@@ -154,6 +154,7 @@ export default function VendorRegisterPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
                   <input
                     type="text" required value={firstName} onChange={e => setFirstName(e.target.value)}
+                    suppressHydrationWarning
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
@@ -161,6 +162,7 @@ export default function VendorRegisterPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
                   <input
                     type="text" required value={lastName} onChange={e => setLastName(e.target.value)}
+                    suppressHydrationWarning
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
@@ -169,6 +171,7 @@ export default function VendorRegisterPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email Address *</label>
                 <input
                   type="email" required value={email} onChange={e => setEmail(e.target.value)}
+                  suppressHydrationWarning
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
               </div>
@@ -176,6 +179,7 @@ export default function VendorRegisterPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
                 <input
                   type="tel" value={phone} onChange={e => setPhone(e.target.value)}
+                  suppressHydrationWarning
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                   placeholder="(555) 000-0000"
                 />
@@ -184,6 +188,7 @@ export default function VendorRegisterPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
                 <input
                   type="password" required minLength={6} value={password} onChange={e => setPassword(e.target.value)}
+                  suppressHydrationWarning
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
               </div>
@@ -228,6 +233,7 @@ export default function VendorRegisterPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Business Name *</label>
                 <input
                   type="text" required value={businessName} onChange={e => setBusinessName(e.target.value)}
+                  suppressHydrationWarning
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                   placeholder="e.g. Elite DJ Services"
                 />
@@ -246,6 +252,7 @@ export default function VendorRegisterPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
                 <input
                   type="text" value={address} onChange={e => setAddress(e.target.value)}
+                  suppressHydrationWarning
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                   placeholder="Street address"
                 />
@@ -256,6 +263,7 @@ export default function VendorRegisterPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
                   <input
                     type="text" value={city} onChange={e => setCity(e.target.value)}
+                    suppressHydrationWarning
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
@@ -263,6 +271,7 @@ export default function VendorRegisterPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
                   <input
                     type="text" value={state} onChange={e => setState(e.target.value)}
+                    suppressHydrationWarning
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                     placeholder="TX"
                   />
@@ -271,6 +280,7 @@ export default function VendorRegisterPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Zip Code</label>
                   <input
                     type="text" value={zipCode} onChange={e => setZipCode(e.target.value)}
+                    suppressHydrationWarning
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                     placeholder="75001"
                   />
@@ -284,6 +294,7 @@ export default function VendorRegisterPage() {
                     <label className="block text-xs text-gray-500 mb-1">Hourly Rate ($)</label>
                     <input
                       type="number" value={hourlyRate} onChange={e => setHourlyRate(e.target.value)} min="0" step="0.01"
+                      suppressHydrationWarning
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                       placeholder="0.00"
                     />
@@ -292,6 +303,7 @@ export default function VendorRegisterPage() {
                     <label className="block text-xs text-gray-500 mb-1">Flat Rate ($)</label>
                     <input
                       type="number" value={flatRate} onChange={e => setFlatRate(e.target.value)} min="0" step="0.01"
+                      suppressHydrationWarning
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                       placeholder="0.00"
                     />
@@ -301,6 +313,7 @@ export default function VendorRegisterPage() {
                   <label className="block text-xs text-gray-500 mb-1">Rate Description</label>
                   <input
                     type="text" value={rateDesc} onChange={e => setRateDesc(e.target.value)}
+                    suppressHydrationWarning
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                     placeholder="e.g. 4-hour minimum, travel included"
                   />
@@ -312,11 +325,13 @@ export default function VendorRegisterPage() {
                 <div className="space-y-2">
                   <input
                     type="url" value={website} onChange={e => setWebsite(e.target.value)}
+                    suppressHydrationWarning
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                     placeholder="https://yourwebsite.com"
                   />
                   <input
                     type="text" value={instagram} onChange={e => setInstagram(e.target.value)}
+                    suppressHydrationWarning
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                     placeholder="Instagram handle (@yourhandle)"
                   />

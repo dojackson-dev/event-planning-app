@@ -42,8 +42,20 @@ CREATE TABLE IF NOT EXISTS vendor_accounts (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 2. Create vendor_profiles in users table (add role = 'vendor' support)
--- The existing users table already has a role column, vendors will use role = 'vendor'
+-- 2. Add 'vendor' to user_role enum (required for INSERT into users with role = 'vendor')
+DO $$ 
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_type t 
+    JOIN pg_enum e ON t.oid = e.enumtypid 
+    WHERE t.typname = 'user_role' AND e.enumlabel = 'vendor'
+  ) THEN
+    ALTER TYPE user_role ADD VALUE 'vendor';
+    RAISE NOTICE 'Added vendor role to user_role enum';
+  ELSE
+    RAISE NOTICE 'Vendor role already exists in user_role enum';
+  END IF;
+END $$;
 
 -- 3. Create vendor_bookings table (when owners book vendors)
 CREATE TABLE IF NOT EXISTS vendor_bookings (

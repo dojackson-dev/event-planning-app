@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
+import ImageUpload from '@/components/ImageUpload'
 
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-700',
@@ -329,6 +330,7 @@ function EditProfileTab({ profile, onUpdate }: { profile: VendorProfile; onUpdat
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+  const [logoUrl, setLogoUrl] = useState(profile.profile_image_url || '')
 
   const [bio, setBio] = useState(profile.bio || '')
   const [city, setCity] = useState(profile.city || '')
@@ -350,6 +352,7 @@ function EditProfileTab({ profile, onUpdate }: { profile: VendorProfile; onUpdat
         hourlyRate: hourlyRate ? parseFloat(hourlyRate) : undefined,
         flatRate: flatRate ? parseFloat(flatRate) : undefined,
         phone, website, instagram,
+        profile_image_url: logoUrl || undefined,
       })
       onUpdate(res.data)
       setSaved(true)
@@ -367,6 +370,15 @@ function EditProfileTab({ profile, onUpdate }: { profile: VendorProfile; onUpdat
       {error && <div className="bg-red-50 text-red-700 rounded p-3 text-sm mb-4">{error}</div>}
       {saved && <div className="bg-green-50 text-green-700 rounded p-3 text-sm mb-4">✓ Profile saved!</div>}
       <form onSubmit={handleSave} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Business Logo</label>
+          <ImageUpload
+            currentUrl={logoUrl}
+            uploadType="vendor-logo"
+            shape="square"
+            onUpload={(url) => setLogoUrl(url)}
+          />
+        </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">About Your Business</label>
           <textarea value={bio} onChange={e => setBio(e.target.value)} rows={4} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none" />

@@ -49,12 +49,21 @@ interface Booking {
   notes: string
 }
 
+interface Review {
+  id: string
+  rating: number
+  review_text: string
+  created_at: string
+  reviewer_user_id: string
+}
+
 export default function VendorDashboard() {
   const router = useRouter()
   const [profile, setProfile] = useState<VendorProfile | null>(null)
   const [bookings, setBookings] = useState<Booking[]>([])
+  const [reviews, setReviews] = useState<Review[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'profile' | 'payouts'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'earnings' | 'reviews' | 'profile' | 'payouts'>('overview')
   const [statusFilter, setStatusFilter] = useState('all')
   const [updating, setUpdating] = useState<string | null>(null)
 
@@ -67,6 +76,11 @@ export default function VendorDashboard() {
         ])
         setProfile(profileRes.data)
         setBookings(bookingsRes.data)
+        // Load reviews using vendor's own ID
+        try {
+          const revRes = await api.get(`/vendors/${profileRes.data.id}/reviews`)
+          setReviews(revRes.data || [])
+        } catch {}
       } catch (err: any) {
         if (err.response?.status === 401) {
           router.push('/vendors/login')
@@ -80,6 +94,13 @@ export default function VendorDashboard() {
     }
     loadData()
   }, [router])
+
+  const handleLogout = () => {
+    localStorage.removeItem('access_token')
+    localStorage.removeItem('refresh_token')
+    localStorage.removeItem('user_role')
+    router.push('/vendors/login')
+  }
 
   const updateBookingStatus = async (bookingId: string, status: string) => {
     setUpdating(bookingId)
@@ -131,6 +152,12 @@ export default function VendorDashboard() {
                 My Public Profile →
               </Link>
             )}
+            <button
+              onClick={handleLogout}
+              className="text-sm text-gray-400 hover:text-red-500 transition-colors"
+            >
+              Log out
+            </button>
           </div>
         </div>
       </nav>
@@ -175,18 +202,25 @@ export default function VendorDashboard() {
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b mb-6 gap-1 bg-white rounded-t-xl px-4 pt-4">
-          {(['overview', 'bookings', 'profile', 'payouts'] as const).map(tab => (
+        <div className="flex border-b mb-6 gap-1 bg-white rounded-t-xl px-4 pt-4 overflow-x-auto">
+          {([
+            { id: 'overview',  label: '📊 Overview' },
+            { id: 'bookings',  label: '📅 Bookings' },
+            { id: 'earnings',  label: '💰 Earnings' },
+            { id: 'reviews',   label: `⭐ Reviews${reviews.length > 0 ? ` (${reviews.length})` : ''}` },
+            { id: 'profile',   label: '✏️ Profile' },
+            { id: 'payouts',   label: '🏦 Payouts' },
+          ] as const).map(tab => (
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-5 py-2 text-sm font-medium rounded-t-lg transition-colors capitalize ${
-                activeTab === tab
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-5 py-2 text-sm font-medium rounded-t-lg transition-colors whitespace-nowrap ${
+                activeTab === tab.id
                   ? 'border-b-2 border-primary-600 text-primary-600'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              {tab === 'overview' ? '📊 Overview' : tab === 'bookings' ? '📅 Bookings' : tab === 'profile' ? '✏️ Profile' : '🏦 Payouts'}
+              {tab.label}
             </button>
           ))}
         </div>
@@ -315,6 +349,153 @@ export default function VendorDashboard() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* EARNINGS TAB */}
+        {activeTab === 'earnings' && (() => {
+          const paid = bookings.filter(b => b.payment_status === 'paid' || b.status === 'completed')
+          const confirmed = bookings.filter(b => b.status === 'confirmed')
+          const totalEarned = paid.reduce((s, b) => s + (b.agreed_amount || 0), 0)
+          const totalPending = confirmed.reduce((s, b) => s + (b.agreed_amount || 0), 0)
+
+          // Group completed/paid by month
+          const byMonth: Record<string, number> = {}
+          paid.forEach(b => {
+            const month = new Date(b.event_date).toLocaleString('default', { month: 'short', year: 'numeric' })
+            byMonth[month] = (byMonth[month] || 0) + (b.agreed_amount || 0)
+          })
+          const months = Object.entries(byMonth).sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
+
+          return (
+            <div className="bg-white rounded-xl shadow-sm p-6">
+              <h2 className="text-lg font-bold text-gray-900 mb-5">Earnings Breakdown</h2>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+                <div className="bg-green-50 rounded-xl p-4">
+                  <p className="text-xs text-gray-500 font-medium">Total Earned</p>
+                  <p className="text-2xl font-bold text-green-600 mt-1">${totalEarned.toLocaleString()}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{paid.length} paid booking{paid.length !== 1 ? 's' : ''}</p>
+                </div>
+                <div className="bg-blue-50 rounded-xl p-4">
+                  <p className="text-xs text-gray-500 font-medium">Pending (Confirmed)</p>
+                  <p className="text-2xl font-bold text-blue-600 mt-1">${totalPending.toLocaleString()}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{confirmed.length} upcoming booking{confirmed.length !== 1 ? 's' : ''}</p>
+                </div>
+                <div className="bg-primary-50 rounded-xl p-4">
+                  <p className="text-xs text-gray-500 font-medium">Avg per Booking</p>
+                  <p className="text-2xl font-bold text-primary-600 mt-1">
+                    ${paid.length > 0 ? Math.round(totalEarned / paid.length).toLocaleString() : '0'}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5">from completed events</p>
+                </div>
+              </div>
+
+              {months.length > 0 ? (
+                <>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Monthly Breakdown</h3>
+                  <div className="space-y-2">
+                    {months.map(([month, amount]) => {
+                      const pct = Math.round((amount / totalEarned) * 100)
+                      return (
+                        <div key={month} className="flex items-center gap-3">
+                          <span className="text-sm text-gray-600 w-28 flex-shrink-0">{month}</span>
+                          <div className="flex-1 bg-gray-100 rounded-full h-2">
+                            <div className="bg-primary-500 h-2 rounded-full" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="text-sm font-semibold text-gray-800 w-24 text-right">${amount.toLocaleString()}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-10 text-gray-400">
+                  <p className="text-3xl mb-2">💸</p>
+                  <p>No completed earnings yet.</p>
+                  <p className="text-sm mt-1">Earnings appear once bookings are paid or marked complete.</p>
+                </div>
+              )}
+
+              {/* Booking list */}
+              {paid.length > 0 && (
+                <div className="mt-8">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Paid Booking History</h3>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-xs font-medium text-gray-500 uppercase border-b">
+                          <th className="pb-2 pr-4">Event</th>
+                          <th className="pb-2 pr-4">Date</th>
+                          <th className="pb-2 text-right">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {paid.map(b => (
+                          <tr key={b.id}>
+                            <td className="py-2 pr-4 font-medium text-gray-800">{b.event_name}</td>
+                            <td className="py-2 pr-4 text-gray-500">{new Date(b.event_date).toLocaleDateString()}</td>
+                            <td className="py-2 text-right font-semibold text-green-700">${(b.agreed_amount || 0).toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })()}
+
+        {/* REVIEWS TAB */}
+        {activeTab === 'reviews' && (
+          <div className="bg-white rounded-xl shadow-sm p-6">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold text-gray-900">My Reviews</h2>
+              {reviews.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl font-bold text-yellow-500">
+                    {(reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)}
+                  </span>
+                  <div>
+                    <div className="flex gap-0.5">
+                      {[1,2,3,4,5].map(n => (
+                        <span key={n} className={`text-lg ${n <= Math.round(reviews.reduce((s,r)=>s+r.rating,0)/reviews.length) ? 'text-yellow-400' : 'text-gray-200'}`}>★</span>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-500">{reviews.length} review{reviews.length !== 1 ? 's' : ''}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {reviews.length === 0 ? (
+              <div className="text-center py-12 text-gray-400">
+                <p className="text-4xl mb-3">⭐</p>
+                <p className="font-medium">No reviews yet</p>
+                <p className="text-sm mt-1">Reviews appear here once event owners rate your services</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {reviews.map(review => (
+                  <div key={review.id} className="border border-gray-100 rounded-xl p-4">
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <div className="flex gap-0.5">
+                        {[1,2,3,4,5].map(n => (
+                          <span key={n} className={`text-base ${n <= review.rating ? 'text-yellow-400' : 'text-gray-200'}`}>★</span>
+                        ))}
+                      </div>
+                      <span className="text-xs text-gray-400">
+                        {new Date(review.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </span>
+                    </div>
+                    {review.review_text && (
+                      <p className="text-sm text-gray-700">&ldquo;{review.review_text}&rdquo;</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

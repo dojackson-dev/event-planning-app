@@ -304,7 +304,7 @@ export class StripeService {
     const { data: owner } = await admin
       .from('owner_accounts')
       .select('id, stripe_connect_id, stripe_connect_status')
-      .eq('user_id', userId)
+      .eq('primary_owner_id', userId)
       .maybeSingle();
 
     if (!owner) throw new Error('Owner account not found');
@@ -386,7 +386,7 @@ export class StripeService {
     const { data } = await admin
       .from('owner_accounts')
       .select('stripe_connect_id, stripe_connect_status')
-      .eq('user_id', userId)
+      .eq('primary_owner_id', userId)
       .maybeSingle();
 
     return {
@@ -429,7 +429,7 @@ export class StripeService {
     const { data: owner } = await admin
       .from('owner_accounts')
       .select('id, stripe_connect_id, stripe_connect_status')
-      .eq('user_id', ownerUserId)
+      .eq('primary_owner_id', ownerUserId)
       .maybeSingle();
 
     if (!owner?.stripe_connect_id || owner.stripe_connect_status !== 'active') {
@@ -447,8 +447,8 @@ export class StripeService {
       metadata: { owner_account_id: String(owner.id) },
     });
 
-    // Record in payments table
-    await admin.from('payments').insert({
+    // Record in stripe_payments ledger
+    await admin.from('stripe_payments').insert({
       type: 'client_to_owner',
       amount_cents: amountCents,
       fee_cents: feeCents,
@@ -484,7 +484,7 @@ export class StripeService {
     const { data: owner } = await admin
       .from('owner_accounts')
       .select('id, stripe_connect_id')
-      .eq('user_id', ownerUserId)
+      .eq('primary_owner_id', ownerUserId)
       .maybeSingle();
 
     const { data: vendor } = await admin
@@ -513,8 +513,7 @@ export class StripeService {
       },
     });
 
-    await admin.from('payments').insert({
-      type: 'owner_to_vendor',
+    await admin.from('stripe_payments').insert({
       amount_cents: amountCents,
       fee_cents: feeCents,
       net_cents: netCents,

@@ -24,7 +24,8 @@ import {
   ClipboardList,
   Receipt,
   Settings,
-  ChevronDown
+  ChevronDown,
+  Store
 } from 'lucide-react'
 
 function getInitials(name: string): string {
@@ -90,6 +91,7 @@ const navigation = [
   { name: 'Security', href: '/dashboard/security', icon: Shield },
   { name: 'Payments', href: '/dashboard/payments', icon: DollarSign },
   { name: 'Messages', href: '/dashboard/messages', icon: MessageSquare },
+  { name: 'Vendors', href: '/dashboard/vendors', icon: Store },
 ]
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

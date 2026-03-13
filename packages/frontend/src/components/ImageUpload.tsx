@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react'
 import api from '@/lib/api'
 
-type UploadType = 'vendor-logo' | 'service-item'
+type UploadType = 'vendor-logo' | 'service-item' | 'owner-logo'
 
 interface ImageUploadProps {
   currentUrl?: string | null
@@ -29,6 +29,13 @@ const SPECS: Record<UploadType, { label: string; size: string; dims: string; max
     size: 'Max 5 MB',
     dims: '800 × 600 px recommended (4:3)',
     maxMB: 5,
+    accept: 'image/jpeg,image/png,image/webp',
+  },
+  'owner-logo': {
+    label: 'Venue Logo',
+    size: 'Max 3 MB',
+    dims: 'Any size — landscape logos work best',
+    maxMB: 3,
     accept: 'image/jpeg,image/png,image/webp',
   },
 }

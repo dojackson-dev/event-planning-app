@@ -14,8 +14,12 @@ import {
   Eye, 
   EyeOff,
   ArrowLeft,
-  CheckCircle
+  CheckCircle,
+  ImageIcon,
+  Building2
 } from 'lucide-react'
+import { useOwnerBrand } from '@/contexts/OwnerBrandContext'
+import ImageUpload from '@/components/ImageUpload'
 import Link from 'next/link'
 
 export default function SettingsPage() {
@@ -41,7 +45,7 @@ export default function SettingsPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   
   // UI state
-  const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'delete'>('profile')
+  const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'delete' | 'branding'>('profile')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   
@@ -214,6 +218,17 @@ export default function SettingsPage() {
             >
               <Lock className="h-4 w-4 inline-block mr-2" />
               Change Password
+            </button>
+            <button
+              onClick={() => setActiveTab('branding')}
+              className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'branding'
+                  ? 'border-primary-600 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <ImageIcon className="h-4 w-4 inline-block mr-2" />
+              Branding
             </button>
             <button
               onClick={() => setActiveTab('delete')}
@@ -462,7 +477,157 @@ export default function SettingsPage() {
               )}
             </div>
           )}
+
+          {/* Branding Tab */}
+          {activeTab === 'branding' && <BrandingTab />}
         </div>
+      </div>
+    </div>
+  )
+}
+
+function getInitials(name: string): string {
+  if (!name) return '?'
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 3)
+    .map(w => w[0].toUpperCase())
+    .join('')
+}
+
+function BrandingTab() {
+  const { logoUrl, businessName, updateLogo, loading } = useOwnerBrand()
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleLogoUpload = async (url: string) => {
+    setSaving(true)
+    setError('')
+    try {
+      await updateLogo(url)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    } catch {
+      setError('Failed to save logo. Please try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleRemoveLogo = async () => {
+    setSaving(true)
+    setError('')
+    try {
+      await updateLogo(null)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    } catch {
+      setError('Failed to remove logo.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-40">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-600" />
+      </div>
+    )
+  }
+
+  const initials = getInitials(businessName)
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+          <ImageIcon className="h-5 w-5 text-primary-600" />
+          Venue Logo
+        </h3>
+        <p className="text-sm text-gray-500 mt-1">
+          Your logo replaces the DoVenueSuite logo in the sidebar. Landscape logos work best.
+        </p>
+      </div>
+
+      {error && <div className="bg-red-50 text-red-700 rounded-lg px-4 py-3 text-sm">{error}</div>}
+      {saved && <div className="bg-green-50 text-green-700 rounded-lg px-4 py-3 text-sm">✓ Branding updated!</div>}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        {/* Live sidebar preview */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Sidebar Preview</label>
+          <div className="bg-primary-600 rounded-xl flex items-center justify-center h-24 px-4">
+            {logoUrl ? (
+              <img src={logoUrl} alt={businessName || 'Logo'} className="max-h-14 max-w-full object-contain" />
+            ) : businessName ? (
+              <div className="flex flex-col items-center gap-1">
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-white font-bold text-xl">
+                  {initials}
+                </div>
+                <p className="text-white/80 text-xs font-medium truncate max-w-[140px]">{businessName}</p>
+              </div>
+            ) : (
+              <span className="text-white/50 text-xs">No logo or name</span>
+            )}
+          </div>
+          <p className="text-xs text-gray-400 mt-1 text-center">Live preview</p>
+        </div>
+
+        {/* Upload */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            {logoUrl ? 'Replace Logo' : 'Upload Logo'}
+          </label>
+          <ImageUpload
+            currentUrl={null}
+            uploadType="owner-logo"
+            shape="landscape"
+            onUpload={handleLogoUpload}
+            placeholder={
+              <div className="flex flex-col items-center gap-2 text-gray-400">
+                <ImageIcon className="h-8 w-8" />
+                <span className="text-xs">Click to upload</span>
+              </div>
+            }
+          />
+        </div>
+      </div>
+
+      {logoUrl && (
+        <button
+          onClick={handleRemoveLogo}
+          disabled={saving}
+          className="flex items-center gap-1.5 text-sm text-red-600 hover:text-red-700 disabled:opacity-50"
+        >
+          <Trash2 className="h-4 w-4" />
+          Remove logo (use initials instead)
+        </button>
+      )}
+
+      {!logoUrl && businessName && (
+        <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
+          <p className="text-xs text-gray-500 mb-2">Without a logo, your initials are shown in the sidebar:</p>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-primary-600 flex items-center justify-center text-white font-bold text-xl flex-shrink-0">
+              {initials}
+            </div>
+            <span className="font-medium text-gray-700 text-sm">{businessName}</span>
+          </div>
+        </div>
+      )}
+
+      <div className="border-t pt-4">
+        <div className="flex items-center gap-2 mb-1">
+          <Building2 className="h-4 w-4 text-gray-400" />
+          <span className="text-sm font-medium text-gray-700">Business Name</span>
+        </div>
+        <p className="text-sm text-gray-900 bg-gray-50 px-3 py-2 rounded-lg border border-gray-100">
+          {businessName || '—'}
+        </p>
+        <p className="text-xs text-gray-400 mt-1">Contact support to update your business name.</p>
       </div>
     </div>
   )

@@ -16,6 +16,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 const MAX_VENDOR_LOGO_BYTES = 2 * 1024 * 1024;   // 2 MB
 const MAX_SERVICE_ITEM_BYTES = 5 * 1024 * 1024;  // 5 MB
+const MAX_OWNER_LOGO_BYTES = 3 * 1024 * 1024;    // 3 MB
 
 @Controller('upload')
 export class UploadController {
@@ -130,6 +131,51 @@ export class UploadController {
 
     const { data: { publicUrl } } = admin.storage
       .from('service-item-images')
+      .getPublicUrl(path);
+
+    return { url: publicUrl };
+  }
+
+  // ─────────────────────────────────────────────
+  // POST /upload/owner-logo
+  // Owner venue/business logo for sidebar branding
+  // Recommended: wide/landscape, max 3 MB, JPEG/PNG/WebP
+  // ─────────────────────────────────────────────
+  @Post('owner-logo')
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
+  async uploadOwnerLogo(
+    @UploadedFile() file: Express.Multer.File,
+    @Headers('authorization') authorization: string,
+  ) {
+    const userId = await this.getUserId(authorization);
+
+    if (!file) throw new BadRequestException('No file provided');
+    if (!ALLOWED_TYPES.includes(file.mimetype)) {
+      throw new BadRequestException('File must be JPEG, PNG, or WebP');
+    }
+    if (file.size > MAX_OWNER_LOGO_BYTES) {
+      throw new BadRequestException('Logo must be under 3 MB');
+    }
+
+    const admin = this.supabaseService.getAdminClient();
+    await this.ensureBucket(admin, 'owner-images');
+
+    // Resize to max 800×300, preserve aspect ratio (no cropping for logos)
+    const processed = await sharp(file.buffer)
+      .resize(800, 300, { fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 90 })
+      .toBuffer();
+
+    const path = `logos/${userId}-${Date.now()}.webp`;
+
+    const { error: uploadError } = await admin.storage
+      .from('owner-images')
+      .upload(path, processed, { contentType: 'image/webp', upsert: true });
+
+    if (uploadError) throw new BadRequestException('Upload failed: ' + uploadError.message);
+
+    const { data: { publicUrl } } = admin.storage
+      .from('owner-images')
       .getPublicUrl(path);
 
     return { url: publicUrl };

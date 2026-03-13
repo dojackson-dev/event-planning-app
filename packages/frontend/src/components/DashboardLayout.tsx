@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
+import { OwnerBrandProvider, useOwnerBrand } from '@/contexts/OwnerBrandContext'
 import { NotificationProvider } from '@/contexts/NotificationContext'
 import NotificationPanel from '@/components/NotificationPanel'
 import { 
@@ -25,6 +26,54 @@ import {
   Settings,
   ChevronDown
 } from 'lucide-react'
+
+function getInitials(name: string): string {
+  if (!name) return '?'
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 3)
+    .map(w => w[0].toUpperCase())
+    .join('')
+}
+
+function BrandLogo({ variant }: { variant: 'sidebar' | 'mobile' }) {
+  const { logoUrl, businessName, loading } = useOwnerBrand()
+  const initials = getInitials(businessName)
+
+  if (variant === 'sidebar') {
+    return (
+      <div className="hidden lg:flex items-center justify-center h-20 px-4 pt-4 bg-primary-600">
+        {logoUrl ? (
+          <img src={logoUrl} alt={businessName || 'Logo'} className="max-h-14 max-w-[180px] w-auto object-contain" />
+        ) : !loading && businessName ? (
+          <div className="flex flex-col items-center gap-1">
+            <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-white font-bold text-2xl">
+              {initials}
+            </div>
+            <p className="text-white/80 text-xs font-medium text-center truncate max-w-[160px]">{businessName}</p>
+          </div>
+        ) : (
+          <Image src="/lib/LogoDVS.png" alt="DoVenueSuite" width={400} height={133} className="h-28 w-auto" style={{ width: 'auto' }} />
+        )}
+      </div>
+    )
+  }
+
+  // mobile variant
+  return logoUrl ? (
+    <img src={logoUrl} alt={businessName || 'Logo'} className="h-10 max-w-[160px] object-contain" />
+  ) : businessName ? (
+    <div className="flex items-center gap-2">
+      <div className="w-8 h-8 rounded-lg bg-primary-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+        {initials}
+      </div>
+      <span className="font-bold text-gray-900 text-sm truncate max-w-[130px]">{businessName}</span>
+    </div>
+  ) : (
+    <Image src="/lib/LogoDVS.png" alt="DoVenueSuite" width={320} height={107} className="h-24 w-auto" style={{ width: 'auto' }} />
+  )
+}
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -71,18 +120,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <NotificationProvider>
+    <OwnerBrandProvider>
     <div className="min-h-screen bg-gray-50">
       {/* Mobile Header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 bg-white border-b border-gray-200 z-50">
         <div className="flex items-center justify-between h-16 px-4 pt-2">
-          <Image 
-            src="/lib/LogoDVS.png" 
-            alt="Event Center Logo" 
-            width={320} 
-            height={107}
-            className="h-24 w-auto"
-            style={{ width: 'auto' }}
-          />
+          <BrandLogo variant="mobile" />
           <div className="flex items-center gap-3">
             {/* Notification Bell - Mobile */}
             <NotificationPanel />
@@ -108,17 +151,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
       } lg:w-64`}>
         <div className="flex flex-col h-full">
-          {/* Logo - Desktop Only */}
-          <div className="hidden lg:flex items-center justify-center h-20 px-4 pt-4 bg-primary-600">
-            <Image 
-              src="/lib/LogoDVS.png" 
-              alt="Event Center Logo" 
-              width={400} 
-              height={133}
-              className="h-28 w-auto"
-              style={{ width: 'auto' }}
-            />
-          </div>
+          <BrandLogo variant="sidebar" />
 
           {/* User info */}
           <div className="p-4 border-b mt-16 lg:mt-0">
@@ -252,6 +285,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </main>
       </div>
     </div>
+    </OwnerBrandProvider>
     </NotificationProvider>
   )
 }

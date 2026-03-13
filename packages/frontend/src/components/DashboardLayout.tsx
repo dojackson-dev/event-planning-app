@@ -81,6 +81,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             width={320} 
             height={107}
             className="h-24 w-auto"
+            style={{ width: 'auto' }}
           />
           <div className="flex items-center gap-3">
             {/* Notification Bell - Mobile */}
@@ -115,6 +116,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               width={400} 
               height={133}
               className="h-28 w-auto"
+              style={{ width: 'auto' }}
             />
           </div>
 

@@ -231,3 +231,22 @@ export class StripeController {
     }
     return this.stripeService.payVendor(amountCents, userId, vendorAccountId, vendorBookingId, description);
   }
+  /**
+   * POST /stripe/payment-link
+   * Creates a Stripe Checkout session (one-time) for an invoice the owner can send to the client.
+   * Body: { invoiceId, amountCents, description }
+   * Returns: { url }
+   */
+  @Post('payment-link')
+  async createPaymentLink(
+    @Headers('authorization') authorization: string,
+    @Body() body: { invoiceId: string; amountCents: number; description?: string },
+  ): Promise<{ url: string }> {
+    const userId = await this.getUserIdFromAuth(authorization);
+    const { invoiceId, amountCents, description = 'Invoice Payment' } = body;
+    if (!invoiceId || !amountCents) {
+      throw new BadRequestException('invoiceId and amountCents are required');
+    }
+    const url = await this.stripeService.createInvoicePaymentLink(invoiceId, amountCents, description, userId);
+    return { url };
+  }

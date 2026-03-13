@@ -531,6 +531,56 @@ export class StripeService {
   }
 
   /**
+   * Create a Stripe Checkout session (one-time payment) for an invoice.
+   * Returns a hosted payment URL the owner can send directly to the client.
+   */
+  async createInvoicePaymentLink(
+    invoiceId: string,
+    amountCents: number,
+    description: string,
+    ownerUserId: string,
+  ): Promise<string> {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: owner } = await admin
+      .from('owner_accounts')
+      .select('id, stripe_connect_id, stripe_connect_status')
+      .eq('primary_owner_id', ownerUserId)
+      .maybeSingle();
+
+    const hasConnect = owner?.stripe_connect_id && owner?.stripe_connect_status === 'active';
+
+    const sessionParams: Stripe.Checkout.SessionCreateParams = {
+      mode: 'payment',
+      payment_method_types: ['card'],
+      line_items: [{
+        price_data: {
+          currency: 'usd',
+          unit_amount: amountCents,
+          product_data: { name: description || 'Invoice Payment' },
+        },
+        quantity: 1,
+      }],
+      success_url: `${this.frontendUrl}/dashboard/invoices/${invoiceId}?paid=true`,
+      cancel_url: `${this.frontendUrl}/dashboard/invoices/${invoiceId}?canceled=true`,
+      client_reference_id: invoiceId,
+      metadata: { invoice_id: invoiceId },
+    };
+
+    if (hasConnect) {
+      const feeCents = Math.round(amountCents * this.APP_FEE_RATE);
+      sessionParams.payment_intent_data = {
+        application_fee_amount: feeCents,
+        transfer_data: { destination: owner!.stripe_connect_id! },
+      };
+    }
+
+    const session = await this.stripe.checkout.sessions.create(sessionParams);
+    this.logger.log(`Created invoice payment link for invoice ${invoiceId}: ${session.url}`);
+    return session.url!;
+  }
+
+  /**
    * Handle account.updated webhook — mark Connect account active when onboarding complete.
    */
   async handleConnectAccountUpdated(account: Stripe.Account): Promise<void> {

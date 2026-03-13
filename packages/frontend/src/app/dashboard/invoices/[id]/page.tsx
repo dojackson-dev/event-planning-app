@@ -12,6 +12,10 @@ export default function InvoiceDetailPage() {
   const [loading, setLoading] = useState(true)
   const [paymentAmount, setPaymentAmount] = useState('')
   const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [paymentLink, setPaymentLink] = useState('')
+  const [showLinkModal, setShowLinkModal] = useState(false)
+  const [generatingLink, setGeneratingLink] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
 
   useEffect(() => {
     if (params.id) {
@@ -76,6 +80,31 @@ export default function InvoiceDetailPage() {
     }
   }
 
+  const handleGeneratePaymentLink = async () => {
+    if (!invoice) return
+    setGeneratingLink(true)
+    try {
+      const amountCents = Math.round(Number(invoice.amount_due || invoice.total_amount) * 100)
+      const res = await api.post('/stripe/payment-link', {
+        invoiceId: invoice.id,
+        amountCents,
+        description: `Invoice ${invoice.invoice_number}`,
+      })
+      setPaymentLink(res.data.url)
+      setShowLinkModal(true)
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to generate payment link. Make sure Stripe Connect is set up.')
+    } finally {
+      setGeneratingLink(false)
+    }
+  }
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(paymentLink)
+    setLinkCopied(true)
+    setTimeout(() => setLinkCopied(false), 2000)
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -110,6 +139,13 @@ export default function InvoiceDetailPage() {
                 className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
               >
                 Record Payment
+              </button>
+              <button
+                onClick={handleGeneratePaymentLink}
+                disabled={generatingLink}
+                className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {generatingLink ? 'Generating...' : '🔗 Send Payment Link'}
               </button>
               {invoice.status === InvoiceStatus.DRAFT && (
                 <button
@@ -343,6 +379,46 @@ export default function InvoiceDetailPage() {
                 Cancel
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Payment Link Modal */}
+      {showLinkModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-lg">
+            <h3 className="text-lg font-semibold mb-2">🔗 Payment Link</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Share this link with your client. They can pay securely via Stripe — no account needed.
+            </p>
+            <div className="flex gap-2 mb-4">
+              <input
+                readOnly
+                value={paymentLink}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm bg-gray-50 truncate"
+              />
+              <button
+                onClick={copyLink}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  linkCopied ? 'bg-green-600 text-white' : 'bg-gray-800 text-white hover:bg-gray-700'
+                }`}
+              >
+                {linkCopied ? '✓ Copied!' : 'Copy'}
+              </button>
+            </div>
+            <a
+              href={paymentLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block text-center w-full mb-4 py-2.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm font-medium"
+            >
+              Open Payment Page →
+            </a>
+            <button
+              onClick={() => setShowLinkModal(false)}
+              className="w-full py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 text-sm"
+            >
+              Close
+            </button>
           </div>
         </div>
       )}

@@ -256,6 +256,8 @@ export interface InvoiceItem {
   discount_amount: number // Calculated discount
   amount: number // Final amount after discount
   sort_order: number
+  item_type?: 'revenue' | 'expense'
+  vendor_booking_id?: string | null
 }
 
 // Estimate
@@ -505,6 +507,7 @@ export interface ScheduledMessage {
 // Auth
 export interface AuthResponse {
   access_token: string
+  refresh_token?: string
   user: User
 }
 

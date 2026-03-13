@@ -16,6 +16,14 @@ export class AuthController {
     return this.authService.login(loginDto);
   }
 
+  @Post('refresh')
+  async refresh(@Body() body: { refresh_token: string }) {
+    if (!body?.refresh_token) {
+      throw new UnauthorizedException('refresh_token is required');
+    }
+    return this.authService.refreshToken(body.refresh_token);
+  }
+
   @Post('logout')
   async logout(@Headers('authorization') authorization: string) {
     if (!authorization) {

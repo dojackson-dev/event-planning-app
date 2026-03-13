@@ -62,6 +62,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('💾 [LOGIN] Saving to localStorage')
       localStorage.setItem('access_token', access_token)
       localStorage.setItem('user', JSON.stringify(newUser))
+      if ((response.data as any).refresh_token) {
+        localStorage.setItem('refresh_token', (response.data as any).refresh_token)
+      }
       
       // Verify
       const check = localStorage.getItem('user')
@@ -87,6 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     console.log('🚪 [LOGOUT]')
     localStorage.removeItem('access_token')
+    localStorage.removeItem('refresh_token')
     localStorage.removeItem('user')
     setUser(null)
     router.push('/login')

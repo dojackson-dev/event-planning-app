@@ -17,7 +17,7 @@ import {
   addWeeks,
   subWeeks
 } from 'date-fns'
-import { ChevronLeft, ChevronRight, CalendarDays, CalendarRange, X, Edit2, Trash2, Clock, MapPin, Users, DollarSign, FileText, AlertCircle } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CalendarDays, CalendarRange, X, Edit2, Trash2, Clock, MapPin, Users, DollarSign, FileText, AlertCircle, Plus } from 'lucide-react'
 
 type ViewType = 'month' | 'week'
 
@@ -50,6 +50,18 @@ export default function CalendarPage() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+
+  // Create event modal
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [createDate, setCreateDate] = useState('')
+  const [createName, setCreateName] = useState('')
+  const [createStart, setCreateStart] = useState('09:00')
+  const [createEnd, setCreateEnd] = useState('17:00')
+  const [createVenue, setCreateVenue] = useState('')
+  const [createDescription, setCreateDescription] = useState('')
+  const [createGuests, setCreateGuests] = useState('')
+  const [createStatus, setCreateStatus] = useState<'draft' | 'scheduled'>('scheduled')
+  const [creating, setCreating] = useState(false)
 
   useEffect(() => {
     fetchEvents()
@@ -135,6 +147,42 @@ export default function CalendarPage() {
     router.push(`/dashboard/events/${selectedEvent.id}/edit`)
   }
 
+  const openCreateModal = (day?: Date) => {
+    setCreateDate(day ? format(day, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'))
+    setCreateName('')
+    setCreateStart('09:00')
+    setCreateEnd('17:00')
+    setCreateVenue('')
+    setCreateDescription('')
+    setCreateGuests('')
+    setCreateStatus('scheduled')
+    setShowCreateModal(true)
+  }
+
+  const handleCreateEvent = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setCreating(true)
+    try {
+      const payload: any = {
+        name: createName,
+        date: createDate,
+        startTime: createStart,
+        endTime: createEnd,
+        status: createStatus,
+      }
+      if (createVenue) payload.venue = createVenue
+      if (createDescription) payload.description = createDescription
+      if (createGuests) payload.maxGuests = parseInt(createGuests)
+      const res = await api.post('/events', payload)
+      setEvents(prev => [...prev, res.data])
+      setShowCreateModal(false)
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to create event')
+    } finally {
+      setCreating(false)
+    }
+  }
+
   const closeModal = () => {
     setSelectedEvent(null)
     setShowDeleteConfirm(false)
@@ -148,7 +196,16 @@ export default function CalendarPage() {
     <div>
       <div className="mb-6">
         {/* Title */}
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">Calendar</h1>
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Calendar</h1>
+          <button
+            onClick={() => openCreateModal()}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium"
+          >
+            <Plus className="h-4 w-4" />
+            New Event
+          </button>
+        </div>
         
         {/* View Toggle - Centered */}
         <div className="flex justify-center mb-4">
@@ -225,23 +282,27 @@ export default function CalendarPage() {
                 key={index}
                 className={`bg-white p-2 ${
                   viewType === 'month' ? 'min-h-[120px]' : 'min-h-[150px]'
-                } ${!isCurrentMonth ? 'bg-gray-50' : ''}`}
+                } ${!isCurrentMonth ? 'bg-gray-50' : ''} group cursor-pointer`}
+                onClick={() => openCreateModal(day)}
               >
                 <div className="flex flex-col h-full">
-                  <div
-                    className={`text-sm font-semibold mb-2 ${
-                      isCurrentDay
-                        ? 'bg-primary-600 text-white rounded-full w-7 h-7 flex items-center justify-center'
-                        : 'text-gray-900'
-                    }`}
-                  >
-                    {viewType === 'week' ? format(day, 'EEE d') : format(day, 'd')}
+                  <div className="flex items-center justify-between mb-1">
+                    <div
+                      className={`text-sm font-semibold ${
+                        isCurrentDay
+                          ? 'bg-primary-600 text-white rounded-full w-7 h-7 flex items-center justify-center'
+                          : 'text-gray-900'
+                      }`}
+                    >
+                      {viewType === 'week' ? format(day, 'EEE d') : format(day, 'd')}
+                    </div>
+                    <Plus className="h-3.5 w-3.5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                   <div className="space-y-1 flex-1 overflow-y-auto">
                     {dayEvents.map((event) => (
                       <div
                         key={event.id}
-                        onClick={() => handleEventClick(event)}
+                        onClick={(e) => { e.stopPropagation(); handleEventClick(event) }}
                         className={`text-xs p-1.5 rounded cursor-pointer hover:shadow-md transition-shadow ${
                           event.status === 'scheduled'
                             ? 'bg-green-100 text-green-800'
@@ -278,6 +339,120 @@ export default function CalendarPage() {
           <span>Completed</span>
         </div>
       </div>
+
+      {/* Create Event Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center p-6 border-b">
+              <h2 className="text-xl font-bold text-gray-900">New Event</h2>
+              <button onClick={() => setShowCreateModal(false)} className="text-gray-500 hover:text-gray-700">
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <form onSubmit={handleCreateEvent} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Event Name *</label>
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  value={createName}
+                  onChange={e => setCreateName(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  placeholder="e.g. Smith Wedding Reception"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
+                <input
+                  type="date"
+                  required
+                  value={createDate}
+                  onChange={e => setCreateDate(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+                  <input
+                    type="time"
+                    value={createStart}
+                    onChange={e => setCreateStart(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+                  <input
+                    type="time"
+                    value={createEnd}
+                    onChange={e => setCreateEnd(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Venue</label>
+                <input
+                  type="text"
+                  value={createVenue}
+                  onChange={e => setCreateVenue(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  placeholder="e.g. Grand Ballroom"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Max Guests</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={createGuests}
+                  onChange={e => setCreateGuests(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea
+                  rows={2}
+                  value={createDescription}
+                  onChange={e => setCreateDescription(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <select
+                  value={createStatus}
+                  onChange={e => setCreateStatus(e.target.value as 'draft' | 'scheduled')}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  <option value="scheduled">Scheduled</option>
+                  <option value="draft">Draft</option>
+                </select>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creating}
+                  className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 font-medium"
+                >
+                  {creating ? 'Creating...' : 'Create Event'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Event Details Modal */}
       {selectedEvent && !showDeleteConfirm && (

@@ -40,6 +40,10 @@ export interface InvoiceItem {
   discount_amount: number;
   amount: number;
   sort_order: number;
+  /** 'revenue' = billed to client (default); 'expense' = internal vendor cost */
+  item_type?: 'revenue' | 'expense';
+  /** Traces which vendor booking this expense line item came from */
+  vendor_booking_id?: string | null;
   created_at?: string;
 }
 
@@ -48,7 +52,9 @@ export class InvoicesService {
   constructor(private readonly supabaseService: SupabaseService) {}
 
   private calculateInvoiceTotals(items: Partial<InvoiceItem>[], taxRate: number, discountAmount: number) {
-    const subtotal = items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    // Only revenue items count toward the client-facing invoice total
+    const revenueItems = items.filter(i => !i.item_type || i.item_type === 'revenue');
+    const subtotal = revenueItems.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
     const taxAmount = subtotal * (taxRate / 100);
     const totalAmount = subtotal + taxAmount - discountAmount;
     const amountDue = totalAmount;
@@ -294,6 +300,8 @@ export class InvoicesService {
         discount_amount: discountAmount,
         amount,
         sort_order: item.sort_order ?? index,
+        item_type: item.item_type || 'revenue',
+        vendor_booking_id: item.vendor_booking_id || null,
       };
     });
 

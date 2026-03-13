@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import api from '@/lib/api'
 import { Item, ItemType, ServiceItemCategory } from '@/types'
+import ImageUpload from '@/components/ImageUpload'
 import { Plus, Edit, Trash2, Package, Music, Lightbulb, Users, Utensils, Sparkles, Building2, Grid3x3, Clock, Percent, Mic, Wine, Shield, DollarSign, Monitor, Calendar } from 'lucide-react'
 
 // Use ServiceItemCategory enum values to match database
@@ -301,19 +302,15 @@ export default function ItemsPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Image URL
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Item Image
                 </label>
-                <input
-                  type="url"
-                  placeholder="https://example.com/image.jpg"
-                  value={formData.image_url}
-                  onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                <ImageUpload
+                  currentUrl={formData.image_url}
+                  uploadType="service-item"
+                  shape="landscape"
+                  onUpload={(url) => setFormData({ ...formData, image_url: url })}
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  Leave empty to use category icon as fallback
-                </p>
               </div>
 
               <div>

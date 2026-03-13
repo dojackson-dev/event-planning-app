@@ -399,6 +399,115 @@ export class AuthFlowService {
   }
 
   /**
+   * VENDOR SIGNUP
+   * Creates a Supabase auth user + user record with role = 'vendor'
+   * The vendor_account is then created separately via POST /vendors/account
+   */
+  async vendorSignup(dto: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    phoneNumber?: string;
+  }) {
+    const adminClient = this.supabaseService.getAdminClient();
+
+    // Check existing
+    const { data: existing } = await adminClient
+      .from('users')
+      .select('id')
+      .eq('email', dto.email.toLowerCase())
+      .single();
+
+    if (existing) {
+      throw new BadRequestException('An account with this email already exists');
+    }
+
+    const { data: authData, error: authError } = await adminClient.auth.signUp({
+      email: dto.email,
+      password: dto.password,
+      options: {
+        data: {
+          first_name: dto.firstName,
+          last_name: dto.lastName,
+        },
+      },
+    });
+
+    if (authError || !authData.user) {
+      throw new BadRequestException(authError?.message || 'Failed to create user');
+    }
+
+    if (!authData.user.identities || authData.user.identities.length === 0) {
+      throw new BadRequestException('An account with this email already exists');
+    }
+
+    const userId = authData.user.id;
+
+    const { error: userError } = await adminClient
+      .from('users')
+      .insert({
+        id: userId,
+        email: dto.email,
+        first_name: dto.firstName,
+        last_name: dto.lastName,
+        role: 'vendor',
+        phone_number: dto.phoneNumber,
+        email_verified: false,
+        phone_verified: false,
+        sms_opt_in: false,
+        status: 'active',
+      });
+
+    if (userError) throw new BadRequestException(userError.message);
+
+    return {
+      userId,
+      message: 'Vendor account created. Please verify your email and complete your profile.',
+      session: authData.session,
+    };
+  }
+
+  /**
+   * VENDOR LOGIN
+   */
+  async vendorLogin(email: string, password: string) {
+    const supabase = this.supabaseService.getClient();
+
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (authError) throw new UnauthorizedException(authError.message);
+
+    const { data: user } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', authData.user.id)
+      .single();
+
+    if (!user || user.role !== 'vendor') {
+      throw new UnauthorizedException('Not a vendor account');
+    }
+
+    // Check for vendor account (profile)
+    const adminClient = this.supabaseService.getAdminClient();
+    const { data: vendorAccount } = await adminClient
+      .from('vendor_accounts')
+      .select('id, business_name, category, is_active')
+      .eq('user_id', authData.user.id)
+      .single();
+
+    return {
+      session: authData.session,
+      user,
+      vendorAccount,
+      hasProfile: !!vendorAccount,
+    };
+  }
+
+  /**
    * ADMIN LOGIN (Email-only, no MFA)
    */
   async adminLogin(email: string, password: string) {

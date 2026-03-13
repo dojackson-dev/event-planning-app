@@ -268,7 +268,24 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
-
+      {/* Quick Vendor Booking Link */}
+      <div className="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-xl shadow-sm p-6 mb-6 sm:mb-8 text-white">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <h2 className="text-lg font-bold mb-2">Need to book vendors for an event?</h2>
+            <p className="text-purple-100 text-sm mb-4">
+              Find and book DJs, photographers, decorators, planners, musicians, and more from our vendor directory.
+            </p>
+          </div>
+        </div>
+        <Link
+          href="/vendors"
+          className="inline-flex items-center px-6 py-2.5 bg-white text-purple-700 rounded-lg font-semibold text-sm hover:bg-purple-50 transition-colors"
+        >
+          Browse Vendors
+          <ArrowRight className="h-4 w-4 ml-2" />
+        </Link>
+      </div>
       {/* Recent Bookings */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 mb-6 sm:mb-8">
         <div className="p-4 sm:p-6 border-b border-gray-100 flex items-center justify-between">

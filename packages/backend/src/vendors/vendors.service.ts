@@ -282,6 +282,31 @@ export class VendorsService {
     return data || [];
   }
 
+  async getVendorBookingById(bookingId: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const { data, error } = await admin
+      .from('vendor_bookings')
+      .select('*, vendor_accounts(id, business_name, category, profile_image_url, hourly_rate, flat_rate, phone, email)')
+      .eq('id', bookingId)
+      .single();
+
+    if (error || !data) throw new NotFoundException('Vendor booking not found');
+    return data;
+  }
+
+  async getOwnerVendorBookingsByEvent(eventId: string, ownerAccountId: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const { data, error } = await admin
+      .from('vendor_bookings')
+      .select('*, vendor_accounts(id, business_name, category, profile_image_url)')
+      .eq('event_id', eventId)
+      .eq('owner_account_id', ownerAccountId)
+      .order('event_date', { ascending: true });
+
+    if (error) throw new BadRequestException(error.message);
+    return data || [];
+  }
+
   async updateVendorBooking(bookingId: string, userId: string, dto: UpdateVendorBookingDto) {
     const admin = this.supabaseService.getAdminClient();
 

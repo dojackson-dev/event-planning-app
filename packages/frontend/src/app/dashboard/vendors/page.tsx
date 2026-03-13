@@ -213,6 +213,14 @@ function BookingRow({ booking, onCancel }: { booking: VendorBooking; onCancel: (
         >
           View <ChevronRight className="w-3 h-3" />
         </Link>
+        {(booking.status === 'confirmed' || booking.status === 'completed') && (
+          <Link
+            href={`/dashboard/invoices/new?vendorBookingId=${booking.id}`}
+            className="text-xs px-2 py-1 bg-primary-50 border border-primary-200 text-primary-700 rounded hover:bg-primary-100"
+          >
+            + Invoice
+          </Link>
+        )}
         {(booking.status === 'pending' || booking.status === 'confirmed') && (
           <button
             onClick={() => onCancel(booking.id)}

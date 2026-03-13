@@ -178,7 +178,7 @@ export default function InvoiceDetailPage() {
           </div>
         </div>
 
-        {/* Line Items */}
+        {/* Line Items — revenue only (billed to client) */}
         <table className="w-full mb-8">
           <thead className="bg-gray-50">
             <tr>
@@ -189,7 +189,7 @@ export default function InvoiceDetailPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {invoice.items?.map((item) => (
+            {invoice.items?.filter(i => !i.item_type || i.item_type === 'revenue').map((item) => (
               <tr key={item.id}>
                 <td className="px-4 py-3 text-sm text-gray-900">{item.description}</td>
                 <td className="px-4 py-3 text-sm text-gray-900 text-right">{item.quantity}</td>
@@ -203,6 +203,50 @@ export default function InvoiceDetailPage() {
             ))}
           </tbody>
         </table>
+
+        {/* Vendor Costs — internal, print-hidden */}
+        {invoice.items?.some(i => i.item_type === 'expense') && (() => {
+          const expenseItems = invoice.items!.filter(i => i.item_type === 'expense')
+          const vendorCosts = expenseItems.reduce((s, i) => s + Number(i.amount), 0)
+          const margin = Number(invoice.total_amount) - vendorCosts
+          return (
+            <div className="mb-8 print:hidden border border-dashed border-amber-300 rounded-lg p-4 bg-amber-50">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-amber-800">Vendor Costs <span className="font-normal text-amber-600">(Internal — not billed to client)</span></h3>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs font-medium text-amber-700 uppercase">
+                    <th className="pb-2">Description</th>
+                    <th className="pb-2 text-right">Qty</th>
+                    <th className="pb-2 text-right">Unit Cost</th>
+                    <th className="pb-2 text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-amber-100">
+                  {expenseItems.map(item => (
+                    <tr key={item.id}>
+                      <td className="py-1.5 text-gray-700">{item.description}</td>
+                      <td className="py-1.5 text-right text-gray-700">{item.quantity}</td>
+                      <td className="py-1.5 text-right text-gray-700">${Number(item.unit_price).toFixed(2)}</td>
+                      <td className="py-1.5 text-right font-medium text-amber-700">${Number(item.amount).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="mt-3 pt-3 border-t border-amber-200 flex flex-col items-end gap-1">
+                <div className="flex gap-6 text-sm text-amber-700">
+                  <span>Total Vendor Costs:</span>
+                  <span className="font-semibold">-${vendorCosts.toFixed(2)}</span>
+                </div>
+                <div className={`flex gap-6 text-base font-bold ${margin >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                  <span>Estimated Margin:</span>
+                  <span>${margin.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Totals */}
         <div className="flex justify-end mb-8">

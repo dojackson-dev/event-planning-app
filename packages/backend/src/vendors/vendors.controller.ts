@@ -205,6 +205,33 @@ export class VendorsController {
   }
 
   /**
+   * GET /vendors/bookings/by-event/:eventId - vendor bookings for a specific event
+   */
+  @Get('bookings/by-event/:eventId')
+  async getBookingsByEvent(
+    @Headers('authorization') authorization: string,
+    @Param('eventId') eventId: string,
+  ) {
+    const userId = await this.getUserId(authorization);
+    const ownerAccountId = await this.getOwnerAccountId(userId);
+    if (!ownerAccountId) return [];
+    return this.vendorsService.getOwnerVendorBookingsByEvent(eventId, ownerAccountId);
+  }
+
+  /**
+   * GET /vendors/bookings/:id - get single vendor booking by ID
+   * NOTE: must be defined after literal routes (mine, owner, by-event)
+   */
+  @Get('bookings/:id')
+  async getBookingById(
+    @Headers('authorization') authorization: string,
+    @Param('id') bookingId: string,
+  ) {
+    await this.getUserId(authorization);
+    return this.vendorsService.getVendorBookingById(bookingId);
+  }
+
+  /**
    * PUT /vendors/bookings/:id - update booking status
    */
   @Put('bookings/:id')

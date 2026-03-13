@@ -410,10 +410,10 @@ export class AuthFlowService {
     lastName: string;
     phoneNumber?: string;
   }) {
-    const supabase = this.supabaseService.getClient();
+    const adminClient = this.supabaseService.getAdminClient();
 
     // Check existing
-    const { data: existing } = await supabase
+    const { data: existing } = await adminClient
       .from('users')
       .select('id')
       .eq('email', dto.email.toLowerCase())
@@ -423,7 +423,7 @@ export class AuthFlowService {
       throw new BadRequestException('An account with this email already exists');
     }
 
-    const { data: authData, error: authError } = await supabase.auth.signUp({
+    const { data: authData, error: authError } = await adminClient.auth.signUp({
       email: dto.email,
       password: dto.password,
       options: {
@@ -444,7 +444,7 @@ export class AuthFlowService {
 
     const userId = authData.user.id;
 
-    const { error: userError } = await supabase
+    const { error: userError } = await adminClient
       .from('users')
       .insert({
         id: userId,

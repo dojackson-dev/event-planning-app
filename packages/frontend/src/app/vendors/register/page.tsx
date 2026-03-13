@@ -194,6 +194,7 @@ export default function VendorRegisterPage() {
               </div>
               <button
                 type="submit" disabled={loading}
+                suppressHydrationWarning
                 className="w-full bg-primary-600 text-white py-3 rounded-lg font-semibold hover:bg-primary-700 disabled:opacity-50 mt-2"
               >
                 {loading ? 'Creating account...' : 'Create Account →'}
@@ -340,6 +341,7 @@ export default function VendorRegisterPage() {
 
               <button
                 type="submit" disabled={loading}
+                suppressHydrationWarning
                 className="w-full bg-primary-600 text-white py-3 rounded-lg font-semibold hover:bg-primary-700 disabled:opacity-50"
               >
                 {loading ? 'Creating profile...' : '🎉 Complete Registration'}

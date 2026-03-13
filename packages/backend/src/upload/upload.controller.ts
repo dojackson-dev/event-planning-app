@@ -9,6 +9,8 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const sharp = require('sharp') as typeof import('sharp');
 import { SupabaseService } from '../supabase/supabase.service';
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
@@ -67,13 +69,17 @@ export class UploadController {
     const admin = this.supabaseService.getAdminClient();
     await this.ensureBucket(admin, 'vendor-images');
 
-    const ext = file.mimetype === 'image/jpeg' || file.mimetype === 'image/jpg' ? 'jpg'
-      : file.mimetype === 'image/webp' ? 'webp' : 'png';
-    const path = `logos/${userId}-${Date.now()}.${ext}`;
+    // Resize to 400×400, convert to WebP
+    const processed = await sharp(file.buffer)
+      .resize(400, 400, { fit: 'cover', position: 'centre' })
+      .webp({ quality: 85 })
+      .toBuffer();
+
+    const path = `logos/${userId}-${Date.now()}.webp`;
 
     const { error: uploadError } = await admin.storage
       .from('vendor-images')
-      .upload(path, file.buffer, { contentType: file.mimetype, upsert: true });
+      .upload(path, processed, { contentType: 'image/webp', upsert: true });
 
     if (uploadError) throw new BadRequestException('Upload failed: ' + uploadError.message);
 
@@ -108,13 +114,17 @@ export class UploadController {
     const admin = this.supabaseService.getAdminClient();
     await this.ensureBucket(admin, 'service-item-images');
 
-    const ext = file.mimetype === 'image/jpeg' || file.mimetype === 'image/jpg' ? 'jpg'
-      : file.mimetype === 'image/webp' ? 'webp' : 'png';
-    const path = `items/${userId}-${Date.now()}.${ext}`;
+    // Resize to 800×600 (4:3), convert to WebP
+    const processed = await sharp(file.buffer)
+      .resize(800, 600, { fit: 'cover', position: 'centre' })
+      .webp({ quality: 85 })
+      .toBuffer();
+
+    const path = `items/${userId}-${Date.now()}.webp`;
 
     const { error: uploadError } = await admin.storage
       .from('service-item-images')
-      .upload(path, file.buffer, { contentType: file.mimetype, upsert: true });
+      .upload(path, processed, { contentType: 'image/webp', upsert: true });
 
     if (uploadError) throw new BadRequestException('Upload failed: ' + uploadError.message);
 

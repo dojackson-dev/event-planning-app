@@ -12,7 +12,6 @@ export const metadata: Metadata = {
     icon: '/favicon.svg',
   },
   appleWebApp: {
-    capable: true,
     statusBarStyle: 'default',
     title: 'Event Center',
   },

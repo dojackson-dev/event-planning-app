@@ -63,6 +63,25 @@ export class AuthService {
 
     return {
       access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
+      user: data.user,
+    };
+  }
+
+  async refreshToken(refreshToken: string) {
+    const supabase = this.supabaseService.getClient();
+
+    const { data, error } = await supabase.auth.refreshSession({
+      refresh_token: refreshToken,
+    });
+
+    if (error || !data.session) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    return {
+      access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
       user: data.user,
     };
   }

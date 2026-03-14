@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
@@ -22,7 +22,7 @@ interface InvoiceLineItem {
   vendor_booking_id?: string | null
 }
 
-export default function NewInvoicePage() {
+function NewInvoicePageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user } = useAuth()
@@ -729,5 +729,13 @@ export default function NewInvoicePage() {
         </div>
       </form>
     </div>
+  )
+}
+
+export default function NewInvoicePage() {
+  return (
+    <Suspense fallback={<div className="p-6">Loading...</div>}>
+      <NewInvoicePageContent />
+    </Suspense>
   )
 }

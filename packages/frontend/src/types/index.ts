@@ -4,6 +4,7 @@ export enum UserRole {
   CUSTOMER = 'customer',
   OWNER = 'owner',
   PLANNER = 'planner',
+  VENDOR = 'vendor',
 }
 
 export enum EventStatus {

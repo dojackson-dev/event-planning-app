@@ -32,6 +32,9 @@ export default function AdminLoginPage() {
     try {
       const supabase = createClient()
 
+      // Clear any stale session first
+      await supabase.auth.signOut()
+
       // Sign in
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: formData.email,

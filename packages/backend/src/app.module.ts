@@ -20,6 +20,7 @@ import { TrialModule } from './trial/trial.module';
 import { VendorsModule } from './vendors/vendors.module';
 import { UploadModule } from './upload/upload.module';
 import { OwnerModule } from './owner/owner.module';
+import { AdminModule } from './admin/admin.module';
 // import { MessagingModule } from './messaging/messaging.module';
 
 @Module({
@@ -42,6 +43,7 @@ import { OwnerModule } from './owner/owner.module';
     VendorsModule,
     UploadModule,
     OwnerModule,
+    AdminModule,
     // UsersModule,
     // SecurityModule,
     // MessagingModule,  // Keep this for scheduled messages

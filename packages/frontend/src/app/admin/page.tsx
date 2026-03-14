@@ -9,13 +9,12 @@ import {
   Calendar,
   DollarSign,
   TrendingUp,
-  TrendingDown,
   Activity,
-  Clock,
   ArrowRight,
-  UserPlus,
   Gift
 } from 'lucide-react'
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
 interface DashboardStats {
   totalOwners: number
@@ -35,6 +34,7 @@ interface RecentOwner {
   email: string
   first_name: string
   last_name: string
+  business_name: string
   created_at: string
 }
 
@@ -53,91 +53,46 @@ export default function AdminDashboardPage() {
   })
   const [recentOwners, setRecentOwners] = useState<RecentOwner[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     fetchDashboardData()
   }, [])
 
+  const getAdminToken = async (): Promise<string | null> => {
+    const supabase = createClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.access_token || null
+  }
+
   const fetchDashboardData = async () => {
     try {
-      const supabase = createClient()
-      const now = new Date()
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+      const token = await getAdminToken()
+      if (!token) {
+        setError('Not authenticated. Please log in.')
+        setLoading(false)
+        return
+      }
 
-      // Fetch owners count
-      const { data: ownersData, count: ownersCount } = await supabase
-        .from('users')
-        .select('*', { count: 'exact' })
-        .eq('role', 'owner')
-
-      // New owners this month
-      const { count: newOwnersCount } = await supabase
-        .from('users')
-        .select('*', { count: 'exact', head: true })
-        .eq('role', 'owner')
-        .gte('created_at', startOfMonth)
-
-      // Fetch clients count
-      const { count: clientsCount } = await supabase
-        .from('users')
-        .select('*', { count: 'exact', head: true })
-        .eq('role', 'customer')
-
-      // New clients this month
-      const { count: newClientsCount } = await supabase
-        .from('users')
-        .select('*', { count: 'exact', head: true })
-        .eq('role', 'customer')
-        .gte('created_at', startOfMonth)
-
-      // Fetch events count
-      const { count: eventsCount } = await supabase
-        .from('events')
-        .select('*', { count: 'exact', head: true })
-
-      // Fetch bookings count
-      const { count: bookingsCount } = await supabase
-        .from('bookings')
-        .select('*', { count: 'exact', head: true })
-
-      // Fetch recent owners
-      const { data: recentOwnersData } = await supabase
-        .from('users')
-        .select('id, email, first_name, last_name, created_at')
-        .eq('role', 'owner')
-        .order('created_at', { ascending: false })
-        .limit(5)
-
-      // Calculate revenue from invoices
-      const { data: invoicesData } = await supabase
-        .from('invoices')
-        .select('total_amount')
-        .eq('status', 'paid')
-
-      const totalRevenue = invoicesData?.reduce((sum, inv) => sum + (inv.total_amount || 0), 0) || 0
-
-      // Fetch active trials (owners with trial status)
-      const { count: trialsCount } = await supabase
-        .from('owners')
-        .select('*', { count: 'exact', head: true })
-        .eq('subscription_status', 'trialing')
-
-      setStats({
-        totalOwners: ownersCount || 0,
-        activeOwners: ownersData?.length || 0,
-        totalClients: clientsCount || 0,
-        totalEvents: eventsCount || 0,
-        totalBookings: bookingsCount || 0,
-        totalRevenue,
-        activeTrials: trialsCount || 0,
-        recentLogins: 0,
-        newOwnersThisMonth: newOwnersCount || 0,
-        newClientsThisMonth: newClientsCount || 0
+      const res = await fetch(`${API_URL}/admin/dashboard`, {
+        headers: { Authorization: `Bearer ${token}` }
       })
 
-      setRecentOwners(recentOwnersData || [])
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error)
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.message || `HTTP ${res.status}`)
+      }
+
+      const data = await res.json()
+      setStats({
+        ...data.stats,
+        activeOwners: data.stats.totalOwners,
+        recentLogins: 0,
+      })
+      setRecentOwners(data.recentOwners || [])
+    } catch (err: any) {
+      console.error('Error fetching dashboard data:', err)
+      setError(err.message || 'Failed to load dashboard data')
     } finally {
       setLoading(false)
     }
@@ -153,6 +108,20 @@ export default function AdminDashboardPage() {
               <div key={i} className="h-32 bg-gray-200 rounded-xl"></div>
             ))}
           </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="p-8">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-red-700">
+          <p className="font-semibold">Failed to load dashboard</p>
+          <p className="text-sm mt-1">{error}</p>
+          <button onClick={() => { setError(''); setLoading(true); fetchDashboardData() }} className="mt-3 text-sm underline">
+            Retry
+          </button>
         </div>
       </div>
     )

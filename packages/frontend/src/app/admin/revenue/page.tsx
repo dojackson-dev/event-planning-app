@@ -14,6 +14,8 @@ import {
   XCircle
 } from 'lucide-react'
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+
 interface RevenueData {
   totalRevenue: number
   monthlyRevenue: number
@@ -38,6 +40,27 @@ export default function RevenuePage() {
   }, [])
 
   const fetchRevenue = async () => {
+    try {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      if (!token) return
+
+      const res = await fetch(`${API_URL}/admin/revenue`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      setData(data)
+      return
+    } catch (error) {
+      console.error('Error fetching revenue:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const _unused = async () => {
     try {
       const supabase = createClient()
 
@@ -106,6 +129,7 @@ export default function RevenuePage() {
       setLoading(false)
     }
   }
+  void _unused
 
   if (loading || !data) {
     return (

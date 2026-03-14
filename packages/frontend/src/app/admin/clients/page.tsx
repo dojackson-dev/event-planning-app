@@ -8,27 +8,27 @@ import {
   Filter,
   MoreVertical,
   Eye,
-  Edit,
   Trash2,
   Download,
   Mail,
   Phone
 } from 'lucide-react'
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+
 interface Client {
   id: string
   email: string
   first_name: string
   last_name: string
-  phone: string | null
+  phone_number: string | null
   created_at: string
-  owner_id: string | null
-  owner_name?: string
-  bookings_count?: number
+  status: string | null
 }
 
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([])
+  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedClient, setSelectedClient] = useState<string | null>(null)
@@ -37,19 +37,23 @@ export default function ClientsPage() {
     fetchClients()
   }, [])
 
+  const getToken = async () => {
+    const supabase = createClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.access_token
+  }
+
   const fetchClients = async () => {
     try {
-      const supabase = createClient()
-
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('role', 'customer')
-        .order('created_at', { ascending: false })
-
-      if (error) throw error
-
-      setClients(data || [])
+      const token = await getToken()
+      if (!token) return
+      const res = await fetch(`${API_URL}/admin/clients?page=1&limit=200&search=`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      setClients(data.clients || [])
+      setTotal(data.total || 0)
     } catch (error) {
       console.error('Error fetching clients:', error)
     } finally {
@@ -64,24 +68,21 @@ export default function ClientsPage() {
   )
 
   const deleteClient = async (clientId: string) => {
-    if (!confirm('Are you sure you want to delete this client?')) {
-      return
-    }
-
+    if (!confirm('Are you sure you want to deactivate this client?')) return
     try {
-      const supabase = createClient()
-      const { error } = await supabase
-        .from('users')
-        .delete()
-        .eq('id', clientId)
-
-      if (error) throw error
-
+      const token = await getToken()
+      if (!token) return
+      const res = await fetch(`${API_URL}/admin/owners/${clientId}/status`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'inactive' }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setClients(clients.filter(c => c.id !== clientId))
       setSelectedClient(null)
     } catch (error) {
-      console.error('Error deleting client:', error)
-      alert('Failed to delete client')
+      console.error('Error deactivating client:', error)
+      alert('Failed to deactivate client')
     }
   }
 
@@ -107,7 +108,7 @@ export default function ClientsPage() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Clients</h1>
-          <p className="text-gray-600 mt-1">{clients.length} total clients</p>
+          <p className="text-gray-600 mt-1">{total} total clients</p>
         </div>
         <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
           <Download className="h-4 w-4" />
@@ -184,10 +185,10 @@ export default function ClientsPage() {
                         <Mail className="h-4 w-4" />
                         {client.email}
                       </div>
-                      {client.phone && (
+                      {client.phone_number && (
                         <div className="flex items-center gap-2 text-sm text-gray-600">
                           <Phone className="h-4 w-4" />
-                          {client.phone}
+                          {client.phone_number}
                         </div>
                       )}
                     </div>

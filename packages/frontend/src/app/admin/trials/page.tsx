@@ -13,6 +13,8 @@ import {
   Mail
 } from 'lucide-react'
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+
 interface Owner {
   id: string
   email: string
@@ -41,59 +43,49 @@ export default function TrialsPage() {
     fetchTrials()
   }, [])
 
+  const getToken = async () => {
+    const supabase = createClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.access_token
+  }
+
   const fetchTrials = async () => {
     try {
-      const supabase = createClient()
+      const token = await getToken()
+      if (!token) return
 
-      // Fetch all owners with their trial info
-      const { data: ownersData, error: ownersError } = await supabase
-        .from('owners')
-        .select(`
-          id,
-          user_id,
-          subscription_status,
-          trial_ends_at,
-          users:user_id (
-            id,
-            email,
-            first_name,
-            last_name,
-            created_at
-          )
-        `)
-        .order('created_at', { ascending: false })
+      // Fetch trialing accounts
+      const [trialsRes, ownersRes] = await Promise.all([
+        fetch(`${API_URL}/admin/trials?page=1&limit=100`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_URL}/admin/owners?page=1&limit=200`, { headers: { Authorization: `Bearer ${token}` } }),
+      ])
 
-      if (ownersError) throw ownersError
+      if (trialsRes.ok) {
+        const data = await trialsRes.json()
+        const processed = (data.trials || []).map((t: any) => ({
+          id: t.id,
+          user_id: t.primary_owner_id,
+          email: t.owner?.email || '',
+          first_name: t.owner?.first_name || '',
+          last_name: t.owner?.last_name || '',
+          created_at: t.created_at,
+          subscription_status: t.subscription_status,
+          trial_ends_at: t.trial_ends_at,
+          trial_days_remaining: t.daysRemaining ?? 0,
+        }))
+        setOwners(processed)
+      }
 
-      const processedOwners = (ownersData || []).map((owner: any) => {
-        const trialEnd = owner.trial_ends_at ? new Date(owner.trial_ends_at) : null
-        const now = new Date()
-        const daysRemaining = trialEnd 
-          ? Math.max(0, Math.ceil((trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
-          : 0
-
-        return {
-          id: owner.id,
-          user_id: owner.user_id,
-          email: owner.users?.email || '',
-          first_name: owner.users?.first_name || '',
-          last_name: owner.users?.last_name || '',
-          created_at: owner.users?.created_at || '',
-          subscription_status: owner.subscription_status,
-          trial_ends_at: owner.trial_ends_at,
-          trial_days_remaining: daysRemaining
-        }
-      })
-
-      setOwners(processedOwners)
-
-      // Fetch all users who are owners for the grant modal
-      const { data: usersData } = await supabase
-        .from('users')
-        .select('id, email, first_name, last_name, created_at')
-        .eq('role', 'owner')
-
-      setAllOwners(usersData || [])
+      if (ownersRes.ok) {
+        const data = await ownersRes.json()
+        setAllOwners((data.owners || []).map((o: any) => ({
+          id: o.id,
+          email: o.email,
+          first_name: o.first_name,
+          last_name: o.last_name,
+          created_at: o.created_at,
+        })))
+      }
     } catch (error) {
       console.error('Error fetching trials:', error)
     } finally {
@@ -103,24 +95,15 @@ export default function TrialsPage() {
 
   const grantTrial = async () => {
     if (!selectedOwnerId) return
-
     try {
-      const supabase = createClient()
-      const trialEndDate = new Date()
-      trialEndDate.setDate(trialEndDate.getDate() + trialDays)
-
-      // Update the owner's subscription status and trial end date
-      const { error } = await supabase
-        .from('owners')
-        .update({
-          subscription_status: 'trialing',
-          trial_ends_at: trialEndDate.toISOString()
-        })
-        .eq('user_id', selectedOwnerId)
-
-      if (error) throw error
-
-      // Refresh the list
+      const token = await getToken()
+      if (!token) return
+      const res = await fetch(`${API_URL}/admin/owners/${selectedOwnerId}/trial`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'grant', days: trialDays }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       await fetchTrials()
       setShowGrantModal(false)
       setSelectedOwnerId('')
@@ -133,20 +116,15 @@ export default function TrialsPage() {
 
   const endTrial = async (userId: string) => {
     if (!confirm('Are you sure you want to end this trial?')) return
-
     try {
-      const supabase = createClient()
-
-      const { error } = await supabase
-        .from('owners')
-        .update({
-          subscription_status: 'cancelled',
-          trial_ends_at: null
-        })
-        .eq('user_id', userId)
-
-      if (error) throw error
-
+      const token = await getToken()
+      if (!token) return
+      const res = await fetch(`${API_URL}/admin/owners/${userId}/trial`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'end' }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       await fetchTrials()
     } catch (error) {
       console.error('Error ending trial:', error)
@@ -156,20 +134,14 @@ export default function TrialsPage() {
 
   const extendTrial = async (userId: string, days: number) => {
     try {
-      const supabase = createClient()
-      const owner = owners.find(o => o.user_id === userId)
-      const currentEnd = owner?.trial_ends_at ? new Date(owner.trial_ends_at) : new Date()
-      currentEnd.setDate(currentEnd.getDate() + days)
-
-      const { error } = await supabase
-        .from('owners')
-        .update({
-          trial_ends_at: currentEnd.toISOString()
-        })
-        .eq('user_id', userId)
-
-      if (error) throw error
-
+      const token = await getToken()
+      if (!token) return
+      const res = await fetch(`${API_URL}/admin/owners/${userId}/trial`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'extend', days }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       await fetchTrials()
     } catch (error) {
       console.error('Error extending trial:', error)

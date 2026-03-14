@@ -13,6 +13,8 @@ import {
   ArrowDown
 } from 'lucide-react'
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+
 interface AnalyticsData {
   totalOwners: number
   totalClients: number
@@ -38,6 +40,27 @@ export default function AnalyticsPage() {
   }, [])
 
   const fetchAnalytics = async () => {
+    try {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      if (!token) return
+
+      const res = await fetch(`${API_URL}/admin/analytics`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      setData(data)
+      return
+    } catch (error) {
+      console.error('Error fetching analytics:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const _unusedAnalytics = async () => {
     try {
       const supabase = createClient()
 
@@ -118,6 +141,7 @@ export default function AnalyticsPage() {
       setLoading(false)
     }
   }
+  void _unusedAnalytics
 
   if (loading || !data) {
     return (

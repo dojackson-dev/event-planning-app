@@ -13,6 +13,8 @@ import {
   Users
 } from 'lucide-react'
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+
 interface LoginActivity {
   id: string
   user_id: string
@@ -38,29 +40,16 @@ export default function ActivityPage() {
   const fetchActivity = async () => {
     try {
       const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      if (!token) return
 
-      // Fetch users with their login info
-      const { data: usersData, error: usersError } = await supabase
-        .from('users')
-        .select('id, email, first_name, last_name, role, last_sign_in_at, created_at')
-        .order('last_sign_in_at', { ascending: false, nullsFirst: false })
-
-      if (usersError) throw usersError
-
-      // Process data - we'll simulate login count from sign in data
-      const processedActivities = (usersData || []).map((user: any, index: number) => ({
-        id: user.id,
-        user_id: user.id,
-        email: user.email,
-        first_name: user.first_name || '',
-        last_name: user.last_name || '',
-        role: user.role,
-        last_sign_in_at: user.last_sign_in_at,
-        login_count: Math.floor(Math.random() * 50) + 1, // Simulated - would need audit logs table
-        created_at: user.created_at
-      }))
-
-      setActivities(processedActivities)
+      const res = await fetch(`${API_URL}/admin/activity?page=1&limit=500`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      setActivities(data.activity || [])
     } catch (error) {
       console.error('Error fetching activity:', error)
     } finally {

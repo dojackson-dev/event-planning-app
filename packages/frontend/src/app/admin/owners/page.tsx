@@ -1,134 +1,114 @@
-'use client'
+﻿'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import {
   Search,
   Filter,
   MoreVertical,
-  Mail,
-  Phone,
-  Calendar,
-  Building2,
   Eye,
-  Edit,
   Trash2,
-  UserPlus,
-  Download
+  Download,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react'
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
 interface Owner {
   id: string
   email: string
   first_name: string
   last_name: string
+  business_name: string | null
   phone: string | null
   created_at: string
-  company_name: string | null
-  venue_name: string | null
-  subscription_status?: string
-  trial_ends_at?: string
-  events_count?: number
-  clients_count?: number
+  status: string | null
+  subscription: {
+    subscription_status: string
+    trial_ends_at: string | null
+    stripe_customer_id: string | null
+  } | null
 }
 
 export default function OwnersPage() {
   const [owners, setOwners] = useState<Owner[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [selectedOwner, setSelectedOwner] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const limit = 20
 
   useEffect(() => {
-    fetchOwners()
-  }, [])
+    const t = setTimeout(() => setDebouncedSearch(searchTerm), 400)
+    return () => clearTimeout(t)
+  }, [searchTerm])
 
-  const fetchOwners = async () => {
+  const getToken = async () => {
+    const supabase = createClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.access_token || null
+  }
+
+  const fetchOwners = useCallback(async () => {
+    setLoading(true)
+    setError('')
     try {
-      const supabase = createClient()
+      const token = await getToken()
+      if (!token) { setError('Not authenticated'); return }
 
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('role', 'owner')
-        .order('created_at', { ascending: false })
+      const params = new URLSearchParams({ page: String(page), limit: String(limit) })
+      if (debouncedSearch) params.set('search', debouncedSearch)
 
-      if (error) throw error
-
-      // Fetch additional data for each owner
-      const ownersWithStats = await Promise.all(
-        (data || []).map(async (owner) => {
-          // Get events count
-          const { count: eventsCount } = await supabase
-            .from('events')
-            .select('*', { count: 'exact', head: true })
-            .eq('owner_id', owner.id)
-
-          // Get owner details from owners table
-          const { data: ownerDetails } = await supabase
-            .from('owners')
-            .select('company_name, venue_name, subscription_status, trial_ends_at')
-            .eq('user_id', owner.id)
-            .single()
-
-          return {
-            ...owner,
-            events_count: eventsCount || 0,
-            company_name: ownerDetails?.company_name || null,
-            venue_name: ownerDetails?.venue_name || null,
-            subscription_status: ownerDetails?.subscription_status || 'unknown',
-            trial_ends_at: ownerDetails?.trial_ends_at || null
-          }
-        })
-      )
-
-      setOwners(ownersWithStats)
-    } catch (error) {
-      console.error('Error fetching owners:', error)
+      const res = await fetch(`${API_URL}/admin/owners?${params}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      setOwners(data.owners || [])
+      setTotal(data.total || 0)
+    } catch (err: any) {
+      setError(err.message || 'Failed to load owners')
     } finally {
       setLoading(false)
     }
-  }
+  }, [page, debouncedSearch])
 
-  const filteredOwners = owners.filter(owner =>
-    owner.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    owner.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    owner.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    owner.company_name?.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  useEffect(() => { fetchOwners() }, [fetchOwners])
 
-  const getStatusBadge = (status: string) => {
-    const styles: Record<string, string> = {
+  const getStatusBadge = (status?: string | null) => {
+    const map: Record<string, string> = {
       active: 'bg-green-100 text-green-800',
       trialing: 'bg-blue-100 text-blue-800',
       cancelled: 'bg-red-100 text-red-800',
+      canceled: 'bg-red-100 text-red-800',
       past_due: 'bg-yellow-100 text-yellow-800',
-      unknown: 'bg-gray-100 text-gray-800'
     }
-    return styles[status] || styles.unknown
+    return map[status || ''] || 'bg-gray-100 text-gray-800'
   }
 
   const deleteOwner = async (ownerId: string) => {
-    if (!confirm('Are you sure you want to delete this owner? This action cannot be undone.')) {
-      return
-    }
-
+    if (!confirm('Are you sure you want to delete this owner? This cannot be undone.')) return
     try {
-      const supabase = createClient()
-      const { error } = await supabase
-        .from('users')
-        .delete()
-        .eq('id', ownerId)
-
-      if (error) throw error
-
+      const token = await getToken()
+      const res = await fetch(`${API_URL}/admin/owners/${ownerId}/status`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'deleted' })
+      })
+      if (!res.ok) throw new Error('Failed')
       setOwners(owners.filter(o => o.id !== ownerId))
       setSelectedOwner(null)
-    } catch (error) {
-      console.error('Error deleting owner:', error)
-      alert('Failed to delete owner')
+    } catch (err: any) {
+      alert('Failed to delete owner: ' + err.message)
     }
   }
+
+  const totalPages = Math.ceil(total / limit)
 
   if (loading) {
     return (
@@ -146,109 +126,102 @@ export default function OwnersPage() {
     )
   }
 
+  if (error) {
+    return (
+      <div className="p-8">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-red-700">
+          <p className="font-semibold">Failed to load owners</p>
+          <p className="text-sm mt-1">{error}</p>
+          <button onClick={fetchOwners} className="mt-3 text-sm underline">Retry</button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="p-8">
-      {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Owners</h1>
-          <p className="text-gray-600 mt-1">{owners.length} total owners</p>
+          <p className="text-gray-600 mt-1">{total} total owners</p>
         </div>
-        <div className="flex items-center gap-3">
-          <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-            <Download className="h-4 w-4" />
-            Export
-          </button>
-        </div>
+        <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm">
+          <Download className="h-4 w-4" />
+          Export
+        </button>
       </div>
 
-      {/* Search and Filter */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 mb-6">
         <div className="p-4 flex items-center gap-4">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
             <input
               type="text"
-              placeholder="Search by name, email, or company..."
+              placeholder="Search by name, email, or business..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => { setSearchTerm(e.target.value); setPage(1) }}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
             />
           </div>
-          <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+          <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm">
             <Filter className="h-4 w-4" />
             Filters
           </button>
         </div>
       </div>
 
-      {/* Owners Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Owner
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Company/Venue
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Status
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Events
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Joined
-              </th>
-              <th className="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Actions
-              </th>
+              <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Owner</th>
+              <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Business</th>
+              <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subscription</th>
+              <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Joined</th>
+              <th className="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {filteredOwners.length === 0 ? (
+            {owners.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
-                  {searchTerm ? 'No owners match your search' : 'No owners found'}
+                <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                  {debouncedSearch ? 'No owners match your search' : 'No owners found'}
                 </td>
               </tr>
             ) : (
-              filteredOwners.map((owner) => (
+              owners.map((owner) => (
                 <tr key={owner.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4">
                     <div className="flex items-center">
-                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
                         <span className="text-blue-600 font-medium text-sm">
                           {owner.first_name?.[0]}{owner.last_name?.[0]}
                         </span>
                       </div>
                       <div className="ml-3">
-                        <p className="text-sm font-medium text-gray-900">
-                          {owner.first_name} {owner.last_name}
-                        </p>
+                        <p className="text-sm font-medium text-gray-900">{owner.first_name} {owner.last_name}</p>
                         <p className="text-sm text-gray-500">{owner.email}</p>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    <p className="text-sm text-gray-900">{owner.company_name || '-'}</p>
-                    <p className="text-sm text-gray-500">{owner.venue_name || '-'}</p>
+                  <td className="px-6 py-4 text-sm text-gray-700">
+                    {owner.business_name || <span className="text-gray-400"></span>}
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${getStatusBadge(owner.subscription_status || 'unknown')}`}>
-                      {owner.subscription_status || 'Unknown'}
+                    <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${getStatusBadge(owner.subscription?.subscription_status)}`}>
+                      {owner.subscription?.subscription_status || 'No plan'}
                     </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {owner.events_count || 0}
+                    {owner.subscription?.trial_ends_at && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Trial ends {new Date(owner.subscription.trial_ends_at).toLocaleDateString()}
+                      </p>
+                    )}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">
                     {new Date(owner.created_at).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <div className="relative">
+                    <div className="relative inline-block">
                       <button
                         onClick={() => setSelectedOwner(selectedOwner === owner.id ? null : owner.id)}
                         className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -263,13 +236,6 @@ export default function OwnersPage() {
                           >
                             <Eye className="h-4 w-4" />
                             View Details
-                          </Link>
-                          <Link
-                            href={`/admin/owners/${owner.id}/edit`}
-                            className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                          >
-                            <Edit className="h-4 w-4" />
-                            Edit Owner
                           </Link>
                           <button
                             onClick={() => deleteOwner(owner.id)}
@@ -287,6 +253,31 @@ export default function OwnersPage() {
             )}
           </tbody>
         </table>
+
+        {totalPages > 1 && (
+          <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
+            <p className="text-sm text-gray-600">
+              Showing {((page - 1) * limit) + 1}{Math.min(page * limit, total)} of {total}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="text-sm text-gray-700">Page {page} of {totalPages}</span>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

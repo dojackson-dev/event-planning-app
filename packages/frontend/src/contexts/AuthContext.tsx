@@ -30,7 +30,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (stored && token) {
         const parsed = JSON.parse(stored)
-        console.log('✅ [INIT] Loaded user from localStorage:', parsed.email)
+        // Always force admin role for the admin email regardless of stored value
+        if (parsed.email?.toLowerCase() === 'admin@dovenuesuite.com') {
+          parsed.role = UserRole.ADMIN
+        }
+        console.log('✅ [INIT] Loaded user from localStorage:', parsed.email, 'role:', parsed.role)
         setUser(parsed)
       }
     } catch (e) {
@@ -48,12 +52,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       console.log('✅ [LOGIN] Got response:', supabaseUser.email)
       
+      const ADMIN_EMAIL = 'admin@dovenuesuite.com'
+      const metaRole = (supabaseUser as any).user_metadata?.role
+      const resolvedRole = supabaseUser.email?.toLowerCase() === ADMIN_EMAIL
+        ? UserRole.ADMIN
+        : metaRole || UserRole.OWNER
+
       const newUser: User = {
         id: supabaseUser.id,
         email: supabaseUser.email || '',
         firstName: (supabaseUser as any).user_metadata?.first_name || '',
         lastName: (supabaseUser as any).user_metadata?.last_name || '',
-        role: (supabaseUser as any).user_metadata?.role || 'owner',
+        role: resolvedRole,
         createdAt: (supabaseUser as any).created_at || new Date().toISOString(),
         updatedAt: (supabaseUser as any).updated_at || new Date().toISOString()
       }

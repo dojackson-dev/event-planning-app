@@ -34,7 +34,7 @@ export default function NewEstimatePage() {
   const [terms, setTerms] = useState('This estimate is valid until the expiration date above.')
   const [issueDate, setIssueDate] = useState(new Date().toISOString().split('T')[0])
   const [expirationDate, setExpirationDate] = useState(
-    new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   )
   const [loading, setLoading] = useState(false)
 
@@ -46,7 +46,20 @@ export default function NewEstimatePage() {
   const fetchBookings = async () => {
     try {
       const res = await api.get<Booking[]>('/bookings')
-      setBookings(res.data)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const active = res.data.filter((b) => {
+        // Remove cancelled bookings
+        if (b.clientStatus === 'cancelled' || b.status === 'cancelled') return false
+        // Remove bookings where event date has already passed
+        if (b.event?.date) {
+          const [y, m, d] = b.event.date.split('-').map(Number)
+          const eventDate = new Date(y, m - 1, d)
+          if (eventDate < today) return false
+        }
+        return true
+      })
+      setBookings(active)
     } catch (err) {
       console.error('Failed to fetch bookings:', err)
     }
@@ -191,7 +204,9 @@ export default function NewEstimatePage() {
             <option value="">-- No booking --</option>
             {bookings.map(b => (
               <option key={b.id} value={b.id}>
-                {(b as any).event?.name || 'Event'}
+                {b.user ? `${b.user.firstName} ${b.user.lastName}` : 'Customer'}
+                {b.event?.name ? ` — ${b.event.name}` : ''}
+                {b.event?.date ? ` (${b.event.date})` : ''}
               </option>
             ))}
           </select>

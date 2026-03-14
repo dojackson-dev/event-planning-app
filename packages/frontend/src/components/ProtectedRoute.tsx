@@ -5,14 +5,21 @@
 const BYPASS_AUTH = true
 
 import { useAuth } from '@/contexts/AuthContext'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { useEffect } from 'react'
 
 export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user } = useAuth()
   const router = useRouter()
+  const pathname = usePathname()
 
   useEffect(() => {
+    // Redirect admin users away from /dashboard to /admin
+    if (user?.role === 'admin' && pathname?.startsWith('/dashboard')) {
+      router.push('/admin')
+      return
+    }
+
     // Skip auth check when bypassed
     if (BYPASS_AUTH) return
     
@@ -24,10 +31,14 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
     } else {
       console.log('✅ [PROTECTED] Authenticated - allowing access')
     }
-  }, [isAuthenticated, router, user])
+  }, [isAuthenticated, router, user, pathname])
 
   // Bypass authentication for development
   if (BYPASS_AUTH) {
+    // Still redirect admin even when bypassed
+    if (user?.role === 'admin' && typeof window !== 'undefined' && window.location.pathname?.startsWith('/dashboard')) {
+      return null
+    }
     return <>{children}</>
   }
 

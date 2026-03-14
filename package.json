@@ -9,7 +9,7 @@
   "scripts": {
     "install:all": "npm install",
     "build": "npm run build --workspaces",
-    "vercel-build": "cd packages/frontend && npm install && npm run build",
+    "vercel-build": "cd packages/frontend && npm run build",
     "dev": "npm run dev --workspaces",
     "test": "npm run test --workspaces"
   },

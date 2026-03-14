@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { User, AuthResponse, LoginCredentials } from '@/types'
+import { User, AuthResponse, LoginCredentials, UserRole } from '@/types'
 
 interface AuthContextType {
   user: User | null
@@ -78,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await new Promise(r => setTimeout(r, 100))
       
       // Navigate based on role
-      if (newUser.role === 'admin') {
+      if (newUser.role === UserRole.ADMIN) {
         console.log('🚀 [LOGIN] Admin detected - navigating to /admin')
         router.push('/admin')
       } else {

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { Event } from '@/types'
+import { Event, Booking } from '@/types'
 import { 
   format, 
   startOfMonth, 
@@ -20,6 +20,23 @@ import {
 import { ChevronLeft, ChevronRight, CalendarDays, CalendarRange, X, Edit2, Trash2, Clock, MapPin, Users, DollarSign, FileText, AlertCircle, Plus } from 'lucide-react'
 
 type ViewType = 'month' | 'week'
+
+// A unified calendar entry — either a plain Event or a Booking's event
+interface CalendarEntry {
+  id: string
+  name: string
+  date: string
+  startTime?: string
+  endTime?: string
+  status: string
+  venue?: string
+  isBooking: boolean
+  bookingId?: string
+  clientName?: string
+  // Original data for click detail
+  event?: Event
+  booking?: Booking
+}
 
 // Parse date string without timezone conversion (YYYY-MM-DD -> Date at midnight local time)
 const parseLocalDate = (dateString: string): Date => {
@@ -45,9 +62,9 @@ export default function CalendarPage() {
   const router = useRouter()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [viewType, setViewType] = useState<ViewType>('month')
-  const [events, setEvents] = useState<Event[]>([])
+  const [entries, setEntries] = useState<CalendarEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
+  const [selectedEntry, setSelectedEntry] = useState<CalendarEntry | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
@@ -64,15 +81,58 @@ export default function CalendarPage() {
   const [creating, setCreating] = useState(false)
 
   useEffect(() => {
-    fetchEvents()
+    fetchAllEntries()
   }, [currentDate])
 
-  const fetchEvents = async () => {
+  const fetchAllEntries = async () => {
     try {
-      const response = await api.get<Event[]>('/events')
-      setEvents(response.data)
+      const [eventsRes, bookingsRes] = await Promise.allSettled([
+        api.get<Event[]>('/events'),
+        api.get<Booking[]>('/bookings'),
+      ])
+
+      const eventEntries: CalendarEntry[] = eventsRes.status === 'fulfilled'
+        ? eventsRes.value.data.map((ev) => ({
+            id: ev.id,
+            name: ev.name,
+            date: ev.date,
+            startTime: ev.startTime,
+            endTime: ev.endTime,
+            status: ev.status,
+            venue: ev.venue,
+            isBooking: false,
+            event: ev,
+          }))
+        : []
+
+      const bookingEntries: CalendarEntry[] = bookingsRes.status === 'fulfilled'
+        ? bookingsRes.value.data
+            .filter((b) => b.event?.date && b.clientStatus !== 'cancelled' && b.status !== 'cancelled')
+            .map((b) => ({
+              id: `booking-${b.id}`,
+              name: b.event!.name,
+              date: b.event!.date,
+              startTime: b.event?.startTime,
+              endTime: b.event?.endTime,
+              status: b.clientStatus,
+              venue: b.event?.venue,
+              isBooking: true,
+              bookingId: b.id,
+              clientName: b.user ? `${b.user.firstName} ${b.user.lastName}` : undefined,
+              booking: b,
+              event: b.event,
+            }))
+        : []
+
+      // Deduplicate: if a booking's event is already shown as an event entry, skip duplicate
+      const eventIds = new Set(eventEntries.map((e) => e.id))
+      const uniqueBookingEntries = bookingEntries.filter(
+        (be) => !be.event?.id || !eventIds.has(be.event.id)
+      )
+
+      setEntries([...eventEntries, ...uniqueBookingEntries])
     } catch (error) {
-      console.error('Failed to fetch events:', error)
+      console.error('Failed to fetch calendar data:', error)
     } finally {
       setLoading(false)
     }
@@ -94,7 +154,7 @@ export default function CalendarPage() {
   const displayDays = viewType === 'month' ? monthDays : weekDays
 
   const getEventsForDay = (day: Date) => {
-    return events.filter(event => isSameDay(parseLocalDate(event.date), day))
+    return entries.filter(entry => isSameDay(parseLocalDate(entry.date), day))
   }
 
   const previousPeriod = () => {
@@ -121,17 +181,17 @@ export default function CalendarPage() {
     }
   }
 
-  const handleEventClick = (event: Event) => {
-    setSelectedEvent(event)
+  const handleEventClick = (entry: CalendarEntry) => {
+    setSelectedEntry(entry)
   }
 
   const handleDeleteEvent = async () => {
-    if (!selectedEvent) return
+    if (!selectedEntry || selectedEntry.isBooking) return
     setIsDeleting(true)
     try {
-      await api.delete(`/events/${selectedEvent.id}`)
-      setEvents(events.filter(e => e.id !== selectedEvent.id))
-      setSelectedEvent(null)
+      await api.delete(`/events/${selectedEntry.id}`)
+      setEntries(entries.filter(e => e.id !== selectedEntry.id))
+      setSelectedEntry(null)
       setShowDeleteConfirm(false)
       alert('Event deleted successfully')
     } catch (error) {
@@ -143,8 +203,8 @@ export default function CalendarPage() {
   }
 
   const handleEditEvent = () => {
-    if (!selectedEvent) return
-    router.push(`/dashboard/events/${selectedEvent.id}/edit`)
+    if (!selectedEntry || selectedEntry.isBooking) return
+    router.push(`/dashboard/events/${selectedEntry.id}/edit`)
   }
 
   const openCreateModal = (day?: Date) => {
@@ -174,7 +234,18 @@ export default function CalendarPage() {
       if (createDescription) payload.description = createDescription
       if (createGuests) payload.maxGuests = parseInt(createGuests)
       const res = await api.post('/events', payload)
-      setEvents(prev => [...prev, res.data])
+      const newEntry: CalendarEntry = {
+        id: res.data.id,
+        name: res.data.name,
+        date: res.data.date,
+        startTime: res.data.startTime,
+        endTime: res.data.endTime,
+        status: res.data.status,
+        venue: res.data.venue,
+        isBooking: false,
+        event: res.data,
+      }
+      setEntries(prev => [...prev, newEntry])
       setShowCreateModal(false)
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to create event')
@@ -184,7 +255,7 @@ export default function CalendarPage() {
   }
 
   const closeModal = () => {
-    setSelectedEvent(null)
+    setSelectedEntry(null)
     setShowDeleteConfirm(false)
   }
 
@@ -299,21 +370,24 @@ export default function CalendarPage() {
                     <Plus className="h-3.5 w-3.5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                   <div className="space-y-1 flex-1 overflow-y-auto">
-                    {dayEvents.map((event) => (
+                    {dayEvents.map((entry) => (
                       <div
-                        key={event.id}
-                        onClick={(e) => { e.stopPropagation(); handleEventClick(event) }}
+                        key={entry.id}
+                        onClick={(e) => { e.stopPropagation(); handleEventClick(entry) }}
                         className={`text-xs p-1.5 rounded cursor-pointer hover:shadow-md transition-shadow ${
-                          event.status === 'scheduled'
+                          entry.isBooking
+                            ? 'bg-orange-100 text-orange-800'
+                            : entry.status === 'scheduled'
                             ? 'bg-green-100 text-green-800'
-                            : event.status === 'draft'
+                            : entry.status === 'draft'
                             ? 'bg-gray-100 text-gray-800'
                             : 'bg-blue-100 text-blue-800'
                         }`}
-                        title={`${event.name} - ${formatTime(event.startTime)} to ${formatTime(event.endTime)}`}
+                        title={`${entry.isBooking ? '📅 Booking: ' : ''}${entry.name}${entry.clientName ? ` — ${entry.clientName}` : ''} | ${formatTime(entry.startTime)} to ${formatTime(entry.endTime)}`}
                       >
-                        <div className="font-medium truncate">{formatTime(event.startTime)} - {formatTime(event.endTime)}</div>
-                        <div className="truncate">{event.name}</div>
+                        <div className="font-medium truncate">{formatTime(entry.startTime)} - {formatTime(entry.endTime)}</div>
+                        <div className="truncate">{entry.isBooking ? '📅 ' : ''}{entry.name}</div>
+                        {entry.clientName && <div className="truncate text-xs opacity-75">{entry.clientName}</div>}
                       </div>
                     ))}
                   </div>
@@ -337,6 +411,10 @@ export default function CalendarPage() {
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 bg-blue-100 rounded"></div>
           <span>Completed</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 bg-orange-100 rounded"></div>
+          <span>Booking / Appointment</span>
         </div>
       </div>
 
@@ -454,12 +532,20 @@ export default function CalendarPage() {
         </div>
       )}
 
-      {/* Event Details Modal */}
-      {selectedEvent && !showDeleteConfirm && (
+      {/* Entry Details Modal */}
+      {selectedEntry && !showDeleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-start p-6 border-b sticky top-0 bg-white">
-              <h2 className="text-xl font-bold text-gray-900">{selectedEvent.name}</h2>
+              <div>
+                {selectedEntry.isBooking && (
+                  <span className="inline-block text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full mb-1">📅 Booking</span>
+                )}
+                <h2 className="text-xl font-bold text-gray-900">{selectedEntry.name}</h2>
+                {selectedEntry.clientName && (
+                  <p className="text-sm text-gray-500 mt-0.5">Client: {selectedEntry.clientName}</p>
+                )}
+              </div>
               <button onClick={closeModal} className="text-gray-500 hover:text-gray-700">
                 <X className="h-6 w-6" />
               </button>
@@ -471,7 +557,7 @@ export default function CalendarPage() {
                 <CalendarDays className="h-5 w-5 text-primary-600 mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase">Date</p>
-                  <p className="text-base font-semibold text-gray-900">{format(parseLocalDate(selectedEvent.date), 'PPP')}</p>
+                  <p className="text-base font-semibold text-gray-900">{format(parseLocalDate(selectedEntry.date), 'PPP')}</p>
                 </div>
               </div>
               
@@ -483,11 +569,11 @@ export default function CalendarPage() {
                   <div className="flex gap-4">
                     <div className="flex-1">
                       <p className="text-sm text-gray-600">Start</p>
-                      <p className="text-base font-semibold text-gray-900">{formatTime(selectedEvent.startTime)}</p>
+                      <p className="text-base font-semibold text-gray-900">{formatTime(selectedEntry.startTime)}</p>
                     </div>
                     <div className="flex-1">
                       <p className="text-sm text-gray-600">End</p>
-                      <p className="text-base font-semibold text-gray-900">{formatTime(selectedEvent.endTime)}</p>
+                      <p className="text-base font-semibold text-gray-900">{formatTime(selectedEntry.endTime)}</p>
                     </div>
                   </div>
                 </div>
@@ -498,70 +584,68 @@ export default function CalendarPage() {
                 <MapPin className="h-5 w-5 text-primary-600 mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase">Venue</p>
-                  <p className="text-base font-semibold text-gray-900">{selectedEvent.venue || 'Not specified'}</p>
-                </div>
-              </div>
-              
-              {/* Max Guests */}
-              <div className="flex items-start gap-3 pb-4 border-b">
-                <Users className="h-5 w-5 text-primary-600 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-xs font-medium text-gray-500 uppercase">Max Guests</p>
-                  <p className="text-base font-semibold text-gray-900">{selectedEvent.maxGuests ? `${selectedEvent.maxGuests} guests` : 'Not specified'}</p>
+                  <p className="text-base font-semibold text-gray-900">{selectedEntry.venue || 'Not specified'}</p>
                 </div>
               </div>
 
-              {/* Location */}
-              {selectedEvent.location && (
-                <div className="flex items-start gap-3 pb-4 border-b">
-                  <MapPin className="h-5 w-5 text-primary-600 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs font-medium text-gray-500 uppercase">Location</p>
-                    <p className="text-base font-semibold text-gray-900">{selectedEvent.location}</p>
-                  </div>
-                </div>
+              {/* Event details (only for plain events) */}
+              {!selectedEntry.isBooking && selectedEntry.event && (
+                <>
+                  {(selectedEntry.event as Event).maxGuests && (
+                    <div className="flex items-start gap-3 pb-4 border-b">
+                      <Users className="h-5 w-5 text-primary-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 uppercase">Max Guests</p>
+                        <p className="text-base font-semibold text-gray-900">{(selectedEntry.event as Event).maxGuests} guests</p>
+                      </div>
+                    </div>
+                  )}
+                  {(selectedEntry.event as Event).budget && (
+                    <div className="flex items-start gap-3 pb-4 border-b">
+                      <DollarSign className="h-5 w-5 text-primary-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 uppercase">Budget</p>
+                        <p className="text-base font-semibold text-gray-900">${(selectedEntry.event as Event).budget!.toLocaleString()}</p>
+                      </div>
+                    </div>
+                  )}
+                  {(selectedEntry.event as Event).description && (
+                    <div className="flex items-start gap-3 pb-4 border-b">
+                      <FileText className="h-5 w-5 text-primary-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 uppercase">Description</p>
+                        <p className="text-base text-gray-900">{(selectedEntry.event as Event).description}</p>
+                      </div>
+                    </div>
+                  )}
+                  {(selectedEntry.event as Event).notes && (
+                    <div className="flex items-start gap-3 pb-4 border-b">
+                      <FileText className="h-5 w-5 text-primary-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 uppercase">Notes</p>
+                        <p className="text-base text-gray-900">{(selectedEntry.event as Event).notes}</p>
+                      </div>
+                    </div>
+                  )}
+                  {(selectedEntry.event as Event).specialRequirements && (
+                    <div className="flex items-start gap-3 pb-4 border-b">
+                      <AlertCircle className="h-5 w-5 text-primary-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 uppercase">Special Requirements</p>
+                        <p className="text-base text-gray-900">{(selectedEntry.event as Event).specialRequirements}</p>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
 
-              {/* Budget */}
-              {selectedEvent.budget && (
-                <div className="flex items-start gap-3 pb-4 border-b">
-                  <DollarSign className="h-5 w-5 text-primary-600 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs font-medium text-gray-500 uppercase">Budget</p>
-                    <p className="text-base font-semibold text-gray-900">${selectedEvent.budget.toLocaleString()}</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Description */}
-              {selectedEvent.description && (
+              {/* Booking-specific info */}
+              {selectedEntry.isBooking && selectedEntry.booking && (
                 <div className="flex items-start gap-3 pb-4 border-b">
                   <FileText className="h-5 w-5 text-primary-600 mt-0.5 flex-shrink-0" />
                   <div>
-                    <p className="text-xs font-medium text-gray-500 uppercase">Description</p>
-                    <p className="text-base text-gray-900">{selectedEvent.description}</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Notes */}
-              {selectedEvent.notes && (
-                <div className="flex items-start gap-3 pb-4 border-b">
-                  <FileText className="h-5 w-5 text-primary-600 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs font-medium text-gray-500 uppercase">Notes</p>
-                    <p className="text-base text-gray-900">{selectedEvent.notes}</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Special Requirements */}
-              {selectedEvent.specialRequirements && (
-                <div className="flex items-start gap-3 pb-4 border-b">
-                  <AlertCircle className="h-5 w-5 text-primary-600 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs font-medium text-gray-500 uppercase">Special Requirements</p>
-                    <p className="text-base text-gray-900">{selectedEvent.specialRequirements}</p>
+                    <p className="text-xs font-medium text-gray-500 uppercase">Booking Status</p>
+                    <p className="text-base font-semibold text-gray-900 capitalize">{selectedEntry.booking.clientStatus?.replace(/_/g, ' ')}</p>
                   </div>
                 </div>
               )}
@@ -570,45 +654,59 @@ export default function CalendarPage() {
               <div>
                 <p className="text-xs font-medium text-gray-500 uppercase mb-2">Status</p>
                 <span className={`inline-block px-3 py-1.5 rounded-full text-sm font-semibold ${
-                  selectedEvent.status === 'scheduled'
+                  selectedEntry.isBooking
+                    ? 'bg-orange-100 text-orange-800'
+                    : selectedEntry.status === 'scheduled'
                     ? 'bg-green-100 text-green-800'
-                    : selectedEvent.status === 'draft'
+                    : selectedEntry.status === 'draft'
                     ? 'bg-gray-100 text-gray-800'
                     : 'bg-blue-100 text-blue-800'
                 }`}>
-                  {selectedEvent.status.charAt(0).toUpperCase() + selectedEvent.status.slice(1)}
+                  {selectedEntry.status.charAt(0).toUpperCase() + selectedEntry.status.slice(1).replace(/_/g, ' ')}
                 </span>
               </div>
             </div>
             
             <div className="flex gap-3 p-6 border-t bg-gray-50 sticky bottom-0">
-              <button
-                onClick={handleEditEvent}
-                className="flex-1 inline-flex items-center justify-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-              >
-                <Edit2 className="h-4 w-4 mr-2" />
-                Edit
-              </button>
-              <button
-                onClick={() => setShowDeleteConfirm(true)}
-                className="flex-1 inline-flex items-center justify-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete
-              </button>
+              {selectedEntry.isBooking ? (
+                <button
+                  onClick={() => { closeModal(); router.push(`/dashboard/bookings/${selectedEntry.bookingId}`) }}
+                  className="flex-1 inline-flex items-center justify-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                >
+                  <Edit2 className="h-4 w-4 mr-2" />
+                  View Booking
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={handleEditEvent}
+                    className="flex-1 inline-flex items-center justify-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                  >
+                    <Edit2 className="h-4 w-4 mr-2" />
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="flex-1 inline-flex items-center justify-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
       )}
 
       {/* Delete Confirmation Modal */}
-      {selectedEvent && showDeleteConfirm && (
+      {selectedEntry && showDeleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-sm w-full">
             <div className="p-6">
               <h2 className="text-lg font-bold text-gray-900 mb-4">Delete Event?</h2>
               <p className="text-gray-600 mb-6">
-                Are you sure you want to delete <strong>{selectedEvent.name}</strong>? This action cannot be undone.
+                Are you sure you want to delete <strong>{selectedEntry.name}</strong>? This action cannot be undone.
               </p>
               
               <div className="flex gap-3">

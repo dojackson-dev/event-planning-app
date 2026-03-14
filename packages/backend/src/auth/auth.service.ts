@@ -110,12 +110,14 @@ export class AuthService {
 
   async updateProfile(accessToken: string, updateProfileDto: UpdateProfileDto) {
     const supabase = this.supabaseService.setAuthContext(accessToken);
-    
-    // Get current user
+
+    // Verify token and get current user via getUser (works with just Authorization header)
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError) {
       throw new UnauthorizedException(userError.message);
     }
+
+    const userId = userData.user.id;
 
     // Build update data for auth metadata
     const updateData: any = {};
@@ -129,29 +131,31 @@ export class AuthService {
       updateData.phone = updateProfileDto.phone;
     }
 
-    // Update auth user metadata
-    const { data, error } = await supabase.auth.updateUser({
-      data: updateData,
-      ...(updateProfileDto.email && updateProfileDto.email !== userData.user.email 
-        ? { email: updateProfileDto.email } 
-        : {}),
-    });
+    // Use admin client to update user — avoids "Auth session missing" error
+    // that occurs when calling updateUser() with only a Bearer token (no active session)
+    const adminSupabase = this.supabaseService.getAdminClient();
+    const updatePayload: any = { data: updateData };
+    if (updateProfileDto.email && updateProfileDto.email !== userData.user.email) {
+      updatePayload.email = updateProfileDto.email;
+    }
+
+    const { data, error } = await adminSupabase.auth.admin.updateUserById(userId, updatePayload);
 
     if (error) {
       throw new BadRequestException(error.message);
     }
 
-    // Also update users table if it exists
-    const { error: dbError } = await supabase
+    // Also update users table
+    const { error: dbError } = await adminSupabase
       .from('users')
       .update({
         first_name: updateProfileDto.firstName,
         last_name: updateProfileDto.lastName,
-        email: updateProfileDto.email,
+        ...(updateProfileDto.email ? { email: updateProfileDto.email } : {}),
         phone: updateProfileDto.phone,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', userData.user.id);
+      .eq('id', userId);
 
     if (dbError) {
       console.warn('Failed to update users table:', dbError.message);
@@ -173,8 +177,8 @@ export class AuthService {
     }
 
     // Verify current password by attempting to sign in
-    const adminSupabase = this.supabaseService.getClient();
-    const { error: verifyError } = await adminSupabase.auth.signInWithPassword({
+    const anonSupabase = this.supabaseService.getClient();
+    const { error: verifyError } = await anonSupabase.auth.signInWithPassword({
       email: userData.user.email!,
       password: changePasswordDto.currentPassword,
     });
@@ -183,8 +187,9 @@ export class AuthService {
       throw new BadRequestException('Current password is incorrect');
     }
 
-    // Update password
-    const { error } = await supabase.auth.updateUser({
+    // Update password using admin client to avoid "Auth session missing" error
+    const adminSupabase = this.supabaseService.getAdminClient();
+    const { error } = await adminSupabase.auth.admin.updateUserById(userData.user.id, {
       password: changePasswordDto.newPassword,
     });
 

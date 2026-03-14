@@ -250,3 +250,4 @@ export class StripeController {
     const url = await this.stripeService.createInvoicePaymentLink(invoiceId, amountCents, description, userId);
     return { url };
   }
+}

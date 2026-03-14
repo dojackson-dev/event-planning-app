@@ -112,6 +112,12 @@ export default function LoginPage() {
               </Link>
             </p>
           </div>
+
+          <div className="text-center">
+            <Link href="/admin-login" className="text-xs text-gray-400 hover:text-gray-500">
+              Admin Portal
+            </Link>
+          </div>
         </form>
       </div>
     </div>

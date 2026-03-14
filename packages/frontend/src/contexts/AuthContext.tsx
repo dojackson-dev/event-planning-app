@@ -77,9 +77,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Wait a moment
       await new Promise(r => setTimeout(r, 100))
       
-      // Navigate - the key is that localStorage already has the data
-      console.log('🚀 [LOGIN] Navigating to /dashboard')
-      router.push('/dashboard')
+      // Navigate based on role
+      if (newUser.role === 'admin') {
+        console.log('🚀 [LOGIN] Admin detected - navigating to /admin')
+        router.push('/admin')
+      } else {
+        console.log('🚀 [LOGIN] Navigating to /dashboard')
+        router.push('/dashboard')
+      }
       
     } catch (error: any) {
       console.error('❌ [LOGIN] Error:', error?.response?.data?.message || error?.message)

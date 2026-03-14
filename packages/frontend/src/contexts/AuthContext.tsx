@@ -34,6 +34,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (parsed.email?.toLowerCase() === 'admin@dovenuesuite.com') {
           parsed.role = UserRole.ADMIN
         }
+        // Always force vendor role for the vendor email regardless of stored value
+        if (parsed.email?.toLowerCase() === 'larry@curesicklecell.org') {
+          parsed.role = UserRole.VENDOR
+        }
         console.log('✅ [INIT] Loaded user from localStorage:', parsed.email, 'role:', parsed.role)
         setUser(parsed)
       }
@@ -53,9 +57,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('✅ [LOGIN] Got response:', supabaseUser.email)
       
       const ADMIN_EMAIL = 'admin@dovenuesuite.com'
+      const VENDOR_EMAIL = 'larry@curesicklecell.org'
       const metaRole = (supabaseUser as any).user_metadata?.role
       const resolvedRole = supabaseUser.email?.toLowerCase() === ADMIN_EMAIL
         ? UserRole.ADMIN
+        : supabaseUser.email?.toLowerCase() === VENDOR_EMAIL
+        ? UserRole.VENDOR
         : metaRole || UserRole.OWNER
 
       const newUser: User = {

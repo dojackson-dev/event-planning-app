@@ -376,7 +376,7 @@ export default function CalendarPage() {
                         onClick={(e) => { e.stopPropagation(); handleEventClick(entry) }}
                         className={`text-xs p-1.5 rounded cursor-pointer hover:shadow-md transition-shadow ${
                           entry.isBooking
-                            ? 'bg-purple-100 text-purple-800'
+                            ? 'bg-orange-100 text-orange-800'
                             : entry.status === 'scheduled'
                             ? 'bg-green-100 text-green-800'
                             : entry.status === 'draft'
@@ -413,7 +413,7 @@ export default function CalendarPage() {
           <span>Completed</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-purple-100 rounded"></div>
+          <div className="w-4 h-4 bg-orange-100 rounded"></div>
           <span>Booking / Appointment</span>
         </div>
       </div>
@@ -539,7 +539,7 @@ export default function CalendarPage() {
             <div className="flex justify-between items-start p-6 border-b sticky top-0 bg-white">
               <div>
                 {selectedEntry.isBooking && (
-                  <span className="inline-block text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full mb-1">📅 Booking</span>
+                  <span className="inline-block text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full mb-1">📅 Booking</span>
                 )}
                 <h2 className="text-xl font-bold text-gray-900">{selectedEntry.name}</h2>
                 {selectedEntry.clientName && (
@@ -655,7 +655,7 @@ export default function CalendarPage() {
                 <p className="text-xs font-medium text-gray-500 uppercase mb-2">Status</p>
                 <span className={`inline-block px-3 py-1.5 rounded-full text-sm font-semibold ${
                   selectedEntry.isBooking
-                    ? 'bg-purple-100 text-purple-800'
+                    ? 'bg-orange-100 text-orange-800'
                     : selectedEntry.status === 'scheduled'
                     ? 'bg-green-100 text-green-800'
                     : selectedEntry.status === 'draft'

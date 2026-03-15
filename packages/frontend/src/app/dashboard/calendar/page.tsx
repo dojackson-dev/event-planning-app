@@ -32,8 +32,14 @@ interface CalendarEntry {
   venue?: string
   isBooking: boolean
   isIntakeForm?: boolean
+  isAppointment?: boolean
   bookingId?: string
+  appointmentId?: string
   clientName?: string
+  clientEmail?: string
+  clientPhone?: string
+  durationMinutes?: number
+  notes?: string
   intakeFormId?: string
   // Original data for click detail
   event?: Event
@@ -78,6 +84,17 @@ export default function CalendarPage() {
   const [createEnd, setCreateEnd] = useState('17:00')
   const [createVenue, setCreateVenue] = useState('')
   const [createDescription, setCreateDescription] = useState('')
+
+  // Schedule appointment modal (from calendar)
+  const [showApptModal, setShowApptModal] = useState(false)
+  const [apptClientName, setApptClientName] = useState('')
+  const [apptClientEmail, setApptClientEmail] = useState('')
+  const [apptClientPhone, setApptClientPhone] = useState('')
+  const [apptDate, setApptDate] = useState('')
+  const [apptTime, setApptTime] = useState('10:00')
+  const [apptDuration, setApptDuration] = useState('60')
+  const [apptNotes, setApptNotes] = useState('')
+  const [creatingAppt, setCreatingAppt] = useState(false)
   const [createGuests, setCreateGuests] = useState('')
   const [createStatus, setCreateStatus] = useState<'draft' | 'scheduled'>('scheduled')
   const [creating, setCreating] = useState(false)
@@ -88,10 +105,11 @@ export default function CalendarPage() {
 
   const fetchAllEntries = async () => {
     try {
-      const [eventsRes, bookingsRes, intakeRes] = await Promise.allSettled([
+      const [eventsRes, bookingsRes, intakeRes, apptRes] = await Promise.allSettled([
         api.get<Event[]>('/events'),
         api.get<Booking[]>('/bookings'),
         api.get<any[]>('/intake-forms'),
+        api.get<any[]>('/appointments'),
       ])
 
       // Debug logs — visible in browser console
@@ -105,6 +123,9 @@ export default function CalendarPage() {
       }
       if (intakeRes.status === 'fulfilled') {
         console.log('[Calendar] intake forms loaded:', intakeRes.value.data.length)
+      }
+      if (apptRes.status === 'fulfilled') {
+        console.log('[Calendar] appointments loaded:', apptRes.value.data.length)
       }
 
       const eventEntries: CalendarEntry[] = eventsRes.status === 'fulfilled'
@@ -180,7 +201,30 @@ export default function CalendarPage() {
       )
       const unbookedEventEntries = eventEntries.filter((e) => !bookedEventIds.has(e.id))
 
-      setEntries([...unbookedEventEntries, ...bookingEntries, ...intakeEntries])
+      // Appointments (scheduled walkthroughs/meetings with clients)
+      const appointmentEntries: CalendarEntry[] = apptRes.status === 'fulfilled'
+        ? apptRes.value.data
+            .filter((a: any) => a.appointment_date && a.status !== 'cancelled')
+            .map((a: any) => ({
+              id: `appt-${a.id}`,
+              name: `📌 ${a.client_name}`,
+              date: a.appointment_date,
+              startTime: a.appointment_time,
+              endTime: undefined,
+              status: a.status,
+              venue: undefined,
+              isBooking: false,
+              isAppointment: true,
+              appointmentId: a.id,
+              clientName: a.client_name,
+              clientEmail: a.client_email,
+              clientPhone: a.client_phone,
+              durationMinutes: a.duration_minutes,
+              notes: a.notes,
+            }))
+        : []
+
+      setEntries([...unbookedEventEntries, ...bookingEntries, ...intakeEntries, ...appointmentEntries])
     } catch (error) {
       console.error('Failed to fetch calendar data:', error)
     } finally {
@@ -309,6 +353,56 @@ export default function CalendarPage() {
     setShowDeleteConfirm(false)
   }
 
+  const openApptModal = (day?: Date) => {
+    setApptDate(day ? format(day, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'))
+    setApptClientName('')
+    setApptClientEmail('')
+    setApptClientPhone('')
+    setApptTime('10:00')
+    setApptDuration('60')
+    setApptNotes('')
+    setShowApptModal(true)
+  }
+
+  const handleScheduleAppointment = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!apptClientName || !apptDate || !apptTime) return
+    setCreatingAppt(true)
+    try {
+      const res = await api.post('/appointments', {
+        client_name: apptClientName,
+        client_email: apptClientEmail || null,
+        client_phone: apptClientPhone || null,
+        appointment_date: apptDate,
+        appointment_time: apptTime,
+        duration_minutes: parseInt(apptDuration) || 60,
+        notes: apptNotes || null,
+        status: 'scheduled',
+      })
+      const newEntry: CalendarEntry = {
+        id: `appt-${res.data.id}`,
+        name: `📌 ${res.data.client_name}`,
+        date: res.data.appointment_date,
+        startTime: res.data.appointment_time,
+        status: res.data.status,
+        isBooking: false,
+        isAppointment: true,
+        appointmentId: res.data.id,
+        clientName: res.data.client_name,
+        clientEmail: res.data.client_email,
+        clientPhone: res.data.client_phone,
+        durationMinutes: res.data.duration_minutes,
+        notes: res.data.notes,
+      }
+      setEntries(prev => [...prev, newEntry])
+      setShowApptModal(false)
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to schedule appointment')
+    } finally {
+      setCreatingAppt(false)
+    }
+  }
+
   if (loading) {
     return <div>Loading calendar...</div>
   }
@@ -319,13 +413,22 @@ export default function CalendarPage() {
         {/* Title */}
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Calendar</h1>
-          <button
-            onClick={() => openCreateModal()}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium"
-          >
-            <Plus className="h-4 w-4" />
-            New Event
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => openApptModal()}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm font-medium"
+            >
+              <Clock className="h-4 w-4" />
+              Schedule Appt
+            </button>
+            <button
+              onClick={() => openCreateModal()}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium"
+            >
+              <Plus className="h-4 w-4" />
+              New Event
+            </button>
+          </div>
         </div>
         
         {/* View Toggle - Centered */}
@@ -425,7 +528,9 @@ export default function CalendarPage() {
                         key={entry.id}
                         onClick={(e) => { e.stopPropagation(); handleEventClick(entry) }}
                         className={`text-xs p-1.5 rounded cursor-pointer hover:shadow-md transition-shadow ${
-                          entry.isIntakeForm
+                          entry.isAppointment
+                            ? 'bg-teal-100 text-teal-800 border border-teal-300'
+                            : entry.isIntakeForm
                             ? 'bg-purple-100 text-purple-800 border border-purple-300'
                             : entry.isBooking
                             ? 'bg-orange-100 text-orange-800'
@@ -435,11 +540,11 @@ export default function CalendarPage() {
                             ? 'bg-amber-100 text-amber-800 border border-amber-300'
                             : 'bg-blue-100 text-blue-800'
                         }`}
-                        title={`${entry.isIntakeForm ? '📋 Inquiry: ' : entry.isBooking ? '📅 Booking: ' : ''}${entry.name}${entry.clientName ? ` — ${entry.clientName}` : ''} | ${formatTime(entry.startTime)} to ${formatTime(entry.endTime)}`}
+                        title={`${entry.isAppointment ? '📌 Appointment: ' : entry.isIntakeForm ? '📋 Inquiry: ' : entry.isBooking ? '📅 Booking: ' : ''}${entry.clientName || entry.name}${entry.clientName && !entry.isAppointment ? ` — ${entry.name}` : ''} | ${formatTime(entry.startTime)}${entry.durationMinutes ? ` (${entry.durationMinutes}min)` : entry.endTime ? ` to ${formatTime(entry.endTime)}` : ''}`}
                       >
-                        <div className="font-medium truncate">{formatTime(entry.startTime)}{entry.endTime ? ` - ${formatTime(entry.endTime)}` : ''}</div>
+                        <div className="font-medium truncate">{formatTime(entry.startTime)}{entry.durationMinutes ? ` (${entry.durationMinutes}m)` : entry.endTime ? ` - ${formatTime(entry.endTime)}` : ''}</div>
                         <div className="truncate">{entry.isIntakeForm ? '📋 ' : entry.isBooking ? '📅 ' : ''}{entry.name}</div>
-                        {entry.clientName && <div className="truncate text-xs opacity-75">{entry.clientName}</div>}
+                        {entry.clientName && !entry.isAppointment && <div className="truncate text-xs opacity-75">{entry.clientName}</div>}
                       </div>
                     ))}
                   </div>
@@ -472,7 +577,120 @@ export default function CalendarPage() {
           <div className="w-4 h-4 bg-purple-100 border border-purple-300 rounded"></div>
           <span>Inquiry (New)</span>
         </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 bg-teal-100 border border-teal-300 rounded"></div>
+          <span>Appointment</span>
+        </div>
       </div>
+
+      {/* Schedule Appointment Modal */}
+      {showApptModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center p-6 border-b">
+              <h2 className="text-xl font-bold text-gray-900">Schedule Appointment</h2>
+              <button onClick={() => setShowApptModal(false)} className="text-gray-500 hover:text-gray-700">
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <form onSubmit={handleScheduleAppointment} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Client Name *</label>
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  value={apptClientName}
+                  onChange={e => setApptClientName(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  placeholder="e.g. Jane Smith"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Client Email</label>
+                <input
+                  type="email"
+                  value={apptClientEmail}
+                  onChange={e => setApptClientEmail(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  placeholder="jane@example.com"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Client Phone</label>
+                <input
+                  type="tel"
+                  value={apptClientPhone}
+                  onChange={e => setApptClientPhone(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  placeholder="(555) 555-5555"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
+                <input
+                  type="date"
+                  required
+                  value={apptDate}
+                  onChange={e => setApptDate(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Time *</label>
+                  <input
+                    type="time"
+                    required
+                    value={apptTime}
+                    onChange={e => setApptTime(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Duration</label>
+                  <select
+                    value={apptDuration}
+                    onChange={e => setApptDuration(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  >
+                    <option value="30">30 min</option>
+                    <option value="60">1 hour</option>
+                    <option value="90">1.5 hours</option>
+                    <option value="120">2 hours</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                <textarea
+                  rows={2}
+                  value={apptNotes}
+                  onChange={e => setApptNotes(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
+                  placeholder="Venue walkthrough, tasting, etc."
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowApptModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creatingAppt}
+                  className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 font-medium"
+                >
+                  {creatingAppt ? 'Scheduling...' : 'Schedule'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Create Event Modal */}
       {showCreateModal && (
@@ -594,11 +812,17 @@ export default function CalendarPage() {
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-start p-6 border-b sticky top-0 bg-white">
               <div>
+                {selectedEntry.isAppointment && (
+                  <span className="inline-block text-xs bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full mb-1">📌 Appointment</span>
+                )}
                 {selectedEntry.isBooking && (
                   <span className="inline-block text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full mb-1">📅 Booking</span>
                 )}
-                <h2 className="text-xl font-bold text-gray-900">{selectedEntry.name}</h2>
-                {selectedEntry.clientName && (
+                {selectedEntry.isIntakeForm && (
+                  <span className="inline-block text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full mb-1">📋 Inquiry</span>
+                )}
+                <h2 className="text-xl font-bold text-gray-900">{selectedEntry.isAppointment ? selectedEntry.clientName : selectedEntry.name}</h2>
+                {selectedEntry.clientName && !selectedEntry.isAppointment && (
                   <p className="text-sm text-gray-500 mt-0.5">Client: {selectedEntry.clientName}</p>
                 )}
               </div>
@@ -622,18 +846,56 @@ export default function CalendarPage() {
                 <Clock className="h-5 w-5 text-primary-600 mt-0.5 flex-shrink-0" />
                 <div className="w-full">
                   <p className="text-xs font-medium text-gray-500 uppercase mb-2">Time</p>
-                  <div className="flex gap-4">
-                    <div className="flex-1">
-                      <p className="text-sm text-gray-600">Start</p>
-                      <p className="text-base font-semibold text-gray-900">{formatTime(selectedEntry.startTime)}</p>
+                  {selectedEntry.isAppointment ? (
+                    <div className="flex gap-4">
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-600">Start</p>
+                        <p className="text-base font-semibold text-gray-900">{formatTime(selectedEntry.startTime)}</p>
+                      </div>
+                      {selectedEntry.durationMinutes && (
+                        <div className="flex-1">
+                          <p className="text-sm text-gray-600">Duration</p>
+                          <p className="text-base font-semibold text-gray-900">{selectedEntry.durationMinutes} min</p>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex-1">
-                      <p className="text-sm text-gray-600">End</p>
-                      <p className="text-base font-semibold text-gray-900">{formatTime(selectedEntry.endTime)}</p>
+                  ) : (
+                    <div className="flex gap-4">
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-600">Start</p>
+                        <p className="text-base font-semibold text-gray-900">{formatTime(selectedEntry.startTime)}</p>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-600">End</p>
+                        <p className="text-base font-semibold text-gray-900">{formatTime(selectedEntry.endTime)}</p>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
+
+              {/* Appointment contact info */}
+              {selectedEntry.isAppointment && (selectedEntry.clientEmail || selectedEntry.clientPhone) && (
+                <div className="flex items-start gap-3 pb-4 border-b">
+                  <FileText className="h-5 w-5 text-primary-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 uppercase mb-1">Contact</p>
+                    {selectedEntry.clientEmail && <p className="text-sm text-gray-900">{selectedEntry.clientEmail}</p>}
+                    {selectedEntry.clientPhone && <p className="text-sm text-gray-900">{selectedEntry.clientPhone}</p>}
+                  </div>
+                </div>
+              )}
+
+              {/* Appointment notes */}
+              {selectedEntry.isAppointment && selectedEntry.notes && (
+                <div className="flex items-start gap-3 pb-4 border-b">
+                  <FileText className="h-5 w-5 text-primary-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 uppercase">Notes</p>
+                    <p className="text-base text-gray-900">{selectedEntry.notes}</p>
+                  </div>
+                </div>
+              )}
               
               {/* Venue */}
               <div className="flex items-start gap-3 pb-4 border-b">
@@ -710,7 +972,9 @@ export default function CalendarPage() {
               <div>
                 <p className="text-xs font-medium text-gray-500 uppercase mb-2">Status</p>
                 <span className={`inline-block px-3 py-1.5 rounded-full text-sm font-semibold ${
-                  selectedEntry.isBooking
+                  selectedEntry.isAppointment
+                    ? 'bg-teal-100 text-teal-800'
+                    : selectedEntry.isBooking
                     ? 'bg-orange-100 text-orange-800'
                     : selectedEntry.status === 'scheduled'
                     ? 'bg-green-100 text-green-800'
@@ -724,7 +988,14 @@ export default function CalendarPage() {
             </div>
             
             <div className="flex gap-3 p-6 border-t bg-gray-50 sticky bottom-0">
-              {selectedEntry.isBooking ? (
+              {selectedEntry.isAppointment ? (
+                <button
+                  onClick={closeModal}
+                  className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Close
+                </button>
+              ) : selectedEntry.isBooking ? (
                 <button
                   onClick={() => { closeModal(); router.push(`/dashboard/bookings/${selectedEntry.bookingId}`) }}
                   className="flex-1 inline-flex items-center justify-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"

@@ -28,6 +28,8 @@ export function OwnerBrandProvider({ children }: { children: ReactNode }) {
 
   const fetchProfile = async () => {
     if (!user) { setLoading(false); return }
+    // Only fetch owner profile for owner/planner roles
+    if (user.role !== 'owner' && user.role !== 'planner') { setLoading(false); return }
     try {
       const res = await api.get('/owner/profile')
       setLogoUrl(res.data.logoUrl)

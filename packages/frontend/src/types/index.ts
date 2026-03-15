@@ -115,6 +115,7 @@ export interface User {
   firstName: string
   lastName: string
   role: UserRole
+  roles?: UserRole[]       // All roles this user has (multi-role support)
   phone?: string
   ownerId?: string // For customers/planners/staff - references their owner
   tenantId?: string // Only for owners who host their website with us (optional)

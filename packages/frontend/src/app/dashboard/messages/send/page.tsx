@@ -92,7 +92,7 @@ export default function SendMessagePage() {
             recipientName: `${c.firstName} ${c.lastName}`,
             recipientType: 'client' as const,
             userId: c.id,
-            eventId: formData.eventId ? parseInt(formData.eventId) : undefined,
+            eventId: formData.eventId || undefined,
             messageType: formData.messageType,
             content: formData.content,
           })))
@@ -101,7 +101,7 @@ export default function SendMessagePage() {
             recipientPhone: g.phone,
             recipientName: g.name,
             recipientType: 'guest' as const,
-            eventId: formData.eventId ? parseInt(formData.eventId) : undefined,
+            eventId: formData.eventId || undefined,
             messageType: formData.messageType,
             content: formData.content,
           })))
@@ -127,8 +127,8 @@ export default function SendMessagePage() {
           recipientPhone: formData.recipientPhone,
           recipientName: formData.recipientName,
           recipientType: formData.recipientType,
-          userId: formData.userId ? parseInt(formData.userId) : undefined,
-          eventId: formData.eventId ? parseInt(formData.eventId) : undefined,
+          userId: formData.userId || undefined,
+          eventId: formData.eventId || undefined,
           messageType: formData.messageType,
           content: formData.content,
         })

@@ -57,7 +57,8 @@ export class MessagingService {
     skipOptInCheck?: boolean;
   }) {
     // Enforce opt-in for named users (client/guest recipient types)
-    if (!messageData.skipOptInCheck && messageData.userId) {
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!messageData.skipOptInCheck && messageData.userId && UUID_REGEX.test(messageData.userId)) {
       const { data: recipient } = await supabase
         .from('users')
         .select('sms_opt_in')
@@ -78,8 +79,8 @@ export class MessagingService {
         recipient_phone: messageData.recipientPhone,
         recipient_name: messageData.recipientName,
         recipient_type: messageData.recipientType,
-        user_id: messageData.userId || null,
-        event_id: messageData.eventId || null,
+        user_id: messageData.userId && UUID_REGEX.test(messageData.userId) ? messageData.userId : null,
+        event_id: messageData.eventId && UUID_REGEX.test(messageData.eventId) ? messageData.eventId : null,
         message_type: messageData.messageType,
         content: messageData.content,
         status: 'pending',

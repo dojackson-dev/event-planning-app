@@ -37,7 +37,9 @@ export class OwnerController {
       .eq('user_id', userId)
       .maybeSingle();
 
-    if (error) throw new BadRequestException(error.message);
+    if (error) {
+      console.error('[owner/profile] DB error:', error.message);
+    }
 
     return {
       businessName: data?.business_name || '',
@@ -65,7 +67,10 @@ export class OwnerController {
       })
       .eq('user_id', userId);
 
-    if (error) throw new BadRequestException(error.message);
+    if (error) {
+      console.error('[owner/profile] Update error:', error.message);
+      throw new BadRequestException(error.message);
+    }
 
     return { success: true };
   }

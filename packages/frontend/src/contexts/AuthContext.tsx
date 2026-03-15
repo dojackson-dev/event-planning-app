@@ -98,6 +98,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (newUser.role === UserRole.ADMIN) {
         console.log('🚀 [LOGIN] Admin detected - navigating to /admin')
         router.push('/admin')
+      } else if (newUser.role === UserRole.VENDOR) {
+        console.log('🚀 [LOGIN] Vendor detected - navigating to /vendor-portal')
+        router.push('/vendor-portal')
       } else {
         console.log('🚀 [LOGIN] Navigating to /dashboard')
         router.push('/dashboard')

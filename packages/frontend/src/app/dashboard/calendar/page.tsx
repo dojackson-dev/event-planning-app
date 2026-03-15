@@ -91,6 +91,16 @@ export default function CalendarPage() {
         api.get<Booking[]>('/bookings'),
       ])
 
+      // Debug logs — visible in browser console
+      if (eventsRes.status === 'fulfilled') {
+        console.log('[Calendar] events loaded:', eventsRes.value.data.length)
+      } else {
+        console.error('[Calendar] events failed:', eventsRes.reason)
+      }
+      if (bookingsRes.status === 'rejected') {
+        console.error('[Calendar] bookings failed:', bookingsRes.reason)
+      }
+
       const eventEntries: CalendarEntry[] = eventsRes.status === 'fulfilled'
         ? eventsRes.value.data.map((ev) => ({
             id: ev.id,
@@ -380,7 +390,7 @@ export default function CalendarPage() {
                             : entry.status === 'scheduled'
                             ? 'bg-green-100 text-green-800'
                             : entry.status === 'draft'
-                            ? 'bg-gray-100 text-gray-800'
+                            ? 'bg-amber-100 text-amber-800 border border-amber-300'
                             : 'bg-blue-100 text-blue-800'
                         }`}
                         title={`${entry.isBooking ? '📅 Booking: ' : ''}${entry.name}${entry.clientName ? ` — ${entry.clientName}` : ''} | ${formatTime(entry.startTime)} to ${formatTime(entry.endTime)}`}
@@ -405,7 +415,7 @@ export default function CalendarPage() {
           <span>Scheduled</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-gray-100 rounded"></div>
+          <div className="w-4 h-4 bg-amber-100 border border-amber-300 rounded"></div>
           <span>Draft</span>
         </div>
         <div className="flex items-center gap-2">
@@ -659,7 +669,7 @@ export default function CalendarPage() {
                     : selectedEntry.status === 'scheduled'
                     ? 'bg-green-100 text-green-800'
                     : selectedEntry.status === 'draft'
-                    ? 'bg-gray-100 text-gray-800'
+                    ? 'bg-amber-100 text-amber-800'
                     : 'bg-blue-100 text-blue-800'
                 }`}>
                   {selectedEntry.status.charAt(0).toUpperCase() + selectedEntry.status.slice(1).replace(/_/g, ' ')}

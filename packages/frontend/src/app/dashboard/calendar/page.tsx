@@ -31,8 +31,10 @@ interface CalendarEntry {
   status: string
   venue?: string
   isBooking: boolean
+  isIntakeForm?: boolean
   bookingId?: string
   clientName?: string
+  intakeFormId?: string
   // Original data for click detail
   event?: Event
   booking?: Booking
@@ -86,9 +88,10 @@ export default function CalendarPage() {
 
   const fetchAllEntries = async () => {
     try {
-      const [eventsRes, bookingsRes] = await Promise.allSettled([
+      const [eventsRes, bookingsRes, intakeRes] = await Promise.allSettled([
         api.get<Event[]>('/events'),
         api.get<Booking[]>('/bookings'),
+        api.get<any[]>('/intake-forms'),
       ])
 
       // Debug logs — visible in browser console
@@ -99,6 +102,9 @@ export default function CalendarPage() {
       }
       if (bookingsRes.status === 'rejected') {
         console.error('[Calendar] bookings failed:', bookingsRes.reason)
+      }
+      if (intakeRes.status === 'fulfilled') {
+        console.log('[Calendar] intake forms loaded:', intakeRes.value.data.length)
       }
 
       const eventEntries: CalendarEntry[] = eventsRes.status === 'fulfilled'
@@ -147,14 +153,34 @@ export default function CalendarPage() {
             })
         : []
 
+      // Intake form inquiries (new/contacted only — converted ones are already bookings)
+      const intakeEntries: CalendarEntry[] = intakeRes.status === 'fulfilled'
+        ? intakeRes.value.data
+            .filter((f: any) => f.event_date && (f.status === 'new' || f.status === 'contacted'))
+            .map((f: any) => ({
+              id: `intake-${f.id}`,
+              name: f.event_type
+                ? f.event_type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
+                : 'Inquiry',
+              date: f.event_date,
+              startTime: f.event_time,
+              endTime: undefined,
+              status: f.status,
+              venue: undefined,
+              isBooking: false,
+              isIntakeForm: true,
+              intakeFormId: f.id,
+              clientName: f.contact_name,
+            }))
+        : []
+
       // Bookings take priority over plain events for the same event ID
-      // (so client name + orange color shows instead of plain event)
       const bookedEventIds = new Set(
         bookingEntries.map((be) => (be.event as any)?.id).filter(Boolean)
       )
       const unbookedEventEntries = eventEntries.filter((e) => !bookedEventIds.has(e.id))
 
-      setEntries([...unbookedEventEntries, ...bookingEntries])
+      setEntries([...unbookedEventEntries, ...bookingEntries, ...intakeEntries])
     } catch (error) {
       console.error('Failed to fetch calendar data:', error)
     } finally {
@@ -399,7 +425,9 @@ export default function CalendarPage() {
                         key={entry.id}
                         onClick={(e) => { e.stopPropagation(); handleEventClick(entry) }}
                         className={`text-xs p-1.5 rounded cursor-pointer hover:shadow-md transition-shadow ${
-                          entry.isBooking
+                          entry.isIntakeForm
+                            ? 'bg-purple-100 text-purple-800 border border-purple-300'
+                            : entry.isBooking
                             ? 'bg-orange-100 text-orange-800'
                             : entry.status === 'scheduled'
                             ? 'bg-green-100 text-green-800'
@@ -407,10 +435,10 @@ export default function CalendarPage() {
                             ? 'bg-amber-100 text-amber-800 border border-amber-300'
                             : 'bg-blue-100 text-blue-800'
                         }`}
-                        title={`${entry.isBooking ? '📅 Booking: ' : ''}${entry.name}${entry.clientName ? ` — ${entry.clientName}` : ''} | ${formatTime(entry.startTime)} to ${formatTime(entry.endTime)}`}
+                        title={`${entry.isIntakeForm ? '📋 Inquiry: ' : entry.isBooking ? '📅 Booking: ' : ''}${entry.name}${entry.clientName ? ` — ${entry.clientName}` : ''} | ${formatTime(entry.startTime)} to ${formatTime(entry.endTime)}`}
                       >
-                        <div className="font-medium truncate">{formatTime(entry.startTime)} - {formatTime(entry.endTime)}</div>
-                        <div className="truncate">{entry.isBooking ? '📅 ' : ''}{entry.name}</div>
+                        <div className="font-medium truncate">{formatTime(entry.startTime)}{entry.endTime ? ` - ${formatTime(entry.endTime)}` : ''}</div>
+                        <div className="truncate">{entry.isIntakeForm ? '📋 ' : entry.isBooking ? '📅 ' : ''}{entry.name}</div>
                         {entry.clientName && <div className="truncate text-xs opacity-75">{entry.clientName}</div>}
                       </div>
                     ))}
@@ -423,7 +451,7 @@ export default function CalendarPage() {
       </div>
 
       {/* Legend */}
-      <div className="mt-6 flex gap-6 text-sm">
+      <div className="mt-6 flex gap-6 text-sm flex-wrap">
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 bg-green-100 rounded"></div>
           <span>Scheduled</span>
@@ -438,7 +466,11 @@ export default function CalendarPage() {
         </div>
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 bg-orange-100 rounded"></div>
-          <span>Booking / Appointment</span>
+          <span>Booking</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 bg-purple-100 border border-purple-300 rounded"></div>
+          <span>Inquiry (New)</span>
         </div>
       </div>
 

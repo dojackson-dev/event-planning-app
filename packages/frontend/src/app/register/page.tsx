@@ -30,6 +30,8 @@ export default function RegisterPage() {
   const [venueCapacity, setVenueCapacity] = useState('')
   const [venueDescription, setVenueDescription] = useState('')
 
+  const [smsOptIn, setSmsOptIn] = useState(false)
+
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
@@ -65,6 +67,7 @@ export default function RegisterPage() {
         venueEmail: venueEmail || undefined,
         venueCapacity: venueCapacity ? parseInt(venueCapacity, 10) : undefined,
         venueDescription: venueDescription || undefined,
+        smsOptIn,
       })
 
       // Store session tokens so the user is immediately logged in
@@ -157,6 +160,24 @@ export default function RegisterPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                   placeholder="(555) 123-4567"
                 />
+                {phoneNumber && (
+                  <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-2">
+                    <p className="text-xs text-gray-600">
+                      DoVenue Suite sends SMS messages to users who voluntarily opt in through our website or event registration forms. Messages include account notifications, event confirmations, reminders, customer support responses, and occasional event-related announcements. Messages are only sent to users who provide express consent. Message frequency varies. Message and data rates may apply.
+                    </p>
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={smsOptIn}
+                        onChange={e => setSmsOptIn(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <span className="text-xs text-gray-700">
+                        I agree to receive SMS messages from DoVenue Suite at the number provided. Reply <strong>STOP</strong> at any time to unsubscribe. <a href="/privacy-policy" className="text-primary-600 underline" target="_blank">Privacy Policy</a> · <a href="/terms-of-service" className="text-primary-600 underline" target="_blank">Terms</a>
+                      </span>
+                    </label>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>

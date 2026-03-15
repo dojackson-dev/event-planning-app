@@ -1,215 +1,156 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Message } from '../entities/message.entity';
-import { User } from '../entities/user.entity';
-import { Event } from '../entities/event.entity';
-import { TwilioService } from './twilio.service';
+import { SupabaseService } from '../supabase/supabase.service.js';
+import { TwilioService } from './twilio.service.js';
 
 @Injectable()
 export class MessagingService {
   constructor(
-    @InjectRepository(Message)
-    private messageRepository: Repository<Message>,
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
-    @InjectRepository(Event)
-    private eventRepository: Repository<Event>,
+    private supabaseService: SupabaseService,
     private twilioService: TwilioService,
   ) {}
 
-  async findAll(): Promise<Message[]> {
-    return this.messageRepository.find({
-      relations: ['user', 'event'],
-      order: { createdAt: 'DESC' },
-    });
+  async findAll(supabase: any, ownerId: string) {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*, event:events(id, name, date)')
+      .eq('owner_id', ownerId)
+      .order('created_at', { ascending: false });
+    if (error) throw new Error(error.message);
+    return data || [];
   }
 
-  async findByEvent(eventId: string): Promise<Message[]> {
-    return this.messageRepository.find({
-      where: { eventId },
-      relations: ['user', 'event'],
-      order: { createdAt: 'DESC' },
-    });
+  async findByEvent(supabase: any, ownerId: string, eventId: string) {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*, event:events(id, name, date)')
+      .eq('owner_id', ownerId)
+      .eq('event_id', eventId)
+      .order('created_at', { ascending: false });
+    if (error) throw new Error(error.message);
+    return data || [];
   }
 
-  async findByUser(userId: number): Promise<Message[]> {
-    return this.messageRepository.find({
-      where: { userId },
-      relations: ['user', 'event'],
-      order: { createdAt: 'DESC' },
-    });
+  async findOne(supabase: any, ownerId: string, id: string) {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*, event:events(id, name, date)')
+      .eq('owner_id', ownerId)
+      .eq('id', id)
+      .single();
+    if (error) throw new Error(error.message);
+    return data;
   }
 
-  async findOne(id: number): Promise<Message | null> {
-    return this.messageRepository.findOne({
-      where: { id },
-      relations: ['user', 'event'],
-    });
-  }
-
-  async sendMessage(messageData: {
+  async sendMessage(supabase: any, ownerId: string, messageData: {
     recipientPhone: string;
     recipientName: string;
     recipientType: 'client' | 'guest' | 'security' | 'custom';
-    userId?: number;
+    userId?: string;
     eventId?: string;
     messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom';
     content: string;
-  }): Promise<Message> {
-    const message = this.messageRepository.create({
-      ...messageData,
-      status: 'pending',
-    });
+  }) {
+    const { data: savedMessage, error: insertError } = await supabase
+      .from('messages')
+      .insert({
+        owner_id: ownerId,
+        recipient_phone: messageData.recipientPhone,
+        recipient_name: messageData.recipientName,
+        recipient_type: messageData.recipientType,
+        user_id: messageData.userId || null,
+        event_id: messageData.eventId || null,
+        message_type: messageData.messageType,
+        content: messageData.content,
+        status: 'pending',
+      })
+      .select()
+      .single();
 
-    const savedMessage = await this.messageRepository.save(message);
+    if (insertError) throw new Error(insertError.message);
 
     try {
       const result = await this.twilioService.sendSMS(
         messageData.recipientPhone,
         messageData.content,
       );
-
-      savedMessage.status = 'sent';
-      savedMessage.twilioSid = result.sid;
-      savedMessage.sentAt = new Date();
-    } catch (error) {
-      savedMessage.status = 'failed';
-      savedMessage.errorMessage = error.message;
+      const { data: updated } = await supabase
+        .from('messages')
+        .update({ status: 'sent', twilio_sid: result.sid, sent_at: new Date().toISOString() })
+        .eq('id', savedMessage.id)
+        .select()
+        .single();
+      return updated;
+    } catch (err: any) {
+      const { data: updated } = await supabase
+        .from('messages')
+        .update({ status: 'failed', error_message: err.message })
+        .eq('id', savedMessage.id)
+        .select()
+        .single();
+      return updated;
     }
-
-    return this.messageRepository.save(savedMessage);
   }
 
-  async sendBulkMessages(messages: Array<{
-    recipientPhone: string;
-    recipientName: string;
-    recipientType: 'client' | 'guest' | 'security' | 'custom';
-    userId?: number;
-    eventId?: string;
-    messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom';
-    content: string;
-  }>): Promise<Message[]> {
-    const results: Message[] = [];
-
+  async sendBulkMessages(supabase: any, ownerId: string, messages: any[]) {
+    const results = [];
     for (const messageData of messages) {
       try {
-        const message = await this.sendMessage(messageData);
+        const message = await this.sendMessage(supabase, ownerId, messageData);
         results.push(message);
-      } catch (error) {
-        console.error(`Failed to send message to ${messageData.recipientPhone}:`, error);
-        const failedMessage = this.messageRepository.create({
-          ...messageData,
-          status: 'failed',
-          errorMessage: error.message,
-        });
-        results.push(await this.messageRepository.save(failedMessage));
+      } catch (err: any) {
+        console.error(`Failed to send to ${messageData.recipientPhone}:`, err);
       }
     }
-
     return results;
   }
 
-  async sendEventReminder(eventId: string, customMessage?: string): Promise<Message[]> {
-    const event = await this.eventRepository.findOne({
-      where: { id: eventId },
-    });
+  async updateMessageStatus(supabase: any, ownerId: string, id: string) {
+    const { data: message } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('owner_id', ownerId)
+      .eq('id', id)
+      .single();
 
-    if (!event) {
-      throw new Error('Event not found');
-    }
-
-    const owner = await this.userRepository.findOne({
-      where: { id: parseInt(event.ownerId) },
-    });
-
-    const eventDate = new Date(event.date);
-    const message = customMessage || 
-      `Reminder: Your event "${event.name}" is scheduled for ${eventDate.toLocaleDateString()} at ${eventDate.toLocaleTimeString()}. Looking forward to seeing you!`;
-
-    const messagesData: Array<{
-      recipientPhone: string;
-      recipientName: string;
-      recipientType: 'client' | 'guest' | 'security' | 'custom';
-      userId?: number;
-      eventId?: string;
-      messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom';
-      content: string;
-    }> = [];
-
-    // Send to client if phone exists
-    if (owner?.phone) {
-      messagesData.push({
-        recipientPhone: owner.phone,
-        recipientName: `${owner.firstName} ${owner.lastName}`,
-        recipientType: 'client' as const,
-        userId: owner.id,
-        eventId: event.id,
-        messageType: 'reminder' as const,
-        content: message,
-      });
-    }
-
-    return this.sendBulkMessages(messagesData);
-  }
-
-  async sendInvoiceUpdate(userId: number, invoiceId: number, message: string): Promise<Message> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-
-    if (!user) {
-      throw new Error('User not found');
-    }
-
-    if (!user.phone) {
-      throw new Error('User does not have a phone number');
-    }
-
-    return this.sendMessage({
-      recipientPhone: user.phone,
-      recipientName: `${user.firstName} ${user.lastName}`,
-      recipientType: 'client',
-      userId: user.id,
-      messageType: 'invoice',
-      content: message,
-    });
-  }
-
-  async updateMessageStatus(id: number): Promise<Message | null> {
-    const message = await this.messageRepository.findOne({ where: { id } });
-
-    if (!message || !message.twilioSid) {
-      return message;
-    }
+    if (!message || !message.twilio_sid) return message;
 
     try {
-      const status = await this.twilioService.getMessageStatus(message.twilioSid);
-      message.status = status as any;
-      return this.messageRepository.save(message);
-    } catch (error) {
-      console.error('Failed to update message status:', error);
+      const status = await this.twilioService.getMessageStatus(message.twilio_sid);
+      const { data: updated } = await supabase
+        .from('messages')
+        .update({ status })
+        .eq('id', id)
+        .select()
+        .single();
+      return updated;
+    } catch (err) {
+      console.error('Failed to update message status:', err);
       return message;
     }
   }
 
-  async deleteMessage(id: number): Promise<void> {
-    await this.messageRepository.delete(id);
+  async deleteMessage(supabase: any, ownerId: string, id: string) {
+    const { error } = await supabase
+      .from('messages')
+      .delete()
+      .eq('owner_id', ownerId)
+      .eq('id', id);
+    if (error) throw new Error(error.message);
   }
 
-  async getMessageStats(): Promise<{
-    total: number;
-    sent: number;
-    delivered: number;
-    failed: number;
-    pending: number;
-  }> {
-    const [total, sent, delivered, failed, pending] = await Promise.all([
-      this.messageRepository.count(),
-      this.messageRepository.count({ where: { status: 'sent' } }),
-      this.messageRepository.count({ where: { status: 'delivered' } }),
-      this.messageRepository.count({ where: { status: 'failed' } }),
-      this.messageRepository.count({ where: { status: 'pending' } }),
-    ]);
-
-    return { total, sent, delivered, failed, pending };
+  async getMessageStats(supabase: any, ownerId: string) {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('status')
+      .eq('owner_id', ownerId);
+    if (error) throw new Error(error.message);
+    const msgs = data || [];
+    return {
+      total: msgs.length,
+      sent: msgs.filter((m: any) => m.status === 'sent').length,
+      delivered: msgs.filter((m: any) => m.status === 'delivered').length,
+      failed: msgs.filter((m: any) => m.status === 'failed').length,
+      pending: msgs.filter((m: any) => m.status === 'pending').length,
+    };
   }
 }

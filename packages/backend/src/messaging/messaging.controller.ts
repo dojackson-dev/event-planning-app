@@ -1,87 +1,83 @@
-import { Controller, Get, Post, Delete, Body, Param, ParseIntPipe, Query } from '@nestjs/common';
-import { MessagingService } from './messaging.service';
-import { Message } from '../entities/message.entity';
+import { Controller, Get, Post, Delete, Body, Param, Headers, UnauthorizedException, Query } from '@nestjs/common';
+import { MessagingService } from './messaging.service.js';
+import { SupabaseService } from '../supabase/supabase.service.js';
 
 @Controller('messages')
 export class MessagingController {
-  constructor(private readonly messagingService: MessagingService) {}
+  constructor(
+    private readonly messagingService: MessagingService,
+    private readonly supabaseService: SupabaseService,
+  ) {}
+
+  private async getAuth(authHeader: string) {
+    if (!authHeader) throw new UnauthorizedException();
+    const token = authHeader.replace('Bearer ', '');
+    const supabase = this.supabaseService.setAuthContext(token);
+    const { data: { user }, error } = await supabase.auth.getUser();
+    if (error || !user) throw new UnauthorizedException();
+    return { supabase, ownerId: user.id };
+  }
 
   @Get()
   async findAll(
+    @Headers('authorization') authHeader: string,
     @Query('eventId') eventId?: string,
-    @Query('userId') userId?: string,
-  ): Promise<Message[]> {
+  ) {
+    const { supabase, ownerId } = await this.getAuth(authHeader);
     if (eventId) {
-      return this.messagingService.findByEvent(eventId);
+      return this.messagingService.findByEvent(supabase, ownerId, eventId);
     }
-    if (userId) {
-      return this.messagingService.findByUser(parseInt(userId));
-    }
-    return this.messagingService.findAll();
+    return this.messagingService.findAll(supabase, ownerId);
   }
 
   @Get('stats')
-  async getStats() {
-    return this.messagingService.getMessageStats();
+  async getStats(@Headers('authorization') authHeader: string) {
+    const { supabase, ownerId } = await this.getAuth(authHeader);
+    return this.messagingService.getMessageStats(supabase, ownerId);
   }
 
   @Get(':id')
-  async findOne(@Param('id', ParseIntPipe) id: number): Promise<Message | null> {
-    return this.messagingService.findOne(id);
+  async findOne(
+    @Param('id') id: string,
+    @Headers('authorization') authHeader: string,
+  ) {
+    const { supabase, ownerId } = await this.getAuth(authHeader);
+    return this.messagingService.findOne(supabase, ownerId, id);
   }
 
   @Post('send')
-  async sendMessage(@Body() messageData: {
-    recipientPhone: string;
-    recipientName: string;
-    recipientType: 'client' | 'guest' | 'security' | 'custom';
-    userId?: number;
-    eventId?: string;
-    messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom';
-    content: string;
-  }): Promise<Message> {
-    return this.messagingService.sendMessage(messageData);
+  async sendMessage(
+    @Headers('authorization') authHeader: string,
+    @Body() messageData: any,
+  ) {
+    const { supabase, ownerId } = await this.getAuth(authHeader);
+    return this.messagingService.sendMessage(supabase, ownerId, messageData);
   }
 
   @Post('send-bulk')
-  async sendBulkMessages(@Body() data: {
-    messages: Array<{
-      recipientPhone: string;
-      recipientName: string;
-      recipientType: 'client' | 'guest' | 'security' | 'custom';
-      userId?: number;
-      eventId?: string;
-      messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom';
-      content: string;
-    }>;
-  }): Promise<Message[]> {
-    return this.messagingService.sendBulkMessages(data.messages);
-  }
-
-  @Post('event-reminder/:eventId')
-  async sendEventReminder(
-    @Param('eventId') eventId: string,
-    @Body() data?: { message?: string },
-  ): Promise<Message[]> {
-    return this.messagingService.sendEventReminder(eventId, data?.message);
-  }
-
-  @Post('invoice-update/:userId/:invoiceId')
-  async sendInvoiceUpdate(
-    @Param('userId', ParseIntPipe) userId: number,
-    @Param('invoiceId', ParseIntPipe) invoiceId: number,
-    @Body() data: { message: string },
-  ): Promise<Message> {
-    return this.messagingService.sendInvoiceUpdate(userId, invoiceId, data.message);
+  async sendBulkMessages(
+    @Headers('authorization') authHeader: string,
+    @Body() data: { messages: any[] },
+  ) {
+    const { supabase, ownerId } = await this.getAuth(authHeader);
+    return this.messagingService.sendBulkMessages(supabase, ownerId, data.messages);
   }
 
   @Post(':id/refresh-status')
-  async refreshStatus(@Param('id', ParseIntPipe) id: number): Promise<Message | null> {
-    return this.messagingService.updateMessageStatus(id);
+  async refreshStatus(
+    @Param('id') id: string,
+    @Headers('authorization') authHeader: string,
+  ) {
+    const { supabase, ownerId } = await this.getAuth(authHeader);
+    return this.messagingService.updateMessageStatus(supabase, ownerId, id);
   }
 
   @Delete(':id')
-  async delete(@Param('id', ParseIntPipe) id: number): Promise<void> {
-    return this.messagingService.deleteMessage(id);
+  async delete(
+    @Param('id') id: string,
+    @Headers('authorization') authHeader: string,
+  ) {
+    const { supabase, ownerId } = await this.getAuth(authHeader);
+    return this.messagingService.deleteMessage(supabase, ownerId, id);
   }
 }

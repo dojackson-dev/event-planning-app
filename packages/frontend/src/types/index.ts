@@ -116,6 +116,9 @@ export interface User {
   lastName: string
   role: UserRole
   phone?: string
+  smsOptIn?: boolean
+  smsOptInAt?: string
+  smsOptOutAt?: string
   ownerId?: string // For customers/planners/staff - references their owner
   tenantId?: string // Only for owners who host their website with us (optional)
   createdAt: string
@@ -464,7 +467,7 @@ export interface Message {
   user?: User
   eventId?: string
   event?: Event
-  messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom'
+  messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'support' | 'announcement' | 'custom'
   content: string
   status: 'pending' | 'sent' | 'delivered' | 'failed'
   twilioSid?: string
@@ -477,7 +480,7 @@ export interface Message {
 export interface MessageTemplate {
   id: string
   name: string
-  messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom'
+  messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'support' | 'announcement' | 'custom'
   content: string
   isActive: boolean
   sendBeforeDays?: number

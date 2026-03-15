@@ -17,7 +17,7 @@ export default function SendMessagePage() {
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     recipientType: 'client' as 'client' | 'guest' | 'security' | 'custom',
-    messageType: 'reminder' as 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom',
+    messageType: 'confirmation' as 'reminder' | 'invoice' | 'confirmation' | 'update' | 'support' | 'announcement' | 'custom',
     userId: '',
     eventId: '',
     recipientPhone: '',
@@ -80,12 +80,19 @@ export default function SendMessagePage() {
         const messages = []
 
         if (formData.recipientType === 'client' && clients.length > 0) {
-          messages.push(...clients.filter(c => c.phone).map(c => ({
+          // Only send to clients who have opted in to SMS
+          const optedIn = clients.filter(c => c.phone && c.smsOptIn)
+          if (optedIn.length === 0) {
+            alert('No opted-in clients with phone numbers found. Clients must consent to SMS before receiving messages.')
+            setLoading(false)
+            return
+          }
+          messages.push(...optedIn.map(c => ({
             recipientPhone: c.phone!,
             recipientName: `${c.firstName} ${c.lastName}`,
             recipientType: 'client' as const,
             userId: c.id,
-            eventId: formData.eventId ? parseInt(formData.eventId) : undefined,
+            eventId: formData.eventId || undefined,
             messageType: formData.messageType,
             content: formData.content,
           })))
@@ -94,7 +101,7 @@ export default function SendMessagePage() {
             recipientPhone: g.phone,
             recipientName: g.name,
             recipientType: 'guest' as const,
-            eventId: formData.eventId ? parseInt(formData.eventId) : undefined,
+            eventId: formData.eventId || undefined,
             messageType: formData.messageType,
             content: formData.content,
           })))
@@ -120,8 +127,8 @@ export default function SendMessagePage() {
           recipientPhone: formData.recipientPhone,
           recipientName: formData.recipientName,
           recipientType: formData.recipientType,
-          userId: formData.userId ? parseInt(formData.userId) : undefined,
-          eventId: formData.eventId ? parseInt(formData.eventId) : undefined,
+          userId: formData.userId || undefined,
+          eventId: formData.eventId || undefined,
           messageType: formData.messageType,
           content: formData.content,
         })
@@ -151,25 +158,33 @@ export default function SendMessagePage() {
     }
   }
 
+  const STOP_FOOTER = ' Reply STOP to unsubscribe.'
+
   const getMessageTemplate = () => {
     const selectedEvent = events.find(e => e.id.toString() === formData.eventId)
     const eventDate = selectedEvent ? parseLocalDate(selectedEvent.date) : null
+    const eventName = selectedEvent?.name ?? '[Event Name]'
+    const venue = selectedEvent?.venue ?? '[Venue Name]'
+    const dateStr = eventDate ? eventDate.toLocaleDateString() : '[Date]'
+    const timeStr = eventDate ? eventDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '[Time]'
 
     switch (formData.messageType) {
-      case 'reminder':
-        return selectedEvent && eventDate
-          ? `Reminder: Your event "${selectedEvent.name}" is scheduled for ${eventDate.toLocaleDateString()} at ${eventDate.toLocaleTimeString()}. Looking forward to seeing you!`
-          : 'This is a friendly reminder about your upcoming event.'
-      case 'invoice':
-        return 'Your invoice has been updated. Please check your account for details.'
       case 'confirmation':
-        return selectedEvent
-          ? `Your booking for "${selectedEvent.name}" has been confirmed. We look forward to serving you!`
-          : 'Your booking has been confirmed. Thank you!'
+        // Sample #1
+        return `DoVenue Suite: Your registration for ${eventName} on ${dateStr} is confirmed.${STOP_FOOTER}`
+      case 'reminder':
+        // Sample #2
+        return `Reminder: ${eventName} starts at ${timeStr} at ${venue}.${STOP_FOOTER}`
+      case 'support':
+        // Sample #3
+        return `DoVenue Suite Support: We received your request and will respond shortly.${STOP_FOOTER}`
+      case 'announcement':
+        // Sample #4
+        return `DoVenue Suite: New events are now available in your area. View at dovenuesuite.com.${STOP_FOOTER}`
+      case 'invoice':
+        return `DoVenue Suite: Your invoice has been updated. For assistance, contact support@dovenuesuite.com.${STOP_FOOTER}`
       case 'update':
-        return selectedEvent
-          ? `Update regarding your event "${selectedEvent.name}": `
-          : 'We have an important update regarding your event: '
+        return `DoVenue Suite: We have an update regarding ${eventName}. For assistance, contact support@dovenuesuite.com.${STOP_FOOTER}`
       default:
         return ''
     }
@@ -275,10 +290,15 @@ export default function SendMessagePage() {
                   <option value="">Select a client...</option>
                   {clients.map((client) => (
                     <option key={client.id} value={client.id}>
-                      {client.firstName} {client.lastName} {client.phone ? `(${client.phone})` : '(No phone)'}
+                      {client.firstName} {client.lastName} {client.phone ? `(${client.phone})` : '(No phone)'}{client.smsOptIn ? ' ✓ Opted in' : ' — Not opted in'}
                     </option>
                   ))}
                 </select>
+                {formData.userId && clients.find(c => c.id.toString() === formData.userId)?.smsOptIn === false && (
+                  <p className="text-xs text-red-600 mt-1">
+                    ⚠ This client has not opted in to SMS. Sending may fail or violate compliance.
+                  </p>
+                )}
               </div>
             )}
 
@@ -328,9 +348,11 @@ export default function SendMessagePage() {
             className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             required
           >
+            <option value="confirmation">Registration Confirmation</option>
             <option value="reminder">Event Reminder</option>
+            <option value="support">Support Response</option>
+            <option value="announcement">Event Announcement</option>
             <option value="invoice">Invoice Update</option>
-            <option value="confirmation">Booking Confirmation</option>
             <option value="update">General Update</option>
             <option value="custom">Custom Message</option>
           </select>
@@ -363,6 +385,11 @@ export default function SendMessagePage() {
           <p className="text-xs text-gray-500 mt-1">
             Character count: {formData.content.length} (SMS segments: {Math.ceil(formData.content.length / 160)})
           </p>
+          {formData.content && !formData.content.toLowerCase().includes('reply stop to unsubscribe') && (
+            <p className="text-xs text-amber-600 mt-1">
+              ⚠ Campaign compliance requires "Reply STOP to unsubscribe." Use a template or add it manually.
+            </p>
+          )}
         </div>
 
         {/* Submit Button */}

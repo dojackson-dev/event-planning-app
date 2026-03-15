@@ -3,6 +3,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { StripeService } from '../stripe/stripe.service';
 import { SmsService } from '../sms/sms.service';
 import { TrialService } from '../trial/trial.service';
+import { TwilioService } from '../messaging/twilio.service.js';
 import { OwnerSignupDto, OwnerLoginDto, VerifyPhoneDto } from './dto/owner-signup.dto';
 import { CreateInviteDto, AcceptInviteDto, ClientSmsOptInDto } from './dto/client-invite.dto';
 import { randomBytes } from 'crypto';
@@ -14,6 +15,7 @@ export class AuthFlowService {
     private readonly stripeService: StripeService,
     private readonly smsService: SmsService,
     private readonly trialService: TrialService,
+    private readonly twilioService: TwilioService,
   ) {}
 
   /**
@@ -86,7 +88,8 @@ export class AuthFlowService {
         phone_number: dto.phoneNumber,
         email_verified: false, // Will be verified via Supabase email
         phone_verified: false, // Skip SMS for now
-        sms_opt_in: true, // Owner required
+        sms_opt_in: dto.smsOptIn === true,
+        sms_opt_in_at: dto.smsOptIn === true ? new Date().toISOString() : null,
         status: 'active',
       });
 
@@ -122,9 +125,16 @@ export class AuthFlowService {
 
     if (venueError) throw new BadRequestException(venueError.message);
 
-    // 6. Send phone verification SMS (if phone provided)
-    if (dto.phoneNumber) {
-      await this.smsService.sendVerificationCode(dto.phoneNumber, userId);
+    // 6. Send welcome SMS if they opted in
+    if (dto.phoneNumber && dto.smsOptIn) {
+      try {
+        await this.twilioService.sendSMS(
+          dto.phoneNumber,
+          'Welcome to DoVenue Suite! You\'re now opted in to SMS notifications for account updates, event confirmations, and reminders.',
+        );
+      } catch {
+        // Non-fatal — don't block account creation if SMS fails
+      }
     }
 
     // Note: Stripe checkout would happen here in Phase 2

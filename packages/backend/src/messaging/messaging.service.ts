@@ -89,8 +89,6 @@ export class MessagingService {
         user_id: messageData.userId && UUID_REGEX.test(messageData.userId) ? messageData.userId : null,
         event_id: messageData.eventId && UUID_REGEX.test(messageData.eventId) ? messageData.eventId : null,
         message_type: messageData.messageType,
-        // Support both column names: existing tables use "message", new tables use "content"
-        message: messageData.content,
         content: messageData.content,
         status: 'pending',
       })

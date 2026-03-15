@@ -413,10 +413,10 @@ export interface Reminder {
 
 // Security
 export interface Security {
-  id: number
+  id: string
   name: string
   phone: string
-  eventId?: number
+  eventId?: string
   event?: Event
   arrivalTime?: string
   createdAt: string

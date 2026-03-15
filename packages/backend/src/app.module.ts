@@ -9,9 +9,9 @@ import { IntakeFormsModule } from './intake-forms/intake-forms.module';
 import { EventsModule } from './events/events.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { InvoicesModule } from './invoices/invoices.module';
+import { SecurityModule } from './security/security.module';
 // Commenting out feature modules that still use TypeORM
 // import { UsersModule } from './users/users.module';
-// import { SecurityModule } from './security/security.module';
 import { GuestListsModule } from './guest-lists/guest-lists.module';
 import { ContractsModule } from './contracts/contracts.module';
 import { EstimatesModule } from './estimates/estimates.module';
@@ -46,8 +46,8 @@ import { AppointmentsModule } from './appointments/appointments.module';
     OwnerModule,
     AdminModule,
     AppointmentsModule,
+    SecurityModule,
     // UsersModule,
-    // SecurityModule,
     // MessagingModule,  // Keep this for scheduled messages
   ],
   controllers: [AppController],

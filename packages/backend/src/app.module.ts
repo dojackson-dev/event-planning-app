@@ -21,6 +21,7 @@ import { VendorsModule } from './vendors/vendors.module';
 import { UploadModule } from './upload/upload.module';
 import { OwnerModule } from './owner/owner.module';
 import { AdminModule } from './admin/admin.module';
+import { AppointmentsModule } from './appointments/appointments.module';
 // import { MessagingModule } from './messaging/messaging.module';
 
 @Module({
@@ -44,6 +45,7 @@ import { AdminModule } from './admin/admin.module';
     UploadModule,
     OwnerModule,
     AdminModule,
+    AppointmentsModule,
     // UsersModule,
     // SecurityModule,
     // MessagingModule,  // Keep this for scheduled messages

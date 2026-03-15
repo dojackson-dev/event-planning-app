@@ -41,7 +41,7 @@ export default function ClientsPage() {
   const [showInvoiceModal, setShowInvoiceModal] = useState(false)
   const [showAppointmentModal, setShowAppointmentModal] = useState(false)
   const [messageContent, setMessageContent] = useState('')
-  const [appointmentData, setAppointmentData] = useState({ date: '', time: '', notes: '' })
+  const [appointmentData, setAppointmentData] = useState({ date: '', time: '', duration: '60', notes: '' })
 
   useEffect(() => {
     fetchClients()
@@ -88,11 +88,20 @@ export default function ClientsPage() {
   const handleMakeAppointment = async () => {
     if (!selectedClient || !appointmentData.date || !appointmentData.time) return
     try {
-      // TODO: Implement appointment API endpoint
-      console.log('Creating appointment for', selectedClient.contact_name, ':', appointmentData)
+      await api.post('/appointments', {
+        intake_form_id: selectedClient.id,
+        client_name: selectedClient.contact_name,
+        client_email: selectedClient.contact_email,
+        client_phone: selectedClient.contact_phone || null,
+        appointment_date: appointmentData.date,
+        appointment_time: appointmentData.time,
+        duration_minutes: parseInt(appointmentData.duration) || 60,
+        notes: appointmentData.notes || null,
+        status: 'scheduled',
+      })
       alert('Appointment scheduled successfully!')
       setShowAppointmentModal(false)
-      setAppointmentData({ date: '', time: '', notes: '' })
+      setAppointmentData({ date: '', time: '', duration: '60', notes: '' })
     } catch (error) {
       console.error('Error creating appointment:', error)
       alert('Failed to create appointment')
@@ -496,6 +505,19 @@ export default function ClientsPage() {
                     onChange={(e) => setAppointmentData({ ...appointmentData, time: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Duration</label>
+                  <select
+                    value={appointmentData.duration}
+                    onChange={(e) => setAppointmentData({ ...appointmentData, duration: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="30">30 minutes</option>
+                    <option value="60">1 hour</option>
+                    <option value="90">1.5 hours</option>
+                    <option value="120">2 hours</option>
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Notes (Optional)</label>

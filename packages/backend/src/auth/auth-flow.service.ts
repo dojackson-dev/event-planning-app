@@ -111,7 +111,13 @@ export class AuthFlowService {
         owner_account_id: ownerAccount.id,
         name: dto.venueName,
         address: dto.venueAddress,
+        city: dto.venueCity,
+        state: dto.venueState,
+        zip_code: dto.venueZipCode,
+        phone: dto.venuePhone,
+        email: dto.venueEmail,
         capacity: dto.venueCapacity,
+        description: dto.venueDescription,
       });
 
     if (venueError) throw new BadRequestException(venueError.message);

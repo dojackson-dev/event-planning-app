@@ -46,6 +46,7 @@ export default function VendorRegisterPage() {
   const [rateDesc, setRateDesc] = useState('')
   const [website, setWebsite] = useState('')
   const [instagram, setInstagram] = useState('')
+  const [facebook, setFacebook] = useState('')
 
   // Saved session after signup
   const [session, setSession] = useState<any>(null)
@@ -98,6 +99,7 @@ export default function VendorRegisterPage() {
         rateDescription: rateDesc,
         website,
         instagram,
+        facebook: facebook || undefined,
         phone,
         email,
       })
@@ -335,6 +337,12 @@ export default function VendorRegisterPage() {
                     suppressHydrationWarning
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                     placeholder="Instagram handle (@yourhandle)"
+                  />
+                  <input
+                    type="text" value={facebook} onChange={e => setFacebook(e.target.value)}
+                    suppressHydrationWarning
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    placeholder="Facebook page URL or @handle"
                   />
                 </div>
               </div>

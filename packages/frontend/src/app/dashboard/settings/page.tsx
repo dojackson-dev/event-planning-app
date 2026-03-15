@@ -33,6 +33,18 @@ export default function SettingsPage() {
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
+
+  // Venue form state
+  const [venueName, setVenueName] = useState('')
+  const [venueAddress, setVenueAddress] = useState('')
+  const [venueCity, setVenueCity] = useState('')
+  const [venueState, setVenueState] = useState('')
+  const [venueZipCode, setVenueZipCode] = useState('')
+  const [venuePhone, setVenuePhone] = useState('')
+  const [venueEmail, setVenueEmail] = useState('')
+  const [venueCapacity, setVenueCapacity] = useState('')
+  const [venueDescription, setVenueDescription] = useState('')
+  const [venueLoaded, setVenueLoaded] = useState(false)
   
   // Password form state
   const [currentPassword, setCurrentPassword] = useState('')
@@ -47,7 +59,7 @@ export default function SettingsPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   
   // UI state
-  const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'delete' | 'branding' | 'payouts'>('profile')
+  const [activeTab, setActiveTab] = useState<'profile' | 'venue' | 'password' | 'delete' | 'branding' | 'payouts'>('profile')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   
@@ -60,6 +72,26 @@ export default function SettingsPage() {
       setPhone(user.phone || '')
     }
   }, [user])
+
+  // Load venue data on mount
+  useEffect(() => {
+    if (venueLoaded) return
+    api.get('/owner/venue').then(res => {
+      const v = res.data.venue
+      if (v) {
+        setVenueName(v.name || '')
+        setVenueAddress(v.address || '')
+        setVenueCity(v.city || '')
+        setVenueState(v.state || '')
+        setVenueZipCode(v.zip_code || '')
+        setVenuePhone(v.phone || '')
+        setVenueEmail(v.email || '')
+        setVenueCapacity(v.capacity ? String(v.capacity) : '')
+        setVenueDescription(v.description || '')
+      }
+      setVenueLoaded(true)
+    }).catch(() => setVenueLoaded(true))
+  }, [venueLoaded])
   
   // Clear message after 5 seconds
   useEffect(() => {
@@ -100,6 +132,33 @@ export default function SettingsPage() {
       setMessage({ 
         type: 'error', 
         text: error.response?.data?.message || 'Failed to update profile' 
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleSaveVenue = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSaving(true)
+    setMessage(null)
+    try {
+      await api.put('/owner/venue', {
+        name: venueName,
+        address: venueAddress,
+        city: venueCity,
+        state: venueState,
+        zipCode: venueZipCode,
+        phone: venuePhone,
+        email: venueEmail,
+        capacity: venueCapacity ? parseInt(venueCapacity, 10) : undefined,
+        description: venueDescription,
+      })
+      setMessage({ type: 'success', text: 'Venue information saved!' })
+    } catch (error: any) {
+      setMessage({
+        type: 'error',
+        text: error.response?.data?.message || 'Failed to update venue',
       })
     } finally {
       setSaving(false)
@@ -209,6 +268,17 @@ export default function SettingsPage() {
             >
               <User className="h-4 w-4 inline-block mr-2" />
               Profile Information
+            </button>
+            <button
+              onClick={() => setActiveTab('venue')}
+              className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'venue'
+                  ? 'border-primary-600 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <Building2 className="h-4 w-4 inline-block mr-2" />
+              Venue Details
             </button>
             <button
               onClick={() => setActiveTab('password')}
@@ -326,6 +396,107 @@ export default function SettingsPage() {
                 >
                   <Save className="h-4 w-4 mr-2" />
                   {saving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Venue Tab */}
+          {activeTab === 'venue' && (
+            <form onSubmit={handleSaveVenue} className="space-y-6">
+              <p className="text-sm text-gray-500">
+                Keep your venue information up to date so clients and vendors have accurate details.
+              </p>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Venue Name *</label>
+                <input
+                  type="text" required value={venueName} onChange={e => setVenueName(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="e.g. Grand Ballroom Downtown"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Street Address</label>
+                <input
+                  type="text" value={venueAddress} onChange={e => setVenueAddress(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="123 Main Street"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div className="col-span-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">City</label>
+                  <input
+                    type="text" value={venueCity} onChange={e => setVenueCity(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="Dallas"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">State</label>
+                  <input
+                    type="text" value={venueState} onChange={e => setVenueState(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="TX" maxLength={2}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Zip Code</label>
+                  <input
+                    type="text" value={venueZipCode} onChange={e => setVenueZipCode(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="75001"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Venue Phone</label>
+                  <input
+                    type="tel" value={venuePhone} onChange={e => setVenuePhone(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="(555) 987-6543"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Venue Email</label>
+                  <input
+                    type="email" value={venueEmail} onChange={e => setVenueEmail(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="bookings@myvenue.com"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Capacity (guests)</label>
+                <input
+                  type="number" value={venueCapacity} onChange={e => setVenueCapacity(e.target.value)} min="1"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="e.g. 250"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Venue Description</label>
+                <textarea
+                  value={venueDescription} onChange={e => setVenueDescription(e.target.value)} rows={4}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-none"
+                  placeholder="Describe your venue — amenities, atmosphere, ideal event types, parking, AV equipment…"
+                />
+              </div>
+
+              <div className="flex justify-end pt-4 border-t">
+                <button
+                  type="submit" disabled={saving}
+                  className="inline-flex items-center px-6 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  {saving ? 'Saving...' : 'Save Venue'}
                 </button>
               </div>
             </form>

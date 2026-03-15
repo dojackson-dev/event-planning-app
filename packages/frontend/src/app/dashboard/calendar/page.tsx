@@ -117,30 +117,44 @@ export default function CalendarPage() {
 
       const bookingEntries: CalendarEntry[] = bookingsRes.status === 'fulfilled'
         ? bookingsRes.value.data
-            .filter((b) => b.event?.date && b.clientStatus !== 'cancelled' && b.status !== 'cancelled')
-            .map((b) => ({
-              id: `booking-${b.id}`,
-              name: b.event!.name,
-              date: b.event!.date,
-              startTime: b.event?.startTime,
-              endTime: b.event?.endTime,
-              status: b.clientStatus,
-              venue: b.event?.venue,
-              isBooking: true,
-              bookingId: b.id,
-              clientName: b.user ? `${b.user.firstName} ${b.user.lastName}` : undefined,
-              booking: b,
-              event: b.event,
-            }))
+            .filter((b) => {
+              const event = b.event || (b as any).event
+              const date = event?.date
+              const clientStatus = b.clientStatus || (b as any).client_status
+              const status = b.status || (b as any).status
+              return date && clientStatus !== 'cancelled' && status !== 'cancelled'
+            })
+            .map((b) => {
+              const event = b.event || (b as any).event
+              const clientStatus = b.clientStatus || (b as any).client_status
+              const clientName = b.user
+                ? `${b.user.firstName || (b.user as any).first_name || ''} ${b.user.lastName || (b.user as any).last_name || ''}`.trim()
+                : (b as any).contact_name || undefined
+              return {
+                id: `booking-${b.id}`,
+                name: event?.name || 'Booking',
+                date: event?.date,
+                startTime: event?.startTime || event?.start_time,
+                endTime: event?.endTime || event?.end_time,
+                status: clientStatus,
+                venue: event?.venue,
+                isBooking: true,
+                bookingId: b.id,
+                clientName,
+                booking: b,
+                event: b.event,
+              }
+            })
         : []
 
-      // Deduplicate: if a booking's event is already shown as an event entry, skip duplicate
-      const eventIds = new Set(eventEntries.map((e) => e.id))
-      const uniqueBookingEntries = bookingEntries.filter(
-        (be) => !be.event?.id || !eventIds.has(be.event.id)
+      // Bookings take priority over plain events for the same event ID
+      // (so client name + orange color shows instead of plain event)
+      const bookedEventIds = new Set(
+        bookingEntries.map((be) => (be.event as any)?.id).filter(Boolean)
       )
+      const unbookedEventEntries = eventEntries.filter((e) => !bookedEventIds.has(e.id))
 
-      setEntries([...eventEntries, ...uniqueBookingEntries])
+      setEntries([...unbookedEventEntries, ...bookingEntries])
     } catch (error) {
       console.error('Failed to fetch calendar data:', error)
     } finally {

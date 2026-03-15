@@ -19,6 +19,11 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
       router.push('/admin')
       return
     }
+    // Redirect vendor users away from /dashboard to /vendor-portal
+    if (user?.role === 'vendor' && pathname?.startsWith('/dashboard')) {
+      router.push('/vendor-portal')
+      return
+    }
 
     // Skip auth check when bypassed
     if (BYPASS_AUTH) return
@@ -37,6 +42,10 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
   if (BYPASS_AUTH) {
     // Still redirect admin even when bypassed
     if (user?.role === 'admin' && typeof window !== 'undefined' && window.location.pathname?.startsWith('/dashboard')) {
+      return null
+    }
+    // Still redirect vendor even when bypassed
+    if (user?.role === 'vendor' && typeof window !== 'undefined' && window.location.pathname?.startsWith('/dashboard')) {
       return null
     }
     return <>{children}</>

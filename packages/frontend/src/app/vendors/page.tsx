@@ -119,13 +119,14 @@ export default function VendorsPage() {
     }
   }, [zipCode, radiusMiles, category])
 
-  // Load all vendors on mount
+  // Load all vendors + venues on mount
   useEffect(() => {
     const loadAll = async () => {
       setLoading(true)
       try {
         const res = await api.get('/vendors/public')
         setVendors(res.data.vendors || [])
+        setVenues(res.data.venues || [])
       } catch (err) {
         console.error(err)
       } finally {

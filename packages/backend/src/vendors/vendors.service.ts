@@ -199,6 +199,21 @@ export class VendorsService {
     return (data || []).map(v => this.enrichWithRating(v));
   }
 
+  async getAllVenues() {
+    const admin = this.supabaseService.getAdminClient();
+    const { data, error } = await admin
+      .from('venues')
+      .select('id, name, address, city, state, zip_code, capacity, description, profile_image_url, website')
+      .neq('is_active', false)
+      .order('name');
+
+    if (error) {
+      this.logger.error('getAllVenues error:', error.message);
+      return [];
+    }
+    return data || [];
+  }
+
   // ─────────────────────────────────────────────
   // VENDOR BOOKINGS
   // ─────────────────────────────────────────────

@@ -105,8 +105,12 @@ export class VendorsController {
     }
 
     if (!searchLat || !searchLng) {
-      // Fallback: return all vendors without geo filter
-      return this.vendorsService.getAllVendors(category);
+      // Fallback: return all vendors + venues without geo filter
+      const [vendors, venues] = await Promise.all([
+        this.vendorsService.getAllVendors(category),
+        this.vendorsService.getAllVenues(),
+      ]);
+      return { vendors, venues };
     }
 
     const vendors = await this.vendorsService.searchVendors({
@@ -126,11 +130,14 @@ export class VendorsController {
     return { vendors, venues };
   }
 
-  /** GET /vendors/public - list all active vendors (no location filter) */
+  /** GET /vendors/public - list all active vendors + venues (no location filter) */
   @Get('public')
   async getAllVendors(@Query('category') category: string) {
-    const vendors = await this.vendorsService.getAllVendors(category);
-    return { vendors };
+    const [vendors, venues] = await Promise.all([
+      this.vendorsService.getAllVendors(category),
+      this.vendorsService.getAllVenues(),
+    ]);
+    return { vendors, venues };
   }
 
   /** GET /vendors/:id - public vendor profile */

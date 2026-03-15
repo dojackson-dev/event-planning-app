@@ -1,9 +1,11 @@
-import { Controller, Get, Post, Delete, Body, Param, Headers, UnauthorizedException, Query, HttpCode } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Body, Param, Headers, UnauthorizedException, Query, HttpCode, InternalServerErrorException, Logger } from '@nestjs/common';
 import { MessagingService } from './messaging.service.js';
 import { SupabaseService } from '../supabase/supabase.service.js';
 
 @Controller('messages')
 export class MessagingController {
+  private readonly logger = new Logger(MessagingController.name);
+
   constructor(
     private readonly messagingService: MessagingService,
     private readonly supabaseService: SupabaseService,
@@ -51,7 +53,12 @@ export class MessagingController {
     @Body() messageData: any,
   ) {
     const { supabase, ownerId } = await this.getAuth(authHeader);
-    return this.messagingService.sendMessage(supabase, ownerId, messageData);
+    try {
+      return await this.messagingService.sendMessage(supabase, ownerId, messageData);
+    } catch (err: any) {
+      this.logger.error('sendMessage failed', err?.message, err?.stack);
+      throw new InternalServerErrorException(err?.message || 'Failed to send message');
+    }
   }
 
   @Post('send-bulk')

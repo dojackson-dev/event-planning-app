@@ -49,13 +49,25 @@ export class VendorsController {
 
   private async getOwnerAccountId(userId: string): Promise<string | null> {
     const admin = this.supabaseService.getAdminClient();
-    const { data } = await admin
+
+    // Primary: memberships table (normal registration path)
+    const { data: membership } = await admin
       .from('memberships')
       .select('owner_account_id')
       .eq('user_id', userId)
       .eq('role', 'owner')
       .single();
-    return data?.owner_account_id || null;
+
+    if (membership?.owner_account_id) return membership.owner_account_id;
+
+    // Fallback: owner may have been set up via script — check primary_owner_id
+    const { data: ownerAccount } = await admin
+      .from('owner_accounts')
+      .select('id')
+      .eq('primary_owner_id', userId)
+      .single();
+
+    return ownerAccount?.id || null;
   }
 
   // ─────────────────────────────────────────────

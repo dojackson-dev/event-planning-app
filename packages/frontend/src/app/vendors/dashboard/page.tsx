@@ -156,6 +156,9 @@ export default function VendorDashboard() {
                 My Public Profile →
               </Link>
             )}
+            <Link href="/vendors/settings" className="text-sm text-gray-500 hover:text-gray-700">
+              ⚙️ Settings
+            </Link>
             <button
               onClick={handleLogout}
               className="text-sm text-gray-400 hover:text-red-500 transition-colors"

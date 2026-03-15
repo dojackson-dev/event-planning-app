@@ -54,6 +54,7 @@ export class VendorsService {
         hourly_rate: dto.hourlyRate,
         flat_rate: dto.flatRate,
         rate_description: dto.rateDescription,
+        is_active: true,
       })
       .select()
       .single();
@@ -184,8 +185,8 @@ export class VendorsService {
     const admin = this.supabaseService.getAdminClient();
     let query = admin
       .from('vendor_accounts')
-      .select('id, business_name, category, city, state, zip_code, profile_image_url, hourly_rate, flat_rate, is_verified, vendor_reviews(rating)')
-      .eq('is_active', true)
+      .select('id, business_name, category, bio, city, state, zip_code, profile_image_url, hourly_rate, flat_rate, rate_description, phone, email, website, instagram, facebook, is_verified, vendor_reviews(rating)')
+      .neq('is_active', false)
       .order('business_name');
 
     if (category) {

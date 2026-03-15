@@ -1,4 +1,3 @@
-/// <reference types="multer" />
 import {
   Controller,
   Post,
@@ -10,6 +9,15 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
+
+interface MulterFile {
+  fieldname: string;
+  originalname: string;
+  encoding: string;
+  mimetype: string;
+  size: number;
+  buffer: Buffer;
+}
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const sharp = require('sharp') as typeof import('sharp');
 import { SupabaseService } from '../supabase/supabase.service';
@@ -55,7 +63,7 @@ export class UploadController {
   @Post('vendor-logo')
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
   async uploadVendorLogo(
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file: MulterFile,
     @Headers('authorization') authorization: string,
   ) {
     const userId = await this.getUserId(authorization);
@@ -100,7 +108,7 @@ export class UploadController {
   @Post('service-item')
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
   async uploadServiceItem(
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file: MulterFile,
     @Headers('authorization') authorization: string,
   ) {
     const userId = await this.getUserId(authorization);
@@ -145,7 +153,7 @@ export class UploadController {
   @Post('owner-logo')
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
   async uploadOwnerLogo(
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file: MulterFile,
     @Headers('authorization') authorization: string,
   ) {
     const userId = await this.getUserId(authorization);

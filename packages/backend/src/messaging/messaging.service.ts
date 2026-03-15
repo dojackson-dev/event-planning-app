@@ -92,7 +92,7 @@ export class MessagingService {
   }
 
   async sendBulkMessages(supabase: any, ownerId: string, messages: any[]) {
-    const results = [];
+    const results: any[] = [];
     for (const messageData of messages) {
       try {
         const message = await this.sendMessage(supabase, ownerId, messageData);

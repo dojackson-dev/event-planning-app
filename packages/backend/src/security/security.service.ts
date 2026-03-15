@@ -70,11 +70,14 @@ export class SecurityService {
       .single();
     if (error) throw error;
     return data;
-
-    return this.findOne(id);
   }
 
-  async delete(id: number): Promise<void> {
-    await this.securityRepository.delete(id);
+  async remove(supabase: SupabaseClient, ownerId: string, id: string): Promise<void> {
+    const { error } = await supabase
+      .from('security')
+      .delete()
+      .eq('id', id)
+      .eq('owner_id', ownerId);
+    if (error) throw error;
   }
 }

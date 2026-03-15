@@ -1,9 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service.js';
 import { TwilioService } from './twilio.service.js';
 
+export type MessageType = 'reminder' | 'invoice' | 'confirmation' | 'update' | 'support' | 'announcement' | 'custom';
+export type RecipientType = 'client' | 'guest' | 'security' | 'custom';
+
 @Injectable()
 export class MessagingService {
+  private readonly logger = new Logger(MessagingService.name);
+
   constructor(
     private supabaseService: SupabaseService,
     private twilioService: TwilioService,
@@ -44,12 +49,28 @@ export class MessagingService {
   async sendMessage(supabase: any, ownerId: string, messageData: {
     recipientPhone: string;
     recipientName: string;
-    recipientType: 'client' | 'guest' | 'security' | 'custom';
+    recipientType: RecipientType;
     userId?: string;
     eventId?: string;
-    messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom';
+    messageType: MessageType;
     content: string;
+    skipOptInCheck?: boolean;
   }) {
+    // Enforce opt-in for named users (client/guest recipient types)
+    if (!messageData.skipOptInCheck && messageData.userId) {
+      const { data: recipient } = await supabase
+        .from('users')
+        .select('sms_opt_in')
+        .eq('id', messageData.userId)
+        .single();
+
+      if (recipient && recipient.sms_opt_in === false) {
+        throw new BadRequestException(
+          `Recipient has not opted in to SMS messages. Messages can only be sent to users who have given express consent.`,
+        );
+      }
+    }
+
     const { data: savedMessage, error: insertError } = await supabase
       .from('messages')
       .insert({
@@ -152,5 +173,36 @@ export class MessagingService {
       failed: msgs.filter((m: any) => m.status === 'failed').length,
       pending: msgs.filter((m: any) => m.status === 'pending').length,
     };
+  }
+
+  /**
+   * Processes an inbound Twilio webhook message.
+   * Handles STOP (opt-out) and START (opt-in) keywords by updating the
+   * sms_opt_in flag on the matching user record — using the admin Supabase
+   * client so the webhook can run without a user JWT.
+   */
+  async handleInboundMessage(adminSupabase: any, body: string, from: string): Promise<void> {
+    const { action } = this.twilioService.parseInboundMessage(body, from);
+    if (!action) return;
+
+    const optIn = action === 'start';
+    const updatePayload: Record<string, any> = { sms_opt_in: optIn };
+    if (optIn) {
+      updatePayload.sms_opt_in_at = new Date().toISOString();
+      updatePayload.sms_opt_out_at = null;
+    } else {
+      updatePayload.sms_opt_out_at = new Date().toISOString();
+    }
+
+    const { error } = await adminSupabase
+      .from('users')
+      .update(updatePayload)
+      .eq('phone', from);
+
+    if (error) {
+      this.logger.error(`Failed to update opt-in for ${from}: ${error.message}`);
+    } else {
+      this.logger.log(`SMS opt-${optIn ? 'in' : 'out'} processed for ${from}`);
+    }
   }
 }

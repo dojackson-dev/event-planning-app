@@ -14,6 +14,13 @@ export class MessagingService {
     private twilioService: TwilioService,
   ) {}
 
+  /** Normalize DB row: map `message` column -> `content` for frontend compatibility */
+  private mapRow(row: any) {
+    if (!row) return row;
+    const { message, ...rest } = row;
+    return { ...rest, content: rest.content ?? message };
+  }
+
   async findAll(supabase: any, ownerId: string) {
     const { data, error } = await supabase
       .from('messages')
@@ -21,7 +28,7 @@ export class MessagingService {
       .eq('owner_id', ownerId)
       .order('created_at', { ascending: false });
     if (error) throw new Error(error.message);
-    return data || [];
+    return (data || []).map((r: any) => this.mapRow(r));
   }
 
   async findByEvent(supabase: any, ownerId: string, eventId: string) {
@@ -32,7 +39,7 @@ export class MessagingService {
       .eq('event_id', eventId)
       .order('created_at', { ascending: false });
     if (error) throw new Error(error.message);
-    return data || [];
+    return (data || []).map((r: any) => this.mapRow(r));
   }
 
   async findOne(supabase: any, ownerId: string, id: string) {
@@ -43,7 +50,7 @@ export class MessagingService {
       .eq('id', id)
       .single();
     if (error) throw new Error(error.message);
-    return data;
+    return this.mapRow(data);
   }
 
   async sendMessage(supabase: any, ownerId: string, messageData: {
@@ -82,6 +89,8 @@ export class MessagingService {
         user_id: messageData.userId && UUID_REGEX.test(messageData.userId) ? messageData.userId : null,
         event_id: messageData.eventId && UUID_REGEX.test(messageData.eventId) ? messageData.eventId : null,
         message_type: messageData.messageType,
+        // Support both column names: existing tables use "message", new tables use "content"
+        message: messageData.content,
         content: messageData.content,
         status: 'pending',
       })
@@ -101,7 +110,7 @@ export class MessagingService {
         .eq('id', savedMessage.id)
         .select()
         .single();
-      return updated;
+      return this.mapRow(updated);
     } catch (err: any) {
       const { data: updated } = await supabase
         .from('messages')
@@ -109,7 +118,7 @@ export class MessagingService {
         .eq('id', savedMessage.id)
         .select()
         .single();
-      return updated;
+      return this.mapRow(updated);
     }
   }
 
@@ -134,7 +143,7 @@ export class MessagingService {
       .eq('id', id)
       .single();
 
-    if (!message || !message.twilio_sid) return message;
+    if (!message || !message.twilio_sid) return this.mapRow(message);
 
     try {
       const status = await this.twilioService.getMessageStatus(message.twilio_sid);
@@ -144,10 +153,10 @@ export class MessagingService {
         .eq('id', id)
         .select()
         .single();
-      return updated;
+      return this.mapRow(updated);
     } catch (err) {
       console.error('Failed to update message status:', err);
-      return message;
+      return this.mapRow(message);
     }
   }
 

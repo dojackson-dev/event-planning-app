@@ -162,7 +162,7 @@ export default function VendorsPage() {
               <Image src="/lib/LogoDVS.png" alt="DoVenueSuite" width={180} height={48} className="h-10 w-auto" />
             </Link>
             <div className="flex items-center gap-4">
-              <Link href="/vendors/register" className="bg-primary-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-primary-700">
+              <Link href="/signup" className="bg-primary-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-primary-700">
                 List Your Business
               </Link>
               <Link href="/login" className="text-gray-600 hover:text-gray-900 text-sm font-medium">
@@ -287,7 +287,7 @@ export default function VendorsPage() {
                     <div className="text-5xl mb-4">🔍</div>
                     <p className="text-lg font-medium">No vendors found</p>
                     <p className="text-sm mt-1">Try searching a different zip code or expanding your radius</p>
-                    <Link href="/vendors/register" className="mt-4 inline-block bg-primary-600 text-white px-6 py-2 rounded-md text-sm font-medium hover:bg-primary-700">
+                    <Link href="/signup" className="mt-4 inline-block bg-primary-600 text-white px-6 py-2 rounded-md text-sm font-medium hover:bg-primary-700">
                       Be the first vendor in your area
                     </Link>
                   </div>
@@ -329,7 +329,7 @@ export default function VendorsPage() {
           <h2 className="text-2xl font-bold mb-2">Are you a vendor or venue owner?</h2>
           <p className="text-primary-200 mb-6">List your business for free and get discovered by event planners and owners.</p>
           <Link
-            href="/vendors/register"
+            href="/signup"
             className="bg-white text-primary-700 px-8 py-3 rounded-md font-semibold hover:bg-primary-50 inline-block"
           >
             Get Listed Free →

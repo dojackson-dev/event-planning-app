@@ -49,7 +49,7 @@ export default function Home() {
                 Log In
               </Link>
               <Link
-                href="/register"
+                href="/signup"
                 className="bg-primary-600 text-white hover:bg-primary-700 px-4 py-2 rounded-md text-sm font-medium"
               >
                 Sign Up
@@ -70,7 +70,7 @@ export default function Home() {
           </p>
           <div className="mt-5 max-w-md mx-auto sm:flex sm:justify-center md:mt-8 gap-4">
             <Link
-              href="/register"
+              href="/signup"
               className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 md:py-4 md:text-lg md:px-10"
             >
               Get Started Free
@@ -208,7 +208,7 @@ export default function Home() {
                 Browse Directory
               </Link>
               <Link
-                href="/vendors/register"
+                href="/signup"
                 className="inline-flex items-center justify-center px-8 py-3 border-2 border-white text-base font-medium rounded-xl text-white hover:bg-white/10"
               >
                 List Your Business
@@ -229,7 +229,7 @@ export default function Home() {
             Join hundreds of event venue owners who trust EventSuite to manage their business.
           </p>
           <Link
-            href="/register"
+            href="/signup"
             className="mt-8 w-full inline-flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-primary-600 bg-white hover:bg-primary-50 sm:w-auto"
           >
             Sign up for free

@@ -72,6 +72,8 @@ interface Venue {
   profile_image_url: string
   description: string
   website: string
+  phone: string
+  email: string
   distance_miles?: number
 }
 
@@ -230,10 +232,7 @@ export default function VendorsPage() {
             {CATEGORIES.map(c => (
               <button
                 key={c.value}
-                onClick={() => {
-                  setCategory(c.value)
-                  setActiveTab('vendors')
-                }}
+                onClick={() => setCategory(c.value)}
                 className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium border transition-all ${
                   category === c.value
                     ? 'bg-primary-600 text-white border-primary-600'
@@ -433,7 +432,7 @@ function VenueCard({ venue }: { venue: Venue }) {
 
         {(venue.city || venue.state) && (
           <p className="text-xs text-gray-500 mt-1">
-            📍 {[venue.city, venue.state].filter(Boolean).join(', ')}
+            📍 {[venue.address, venue.city, venue.state].filter(Boolean).join(', ')}
             {venue.distance_miles != null && (
               <span className="ml-1 text-primary-600 font-medium">({venue.distance_miles} mi)</span>
             )}
@@ -441,7 +440,7 @@ function VenueCard({ venue }: { venue: Venue }) {
         )}
 
         {venue.capacity && (
-          <p className="text-xs text-gray-500 mt-0.5">👥 Capacity: {venue.capacity.toLocaleString()}</p>
+          <p className="text-xs text-gray-500 mt-0.5">👥 Up to {venue.capacity.toLocaleString()} guests</p>
         )}
 
         {venue.description && (
@@ -451,17 +450,33 @@ function VenueCard({ venue }: { venue: Venue }) {
         <div className="mt-4 flex gap-2">
           {venue.website ? (
             <a
-              href={venue.website}
+              href={venue.website.startsWith('http') ? venue.website : `https://${venue.website}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 text-center border border-primary-600 text-primary-600 text-sm py-2 rounded-lg hover:bg-primary-50 font-medium"
+              className="flex-1 text-center bg-primary-600 text-white text-sm py-2 rounded-lg hover:bg-primary-700 font-medium"
             >
               Visit Website
             </a>
+          ) : venue.email ? (
+            <a
+              href={`mailto:${venue.email}`}
+              className="flex-1 text-center bg-primary-600 text-white text-sm py-2 rounded-lg hover:bg-primary-700 font-medium"
+            >
+              ✉️ Email Venue
+            </a>
           ) : (
-            <span className="flex-1 text-center border border-gray-200 text-gray-400 text-sm py-2 rounded-lg">
-              No website
+            <span className="flex-1 text-center border border-gray-200 text-gray-400 text-sm py-2 rounded-lg cursor-default">
+              Contact Info Pending
             </span>
+          )}
+          {venue.phone && (
+            <a
+              href={`tel:${venue.phone}`}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-gray-600 text-sm hover:bg-gray-50"
+              title="Call venue"
+            >
+              📞
+            </a>
           )}
         </div>
       </div>

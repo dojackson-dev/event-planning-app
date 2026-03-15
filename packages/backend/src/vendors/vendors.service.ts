@@ -186,7 +186,7 @@ export class VendorsService {
     let query = admin
       .from('vendor_accounts')
       .select('id, business_name, category, bio, city, state, zip_code, profile_image_url, hourly_rate, flat_rate, rate_description, phone, email, website, instagram, facebook, is_verified, vendor_reviews(rating)')
-      .neq('is_active', false)
+      .or('is_active.is.null,is_active.eq.true')
       .order('business_name');
 
     if (category) {
@@ -203,8 +203,9 @@ export class VendorsService {
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('venues')
-      .select('id, name, address, city, state, zip_code, capacity, description, profile_image_url, website')
-      .neq('is_active', false)
+      .select('id, name, address, city, state, zip_code, capacity, description, profile_image_url, website, phone, email')
+      .or('is_active.is.null,is_active.eq.true')
+      .not('name', 'is', null)
       .order('name');
 
     if (error) {

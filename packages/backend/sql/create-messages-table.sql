@@ -10,28 +10,29 @@ CREATE TABLE IF NOT EXISTS messages (
 
 -- Add all required columns if they are missing
 ALTER TABLE messages
-  ADD COLUMN IF NOT EXISTS owner_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  ADD COLUMN IF NOT EXISTS owner_id       UUID,
   ADD COLUMN IF NOT EXISTS recipient_phone TEXT,
-  ADD COLUMN IF NOT EXISTS recipient_name TEXT,
-  ADD COLUMN IF NOT EXISTS recipient_type TEXT,
-  ADD COLUMN IF NOT EXISTS user_id UUID,
-  ADD COLUMN IF NOT EXISTS event_id UUID REFERENCES events(id) ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS message_type TEXT NOT NULL DEFAULT 'custom',
-  ADD COLUMN IF NOT EXISTS content TEXT,
-  ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending',
-  ADD COLUMN IF NOT EXISTS twilio_sid TEXT,
-  ADD COLUMN IF NOT EXISTS error_message TEXT,
-  ADD COLUMN IF NOT EXISTS sent_at TIMESTAMPTZ;
+  ADD COLUMN IF NOT EXISTS recipient_name  TEXT,
+  ADD COLUMN IF NOT EXISTS recipient_type  TEXT,
+  ADD COLUMN IF NOT EXISTS user_id         UUID,
+  ADD COLUMN IF NOT EXISTS event_id        UUID,
+  ADD COLUMN IF NOT EXISTS message_type    TEXT NOT NULL DEFAULT 'custom',
+  ADD COLUMN IF NOT EXISTS content         TEXT,
+  ADD COLUMN IF NOT EXISTS status          TEXT NOT NULL DEFAULT 'pending',
+  ADD COLUMN IF NOT EXISTS twilio_sid      TEXT,
+  ADD COLUMN IF NOT EXISTS error_message   TEXT,
+  ADD COLUMN IF NOT EXISTS sent_at         TIMESTAMPTZ;
 
 -- Enable RLS
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 
 -- Drop and recreate policy to ensure it's up to date
+-- Cast both sides to text to avoid uuid vs text operator errors
 DROP POLICY IF EXISTS "owners_manage_messages" ON messages;
 CREATE POLICY "owners_manage_messages" ON messages
   FOR ALL
-  USING (owner_id = auth.uid())
-  WITH CHECK (owner_id = auth.uid());
+  USING     (owner_id::text = auth.uid()::text)
+  WITH CHECK(owner_id::text = auth.uid()::text);
 
 -- Index for faster owner queries
 CREATE INDEX IF NOT EXISTS idx_messages_owner_id ON messages(owner_id);

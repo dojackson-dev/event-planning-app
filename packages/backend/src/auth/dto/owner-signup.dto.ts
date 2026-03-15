@@ -5,6 +5,7 @@ export class OwnerSignupDto {
   lastName: string;
   businessName: string;
   phoneNumber?: string;
+  smsOptIn?: boolean;
 
   // First venue (required)
   venueName: string;

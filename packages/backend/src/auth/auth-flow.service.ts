@@ -87,7 +87,8 @@ export class AuthFlowService {
         phone_number: dto.phoneNumber,
         email_verified: false, // Will be verified via Supabase email
         phone_verified: false, // Skip SMS for now
-        sms_opt_in: true, // Owner required
+        sms_opt_in: dto.smsOptIn === true,
+        sms_opt_in_at: dto.smsOptIn === true ? new Date().toISOString() : null,
         status: 'active',
       });
 

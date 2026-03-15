@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { OwnerBrandProvider, useOwnerBrand } from '@/contexts/OwnerBrandContext'
 import { NotificationProvider } from '@/contexts/NotificationContext'
 import NotificationPanel from '@/components/NotificationPanel'
+import RoleSwitcher from '@/components/RoleSwitcher'
 import { 
   LayoutDashboard, 
   Calendar, 
@@ -195,6 +196,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               )
             })}
           </nav>
+
+          {/* Role Switcher — only shown when user has multiple roles */}
+          <RoleSwitcher variant="sidebar" />
 
           {/* Logout */}
           <div className="p-4 border-t space-y-1">

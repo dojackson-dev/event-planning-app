@@ -21,6 +21,7 @@ import {
   MapPin,
   User,
 } from 'lucide-react'
+import RoleSwitcher from '@/components/RoleSwitcher'
 
 interface VendorAccount {
   id: string
@@ -154,13 +155,18 @@ export default function VendorPortalPage() {
               <p className="text-xs text-gray-400">{user?.email}</p>
             </div>
           </div>
-          <button
-            onClick={handleLogout}
-            className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-red-600 transition-colors"
-          >
-            <LogOut className="w-4 h-4" />
-            Sign Out
-          </button>
+          <div className="flex items-center gap-3">
+            {/* Role switcher — shows only when user also has an owner role */}
+            <RoleSwitcher variant="banner" />
+
+            <button
+              onClick={handleLogout}
+              className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-red-600 transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+              Sign Out
+            </button>
+          </div>
         </div>
       </header>
 

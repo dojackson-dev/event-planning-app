@@ -22,6 +22,7 @@ import {
 import { useOwnerBrand } from '@/contexts/OwnerBrandContext'
 import ImageUpload from '@/components/ImageUpload'
 import ConnectBankButton from '@/components/ConnectBankButton'
+import AddRoleCard from '@/components/AddRoleCard'
 import Link from 'next/link'
 
 export default function SettingsPage() {
@@ -694,6 +695,12 @@ export default function SettingsPage() {
 
           {/* Branding Tab */}
           {activeTab === 'branding' && <BrandingTab />}
+
+          {/* Multi-Role: Add Vendor Role card (shown on every tab) */}
+          <div className="mt-8 pt-6 border-t border-gray-100">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Multi-Role Access</p>
+            <AddRoleCard targetRole="vendor" />
+          </div>
         </div>
       </div>
     </div>

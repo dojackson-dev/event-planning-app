@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
+import AddRoleCard from '@/components/AddRoleCard'
 import {
   User,
   Lock,
@@ -489,6 +490,12 @@ export default function VendorSettingsPage() {
                 )}
               </div>
             )}
+          </div>
+
+          {/* Multi-Role: Add Owner Role card */}
+          <div className="mt-8 pt-6 border-t border-gray-100 px-6 pb-6">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Multi-Role Access</p>
+            <AddRoleCard targetRole="owner" />
           </div>
         </div>
       </div>

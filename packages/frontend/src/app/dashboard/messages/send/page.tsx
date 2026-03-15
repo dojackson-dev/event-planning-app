@@ -139,7 +139,8 @@ export default function SendMessagePage() {
       router.push('/dashboard/messages')
     } catch (error: any) {
       console.error('Failed to send message:', error)
-      alert(error.response?.data?.message || 'Failed to send message. Please check your Twilio configuration.')
+      const msg = error.response?.data?.message
+      alert(`Failed to send message: ${Array.isArray(msg) ? msg.join(', ') : (msg || error.message || 'Unknown error')}`)
     } finally {
       setLoading(false)
     }

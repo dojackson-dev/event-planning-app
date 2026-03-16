@@ -22,6 +22,32 @@ export class OwnerController {
     return user.id;
   }
 
+  /**
+   * Resolves the owner_account id for a given user.
+   * Primary: looks up via memberships table (user_id → owner_account_id).
+   * Fallback: direct user_id column on owner_accounts (legacy/migration path).
+   */
+  private async getOwnerAccountId(userId: string, admin: any): Promise<number | null> {
+    // Primary path: membership record links user → owner account
+    const { data: membership } = await admin
+      .from('memberships')
+      .select('owner_account_id')
+      .eq('user_id', userId)
+      .limit(1)
+      .maybeSingle();
+
+    if (membership?.owner_account_id) return membership.owner_account_id;
+
+    // Fallback: direct user_id on owner_accounts
+    const { data: ownerAccount } = await admin
+      .from('owner_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    return ownerAccount?.id ?? null;
+  }
+
   // ─────────────────────────────────────────────
   // GET /owner/profile
   // Returns owner branding: businessName + logoUrl
@@ -31,10 +57,13 @@ export class OwnerController {
     const userId = await this.getUserId(authorization);
     const admin = this.supabaseService.getAdminClient();
 
+    const ownerAccountId = await this.getOwnerAccountId(userId, admin);
+    if (!ownerAccountId) return { businessName: '', logoUrl: null };
+
     const { data, error } = await admin
       .from('owner_accounts')
       .select('business_name, logo_url')
-      .eq('user_id', userId)
+      .eq('id', ownerAccountId)
       .maybeSingle();
 
     if (error) {
@@ -59,13 +88,16 @@ export class OwnerController {
     const userId = await this.getUserId(authorization);
     const admin = this.supabaseService.getAdminClient();
 
+    const ownerAccountId = await this.getOwnerAccountId(userId, admin);
+    if (!ownerAccountId) throw new BadRequestException('Owner account not found');
+
     const { error } = await admin
       .from('owner_accounts')
       .update({
         logo_url: body.logoUrl ?? null,
         updated_at: new Date().toISOString(),
       })
-      .eq('user_id', userId);
+      .eq('id', ownerAccountId);
 
     if (error) {
       console.error('[owner/profile] Update error:', error.message);
@@ -84,22 +116,21 @@ export class OwnerController {
     const userId = await this.getUserId(authorization);
     const admin = this.supabaseService.getAdminClient();
 
-    // Get owner_account
+    const ownerAccountId = await this.getOwnerAccountId(userId, admin);
+    if (!ownerAccountId) return { venue: null, businessName: '' };
+
+    // Get business name
     const { data: ownerAccount } = await admin
       .from('owner_accounts')
-      .select('id, business_name')
-      .eq('user_id', userId)
+      .select('business_name')
+      .eq('id', ownerAccountId)
       .maybeSingle();
-
-    if (!ownerAccount) {
-      return { venue: null, businessName: '' };
-    }
 
     // Get first venue
     const { data: venue, error } = await admin
       .from('venues')
       .select('id, name, address, city, state, zip_code, phone, email, capacity, description')
-      .eq('owner_account_id', ownerAccount.id)
+      .eq('owner_account_id', ownerAccountId)
       .order('id', { ascending: true })
       .limit(1)
       .maybeSingle();
@@ -109,7 +140,7 @@ export class OwnerController {
     }
 
     return {
-      businessName: ownerAccount.business_name || '',
+      businessName: ownerAccount?.business_name || '',
       venue: venue || null,
     };
   }
@@ -136,19 +167,14 @@ export class OwnerController {
     const userId = await this.getUserId(authorization);
     const admin = this.supabaseService.getAdminClient();
 
-    const { data: ownerAccount } = await admin
-      .from('owner_accounts')
-      .select('id')
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    if (!ownerAccount) throw new BadRequestException('Owner account not found');
+    const ownerAccountId = await this.getOwnerAccountId(userId, admin);
+    if (!ownerAccountId) throw new BadRequestException('Owner account not found');
 
     // Get venue id
     const { data: venue } = await admin
       .from('venues')
       .select('id')
-      .eq('owner_account_id', ownerAccount.id)
+      .eq('owner_account_id', ownerAccountId)
       .order('id', { ascending: true })
       .limit(1)
       .maybeSingle();
@@ -177,7 +203,7 @@ export class OwnerController {
       const { error } = await admin
         .from('venues')
         .insert({
-          owner_account_id: ownerAccount.id,
+          owner_account_id: ownerAccountId,
           name: body.name || 'My Venue',
           address: body.address,
           city: body.city,

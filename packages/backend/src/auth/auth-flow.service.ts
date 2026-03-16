@@ -125,13 +125,13 @@ export class AuthFlowService {
 
     if (venueError) throw new BadRequestException(venueError.message);
 
-    // 6. Send welcome SMS if they opted in
-    if (dto.phoneNumber && dto.smsOptIn) {
+    // 6. Send welcome SMS to anyone who provided a phone number
+    if (dto.phoneNumber) {
       try {
-        await this.twilioService.sendSMS(
-          dto.phoneNumber,
-          'Welcome to DoVenue Suite! You\'re now opted in to SMS notifications for account updates, event confirmations, and reminders.',
-        );
+        const smsBody = dto.smsOptIn
+          ? `Welcome to DoVenue Suite, ${dto.firstName}! Your account is ready. You're opted in to SMS notifications for event updates, confirmations, and reminders.`
+          : `Welcome to DoVenue Suite, ${dto.firstName}! Your account has been created successfully. Log in at your venue dashboard to get started.`;
+        await this.twilioService.sendSMS(dto.phoneNumber, smsBody);
       } catch {
         // Non-fatal — don't block account creation if SMS fails
       }

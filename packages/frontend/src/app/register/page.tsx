@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
+import PhoneInput from '@/components/PhoneInput'
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -13,6 +14,7 @@ export default function RegisterPage() {
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [phoneNumber, setPhoneNumber] = useState('')
+  const [phoneCountryDial, setPhoneCountryDial] = useState('+1')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
 
@@ -153,31 +155,13 @@ export default function RegisterPage() {
                   placeholder="you@example.com"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-                <input
-                  type="tel" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  placeholder="(555) 123-4567"
+              <div className="sm:col-span-2">
+                <PhoneInput
+                  value={phoneNumber}
+                  onChange={setPhoneNumber}
+                  smsOptIn={smsOptIn}
+                  onSmsOptInChange={setSmsOptIn}
                 />
-                {phoneNumber && (
-                  <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-2">
-                    <p className="text-xs text-gray-600">
-                      DoVenue Suite sends SMS messages to users who voluntarily opt in through our website or event registration forms. Messages include account notifications, event confirmations, reminders, customer support responses, and occasional event-related announcements. Messages are only sent to users who provide express consent. Message frequency varies. Message and data rates may apply.
-                    </p>
-                    <label className="flex items-start gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={smsOptIn}
-                        onChange={e => setSmsOptIn(e.target.checked)}
-                        className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                      />
-                      <span className="text-xs text-gray-700">
-                        I agree to receive SMS messages from DoVenue Suite at the number provided. Reply <strong>STOP</strong> at any time to unsubscribe. <a href="/privacy-policy" className="text-primary-600 underline" target="_blank">Privacy Policy</a> · <a href="/terms-of-service" className="text-primary-600 underline" target="_blank">Terms</a>
-                      </span>
-                    </label>
-                  </div>
-                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>

@@ -53,13 +53,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // ── Load from localStorage (client only) ─────────────────────────────────
   useEffect(() => {
     setIsClient(true)
-    try {
-      const stored       = localStorage.getItem('user')
-      const token        = localStorage.getItem('access_token')
-      const storedRoles  = localStorage.getItem('user_roles')
-      const storedActive = localStorage.getItem('active_role')
 
-      if (stored && token) {
+    const clearSession = () => {
+      ;['access_token','refresh_token','user','user_roles','active_role','user_role'].forEach(k => localStorage.removeItem(k))
+    }
+
+    const init = async () => {
+      try {
+        const stored       = localStorage.getItem('user')
+        const token        = localStorage.getItem('access_token')
+        const storedRoles  = localStorage.getItem('user_roles')
+        const storedActive = localStorage.getItem('active_role')
+        const refreshTok   = localStorage.getItem('refresh_token')
+
+        if (!stored || !token) return
+
+        // ── Proactively refresh if the JWT is expired ────────────────────────
+        // Decoding the exp claim client-side avoids the 401 flash on page load
+        let activeToken = token
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]))
+          const isExpired = Date.now() >= payload.exp * 1000
+          if (isExpired) {
+            if (!refreshTok) {
+              console.warn('⚠️ [INIT] Token expired, no refresh token — clearing session')
+              clearSession()
+              return
+            }
+            console.log('🔄 [INIT] Token expired — refreshing proactively...')
+            const res = await api.post('/auth/refresh', { refresh_token: refreshTok })
+            const { access_token, refresh_token: newRefresh } = res.data
+            activeToken = access_token
+            localStorage.setItem('access_token', access_token)
+            if (newRefresh) localStorage.setItem('refresh_token', newRefresh)
+            console.log('✅ [INIT] Token refreshed successfully')
+          }
+        } catch (refreshErr) {
+          console.warn('⚠️ [INIT] Token refresh failed — clearing session', refreshErr)
+          clearSession()
+          return
+        }
+        // ─────────────────────────────────────────────────────────────────────
+
         const parsed: User = JSON.parse(stored)
 
         // Legacy e-mail overrides
@@ -80,10 +115,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(parsed)
         setRoles(parsedRoles)
         setActiveRoleState(parsedActive)
+      } catch (e) {
+        console.error('[INIT] Error loading from localStorage:', e)
       }
-    } catch (e) {
-      console.error('[INIT] Error loading from localStorage:', e)
     }
+
+    init()
   }, [])
 
   // ── login ─────────────────────────────────────────────────────────────────

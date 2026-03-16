@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
+import PhoneInput from '@/components/PhoneInput'
 
 const CATEGORIES = [
   { value: 'dj', label: 'DJ', icon: '🎧', desc: 'Disc jockeys for events & parties' },
@@ -30,6 +31,7 @@ export default function VendorRegisterPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [phone, setPhone] = useState('')
+  const [smsOptIn, setSmsOptIn] = useState(false)
 
   // Category step
   const [selectedCategory, setSelectedCategory] = useState('')
@@ -62,6 +64,7 @@ export default function VendorRegisterPage() {
         firstName,
         lastName,
         phoneNumber: phone,
+        smsOptIn,
       })
       setSession(res.data.session)
       // Save token for subsequent requests
@@ -178,12 +181,11 @@ export default function VendorRegisterPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-                <input
-                  type="tel" value={phone} onChange={e => setPhone(e.target.value)}
-                  suppressHydrationWarning
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  placeholder="(555) 000-0000"
+                <PhoneInput
+                  value={phone}
+                  onChange={setPhone}
+                  smsOptIn={smsOptIn}
+                  onSmsOptInChange={setSmsOptIn}
                 />
               </div>
               <div>

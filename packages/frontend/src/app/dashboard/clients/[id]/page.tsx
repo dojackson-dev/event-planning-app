@@ -3,7 +3,42 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { ArrowLeft, Calendar, Mail, Phone, Users, Clock, MapPin, Utensils, Wrench, Heart, Accessibility, DollarSign, Info, CheckCircle, MessageSquare, FileText, Clock as ClockIcon, Pencil } from 'lucide-react'
+import { ArrowLeft, Calendar, Mail, Phone, Users, Clock, MapPin, Utensils, Wrench, Heart, Accessibility, DollarSign, Info, CheckCircle, MessageSquare, FileText, Clock as ClockIcon, Pencil, Store, X, ChevronRight } from 'lucide-react'
+
+const VENDOR_CATEGORIES = [
+  { value: '', label: 'All Categories' },
+  { value: 'dj', label: '🎧 DJ' },
+  { value: 'decorator', label: '🎨 Decorator' },
+  { value: 'planner_coordinator', label: '📋 Planner/Coordinator' },
+  { value: 'furniture', label: '🪑 Furniture' },
+  { value: 'photographer', label: '📷 Photographer' },
+  { value: 'musicians', label: '🎵 Musicians' },
+  { value: 'mc_host', label: '🎤 MC/Host' },
+  { value: 'other', label: '⭐ Other' },
+]
+
+interface VendorForSearch {
+  id: string
+  business_name: string
+  category: string
+  city?: string
+  state?: string
+  hourly_rate?: number
+  flat_rate?: number
+  avgRating?: number
+  profile_image_url?: string
+}
+
+interface EventVendorBooking {
+  id: string
+  vendor_account_id: string
+  event_name: string
+  event_date: string
+  agreed_amount: number
+  deposit_amount: number
+  status: string
+  vendor_accounts?: { business_name: string; category: string; profile_image_url?: string }
+}
 
 interface IntakeForm {
   id: string
@@ -47,6 +82,18 @@ export default function ClientDetailPage() {
   const [messageContent, setMessageContent] = useState('')
   const [appointmentData, setAppointmentData] = useState({ date: '', time: '', notes: '' })
 
+  // ── Vendor booking state ──────────────────────────────────────
+  const [eventVendors, setEventVendors] = useState<EventVendorBooking[]>([])
+  const [showVendorModal, setShowVendorModal] = useState(false)
+  const [vendorList, setVendorList] = useState<VendorForSearch[]>([])
+  const [vendorListLoading, setVendorListLoading] = useState(false)
+  const [vendorCategoryFilter, setVendorCategoryFilter] = useState('')
+  const [selectedVendorToBook, setSelectedVendorToBook] = useState<VendorForSearch | null>(null)
+  const [vbAgreedAmount, setVbAgreedAmount] = useState('')
+  const [vbDepositAmount, setVbDepositAmount] = useState('')
+  const [vbNotes, setVbNotes] = useState('')
+  const [vbSubmitting, setVbSubmitting] = useState(false)
+
   useEffect(() => {
     if (params.id) {
       fetchClient()
@@ -60,10 +107,77 @@ export default function ClientDetailPage() {
       setStatus(response.data.status)
       setNotes(response.data.notes || '')
       setEditData(response.data)
+      fetchEventVendors(response.data.event_date)
     } catch (error) {
       console.error('Error fetching client:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchEventVendors = async (eventDate: string) => {
+    if (!eventDate) return
+    try {
+      const res = await api.get('/vendors/bookings/owner')
+      const all: EventVendorBooking[] = res.data || []
+      const dateStr = eventDate.split('T')[0]
+      setEventVendors(all.filter(b => b.event_date?.split('T')[0] === dateStr))
+    } catch {
+      // owner may not have vendor bookings yet
+    }
+  }
+
+  const handleOpenVendorModal = async (cat = '') => {
+    setShowVendorModal(true)
+    setSelectedVendorToBook(null)
+    setVbAgreedAmount('')
+    setVbDepositAmount('')
+    setVbNotes('')
+    setVendorCategoryFilter(cat)
+    setVendorListLoading(true)
+    try {
+      const res = await api.get(`/vendors/public${cat ? `?category=${cat}` : ''}`)
+      setVendorList(res.data?.vendors || res.data || [])
+    } catch {
+      setVendorList([])
+    } finally {
+      setVendorListLoading(false)
+    }
+  }
+
+  const handleVendorCategoryFilter = async (cat: string) => {
+    setVendorCategoryFilter(cat)
+    setVendorListLoading(true)
+    try {
+      const res = await api.get(`/vendors/public${cat ? `?category=${cat}` : ''}`)
+      setVendorList(res.data?.vendors || res.data || [])
+    } catch {
+      setVendorList([])
+    } finally {
+      setVendorListLoading(false)
+    }
+  }
+
+  const handleBookVendorSubmit = async () => {
+    if (!selectedVendorToBook || !client) return
+    setVbSubmitting(true)
+    try {
+      await api.post('/vendors/bookings', {
+        vendorAccountId: selectedVendorToBook.id,
+        eventName: formatEventType(client.event_type),
+        eventDate: client.event_date.split('T')[0],
+        venueName: client.venue_preference || undefined,
+        notes: vbNotes || undefined,
+        agreedAmount: vbAgreedAmount ? parseFloat(vbAgreedAmount) : undefined,
+        depositAmount: vbDepositAmount ? parseFloat(vbDepositAmount) : undefined,
+      })
+      setShowVendorModal(false)
+      setSelectedVendorToBook(null)
+      fetchEventVendors(client.event_date)
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to book vendor')
+    } finally {
+      setVbSubmitting(false)
     }
   }
 
@@ -367,6 +481,58 @@ export default function ClientDetailPage() {
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Vendors for this Event */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                  <Store className="h-5 w-5 text-purple-600" /> Vendors for this Event
+                </h2>
+                <button
+                  onClick={() => handleOpenVendorModal()}
+                  className="flex items-center gap-1.5 bg-purple-600 text-white text-sm px-3 py-1.5 rounded-lg hover:bg-purple-700"
+                >
+                  <Store className="h-3.5 w-3.5" /> Book Vendor
+                </button>
+              </div>
+
+              {eventVendors.length === 0 ? (
+                <p className="text-sm text-gray-500 italic">No vendors booked for this event date yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {eventVendors.map(vb => {
+                    const vendor = vb.vendor_accounts
+                    return (
+                      <div key={vb.id} className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                        <div>
+                          <p className="font-medium text-gray-900 text-sm">{vendor?.business_name || 'Vendor'}</p>
+                          <p className="text-xs text-gray-500 capitalize">{vendor?.category?.replace('_', ' ')}</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {vb.agreed_amount > 0 && (
+                            <span className="text-sm font-semibold text-gray-900">${Number(vb.agreed_amount).toLocaleString()}</span>
+                          )}
+                          <span className={`text-xs px-2 py-0.5 rounded-full capitalize font-medium ${
+                            vb.status === 'confirmed' ? 'bg-green-100 text-green-700' :
+                            vb.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                            vb.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                            'bg-gray-100 text-gray-600'
+                          }`}>{vb.status}</span>
+                          {(vb.status === 'confirmed' || vb.status === 'completed') && (
+                            <a
+                              href={`/dashboard/invoices/new?vendorBookingId=${vb.id}`}
+                              className="text-xs text-indigo-600 hover:underline flex items-center gap-0.5"
+                            >
+                              + Invoice <ChevronRight className="h-3 w-3" />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Budget & Source */}
@@ -782,6 +948,180 @@ export default function ClientDetailPage() {
           </div>
         )}
       </div>
+
+      {/* ─── Vendor Booking Modal ─────────────────────────────── */}
+      {showVendorModal && client && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Book a Vendor</h2>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  {formatEventType(client.event_type)} &bull; {new Date(client.event_date + 'T00:00:00').toLocaleDateString()}
+                </p>
+              </div>
+              <button onClick={() => setShowVendorModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {!selectedVendorToBook ? (
+              /* Step 1: Choose a vendor */
+              <div className="flex flex-col flex-1 overflow-hidden">
+                {/* Category filter */}
+                <div className="px-6 pt-4 flex gap-2 flex-wrap">
+                  {VENDOR_CATEGORIES.map(c => (
+                    <button
+                      key={c.value}
+                      onClick={() => handleVendorCategoryFilter(c.value)}
+                      className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-all ${
+                        vendorCategoryFilter === c.value
+                          ? 'bg-purple-600 text-white border-purple-600'
+                          : 'bg-white text-gray-600 border-gray-300 hover:border-purple-300'
+                      }`}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex-1 overflow-y-auto px-6 py-4">
+                  {vendorListLoading ? (
+                    <div className="py-8 text-center text-gray-400">
+                      <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-purple-600 mx-auto mb-2" />
+                      Loading vendors…
+                    </div>
+                  ) : vendorList.length === 0 ? (
+                    <p className="text-center text-gray-400 py-8">No vendors found.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {vendorList.map(v => (
+                        <button
+                          key={v.id}
+                          onClick={() => setSelectedVendorToBook(v)}
+                          className="text-left p-4 border border-gray-200 rounded-xl hover:border-purple-400 hover:bg-purple-50 transition-all group"
+                        >
+                          <p className="font-semibold text-gray-900 group-hover:text-purple-700 text-sm">{v.business_name}</p>
+                          <p className="text-xs text-gray-500 mt-0.5 capitalize">{v.category?.replace('_', ' ')}</p>
+                          {(v.city || v.state) && (
+                            <p className="text-xs text-gray-400 mt-1">{[v.city, v.state].filter(Boolean).join(', ')}</p>
+                          )}
+                          {(v.hourly_rate || v.flat_rate) && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              {v.hourly_rate ? `$${v.hourly_rate}/hr` : `$${v.flat_rate} flat`}
+                            </p>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* Step 2: Confirm booking details */
+              <div className="px-6 py-5 flex flex-col gap-4">
+                {/* Selected vendor summary */}
+                <div className="flex items-center justify-between p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                  <div>
+                    <p className="font-semibold text-gray-900">{selectedVendorToBook.business_name}</p>
+                    <p className="text-xs text-gray-500 capitalize">{selectedVendorToBook.category?.replace('_', ' ')}</p>
+                  </div>
+                  <button
+                    onClick={() => setSelectedVendorToBook(null)}
+                    className="text-xs text-purple-600 hover:underline"
+                  >
+                    Change
+                  </button>
+                </div>
+
+                {/* Event summary (read-only) */}
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Event</label>
+                    <p className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-700">
+                      {formatEventType(client.event_type)}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Date</label>
+                    <p className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-700">
+                      {new Date(client.event_date + 'T00:00:00').toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Agreed amount */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Agreed Amount <span className="text-gray-400 font-normal">(optional)</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 text-gray-400 text-sm">$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={vbAgreedAmount}
+                        onChange={e => setVbAgreedAmount(e.target.value)}
+                        placeholder="0.00"
+                        className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Deposit <span className="text-gray-400 font-normal">(optional)</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 text-gray-400 text-sm">$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={vbDepositAmount}
+                        onChange={e => setVbDepositAmount(e.target.value)}
+                        placeholder="0.00"
+                        className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Notes */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
+                  <textarea
+                    value={vbNotes}
+                    onChange={e => setVbNotes(e.target.value)}
+                    rows={2}
+                    placeholder="Any special requirements or notes for this vendor…"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-3 justify-end pt-2">
+                  <button
+                    onClick={() => setShowVendorModal(false)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleBookVendorSubmit}
+                    disabled={vbSubmitting}
+                    className="px-5 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50"
+                  >
+                    {vbSubmitting ? 'Booking…' : 'Send Booking Request'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

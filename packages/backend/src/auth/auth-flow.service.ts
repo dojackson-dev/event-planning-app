@@ -60,23 +60,7 @@ export class AuthFlowService {
 
     const userId = authData.user.id;
 
-    // 2. Create owner_account with trial
-    const { data: ownerAccount, error: accountError } = await supabase
-      .from('owner_accounts')
-      .insert({
-        business_name: dto.businessName,
-        primary_owner_id: userId,
-        subscription_status: 'trial', // Start with free trial
-      })
-      .select()
-      .single();
-
-    if (accountError) throw new BadRequestException(accountError.message);
-
-    // Create trial period (30 days default, or configurable)
-    await this.trialService.createTrial(ownerAccount.id);
-
-    // 3. Create user record
+    // 2. Create user record first (owner_accounts FK references users.id)
     const { error: userError } = await supabase
       .from('users')
       .insert({
@@ -95,6 +79,22 @@ export class AuthFlowService {
       });
 
     if (userError) throw new BadRequestException(userError.message);
+
+    // 3. Create owner_account with trial (FK primary_owner_id → users.id)
+    const { data: ownerAccount, error: accountError } = await supabase
+      .from('owner_accounts')
+      .insert({
+        business_name: dto.businessName,
+        primary_owner_id: userId,
+        subscription_status: 'trial', // Start with free trial
+      })
+      .select()
+      .single();
+
+    if (accountError) throw new BadRequestException(accountError.message);
+
+    // Create trial period (30 days default, or configurable)
+    await this.trialService.createTrial(ownerAccount.id);
 
     // 4. Create membership
     const { error: memberError } = await supabase

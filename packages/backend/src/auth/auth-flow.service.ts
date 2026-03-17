@@ -131,7 +131,7 @@ export class AuthFlowService {
       try {
         await this.twilioService.sendSMS(
           dto.phoneNumber,
-          'Welcome to DoVenue Suite! You\'re now opted in to SMS notifications for account updates, event confirmations, and reminders.',
+          'Welcome to DoVenue Suite! You are now subscribed to SMS notifications for account updates, event confirmations, reminders, and more. To unsubscribe at any time, reply STOP. You\'ll receive a confirmation: "You have successfully been unsubscribed. You will not receive any more messages from this number. Reply START to resubscribe." Msg & data rates may apply.',
         );
       } catch {
         // Non-fatal — don't block account creation if SMS fails

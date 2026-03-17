@@ -100,6 +100,8 @@ export class MessagingService {
         user_id: resolvedUserId,
         event_id: messageData.eventId && UUID_REGEX.test(messageData.eventId) ? messageData.eventId : null,
         message_type: messageData.messageType,
+        // Write both columns: older schema uses "message", newer uses "content"
+        message: messageData.content,
         content: messageData.content,
         status: 'pending',
       })

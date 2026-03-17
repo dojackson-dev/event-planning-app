@@ -120,6 +120,7 @@ export interface User {
   smsOptIn?: boolean
   smsOptInAt?: string
   smsOptOutAt?: string
+  preferredContact?: 'phone' | 'email' | 'text'
   ownerId?: string // For customers/planners/staff - references their owner
   tenantId?: string // Only for owners who host their website with us (optional)
   createdAt: string

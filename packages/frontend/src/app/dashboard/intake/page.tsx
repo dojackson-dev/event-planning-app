@@ -192,7 +192,8 @@ export default function ClientIntakePage() {
         dietary_restrictions: formData.dietaryRestrictions || null,
         accessibility_requirements: formData.accessibility || null,
         budget_range: formData.estimatedBudget || null,
-        how_did_you_hear: formData.referralSource || null
+        how_did_you_hear: formData.referralSource || null,
+        preferred_contact: formData.preferredContact || 'phone',
       }
 
       console.log('Submitting intake form data:', dbData)

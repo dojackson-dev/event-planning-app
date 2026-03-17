@@ -98,7 +98,8 @@ export class MessagingService {
         recipient_name: messageData.recipientName,
         recipient_type: messageData.recipientType,
         user_id: resolvedUserId,
-        event_id: messageData.eventId && UUID_REGEX.test(messageData.eventId) ? messageData.eventId : null,
+        // event_id FK references "events" but app uses table "event" (singular) — store null to avoid FK violation
+        event_id: null,
         message_type: messageData.messageType,
         // Write both columns: older schema uses "message", newer uses "content"
         message: messageData.content,

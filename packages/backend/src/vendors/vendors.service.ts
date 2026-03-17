@@ -54,6 +54,7 @@ export class VendorsService {
         hourly_rate: dto.hourlyRate,
         flat_rate: dto.flatRate,
         rate_description: dto.rateDescription,
+        is_active: true,
       })
       .select()
       .single();

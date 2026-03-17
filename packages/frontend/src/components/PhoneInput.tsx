@@ -200,17 +200,21 @@ const US = COUNTRIES.find(c => c.code === 'US')!
 interface PhoneInputProps {
   value: string
   onChange: (fullNumber: string) => void
-  smsOptIn: boolean
-  onSmsOptInChange: (checked: boolean) => void
+  smsOptIn?: boolean
+  onSmsOptInChange?: (checked: boolean) => void
   required?: boolean
+  hideSmsOptIn?: boolean
+  label?: string
 }
 
 export default function PhoneInput({
   value,
   onChange,
-  smsOptIn,
+  smsOptIn = false,
   onSmsOptInChange,
   required,
+  hideSmsOptIn = false,
+  label,
 }: PhoneInputProps) {
   const [selectedCountry, setSelectedCountry] = useState(US)
   const [localNumber, setLocalNumber] = useState('')
@@ -265,7 +269,7 @@ export default function PhoneInput({
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1">
-        Phone Number{required && ' *'}
+        {label ?? 'Phone Number'}{required && ' *'}
       </label>
 
       {/* Input row */}
@@ -345,8 +349,8 @@ export default function PhoneInput({
         />
       </div>
 
-      {/* SMS disclosure — always visible so users know what they're signing up for */}
-      <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-2.5">
+      {/* SMS disclosure — hidden when hideSmsOptIn is true (e.g. venue phone) */}
+      {!hideSmsOptIn && <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-2.5">
         <p className="text-xs text-gray-600 leading-relaxed">
           DoVenue Suite sends SMS messages to users who voluntarily opt in through our website or event
           registration forms. Messages include account notifications, event confirmations, reminders,
@@ -378,7 +382,7 @@ export default function PhoneInput({
           {' · '}
           <a href="/terms-of-service" className="text-primary-600 hover:underline" target="_blank" rel="noopener noreferrer">Terms</a>
         </p>
-      </div>
+      </div>}
     </div>
   )
 }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { User, Calendar, Mail, Phone, Clock, Eye, CheckCircle, Search, MessageSquare, FileText, Clock as ClockIcon } from 'lucide-react'
+import { User, Calendar, Mail, Phone, Clock, Eye, CheckCircle, Search, MessageSquare, FileText, Clock as ClockIcon, Trash2 } from 'lucide-react'
 
 interface IntakeForm {
   id: string
@@ -105,6 +105,17 @@ export default function ClientsPage() {
     } catch (error) {
       console.error('Error creating appointment:', error)
       alert('Failed to create appointment')
+    }
+  }
+
+  const handleDeleteClient = async (client: IntakeForm) => {
+    if (!confirm(`Delete "${client.contact_name}"? This cannot be undone.`)) return
+    try {
+      await api.delete(`/intake-forms/${client.id}`)
+      setClients(prev => prev.filter(c => c.id !== client.id))
+    } catch (error) {
+      console.error('Error deleting client:', error)
+      alert('Failed to delete client')
     }
   }
 
@@ -375,6 +386,13 @@ export default function ClientsPage() {
                             title="View details"
                           >
                             <Eye className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteClient(client)}
+                            className="text-red-600 hover:text-red-900 flex items-center gap-1 px-2 py-1 rounded hover:bg-red-50"
+                            title="Delete client"
+                          >
+                            <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
                       </td>

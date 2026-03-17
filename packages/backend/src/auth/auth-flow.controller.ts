@@ -72,15 +72,6 @@ export class AuthFlowController {
   }
 
   /**
-   * UNIFIED LOGIN — accepts email/password for any user type.
-   * Returns { access_token, refresh_token, user } for frontend AuthContext compatibility.
-   */
-  @Post('unified/login')
-  async unifiedLogin(@Body() body: { email: string; password: string }) {
-    return this.authFlowService.unifiedLogin(body.email, body.password);
-  }
-
-  /**
    * VENDOR ROUTES
    */
   @Post('vendor/signup')

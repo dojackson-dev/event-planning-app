@@ -510,37 +510,6 @@ export class AuthFlowService {
   }
 
   /**
-   * UNIFIED LOGIN
-   * Accepts any user type (owner, vendor, admin, client) and returns a
-   * response compatible with the frontend AuthContext: { access_token, refresh_token, user }
-   */
-  async unifiedLogin(email: string, password: string) {
-    const supabase = this.supabaseService.getClient();
-
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (authError) throw new UnauthorizedException(authError.message);
-
-    // Look up user in users table without inner joins to avoid false negatives
-    const { data: dbUser } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', authData.user.id)
-      .single();
-
-    // Return session in the format AuthContext expects
-    return {
-      access_token: authData.session.access_token,
-      refresh_token: authData.session.refresh_token,
-      user: authData.user,
-      dbUser,
-    };
-  }
-
-  /**
    * VENDOR LOGIN
    */
   async vendorLogin(email: string, password: string) {

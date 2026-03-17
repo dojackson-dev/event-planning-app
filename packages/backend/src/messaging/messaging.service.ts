@@ -65,6 +65,17 @@ export class MessagingService {
   }) {
     // Enforce opt-in for named users (client/guest recipient types)
     const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    // When skipOptInCheck is true the caller is sending to an intake-form client.
+    // The "userId" in that case is the intake_form row UUID, NOT an auth.users UUID,
+    // so we must NOT store it as user_id (would violate the FK constraint).
+    const resolvedUserId =
+      !messageData.skipOptInCheck &&
+      messageData.userId &&
+      UUID_REGEX.test(messageData.userId)
+        ? messageData.userId
+        : null;
+
     if (!messageData.skipOptInCheck && messageData.userId && UUID_REGEX.test(messageData.userId)) {
       const { data: recipient } = await supabase
         .from('users')
@@ -86,7 +97,7 @@ export class MessagingService {
         recipient_phone: messageData.recipientPhone,
         recipient_name: messageData.recipientName,
         recipient_type: messageData.recipientType,
-        user_id: messageData.userId && UUID_REGEX.test(messageData.userId) ? messageData.userId : null,
+        user_id: resolvedUserId,
         event_id: messageData.eventId && UUID_REGEX.test(messageData.eventId) ? messageData.eventId : null,
         message_type: messageData.messageType,
         content: messageData.content,
@@ -95,7 +106,10 @@ export class MessagingService {
       .select()
       .single();
 
-    if (insertError) throw new Error(insertError.message);
+    if (insertError) {
+      this.logger.error('messages insert failed', insertError.message, insertError);
+      throw new Error(`DB insert failed: ${insertError.message}`);
+    }
 
     try {
       const result = await this.twilioService.sendSMS(

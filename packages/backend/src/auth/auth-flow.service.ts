@@ -565,13 +565,23 @@ export class AuthFlowService {
 
     if (authError) throw new UnauthorizedException(authError.message);
 
-    const { data: user, error: userError } = await supabase
+    const { data: dbUser } = await supabase
       .from('users')
       .select('*')
       .eq('id', authData.user.id)
       .single();
 
-    if (userError || !user) throw new UnauthorizedException('User not found');
+    // Fall back to Supabase auth metadata if no users-table row exists yet
+    const user = dbUser ?? {
+      id:            authData.user.id,
+      email:         authData.user.email,
+      first_name:    authData.user.user_metadata?.first_name ?? '',
+      last_name:     authData.user.user_metadata?.last_name ?? '',
+      role:          authData.user.user_metadata?.role ?? 'owner',
+      roles:         authData.user.user_metadata?.roles ?? null,
+      created_at:    authData.user.created_at,
+      updated_at:    authData.user.updated_at,
+    };
 
     const roles = this.getUserRoles(user);
 

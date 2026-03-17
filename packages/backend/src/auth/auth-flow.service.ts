@@ -449,6 +449,7 @@ export class AuthFlowService {
     firstName: string;
     lastName: string;
     phoneNumber?: string;
+    smsOptIn?: boolean;
   }) {
     const adminClient = this.supabaseService.getAdminClient();
 
@@ -496,11 +497,24 @@ export class AuthFlowService {
         phone_number: dto.phoneNumber,
         email_verified: false,
         phone_verified: false,
-        sms_opt_in: false,
+        sms_opt_in: dto.smsOptIn === true,
+        sms_opt_in_at: dto.smsOptIn === true ? new Date().toISOString() : null,
         status: 'active',
       });
 
     if (userError) throw new BadRequestException(userError.message);
+
+    // Send welcome SMS if opted in
+    if (dto.phoneNumber && dto.smsOptIn) {
+      try {
+        await this.twilioService.sendSMS(
+          dto.phoneNumber,
+          'Welcome to DoVenue Suite! You are now subscribed to SMS notifications for account updates, event confirmations, reminders, and more. To unsubscribe at any time, reply STOP. Msg & data rates may apply.',
+        );
+      } catch {
+        // Non-fatal — don\'t block account creation if SMS fails
+      }
+    }
 
     return {
       userId,

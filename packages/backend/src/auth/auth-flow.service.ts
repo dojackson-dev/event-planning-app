@@ -65,7 +65,7 @@ export class AuthFlowService {
       .from('owner_accounts')
       .insert({
         business_name: dto.businessName,
-        user_id: userId,
+        primary_owner_id: userId,
         subscription_status: 'trial', // Start with free trial
       })
       .select()

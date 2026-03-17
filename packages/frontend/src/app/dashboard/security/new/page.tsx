@@ -54,7 +54,7 @@ export default function NewSecurityPage() {
       const securityData = {
         name,
         phone,
-        eventId: eventId ? Number(eventId) : null,
+        eventId: eventId || null,
       }
 
       await api.post('/security', securityData)

@@ -72,6 +72,8 @@ interface Venue {
   profile_image_url: string
   description: string
   website: string
+  phone: string
+  email: string
   distance_miles?: number
 }
 
@@ -119,13 +121,14 @@ export default function VendorsPage() {
     }
   }, [zipCode, radiusMiles, category])
 
-  // Load all vendors on mount
+  // Load all vendors + venues on mount
   useEffect(() => {
     const loadAll = async () => {
       setLoading(true)
       try {
         const res = await api.get('/vendors/public')
         setVendors(res.data.vendors || [])
+        setVenues(res.data.venues || [])
       } catch (err) {
         console.error(err)
       } finally {
@@ -159,7 +162,7 @@ export default function VendorsPage() {
               <Image src="/lib/LogoDVS.png" alt="DoVenueSuite" width={180} height={48} className="h-10 w-auto" />
             </Link>
             <div className="flex items-center gap-4">
-              <Link href="/vendors/register" className="bg-primary-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-primary-700">
+              <Link href="/signup" className="bg-primary-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-primary-700">
                 List Your Business
               </Link>
               <Link href="/login" className="text-gray-600 hover:text-gray-900 text-sm font-medium">
@@ -229,10 +232,7 @@ export default function VendorsPage() {
             {CATEGORIES.map(c => (
               <button
                 key={c.value}
-                onClick={() => {
-                  setCategory(c.value)
-                  setActiveTab('vendors')
-                }}
+                onClick={() => setCategory(c.value)}
                 className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium border transition-all ${
                   category === c.value
                     ? 'bg-primary-600 text-white border-primary-600'
@@ -287,7 +287,7 @@ export default function VendorsPage() {
                     <div className="text-5xl mb-4">🔍</div>
                     <p className="text-lg font-medium">No vendors found</p>
                     <p className="text-sm mt-1">Try searching a different zip code or expanding your radius</p>
-                    <Link href="/vendors/register" className="mt-4 inline-block bg-primary-600 text-white px-6 py-2 rounded-md text-sm font-medium hover:bg-primary-700">
+                    <Link href="/signup" className="mt-4 inline-block bg-primary-600 text-white px-6 py-2 rounded-md text-sm font-medium hover:bg-primary-700">
                       Be the first vendor in your area
                     </Link>
                   </div>
@@ -329,7 +329,7 @@ export default function VendorsPage() {
           <h2 className="text-2xl font-bold mb-2">Are you a vendor or venue owner?</h2>
           <p className="text-primary-200 mb-6">List your business for free and get discovered by event planners and owners.</p>
           <Link
-            href="/vendors/register"
+            href="/signup"
             className="bg-white text-primary-700 px-8 py-3 rounded-md font-semibold hover:bg-primary-50 inline-block"
           >
             Get Listed Free →
@@ -432,7 +432,7 @@ function VenueCard({ venue }: { venue: Venue }) {
 
         {(venue.city || venue.state) && (
           <p className="text-xs text-gray-500 mt-1">
-            📍 {[venue.city, venue.state].filter(Boolean).join(', ')}
+            📍 {[venue.address, venue.city, venue.state].filter(Boolean).join(', ')}
             {venue.distance_miles != null && (
               <span className="ml-1 text-primary-600 font-medium">({venue.distance_miles} mi)</span>
             )}
@@ -440,7 +440,7 @@ function VenueCard({ venue }: { venue: Venue }) {
         )}
 
         {venue.capacity && (
-          <p className="text-xs text-gray-500 mt-0.5">👥 Capacity: {venue.capacity.toLocaleString()}</p>
+          <p className="text-xs text-gray-500 mt-0.5">👥 Up to {venue.capacity.toLocaleString()} guests</p>
         )}
 
         {venue.description && (
@@ -450,17 +450,33 @@ function VenueCard({ venue }: { venue: Venue }) {
         <div className="mt-4 flex gap-2">
           {venue.website ? (
             <a
-              href={venue.website}
+              href={venue.website.startsWith('http') ? venue.website : `https://${venue.website}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 text-center border border-primary-600 text-primary-600 text-sm py-2 rounded-lg hover:bg-primary-50 font-medium"
+              className="flex-1 text-center bg-primary-600 text-white text-sm py-2 rounded-lg hover:bg-primary-700 font-medium"
             >
               Visit Website
             </a>
+          ) : venue.email ? (
+            <a
+              href={`mailto:${venue.email}`}
+              className="flex-1 text-center bg-primary-600 text-white text-sm py-2 rounded-lg hover:bg-primary-700 font-medium"
+            >
+              ✉️ Email Venue
+            </a>
           ) : (
-            <span className="flex-1 text-center border border-gray-200 text-gray-400 text-sm py-2 rounded-lg">
-              No website
+            <span className="flex-1 text-center border border-gray-200 text-gray-400 text-sm py-2 rounded-lg cursor-default">
+              Contact Info Pending
             </span>
+          )}
+          {venue.phone && (
+            <a
+              href={`tel:${venue.phone}`}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-gray-600 text-sm hover:bg-gray-50"
+              title="Call venue"
+            >
+              📞
+            </a>
           )}
         </div>
       </div>

@@ -1,44 +1,99 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, ParseIntPipe, Query } from '@nestjs/common';
-import { SecurityService } from './security.service';
-import { Security } from '../entities/security.entity';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, Headers, UnauthorizedException } from '@nestjs/common';
+import { SecurityService } from './security.service.js';
+import { SupabaseService } from '../supabase/supabase.service.js';
 
 @Controller('security')
 export class SecurityController {
-  constructor(private readonly securityService: SecurityService) {}
+  constructor(
+    private readonly securityService: SecurityService,
+    private readonly supabaseService: SupabaseService,
+  ) {}
+
+  private extractToken(authorization?: string): string {
+    if (!authorization) throw new UnauthorizedException('No authorization header');
+    return authorization.replace('Bearer ', '');
+  }
+
+  private async getOwnerId(authorization?: string): Promise<string> {
+    const token = this.extractToken(authorization);
+    if (token.startsWith('local-')) {
+      const userId = token.replace('local-', '');
+      if (userId) return userId;
+      throw new UnauthorizedException('Invalid dev token');
+    }
+    const supabase = this.supabaseService.setAuthContext(token);
+    const { data: { user }, error } = await supabase.auth.getUser();
+    if (error || !user) throw new UnauthorizedException('Invalid token');
+    return user.id;
+  }
 
   @Get()
-  async findAll(@Query('eventId') eventId?: string): Promise<Security[]> {
+  async findAll(
+    @Headers('authorization') authorization: string,
+    @Query('eventId') eventId?: string,
+  ): Promise<any[]> {
+    const ownerId = await this.getOwnerId(authorization);
+    const token = this.extractToken(authorization);
+    const supabase = this.supabaseService.setAuthContext(token);
     if (eventId) {
-      return this.securityService.findByEvent(parseInt(eventId));
+      return this.securityService.findByEvent(supabase, ownerId, eventId);
     }
-    return this.securityService.findAll();
+    return this.securityService.findAll(supabase, ownerId);
   }
 
   @Get(':id')
-  async findOne(@Param('id', ParseIntPipe) id: number): Promise<Security | null> {
-    return this.securityService.findOne(id);
+  async findOne(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+  ): Promise<any> {
+    const ownerId = await this.getOwnerId(authorization);
+    const token = this.extractToken(authorization);
+    const supabase = this.supabaseService.setAuthContext(token);
+    return this.securityService.findOne(supabase, ownerId, id);
   }
 
   @Post()
-  async create(@Body() security: Partial<Security>): Promise<Security> {
-    return this.securityService.create(security);
+  async create(
+    @Headers('authorization') authorization: string,
+    @Body() body: any,
+  ): Promise<any> {
+    const ownerId = await this.getOwnerId(authorization);
+    const token = this.extractToken(authorization);
+    const supabase = this.supabaseService.setAuthContext(token);
+    return this.securityService.create(supabase, ownerId, body);
   }
 
   @Put(':id')
   async update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() security: Partial<Security>,
-  ): Promise<Security | null> {
-    return this.securityService.update(id, security);
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+    @Body() body: any,
+  ): Promise<any> {
+    const ownerId = await this.getOwnerId(authorization);
+    const token = this.extractToken(authorization);
+    const supabase = this.supabaseService.setAuthContext(token);
+    return this.securityService.update(supabase, ownerId, id, body);
   }
 
   @Post(':id/arrival')
-  async recordArrival(@Param('id', ParseIntPipe) id: number): Promise<Security | null> {
-    return this.securityService.recordArrival(id);
+  async recordArrival(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+  ): Promise<any> {
+    const ownerId = await this.getOwnerId(authorization);
+    const token = this.extractToken(authorization);
+    const supabase = this.supabaseService.setAuthContext(token);
+    return this.securityService.recordArrival(supabase, ownerId, id);
   }
 
   @Delete(':id')
-  async delete(@Param('id', ParseIntPipe) id: number): Promise<void> {
-    return this.securityService.delete(id);
+  async remove(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+  ): Promise<void> {
+    const ownerId = await this.getOwnerId(authorization);
+    const token = this.extractToken(authorization);
+    const supabase = this.supabaseService.setAuthContext(token);
+    return this.securityService.remove(supabase, ownerId, id);
   }
 }

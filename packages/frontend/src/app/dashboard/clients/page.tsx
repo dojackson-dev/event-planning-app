@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { User, Calendar, Mail, Phone, Clock, Eye, CheckCircle, Search, MessageSquare, FileText, Clock as ClockIcon } from 'lucide-react'
+import { User, Calendar, Mail, Phone, Clock, Eye, CheckCircle, Search, MessageSquare, FileText, Clock as ClockIcon, Trash2 } from 'lucide-react'
 
 interface IntakeForm {
   id: string
@@ -41,7 +41,7 @@ export default function ClientsPage() {
   const [showInvoiceModal, setShowInvoiceModal] = useState(false)
   const [showAppointmentModal, setShowAppointmentModal] = useState(false)
   const [messageContent, setMessageContent] = useState('')
-  const [appointmentData, setAppointmentData] = useState({ date: '', time: '', notes: '' })
+  const [appointmentData, setAppointmentData] = useState({ date: '', time: '', duration: '60', notes: '' })
 
   useEffect(() => {
     fetchClients()
@@ -88,14 +88,34 @@ export default function ClientsPage() {
   const handleMakeAppointment = async () => {
     if (!selectedClient || !appointmentData.date || !appointmentData.time) return
     try {
-      // TODO: Implement appointment API endpoint
-      console.log('Creating appointment for', selectedClient.contact_name, ':', appointmentData)
+      await api.post('/appointments', {
+        intake_form_id: selectedClient.id,
+        client_name: selectedClient.contact_name,
+        client_email: selectedClient.contact_email,
+        client_phone: selectedClient.contact_phone || null,
+        appointment_date: appointmentData.date,
+        appointment_time: appointmentData.time,
+        duration_minutes: parseInt(appointmentData.duration) || 60,
+        notes: appointmentData.notes || null,
+        status: 'scheduled',
+      })
       alert('Appointment scheduled successfully!')
       setShowAppointmentModal(false)
-      setAppointmentData({ date: '', time: '', notes: '' })
+      setAppointmentData({ date: '', time: '', duration: '60', notes: '' })
     } catch (error) {
       console.error('Error creating appointment:', error)
       alert('Failed to create appointment')
+    }
+  }
+
+  const handleDeleteClient = async (client: IntakeForm) => {
+    if (!confirm(`Delete "${client.contact_name}"? This cannot be undone.`)) return
+    try {
+      await api.delete(`/intake-forms/${client.id}`)
+      setClients(prev => prev.filter(c => c.id !== client.id))
+    } catch (error) {
+      console.error('Error deleting client:', error)
+      alert('Failed to delete client')
     }
   }
 
@@ -367,6 +387,13 @@ export default function ClientsPage() {
                           >
                             <Eye className="h-4 w-4" />
                           </button>
+                          <button
+                            onClick={() => handleDeleteClient(client)}
+                            className="text-red-600 hover:text-red-900 flex items-center gap-1 px-2 py-1 rounded hover:bg-red-50"
+                            title="Delete client"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -496,6 +523,19 @@ export default function ClientsPage() {
                     onChange={(e) => setAppointmentData({ ...appointmentData, time: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Duration</label>
+                  <select
+                    value={appointmentData.duration}
+                    onChange={(e) => setAppointmentData({ ...appointmentData, duration: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="30">30 minutes</option>
+                    <option value="60">1 hour</option>
+                    <option value="90">1.5 hours</option>
+                    <option value="120">2 hours</option>
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Notes (Optional)</label>

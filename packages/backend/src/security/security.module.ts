@@ -1,12 +1,10 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { SecurityController } from './security.controller';
-import { SecurityService } from './security.service';
-import { Security } from '../entities/security.entity';
-import { Event } from '../entities/event.entity';
+import { SecurityController } from './security.controller.js';
+import { SecurityService } from './security.service.js';
+import { SupabaseModule } from '../supabase/supabase.module.js';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Security, Event])],
+  imports: [SupabaseModule],
   controllers: [SecurityController],
   providers: [SecurityService],
   exports: [SecurityService],

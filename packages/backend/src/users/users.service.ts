@@ -1,25 +1,70 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { User } from '../entities/user.entity';
 
 @Injectable()
 export class UsersService {
-  constructor(
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
-  ) {}
-
-  async findAll(): Promise<User[]> {
-    return this.userRepository.find();
+  // Map intake_form row to a User-like shape expected by the frontend
+  private toUser(form: any) {
+    // Support both column naming conventions
+    const fullName = form.client_name || form.contact_name || '';
+    const nameParts = fullName.trim().split(' ');
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
+    return {
+      id: form.id,
+      firstName,
+      lastName,
+      email: form.email || form.contact_email || '',
+      phone: form.phone || form.contact_phone || null,
+      role: 'customer',
+      smsOptIn: form.sms_opt_in ?? false,
+      preferredContact: form.preferred_contact || 'phone',
+    };
   }
 
-  async findOne(id: number): Promise<User | null> {
-    return this.userRepository.findOneBy({ id });
+  async findAll(supabase: any, ownerId: string) {
+    const { data, error } = await supabase
+      .from('intake_forms')
+      .select('id, contact_name, contact_email, contact_phone, sms_opt_in, preferred_contact')
+      .eq('user_id', ownerId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      // Fallback: try without sms_opt_in in case column doesn't exist yet
+      const { data: fallback, error: fallbackError } = await supabase
+        .from('intake_forms')
+        .select('id, contact_name, contact_email, contact_phone')
+        .eq('user_id', ownerId)
+        .order('created_at', { ascending: false });
+      if (fallbackError) throw new Error(fallbackError.message);
+      const seen = new Set<string>();
+      return (fallback || []).reduce((acc: any[], form: any) => {
+        const key = form.contact_email || form.contact_phone || form.id;
+        if (!seen.has(key)) { seen.add(key); acc.push(this.toUser(form)); }
+        return acc;
+      }, []);
+    }
+
+    // Deduplicate by email/phone
+    const seen = new Set<string>();
+    return (data || []).reduce((acc: any[], form: any) => {
+      const key = form.contact_email || form.contact_phone || form.id;
+      if (!seen.has(key)) {
+        seen.add(key);
+        acc.push(this.toUser(form));
+      }
+      return acc;
+    }, []);
   }
 
-  async create(user: Partial<User>): Promise<User> {
-    const newUser = this.userRepository.create(user);
-    return this.userRepository.save(newUser);
+  async findOne(supabase: any, ownerId: string, id: string) {
+    const { data, error } = await supabase
+      .from('intake_forms')
+      .select('id, contact_name, contact_email, contact_phone, sms_opt_in, preferred_contact')
+      .eq('user_id', ownerId)
+      .eq('id', id)
+      .single();
+
+    if (error) throw new Error(error.message);
+    return data ? this.toUser(data) : null;
   }
 }

@@ -49,13 +49,25 @@ export class VendorsController {
 
   private async getOwnerAccountId(userId: string): Promise<string | null> {
     const admin = this.supabaseService.getAdminClient();
-    const { data } = await admin
+
+    // Primary: memberships table (normal registration path)
+    const { data: membership } = await admin
       .from('memberships')
       .select('owner_account_id')
       .eq('user_id', userId)
       .eq('role', 'owner')
       .single();
-    return data?.owner_account_id || null;
+
+    if (membership?.owner_account_id) return membership.owner_account_id;
+
+    // Fallback: owner may have been set up via script — check primary_owner_id
+    const { data: ownerAccount } = await admin
+      .from('owner_accounts')
+      .select('id')
+      .eq('primary_owner_id', userId)
+      .single();
+
+    return ownerAccount?.id || null;
   }
 
   // ─────────────────────────────────────────────
@@ -93,8 +105,12 @@ export class VendorsController {
     }
 
     if (!searchLat || !searchLng) {
-      // Fallback: return all vendors without geo filter
-      return this.vendorsService.getAllVendors(category);
+      // Fallback: return all vendors + venues without geo filter
+      const [vendors, venues] = await Promise.all([
+        this.vendorsService.getAllVendors(category),
+        this.vendorsService.getAllVenues(),
+      ]);
+      return { vendors, venues };
     }
 
     const vendors = await this.vendorsService.searchVendors({
@@ -114,11 +130,14 @@ export class VendorsController {
     return { vendors, venues };
   }
 
-  /** GET /vendors/public - list all active vendors (no location filter) */
+  /** GET /vendors/public - list all active vendors + venues (no location filter) */
   @Get('public')
   async getAllVendors(@Query('category') category: string) {
-    const vendors = await this.vendorsService.getAllVendors(category);
-    return { vendors };
+    const [vendors, venues] = await Promise.all([
+      this.vendorsService.getAllVendors(category),
+      this.vendorsService.getAllVenues(),
+    ]);
+    return { vendors, venues };
   }
 
   /** GET /vendors/:id - public vendor profile */

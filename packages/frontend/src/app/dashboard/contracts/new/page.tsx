@@ -4,16 +4,27 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
-import { User, Booking } from '@/types'
-import { Upload, X, Calendar, Clock } from 'lucide-react'
+import { Upload, X, Calendar, Clock, Mail, Phone, Users } from 'lucide-react'
 import { parseLocalDate } from '@/lib/dateUtils'
+
+interface IntakeFormClient {
+  id: string
+  contact_name: string
+  contact_email: string
+  contact_phone: string
+  event_type: string
+  event_date: string
+  event_time: string
+  guest_count: number
+  status: string
+}
 
 export default function NewContractPage() {
   const router = useRouter()
   const { user } = useAuth()
-  const [bookings, setBookings] = useState<Booking[]>([])
-  const [selectedBooking, setSelectedBooking] = useState<string>('')
-  const [selectedBookingData, setSelectedBookingData] = useState<Booking | null>(null)
+  const [clients, setClients] = useState<IntakeFormClient[]>([])
+  const [selectedClient, setSelectedClient] = useState<string>('')
+  const [selectedClientData, setSelectedClientData] = useState<IntakeFormClient | null>(null)
   const [title, setTitle] = useState('Event Service Agreement')
   const [description, setDescription] = useState('')
   const [notes, setNotes] = useState('')
@@ -22,27 +33,37 @@ export default function NewContractPage() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    fetchBookings()
+    fetchClients()
   }, [])
 
   useEffect(() => {
-    if (selectedBooking) {
-      const booking = bookings.find(b => b.id === selectedBooking)
-      setSelectedBookingData(booking || null)
-      if (booking?.event) {
-        setDescription(`Contract for ${booking.event.name} event`)
+    if (selectedClient) {
+      const client = clients.find(c => c.id === selectedClient)
+      setSelectedClientData(client || null)
+      if (client) {
+        const eventLabel = client.event_type
+          ? client.event_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+          : 'Event'
+        setDescription(`Contract for ${client.contact_name} — ${eventLabel}`)
       }
     } else {
-      setSelectedBookingData(null)
+      setSelectedClientData(null)
     }
-  }, [selectedBooking, bookings])
+  }, [selectedClient, clients])
 
-  const fetchBookings = async () => {
+  const fetchClients = async () => {
     try {
-      const response = await api.get<Booking[]>('/bookings')
-      setBookings(response.data)
+      const res = await api.get<IntakeFormClient[]>('/intake-forms')
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const upcoming = res.data.filter((c) => {
+        if (!c.event_date) return false
+        const [y, m, d] = c.event_date.split('-').map(Number)
+        return new Date(y, m - 1, d) >= today
+      })
+      setClients(upcoming)
     } catch (error) {
-      console.error('Failed to fetch bookings:', error)
+      console.error('Failed to fetch clients:', error)
     }
   }
 
@@ -71,13 +92,8 @@ export default function NewContractPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!selectedBooking || !title || !file) {
-      alert('Please select a booking/event and upload a contract file')
-      return
-    }
-
-    if (!selectedBookingData?.user?.id) {
-      alert('No client associated with this booking')
+    if (!selectedClient || !title || !file) {
+      alert('Please select a client and upload a contract file')
       return
     }
 
@@ -95,15 +111,14 @@ export default function NewContractPage() {
 
       // Create contract
       const contractData = {
-        ownerId: user?.id ? Number(user.id) : undefined,
-        clientId: Number(selectedBookingData.user.id),
-        bookingId: Number(selectedBooking),
+        owner_id: user?.id,
+        intake_form_id: selectedClient,
         title,
         description,
         notes,
-        fileUrl: uploadResponse.data.path,
-        fileName: uploadResponse.data.originalname,
-        fileSize: uploadResponse.data.size,
+        file_url: uploadResponse.data.path,
+        file_name: uploadResponse.data.originalname,
+        file_size: uploadResponse.data.size,
         status: 'draft'
       }
 
@@ -126,50 +141,65 @@ export default function NewContractPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white shadow-md rounded-lg p-6">
-        {/* Booking/Event Selection */}
+        {/* Client Selection */}
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Select Booking/Event *
+            Select Client *
           </label>
           <select
-            value={selectedBooking}
-            onChange={(e) => setSelectedBooking(e.target.value)}
+            value={selectedClient}
+            onChange={(e) => setSelectedClient(e.target.value)}
             required
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
-            <option value="">-- Select a booking --</option>
-            {bookings.map((booking) => (
-              <option key={booking.id} value={booking.id}>
-                {booking.event?.name || 'Event'} - {booking.user ? `${booking.user.firstName} ${booking.user.lastName}` : 'Customer'}
-                {booking.event?.date && ` - ${parseLocalDate(booking.event.date).toLocaleDateString()}`}
+            <option value="">-- Select a client --</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.contact_name}
+                {c.event_type ? ` — ${c.event_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}` : ''}
+                {c.event_date ? ` (${c.event_date})` : ''}
               </option>
             ))}
           </select>
+          {clients.length === 0 && (
+            <p className="text-xs text-gray-400 mt-1">No upcoming clients found. Clients with past event dates are excluded.</p>
+          )}
         </div>
 
-        {/* Event Details Display */}
-        {selectedBookingData && (
+        {/* Client Details Display */}
+        {selectedClientData && (
           <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h3 className="text-sm font-semibold text-blue-900 mb-3">Event Information</h3>
+            <h3 className="text-sm font-semibold text-blue-900 mb-3">Client Information</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-blue-700 font-medium">Client:</span>
-                <p className="text-blue-900">
-                  {selectedBookingData.user?.firstName} {selectedBookingData.user?.lastName}
-                </p>
-                <p className="text-blue-700 text-xs">{selectedBookingData.user?.email}</p>
+                <p className="text-blue-900 font-semibold">{selectedClientData.contact_name}</p>
+                {selectedClientData.contact_email && (
+                  <p className="text-blue-700 text-xs flex items-center gap-1 mt-0.5">
+                    <Mail className="h-3 w-3" />{selectedClientData.contact_email}
+                  </p>
+                )}
+                {selectedClientData.contact_phone && (
+                  <p className="text-blue-700 text-xs flex items-center gap-1 mt-0.5">
+                    <Phone className="h-3 w-3" />{selectedClientData.contact_phone}
+                  </p>
+                )}
               </div>
               <div>
-                <span className="text-blue-700 font-medium">Event:</span>
-                <p className="text-blue-900">{selectedBookingData.event?.name || 'N/A'}</p>
+                <span className="text-blue-700 font-medium">Event Type:</span>
+                <p className="text-blue-900">
+                  {selectedClientData.event_type
+                    ? selectedClientData.event_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+                    : 'N/A'}
+                </p>
               </div>
-              {selectedBookingData.event?.date && (
+              {selectedClientData.event_date && (
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-blue-600" />
                   <div>
-                    <span className="text-blue-700 font-medium">Date:</span>
+                    <span className="text-blue-700 font-medium">Event Date:</span>
                     <p className="text-blue-900">
-                      {parseLocalDate(selectedBookingData.event.date).toLocaleDateString('en-US', {
+                      {parseLocalDate(selectedClientData.event_date).toLocaleDateString('en-US', {
                         weekday: 'long',
                         year: 'numeric',
                         month: 'long',
@@ -179,27 +209,22 @@ export default function NewContractPage() {
                   </div>
                 </div>
               )}
-              {(selectedBookingData.event?.startTime || selectedBookingData.event?.endTime) && (
+              {selectedClientData.event_time && (
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-blue-600" />
                   <div>
-                    <span className="text-blue-700 font-medium">Time:</span>
-                    <p className="text-blue-900">
-                      {selectedBookingData.event?.startTime} - {selectedBookingData.event?.endTime}
-                    </p>
+                    <span className="text-blue-700 font-medium">Event Time:</span>
+                    <p className="text-blue-900">{selectedClientData.event_time}</p>
                   </div>
                 </div>
               )}
-              {selectedBookingData.event?.venue && (
-                <div>
-                  <span className="text-blue-700 font-medium">Venue:</span>
-                  <p className="text-blue-900">{selectedBookingData.event.venue}</p>
-                </div>
-              )}
-              {selectedBookingData.totalPrice && (
-                <div>
-                  <span className="text-blue-700 font-medium">Booking Amount:</span>
-                  <p className="text-blue-900">${Number(selectedBookingData.totalPrice).toFixed(2)}</p>
+              {selectedClientData.guest_count && (
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-blue-600" />
+                  <div>
+                    <span className="text-blue-700 font-medium">Guests:</span>
+                    <p className="text-blue-900">{selectedClientData.guest_count}</p>
+                  </div>
                 </div>
               )}
             </div>

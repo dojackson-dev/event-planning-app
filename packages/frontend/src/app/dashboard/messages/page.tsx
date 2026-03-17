@@ -79,9 +79,11 @@ export default function MessagesPage() {
   }
 
   const filteredMessages = messages.filter((message) => {
-    const matchesSearch = message.recipientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         message.recipientPhone.includes(searchTerm) ||
-                         message.content.toLowerCase().includes(searchTerm.toLowerCase())
+    // Support both 'content' (new schema) and 'message' (existing schema)
+    const body: string = ((message as any).content ?? (message as any).message ?? '')
+    const matchesSearch = (message.recipientName ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (message.recipientPhone ?? '').includes(searchTerm) ||
+                         body.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesStatus = !filterStatus || message.status === filterStatus
     const matchesType = !filterType || message.messageType === filterType
     const matchesEvent = !filterEvent || message.eventId?.toString() === filterEvent
@@ -305,7 +307,7 @@ export default function MessagesPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900 max-w-md truncate">{message.content}</div>
+                      <div className="text-sm text-gray-900 max-w-md truncate">{(message as any).content ?? (message as any).message}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusClass(message.status)}`}>

@@ -36,7 +36,7 @@ export default function SecurityDetailPage() {
       setSecurity(response.data)
       setName(response.data.name)
       setPhone(response.data.phone)
-      setEventId(response.data.eventId?.toString() || '')
+      setEventId(response.data.eventId || '')
     } catch (error) {
       console.error('Failed to fetch security:', error)
     } finally {
@@ -66,7 +66,7 @@ export default function SecurityDetailPage() {
       const securityData = {
         name,
         phone,
-        eventId: eventId ? Number(eventId) : null,
+        eventId: eventId || null,
       }
 
       await api.put(`/security/${params.id}`, securityData)
@@ -221,7 +221,7 @@ export default function SecurityDetailPage() {
                 setIsEditing(false)
                 setName(security.name)
                 setPhone(security.phone)
-                setEventId(security.eventId?.toString() || '')
+                setEventId(security.eventId || '')
               }}
               disabled={saving}
               className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"

@@ -4,7 +4,19 @@ import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
-import { ServiceItem, ServiceItemCategory, Booking, DiscountType } from '@/types'
+import { ServiceItem, ServiceItemCategory, DiscountType } from '@/types'
+
+interface IntakeFormClient {
+  id: string
+  contact_name: string
+  contact_email: string
+  contact_phone: string
+  event_type: string
+  event_date: string
+  event_time: string
+  guest_count: number
+  status: string
+}
 
 interface EstimateLineItem {
   id: string
@@ -24,9 +36,9 @@ export default function NewEstimatePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user } = useAuth()
-  const [bookings, setBookings] = useState<Booking[]>([])
+  const [clients, setClients] = useState<IntakeFormClient[]>([])
   const [serviceItems, setServiceItems] = useState<ServiceItem[]>([])
-  const [selectedBooking, setSelectedBooking] = useState('')
+  const [selectedClient, setSelectedClient] = useState('')
   const [lineItems, setLineItems] = useState<EstimateLineItem[]>([])
   const [vendorBookingBanner, setVendorBookingBanner] = useState<string>('')
   const [includeTax, setIncludeTax] = useState(false)
@@ -36,12 +48,12 @@ export default function NewEstimatePage() {
   const [terms, setTerms] = useState('This estimate is valid until the expiration date above.')
   const [issueDate, setIssueDate] = useState(new Date().toISOString().split('T')[0])
   const [expirationDate, setExpirationDate] = useState(
-    new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   )
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    fetchBookings()
+    fetchClients()
     fetchServiceItems()
   }, [])
 
@@ -71,12 +83,21 @@ export default function NewEstimatePage() {
     }).catch(() => {})
   }, [searchParams])
 
-  const fetchBookings = async () => {
+  const fetchClients = async () => {
     try {
-      const res = await api.get<Booking[]>('/bookings')
-      setBookings(res.data)
+      const res = await api.get<IntakeFormClient[]>('/intake-forms')
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      // Only show clients whose event date is today or in the future
+      const upcoming = res.data.filter((c) => {
+        if (!c.event_date) return false
+        const [y, m, d] = c.event_date.split('-').map(Number)
+        const eventDate = new Date(y, m - 1, d)
+        return eventDate >= today
+      })
+      setClients(upcoming)
     } catch (err) {
-      console.error('Failed to fetch bookings:', err)
+      console.error('Failed to fetch clients:', err)
     }
   }
 
@@ -168,7 +189,7 @@ export default function NewEstimatePage() {
     try {
       const body = {
         estimate: {
-          booking_id: selectedBooking || null,
+          intake_form_id: selectedClient || null,
           owner_id: user?.id,
           tax_rate: includeTax ? Number(taxRate) : 0,
           discount_amount: Number(discountAmount),
@@ -216,21 +237,26 @@ export default function NewEstimatePage() {
           </div>
         )}
 
-        {/* Booking */}
+        {/* Client */}
         <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Select Booking (Optional)</label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Select Client (Optional)</label>
           <select
-            value={selectedBooking}
-            onChange={e => setSelectedBooking(e.target.value)}
+            value={selectedClient}
+            onChange={e => setSelectedClient(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
-            <option value="">-- No booking --</option>
-            {bookings.map(b => (
-              <option key={b.id} value={b.id}>
-                {(b as any).event?.name || 'Event'}
+            <option value="">-- No client --</option>
+            {clients.map(c => (
+              <option key={c.id} value={c.id}>
+                {c.contact_name}
+                {c.event_type ? ` — ${c.event_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}` : ''}
+                {c.event_date ? ` (${c.event_date})` : ''}
               </option>
             ))}
           </select>
+          {clients.length === 0 && (
+            <p className="text-xs text-gray-400 mt-1">No upcoming clients found. Clients with past event dates are excluded.</p>
+          )}
         </div>
 
         {/* Dates */}

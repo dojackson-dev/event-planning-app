@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
@@ -22,7 +22,7 @@ interface InvoiceLineItem {
   vendor_booking_id?: string | null
 }
 
-export default function NewInvoicePage() {
+function NewInvoicePageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user } = useAuth()
@@ -77,7 +77,20 @@ export default function NewInvoicePage() {
   const fetchBookings = async () => {
     try {
       const response = await api.get<Booking[]>('/bookings')
-      setBookings(response.data)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const active = response.data.filter((b) => {
+        // Remove cancelled bookings
+        if (b.clientStatus === 'cancelled' || b.status === 'cancelled') return false
+        // Remove bookings where event date has already passed
+        if (b.event?.date) {
+          const [y, m, d] = b.event.date.split('-').map(Number)
+          const eventDate = new Date(y, m - 1, d)
+          if (eventDate < today) return false
+        }
+        return true
+      })
+      setBookings(active)
     } catch (error) {
       console.error('Failed to fetch bookings:', error)
     }
@@ -321,7 +334,9 @@ export default function NewInvoicePage() {
             <option value="">-- Select a booking (optional) --</option>
             {bookings.map((booking) => (
               <option key={booking.id} value={booking.id}>
-                {booking.event?.name || 'Event'} - {booking.user ? `${booking.user.firstName} ${booking.user.lastName}` : 'Customer'}
+                {booking.user ? `${booking.user.firstName} ${booking.user.lastName}` : 'Customer'}
+                {booking.event?.name ? ` — ${booking.event.name}` : ''}
+                {booking.event?.date ? ` (${booking.event.date})` : ''}
               </option>
             ))}
           </select>
@@ -729,5 +744,13 @@ export default function NewInvoicePage() {
         </div>
       </form>
     </div>
+  )
+}
+
+export default function NewInvoicePage() {
+  return (
+    <Suspense fallback={<div className="p-6">Loading...</div>}>
+      <NewInvoicePageContent />
+    </Suspense>
   )
 }

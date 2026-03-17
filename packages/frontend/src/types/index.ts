@@ -1,8 +1,10 @@
 // Enums
 export enum UserRole {
+  ADMIN = 'admin',
   CUSTOMER = 'customer',
   OWNER = 'owner',
   PLANNER = 'planner',
+  VENDOR = 'vendor',
 }
 
 export enum EventStatus {
@@ -113,7 +115,12 @@ export interface User {
   firstName: string
   lastName: string
   role: UserRole
+  roles?: UserRole[]       // All roles this user has (multi-role support)
   phone?: string
+  smsOptIn?: boolean
+  smsOptInAt?: string
+  smsOptOutAt?: string
+  preferredContact?: 'phone' | 'email' | 'text'
   ownerId?: string // For customers/planners/staff - references their owner
   tenantId?: string // Only for owners who host their website with us (optional)
   createdAt: string
@@ -411,10 +418,10 @@ export interface Reminder {
 
 // Security
 export interface Security {
-  id: number
+  id: string
   name: string
   phone: string
-  eventId?: number
+  eventId?: string
   event?: Event
   arrivalTime?: string
   createdAt: string
@@ -462,7 +469,7 @@ export interface Message {
   user?: User
   eventId?: string
   event?: Event
-  messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom'
+  messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'support' | 'announcement' | 'custom'
   content: string
   status: 'pending' | 'sent' | 'delivered' | 'failed'
   twilioSid?: string
@@ -475,7 +482,7 @@ export interface Message {
 export interface MessageTemplate {
   id: string
   name: string
-  messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom'
+  messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'support' | 'announcement' | 'custom'
   content: string
   isActive: boolean
   sendBeforeDays?: number

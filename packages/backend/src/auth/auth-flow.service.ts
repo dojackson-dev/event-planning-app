@@ -209,10 +209,11 @@ export class AuthFlowService {
 
     if (authError) throw new UnauthorizedException(authError.message);
 
-    // Check user status
+    // Check user status — use left joins to avoid false-negative "User not found"
+    // when a user exists in auth but their membership record is incomplete
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('*, memberships!inner(owner_account_id, owner_accounts!inner(subscription_status))')
+      .select('*, memberships(owner_account_id, owner_accounts(subscription_status))')
       .eq('id', authData.user.id)
       .single();
 
@@ -505,6 +506,37 @@ export class AuthFlowService {
       userId,
       message: 'Vendor account created. Please verify your email and complete your profile.',
       session: authData.session,
+    };
+  }
+
+  /**
+   * UNIFIED LOGIN
+   * Accepts any user type (owner, vendor, admin, client) and returns a
+   * response compatible with the frontend AuthContext: { access_token, refresh_token, user }
+   */
+  async unifiedLogin(email: string, password: string) {
+    const supabase = this.supabaseService.getClient();
+
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (authError) throw new UnauthorizedException(authError.message);
+
+    // Look up user in users table without inner joins to avoid false negatives
+    const { data: dbUser } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', authData.user.id)
+      .single();
+
+    // Return session in the format AuthContext expects
+    return {
+      access_token: authData.session.access_token,
+      refresh_token: authData.session.refresh_token,
+      user: authData.user,
+      dbUser,
     };
   }
 

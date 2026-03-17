@@ -363,7 +363,7 @@ export default function PhoneInput({
           <input
             type="checkbox"
             checked={smsOptIn}
-            onChange={e => onSmsOptInChange(e.target.checked)}
+            onChange={e => onSmsOptInChange?.(e.target.checked)}
             className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 flex-shrink-0"
           />
           <span className="text-xs text-gray-700 leading-relaxed">

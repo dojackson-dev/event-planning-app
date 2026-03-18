@@ -290,10 +290,10 @@ export default function DashboardVendorsPage() {
 
       if (zipCode) {
         const res = await api.get(`/vendors/search?${params}`)
-        data = res.data
+        data = res.data.vendors || res.data
       } else {
         const res = await api.get(`/vendors/public?${params}`)
-        data = res.data
+        data = res.data.vendors || res.data
       }
 
       setVendors(data)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
@@ -32,7 +32,7 @@ interface EstimateLineItem {
   amount: number
 }
 
-export default function NewEstimatePage() {
+function NewEstimatePageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user } = useAuth()
@@ -417,5 +417,13 @@ export default function NewEstimatePage() {
         </div>
       </form>
     </div>
+  )
+}
+
+export default function NewEstimatePage() {
+  return (
+    <Suspense fallback={<div className="p-6">Loading...</div>}>
+      <NewEstimatePageInner />
+    </Suspense>
   )
 }

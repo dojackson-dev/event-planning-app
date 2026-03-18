@@ -301,6 +301,7 @@ export interface Estimate {
   booking_id?: string
   intake_form_id?: string
   booking?: Booking
+  intake_form?: any
   subtotal: number
   tax_amount: number
   tax_rate: number

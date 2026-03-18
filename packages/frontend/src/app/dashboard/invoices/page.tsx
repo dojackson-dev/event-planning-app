@@ -6,6 +6,19 @@ import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Invoice, InvoiceStatus } from '@/types'
 
+function getCustomerName(invoice: Invoice): string {
+  const user = invoice.booking?.user as any
+  if (user) {
+    const first = user.first_name || user.firstName || ''
+    const last = user.last_name || user.lastName || ''
+    const name = `${first} ${last}`.trim()
+    if (name) return name
+    if (user.email) return user.email
+  }
+  if (invoice.intake_form?.contact_name) return invoice.intake_form.contact_name
+  return 'N/A'
+}
+
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
@@ -158,9 +171,7 @@ export default function InvoicesPage() {
                     {invoice.invoice_number}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {invoice.booking?.user
-                      ? `${invoice.booking.user.firstName} ${invoice.booking.user.lastName}`
-                      : 'N/A'}
+                    {getCustomerName(invoice)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(invoice.issue_date).toLocaleDateString()}

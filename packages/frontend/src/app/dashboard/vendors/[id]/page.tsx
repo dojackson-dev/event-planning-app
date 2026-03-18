@@ -68,6 +68,8 @@ interface OwnerEvent {
   id: string
   name: string
   date: string
+  startTime?: string
+  endTime?: string
   venue?: string
   location?: string
 }
@@ -142,7 +144,7 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
     load()
   }, [params.id, router])
 
-  // When an owner event is selected, pre-fill event name + date
+  // When an owner event is selected, pre-fill event name + date + times
   const handleEventSelect = (eventId: string) => {
     const ev = events.find(e => e.id === eventId)
     setForm(prev => ({
@@ -150,6 +152,8 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
       eventId,
       eventName: ev?.name || prev.eventName,
       eventDate: ev?.date ? ev.date.split('T')[0] : prev.eventDate,
+      startTime: ev?.startTime || prev.startTime,
+      endTime: ev?.endTime || prev.endTime,
       venueName: ev?.venue || prev.venueName,
       venueAddress: ev?.location || prev.venueAddress,
     }))

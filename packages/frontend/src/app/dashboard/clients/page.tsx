@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
+import type { Invoice } from '@/types'
 import { User, Calendar, Mail, Phone, Clock, Eye, CheckCircle, Search, MessageSquare, FileText, Clock as ClockIcon } from 'lucide-react'
 
 interface IntakeForm {
@@ -42,6 +43,9 @@ export default function ClientsPage() {
   const [showAppointmentModal, setShowAppointmentModal] = useState(false)
   const [messageContent, setMessageContent] = useState('')
   const [appointmentData, setAppointmentData] = useState({ date: '', time: '', notes: '' })
+  const [clientInvoices, setClientInvoices] = useState<Invoice[]>([])
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState('')
+  const [loadingInvoices, setLoadingInvoices] = useState(false)
 
   useEffect(() => {
     fetchClients()
@@ -55,6 +59,20 @@ export default function ClientsPage() {
       console.error('Error fetching clients:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchClientInvoices = async (clientId: string) => {
+    setLoadingInvoices(true)
+    setClientInvoices([])
+    setSelectedInvoiceId('')
+    try {
+      const response = await api.get<Invoice[]>(`/invoices?intakeFormId=${clientId}`)
+      setClientInvoices(response.data)
+    } catch (error) {
+      console.error('Error fetching client invoices:', error)
+    } finally {
+      setLoadingInvoices(false)
     }
   }
 
@@ -73,12 +91,14 @@ export default function ClientsPage() {
   }
 
   const handleSendInvoice = async () => {
-    if (!selectedClient) return
+    if (!selectedClient || !selectedInvoiceId) return
     try {
       // TODO: Implement invoice sending API endpoint
-      console.log('Sending invoice to', selectedClient.contact_email)
+      console.log('Sending invoice', selectedInvoiceId, 'to', selectedClient.contact_email)
       alert('Invoice sent successfully!')
       setShowInvoiceModal(false)
+      setSelectedInvoiceId('')
+      setClientInvoices([])
     } catch (error) {
       console.error('Error sending invoice:', error)
       alert('Failed to send invoice')
@@ -344,6 +364,7 @@ export default function ClientsPage() {
                             onClick={() => {
                               setSelectedClient(client)
                               setShowInvoiceModal(true)
+                              fetchClientInvoices(client.id)
                             }}
                             className="text-green-600 hover:text-green-900 flex items-center gap-1 px-2 py-1 rounded hover:bg-green-50"
                             title="Send invoice"
@@ -438,23 +459,37 @@ export default function ClientsPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Select Invoice</label>
-                  <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
-                    <option value="">-- Select an invoice --</option>
-                    <option value="1">Invoice #INV-001</option>
-                    <option value="2">Invoice #INV-002</option>
-                  </select>
+                  {loadingInvoices ? (
+                    <p className="text-sm text-gray-500 py-2">Loading invoices...</p>
+                  ) : clientInvoices.length === 0 ? (
+                    <p className="text-sm text-gray-500 py-2">No invoices found for {selectedClient.contact_name}.</p>
+                  ) : (
+                    <select
+                      value={selectedInvoiceId}
+                      onChange={(e) => setSelectedInvoiceId(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                    >
+                      <option value="">-- Select an invoice --</option>
+                      {clientInvoices.map((inv) => (
+                        <option key={inv.id} value={inv.id}>
+                          {inv.invoice_number} &mdash; ${inv.total_amount.toFixed(2)} ({inv.status})
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
-                <p className="text-sm text-gray-600">The invoice will be sent to the client's email address.</p>
+                <p className="text-sm text-gray-600">The invoice will be sent to the client&apos;s email address.</p>
                 <div className="flex gap-3 justify-end pt-4">
                   <button
-                    onClick={() => setShowInvoiceModal(false)}
+                    onClick={() => { setShowInvoiceModal(false); setSelectedInvoiceId(''); setClientInvoices([]) }}
                     className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleSendInvoice}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                    disabled={!selectedInvoiceId}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Send Invoice
                   </button>

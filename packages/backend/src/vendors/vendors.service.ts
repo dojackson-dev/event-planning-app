@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { TwilioService } from '../messaging/twilio.service';
 import {
   CreateVendorDto,
   UpdateVendorDto,
@@ -13,7 +14,10 @@ import {
 export class VendorsService {
   private readonly logger = new Logger(VendorsService.name);
 
-  constructor(private readonly supabaseService: SupabaseService) {}
+  constructor(
+    private readonly supabaseService: SupabaseService,
+    private readonly twilioService: TwilioService,
+  ) {}
 
   // ─────────────────────────────────────────────
   // VENDOR ACCOUNT
@@ -222,10 +226,10 @@ export class VendorsService {
   async createVendorBooking(bookedByUserId: string, dto: CreateVendorBookingDto, ownerAccountId?: string) {
     const admin = this.supabaseService.getAdminClient();
 
-    // Verify vendor exists
+    // Verify vendor exists (include phone for SMS)
     const { data: vendor } = await admin
       .from('vendor_accounts')
-      .select('id, business_name')
+      .select('id, business_name, phone')
       .eq('id', dto.vendorAccountId)
       .eq('is_active', true)
       .single();
@@ -256,6 +260,23 @@ export class VendorsService {
     if (error) throw new BadRequestException(error.message);
 
     this.logger.log(`Vendor booking created: vendor ${dto.vendorAccountId} by user ${bookedByUserId}`);
+
+    // Send SMS notification to vendor if they have a phone number
+    if (vendor.phone) {
+      const dateStr = new Date(dto.eventDate + 'T00:00:00').toLocaleDateString('en-US', {
+        weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+      });
+      const amountStr = dto.agreedAmount ? ` — Agreed amount: $${Number(dto.agreedAmount).toLocaleString()}` : '';
+      const smsBody = `New booking request for ${vendor.business_name}! Event: "${dto.eventName}" on ${dateStr}${amountStr}. Log in to your vendor dashboard to confirm or decline.`;
+      try {
+        await this.twilioService.sendSMS(vendor.phone, smsBody);
+        this.logger.log(`SMS sent to vendor ${vendor.business_name} at ${vendor.phone}`);
+      } catch (smsErr) {
+        // Don't fail the booking if SMS fails
+        this.logger.warn(`Failed to send SMS to vendor ${vendor.business_name}: ${smsErr.message}`);
+      }
+    }
+
     return data;
   }
 

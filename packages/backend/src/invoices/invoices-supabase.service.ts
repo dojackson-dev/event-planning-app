@@ -80,50 +80,75 @@ export class InvoicesService {
   }
 
   async findAll(supabase: SupabaseClient, userId: string): Promise<Invoice[]> {
-    const { data, error } = await supabase
-      .from('invoices')
-      .select(`
-        *,
-        booking:booking(*),
-        intake_form:intake_forms(*),
-        items:invoice_items(*)
-      `)
-      .order('created_at', { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from('invoices')
+        .select(`
+          *,
+          booking:booking(*),
+          intake_form:intake_forms(*),
+          items:invoice_items(*)
+        `)
+        .eq('owner_id', userId)
+        .order('created_at', { ascending: false });
 
-    if (error) throw error;
-    return data || [];
+      if (error) {
+        console.error('InvoicesService.findAll error:', error);
+        return [];
+      }
+      return data || [];
+    } catch (err) {
+      console.error('InvoicesService.findAll unexpected error:', err);
+      return [];
+    }
   }
 
   async findByOwner(supabase: SupabaseClient, userId: string, ownerId: string): Promise<Invoice[]> {
-    const { data, error } = await supabase
-      .from('invoices')
-      .select(`
-        *,
-        booking:booking(*),
-        intake_form:intake_forms(*),
-        items:invoice_items(*)
-      `)
-      .eq('owner_id', ownerId)
-      .order('created_at', { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from('invoices')
+        .select(`
+          *,
+          booking:booking(*),
+          intake_form:intake_forms(*),
+          items:invoice_items(*)
+        `)
+        .eq('owner_id', ownerId)
+        .order('created_at', { ascending: false });
 
-    if (error) throw error;
-    return data || [];
+      if (error) {
+        console.error('InvoicesService.findByOwner error:', error);
+        return [];
+      }
+      return data || [];
+    } catch (err) {
+      console.error('InvoicesService.findByOwner unexpected error:', err);
+      return [];
+    }
   }
 
   async findByIntakeForm(supabase: SupabaseClient, userId: string, intakeFormId: string): Promise<Invoice[]> {
-    const { data, error } = await supabase
-      .from('invoices')
-      .select(`
-        *,
-        booking:booking(*),
-        intake_form:intake_forms(*),
-        items:invoice_items(*)
-      `)
-      .eq('intake_form_id', intakeFormId)
-      .order('created_at', { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from('invoices')
+        .select(`
+          *,
+          booking:booking(*),
+          intake_form:intake_forms(*),
+          items:invoice_items(*)
+        `)
+        .eq('intake_form_id', intakeFormId)
+        .order('created_at', { ascending: false });
 
-    if (error) throw error;
-    return data || [];
+      if (error) {
+        console.error('InvoicesService.findByIntakeForm error:', error);
+        return [];
+      }
+      return data || [];
+    } catch (err) {
+      console.error('InvoicesService.findByIntakeForm unexpected error:', err);
+      return [];
+    }
   }
 
   async findOne(supabase: SupabaseClient, userId: string, id: string): Promise<Invoice> {

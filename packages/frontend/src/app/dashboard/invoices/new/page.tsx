@@ -77,17 +77,10 @@ function NewInvoicePageContent() {
   const fetchBookings = async () => {
     try {
       const response = await api.get<Booking[]>('/bookings')
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
+      // Only remove cancelled bookings — invoices can be for past or future events
       const active = response.data.filter((b) => {
-        // Remove cancelled bookings
-        if (b.clientStatus === 'cancelled' || b.status === 'cancelled') return false
-        // Remove bookings where event date has already passed
-        if (b.event?.date) {
-          const [y, m, d] = b.event.date.split('-').map(Number)
-          const eventDate = new Date(y, m - 1, d)
-          if (eventDate < today) return false
-        }
+        const status = (b.client_status || b.clientStatus || '').toLowerCase()
+        if (status === 'cancelled' || (b.status || '').toLowerCase() === 'cancelled') return false
         return true
       })
       setBookings(active)
@@ -321,24 +314,35 @@ function NewInvoicePageContent() {
       )}
 
       <form onSubmit={handleSubmit} className="bg-white shadow-md rounded-lg p-6">
-        {/* Booking Selection */}
+        {/* Event / Booking Selection */}
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Select Booking (Optional)
+            Link to Event / Booking (Optional)
           </label>
+          {bookings.length === 0 ? (
+            <p className="text-sm text-gray-500 mt-1">
+              No bookings found. Invoices can still be created without linking to a booking.
+            </p>
+          ) : null}
           <select
             value={selectedBooking}
             onChange={(e) => setSelectedBooking(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
-            <option value="">-- Select a booking (optional) --</option>
-            {bookings.map((booking) => (
-              <option key={booking.id} value={booking.id}>
-                {booking.user ? `${booking.user.firstName} ${booking.user.lastName}` : 'Customer'}
-                {booking.event?.name ? ` — ${booking.event.name}` : ''}
-                {booking.event?.date ? ` (${booking.event.date})` : ''}
-              </option>
-            ))}
+            <option value="">-- Select an event / booking (optional) --</option>
+            {bookings.map((booking) => {
+              const clientName = booking.contact_name ||
+                (booking.user ? `${booking.user.firstName} ${booking.user.lastName}` : '')
+              const eventName = booking.event?.name || ''
+              const eventDate = booking.event?.date || ''
+              return (
+                <option key={booking.id} value={booking.id}>
+                  {eventName || 'Event'}
+                  {clientName ? ` — ${clientName}` : ''}
+                  {eventDate ? ` (${eventDate})` : ''}
+                </option>
+              )
+            })}
           </select>
         </div>
 

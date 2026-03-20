@@ -45,7 +45,14 @@ export class ClientAuthService {
 
     const normalized = this.normalizePhone(phone);
 
-    const supabase = this.supabaseService.getAdminClient();
+    // Prefer admin client (bypasses RLS); fall back to anon if service key not configured
+    let supabase: any;
+    try {
+      supabase = this.supabaseService.getAdminClient();
+    } catch {
+      supabase = this.supabaseService.getClient();
+    }
+
     const { data: clientUser, error } = await supabase
       .from('users')
       .select('id, first_name, last_name, phone, role')
@@ -113,8 +120,14 @@ export class ClientAuthService {
     // Valid – consume OTP
     this.otpStore.delete(normalized);
 
-    // Look up the client
-    const supabase = this.supabaseService.getAdminClient();
+    // Look up the client — prefer admin client, fall back to anon
+    let supabase: any;
+    try {
+      supabase = this.supabaseService.getAdminClient();
+    } catch {
+      supabase = this.supabaseService.getClient();
+    }
+
     const { data: clientUser, error } = await supabase
       .from('users')
       .select('id, first_name, last_name, phone')

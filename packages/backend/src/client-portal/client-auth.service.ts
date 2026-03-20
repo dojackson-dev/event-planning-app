@@ -59,13 +59,14 @@ export class ClientAuthService {
 
     const { data: clientUser, error } = await supabase
       .from('users')
-      .select('id, first_name, last_name, phone, role')
-      .eq('phone', normalized)
+      .select('id, first_name, last_name, phone_number, role')
+      .eq('phone_number', normalized)
       .maybeSingle();
 
     if (error) {
       this.logger.error('DB error looking up phone', error);
-      throw new BadRequestException('Unable to look up phone number.');
+      // Return generic message – don't leak internal errors
+      return { message: 'If this number is on file, you will receive a verification code shortly.' };
     }
 
     if (!clientUser) {
@@ -138,8 +139,8 @@ export class ClientAuthService {
 
     const { data: clientUser, error } = await supabase
       .from('users')
-      .select('id, first_name, last_name, phone')
-      .eq('phone', normalized)
+      .select('id, first_name, last_name, phone_number')
+      .eq('phone_number', normalized)
       .maybeSingle();
 
     if (error || !clientUser) {

@@ -1,5 +1,6 @@
 import { Injectable, UnauthorizedException, BadRequestException, Logger } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { TwilioService } from '../messaging/twilio.service';
 import { randomBytes } from 'crypto';
 
 interface OtpRecord {
@@ -26,7 +27,10 @@ export class ClientAuthService {
   private readonly otpStore = new Map<string, OtpRecord>();
   private readonly sessionStore = new Map<string, ClientSession>();
 
-  constructor(private readonly supabaseService: SupabaseService) {}
+  constructor(
+    private readonly supabaseService: SupabaseService,
+    private readonly twilioService: TwilioService,
+  ) {}
 
   /**
    * Request an OTP for the given phone number.
@@ -81,15 +85,19 @@ export class ClientAuthService {
 
     this.logger.log(`OTP generated for ${normalized}`);
 
-    // TODO: replace with actual Twilio send when credentials are configured
     const isDev = process.env.NODE_ENV !== 'production';
     if (isDev) {
       this.logger.warn(`[DEV] OTP for ${normalized}: ${otp}`);
       return {
         message: 'Verification code sent.',
-        devOtp: otp, // Expose in dev only – remove in prod
+        devOtp: otp,
       };
     }
+
+    await this.twilioService.sendSMS(
+      normalized,
+      `Your DoVenue Suites verification code is: ${otp}. Valid for 10 minutes.`,
+    );
 
     return { message: 'Verification code sent.' };
   }

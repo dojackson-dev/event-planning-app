@@ -22,6 +22,7 @@ import { OwnerModule } from './owner/owner.module';
 import { AdminModule } from './admin/admin.module';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { MessagingModule } from './messaging/messaging.module.js';
+import { ClientPortalModule } from './client-portal/client-portal.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { MessagingModule } from './messaging/messaging.module.js';
     SecurityModule,
     UsersModule,
     MessagingModule,
+    ClientPortalModule,
   ],
   controllers: [AppController],
   providers: [AppService],

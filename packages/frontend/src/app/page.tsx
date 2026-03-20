@@ -43,6 +43,12 @@ export default function Home() {
                 Find Vendors
               </Link>
               <Link
+                href="/client-login"
+                className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium border border-gray-300 rounded-md"
+              >
+                Client Portal
+              </Link>
+              <Link
                 href="/login"
                 className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium"
               >
@@ -80,6 +86,14 @@ export default function Home() {
               className="mt-3 sm:mt-0 w-full flex items-center justify-center px-8 py-3 border border-gray-300 text-base font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 md:py-4 md:text-lg md:px-10"
             >
               Sign In
+            </Link>
+          </div>
+          <div className="mt-4 text-center">
+            <Link
+              href="/client-login"
+              className="inline-flex items-center gap-2 text-sm font-medium text-primary-600 hover:text-primary-700 underline underline-offset-2"
+            >
+              Are you a booked client? Access your Client Portal →
             </Link>
           </div>
         </div>

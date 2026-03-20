@@ -26,7 +26,8 @@ import {
   Receipt,
   Settings,
   ChevronDown,
-  Store
+  Store,
+  CreditCard
 } from 'lucide-react'
 
 function getInitials(name: string): string {
@@ -91,6 +92,7 @@ const navigation = [
   { name: 'Door Lists', href: '/dashboard/door-lists', icon: ListChecks },
   { name: 'Security', href: '/dashboard/security', icon: Shield },
   { name: 'Payments', href: '/dashboard/payments', icon: DollarSign },
+  { name: 'Billing', href: '/dashboard/billing', icon: CreditCard },
   { name: 'Messages', href: '/dashboard/messages', icon: MessageSquare },
   { name: 'Vendors', href: '/dashboard/vendors', icon: Store },
 ]

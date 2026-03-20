@@ -200,13 +200,13 @@ export class StripeController {
    */
   @Post('payments/charge-client')
   async chargeClient(
-    @Body() body: { amountCents: number; ownerUserId: string; description?: string },
+    @Body() body: { amountCents: number; ownerUserId: string; description?: string; invoiceId?: string },
   ): Promise<{ clientSecret: string; paymentIntentId: string; feeCents: number }> {
-    const { amountCents, ownerUserId, description = 'Event booking payment' } = body;
+    const { amountCents, ownerUserId, description = 'Event booking payment', invoiceId } = body;
     if (!amountCents || !ownerUserId) {
       throw new BadRequestException('amountCents and ownerUserId are required');
     }
-    return this.stripeService.createClientPaymentIntent(amountCents, ownerUserId, description);
+    return this.stripeService.createClientPaymentIntent(amountCents, ownerUserId, description, invoiceId);
   }
 
   /**

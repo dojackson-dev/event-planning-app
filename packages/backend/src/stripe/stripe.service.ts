@@ -149,6 +149,9 @@ export class StripeService {
       case 'checkout.session.completed':
         await this.handleCheckoutComplete(event.data.object as Stripe.Checkout.Session);
         break;
+      case 'payment_intent.succeeded':
+        await this.handlePaymentIntentSucceeded(event.data.object as Stripe.PaymentIntent);
+        break;
       case 'customer.subscription.created':
       case 'customer.subscription.updated':
         await this.handleSubscriptionUpdate(event.data.object as Stripe.Subscription);
@@ -200,6 +203,16 @@ export class StripeService {
   // ─── Private Webhook Handlers ──────────────────────────────────────────────
 
   private async handleCheckoutComplete(session: Stripe.Checkout.Session): Promise<void> {
+    const invoiceId = session.metadata?.invoice_id;
+
+    // ── Invoice one-time payment ──────────────────────────────────────────────
+    if (invoiceId) {
+      await this.markInvoicePaid(invoiceId, session.amount_total ?? 0);
+      this.logger.log(`Invoice ${invoiceId} marked paid via checkout session ${session.id}`);
+      return;
+    }
+
+    // ── Subscription checkout ─────────────────────────────────────────────────
     const ownerAccountId = session.client_reference_id;
     if (!ownerAccountId) return;
 
@@ -209,6 +222,48 @@ export class StripeService {
 
     await this.syncSubscriptionToDb(ownerAccountId, subscriptionId, 'active');
     this.logger.log(`Checkout complete — owner ${ownerAccountId} is now active`);
+  }
+
+  /**
+   * Handle payment_intent.succeeded — marks the matching invoice as paid.
+   * Fired for direct PaymentIntents (charge-client flow).
+   */
+  private async handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent): Promise<void> {
+    const invoiceId = paymentIntent.metadata?.invoice_id;
+    if (!invoiceId) return;
+    await this.markInvoicePaid(invoiceId, paymentIntent.amount);
+    this.logger.log(`Invoice ${invoiceId} marked paid via PaymentIntent ${paymentIntent.id}`);
+  }
+
+  /**
+   * Mark an app invoice as paid in the database.
+   */
+  private async markInvoicePaid(invoiceId: string, amountCents: number): Promise<void> {
+    const admin = this.supabaseService.getAdminClient();
+    const amountDollars = amountCents / 100;
+
+    const { data: invoice } = await admin
+      .from('invoices')
+      .select('total_amount')
+      .eq('id', invoiceId)
+      .maybeSingle();
+
+    const totalAmount = invoice?.total_amount ?? amountDollars;
+
+    const { error } = await admin
+      .from('invoices')
+      .update({
+        status: 'paid',
+        amount_paid: totalAmount,
+        amount_due: 0,
+        paid_date: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', invoiceId);
+
+    if (error) {
+      this.logger.error(`Failed to mark invoice ${invoiceId} as paid: ${error.message}`);
+    }
   }
 
   private async handleSubscriptionUpdate(subscription: Stripe.Subscription): Promise<void> {
@@ -447,6 +502,7 @@ export class StripeService {
     amountCents: number,
     ownerUserId: string,
     description: string,
+    invoiceId?: string,
   ): Promise<{ clientSecret: string; paymentIntentId: string; feeCents: number }> {
     const admin = this.supabaseService.getAdminClient();
 
@@ -463,8 +519,30 @@ export class StripeService {
       application_fee_amount: feeCents,
       transfer_data: { destination: owner.stripe_connect_id },
       description,
-      metadata: { owner_account_id: String(owner.id) },
+      metadata: {
+        owner_account_id: String(owner.id),
+        ...(invoiceId ? { invoice_id: invoiceId } : {}),
+      },
     });
+
+    // Record in stripe_payments ledger
+    await admin.from('stripe_payments').insert({
+      type: 'client_to_owner',
+      amount_cents: amountCents,
+      fee_cents: feeCents,
+      net_cents: amountCents - feeCents,
+      stripe_payment_intent_id: paymentIntent.id,
+      owner_account_id: owner.id,
+      description,
+      status: 'pending',
+    });
+
+    return {
+      clientSecret: paymentIntent.client_secret!,
+      paymentIntentId: paymentIntent.id,
+      feeCents,
+    };
+  }
 
     // Record in stripe_payments ledger
     await admin.from('stripe_payments').insert({

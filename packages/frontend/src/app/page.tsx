@@ -22,6 +22,11 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+      {/* Beta Banner */}
+      <div className="bg-amber-400 text-amber-900 text-center text-sm font-medium py-2 px-4">
+        🚧 DoVenue Suite is currently in <strong>beta</strong> — features may change and bugs may occur. Thanks for being an early tester!
+      </div>
+
       {/* Navigation Header */}
       <nav className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -68,6 +73,10 @@ export default function Home() {
       {/* Hero Section */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <div className="text-center">
+          <div className="inline-flex items-center gap-2 bg-amber-100 text-amber-700 border border-amber-300 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide mb-4">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+            Beta
+          </div>
           <h2 className="text-4xl font-extrabold text-gray-900 sm:text-5xl md:text-6xl">
             Streamline Your Event Venue Management
           </h2>

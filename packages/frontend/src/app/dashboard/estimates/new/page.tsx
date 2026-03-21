@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+export const dynamic = 'force-dynamic'
+
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { ServiceItem, ServiceItemCategory, DiscountType } from '@/types'
@@ -32,13 +34,15 @@ interface EstimateLineItem {
   amount: number
 }
 
-export default function NewEstimatePage() {
+function NewEstimatePageInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user } = useAuth()
   const [clients, setClients] = useState<IntakeFormClient[]>([])
   const [serviceItems, setServiceItems] = useState<ServiceItem[]>([])
   const [selectedClient, setSelectedClient] = useState('')
   const [lineItems, setLineItems] = useState<EstimateLineItem[]>([])
+  const [vendorBookingBanner, setVendorBookingBanner] = useState<string>('')
   const [includeTax, setIncludeTax] = useState(false)
   const [taxRate, setTaxRate] = useState(0)
   const [discountAmount, setDiscountAmount] = useState(0)
@@ -54,6 +58,32 @@ export default function NewEstimatePage() {
     fetchClients()
     fetchServiceItems()
   }, [])
+
+  // Pre-fill vendor booking as a line item when vendorBookingId is in URL
+  useEffect(() => {
+    const vendorBookingId = searchParams?.get('vendorBookingId')
+    if (!vendorBookingId) return
+    api.get(`/vendors/bookings/${vendorBookingId}`).then(res => {
+      const vb = res.data
+      const vendor = vb.vendor_accounts
+      const amount = Number(vb.agreed_amount) || 0
+      const item: EstimateLineItem = {
+        id: `vendor-${vb.id}`,
+        service_item_id: null,
+        description: `Vendor Cost: ${vendor?.business_name || 'Vendor'} — ${vb.event_name}`,
+        quantity: 1,
+        standardPrice: amount,
+        unitPrice: amount,
+        subtotal: amount,
+        discountType: DiscountType.NONE,
+        discountValue: 0,
+        discountAmount: 0,
+        amount,
+      }
+      setLineItems([item])
+      setVendorBookingBanner(`Vendor cost pre-filled: ${vendor?.business_name || 'Vendor'} for "${vb.event_name}" — $${amount.toLocaleString()}`)
+    }).catch(() => {})
+  }, [searchParams])
 
   const fetchClients = async () => {
     try {
@@ -200,6 +230,14 @@ export default function NewEstimatePage() {
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white shadow-md rounded-lg p-6">
+
+        {/* Vendor booking banner */}
+        {vendorBookingBanner && (
+          <div className="mb-6 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
+            <span className="text-amber-600 mt-0.5">⚡</span>
+            <p className="text-sm text-amber-800">{vendorBookingBanner}</p>
+          </div>
+        )}
 
         {/* Client */}
         <div className="mb-6">
@@ -381,5 +419,13 @@ export default function NewEstimatePage() {
         </div>
       </form>
     </div>
+  )
+}
+
+export default function NewEstimatePage() {
+  return (
+    <Suspense fallback={<div className="p-6">Loading...</div>}>
+      <NewEstimatePageInner />
+    </Suspense>
   )
 }

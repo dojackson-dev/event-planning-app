@@ -6,6 +6,17 @@ import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Estimate, EstimateStatus } from '@/types'
 
+function getClientName(estimate: Estimate): string {
+  const user = (estimate.booking as any)?.user
+  if (user) {
+    const name = `${user.first_name || ''} ${user.last_name || ''}`.trim()
+    if (name) return name
+    if (user.email) return user.email
+  }
+  if (estimate.intake_form?.contact_name) return estimate.intake_form.contact_name
+  return 'N/A'
+}
+
 const statusColors: Record<EstimateStatus, string> = {
   [EstimateStatus.DRAFT]: 'bg-gray-100 text-gray-700',
   [EstimateStatus.SENT]: 'bg-blue-100 text-blue-700',
@@ -101,6 +112,7 @@ export default function EstimatesPage() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Number</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Client</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Issue Date</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Expires</th>
@@ -116,6 +128,7 @@ export default function EstimatesPage() {
                   onClick={() => router.push(`/dashboard/estimates/${estimate.id}`)}
                 >
                   <td className="px-4 py-3 text-sm font-medium text-gray-900">{estimate.estimate_number}</td>
+                  <td className="px-4 py-3 text-sm text-gray-900">{getClientName(estimate)}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${statusColors[estimate.status]}`}>
                       {estimate.status}

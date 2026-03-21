@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import ImageUpload from '@/components/ImageUpload'
 import ConnectBankButton from '@/components/ConnectBankButton'
+import AddressAutocomplete from '@/components/AddressAutocomplete'
 
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-700',
@@ -152,12 +153,18 @@ export default function VendorDashboard() {
           <div className="flex items-center gap-4">
             <Link href="/vendors" className="text-sm text-gray-500 hover:text-gray-700">View Directory</Link>
             {profile && (
-              <Link href={`/vendors/${profile.id}`} className="text-sm text-primary-600 hover:text-primary-700 font-medium">
-                My Public Profile →
+              <Link href={`/vendors/${profile.id}`} className="text-sm text-gray-500 hover:text-gray-700">
+                My Public Profile
               </Link>
             )}
             <Link href="/vendors/settings" className="text-sm text-gray-500 hover:text-gray-700">
               ⚙️ Settings
+            </Link>
+            <Link
+              href="/vendor-portal"
+              className="text-sm font-semibold bg-primary-600 text-white px-3 py-1.5 rounded-lg hover:bg-primary-700 transition-colors"
+            >
+              Vendor Portal →
             </Link>
             <button
               onClick={handleLogout}
@@ -625,10 +632,19 @@ function EditProfileTab({ profile, onUpdate }: { profile: VendorProfile; onUpdat
         {/* Location */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Street Address</label>
-          <input type="text" value={address} onChange={e => setAddress(e.target.value)}
+          <AddressAutocomplete
+            value={address}
+            onChange={setAddress}
+            onSelect={({ address: a, city: c, state: s, zip: z }) => {
+              setAddress(a)
+              setCity(c)
+              setState(s)
+              setZipCode(z)
+            }}
+            placeholder="Start typing your street address…"
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-            placeholder="123 Main Street (optional — shown only to booked clients)"
           />
+          <p className="text-xs text-gray-400 mt-1">Selecting a suggestion auto-fills city, state &amp; zip. Only shown to booked clients.</p>
         </div>
         <div className="grid grid-cols-3 gap-3">
           <div className="col-span-1">

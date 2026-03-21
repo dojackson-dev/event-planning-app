@@ -96,3 +96,33 @@ export class CreateVendorReviewDto {
   rating: number;
   reviewText?: string;
 }
+
+// ─── Booking Link DTOs ────────────────────────────────────────────────────────
+
+export class UpsertBookingLinkDto {
+  /** URL-safe slug, e.g. "dj-mike-events" */
+  slug: string;
+  isActive?: boolean;
+  customMessage?: string;
+  /** e.g. 25 means 25% deposit */
+  defaultDepositPercentage?: number;
+}
+
+export class SubmitBookingRequestDto {
+  clientName: string;
+  clientEmail: string;
+  clientPhone?: string;
+  eventName?: string;
+  eventDate?: string; // ISO date
+  startTime?: string;
+  endTime?: string;
+  venueName?: string;
+  venueAddress?: string;
+  notes?: string;
+}
+
+export class UpdateBookingRequestDto {
+  status?: 'confirmed' | 'declined' | 'cancelled';
+  quotedAmount?: number;
+  notes?: string;
+}

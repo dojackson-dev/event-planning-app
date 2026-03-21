@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
+import PhoneInput from '@/components/PhoneInput'
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -13,6 +14,7 @@ export default function RegisterPage() {
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [phoneNumber, setPhoneNumber] = useState('')
+  const [phoneCountryDial, setPhoneCountryDial] = useState('+1')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
 
@@ -29,6 +31,8 @@ export default function RegisterPage() {
   const [venueEmail, setVenueEmail] = useState('')
   const [venueCapacity, setVenueCapacity] = useState('')
   const [venueDescription, setVenueDescription] = useState('')
+
+  const [smsOptIn, setSmsOptIn] = useState(false)
 
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -65,6 +69,7 @@ export default function RegisterPage() {
         venueEmail: venueEmail || undefined,
         venueCapacity: venueCapacity ? parseInt(venueCapacity, 10) : undefined,
         venueDescription: venueDescription || undefined,
+        smsOptIn,
       })
 
       // Store session tokens so the user is immediately logged in
@@ -150,12 +155,12 @@ export default function RegisterPage() {
                   placeholder="you@example.com"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-                <input
-                  type="tel" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  placeholder="(555) 123-4567"
+              <div className="sm:col-span-2">
+                <PhoneInput
+                  value={phoneNumber}
+                  onChange={setPhoneNumber}
+                  smsOptIn={smsOptIn}
+                  onSmsOptInChange={setSmsOptIn}
                 />
               </div>
               <div>
@@ -242,12 +247,12 @@ export default function RegisterPage() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Venue Phone</label>
-                  <input
-                    type="tel" value={venuePhone} onChange={e => setVenuePhone(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    placeholder="(555) 987-6543"
+                <div className="sm:col-span-2">
+                  <PhoneInput
+                    label="Venue Phone"
+                    value={venuePhone}
+                    onChange={setVenuePhone}
+                    hideSmsOptIn
                   />
                 </div>
                 <div>

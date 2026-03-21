@@ -117,6 +117,10 @@ export interface User {
   role: UserRole
   roles?: UserRole[]       // All roles this user has (multi-role support)
   phone?: string
+  smsOptIn?: boolean
+  smsOptInAt?: string
+  smsOptOutAt?: string
+  preferredContact?: 'phone' | 'email' | 'text'
   ownerId?: string // For customers/planners/staff - references their owner
   tenantId?: string // Only for owners who host their website with us (optional)
   createdAt: string
@@ -305,6 +309,7 @@ export interface Estimate {
   booking_id?: string
   intake_form_id?: string
   booking?: Booking
+  intake_form?: any
   subtotal: number
   tax_amount: number
   tax_rate: number
@@ -473,7 +478,7 @@ export interface Message {
   user?: User
   eventId?: string
   event?: Event
-  messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom'
+  messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'support' | 'announcement' | 'custom'
   content: string
   status: 'pending' | 'sent' | 'delivered' | 'failed'
   twilioSid?: string
@@ -486,7 +491,7 @@ export interface Message {
 export interface MessageTemplate {
   id: string
   name: string
-  messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom'
+  messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'support' | 'announcement' | 'custom'
   content: string
   isActive: boolean
   sendBeforeDays?: number

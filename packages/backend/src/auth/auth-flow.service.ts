@@ -3,6 +3,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { StripeService } from '../stripe/stripe.service';
 import { SmsService } from '../sms/sms.service';
 import { TrialService } from '../trial/trial.service';
+import { TwilioService } from '../messaging/twilio.service.js';
 import { OwnerSignupDto, OwnerLoginDto, VerifyPhoneDto } from './dto/owner-signup.dto';
 import { CreateInviteDto, AcceptInviteDto, ClientSmsOptInDto } from './dto/client-invite.dto';
 import { randomBytes } from 'crypto';
@@ -14,6 +15,7 @@ export class AuthFlowService {
     private readonly stripeService: StripeService,
     private readonly smsService: SmsService,
     private readonly trialService: TrialService,
+    private readonly twilioService: TwilioService,
   ) {}
 
   /**
@@ -58,23 +60,7 @@ export class AuthFlowService {
 
     const userId = authData.user.id;
 
-    // 2. Create owner_account with trial
-    const { data: ownerAccount, error: accountError } = await supabase
-      .from('owner_accounts')
-      .insert({
-        business_name: dto.businessName,
-        user_id: userId,
-        subscription_status: 'trial', // Start with free trial
-      })
-      .select()
-      .single();
-
-    if (accountError) throw new BadRequestException(accountError.message);
-
-    // Create trial period (30 days default, or configurable)
-    await this.trialService.createTrial(ownerAccount.id);
-
-    // 3. Create user record
+    // 2. Create user record first (owner_accounts FK references users.id)
     const { error: userError } = await supabase
       .from('users')
       .insert({
@@ -87,11 +73,28 @@ export class AuthFlowService {
         phone_number: dto.phoneNumber,
         email_verified: false, // Will be verified via Supabase email
         phone_verified: false, // Skip SMS for now
-        sms_opt_in: true, // Owner required
+        sms_opt_in: dto.smsOptIn === true,
+        sms_opt_in_at: dto.smsOptIn === true ? new Date().toISOString() : null,
         status: 'active',
       });
 
     if (userError) throw new BadRequestException(userError.message);
+
+    // 3. Create owner_account with trial (FK primary_owner_id → users.id)
+    const { data: ownerAccount, error: accountError } = await supabase
+      .from('owner_accounts')
+      .insert({
+        business_name: dto.businessName,
+        primary_owner_id: userId,
+        subscription_status: 'trial', // Start with free trial
+      })
+      .select()
+      .single();
+
+    if (accountError) throw new BadRequestException(accountError.message);
+
+    // Create trial period (30 days default, or configurable)
+    await this.trialService.createTrial(ownerAccount.id);
 
     // 4. Create membership
     const { error: memberError } = await supabase
@@ -123,9 +126,16 @@ export class AuthFlowService {
 
     if (venueError) throw new BadRequestException(venueError.message);
 
-    // 6. Send phone verification SMS (if phone provided)
-    if (dto.phoneNumber) {
-      await this.smsService.sendVerificationCode(dto.phoneNumber, userId);
+    // 6. Send welcome SMS if they opted in
+    if (dto.phoneNumber && dto.smsOptIn) {
+      try {
+        await this.twilioService.sendSMS(
+          dto.phoneNumber,
+          'Welcome to DoVenue Suite! You are now subscribed to SMS notifications for account updates, event confirmations, reminders, and more. To unsubscribe at any time, reply STOP. You\'ll receive a confirmation: "You have successfully been unsubscribed. You will not receive any more messages from this number. Reply START to resubscribe." Msg & data rates may apply.',
+        );
+      } catch {
+        // Non-fatal — don't block account creation if SMS fails
+      }
     }
 
     // Note: Stripe checkout would happen here in Phase 2
@@ -199,10 +209,11 @@ export class AuthFlowService {
 
     if (authError) throw new UnauthorizedException(authError.message);
 
-    // Check user status
+    // Check user status — use left joins to avoid false-negative "User not found"
+    // when a user exists in auth but their membership record is incomplete
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('*, memberships!inner(owner_account_id, owner_accounts!inner(subscription_status))')
+      .select('*, memberships(owner_account_id, owner_accounts(subscription_status))')
       .eq('id', authData.user.id)
       .single();
 
@@ -438,6 +449,7 @@ export class AuthFlowService {
     firstName: string;
     lastName: string;
     phoneNumber?: string;
+    smsOptIn?: boolean;
   }) {
     const adminClient = this.supabaseService.getAdminClient();
 
@@ -485,11 +497,24 @@ export class AuthFlowService {
         phone_number: dto.phoneNumber,
         email_verified: false,
         phone_verified: false,
-        sms_opt_in: false,
+        sms_opt_in: dto.smsOptIn === true,
+        sms_opt_in_at: dto.smsOptIn === true ? new Date().toISOString() : null,
         status: 'active',
       });
 
     if (userError) throw new BadRequestException(userError.message);
+
+    // Send welcome SMS if opted in
+    if (dto.phoneNumber && dto.smsOptIn) {
+      try {
+        await this.twilioService.sendSMS(
+          dto.phoneNumber,
+          'Welcome to DoVenue Suite! You are now subscribed to SMS notifications for account updates, event confirmations, reminders, and more. To unsubscribe at any time, reply STOP. Msg & data rates may apply.',
+        );
+      } catch {
+        // Non-fatal — don\'t block account creation if SMS fails
+      }
+    }
 
     return {
       userId,
@@ -554,13 +579,23 @@ export class AuthFlowService {
 
     if (authError) throw new UnauthorizedException(authError.message);
 
-    const { data: user, error: userError } = await supabase
+    const { data: dbUser } = await supabase
       .from('users')
       .select('*')
       .eq('id', authData.user.id)
       .single();
 
-    if (userError || !user) throw new UnauthorizedException('User not found');
+    // Fall back to Supabase auth metadata if no users-table row exists yet
+    const user = dbUser ?? {
+      id:            authData.user.id,
+      email:         authData.user.email,
+      first_name:    authData.user.user_metadata?.first_name ?? '',
+      last_name:     authData.user.user_metadata?.last_name ?? '',
+      role:          authData.user.user_metadata?.role ?? 'owner',
+      roles:         authData.user.user_metadata?.roles ?? null,
+      created_at:    authData.user.created_at,
+      updated_at:    authData.user.updated_at,
+    };
 
     const roles = this.getUserRoles(user);
 

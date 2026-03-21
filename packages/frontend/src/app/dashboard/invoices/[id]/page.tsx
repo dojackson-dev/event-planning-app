@@ -16,11 +16,16 @@ export default function InvoiceDetailPage() {
   const [showLinkModal, setShowLinkModal] = useState(false)
   const [generatingLink, setGeneratingLink] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
+  const [ownerInfo, setOwnerInfo] = useState<{
+    businessName: string
+    venue: { name?: string; address?: string; city?: string; state?: string; zip_code?: string; phone?: string; email?: string } | null
+  } | null>(null)
 
   useEffect(() => {
     if (params.id) {
       fetchInvoice()
     }
+    api.get('/owner/venue').then(r => setOwnerInfo(r.data)).catch(() => {})
   }, [params.id])
 
   const fetchInvoice = async () => {
@@ -181,9 +186,24 @@ export default function InvoiceDetailPage() {
             <p className="text-gray-600 mt-2">{invoice.invoice_number}</p>
           </div>
           <div className="text-right">
-            <p className="font-semibold">Your Company Name</p>
-            <p className="text-sm text-gray-600">123 Business St</p>
-            <p className="text-sm text-gray-600">City, State 12345</p>
+            {ownerInfo?.businessName && (
+              <p className="font-semibold">{ownerInfo.businessName}</p>
+            )}
+            {ownerInfo?.venue?.address && (
+              <p className="text-sm text-gray-600">{ownerInfo.venue.address}</p>
+            )}
+            {(ownerInfo?.venue?.city || ownerInfo?.venue?.state || ownerInfo?.venue?.zip_code) && (
+              <p className="text-sm text-gray-600">
+                {[ownerInfo.venue?.city, ownerInfo.venue?.state].filter(Boolean).join(', ')}
+                {ownerInfo.venue?.zip_code ? ` ${ownerInfo.venue.zip_code}` : ''}
+              </p>
+            )}
+            {ownerInfo?.venue?.phone && (
+              <p className="text-sm text-gray-600">{ownerInfo.venue.phone}</p>
+            )}
+            {ownerInfo?.venue?.email && (
+              <p className="text-sm text-gray-600">{ownerInfo.venue.email}</p>
+            )}
           </div>
         </div>
 
@@ -191,12 +211,16 @@ export default function InvoiceDetailPage() {
         <div className="grid grid-cols-2 gap-8 mb-8">
           <div>
             <h3 className="font-semibold text-gray-700 mb-2">Bill To:</h3>
-            {invoice.booking?.user && (
-              <div className="text-gray-600">
-                <p>{invoice.booking.user.firstName} {invoice.booking.user.lastName}</p>
-                <p>{invoice.booking.user.email}</p>
-              </div>
-            )}
+            <div className="text-gray-600">
+              {invoice.client_name && <p className="font-medium text-gray-800">{invoice.client_name}</p>}
+              {(invoice as any).client_email && <p>{(invoice as any).client_email}</p>}
+              {!invoice.client_name && invoice.booking?.user && (
+                <>
+                  <p>{invoice.booking.user.firstName} {invoice.booking.user.lastName}</p>
+                  <p>{invoice.booking.user.email}</p>
+                </>
+              )}
+            </div>
           </div>
           <div className="text-right">
             <div className="mb-2">
@@ -321,6 +345,62 @@ export default function InvoiceDetailPage() {
             )}
           </div>
         </div>
+
+        {/* Payment Schedule */}
+        {invoice.deposit_percentage != null && invoice.deposit_percentage > 0 && (() => {
+          const total = Number(invoice.total_amount)
+          const depositAmt = total * (Number(invoice.deposit_percentage) / 100)
+          const finalAmt = total - depositAmt
+          const eventDateStr = (invoice.booking as any)?.event?.date
+          const eventDate = eventDateStr ? new Date(eventDateStr + 'T00:00:00') : null
+
+          const depositDueDate = eventDate && invoice.deposit_due_days_before != null
+            ? new Date(eventDate.getTime() - invoice.deposit_due_days_before * 86400000)
+            : null
+          const finalDueDate = eventDate && invoice.final_payment_due_days_before != null
+            ? new Date(eventDate.getTime() - invoice.final_payment_due_days_before * 86400000)
+            : null
+
+          return (
+            <div className="border-t border-gray-200 pt-6 mb-6">
+              <h4 className="font-semibold text-gray-700 mb-3">Payment Schedule</h4>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between py-2 px-4 bg-amber-50 border border-amber-200 rounded-lg">
+                  <div>
+                    <span className="text-sm font-medium text-gray-800">
+                      Deposit ({invoice.deposit_percentage}%)
+                    </span>
+                    {depositDueDate && (
+                      <span className="ml-2 text-xs text-gray-500">
+                        due {depositDueDate.toLocaleDateString()}
+                        {invoice.deposit_due_days_before != null && ` (${invoice.deposit_due_days_before} days before event)`}
+                      </span>
+                    )}
+                    {!depositDueDate && invoice.deposit_due_days_before != null && (
+                      <span className="ml-2 text-xs text-gray-500">due {invoice.deposit_due_days_before} days before event</span>
+                    )}
+                  </div>
+                  <span className="text-sm font-bold text-amber-700">${depositAmt.toFixed(2)}</span>
+                </div>
+                <div className="flex items-center justify-between py-2 px-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div>
+                    <span className="text-sm font-medium text-gray-800">Final Payment</span>
+                    {finalDueDate && (
+                      <span className="ml-2 text-xs text-gray-500">
+                        due {finalDueDate.toLocaleDateString()}
+                        {invoice.final_payment_due_days_before != null && ` (${invoice.final_payment_due_days_before} days before event)`}
+                      </span>
+                    )}
+                    {!finalDueDate && invoice.final_payment_due_days_before != null && (
+                      <span className="ml-2 text-xs text-gray-500">due {invoice.final_payment_due_days_before} days before event</span>
+                    )}
+                  </div>
+                  <span className="text-sm font-bold text-green-700">${finalAmt.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Terms & Notes */}
         {(invoice.terms || invoice.notes) && (

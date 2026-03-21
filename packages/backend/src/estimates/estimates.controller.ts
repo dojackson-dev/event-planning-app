@@ -33,10 +33,9 @@ export class EstimatesController {
     @Query('ownerId') ownerId?: string,
   ): Promise<Estimate[]> {
     const userId = await this.getUserId(authorization);
-    const token = this.extractToken(authorization);
-    const supabase = this.supabaseService.setAuthContext(token);
-    if (ownerId) return this.estimatesService.findByOwner(supabase, ownerId);
-    return this.estimatesService.findByOwner(supabase, userId);
+    const supabaseAdmin = this.supabaseService.getAdminClient();
+    if (ownerId) return this.estimatesService.findByOwner(supabaseAdmin, ownerId);
+    return this.estimatesService.findByOwner(supabaseAdmin, userId);
   }
 
   @Get(':id')
@@ -45,9 +44,8 @@ export class EstimatesController {
     @Param('id') id: string,
   ): Promise<Estimate> {
     await this.getUserId(authorization);
-    const token = this.extractToken(authorization);
-    const supabase = this.supabaseService.setAuthContext(token);
-    return this.estimatesService.findOne(supabase, id);
+    const supabaseAdmin = this.supabaseService.getAdminClient();
+    return this.estimatesService.findOne(supabaseAdmin, id);
   }
 
   @Post()

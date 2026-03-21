@@ -165,6 +165,8 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
 
   const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!form.eventName.trim()) { setBookingError('Event name is required'); return }
+    if (!form.eventDate) { setBookingError('Event date is required'); return }
     setBookingSubmitting(true)
     setBookingError('')
     try {

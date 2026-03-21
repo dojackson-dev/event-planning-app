@@ -71,28 +71,36 @@ export class EstimatesService {
   // ─── Finders ────────────────────────────────────────────────────────────────
 
   async findAll(supabase: SupabaseClient, userId: string): Promise<Estimate[]> {
-    const { data, error } = await supabase
-      .from('estimates')
-      .select('*, booking:booking(*, user:users(id, first_name, last_name, email)), intake_form:intake_forms(*), items:estimate_items(*)')
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    return data || [];
+    try {
+      const { data, error } = await supabase
+        .from('estimates')
+        .select('*, booking:booking(id, contact_name, contact_email, contact_phone, event_id, total_amount), intake_form:intake_forms(*), items:estimate_items(*)')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    } catch {
+      return [];
+    }
   }
 
   async findByOwner(supabase: SupabaseClient, ownerId: string): Promise<Estimate[]> {
-    const { data, error } = await supabase
-      .from('estimates')
-      .select('*, booking:booking(*, user:users(id, first_name, last_name, email)), intake_form:intake_forms(*), items:estimate_items(*)')
-      .eq('owner_id', ownerId)
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    return data || [];
+    try {
+      const { data, error } = await supabase
+        .from('estimates')
+        .select('*, booking:booking(id, contact_name, contact_email, contact_phone, event_id, total_amount), intake_form:intake_forms(*), items:estimate_items(*)')
+        .eq('owner_id', ownerId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    } catch {
+      return [];
+    }
   }
 
   async findOne(supabase: SupabaseClient, id: string): Promise<Estimate> {
     const { data, error } = await supabase
       .from('estimates')
-      .select('*, booking:booking(*, user:users(id, first_name, last_name, email)), intake_form:intake_forms(*), items:estimate_items(*)')
+      .select('*, booking:booking(id, contact_name, contact_email, contact_phone, event_id, total_amount), intake_form:intake_forms(*), items:estimate_items(*)')
       .eq('id', id)
       .single();
     if (error) throw new NotFoundException('Estimate not found');
@@ -166,7 +174,7 @@ export class EstimatesService {
         .from('estimates')
         .update({ subtotal: totals.subtotal, tax_amount: totals.taxAmount, total_amount: totals.totalAmount })
         .eq('id', estimate.id)
-        .select('*, booking:booking(*, user:users(id, first_name, last_name, email)), intake_form:intake_forms(*), items:estimate_items(*)')
+        .select('*, booking:booking(id, contact_name, contact_email, contact_phone, event_id, total_amount), intake_form:intake_forms(*), items:estimate_items(*)')
         .single();
       if (upErr) throw upErr;
       return updated;

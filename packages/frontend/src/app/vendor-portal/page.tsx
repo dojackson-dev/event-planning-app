@@ -20,7 +20,10 @@ import {
   LogOut,
   MapPin,
   User,
+  FileText,
+  Link2,
 } from 'lucide-react'
+import Link from 'next/link'
 import RoleSwitcher from '@/components/RoleSwitcher'
 
 interface VendorAccount {
@@ -171,6 +174,46 @@ export default function VendorPortalPage() {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 py-8">
+        {/* Quick action cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          <Link
+            href="/vendor-portal/invoices"
+            className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:border-primary-300 hover:shadow-md transition-all flex items-center gap-3"
+          >
+            <div className="w-10 h-10 rounded-lg bg-primary-50 flex items-center justify-center flex-shrink-0">
+              <FileText className="w-5 h-5 text-primary-600" />
+            </div>
+            <div>
+              <p className="font-semibold text-gray-900 text-sm">Invoices</p>
+              <p className="text-xs text-gray-400">Create & send invoices</p>
+            </div>
+          </Link>
+          <Link
+            href="/vendor-portal/booking-requests"
+            className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:border-primary-300 hover:shadow-md transition-all flex items-center gap-3"
+          >
+            <div className="w-10 h-10 rounded-lg bg-yellow-50 flex items-center justify-center flex-shrink-0">
+              <Calendar className="w-5 h-5 text-yellow-600" />
+            </div>
+            <div>
+              <p className="font-semibold text-gray-900 text-sm">Booking Requests</p>
+              <p className="text-xs text-gray-400">{pendingCount > 0 ? `${pendingCount} new request${pendingCount > 1 ? 's' : ''}` : 'Manage requests'}</p>
+            </div>
+          </Link>
+          <Link
+            href="/vendor-portal/booking-link"
+            className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:border-primary-300 hover:shadow-md transition-all flex items-center gap-3"
+          >
+            <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center flex-shrink-0">
+              <Link2 className="w-5 h-5 text-green-600" />
+            </div>
+            <div>
+              <p className="font-semibold text-gray-900 text-sm">Booking Link</p>
+              <p className="text-xs text-gray-400">Share your booking page</p>
+            </div>
+          </Link>
+        </div>
+
         {/* Tabs */}
         <div className="flex gap-1 p-1 bg-white border border-gray-200 rounded-xl w-fit mb-6 shadow-sm">
           {[

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { SupabaseService } from '../supabase/supabase.service';
+import { VendorInvoicesService } from '../vendor-invoices/vendor-invoices.service';
 
 @Injectable()
 export class StripeService {
@@ -13,6 +14,7 @@ export class StripeService {
   constructor(
     private readonly configService: ConfigService,
     private readonly supabaseService: SupabaseService,
+    private readonly vendorInvoicesService: VendorInvoicesService,
   ) {
     const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (!secretKey) {
@@ -200,6 +202,17 @@ export class StripeService {
   // ─── Private Webhook Handlers ──────────────────────────────────────────────
 
   private async handleCheckoutComplete(session: Stripe.Checkout.Session): Promise<void> {
+    // ── Vendor invoice payment ──────────────────────────────────────────────
+    if (session.metadata?.vendor_invoice_id) {
+      const paymentIntentId = typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : (session.payment_intent as Stripe.PaymentIntent | null)?.id ?? null;
+      await this.vendorInvoicesService.markInvoicePaidBySession(session.id, paymentIntentId);
+      this.logger.log(`Vendor invoice checkout complete — session ${session.id}`);
+      return;
+    }
+
+    // ── Owner subscription checkout ─────────────────────────────────────────
     const ownerAccountId = session.client_reference_id;
     if (!ownerAccountId) return;
 

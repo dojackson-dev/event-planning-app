@@ -18,6 +18,9 @@ import {
   CreateVendorBookingDto,
   UpdateVendorBookingDto,
   CreateVendorReviewDto,
+  UpsertBookingLinkDto,
+  SubmitBookingRequestDto,
+  UpdateBookingRequestDto,
 } from './dto/vendor.dto';
 
 @Controller('vendors')
@@ -275,5 +278,59 @@ export class VendorsController {
   ) {
     const userId = await this.getUserId(authorization);
     return this.vendorsService.createReview(userId, dto);
+  }
+
+  // ─────────────────────────────────────────────
+  // BOOKING LINKS
+  // ─────────────────────────────────────────────
+
+  /** POST /vendors/booking-links — Create or update vendor booking link */
+  @Post('booking-links')
+  async upsertBookingLink(
+    @Headers('authorization') authorization: string,
+    @Body() dto: UpsertBookingLinkDto,
+  ) {
+    const userId = await this.getUserId(authorization);
+    return this.vendorsService.upsertBookingLink(userId, dto);
+  }
+
+  /** GET /vendors/booking-links/mine — Get my booking link */
+  @Get('booking-links/mine')
+  async getMyBookingLink(@Headers('authorization') authorization: string) {
+    const userId = await this.getUserId(authorization);
+    return this.vendorsService.getMyBookingLink(userId);
+  }
+
+  /** GET /vendors/booking-requests/mine — Get my booking requests */
+  @Get('booking-requests/mine')
+  async getMyBookingRequests(@Headers('authorization') authorization: string) {
+    const userId = await this.getUserId(authorization);
+    return this.vendorsService.getMyBookingRequests(userId);
+  }
+
+  /** PUT /vendors/booking-requests/:id — Update booking request status */
+  @Put('booking-requests/:id')
+  async updateBookingRequest(
+    @Headers('authorization') authorization: string,
+    @Param('id') requestId: string,
+    @Body() dto: UpdateBookingRequestDto,
+  ) {
+    const userId = await this.getUserId(authorization);
+    return this.vendorsService.updateBookingRequest(userId, requestId, dto);
+  }
+
+  /** GET /vendors/booking-link/:slug — Public: view booking link (no auth) */
+  @Get('booking-link/:slug')
+  async getPublicBookingLink(@Param('slug') slug: string) {
+    return this.vendorsService.getPublicBookingLink(slug);
+  }
+
+  /** POST /vendors/booking-link/:slug/request — Public: submit booking request */
+  @Post('booking-link/:slug/request')
+  async submitBookingRequest(
+    @Param('slug') slug: string,
+    @Body() dto: SubmitBookingRequestDto,
+  ) {
+    return this.vendorsService.submitBookingRequest(slug, dto);
   }
 }

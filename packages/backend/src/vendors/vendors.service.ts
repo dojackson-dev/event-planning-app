@@ -8,6 +8,9 @@ import {
   CreateVendorBookingDto,
   UpdateVendorBookingDto,
   CreateVendorReviewDto,
+  UpsertBookingLinkDto,
+  SubmitBookingRequestDto,
+  UpdateBookingRequestDto,
 } from './dto/vendor.dto';
 
 @Injectable()
@@ -468,5 +471,200 @@ export class VendorsService {
       this.logger.warn('Geocoding failed for zip:', zipCode);
     }
     return null;
+  }
+
+  // ─────────────────────────────────────────────
+  // BOOKING LINKS
+  // ─────────────────────────────────────────────
+
+  private async getVendorAccountIdByUserId(userId: string): Promise<string> {
+    const admin = this.supabaseService.getAdminClient();
+    const { data, error } = await admin
+      .from('vendor_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error || !data) throw new BadRequestException('No vendor account found for this user');
+    return data.id;
+  }
+
+  /** Create or update the vendor's booking link (one per vendor). */
+  async upsertBookingLink(userId: string, dto: UpsertBookingLinkDto) {
+    const admin = this.supabaseService.getAdminClient();
+    const vendorAccountId = await this.getVendorAccountIdByUserId(userId);
+
+    // Validate slug — alphanumeric and hyphens only
+    if (!/^[a-z0-9-]{3,60}$/.test(dto.slug)) {
+      throw new BadRequestException('Slug must be 3-60 characters: lowercase letters, numbers, and hyphens only');
+    }
+
+    // Check slug uniqueness (exclude own if updating)
+    const { data: conflict } = await admin
+      .from('vendor_booking_links')
+      .select('id, vendor_account_id')
+      .eq('slug', dto.slug)
+      .maybeSingle();
+
+    if (conflict && conflict.vendor_account_id !== vendorAccountId) {
+      throw new BadRequestException('This booking link slug is already taken');
+    }
+
+    const payload = {
+      vendor_account_id: vendorAccountId,
+      slug: dto.slug,
+      is_active: dto.isActive ?? true,
+      custom_message: dto.customMessage ?? null,
+      default_deposit_percentage: dto.defaultDepositPercentage ?? null,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data: existing } = await admin
+      .from('vendor_booking_links')
+      .select('id')
+      .eq('vendor_account_id', vendorAccountId)
+      .maybeSingle();
+
+    if (existing) {
+      const { data, error } = await admin
+        .from('vendor_booking_links')
+        .update(payload)
+        .eq('id', existing.id)
+        .select()
+        .single();
+      if (error) throw new BadRequestException(error.message);
+      return data;
+    } else {
+      const { data, error } = await admin
+        .from('vendor_booking_links')
+        .insert(payload)
+        .select()
+        .single();
+      if (error) throw new BadRequestException(error.message);
+      return data;
+    }
+  }
+
+  /** Get the vendor's own booking link. */
+  async getMyBookingLink(userId: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const vendorAccountId = await this.getVendorAccountIdByUserId(userId);
+
+    const { data } = await admin
+      .from('vendor_booking_links')
+      .select('*')
+      .eq('vendor_account_id', vendorAccountId)
+      .maybeSingle();
+
+    return data ?? null;
+  }
+
+  /** Public: get booking link info by slug (no auth). */
+  async getPublicBookingLink(slug: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const { data, error } = await admin
+      .from('vendor_booking_links')
+      .select('*, vendor_accounts(business_name, category, city, state, bio, profile_image_url, hourly_rate, flat_rate, rate_description)')
+      .eq('slug', slug)
+      .eq('is_active', true)
+      .single();
+
+    if (error || !data) throw new NotFoundException('Booking link not found or inactive');
+    return data;
+  }
+
+  /** Public: submit a booking request via a booking link. */
+  async submitBookingRequest(slug: string, dto: SubmitBookingRequestDto) {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: link } = await admin
+      .from('vendor_booking_links')
+      .select('id, vendor_account_id, vendor_accounts(phone)')
+      .eq('slug', slug)
+      .eq('is_active', true)
+      .single();
+
+    if (!link) throw new NotFoundException('Booking link not found or inactive');
+
+    const { data: request, error } = await admin
+      .from('vendor_booking_requests')
+      .insert({
+        vendor_account_id: link.vendor_account_id,
+        booking_link_id: link.id,
+        client_name: dto.clientName,
+        client_email: dto.clientEmail,
+        client_phone: dto.clientPhone ?? null,
+        event_name: dto.eventName ?? null,
+        event_date: dto.eventDate ?? null,
+        start_time: dto.startTime ?? null,
+        end_time: dto.endTime ?? null,
+        venue_name: dto.venueName ?? null,
+        venue_address: dto.venueAddress ?? null,
+        notes: dto.notes ?? null,
+        status: 'pending',
+      })
+      .select()
+      .single();
+
+    if (error) throw new BadRequestException(error.message);
+
+    // Notify vendor via SMS if they have a phone number
+    const vendorPhone = (link.vendor_accounts as any)?.phone;
+    if (vendorPhone) {
+      try {
+        await this.twilioService.sendSms(
+          vendorPhone,
+          `New booking request from ${dto.clientName}${dto.eventName ? ` for "${dto.eventName}"` : ''}${dto.eventDate ? ` on ${dto.eventDate}` : ''}. Log in to your vendor portal to respond.`,
+        );
+      } catch (err) {
+        this.logger.warn('Failed to send SMS for booking request', (err as Error).message);
+      }
+    }
+
+    return request;
+  }
+
+  /** Get all booking requests for the authenticated vendor. */
+  async getMyBookingRequests(userId: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const vendorAccountId = await this.getVendorAccountIdByUserId(userId);
+
+    const { data, error } = await admin
+      .from('vendor_booking_requests')
+      .select('*')
+      .eq('vendor_account_id', vendorAccountId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw new BadRequestException(error.message);
+    return data ?? [];
+  }
+
+  /** Update a booking request status (confirm / decline). */
+  async updateBookingRequest(userId: string, requestId: string, dto: UpdateBookingRequestDto) {
+    const admin = this.supabaseService.getAdminClient();
+    const vendorAccountId = await this.getVendorAccountIdByUserId(userId);
+
+    const { data: existing } = await admin
+      .from('vendor_booking_requests')
+      .select('id')
+      .eq('id', requestId)
+      .eq('vendor_account_id', vendorAccountId)
+      .single();
+
+    if (!existing) throw new NotFoundException('Booking request not found');
+
+    const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (dto.status) update.status = dto.status;
+    if (dto.quotedAmount !== undefined) update.quoted_amount = dto.quotedAmount;
+    if (dto.notes !== undefined) update.notes = dto.notes;
+
+    const { data, error } = await admin
+      .from('vendor_booking_requests')
+      .update(update)
+      .eq('id', requestId)
+      .select()
+      .single();
+
+    if (error) throw new BadRequestException(error.message);
+    return data;
   }
 }

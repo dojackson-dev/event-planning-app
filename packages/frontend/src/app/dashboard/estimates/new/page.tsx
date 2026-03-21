@@ -8,16 +8,16 @@ import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { ServiceItem, ServiceItemCategory, DiscountType } from '@/types'
 
-interface IntakeFormClient {
+interface BookingOption {
   id: string
   contact_name: string
   contact_email: string
-  contact_phone: string
-  event_type: string
-  event_date: string
-  event_time: string
-  guest_count: number
-  status: string
+  event_id?: string
+  event?: {
+    id: string
+    name: string
+    date: string
+  }
 }
 
 interface EstimateLineItem {
@@ -38,9 +38,9 @@ function NewEstimatePageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user } = useAuth()
-  const [clients, setClients] = useState<IntakeFormClient[]>([])
+  const [bookings, setBookings] = useState<BookingOption[]>([])
   const [serviceItems, setServiceItems] = useState<ServiceItem[]>([])
-  const [selectedClient, setSelectedClient] = useState('')
+  const [selectedBooking, setSelectedBooking] = useState('')
   const [lineItems, setLineItems] = useState<EstimateLineItem[]>([])
   const [vendorBookingBanner, setVendorBookingBanner] = useState<string>('')
   const [includeTax, setIncludeTax] = useState(false)
@@ -55,7 +55,7 @@ function NewEstimatePageInner() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    fetchClients()
+    fetchBookings()
     fetchServiceItems()
   }, [])
 
@@ -85,21 +85,22 @@ function NewEstimatePageInner() {
     }).catch(() => {})
   }, [searchParams])
 
-  const fetchClients = async () => {
+  const fetchBookings = async () => {
     try {
-      const res = await api.get<IntakeFormClient[]>('/intake-forms')
+      const res = await api.get<BookingOption[]>('/bookings')
       const today = new Date()
       today.setHours(0, 0, 0, 0)
-      // Only show clients whose event date is today or in the future
-      const upcoming = res.data.filter((c) => {
-        if (!c.event_date) return false
-        const [y, m, d] = c.event_date.split('-').map(Number)
+      // Only show bookings whose event date is today or in the future
+      const upcoming = (res.data || []).filter((b) => {
+        const dateStr = b.event?.date
+        if (!dateStr) return true
+        const [y, m, d] = dateStr.split('-').map(Number)
         const eventDate = new Date(y, m - 1, d)
         return eventDate >= today
       })
-      setClients(upcoming)
+      setBookings(upcoming)
     } catch (err) {
-      console.error('Failed to fetch clients:', err)
+      console.error('Failed to fetch bookings:', err)
     }
   }
 
@@ -191,7 +192,7 @@ function NewEstimatePageInner() {
     try {
       const body = {
         estimate: {
-          intake_form_id: selectedClient || null,
+          booking_id: selectedBooking || null,
           owner_id: user?.id,
           tax_rate: includeTax ? Number(taxRate) : 0,
           discount_amount: Number(discountAmount),
@@ -241,23 +242,23 @@ function NewEstimatePageInner() {
 
         {/* Client */}
         <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Select Client (Optional)</label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Select Event / Booking (Optional)</label>
           <select
-            value={selectedClient}
-            onChange={e => setSelectedClient(e.target.value)}
+            value={selectedBooking}
+            onChange={e => setSelectedBooking(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
-            <option value="">-- No client --</option>
-            {clients.map(c => (
-              <option key={c.id} value={c.id}>
-                {c.contact_name}
-                {c.event_type ? ` — ${c.event_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}` : ''}
-                {c.event_date ? ` (${c.event_date})` : ''}
+            <option value="">-- No booking --</option>
+            {bookings.map(b => (
+              <option key={b.id} value={b.id}>
+                {b.event?.name || 'Event'}
+                {b.contact_name ? ` — ${b.contact_name}` : ''}
+                {b.event?.date ? ` (${b.event.date})` : ''}
               </option>
             ))}
           </select>
-          {clients.length === 0 && (
-            <p className="text-xs text-gray-400 mt-1">No upcoming clients found. Clients with past event dates are excluded.</p>
+          {bookings.length === 0 && (
+            <p className="text-xs text-gray-400 mt-1">No upcoming bookings found. Estimates can still be created without linking to a booking.</p>
           )}
         </div>
 

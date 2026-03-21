@@ -232,4 +232,69 @@ export class OwnerController {
 
     return { success: true };
   }
+
+  // ─────────────────────────────────────────────
+  // GET /owner/payment-schedule
+  // Returns the owner's default payment schedule settings
+  // ─────────────────────────────────────────────
+  @Get('payment-schedule')
+  async getPaymentSchedule(@Headers('authorization') authorization: string) {
+    const userId = await this.getUserId(authorization);
+    const admin = this.supabaseService.getAdminClient();
+
+    const ownerAccountId = await this.getOwnerAccountId(userId, admin);
+    if (!ownerAccountId) return { depositPercentage: null, depositDueDaysBefore: null, finalPaymentDueDaysBefore: null };
+
+    const { data, error } = await admin
+      .from('owner_accounts')
+      .select('default_deposit_percentage, default_deposit_due_days_before, default_final_payment_due_days_before')
+      .eq('id', ownerAccountId)
+      .maybeSingle();
+
+    if (error) console.error('[owner/payment-schedule] DB error:', error.message);
+
+    return {
+      depositPercentage: data?.default_deposit_percentage ?? null,
+      depositDueDaysBefore: data?.default_deposit_due_days_before ?? null,
+      finalPaymentDueDaysBefore: data?.default_final_payment_due_days_before ?? null,
+    };
+  }
+
+  // ─────────────────────────────────────────────
+  // PUT /owner/payment-schedule
+  // Saves the owner's default payment schedule
+  // ─────────────────────────────────────────────
+  @Put('payment-schedule')
+  async updatePaymentSchedule(
+    @Headers('authorization') authorization: string,
+    @Body() body: {
+      depositPercentage?: number | null;
+      depositDueDaysBefore?: number | null;
+      finalPaymentDueDaysBefore?: number | null;
+    },
+  ) {
+    const userId = await this.getUserId(authorization);
+    const admin = this.supabaseService.getAdminClient();
+
+    const ownerAccountId = await this.getOwnerAccountId(userId, admin);
+    if (!ownerAccountId) throw new BadRequestException('Owner account not found');
+
+    const { error } = await admin
+      .from('owner_accounts')
+      .update({
+        default_deposit_percentage: body.depositPercentage ?? null,
+        default_deposit_due_days_before: body.depositDueDaysBefore ?? null,
+        default_final_payment_due_days_before: body.finalPaymentDueDaysBefore ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', ownerAccountId);
+
+    if (error) {
+      console.error('[owner/payment-schedule] Update error:', error.message);
+      throw new BadRequestException(error.message);
+    }
+
+    return { success: true };
+  }
 }
+

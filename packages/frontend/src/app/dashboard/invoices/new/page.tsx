@@ -42,11 +42,24 @@ function NewInvoicePageContent() {
   const [terms, setTerms] = useState('Payment due within 30 days')
   const [issueDate, setIssueDate] = useState(new Date().toISOString().split('T')[0])
   const [dueDate, setDueDate] = useState(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
+  // Payment schedule — loaded from owner Settings → Billing (read-only here)
+  const [ownerDepositPct, setOwnerDepositPct] = useState<number | null>(null)
+  const [ownerDepositDays, setOwnerDepositDays] = useState<number | null>(null)
+  const [ownerFinalDays, setOwnerFinalDays] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     fetchBookings()
     fetchServiceItems()
+    // Load owner payment schedule defaults
+    api.get('/owner/payment-schedule').then(res => {
+      const d = res.data
+      if (d.depositPercentage !== null && d.depositPercentage !== undefined) {
+        setOwnerDepositPct(Number(d.depositPercentage))
+        setOwnerDepositDays(Number(d.depositDueDaysBefore))
+        setOwnerFinalDays(Number(d.finalPaymentDueDaysBefore))
+      }
+    }).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -266,6 +279,9 @@ function NewInvoicePageContent() {
           amount_paid: 0,
           issue_date: issueDate,
           due_date: dueDate,
+          deposit_percentage: ownerDepositPct,
+          deposit_due_days_before: ownerDepositDays,
+          final_payment_due_days_before: ownerFinalDays,
           notes,
           terms,
           status: 'draft',
@@ -398,6 +414,21 @@ function NewInvoicePageContent() {
             />
           </div>
         </div>
+
+        {/* Payment Schedule — from owner Settings → Billing */}
+        {ownerDepositPct !== null && (
+          <div className="mb-6 flex items-start gap-3 border border-blue-200 bg-blue-50 rounded-lg px-4 py-3 text-sm text-blue-800">
+            <span className="text-base mt-0.5">💳</span>
+            <div>
+              <p className="font-semibold text-blue-900 mb-0.5">Payment schedule will be applied</p>
+              <p>Deposit ({ownerDepositPct}%) — due {ownerDepositDays} days before the event</p>
+              <p>Final payment ({100 - ownerDepositPct}%) — due {ownerFinalDays} days before the event</p>
+              <a href="/dashboard/settings?tab=billing" className="text-xs text-blue-600 underline mt-1 inline-block">
+                Change in Settings → Billing
+              </a>
+            </div>
+          </div>
+        )}
 
         {/* Service Items Quick Add */}
         <div className="mb-6">

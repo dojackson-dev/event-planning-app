@@ -17,7 +17,8 @@ import {
   CheckCircle,
   ImageIcon,
   Building2,
-  Banknote
+  Banknote,
+  Receipt,
 } from 'lucide-react'
 import { useOwnerBrand } from '@/contexts/OwnerBrandContext'
 import ImageUpload from '@/components/ImageUpload'
@@ -46,6 +47,13 @@ export default function SettingsPage() {
   const [venueCapacity, setVenueCapacity] = useState('')
   const [venueDescription, setVenueDescription] = useState('')
   const [venueLoaded, setVenueLoaded] = useState(false)
+
+  // Payment schedule (billing) form state
+  const [scheduleEnabled, setScheduleEnabled] = useState(false)
+  const [depositPercentage, setDepositPercentage] = useState<number>(50)
+  const [depositDueDaysBefore, setDepositDueDaysBefore] = useState<number>(45)
+  const [finalPaymentDueDaysBefore, setFinalPaymentDueDaysBefore] = useState<number>(14)
+  const [scheduleLoaded, setScheduleLoaded] = useState(false)
   
   // Password form state
   const [currentPassword, setCurrentPassword] = useState('')
@@ -60,7 +68,7 @@ export default function SettingsPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   
   // UI state
-  const [activeTab, setActiveTab] = useState<'profile' | 'venue' | 'password' | 'delete' | 'branding' | 'payouts'>('profile')
+  const [activeTab, setActiveTab] = useState<'profile' | 'venue' | 'password' | 'delete' | 'branding' | 'payouts' | 'billing'>('profile')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   
@@ -102,6 +110,39 @@ export default function SettingsPage() {
     }
   }, [message])
   
+  // Load payment schedule on billing tab open
+  useEffect(() => {
+    if (activeTab !== 'billing' || scheduleLoaded) return
+    api.get('/owner/payment-schedule').then(res => {
+      const d = res.data
+      if (d.depositPercentage !== null && d.depositPercentage !== undefined) {
+        setScheduleEnabled(true)
+        setDepositPercentage(Number(d.depositPercentage))
+        setDepositDueDaysBefore(Number(d.depositDueDaysBefore))
+        setFinalPaymentDueDaysBefore(Number(d.finalPaymentDueDaysBefore))
+      }
+      setScheduleLoaded(true)
+    }).catch(() => setScheduleLoaded(true))
+  }, [activeTab, scheduleLoaded])
+
+  const handleSavePaymentSchedule = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSaving(true)
+    setMessage(null)
+    try {
+      await api.put('/owner/payment-schedule', {
+        depositPercentage: scheduleEnabled ? depositPercentage : null,
+        depositDueDaysBefore: scheduleEnabled ? depositDueDaysBefore : null,
+        finalPaymentDueDaysBefore: scheduleEnabled ? finalPaymentDueDaysBefore : null,
+      })
+      setMessage({ type: 'success', text: 'Payment schedule saved!' })
+    } catch {
+      setMessage({ type: 'error', text: 'Failed to save payment schedule.' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
@@ -313,6 +354,17 @@ export default function SettingsPage() {
             >
               <Banknote className="h-4 w-4 inline-block mr-2" />
               Payouts
+            </button>
+            <button
+              onClick={() => setActiveTab('billing')}
+              className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'billing'
+                  ? 'border-primary-600 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <Receipt className="h-4 w-4 inline-block mr-2" />
+              Billing
             </button>
             <button
               onClick={() => setActiveTab('delete')}
@@ -691,6 +743,101 @@ export default function SettingsPage() {
                 <ConnectBankButton role="owner" email={user.email || ''} />
               )}
             </div>
+          )}
+
+          {/* Billing Tab */}
+          {activeTab === 'billing' && (
+            <form onSubmit={handleSavePaymentSchedule} className="space-y-6 max-w-xl">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                  <Receipt className="h-5 w-5 text-primary-600" />
+                  Payment Schedule Defaults
+                </h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  Set your default deposit and payment due rules. These are automatically applied to every new invoice you create.
+                </p>
+              </div>
+
+              {/* Toggle */}
+              <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg bg-gray-50">
+                <div>
+                  <p className="text-sm font-medium text-gray-800">Require a deposit to confirm bookings</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Clients pay a % upfront; the balance is due before the event</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={scheduleEnabled}
+                    onChange={e => setScheduleEnabled(e.target.checked)}
+                  />
+                  <div className="w-10 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:bg-primary-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-4" />
+                </label>
+              </div>
+
+              {scheduleEnabled && (
+                <div className="space-y-5">
+                  {/* Deposit % */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Deposit Required (%)</label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="number" min="1" max="100"
+                        value={depositPercentage}
+                        onChange={e => setDepositPercentage(Number(e.target.value))}
+                        className="w-28 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+                      />
+                      <span className="text-sm text-gray-500">% of the invoice total is required as a deposit</span>
+                    </div>
+                  </div>
+
+                  {/* Deposit due */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Deposit Due</label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="number" min="0"
+                        value={depositDueDaysBefore}
+                        onChange={e => setDepositDueDaysBefore(Number(e.target.value))}
+                        className="w-28 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+                      />
+                      <span className="text-sm text-gray-500">days before the event date</span>
+                    </div>
+                  </div>
+
+                  {/* Final payment due */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Final Payment Due</label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="number" min="0"
+                        value={finalPaymentDueDaysBefore}
+                        onChange={e => setFinalPaymentDueDaysBefore(Number(e.target.value))}
+                        className="w-28 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+                      />
+                      <span className="text-sm text-gray-500">days before the event date</span>
+                    </div>
+                  </div>
+
+                  {/* Summary */}
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800 space-y-1">
+                    <p className="font-semibold text-blue-900">How this will appear on invoices:</p>
+                    <p>• Deposit ({depositPercentage}%) — due {depositDueDaysBefore} days before the event</p>
+                    <p>• Final payment ({100 - depositPercentage}%) — due {finalPaymentDueDaysBefore} days before the event</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end pt-4 border-t">
+                <button
+                  type="submit" disabled={saving}
+                  className="inline-flex items-center px-6 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  {saving ? 'Saving...' : 'Save Billing Settings'}
+                </button>
+              </div>
+            </form>
           )}
 
           {/* Branding Tab */}

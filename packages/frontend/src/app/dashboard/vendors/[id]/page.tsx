@@ -105,6 +105,7 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
   const [vendor, setVendor] = useState<VendorProfile | null>(null)
   const [reviews, setReviews] = useState<Review[]>([])
   const [events, setEvents] = useState<OwnerEvent[]>([])
+  const [eventClientMap, setEventClientMap] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [bookingOpen, setBookingOpen] = useState(false)
   const [bookingSuccess, setBookingSuccess] = useState(false)
@@ -127,14 +128,21 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
   useEffect(() => {
     const load = async () => {
       try {
-        const [vendorRes, reviewsRes, eventsRes] = await Promise.all([
+        const [vendorRes, reviewsRes, eventsRes, bookingsRes] = await Promise.all([
           api.get(`/vendors/${params.id}`),
           api.get(`/vendors/${params.id}/reviews`),
           api.get('/events').catch(() => ({ data: [] })),
+          api.get('/bookings').catch(() => ({ data: [] })),
         ])
         setVendor(vendorRes.data)
         setReviews(reviewsRes.data)
         setEvents(eventsRes.data || [])
+        // Build event_id → contact_name map from bookings
+        const map: Record<string, string> = {}
+        for (const b of (bookingsRes.data || [])) {
+          if (b.event_id && b.contact_name) map[b.event_id] = b.contact_name
+        }
+        setEventClientMap(map)
       } catch {
         router.push('/dashboard/vendors')
       } finally {
@@ -419,7 +427,9 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
                     <option value="">— Select an event —</option>
                     {events.map(ev => (
                       <option key={ev.id} value={ev.id}>
-                        {ev.name} ({ev.date ? new Date(ev.date + 'T00:00:00').toLocaleDateString() : 'No date'})
+                        {ev.name}
+                        {eventClientMap[ev.id] ? ` — ${eventClientMap[ev.id]}` : ''}
+                        {ev.date ? ` (${new Date(ev.date + 'T00:00:00').toLocaleDateString()})` : ' (No date)'}
                       </option>
                     ))}
                   </select>

@@ -80,6 +80,7 @@ export enum ItemType {
 export enum InvoiceStatus {
   DRAFT = 'draft',
   SENT = 'sent',
+  PARTIAL = 'partial',
   PAID = 'paid',
   OVERDUE = 'overdue',
   CANCELLED = 'cancelled',
@@ -252,6 +253,10 @@ export interface Invoice {
   paid_date?: string
   notes?: string
   terms?: string
+  deposit_percentage?: number
+  deposit_due_days_before?: number
+  final_payment_due_days_before?: number
+  public_token?: string
   items: InvoiceItem[]
   created_at: string
   updated_at: string

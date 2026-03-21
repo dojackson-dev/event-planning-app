@@ -17,14 +17,19 @@ export default function SendMessagePage() {
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     recipientType: 'client' as 'client' | 'guest' | 'security' | 'custom',
-    messageType: 'reminder' as 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom',
+    messageType: 'confirmation' as 'reminder' | 'invoice' | 'confirmation' | 'update' | 'support' | 'announcement' | 'custom',
     userId: '',
     eventId: '',
     recipientPhone: '',
     recipientName: '',
+    recipientEmail: '',
+    preferredContact: 'phone' as 'phone' | 'email' | 'text',
     content: '',
     sendToAll: false,
   })
+  // Separate state for the raw 10-digit phone (custom/security fields use prefix + this)
+  const [rawPhone, setRawPhone] = useState('')
+  const [phonePrefix, setPhonePrefix] = useState('+1')
 
   useEffect(() => {
     fetchClients()
@@ -80,12 +85,19 @@ export default function SendMessagePage() {
         const messages = []
 
         if (formData.recipientType === 'client' && clients.length > 0) {
-          messages.push(...clients.filter(c => c.phone).map(c => ({
+          // Only send to clients who have opted in to SMS
+          const optedIn = clients.filter(c => c.phone && c.smsOptIn)
+          if (optedIn.length === 0) {
+            alert('No opted-in clients with phone numbers found. Clients must consent to SMS before receiving messages.')
+            setLoading(false)
+            return
+          }
+          messages.push(...optedIn.map(c => ({
             recipientPhone: c.phone!,
             recipientName: `${c.firstName} ${c.lastName}`,
             recipientType: 'client' as const,
             userId: c.id,
-            eventId: formData.eventId ? parseInt(formData.eventId) : undefined,
+            eventId: formData.eventId || undefined,
             messageType: formData.messageType,
             content: formData.content,
           })))
@@ -94,7 +106,7 @@ export default function SendMessagePage() {
             recipientPhone: g.phone,
             recipientName: g.name,
             recipientType: 'guest' as const,
-            eventId: formData.eventId ? parseInt(formData.eventId) : undefined,
+            eventId: formData.eventId || undefined,
             messageType: formData.messageType,
             content: formData.content,
           })))
@@ -110,20 +122,27 @@ export default function SendMessagePage() {
         alert(`Successfully sent ${messages.length} message(s)`)
       } else {
         // Send to single recipient
-        if (!formData.recipientPhone || !formData.recipientName) {
+        // For custom/security types compose phone from prefix + raw input
+        const finalPhone = (formData.recipientType === 'custom' || formData.recipientType === 'security')
+          ? toE164(rawPhone, phonePrefix)
+          : formData.recipientPhone
+
+        if (!finalPhone || !formData.recipientName) {
           alert('Please fill in all recipient fields')
           setLoading(false)
           return
         }
 
         await api.post('/messages/send', {
-          recipientPhone: formData.recipientPhone,
+          recipientPhone: finalPhone,
           recipientName: formData.recipientName,
           recipientType: formData.recipientType,
-          userId: formData.userId ? parseInt(formData.userId) : undefined,
-          eventId: formData.eventId ? parseInt(formData.eventId) : undefined,
+          userId: formData.userId || undefined,
+          eventId: formData.eventId || undefined,
           messageType: formData.messageType,
           content: formData.content,
+          // Intake-form clients voluntarily provided their number — skip opt-in gate
+          skipOptInCheck: formData.recipientType === 'client',
         })
 
         alert('Message sent successfully!')
@@ -132,44 +151,65 @@ export default function SendMessagePage() {
       router.push('/dashboard/messages')
     } catch (error: any) {
       console.error('Failed to send message:', error)
-      alert(error.response?.data?.message || 'Failed to send message. Please check your Twilio configuration.')
+      const msg = error.response?.data?.message
+      alert(`Failed to send message: ${Array.isArray(msg) ? msg.join(', ') : (msg || error.message || 'Unknown error')}`)
     } finally {
       setLoading(false)
     }
   }
 
+  // Normalise any phone to E.164 (+1XXXXXXXXXX for US numbers)
+  const toE164 = (phone: string, prefix = '+1'): string => {
+    const digits = phone.replace(/\D/g, '')
+    if (phone.startsWith('+')) return phone  // already has country code
+    if (digits.length === 10) return `${prefix}${digits}`
+    if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`
+    return phone  // return as-is if we can't determine format
+  }
+
   const handleUserChange = (userId: string) => {
-    setFormData({ ...formData, userId })
     const client = clients.find(c => c.id.toString() === userId)
-    if (client && client.phone) {
+    if (client) {
       setFormData(prev => ({
         ...prev,
         userId,
-        recipientPhone: client.phone!,
+        recipientPhone: client.phone ? toE164(client.phone) : '',
         recipientName: `${client.firstName} ${client.lastName}`,
+        recipientEmail: client.email || '',
+        preferredContact: (client as any).preferredContact || 'phone',
       }))
+    } else {
+      setFormData(prev => ({ ...prev, userId, recipientPhone: '', recipientName: '', recipientEmail: '', preferredContact: 'phone' }))
     }
   }
+
+  const STOP_FOOTER = ' Reply STOP to unsubscribe.'
 
   const getMessageTemplate = () => {
     const selectedEvent = events.find(e => e.id.toString() === formData.eventId)
     const eventDate = selectedEvent ? parseLocalDate(selectedEvent.date) : null
+    const eventName = selectedEvent?.name ?? '[Event Name]'
+    const venue = selectedEvent?.venue ?? '[Venue Name]'
+    const dateStr = eventDate ? eventDate.toLocaleDateString() : '[Date]'
+    const timeStr = eventDate ? eventDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '[Time]'
 
     switch (formData.messageType) {
-      case 'reminder':
-        return selectedEvent && eventDate
-          ? `Reminder: Your event "${selectedEvent.name}" is scheduled for ${eventDate.toLocaleDateString()} at ${eventDate.toLocaleTimeString()}. Looking forward to seeing you!`
-          : 'This is a friendly reminder about your upcoming event.'
-      case 'invoice':
-        return 'Your invoice has been updated. Please check your account for details.'
       case 'confirmation':
-        return selectedEvent
-          ? `Your booking for "${selectedEvent.name}" has been confirmed. We look forward to serving you!`
-          : 'Your booking has been confirmed. Thank you!'
+        // Sample #1
+        return `DoVenue Suite: Your registration for ${eventName} on ${dateStr} is confirmed.${STOP_FOOTER}`
+      case 'reminder':
+        // Sample #2
+        return `Reminder: ${eventName} starts at ${timeStr} at ${venue}.${STOP_FOOTER}`
+      case 'support':
+        // Sample #3
+        return `DoVenue Suite Support: We received your request and will respond shortly.${STOP_FOOTER}`
+      case 'announcement':
+        // Sample #4
+        return `DoVenue Suite: New events are now available in your area. View at dovenuesuite.com.${STOP_FOOTER}`
+      case 'invoice':
+        return `DoVenue Suite: Your invoice has been updated. For assistance, contact support@dovenuesuite.com.${STOP_FOOTER}`
       case 'update':
-        return selectedEvent
-          ? `Update regarding your event "${selectedEvent.name}": `
-          : 'We have an important update regarding your event: '
+        return `DoVenue Suite: We have an update regarding ${eventName}. For assistance, contact support@dovenuesuite.com.${STOP_FOOTER}`
       default:
         return ''
     }
@@ -275,10 +315,34 @@ export default function SendMessagePage() {
                   <option value="">Select a client...</option>
                   {clients.map((client) => (
                     <option key={client.id} value={client.id}>
-                      {client.firstName} {client.lastName} {client.phone ? `(${client.phone})` : '(No phone)'}
+                      {client.firstName} {client.lastName}
+                      {client.phone ? ` — ${client.phone}` : ' (no phone)'}
+                      {client.email ? ` | ${client.email}` : ''}
                     </option>
                   ))}
                 </select>
+
+                {/* Show selected client contact details */}
+                {formData.userId && (() => {
+                  const c = clients.find(cl => cl.id.toString() === formData.userId)
+                  if (!c) return null
+                  const pref = (c as any).preferredContact || 'phone'
+                  const prefLabel: Record<string, string> = { phone: '📞 Phone call', email: '✉️ Email', text: '💬 SMS/Text' }
+                  const canSendSms = pref === 'phone' || pref === 'text'
+                  return (
+                    <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-md text-sm space-y-1">
+                      <p><span className="font-medium">Preferred contact:</span> {prefLabel[pref] ?? pref}</p>
+                      {c.phone && <p><span className="font-medium">Phone:</span> {formData.recipientPhone}</p>}
+                      {c.email && <p><span className="font-medium">Email:</span> {formData.recipientEmail}</p>}
+                      {!canSendSms && (
+                        <p className="text-amber-700">⚠ This client prefers email. The message below will still be sent via SMS — copy the text and send by email if needed.</p>
+                      )}
+                      {!c.phone && (
+                        <p className="text-red-600">⚠ No phone number on file — SMS cannot be sent.</p>
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
             )}
 
@@ -302,15 +366,28 @@ export default function SendMessagePage() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Phone Number *
                   </label>
-                  <input
-                    type="tel"
-                    value={formData.recipientPhone}
-                    onChange={(e) => setFormData({ ...formData, recipientPhone: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    placeholder="+1234567890"
-                    required
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Include country code (e.g., +1 for US)</p>
+                  <div className="flex gap-2">
+                    <select
+                      value={phonePrefix}
+                      onChange={(e) => setPhonePrefix(e.target.value)}
+                      className="w-28 px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white text-sm"
+                    >
+                      <option value="+1">🇺🇸 +1</option>
+                      <option value="+44">🇬🇧 +44</option>
+                      <option value="+52">🇲🇽 +52</option>
+                      <option value="+1868">🇹🇹 +1868</option>
+                    </select>
+                    <input
+                      type="tel"
+                      value={rawPhone}
+                      onChange={(e) => setRawPhone(e.target.value.replace(/\D/g, ''))}
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      placeholder="(555) 123-4567"
+                      maxLength={10}
+                      required
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">US +1 is pre-selected. Enter 10-digit number without dashes.</p>
                 </div>
               </>
             )}
@@ -328,9 +405,11 @@ export default function SendMessagePage() {
             className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             required
           >
+            <option value="confirmation">Registration Confirmation</option>
             <option value="reminder">Event Reminder</option>
+            <option value="support">Support Response</option>
+            <option value="announcement">Event Announcement</option>
             <option value="invoice">Invoice Update</option>
-            <option value="confirmation">Booking Confirmation</option>
             <option value="update">General Update</option>
             <option value="custom">Custom Message</option>
           </select>
@@ -363,6 +442,11 @@ export default function SendMessagePage() {
           <p className="text-xs text-gray-500 mt-1">
             Character count: {formData.content.length} (SMS segments: {Math.ceil(formData.content.length / 160)})
           </p>
+          {formData.content && !formData.content.toLowerCase().includes('reply stop to unsubscribe') && (
+            <p className="text-xs text-amber-600 mt-1">
+              ⚠ Campaign compliance requires "Reply STOP to unsubscribe." Use a template or add it manually.
+            </p>
+          )}
         </div>
 
         {/* Submit Button */}

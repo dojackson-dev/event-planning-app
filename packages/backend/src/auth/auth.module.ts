@@ -8,9 +8,11 @@ import { SubscriptionGuard, RoleGuard } from './guards/subscription.guard';
 import { SupabaseModule } from '../supabase/supabase.module';
 import { StripeModule } from '../stripe/stripe.module';
 import { SmsModule } from '../sms/sms.module';
+import { TrialModule } from '../trial/trial.module';
+import { MessagingModule } from '../messaging/messaging.module';
 
 @Module({
-  imports: [SupabaseModule, StripeModule, SmsModule],
+  imports: [SupabaseModule, StripeModule, SmsModule, TrialModule, MessagingModule],
   controllers: [AuthController, DevAuthController, AuthFlowController],
   providers: [AuthService, AuthFlowService, SubscriptionGuard, RoleGuard],
   exports: [AuthService, AuthFlowService, SubscriptionGuard, RoleGuard],

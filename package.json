@@ -9,14 +9,17 @@
   "scripts": {
     "install:all": "npm install",
     "build": "npm run build --workspaces",
+    "vercel-build": "cd packages/frontend && npm run build",
     "dev": "npm run dev --workspaces",
     "test": "npm run test --workspaces"
   },
   "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
     "typescript": "^5.0.0"
   },
   "dependencies": {
     "@expo/config-plugins": "^54.0.4",
+    "prop-types": "^15.8.1",
     "react-native-safe-area-context": "^5.6.2"
   }
 }

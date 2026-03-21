@@ -11,11 +11,6 @@ export const metadata: Metadata = {
   icons: {
     icon: '/favicon.svg',
   },
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: 'default',
-    title: 'Event Center',
-  },
 }
 
 export const viewport: Viewport = {
@@ -35,7 +30,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${inter.className} overflow-x-hidden`}>
+      <body className={`${inter.className} overflow-x-hidden`} suppressHydrationWarning>
         <AuthProvider>
           {children}
         </AuthProvider>

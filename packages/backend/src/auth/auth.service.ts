@@ -1,6 +1,6 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
-import { RegisterDto, LoginDto } from './dto/auth.dto';
+import { RegisterDto, LoginDto, UpdateProfileDto, ChangePasswordDto } from './dto/auth.dto';
 
 @Injectable()
 export class AuthService {
@@ -63,6 +63,25 @@ export class AuthService {
 
     return {
       access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
+      user: data.user,
+    };
+  }
+
+  async refreshToken(refreshToken: string) {
+    const supabase = this.supabaseService.getClient();
+
+    const { data, error } = await supabase.auth.refreshSession({
+      refresh_token: refreshToken,
+    });
+
+    if (error || !data.session) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    return {
+      access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
       user: data.user,
     };
   }
@@ -87,5 +106,130 @@ export class AuthService {
     }
 
     return data.user;
+  }
+
+  async updateProfile(accessToken: string, updateProfileDto: UpdateProfileDto) {
+    const supabase = this.supabaseService.setAuthContext(accessToken);
+
+    // Verify token and get current user via getUser (works with just Authorization header)
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError) {
+      throw new UnauthorizedException(userError.message);
+    }
+
+    const userId = userData.user.id;
+
+    // Build update data for auth metadata
+    const updateData: any = {};
+    if (updateProfileDto.firstName !== undefined) {
+      updateData.first_name = updateProfileDto.firstName;
+    }
+    if (updateProfileDto.lastName !== undefined) {
+      updateData.last_name = updateProfileDto.lastName;
+    }
+    if (updateProfileDto.phone !== undefined) {
+      updateData.phone = updateProfileDto.phone;
+    }
+
+    // Use admin client to update user — avoids "Auth session missing" error
+    // that occurs when calling updateUser() with only a Bearer token (no active session)
+    const adminSupabase = this.supabaseService.getAdminClient();
+    const updatePayload: any = { data: updateData };
+    if (updateProfileDto.email && updateProfileDto.email !== userData.user.email) {
+      updatePayload.email = updateProfileDto.email;
+    }
+
+    const { data, error } = await adminSupabase.auth.admin.updateUserById(userId, updatePayload);
+
+    if (error) {
+      throw new BadRequestException(error.message);
+    }
+
+    // Also update users table
+    const { error: dbError } = await adminSupabase
+      .from('users')
+      .update({
+        first_name: updateProfileDto.firstName,
+        last_name: updateProfileDto.lastName,
+        ...(updateProfileDto.email ? { email: updateProfileDto.email } : {}),
+        phone: updateProfileDto.phone,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', userId);
+
+    if (dbError) {
+      console.warn('Failed to update users table:', dbError.message);
+    }
+
+    return {
+      message: 'Profile updated successfully',
+      user: data.user,
+    };
+  }
+
+  async changePassword(accessToken: string, changePasswordDto: ChangePasswordDto) {
+    const supabase = this.supabaseService.setAuthContext(accessToken);
+    
+    // Get current user to get email
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError) {
+      throw new UnauthorizedException(userError.message);
+    }
+
+    // Verify current password by attempting to sign in
+    const anonSupabase = this.supabaseService.getClient();
+    const { error: verifyError } = await anonSupabase.auth.signInWithPassword({
+      email: userData.user.email!,
+      password: changePasswordDto.currentPassword,
+    });
+
+    if (verifyError) {
+      throw new BadRequestException('Current password is incorrect');
+    }
+
+    // Update password using admin client to avoid "Auth session missing" error
+    const adminSupabase = this.supabaseService.getAdminClient();
+    const { error } = await adminSupabase.auth.admin.updateUserById(userData.user.id, {
+      password: changePasswordDto.newPassword,
+    });
+
+    if (error) {
+      throw new BadRequestException(error.message);
+    }
+
+    return { message: 'Password changed successfully' };
+  }
+
+  async deleteAccount(accessToken: string) {
+    const supabase = this.supabaseService.setAuthContext(accessToken);
+    
+    // Get current user
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError) {
+      throw new UnauthorizedException(userError.message);
+    }
+
+    const userId = userData.user.id;
+
+    // Delete user data from database tables
+    // Order matters due to foreign key constraints
+    try {
+      // Delete in order to respect foreign keys
+      await supabase.from('notifications').delete().eq('user_id', userId);
+      await supabase.from('messages').delete().eq('sender_id', userId);
+      await supabase.from('users').delete().eq('id', userId);
+    } catch (dbError) {
+      console.warn('Error deleting user data from tables:', dbError);
+    }
+
+    // Delete the auth user using admin client
+    const adminSupabase = this.supabaseService.getClient();
+    const { error } = await adminSupabase.auth.admin.deleteUser(userId);
+
+    if (error) {
+      throw new BadRequestException(error.message);
+    }
+
+    return { message: 'Account deleted successfully' };
   }
 }

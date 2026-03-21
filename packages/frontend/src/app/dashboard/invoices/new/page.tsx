@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+export const dynamic = 'force-dynamic'
+
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { ServiceItem, ServiceItemCategory, Booking, DiscountType } from '@/types'
@@ -18,15 +20,20 @@ interface InvoiceLineItem {
   discountValue: number
   discountAmount: number
   amount: number
+  item_type: 'revenue' | 'expense'
+  vendor_booking_id?: string | null
 }
 
-export default function NewInvoicePage() {
+function NewInvoicePageContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user } = useAuth()
   const [bookings, setBookings] = useState<Booking[]>([])
   const [serviceItems, setServiceItems] = useState<ServiceItem[]>([])
   const [selectedBooking, setSelectedBooking] = useState<string>('')
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([])
+  const [expenseItems, setExpenseItems] = useState<InvoiceLineItem[]>([])
+  const [vendorBookingBanner, setVendorBookingBanner] = useState<string>('')
   const [includeTax, setIncludeTax] = useState<boolean>(false)
   const [taxRate, setTaxRate] = useState<number>(0)
   const [discountAmount, setDiscountAmount] = useState<number>(0)
@@ -41,10 +48,44 @@ export default function NewInvoicePage() {
     fetchServiceItems()
   }, [])
 
+  useEffect(() => {
+    const vendorBookingId = searchParams?.get('vendorBookingId')
+    if (!vendorBookingId) return
+    api.get(`/vendors/bookings/${vendorBookingId}`).then(res => {
+      const vb = res.data
+      const vendor = vb.vendor_accounts
+      const amount = Number(vb.agreed_amount) || 0
+      const expenseItem: InvoiceLineItem = {
+        id: `expense-${vb.id}`,
+        description: `Vendor: ${vendor?.business_name || 'Vendor'} — ${vb.event_name}`,
+        quantity: 1,
+        standardPrice: amount,
+        unitPrice: amount,
+        subtotal: amount,
+        discountType: DiscountType.NONE,
+        discountValue: 0,
+        discountAmount: 0,
+        amount,
+        item_type: 'expense',
+        vendor_booking_id: vb.id,
+      }
+      setExpenseItems([expenseItem])
+      setVendorBookingBanner(`Vendor cost pre-filled from booking: ${vendor?.business_name || 'Vendor'} for "${vb.event_name}"`)
+      // Pre-select the event if it's linked
+      if (vb.event_id) setSelectedBooking('')
+    }).catch(() => {})
+  }, [searchParams])
+
   const fetchBookings = async () => {
     try {
       const response = await api.get<Booking[]>('/bookings')
-      setBookings(response.data)
+      // Only remove cancelled bookings — invoices can be for past or future events
+      const active = response.data.filter((b) => {
+        const status = (b.client_status || b.clientStatus || '').toLowerCase()
+        if (status === 'cancelled' || (b.status || '').toLowerCase() === 'cancelled') return false
+        return true
+      })
+      setBookings(active)
     } catch (error) {
       console.error('Failed to fetch bookings:', error)
     }
@@ -93,6 +134,7 @@ export default function NewInvoicePage() {
       discountValue: 0,
       discountAmount: 0,
       amount: price,
+      item_type: 'revenue',
     }
     setLineItems([...lineItems, newItem])
   }
@@ -110,8 +152,43 @@ export default function NewInvoicePage() {
       discountValue: 0,
       discountAmount: 0,
       amount: 0,
+      item_type: 'revenue',
     }
     setLineItems([...lineItems, newItem])
+  }
+
+  const addCustomExpenseItem = () => {
+    const newItem: InvoiceLineItem = {
+      id: `expense-custom-${Date.now()}`,
+      description: '',
+      quantity: 1,
+      standardPrice: 0,
+      unitPrice: 0,
+      subtotal: 0,
+      discountType: DiscountType.NONE,
+      discountValue: 0,
+      discountAmount: 0,
+      amount: 0,
+      item_type: 'expense',
+    }
+    setExpenseItems(prev => [...prev, newItem])
+  }
+
+  const updateExpenseItem = (id: string, field: keyof InvoiceLineItem, value: any) => {
+    setExpenseItems(prev => prev.map(item => {
+      if (item.id !== id) return item
+      const updated = { ...item, [field]: value }
+      if (['quantity', 'unitPrice'].includes(field)) {
+        const sub = Number(updated.quantity) * Number(updated.unitPrice)
+        updated.subtotal = sub
+        updated.amount = sub
+      }
+      return updated
+    }))
+  }
+
+  const removeExpenseItem = (id: string) => {
+    setExpenseItems(prev => prev.filter(item => item.id !== id))
   }
 
   const calculateItemAmounts = (item: InvoiceLineItem) => {
@@ -191,15 +268,29 @@ export default function NewInvoicePage() {
           terms,
           status: 'draft',
         },
-        items: lineItems.map((item, index) => ({
-          service_item_id: item.service_item_id || null,
-          description: item.description,
-          quantity: Number(item.quantity),
-          unit_price: Number(item.unitPrice),
-          discount_type: 'none',
-          discount_value: 0,
-          sort_order: index,
-        })),
+        items: [
+          ...lineItems.map((item, index) => ({
+            service_item_id: item.service_item_id || null,
+            description: item.description,
+            quantity: Number(item.quantity),
+            unit_price: Number(item.unitPrice),
+            discount_type: 'none',
+            discount_value: 0,
+            sort_order: index,
+            item_type: 'revenue',
+          })),
+          ...expenseItems.map((item, index) => ({
+            service_item_id: null,
+            description: item.description,
+            quantity: Number(item.quantity),
+            unit_price: Number(item.unitPrice),
+            discount_type: 'none',
+            discount_value: 0,
+            sort_order: lineItems.length + index,
+            item_type: 'expense',
+            vendor_booking_id: item.vendor_booking_id || null,
+          })),
+        ],
       }
 
       const response = await api.post('/invoices', invoiceData)
@@ -218,23 +309,42 @@ export default function NewInvoicePage() {
         <h1 className="text-2xl font-bold text-gray-900">Create New Invoice</h1>
       </div>
 
+      {vendorBookingBanner && (
+        <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3 text-sm flex items-center gap-2">
+          📋 {vendorBookingBanner}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="bg-white shadow-md rounded-lg p-6">
-        {/* Booking Selection */}
+        {/* Event / Booking Selection */}
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Select Booking (Optional)
+            Link to Event / Booking (Optional)
           </label>
+          {bookings.length === 0 ? (
+            <p className="text-sm text-gray-500 mt-1">
+              No bookings found. Invoices can still be created without linking to a booking.
+            </p>
+          ) : null}
           <select
             value={selectedBooking}
             onChange={(e) => setSelectedBooking(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
-            <option value="">-- Select a booking (optional) --</option>
-            {bookings.map((booking) => (
-              <option key={booking.id} value={booking.id}>
-                {booking.event?.name || 'Event'} - {booking.user ? `${booking.user.firstName} ${booking.user.lastName}` : 'Customer'}
-              </option>
-            ))}
+            <option value="">-- Select an event / booking (optional) --</option>
+            {bookings.map((booking) => {
+              const clientName = booking.contact_name ||
+                (booking.user ? `${booking.user.firstName} ${booking.user.lastName}` : '')
+              const eventName = booking.event?.name || ''
+              const eventDate = booking.event?.date || ''
+              return (
+                <option key={booking.id} value={booking.id}>
+                  {eventName || 'Event'}
+                  {clientName ? ` — ${clientName}` : ''}
+                  {eventDate ? ` (${eventDate})` : ''}
+                </option>
+              )
+            })}
           </select>
         </div>
 
@@ -436,6 +546,79 @@ export default function NewInvoicePage() {
           </div>
         </div>
 
+        {/* Vendor Costs (Expense Items — internal, not billed to client) */}
+        <div className="mb-6 border-t border-dashed border-gray-300 pt-5">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700">Vendor Costs <span className="text-gray-400 font-normal">(Internal — not billed to client)</span></h3>
+              <p className="text-xs text-gray-400 mt-0.5">Track what you&apos;re paying vendors to calculate your margin</p>
+            </div>
+            <button
+              type="button"
+              onClick={addCustomExpenseItem}
+              className="text-xs px-3 py-1.5 bg-amber-50 border border-amber-300 text-amber-700 rounded-md hover:bg-amber-100"
+            >
+              + Add Vendor Cost
+            </button>
+          </div>
+          {expenseItems.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-amber-100">
+                <thead className="bg-amber-50">
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-amber-700 uppercase">Description</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-amber-700 uppercase w-20">Qty</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-amber-700 uppercase w-28">Unit Cost</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-amber-700 uppercase w-28">Total Cost</th>
+                    <th className="px-4 py-2 w-10"></th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-amber-50">
+                  {expenseItems.map(item => (
+                    <tr key={item.id}>
+                      <td className="px-4 py-2">
+                        <input
+                          type="text"
+                          value={item.description}
+                          onChange={e => updateExpenseItem(item.id, 'description', e.target.value)}
+                          className="w-full px-2 py-1 border border-gray-300 rounded-md text-sm"
+                          placeholder="e.g. DJ Services — Smith Wedding"
+                        />
+                      </td>
+                      <td className="px-4 py-2">
+                        <input
+                          type="number" min="1" step="1"
+                          value={item.quantity}
+                          onChange={e => updateExpenseItem(item.id, 'quantity', parseFloat(e.target.value) || 1)}
+                          className="w-full px-2 py-1 border border-gray-300 rounded-md text-sm text-right"
+                        />
+                      </td>
+                      <td className="px-4 py-2">
+                        <input
+                          type="number" min="0" step="0.01"
+                          value={item.unitPrice}
+                          onChange={e => updateExpenseItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
+                          className="w-full px-2 py-1 border border-gray-300 rounded-md text-sm text-right"
+                          placeholder="0.00"
+                        />
+                      </td>
+                      <td className="px-4 py-2 text-right text-sm font-medium text-amber-700">
+                        ${Number(item.amount).toFixed(2)}
+                      </td>
+                      <td className="px-4 py-2 text-center">
+                        <button type="button" onClick={() => removeExpenseItem(item.id)} className="text-red-500 hover:text-red-700 text-lg">×</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {expenseItems.length === 0 && (
+            <p className="text-sm text-gray-400 italic">No vendor costs added yet</p>
+          )}
+        </div>
+
         {/* Calculations */}
         <div className="mb-6 flex justify-end">
           <div className="w-96">
@@ -501,6 +684,23 @@ export default function NewInvoicePage() {
                 </span>
               </div>
             </div>
+
+            {expenseItems.length > 0 && (() => {
+              const vendorCosts = expenseItems.reduce((s, i) => s + Number(i.amount), 0)
+              const margin = calculateTotal() - vendorCosts
+              return (
+                <div className="mt-3 pt-3 border-t border-dashed border-amber-300 space-y-1">
+                  <div className="flex justify-between text-sm text-amber-700">
+                    <span>Vendor Costs:</span>
+                    <span>-${vendorCosts.toFixed(2)}</span>
+                  </div>
+                  <div className={`flex justify-between font-bold text-base ${margin >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                    <span>Margin:</span>
+                    <span>${margin.toFixed(2)}</span>
+                  </div>
+                </div>
+              )
+            })()}
           </div>
         </div>
 
@@ -550,5 +750,13 @@ export default function NewInvoicePage() {
         </div>
       </form>
     </div>
+  )
+}
+
+export default function NewInvoicePage() {
+  return (
+    <Suspense fallback={<div className="p-6">Loading...</div>}>
+      <NewInvoicePageContent />
+    </Suspense>
   )
 }

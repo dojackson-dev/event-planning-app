@@ -42,7 +42,7 @@ export default function SecurityPage() {
     }
   }
 
-  const handleRecordArrival = async (id: number) => {
+  const handleRecordArrival = async (id: string) => {
     if (!confirm('Record arrival time for this security personnel?')) return
 
     try {
@@ -54,7 +54,7 @@ export default function SecurityPage() {
     }
   }
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this security record?')) return
 
     try {
@@ -69,7 +69,7 @@ export default function SecurityPage() {
   const filteredSecurity = security.filter((s) => {
     const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          s.phone.includes(searchTerm)
-    const matchesEvent = !filterEvent || s.eventId?.toString() === filterEvent
+    const matchesEvent = !filterEvent || s.eventId === filterEvent
     return matchesSearch && matchesEvent
   })
 

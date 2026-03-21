@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Get, Query, Req, UseGuards, Headers } from '@nestjs/common';
 import { AuthFlowService } from './auth-flow.service';
 import { OwnerSignupDto, OwnerLoginDto } from './dto/owner-signup.dto';
 import { CreateInviteDto, AcceptInviteDto } from './dto/client-invite.dto';
@@ -72,6 +72,19 @@ export class AuthFlowController {
   }
 
   /**
+   * VENDOR ROUTES
+   */
+  @Post('vendor/signup')
+  async vendorSignup(@Body() dto: any) {
+    return this.authFlowService.vendorSignup(dto);
+  }
+
+  @Post('vendor/login')
+  async vendorLogin(@Body() dto: { email: string; password: string }) {
+    return this.authFlowService.vendorLogin(dto.email, dto.password);
+  }
+
+  /**
    * ADMIN ROUTES
    */
   @Post('admin/login')
@@ -79,5 +92,34 @@ export class AuthFlowController {
     @Body() body: { email: string; password: string },
   ) {
     return this.authFlowService.adminLogin(body.email, body.password);
+  }
+
+  /**
+   * UNIFIED ROUTES — multi-role support
+   */
+
+  /**
+   * Single login endpoint for all role types.
+   * Returns session + user + roles[] so the frontend can route appropriately.
+   * - 1 role  → frontend navigates directly to that role's dashboard
+   * - 2+ roles → frontend navigates to /choose-role picker page
+   */
+  @Post('unified/login')
+  async unifiedLogin(@Body() body: { email: string; password: string }) {
+    return this.authFlowService.unifiedLogin(body.email, body.password);
+  }
+
+  /**
+   * Add a new role to the authenticated user.
+   * Body: { newRole: 'owner' | 'vendor' }
+   * Header: Authorization: Bearer <access_token>
+   */
+  @Post('add-role')
+  async addRole(
+    @Body() body: { newRole: 'owner' | 'vendor' },
+    @Headers('authorization') authorization: string,
+  ) {
+    const token = authorization?.replace('Bearer ', '') || '';
+    return this.authFlowService.addRoleToUser(token, body.newRole);
   }
 }

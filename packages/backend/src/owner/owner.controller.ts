@@ -1,0 +1,235 @@
+import {
+  Controller,
+  Get,
+  Put,
+  Body,
+  Headers,
+  BadRequestException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { SupabaseService } from '../supabase/supabase.service';
+
+@Controller('owner')
+export class OwnerController {
+  constructor(private readonly supabaseService: SupabaseService) {}
+
+  private async getUserId(authorization: string): Promise<string> {
+    if (!authorization) throw new UnauthorizedException('No authorization header');
+    const token = authorization.replace('Bearer ', '');
+    const supabase = this.supabaseService.setAuthContext(token);
+    const { data: { user }, error } = await supabase.auth.getUser();
+    if (error || !user) throw new UnauthorizedException('Invalid token');
+    return user.id;
+  }
+
+  /**
+   * Resolves the owner_account id for a given user.
+   * Primary: looks up via memberships table (user_id → owner_account_id).
+   * Fallback: direct user_id column on owner_accounts (legacy/migration path).
+   */
+  private async getOwnerAccountId(userId: string, admin: any): Promise<number | null> {
+    // Primary path: membership record links user → owner account
+    const { data: membership } = await admin
+      .from('memberships')
+      .select('owner_account_id')
+      .eq('user_id', userId)
+      .limit(1)
+      .maybeSingle();
+
+    if (membership?.owner_account_id) return membership.owner_account_id;
+
+    // Fallback: direct user_id on owner_accounts
+    const { data: ownerAccount } = await admin
+      .from('owner_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    return ownerAccount?.id ?? null;
+  }
+
+  // ─────────────────────────────────────────────
+  // GET /owner/account-id
+  // Returns the owner_account_id for the current user (used by billing page)
+  // ─────────────────────────────────────────────
+  @Get('account-id')
+  async getAccountId(@Headers('authorization') authorization: string) {
+    const userId = await this.getUserId(authorization);
+    const admin = this.supabaseService.getAdminClient();
+    const ownerAccountId = await this.getOwnerAccountId(userId, admin);
+    return { ownerAccountId };
+  }
+
+  // ─────────────────────────────────────────────
+  // GET /owner/profile
+  // Returns owner branding: businessName + logoUrl
+  // ─────────────────────────────────────────────
+  @Get('profile')
+  async getProfile(@Headers('authorization') authorization: string) {
+    const userId = await this.getUserId(authorization);
+    const admin = this.supabaseService.getAdminClient();
+
+    const ownerAccountId = await this.getOwnerAccountId(userId, admin);
+    if (!ownerAccountId) return { businessName: '', logoUrl: null };
+
+    const { data, error } = await admin
+      .from('owner_accounts')
+      .select('business_name, logo_url')
+      .eq('id', ownerAccountId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('[owner/profile] DB error:', error.message);
+    }
+
+    return {
+      businessName: data?.business_name || '',
+      logoUrl: data?.logo_url || null,
+    };
+  }
+
+  // ─────────────────────────────────────────────
+  // PUT /owner/profile
+  // Updates owner branding (logoUrl)
+  // ─────────────────────────────────────────────
+  @Put('profile')
+  async updateProfile(
+    @Headers('authorization') authorization: string,
+    @Body() body: { logoUrl?: string | null },
+  ) {
+    const userId = await this.getUserId(authorization);
+    const admin = this.supabaseService.getAdminClient();
+
+    const ownerAccountId = await this.getOwnerAccountId(userId, admin);
+    if (!ownerAccountId) throw new BadRequestException('Owner account not found');
+
+    const { error } = await admin
+      .from('owner_accounts')
+      .update({
+        logo_url: body.logoUrl ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', ownerAccountId);
+
+    if (error) {
+      console.error('[owner/profile] Update error:', error.message);
+      throw new BadRequestException(error.message);
+    }
+
+    return { success: true };
+  }
+
+  // ─────────────────────────────────────────────
+  // GET /owner/venue
+  // Returns the primary venue for this owner
+  // ─────────────────────────────────────────────
+  @Get('venue')
+  async getVenue(@Headers('authorization') authorization: string) {
+    const userId = await this.getUserId(authorization);
+    const admin = this.supabaseService.getAdminClient();
+
+    const ownerAccountId = await this.getOwnerAccountId(userId, admin);
+    if (!ownerAccountId) return { venue: null, businessName: '' };
+
+    // Get business name
+    const { data: ownerAccount } = await admin
+      .from('owner_accounts')
+      .select('business_name')
+      .eq('id', ownerAccountId)
+      .maybeSingle();
+
+    // Get first venue
+    const { data: venue, error } = await admin
+      .from('venues')
+      .select('id, name, address, city, state, zip_code, phone, email, capacity, description')
+      .eq('owner_account_id', ownerAccountId)
+      .order('id', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error('[owner/venue] DB error:', error.message);
+    }
+
+    return {
+      businessName: ownerAccount?.business_name || '',
+      venue: venue || null,
+    };
+  }
+
+  // ─────────────────────────────────────────────
+  // PUT /owner/venue
+  // Updates the primary venue details
+  // ─────────────────────────────────────────────
+  @Put('venue')
+  async updateVenue(
+    @Headers('authorization') authorization: string,
+    @Body() body: {
+      name?: string;
+      address?: string;
+      city?: string;
+      state?: string;
+      zipCode?: string;
+      phone?: string;
+      email?: string;
+      capacity?: number;
+      description?: string;
+    },
+  ) {
+    const userId = await this.getUserId(authorization);
+    const admin = this.supabaseService.getAdminClient();
+
+    const ownerAccountId = await this.getOwnerAccountId(userId, admin);
+    if (!ownerAccountId) throw new BadRequestException('Owner account not found');
+
+    // Get venue id
+    const { data: venue } = await admin
+      .from('venues')
+      .select('id')
+      .eq('owner_account_id', ownerAccountId)
+      .order('id', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    const updateData: Record<string, any> = { updated_at: new Date().toISOString() };
+    if (body.name !== undefined) updateData.name = body.name;
+    if (body.address !== undefined) updateData.address = body.address;
+    if (body.city !== undefined) updateData.city = body.city;
+    if (body.state !== undefined) updateData.state = body.state;
+    if (body.zipCode !== undefined) updateData.zip_code = body.zipCode;
+    if (body.phone !== undefined) updateData.phone = body.phone;
+    if (body.email !== undefined) updateData.email = body.email;
+    if (body.capacity !== undefined) updateData.capacity = body.capacity || null;
+    if (body.description !== undefined) updateData.description = body.description;
+
+    if (venue) {
+      // Update existing venue
+      const { error } = await admin
+        .from('venues')
+        .update(updateData)
+        .eq('id', venue.id);
+
+      if (error) throw new BadRequestException(error.message);
+    } else {
+      // Create venue if none exists
+      const { error } = await admin
+        .from('venues')
+        .insert({
+          owner_account_id: ownerAccountId,
+          name: body.name || 'My Venue',
+          address: body.address,
+          city: body.city,
+          state: body.state,
+          zip_code: body.zipCode,
+          phone: body.phone,
+          email: body.email,
+          capacity: body.capacity || null,
+          description: body.description,
+        });
+
+      if (error) throw new BadRequestException(error.message);
+    }
+
+    return { success: true };
+  }
+}

@@ -4,9 +4,14 @@ import { DevEventsController } from './dev-events.controller';
 import { EventsService } from './events.service';
 import { SupabaseModule } from '../supabase/supabase.module';
 
+const useDevEvents = process.env.USE_DEV_EVENTS === 'true';
+const eventsControllers = useDevEvents
+  ? [DevEventsController]
+  : [EventsController];
+
 @Module({
   imports: [SupabaseModule],
-  controllers: [EventsController, DevEventsController],
+  controllers: eventsControllers,
   providers: [EventsService],
   exports: [EventsService]
 })

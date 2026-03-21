@@ -7,7 +7,10 @@ import api from '@/lib/api'
 import { Estimate, EstimateStatus } from '@/types'
 
 function getClientName(estimate: Estimate): string {
-  const user = (estimate.booking as any)?.user
+  const booking = (estimate.booking as any)
+  if (booking?.contact_name) return booking.contact_name
+  // legacy: user join
+  const user = booking?.user
   if (user) {
     const name = `${user.first_name || ''} ${user.last_name || ''}`.trim()
     if (name) return name

@@ -23,23 +23,73 @@ api.interceptors.request.use(
   }
 )
 
+let isRefreshing = false
+let refreshSubscribers: ((token: string) => void)[] = []
+
+function subscribeTokenRefresh(cb: (token: string) => void) {
+  refreshSubscribers.push(cb)
+}
+
+function onRefreshed(token: string) {
+  refreshSubscribers.forEach(cb => cb(token))
+  refreshSubscribers = []
+}
+
 // Response interceptor to handle errors
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // Token expired or invalid
-      // During debugging we avoid auto-logout which triggers a hard navigation
-      // and clears the console. Enable automatic logout in production by
-      // setting NEXT_PUBLIC_ENABLE_AUTO_LOGOUT=true in the frontend env.
-      console.warn('API interceptor: 401 received', error.response)
-      if (process.env.NEXT_PUBLIC_ENABLE_AUTO_LOGOUT === 'true') {
-        localStorage.removeItem('access_token')
-        localStorage.removeItem('user')
+  async (error) => {
+    const originalRequest = error.config
+
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      const refreshToken = localStorage.getItem('refresh_token')
+
+      if (refreshToken) {
+        if (isRefreshing) {
+          // Queue the request until refresh is done
+          return new Promise((resolve) => {
+            subscribeTokenRefresh((newToken: string) => {
+              originalRequest.headers.Authorization = `Bearer ${newToken}`
+              resolve(api(originalRequest))
+            })
+          })
+        }
+
+        originalRequest._retry = true
+        isRefreshing = true
+
+        try {
+          const res = await axios.post(`${API_URL}/auth/refresh`, { refresh_token: refreshToken })
+          const { access_token, refresh_token: newRefreshToken } = res.data
+
+          localStorage.setItem('access_token', access_token)
+          if (newRefreshToken) {
+            localStorage.setItem('refresh_token', newRefreshToken)
+          }
+
+          api.defaults.headers.common.Authorization = `Bearer ${access_token}`
+          originalRequest.headers.Authorization = `Bearer ${access_token}`
+
+          onRefreshed(access_token)
+          isRefreshing = false
+
+          return api(originalRequest)
+        } catch (refreshError) {
+          isRefreshing = false
+          refreshSubscribers = []
+          // Refresh failed - clear ALL auth storage and redirect to login
+          ;['access_token','refresh_token','user','user_roles','active_role','user_role'].forEach(k => localStorage.removeItem(k))
+          window.location.href = '/login'
+          return Promise.reject(refreshError)
+        }
+      } else {
+        // No refresh token - redirect to login
+        console.warn('API interceptor: 401 received, no refresh token', error.response)
+        ;['access_token','refresh_token','user','user_roles','active_role','user_role'].forEach(k => localStorage.removeItem(k))
         window.location.href = '/login'
       }
-      // Otherwise, just reject so the app can handle/diagnose the error.
     }
+
     return Promise.reject(error)
   }
 )

@@ -15,8 +15,9 @@ export class BookingsService {
       .from('booking')
       .select(`
         *,
-        event:event(*)
+        event:event(id, name, date, start_time, end_time, venue, location, status)
       `)
+      .not('status', 'eq', 'cancelled')
       .order('created_at', { ascending: false });
 
     if (error) {

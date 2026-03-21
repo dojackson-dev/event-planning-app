@@ -51,6 +51,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   const generateNotifications = useCallback(async () => {
+    // Only owners have access to these endpoints — skip entirely for vendors
+    const role = typeof window !== 'undefined' ? localStorage.getItem('user_role') : null
+    if (role !== 'owner') {
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
       const generatedNotifications: Notification[] = []
@@ -286,8 +293,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     await generateNotifications()
   }, [generateNotifications])
 
-  // Fetch notifications on mount and every 5 minutes
+  // Fetch notifications on mount and every 5 minutes (owner users only)
   useEffect(() => {
+    const role = typeof window !== 'undefined' ? localStorage.getItem('user_role') : null
+    if (role !== 'owner') return
+
     generateNotifications()
     
     const interval = setInterval(() => {

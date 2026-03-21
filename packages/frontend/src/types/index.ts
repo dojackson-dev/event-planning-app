@@ -1,8 +1,10 @@
 // Enums
 export enum UserRole {
+  ADMIN = 'admin',
   CUSTOMER = 'customer',
   OWNER = 'owner',
   PLANNER = 'planner',
+  VENDOR = 'vendor',
 }
 
 export enum EventStatus {
@@ -113,7 +115,12 @@ export interface User {
   firstName: string
   lastName: string
   role: UserRole
+  roles?: UserRole[]       // All roles this user has (multi-role support)
   phone?: string
+  smsOptIn?: boolean
+  smsOptInAt?: string
+  smsOptOutAt?: string
+  preferredContact?: 'phone' | 'email' | 'text'
   ownerId?: string // For customers/planners/staff - references their owner
   tenantId?: string // Only for owners who host their website with us (optional)
   createdAt: string
@@ -159,6 +166,14 @@ export interface Booking {
   eventId: string
   status: BookingStatus
   clientStatus: ClientStatus
+  // Snake_case aliases returned directly from backend
+  client_status?: string
+  payment_status?: string
+  contact_name?: string
+  contact_email?: string
+  contact_phone?: string
+  total_amount?: number
+  deposit_amount?: number
   totalPrice: number
   deposit: number
   paymentStatus: PaymentStatus
@@ -256,6 +271,8 @@ export interface InvoiceItem {
   discount_amount: number // Calculated discount
   amount: number // Final amount after discount
   sort_order: number
+  item_type?: 'revenue' | 'expense'
+  vendor_booking_id?: string | null
 }
 
 // Estimate
@@ -410,10 +427,10 @@ export interface Reminder {
 
 // Security
 export interface Security {
-  id: number
+  id: string
   name: string
   phone: string
-  eventId?: number
+  eventId?: string
   event?: Event
   arrivalTime?: string
   createdAt: string
@@ -461,7 +478,7 @@ export interface Message {
   user?: User
   eventId?: string
   event?: Event
-  messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom'
+  messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'support' | 'announcement' | 'custom'
   content: string
   status: 'pending' | 'sent' | 'delivered' | 'failed'
   twilioSid?: string
@@ -474,7 +491,7 @@ export interface Message {
 export interface MessageTemplate {
   id: string
   name: string
-  messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom'
+  messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'support' | 'announcement' | 'custom'
   content: string
   isActive: boolean
   sendBeforeDays?: number
@@ -506,6 +523,7 @@ export interface ScheduledMessage {
 // Auth
 export interface AuthResponse {
   access_token: string
+  refresh_token?: string
   user: User
 }
 

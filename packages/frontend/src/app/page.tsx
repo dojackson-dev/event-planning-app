@@ -22,6 +22,11 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+      {/* Beta Banner */}
+      <div className="bg-amber-400 text-amber-900 text-center text-sm font-medium py-2 px-4">
+        🚧 DoVenue Suite is currently in <strong>beta</strong> — features may change and bugs may occur. Thanks for being an early tester!
+      </div>
+
       {/* Navigation Header */}
       <nav className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -37,13 +42,25 @@ export default function Home() {
             </div>
             <div className="flex items-center gap-4">
               <Link
+                href="/vendors"
+                className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium"
+              >
+                Find Vendors
+              </Link>
+              <Link
+                href="/client-login"
+                className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium border border-gray-300 rounded-md"
+              >
+                Client Portal
+              </Link>
+              <Link
                 href="/login"
                 className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium"
               >
                 Log In
               </Link>
               <Link
-                href="/register"
+                href="/signup"
                 className="bg-primary-600 text-white hover:bg-primary-700 px-4 py-2 rounded-md text-sm font-medium"
               >
                 Sign Up
@@ -56,6 +73,10 @@ export default function Home() {
       {/* Hero Section */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <div className="text-center">
+          <div className="inline-flex items-center gap-2 bg-amber-100 text-amber-700 border border-amber-300 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide mb-4">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+            Beta
+          </div>
           <h2 className="text-4xl font-extrabold text-gray-900 sm:text-5xl md:text-6xl">
             Streamline Your Event Venue Management
           </h2>
@@ -64,7 +85,7 @@ export default function Home() {
           </p>
           <div className="mt-5 max-w-md mx-auto sm:flex sm:justify-center md:mt-8 gap-4">
             <Link
-              href="/register"
+              href="/signup"
               className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 md:py-4 md:text-lg md:px-10"
             >
               Get Started Free
@@ -74,6 +95,14 @@ export default function Home() {
               className="mt-3 sm:mt-0 w-full flex items-center justify-center px-8 py-3 border border-gray-300 text-base font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 md:py-4 md:text-lg md:px-10"
             >
               Sign In
+            </Link>
+          </div>
+          <div className="mt-4 text-center">
+            <Link
+              href="/client-login"
+              className="inline-flex items-center gap-2 text-sm font-medium text-primary-600 hover:text-primary-700 underline underline-offset-2"
+            >
+              Are you a booked client? Access your Client Portal →
             </Link>
           </div>
         </div>
@@ -177,6 +206,42 @@ export default function Home() {
       </div>
 
       {/* CTA Section */}
+      {/* Vendor Directory Banner */}
+      <div className="py-16 bg-gradient-to-br from-purple-600 to-primary-700">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="lg:flex lg:items-center lg:justify-between">
+            <div className="text-white">
+              <h2 className="text-3xl font-extrabold sm:text-4xl">
+                Find Local Vendors & Venues
+              </h2>
+              <p className="mt-3 text-lg text-purple-100 max-w-xl">
+                Browse DJs, photographers, decorators, planners, musicians, and more — all searchable by location within your chosen radius. Venues listed too.
+              </p>
+              <div className="mt-6 flex flex-wrap gap-2">
+                {['🎵 DJs', '📷 Photographers', '🌸 Decorators', '📋 Planners', '🎸 Musicians', '🎤 MC/Host', '🪑 Furniture'].map(c => (
+                  <span key={c} className="bg-white/20 text-white text-sm px-3 py-1 rounded-full">{c}</span>
+                ))}
+              </div>
+            </div>
+            <div className="mt-8 lg:mt-0 flex flex-col sm:flex-row gap-3 lg:flex-col xl:flex-row">
+              <Link
+                href="/vendors"
+                className="inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-xl text-purple-700 bg-white hover:bg-purple-50"
+              >
+                Browse Directory
+              </Link>
+              <Link
+                href="/signup"
+                className="inline-flex items-center justify-center px-8 py-3 border-2 border-white text-base font-medium rounded-xl text-white hover:bg-white/10"
+              >
+                List Your Business
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* CTA Section */}
       <div className="bg-primary-700">
         <div className="max-w-2xl mx-auto text-center py-16 px-4 sm:py-20 sm:px-6 lg:px-8">
           <h2 className="text-3xl font-extrabold text-white sm:text-4xl">
@@ -187,7 +252,7 @@ export default function Home() {
             Join hundreds of event venue owners who trust EventSuite to manage their business.
           </p>
           <Link
-            href="/register"
+            href="/signup"
             className="mt-8 w-full inline-flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-primary-600 bg-white hover:bg-primary-50 sm:w-auto"
           >
             Sign up for free

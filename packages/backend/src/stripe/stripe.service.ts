@@ -544,25 +544,6 @@ export class StripeService {
     };
   }
 
-    // Record in stripe_payments ledger
-    await admin.from('stripe_payments').insert({
-      type: 'client_to_owner',
-      amount_cents: amountCents,
-      fee_cents: feeCents,
-      net_cents: amountCents - feeCents,
-      stripe_payment_intent_id: paymentIntent.id,
-      owner_account_id: owner.id,
-      description,
-      status: 'pending',
-    });
-
-    return {
-      clientSecret: paymentIntent.client_secret!,
-      paymentIntentId: paymentIntent.id,
-      feeCents,
-    };
-  }
-
   /**
    * Transfer funds from owner to vendor for a completed booking.
    * DoVenueSuite takes 1.5% as fee (paid by vendor — deducted from transfer).

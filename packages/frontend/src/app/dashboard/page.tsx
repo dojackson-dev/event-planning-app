@@ -7,6 +7,7 @@ import api from '@/lib/api'
 import { Event, Booking, ClientStatus } from '@/types'
 import { Calendar, Users, DollarSign, CheckCircle, Clock, ArrowRight, UserPlus, Mail, Phone } from 'lucide-react'
 import { parseLocalDate } from '@/lib/dateUtils'
+import SetupChecklist from '@/components/SetupChecklist'
 
 interface IntakeForm {
   id: string
@@ -129,6 +130,9 @@ export default function DashboardPage() {
       <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6 sm:mb-8">
         Welcome back, {user?.firstName}!
       </h1>
+
+      {/* Setup checklist — hidden once all steps are complete */}
+      <SetupChecklist />
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">

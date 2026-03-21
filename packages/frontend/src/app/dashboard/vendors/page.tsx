@@ -120,53 +120,57 @@ function StarRating({ rating, count }: { rating?: number; count?: number }) {
 function VendorCard({ vendor }: { vendor: Vendor }) {
   const icon = CATEGORY_ICON[vendor.category] || '⭐'
   const catLabel = CATEGORIES.find(c => c.value === vendor.category)?.label || vendor.category
+  const initials = vendor.business_name
+    .split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
 
   return (
     <Link
       href={`/dashboard/vendors/${vendor.id}`}
-      className="bg-white rounded-xl border border-gray-200 hover:border-primary-300 hover:shadow-md transition-all group overflow-hidden flex flex-col"
+      className="group bg-white rounded-2xl border border-gray-200 hover:border-primary-300 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col"
     >
-      {/* Image / Placeholder */}
-      <div className="h-36 bg-gradient-to-br from-primary-50 to-purple-50 flex items-center justify-center relative overflow-hidden">
-        {vendor.profile_image_url ? (
-          <img
-            src={vendor.profile_image_url}
-            alt={vendor.business_name}
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <span className="text-5xl">{icon}</span>
-        )}
-        {vendor.is_verified && (
-          <div className="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
-            <CheckCircle className="w-3 h-3" /> Verified
+      <div className="p-5 flex flex-col flex-1">
+        {/* Top row: logo + badges */}
+        <div className="flex items-start gap-4 mb-4">
+          {/* Logo square */}
+          <div className="w-16 h-16 rounded-xl border border-gray-100 overflow-hidden flex-shrink-0 bg-gray-100 flex items-center justify-center">
+            {vendor.profile_image_url ? (
+              <img src={vendor.profile_image_url} alt={vendor.business_name} className="w-full h-full object-contain" />
+            ) : (
+              <span className="text-xl font-bold text-gray-400 select-none">{initials || icon}</span>
+            )}
           </div>
-        )}
-        {vendor.distance_miles != null && (
-          <div className="absolute bottom-2 left-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
-            <MapPin className="w-3 h-3" /> {vendor.distance_miles.toFixed(1)} mi
-          </div>
-        )}
-      </div>
 
-      {/* Info */}
-      <div className="p-4 flex flex-col flex-1">
-        <div className="flex items-start justify-between gap-2 mb-1">
-          <h3 className="font-semibold text-gray-900 group-hover:text-primary-600 leading-tight line-clamp-1">
-            {vendor.business_name}
-          </h3>
+          {/* Name + meta */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-1 mb-1">
+              <h3 className="font-semibold text-gray-900 group-hover:text-primary-600 leading-snug line-clamp-2 text-sm">
+                {vendor.business_name}
+              </h3>
+              {vendor.is_verified && (
+                <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+              )}
+            </div>
+            <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+              {icon} {catLabel}
+            </span>
+          </div>
         </div>
-        <span className="inline-flex items-center gap-1 text-xs text-gray-500 mb-2">
-          {icon} {catLabel}
-        </span>
+
+        {/* Location */}
         {(vendor.city || vendor.state) && (
-          <p className="text-xs text-gray-400 flex items-center gap-1 mb-2">
-            <MapPin className="w-3 h-3" /> {[vendor.city, vendor.state].filter(Boolean).join(', ')}
+          <p className="text-xs text-gray-400 flex items-center gap-1 mb-3">
+            <MapPin className="w-3 h-3 flex-shrink-0" />
+            {[vendor.city, vendor.state].filter(Boolean).join(', ')}
+            {vendor.distance_miles != null && (
+              <span className="ml-1 text-primary-500 font-medium">{vendor.distance_miles.toFixed(1)} mi</span>
+            )}
           </p>
         )}
-        <div className="mt-auto flex items-center justify-between pt-2 border-t border-gray-100">
+
+        {/* Footer: rating + price */}
+        <div className="mt-auto flex items-center justify-between pt-3 border-t border-gray-100">
           <StarRating rating={vendor.avgRating} count={vendor.reviewCount} />
-          <div className="text-xs text-gray-500">
+          <div className="text-xs font-medium text-gray-500">
             {vendor.hourly_rate ? (
               <span className="flex items-center gap-0.5"><DollarSign className="w-3 h-3" />{vendor.hourly_rate}/hr</span>
             ) : vendor.flat_rate ? (
@@ -180,32 +184,38 @@ function VendorCard({ vendor }: { vendor: Vendor }) {
 }
 
 function VenueCard({ venue }: { venue: Venue }) {
+  const initials = venue.name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
   return (
-    <div className="bg-white rounded-xl border border-gray-200 hover:border-primary-300 hover:shadow-md transition-all overflow-hidden flex flex-col">
-      <div className="h-36 bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center relative overflow-hidden">
-        {venue.profile_image_url ? (
-          <img src={venue.profile_image_url} alt={venue.name} className="w-full h-full object-cover" />
-        ) : (
-          <span className="text-5xl">🏛️</span>
-        )}
-        {venue.capacity && (
-          <div className="absolute bottom-2 left-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full">
-            Up to {venue.capacity.toLocaleString()} guests
+    <div className="bg-white rounded-2xl border border-gray-200 hover:border-primary-300 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col">
+      <div className="p-5 flex flex-col flex-1">
+        <div className="flex items-start gap-4 mb-4">
+          <div className="w-16 h-16 rounded-xl border border-gray-100 overflow-hidden flex-shrink-0 bg-gray-100 flex items-center justify-center">
+            {venue.profile_image_url ? (
+              <img src={venue.profile_image_url} alt={venue.name} className="w-full h-full object-contain" />
+            ) : (
+              <span className="text-xl font-bold text-gray-400 select-none">{initials || '🏛️'}</span>
+            )}
           </div>
-        )}
-      </div>
-      <div className="p-4 flex flex-col flex-1">
-        <h3 className="font-semibold text-gray-900 leading-tight line-clamp-1 mb-1">{venue.name}</h3>
-        <span className="inline-flex items-center gap-1 text-xs text-gray-500 mb-2">🏛️ Venue</span>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-gray-900 leading-snug line-clamp-2 text-sm mb-1.5">{venue.name}</h3>
+            <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+              🏛️ Venue
+            </span>
+          </div>
+        </div>
         {(venue.city || venue.state) && (
           <p className="text-xs text-gray-400 flex items-center gap-1 mb-2">
-            <MapPin className="w-3 h-3" /> {[venue.city, venue.state].filter(Boolean).join(', ')}
+            <MapPin className="w-3 h-3 flex-shrink-0" />
+            {[venue.city, venue.state].filter(Boolean).join(', ')}
           </p>
         )}
         {venue.address && (
           <p className="text-xs text-gray-400 truncate mb-2">{venue.address}</p>
         )}
-        <div className="mt-auto flex items-center gap-3 pt-2 border-t border-gray-100 flex-wrap">
+        {venue.capacity && (
+          <p className="text-xs text-gray-400 mb-2">👥 Up to {venue.capacity.toLocaleString()} guests</p>
+        )}
+        <div className="mt-auto flex items-center gap-3 pt-3 border-t border-gray-100 flex-wrap">
           {venue.phone && (
             <a href={`tel:${venue.phone}`} className="text-xs text-primary-600 hover:underline flex items-center gap-1">
               📞 {venue.phone}

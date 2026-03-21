@@ -415,31 +415,42 @@ function VendorCard({ vendor, renderStars }: { vendor: Vendor; renderStars: (r?:
   const catColor = CATEGORY_COLORS[vendor.category] || 'bg-gray-100 text-gray-700'
   const catLabel = CATEGORIES.find(c => c.value === vendor.category)?.label || vendor.category
   const catIcon = CATEGORY_ICONS[vendor.category] || '⭐'
+  const initials = vendor.business_name
+    .split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow">
-      {/* Cover / image */}
-      <div className="h-40 bg-gradient-to-br from-gray-200 to-gray-300 relative">
-        {vendor.profile_image_url ? (
-          <img src={vendor.profile_image_url} alt={vendor.business_name} className="w-full h-full object-cover" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-6xl">{catIcon}</div>
-        )}
-        {vendor.is_verified && (
-          <span className="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-0.5 rounded-full font-semibold">✓ Verified</span>
-        )}
-      </div>
+    <div className="bg-white rounded-2xl border border-gray-200 hover:border-primary-300 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 overflow-hidden">
+      <div className="p-5">
+        {/* Top row: logo + name + category */}
+        <div className="flex items-start gap-4 mb-4">
+          {/* Logo square */}
+          <div className="w-16 h-16 rounded-xl border border-gray-100 overflow-hidden flex-shrink-0 bg-gray-100 flex items-center justify-center">
+            {vendor.profile_image_url ? (
+              <img src={vendor.profile_image_url} alt={vendor.business_name} className="w-full h-full object-contain" />
+            ) : (
+              <span className="text-xl font-bold text-gray-400 select-none">{initials || catIcon}</span>
+            )}
+          </div>
 
-      <div className="p-4">
-        <div className="flex items-start justify-between mb-1">
-          <h3 className="font-bold text-gray-900 text-base leading-tight">{vendor.business_name}</h3>
-          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ml-2 flex-shrink-0 ${catColor}`}>{catLabel}</span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-2 mb-1.5">
+              <h3 className="font-bold text-gray-900 text-base leading-snug line-clamp-2">{vendor.business_name}</h3>
+              {vendor.is_verified && (
+                <span className="flex-shrink-0 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-semibold">✓ Verified</span>
+              )}
+            </div>
+            <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${catColor}`}>
+              {catIcon} {catLabel}
+            </span>
+          </div>
         </div>
 
+        {/* Stars */}
         {renderStars(vendor.avgRating)}
 
+        {/* Location */}
         {(vendor.city || vendor.state) && (
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
             📍 {[vendor.city, vendor.state].filter(Boolean).join(', ')}
             {vendor.distance_miles != null && (
               <span className="ml-1 text-primary-600 font-medium">({vendor.distance_miles} mi)</span>
@@ -447,29 +458,32 @@ function VendorCard({ vendor, renderStars }: { vendor: Vendor; renderStars: (r?:
           </p>
         )}
 
+        {/* Bio */}
         {vendor.bio && (
-          <p className="text-sm text-gray-600 mt-2 line-clamp-2">{vendor.bio}</p>
+          <p className="text-sm text-gray-500 mt-2 line-clamp-2 leading-relaxed">{vendor.bio}</p>
         )}
 
+        {/* Pricing */}
         {(vendor.hourly_rate || vendor.flat_rate) && (
-          <p className="text-sm text-gray-700 mt-2 font-medium">
+          <p className="text-sm font-semibold text-gray-700 mt-2">
             {vendor.hourly_rate ? `$${vendor.hourly_rate}/hr` : ''}
             {vendor.hourly_rate && vendor.flat_rate ? ' · ' : ''}
             {vendor.flat_rate ? `$${vendor.flat_rate} flat` : ''}
           </p>
         )}
 
+        {/* Actions */}
         <div className="mt-4 flex gap-2">
           <Link
             href={`/vendors/${vendor.id}`}
-            className="flex-1 text-center bg-primary-600 text-white text-sm py-2 rounded-lg hover:bg-primary-700 font-medium"
+            className="flex-1 text-center bg-primary-600 text-white text-sm py-2 rounded-xl hover:bg-primary-700 font-semibold transition-colors"
           >
             View Profile
           </Link>
           {vendor.phone && (
             <a
               href={`tel:${vendor.phone}`}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-gray-600 text-sm hover:bg-gray-50"
+              className="px-3 py-2 border border-gray-200 rounded-xl text-gray-500 text-sm hover:bg-gray-50 transition-colors"
               title="Call"
             >
               📞
@@ -482,17 +496,25 @@ function VendorCard({ vendor, renderStars }: { vendor: Vendor; renderStars: (r?:
 }
 
 function VenueCard({ venue }: { venue: Venue }) {
+  const initials = venue.name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow">
-      <div className="h-40 bg-gradient-to-br from-gray-200 to-gray-300">
-        {venue.profile_image_url ? (
-          <img src={venue.profile_image_url} alt={venue.name} className="w-full h-full object-cover" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-6xl">🏛️</div>
-        )}
-      </div>
-      <div className="p-4">
-        <h3 className="font-bold text-gray-900 text-base">{venue.name}</h3>
+    <div className="bg-white rounded-2xl border border-gray-200 hover:border-primary-300 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 overflow-hidden">
+      <div className="p-5">
+        <div className="flex items-start gap-4 mb-4">
+          <div className="w-16 h-16 rounded-xl border border-gray-100 overflow-hidden flex-shrink-0 bg-gray-100 flex items-center justify-center">
+            {venue.profile_image_url ? (
+              <img src={venue.profile_image_url} alt={venue.name} className="w-full h-full object-contain" />
+            ) : (
+              <span className="text-xl font-bold text-gray-400 select-none">{initials || '🏛️'}</span>
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-bold text-gray-900 text-base leading-snug line-clamp-2 mb-1.5">{venue.name}</h3>
+            <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+              🏛️ Venue
+            </span>
+          </div>
+        </div>
 
         {(venue.city || venue.state) && (
           <p className="text-xs text-gray-500 mt-1">
@@ -502,13 +524,11 @@ function VenueCard({ venue }: { venue: Venue }) {
             )}
           </p>
         )}
-
         {venue.capacity && (
           <p className="text-xs text-gray-500 mt-0.5">👥 Up to {venue.capacity.toLocaleString()} guests</p>
         )}
-
         {venue.description && (
-          <p className="text-sm text-gray-600 mt-2 line-clamp-2">{venue.description}</p>
+          <p className="text-sm text-gray-500 mt-2 line-clamp-2 leading-relaxed">{venue.description}</p>
         )}
 
         <div className="mt-4 flex gap-2">
@@ -517,26 +537,26 @@ function VenueCard({ venue }: { venue: Venue }) {
               href={venue.website.startsWith('http') ? venue.website : `https://${venue.website}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 text-center bg-primary-600 text-white text-sm py-2 rounded-lg hover:bg-primary-700 font-medium"
+              className="flex-1 text-center bg-primary-600 text-white text-sm py-2 rounded-xl hover:bg-primary-700 font-semibold transition-colors"
             >
               Visit Website
             </a>
           ) : venue.email ? (
             <a
               href={`mailto:${venue.email}`}
-              className="flex-1 text-center bg-primary-600 text-white text-sm py-2 rounded-lg hover:bg-primary-700 font-medium"
+              className="flex-1 text-center bg-primary-600 text-white text-sm py-2 rounded-xl hover:bg-primary-700 font-semibold transition-colors"
             >
               ✉️ Email Venue
             </a>
           ) : (
-            <span className="flex-1 text-center border border-gray-200 text-gray-400 text-sm py-2 rounded-lg cursor-default">
+            <span className="flex-1 text-center border border-gray-200 text-gray-400 text-sm py-2 rounded-xl cursor-default">
               Contact Info Pending
             </span>
           )}
           {venue.phone && (
             <a
               href={`tel:${venue.phone}`}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-gray-600 text-sm hover:bg-gray-50"
+              className="px-3 py-2 border border-gray-200 rounded-xl text-gray-500 text-sm hover:bg-gray-50 transition-colors"
               title="Call venue"
             >
               📞

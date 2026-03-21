@@ -65,9 +65,8 @@ export class EstimatesController {
     @Body() estimateData: Partial<Estimate>,
   ): Promise<Estimate> {
     await this.getUserId(authorization);
-    const token = this.extractToken(authorization);
-    const supabase = this.supabaseService.setAuthContext(token);
-    return this.estimatesService.update(supabase, id, estimateData);
+    const supabaseAdmin = this.supabaseService.getAdminClient();
+    return this.estimatesService.update(supabaseAdmin, id, estimateData);
   }
 
   @Put(':id/status')
@@ -77,9 +76,8 @@ export class EstimatesController {
     @Body('status') status: string,
   ): Promise<Estimate> {
     await this.getUserId(authorization);
-    const token = this.extractToken(authorization);
-    const supabase = this.supabaseService.setAuthContext(token);
-    return this.estimatesService.updateStatus(supabase, id, status);
+    const supabaseAdmin = this.supabaseService.getAdminClient();
+    return this.estimatesService.updateStatus(supabaseAdmin, id, status);
   }
 
   @Post(':id/items')
@@ -89,9 +87,8 @@ export class EstimatesController {
     @Body() items: Partial<EstimateItem>[],
   ): Promise<EstimateItem[]> {
     await this.getUserId(authorization);
-    const token = this.extractToken(authorization);
-    const supabase = this.supabaseService.setAuthContext(token);
-    return this.estimatesService.createItems(supabase, id, items);
+    const supabaseAdmin = this.supabaseService.getAdminClient();
+    return this.estimatesService.createItems(supabaseAdmin, id, items);
   }
 
   @Put('items/:itemId')
@@ -101,9 +98,8 @@ export class EstimatesController {
     @Body() itemData: Partial<EstimateItem>,
   ): Promise<EstimateItem> {
     await this.getUserId(authorization);
-    const token = this.extractToken(authorization);
-    const supabase = this.supabaseService.setAuthContext(token);
-    return this.estimatesService.updateItem(supabase, itemId, itemData);
+    const supabaseAdmin = this.supabaseService.getAdminClient();
+    return this.estimatesService.updateItem(supabaseAdmin, itemId, itemData);
   }
 
   @Delete('items/:itemId')
@@ -112,9 +108,8 @@ export class EstimatesController {
     @Param('itemId') itemId: string,
   ): Promise<void> {
     await this.getUserId(authorization);
-    const token = this.extractToken(authorization);
-    const supabase = this.supabaseService.setAuthContext(token);
-    return this.estimatesService.deleteItem(supabase, itemId);
+    const supabaseAdmin = this.supabaseService.getAdminClient();
+    return this.estimatesService.deleteItem(supabaseAdmin, itemId);
   }
 
   @Post(':id/convert-to-invoice')
@@ -133,8 +128,7 @@ export class EstimatesController {
     @Param('id') id: string,
   ): Promise<void> {
     await this.getUserId(authorization);
-    const token = this.extractToken(authorization);
-    const supabase = this.supabaseService.setAuthContext(token);
-    return this.estimatesService.delete(supabase, id);
+    const supabaseAdmin = this.supabaseService.getAdminClient();
+    return this.estimatesService.delete(supabaseAdmin, id);
   }
 }

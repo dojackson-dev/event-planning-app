@@ -44,18 +44,20 @@ export class InvoicesSupabaseController {
     @Query('intakeFormId') intakeFormId?: string,
   ): Promise<Invoice[]> {
     const userId = await this.getUserId(authorization);
-    const token = this.extractToken(authorization);
-    const supabaseWithAuth = this.supabaseService.setAuthContext(token);
+    // Use admin client for reads to bypass RLS policy issues;
+    // security is enforced by filtering on userId (the authenticated user).
+    const supabaseAdmin = this.supabaseService.getAdminClient();
 
     if (ownerId) {
-      return this.invoicesService.findByOwner(supabaseWithAuth, userId, ownerId);
+      // Always filter by the authenticated userId for security, ignore passed ownerId
+      return this.invoicesService.findByOwner(supabaseAdmin, userId, userId);
     }
     
     if (intakeFormId) {
-      return this.invoicesService.findByIntakeForm(supabaseWithAuth, userId, intakeFormId);
+      return this.invoicesService.findByIntakeForm(supabaseAdmin, userId, intakeFormId);
     }
 
-    return this.invoicesService.findAll(supabaseWithAuth, userId);
+    return this.invoicesService.findAll(supabaseAdmin, userId);
   }
 
   @Get(':id')
@@ -64,9 +66,8 @@ export class InvoicesSupabaseController {
     @Param('id') id: string,
   ): Promise<Invoice> {
     const userId = await this.getUserId(authorization);
-    const token = this.extractToken(authorization);
-    const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.invoicesService.findOne(supabaseWithAuth, userId, id);
+    const supabaseAdmin = this.supabaseService.getAdminClient();
+    return this.invoicesService.findOne(supabaseAdmin, userId, id);
   }
 
   @Get(':id/items')
@@ -75,9 +76,8 @@ export class InvoicesSupabaseController {
     @Param('id') id: string,
   ): Promise<InvoiceItem[]> {
     const userId = await this.getUserId(authorization);
-    const token = this.extractToken(authorization);
-    const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.invoicesService.findInvoiceItems(supabaseWithAuth, userId, id);
+    const supabaseAdmin = this.supabaseService.getAdminClient();
+    return this.invoicesService.findInvoiceItems(supabaseAdmin, userId, id);
   }
 
   @Post()

@@ -49,6 +49,18 @@ export class OwnerController {
   }
 
   // ─────────────────────────────────────────────
+  // GET /owner/account-id
+  // Returns the owner_account_id for the current user (used by billing page)
+  // ─────────────────────────────────────────────
+  @Get('account-id')
+  async getAccountId(@Headers('authorization') authorization: string) {
+    const userId = await this.getUserId(authorization);
+    const admin = this.supabaseService.getAdminClient();
+    const ownerAccountId = await this.getOwnerAccountId(userId, admin);
+    return { ownerAccountId };
+  }
+
+  // ─────────────────────────────────────────────
   // GET /owner/profile
   // Returns owner branding: businessName + logoUrl
   // ─────────────────────────────────────────────

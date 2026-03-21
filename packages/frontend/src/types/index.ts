@@ -162,6 +162,14 @@ export interface Booking {
   eventId: string
   status: BookingStatus
   clientStatus: ClientStatus
+  // Snake_case aliases returned directly from backend
+  client_status?: string
+  payment_status?: string
+  contact_name?: string
+  contact_email?: string
+  contact_phone?: string
+  total_amount?: number
+  deposit_amount?: number
   totalPrice: number
   deposit: number
   paymentStatus: PaymentStatus

@@ -73,7 +73,7 @@ interface Venue {
   description: string
   website: string
   phone: string
-  email: string
+  email?: string
   distance_miles?: number
 }
 

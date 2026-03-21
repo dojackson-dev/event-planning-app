@@ -657,7 +657,7 @@ export class VendorsService {
     const vendorPhone = (link.vendor_accounts as any)?.phone;
     if (vendorPhone) {
       try {
-        await this.twilioService.sendSms(
+        await this.twilioService.sendSMS(
           vendorPhone,
           `New booking request from ${dto.clientName}${dto.eventName ? ` for "${dto.eventName}"` : ''}${dto.eventDate ? ` on ${dto.eventDate}` : ''}. Log in to your vendor portal to respond.`,
         );

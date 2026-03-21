@@ -21,7 +21,8 @@ import {
   Menu,
   X,
   ClipboardList,
-  Receipt
+  Receipt,
+  Store
 } from 'lucide-react'
 
 const navigation = [
@@ -39,6 +40,7 @@ const navigation = [
   { name: 'Security', href: '/dashboard/security', icon: Shield },
   { name: 'Payments', href: '/dashboard/payments', icon: DollarSign },
   { name: 'Messages', href: '/dashboard/messages', icon: MessageSquare },
+  { name: 'Vendors', href: '/dashboard/vendors', icon: Store },
 ]
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

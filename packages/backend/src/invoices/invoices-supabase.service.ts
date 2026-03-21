@@ -20,6 +20,7 @@ export interface Invoice {
   issue_date: string;
   due_date: string;
   paid_date?: string;
+  client_name?: string;
   notes?: string;
   terms?: string;
   created_at?: string;
@@ -250,6 +251,7 @@ export class InvoicesService {
         created_by: userId,
         booking_id: invoiceData.booking_id || null,
         intake_form_id: invoiceData.intake_form_id || null,
+        client_name: (invoiceData as any).client_name || null,
         subtotal: subtotal,
         tax_rate: Number(invoiceData.tax_rate) || 0,
         tax_amount: taxAmount,

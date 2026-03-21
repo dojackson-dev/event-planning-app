@@ -258,6 +258,11 @@ function NewInvoicePageContent() {
       const invoiceData = {
         invoice: {
           booking_id: selectedBooking && selectedBooking !== '' ? selectedBooking : null,
+          client_name: selectedBooking
+            ? (bookings.find(b => b.id === selectedBooking)?.contact_name ||
+               bookings.find(b => b.id === selectedBooking)?.contact_email ||
+               null)
+            : null,
           owner_id: user?.id,
           tax_rate: includeTax ? Number(taxRate) : 0,
           discount_amount: Number(discountAmount),

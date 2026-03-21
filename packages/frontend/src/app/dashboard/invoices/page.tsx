@@ -6,16 +6,14 @@ import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Invoice, InvoiceStatus } from '@/types'
 
-function getCustomerName(invoice: Invoice): string {
-  const user = invoice.booking?.user as any
-  if (user) {
-    const first = user.first_name || user.firstName || ''
-    const last = user.last_name || user.lastName || ''
-    const name = `${first} ${last}`.trim()
-    if (name) return name
-    if (user.email) return user.email
-  }
+function getCustomerName(invoice: any): string {
+  if (invoice.client_name) return invoice.client_name
+  const booking = invoice.booking as any
+  if (booking?.contact_name) return booking.contact_name
+  if (booking?.contact_email) return booking.contact_email
   if (invoice.intake_form?.contact_name) return invoice.intake_form.contact_name
+  if (invoice.intake_form?.contact_email) return invoice.intake_form.contact_email
+  if (invoice.client_email) return invoice.client_email
   return 'N/A'
 }
 

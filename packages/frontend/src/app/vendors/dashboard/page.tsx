@@ -153,12 +153,18 @@ export default function VendorDashboard() {
           <div className="flex items-center gap-4">
             <Link href="/vendors" className="text-sm text-gray-500 hover:text-gray-700">View Directory</Link>
             {profile && (
-              <Link href={`/vendors/${profile.id}`} className="text-sm text-primary-600 hover:text-primary-700 font-medium">
-                My Public Profile →
+              <Link href={`/vendors/${profile.id}`} className="text-sm text-gray-500 hover:text-gray-700">
+                My Public Profile
               </Link>
             )}
             <Link href="/vendors/settings" className="text-sm text-gray-500 hover:text-gray-700">
               ⚙️ Settings
+            </Link>
+            <Link
+              href="/vendor-portal"
+              className="text-sm font-semibold bg-primary-600 text-white px-3 py-1.5 rounded-lg hover:bg-primary-700 transition-colors"
+            >
+              Vendor Portal →
             </Link>
             <button
               onClick={handleLogout}

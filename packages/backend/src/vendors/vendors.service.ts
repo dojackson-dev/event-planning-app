@@ -211,7 +211,6 @@ export class VendorsService {
     const { data, error } = await admin
       .from('venues')
       .select('id, name, address, city, state, zip_code, capacity, description, profile_image_url, website, phone, latitude, longitude')
-      .or('is_public.is.null,is_public.eq.true')
       .not('name', 'is', null)
       .order('name');
 

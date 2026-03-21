@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import ImageUpload from '@/components/ImageUpload'
 import ConnectBankButton from '@/components/ConnectBankButton'
+import AddressAutocomplete from '@/components/AddressAutocomplete'
 
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-700',
@@ -625,10 +626,19 @@ function EditProfileTab({ profile, onUpdate }: { profile: VendorProfile; onUpdat
         {/* Location */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Street Address</label>
-          <input type="text" value={address} onChange={e => setAddress(e.target.value)}
+          <AddressAutocomplete
+            value={address}
+            onChange={setAddress}
+            onSelect={({ address: a, city: c, state: s, zip: z }) => {
+              setAddress(a)
+              setCity(c)
+              setState(s)
+              setZipCode(z)
+            }}
+            placeholder="Start typing your street address…"
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-            placeholder="123 Main Street (optional — shown only to booked clients)"
           />
+          <p className="text-xs text-gray-400 mt-1">Selecting a suggestion auto-fills city, state &amp; zip. Only shown to booked clients.</p>
         </div>
         <div className="grid grid-cols-3 gap-3">
           <div className="col-span-1">

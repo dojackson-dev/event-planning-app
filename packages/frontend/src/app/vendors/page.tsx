@@ -77,6 +77,8 @@ interface Venue {
   distance_miles?: number
 }
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+
 export default function VendorsPage() {
   const [vendors, setVendors] = useState<Vendor[]>([])
   const [venues, setVenues] = useState<Venue[]>([])
@@ -89,6 +91,52 @@ export default function VendorsPage() {
   const [activeTab, setActiveTab] = useState<'vendors' | 'venues'>('vendors')
 
   const [error, setError] = useState('')
+  const [locating, setLocating] = useState(false)
+
+  const useMyLocation = useCallback(async () => {
+    if (!navigator.geolocation) {
+      setError('Geolocation is not supported by your browser.')
+      return
+    }
+    setLocating(true)
+    setError('')
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords
+          const res = await fetch(`${API_URL}/vendors/geocode/reverse?lat=${latitude}&lng=${longitude}`)
+          if (res.ok) {
+            const data = await res.json()
+            if (data?.zip) {
+              setZipCode(data.zip)
+              // Trigger search with the resolved lat/lng directly
+              setLoading(true)
+              const params = new URLSearchParams()
+              params.set('lat', String(latitude))
+              params.set('lng', String(longitude))
+              params.set('radiusMiles', radiusMiles)
+              if (category) params.set('category', category)
+              const searchRes = await fetch(`${API_URL}/vendors/search?${params.toString()}`)
+              const searchData = await searchRes.json()
+              setVendors(searchData.vendors || [])
+              setVenues(searchData.venues || [])
+              setSearched(true)
+            }
+          }
+        } catch {
+          setError('Could not determine your location. Try entering a zip code.')
+        } finally {
+          setLocating(false)
+          setLoading(false)
+        }
+      },
+      () => {
+        setLocating(false)
+        setError('Location access denied. Please enter a zip code instead.')
+      },
+      { timeout: 10000 }
+    )
+  }, [radiusMiles, category])
 
   const searchDirectory = useCallback(async (e?: React.FormEvent) => {
     e?.preventDefault()
@@ -184,13 +232,29 @@ export default function VendorsPage() {
           {/* Search Bar */}
           <form onSubmit={searchDirectory} className="bg-white rounded-xl p-4 shadow-xl">
             <div className="flex flex-col sm:flex-row gap-3">
-              <input
-                type="text"
-                placeholder="Zip Code"
-                value={zipCode}
-                onChange={e => setZipCode(e.target.value)}
-                className="flex-1 border border-gray-300 rounded-lg px-4 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
-              />
+              <div className="flex flex-1 gap-2">
+                <input
+                  type="text"
+                  placeholder="Zip Code"
+                  value={zipCode}
+                  onChange={e => setZipCode(e.target.value)}
+                  className="flex-1 border border-gray-300 rounded-lg px-4 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+                <button
+                  type="button"
+                  onClick={useMyLocation}
+                  disabled={locating || loading}
+                  title="Use my current location"
+                  className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 hover:border-primary-400 hover:text-primary-600 disabled:opacity-50 transition-colors whitespace-nowrap text-sm"
+                >
+                  {locating ? (
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                  )}
+                  <span className="hidden sm:inline">{locating ? 'Locating...' : 'Near Me'}</span>
+                </button>
+              </div>
               <select
                 value={radiusMiles}
                 onChange={e => setRadiusMiles(e.target.value)}

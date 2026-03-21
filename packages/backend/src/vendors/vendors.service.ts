@@ -473,6 +473,52 @@ export class VendorsService {
     return null;
   }
 
+  // Reverse geocode lat/lng to address components
+  async reverseGeocode(lat: number, lng: number): Promise<{ city: string; state: string; zip: string; displayName: string } | null> {
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
+        { headers: { 'User-Agent': 'DoVenueSuite/1.0' } }
+      );
+      const data = await response.json() as any;
+      if (!data?.address) return null;
+      const addr = data.address;
+      return {
+        city: addr.city || addr.town || addr.village || addr.county || '',
+        state: addr.state || '',
+        zip: addr.postcode || '',
+        displayName: data.display_name || '',
+      };
+    } catch (err) {
+      this.logger.warn('Reverse geocoding failed for coords:', lat, lng);
+    }
+    return null;
+  }
+
+  // Address autocomplete — returns up to 5 US address suggestions
+  async geocodeAutocomplete(query: string): Promise<Array<{ displayName: string; city: string; state: string; zip: string; lat: number; lng: number }>> {
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&countrycodes=us&format=json&limit=5&addressdetails=1`;
+      const response = await fetch(url, { headers: { 'User-Agent': 'DoVenueSuite/1.0' } });
+      const data = await response.json() as any[];
+      if (!Array.isArray(data)) return [];
+      return data.map(item => {
+        const addr = item.address || {};
+        return {
+          displayName: item.display_name,
+          city: addr.city || addr.town || addr.village || addr.county || '',
+          state: addr.state || '',
+          zip: addr.postcode || '',
+          lat: parseFloat(item.lat),
+          lng: parseFloat(item.lon),
+        };
+      });
+    } catch (err) {
+      this.logger.warn('Address autocomplete failed for query:', query);
+    }
+    return [];
+  }
+
   // ─────────────────────────────────────────────
   // BOOKING LINKS
   // ─────────────────────────────────────────────

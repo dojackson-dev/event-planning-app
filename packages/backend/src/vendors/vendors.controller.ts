@@ -8,6 +8,7 @@ import {
   Query,
   Headers,
   UnauthorizedException,
+  BadRequestException,
   Logger,
 } from '@nestjs/common';
 import { VendorsService } from './vendors.service';
@@ -141,6 +142,25 @@ export class VendorsController {
       this.vendorsService.getAllVenues(),
     ]);
     return { vendors, venues };
+  }
+
+  /** GET /vendors/geocode/reverse?lat=&lng= — Reverse geocode coords to city/state/zip */
+  @Get('geocode/reverse')
+  async reverseGeocode(
+    @Query('lat') lat: string,
+    @Query('lng') lng: string,
+  ) {
+    if (!lat || !lng) throw new BadRequestException('lat and lng are required');
+    const result = await this.vendorsService.reverseGeocode(parseFloat(lat), parseFloat(lng));
+    if (!result) throw new BadRequestException('Could not reverse geocode the provided coordinates');
+    return result;
+  }
+
+  /** GET /vendors/geocode/autocomplete?q= — Address autocomplete suggestions */
+  @Get('geocode/autocomplete')
+  async geocodeAutocomplete(@Query('q') query: string) {
+    if (!query || query.length < 3) return [];
+    return this.vendorsService.geocodeAutocomplete(query);
   }
 
   /** GET /vendors/:id - public vendor profile */

@@ -214,6 +214,26 @@ export default function VendorPortalPage() {
           </Link>
         </div>
 
+        {/* Invoice feature spotlight */}
+        <Link
+          href="/vendor-portal/invoices"
+          className="flex items-center gap-4 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl p-4 mb-6 shadow-md hover:from-primary-700 hover:to-primary-800 transition-all group"
+        >
+          <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+            <FileText className="w-6 h-6 text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-0.5">
+              <p className="font-bold text-sm">✨ New Feature: External Invoicing</p>
+              <span className="bg-white/25 text-white text-xs font-semibold px-2 py-0.5 rounded-full">New</span>
+            </div>
+            <p className="text-primary-100 text-xs leading-snug">
+              Send invoices to clients outside DoVenue Suite. They pay via a secure link — no account needed. You get paid directly.
+            </p>
+          </div>
+          <span className="text-white/70 group-hover:text-white group-hover:translate-x-1 transition-all text-lg flex-shrink-0">→</span>
+        </Link>
+
         {/* Tabs */}
         <div className="flex gap-1 p-1 bg-white border border-gray-200 rounded-xl w-fit mb-6 shadow-sm">
           {[

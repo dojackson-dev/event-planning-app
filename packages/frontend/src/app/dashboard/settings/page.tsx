@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
 import { 
   User, 
@@ -29,6 +29,7 @@ import Link from 'next/link'
 export default function SettingsPage() {
   const { user, logout } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
   
   // Profile form state
   const [firstName, setFirstName] = useState('')
@@ -68,7 +69,10 @@ export default function SettingsPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   
   // UI state
-  const [activeTab, setActiveTab] = useState<'profile' | 'venue' | 'password' | 'delete' | 'branding' | 'payouts' | 'billing'>('profile')
+  const validTabs = ['profile', 'venue', 'password', 'delete', 'branding', 'payouts', 'billing'] as const
+  type TabType = typeof validTabs[number]
+  const initialTab = (searchParams?.get('tab') || 'profile') as TabType
+  const [activeTab, setActiveTab] = useState<TabType>(validTabs.includes(initialTab) ? initialTab : 'profile')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   

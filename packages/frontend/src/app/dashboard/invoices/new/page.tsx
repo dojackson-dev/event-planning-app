@@ -31,6 +31,7 @@ function NewInvoicePageContent() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [serviceItems, setServiceItems] = useState<ServiceItem[]>([])
   const [selectedBooking, setSelectedBooking] = useState<string>('')
+  const [clientName, setClientName] = useState<string>('')
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([])
   const [expenseItems, setExpenseItems] = useState<InvoiceLineItem[]>([])
   const [vendorBookingBanner, setVendorBookingBanner] = useState<string>('')
@@ -258,11 +259,7 @@ function NewInvoicePageContent() {
       const invoiceData = {
         invoice: {
           booking_id: selectedBooking && selectedBooking !== '' ? selectedBooking : null,
-          client_name: selectedBooking
-            ? (bookings.find(b => b.id === selectedBooking)?.contact_name ||
-               bookings.find(b => b.id === selectedBooking)?.contact_email ||
-               null)
-            : null,
+          client_name: clientName || null,
           owner_id: user?.id,
           tax_rate: includeTax ? Number(taxRate) : 0,
           discount_amount: Number(discountAmount),
@@ -333,7 +330,14 @@ function NewInvoicePageContent() {
           ) : null}
           <select
             value={selectedBooking}
-            onChange={(e) => setSelectedBooking(e.target.value)}
+            onChange={(e) => {
+              const bookingId = e.target.value
+              setSelectedBooking(bookingId)
+              if (bookingId) {
+                const b = bookings.find(bk => bk.id === bookingId)
+                if (b) setClientName(b.contact_name || b.contact_email || '')
+              }
+            }}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
             <option value="">-- Select an event / booking (optional) --</option>
@@ -353,7 +357,21 @@ function NewInvoicePageContent() {
           </select>
         </div>
 
-        {/* Invoice Dates */}
+        {/* Client Name */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Client Name
+          </label>
+          <input
+            type="text"
+            value={clientName}
+            onChange={(e) => setClientName(e.target.value)}
+            placeholder="Enter client name"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+          />
+        </div>
+
+        {/* Invoice Dates */}}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">

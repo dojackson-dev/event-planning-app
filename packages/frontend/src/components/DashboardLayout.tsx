@@ -95,6 +95,7 @@ const navigation = [
   { name: 'Billing', href: '/dashboard/billing', icon: CreditCard },
   { name: 'Messages', href: '/dashboard/messages', icon: MessageSquare },
   { name: 'Vendors', href: '/dashboard/vendors', icon: Store },
+  { name: 'Vendor Invoices', href: '/dashboard/vendor-invoices', icon: Receipt },
 ]
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

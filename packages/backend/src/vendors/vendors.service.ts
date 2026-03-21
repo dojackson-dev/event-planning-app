@@ -255,6 +255,9 @@ export class VendorsService {
         notes: dto.notes || null,
         agreed_amount: dto.agreedAmount || null,
         deposit_amount: dto.depositAmount || null,
+        client_name: dto.clientName || null,
+        client_email: dto.clientEmail || null,
+        client_phone: dto.clientPhone || null,
         status: 'pending',
       })
       .select()

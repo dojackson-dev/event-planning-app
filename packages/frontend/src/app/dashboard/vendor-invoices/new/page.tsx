@@ -1,9 +1,19 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { Plus, Trash2, Loader2, Send } from 'lucide-react'
+import { Plus, Trash2, Loader2, Send, Users, PenLine } from 'lucide-react'
+
+interface VendorBooking {
+  id: string
+  event_name: string
+  event_date: string
+  client_name?: string
+  client_email?: string
+  client_phone?: string
+  vendor_accounts?: { business_name: string }
+}
 
 interface LineItem {
   id: string
@@ -20,6 +30,12 @@ const newItem = (): LineItem => ({ id: String(idSeq++), description: '', quantit
 
 export default function NewVendorInvoicePage() {
   const router = useRouter()
+
+  // Booking-load state
+  const [clientMode, setClientMode] = useState<'booking' | 'manual'>('booking')
+  const [bookings, setBookings] = useState<VendorBooking[]>([])
+  const [bookingsLoading, setBookingsLoading] = useState(true)
+  const [selectedBookingId, setSelectedBookingId] = useState('')
 
   // Client
   const [clientName, setClientName] = useState('')
@@ -45,6 +61,43 @@ export default function NewVendorInvoicePage() {
   const [saving, setSaving] = useState(false)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
+
+  // Fetch bookings with client info
+  useEffect(() => {
+    api.get('/vendors/bookings/owner')
+      .then(r => {
+        const list: VendorBooking[] = (r.data || []).filter(
+          (b: VendorBooking) => b.client_name || b.client_email
+        )
+        setBookings(list)
+        if (list.length === 0) setClientMode('manual')
+      })
+      .catch(() => setClientMode('manual'))
+      .finally(() => setBookingsLoading(false))
+  }, [])
+
+  const handleBookingSelect = (bookingId: string) => {
+    setSelectedBookingId(bookingId)
+    const b = bookings.find(b => b.id === bookingId)
+    if (b) {
+      setClientName(b.client_name || '')
+      setClientEmail(b.client_email || '')
+      setClientPhone(b.client_phone || '')
+      if (b.event_date) setDueDate(b.event_date.split('T')[0])
+    } else {
+      setClientName('')
+      setClientEmail('')
+      setClientPhone('')
+    }
+  }
+
+  const handleModeSwitch = (mode: 'booking' | 'manual') => {
+    setClientMode(mode)
+    setSelectedBookingId('')
+    setClientName('')
+    setClientEmail('')
+    setClientPhone('')
+  }
 
   const subtotal = items.reduce((s, i) => s + i.quantity * i.unit_price, 0)
   const taxAmount = subtotal * (taxRate / 100)
@@ -115,6 +168,68 @@ export default function NewVendorInvoicePage() {
         {/* Client info */}
         <div className="bg-white border border-gray-200 rounded-xl p-6">
           <h2 className="font-semibold text-gray-800 mb-4">Client Information</h2>
+
+          {/* Mode toggle */}
+          <div className="flex gap-2 mb-5">
+            <button
+              type="button"
+              onClick={() => handleModeSwitch('booking')}
+              disabled={bookingsLoading || bookings.length === 0}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                clientMode === 'booking'
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400 disabled:opacity-40 disabled:cursor-not-allowed'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              Load from Booking
+              {bookingsLoading && <Loader2 className="w-3 h-3 animate-spin" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleModeSwitch('manual')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                clientMode === 'manual'
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400'
+              }`}
+            >
+              <PenLine className="w-4 h-4" />
+              Enter Manually
+            </button>
+          </div>
+
+          {/* Booking picker */}
+          {clientMode === 'booking' && (
+            <div className="mb-4">
+              {bookings.length === 0 ? (
+                <p className="text-sm text-gray-400 italic">
+                  No bookings with client info found.{' '}
+                  <button className="text-indigo-600 underline" onClick={() => setClientMode('manual')}>Enter manually</button>.
+                </p>
+              ) : (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Select Booking</label>
+                  <select
+                    value={selectedBookingId}
+                    onChange={e => handleBookingSelect(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  >
+                    <option value="">— Choose a booking —</option>
+                    {bookings.map(b => (
+                      <option key={b.id} value={b.id}>
+                        {b.event_name}
+                        {b.event_date ? ` · ${new Date(b.event_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}
+                        {b.client_name ? ` — ${b.client_name}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Client fields — shown always; pre-filled when booking selected */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Name *</label>
@@ -122,7 +237,10 @@ export default function NewVendorInvoicePage() {
                 value={clientName}
                 onChange={e => setClientName(e.target.value)}
                 placeholder="Client full name"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                readOnly={clientMode === 'booking' && !!selectedBookingId}
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 ${
+                  clientMode === 'booking' && selectedBookingId ? 'bg-gray-50 border-gray-200 text-gray-700' : 'border-gray-300'
+                }`}
               />
             </div>
             <div>
@@ -132,7 +250,10 @@ export default function NewVendorInvoicePage() {
                 value={clientEmail}
                 onChange={e => setClientEmail(e.target.value)}
                 placeholder="client@email.com"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                readOnly={clientMode === 'booking' && !!selectedBookingId}
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 ${
+                  clientMode === 'booking' && selectedBookingId ? 'bg-gray-50 border-gray-200 text-gray-700' : 'border-gray-300'
+                }`}
               />
             </div>
             <div>
@@ -142,10 +263,19 @@ export default function NewVendorInvoicePage() {
                 value={clientPhone}
                 onChange={e => setClientPhone(e.target.value)}
                 placeholder="(555) 000-0000"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                readOnly={clientMode === 'booking' && !!selectedBookingId}
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 ${
+                  clientMode === 'booking' && selectedBookingId ? 'bg-gray-50 border-gray-200 text-gray-700' : 'border-gray-300'
+                }`}
               />
             </div>
           </div>
+          {clientMode === 'booking' && selectedBookingId && (
+            <p className="mt-2 text-xs text-indigo-600">
+              Loaded from booking.{' '}
+              <button className="underline" onClick={() => setClientMode('manual')}>Edit manually instead</button>.
+            </p>
+          )}
         </div>
 
         {/* Dates */}

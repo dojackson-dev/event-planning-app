@@ -85,6 +85,9 @@ interface BookingForm {
   notes: string
   agreedAmount: string
   depositAmount: string
+  clientName: string
+  clientEmail: string
+  clientPhone: string
 }
 
 function StarDisplay({ rating }: { rating: number }) {
@@ -123,6 +126,9 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
     notes: '',
     agreedAmount: '',
     depositAmount: '',
+    clientName: '',
+    clientEmail: '',
+    clientPhone: '',
   })
 
   useEffect(() => {
@@ -190,12 +196,16 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
         notes: form.notes || undefined,
         agreedAmount: form.agreedAmount ? parseFloat(form.agreedAmount) : undefined,
         depositAmount: form.depositAmount ? parseFloat(form.depositAmount) : undefined,
+        clientName: form.clientName || undefined,
+        clientEmail: form.clientEmail || undefined,
+        clientPhone: form.clientPhone || undefined,
       })
       setBookingSuccess(true)
       setBookingOpen(false)
       setForm({
         eventId: '', eventName: '', eventDate: '', startTime: '', endTime: '',
         venueName: '', venueAddress: '', notes: '', agreedAmount: '', depositAmount: '',
+        clientName: '', clientEmail: '', clientPhone: '',
       })
     } catch (err: any) {
       setBookingError(err.response?.data?.message || 'Failed to send booking request')
@@ -435,6 +445,43 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
                   </select>
                 </div>
               )}
+
+              {/* Client Info */}
+              <div>
+                <p className="block text-sm font-medium text-gray-700 mb-2">Client Information</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Name</label>
+                    <input
+                      type="text"
+                      value={form.clientName}
+                      onChange={e => setForm(p => ({ ...p, clientName: e.target.value }))}
+                      placeholder="Client full name"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Email</label>
+                    <input
+                      type="email"
+                      value={form.clientEmail}
+                      onChange={e => setForm(p => ({ ...p, clientEmail: e.target.value }))}
+                      placeholder="client@email.com"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Phone</label>
+                    <input
+                      type="tel"
+                      value={form.clientPhone}
+                      onChange={e => setForm(p => ({ ...p, clientPhone: e.target.value }))}
+                      placeholder="(555) 000-0000"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                </div>
+              </div>
 
               {/* Event name */}
               <div>

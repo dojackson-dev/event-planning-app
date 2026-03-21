@@ -81,6 +81,9 @@ export class CreateVendorBookingDto {
   notes?: string;
   agreedAmount?: number;
   depositAmount?: number;
+  clientName?: string;
+  clientEmail?: string;
+  clientPhone?: string;
 }
 
 export class UpdateVendorBookingDto {

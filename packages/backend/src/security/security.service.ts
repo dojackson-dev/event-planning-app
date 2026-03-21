@@ -1,68 +1,83 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Security } from '../entities/security.entity';
+import { SupabaseService } from '../supabase/supabase.service.js';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 @Injectable()
 export class SecurityService {
-  constructor(
-    @InjectRepository(Security)
-    private securityRepository: Repository<Security>,
-  ) {}
+  constructor(private readonly supabaseService: SupabaseService) {}
 
-  async findAll(): Promise<Security[]> {
-    return this.securityRepository.find({
-      relations: ['event'],
-      order: { createdAt: 'DESC' },
-    });
+  async findAll(supabase: SupabaseClient, ownerId: string): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('security')
+      .select('*, event:events(*)')
+      .eq('owner_id', ownerId)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data ?? [];
   }
 
-  async findOne(id: number): Promise<Security | null> {
-    return this.securityRepository.findOne({
-      where: { id },
-      relations: ['event'],
-    });
+  async findOne(supabase: SupabaseClient, ownerId: string, id: string): Promise<any | null> {
+    const { data, error } = await supabase
+      .from('security')
+      .select('*, event:events(*)')
+      .eq('id', id)
+      .eq('owner_id', ownerId)
+      .single();
+    if (error) throw error;
+    return data;
   }
 
-  async findByEvent(eventId: number): Promise<Security[]> {
-    return this.securityRepository.find({
-      where: { eventId },
-      relations: ['event'],
-      order: { arrivalTime: 'ASC' },
-    });
+  async findByEvent(supabase: SupabaseClient, ownerId: string, eventId: string): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('security')
+      .select('*, event:events(*)')
+      .eq('event_id', eventId)
+      .eq('owner_id', ownerId)
+      .order('arrival_time', { ascending: true });
+    if (error) throw error;
+    return data ?? [];
   }
 
-  async create(securityData: Partial<Security>): Promise<Security> {
-    const security = this.securityRepository.create(securityData);
-    return this.securityRepository.save(security);
+  async create(supabase: SupabaseClient, ownerId: string, securityData: any): Promise<any> {
+    const { data, error } = await supabase
+      .from('security')
+      .insert([{ ...securityData, owner_id: ownerId }])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
   }
 
-  async update(id: number, securityData: Partial<Security>): Promise<Security | null> {
-    const security = await this.findOne(id);
-    
-    if (!security) {
-      return null;
-    }
-
-    await this.securityRepository.update(id, securityData);
-    return this.findOne(id);
+  async update(supabase: SupabaseClient, ownerId: string, id: string, securityData: any): Promise<any | null> {
+    const { data, error } = await supabase
+      .from('security')
+      .update(securityData)
+      .eq('id', id)
+      .eq('owner_id', ownerId)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
   }
 
-  async recordArrival(id: number): Promise<Security | null> {
-    const security = await this.findOne(id);
-    
-    if (!security) {
-      return null;
-    }
-
-    await this.securityRepository.update(id, {
-      arrivalTime: new Date(),
-    });
-
-    return this.findOne(id);
+  async recordArrival(supabase: SupabaseClient, ownerId: string, id: string): Promise<any | null> {
+    const { data, error } = await supabase
+      .from('security')
+      .update({ arrival_time: new Date().toISOString() })
+      .eq('id', id)
+      .eq('owner_id', ownerId)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
   }
 
-  async delete(id: number): Promise<void> {
-    await this.securityRepository.delete(id);
+  async remove(supabase: SupabaseClient, ownerId: string, id: string): Promise<void> {
+    const { error } = await supabase
+      .from('security')
+      .delete()
+      .eq('id', id)
+      .eq('owner_id', ownerId);
+    if (error) throw error;
   }
 }

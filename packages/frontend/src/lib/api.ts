@@ -77,18 +77,15 @@ api.interceptors.response.use(
         } catch (refreshError) {
           isRefreshing = false
           refreshSubscribers = []
-          // Refresh failed - clear storage and redirect to login
-          localStorage.removeItem('access_token')
-          localStorage.removeItem('refresh_token')
-          localStorage.removeItem('user')
+          // Refresh failed - clear ALL auth storage and redirect to login
+          ;['access_token','refresh_token','user','user_roles','active_role','user_role'].forEach(k => localStorage.removeItem(k))
           window.location.href = '/login'
           return Promise.reject(refreshError)
         }
       } else {
         // No refresh token - redirect to login
         console.warn('API interceptor: 401 received, no refresh token', error.response)
-        localStorage.removeItem('access_token')
-        localStorage.removeItem('user')
+        ;['access_token','refresh_token','user','user_roles','active_role','user_role'].forEach(k => localStorage.removeItem(k))
         window.location.href = '/login'
       }
     }

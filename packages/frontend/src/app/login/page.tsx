@@ -49,7 +49,7 @@ export default function LoginPage() {
             Welcome Back
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Sign in to manage your event center
+            Sign in to your DoVenueSuite account
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
@@ -107,10 +107,19 @@ export default function LoginPage() {
           <div className="text-center">
             <p className="text-sm text-gray-600">
               Don't have an account?{' '}
-              <Link href="/register" className="font-medium text-primary-600 hover:text-primary-500">
+              <Link href="/signup" className="font-medium text-primary-600 hover:text-primary-500">
                 Sign up
               </Link>
             </p>
+            <p className="mt-2 text-xs text-gray-400">
+              Venue owners <em>and</em> vendors log in here. Multi-role users will be prompted to choose a dashboard.
+            </p>
+          </div>
+
+          <div className="text-center">
+            <Link href="/admin-login" className="text-xs text-gray-400 hover:text-gray-500">
+              Admin Portal
+            </Link>
           </div>
         </form>
       </div>

@@ -17,11 +17,13 @@ import {
   CheckCircle,
   ImageIcon,
   Building2,
-  Banknote
+  Banknote,
+  Receipt,
 } from 'lucide-react'
 import { useOwnerBrand } from '@/contexts/OwnerBrandContext'
 import ImageUpload from '@/components/ImageUpload'
 import ConnectBankButton from '@/components/ConnectBankButton'
+import AddRoleCard from '@/components/AddRoleCard'
 import Link from 'next/link'
 
 export default function SettingsPage() {
@@ -33,6 +35,25 @@ export default function SettingsPage() {
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
+
+  // Venue form state
+  const [venueName, setVenueName] = useState('')
+  const [venueAddress, setVenueAddress] = useState('')
+  const [venueCity, setVenueCity] = useState('')
+  const [venueState, setVenueState] = useState('')
+  const [venueZipCode, setVenueZipCode] = useState('')
+  const [venuePhone, setVenuePhone] = useState('')
+  const [venueEmail, setVenueEmail] = useState('')
+  const [venueCapacity, setVenueCapacity] = useState('')
+  const [venueDescription, setVenueDescription] = useState('')
+  const [venueLoaded, setVenueLoaded] = useState(false)
+
+  // Payment schedule (billing) form state
+  const [scheduleEnabled, setScheduleEnabled] = useState(false)
+  const [depositPercentage, setDepositPercentage] = useState<number>(50)
+  const [depositDueDaysBefore, setDepositDueDaysBefore] = useState<number>(45)
+  const [finalPaymentDueDaysBefore, setFinalPaymentDueDaysBefore] = useState<number>(14)
+  const [scheduleLoaded, setScheduleLoaded] = useState(false)
   
   // Password form state
   const [currentPassword, setCurrentPassword] = useState('')
@@ -47,7 +68,7 @@ export default function SettingsPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   
   // UI state
-  const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'delete' | 'branding' | 'payouts'>('profile')
+  const [activeTab, setActiveTab] = useState<'profile' | 'venue' | 'password' | 'delete' | 'branding' | 'payouts' | 'billing'>('profile')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   
@@ -60,6 +81,26 @@ export default function SettingsPage() {
       setPhone(user.phone || '')
     }
   }, [user])
+
+  // Load venue data on mount
+  useEffect(() => {
+    if (venueLoaded) return
+    api.get('/owner/venue').then(res => {
+      const v = res.data.venue
+      if (v) {
+        setVenueName(v.name || '')
+        setVenueAddress(v.address || '')
+        setVenueCity(v.city || '')
+        setVenueState(v.state || '')
+        setVenueZipCode(v.zip_code || '')
+        setVenuePhone(v.phone || '')
+        setVenueEmail(v.email || '')
+        setVenueCapacity(v.capacity ? String(v.capacity) : '')
+        setVenueDescription(v.description || '')
+      }
+      setVenueLoaded(true)
+    }).catch(() => setVenueLoaded(true))
+  }, [venueLoaded])
   
   // Clear message after 5 seconds
   useEffect(() => {
@@ -69,6 +110,39 @@ export default function SettingsPage() {
     }
   }, [message])
   
+  // Load payment schedule on billing tab open
+  useEffect(() => {
+    if (activeTab !== 'billing' || scheduleLoaded) return
+    api.get('/owner/payment-schedule').then(res => {
+      const d = res.data
+      if (d.depositPercentage !== null && d.depositPercentage !== undefined) {
+        setScheduleEnabled(true)
+        setDepositPercentage(Number(d.depositPercentage))
+        setDepositDueDaysBefore(Number(d.depositDueDaysBefore))
+        setFinalPaymentDueDaysBefore(Number(d.finalPaymentDueDaysBefore))
+      }
+      setScheduleLoaded(true)
+    }).catch(() => setScheduleLoaded(true))
+  }, [activeTab, scheduleLoaded])
+
+  const handleSavePaymentSchedule = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSaving(true)
+    setMessage(null)
+    try {
+      await api.put('/owner/payment-schedule', {
+        depositPercentage: scheduleEnabled ? depositPercentage : null,
+        depositDueDaysBefore: scheduleEnabled ? depositDueDaysBefore : null,
+        finalPaymentDueDaysBefore: scheduleEnabled ? finalPaymentDueDaysBefore : null,
+      })
+      setMessage({ type: 'success', text: 'Payment schedule saved!' })
+    } catch {
+      setMessage({ type: 'error', text: 'Failed to save payment schedule.' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
@@ -100,6 +174,33 @@ export default function SettingsPage() {
       setMessage({ 
         type: 'error', 
         text: error.response?.data?.message || 'Failed to update profile' 
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleSaveVenue = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSaving(true)
+    setMessage(null)
+    try {
+      await api.put('/owner/venue', {
+        name: venueName,
+        address: venueAddress,
+        city: venueCity,
+        state: venueState,
+        zipCode: venueZipCode,
+        phone: venuePhone,
+        email: venueEmail,
+        capacity: venueCapacity ? parseInt(venueCapacity, 10) : undefined,
+        description: venueDescription,
+      })
+      setMessage({ type: 'success', text: 'Venue information saved!' })
+    } catch (error: any) {
+      setMessage({
+        type: 'error',
+        text: error.response?.data?.message || 'Failed to update venue',
       })
     } finally {
       setSaving(false)
@@ -211,6 +312,17 @@ export default function SettingsPage() {
               Profile Information
             </button>
             <button
+              onClick={() => setActiveTab('venue')}
+              className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'venue'
+                  ? 'border-primary-600 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <Building2 className="h-4 w-4 inline-block mr-2" />
+              Venue Details
+            </button>
+            <button
               onClick={() => setActiveTab('password')}
               className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === 'password'
@@ -242,6 +354,17 @@ export default function SettingsPage() {
             >
               <Banknote className="h-4 w-4 inline-block mr-2" />
               Payouts
+            </button>
+            <button
+              onClick={() => setActiveTab('billing')}
+              className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'billing'
+                  ? 'border-primary-600 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <Receipt className="h-4 w-4 inline-block mr-2" />
+              Billing
             </button>
             <button
               onClick={() => setActiveTab('delete')}
@@ -326,6 +449,107 @@ export default function SettingsPage() {
                 >
                   <Save className="h-4 w-4 mr-2" />
                   {saving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Venue Tab */}
+          {activeTab === 'venue' && (
+            <form onSubmit={handleSaveVenue} className="space-y-6">
+              <p className="text-sm text-gray-500">
+                Keep your venue information up to date so clients and vendors have accurate details.
+              </p>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Venue Name *</label>
+                <input
+                  type="text" required value={venueName} onChange={e => setVenueName(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="e.g. Grand Ballroom Downtown"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Street Address</label>
+                <input
+                  type="text" value={venueAddress} onChange={e => setVenueAddress(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="123 Main Street"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div className="col-span-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">City</label>
+                  <input
+                    type="text" value={venueCity} onChange={e => setVenueCity(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="Dallas"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">State</label>
+                  <input
+                    type="text" value={venueState} onChange={e => setVenueState(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="TX" maxLength={2}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Zip Code</label>
+                  <input
+                    type="text" value={venueZipCode} onChange={e => setVenueZipCode(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="75001"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Venue Phone</label>
+                  <input
+                    type="tel" value={venuePhone} onChange={e => setVenuePhone(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="(555) 987-6543"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Venue Email</label>
+                  <input
+                    type="email" value={venueEmail} onChange={e => setVenueEmail(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="bookings@myvenue.com"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Capacity (guests)</label>
+                <input
+                  type="number" value={venueCapacity} onChange={e => setVenueCapacity(e.target.value)} min="1"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="e.g. 250"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Venue Description</label>
+                <textarea
+                  value={venueDescription} onChange={e => setVenueDescription(e.target.value)} rows={4}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-none"
+                  placeholder="Describe your venue — amenities, atmosphere, ideal event types, parking, AV equipment…"
+                />
+              </div>
+
+              <div className="flex justify-end pt-4 border-t">
+                <button
+                  type="submit" disabled={saving}
+                  className="inline-flex items-center px-6 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  {saving ? 'Saving...' : 'Save Venue'}
                 </button>
               </div>
             </form>
@@ -521,8 +745,109 @@ export default function SettingsPage() {
             </div>
           )}
 
+          {/* Billing Tab */}
+          {activeTab === 'billing' && (
+            <form onSubmit={handleSavePaymentSchedule} className="space-y-6 max-w-xl">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                  <Receipt className="h-5 w-5 text-primary-600" />
+                  Payment Schedule Defaults
+                </h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  Set your default deposit and payment due rules. These are automatically applied to every new invoice you create.
+                </p>
+              </div>
+
+              {/* Toggle */}
+              <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg bg-gray-50">
+                <div>
+                  <p className="text-sm font-medium text-gray-800">Require a deposit to confirm bookings</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Clients pay a % upfront; the balance is due before the event</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={scheduleEnabled}
+                    onChange={e => setScheduleEnabled(e.target.checked)}
+                  />
+                  <div className="w-10 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:bg-primary-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-4" />
+                </label>
+              </div>
+
+              {scheduleEnabled && (
+                <div className="space-y-5">
+                  {/* Deposit % */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Deposit Required (%)</label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="number" min="1" max="100"
+                        value={depositPercentage}
+                        onChange={e => setDepositPercentage(Number(e.target.value))}
+                        className="w-28 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+                      />
+                      <span className="text-sm text-gray-500">% of the invoice total is required as a deposit</span>
+                    </div>
+                  </div>
+
+                  {/* Deposit due */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Deposit Due</label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="number" min="0"
+                        value={depositDueDaysBefore}
+                        onChange={e => setDepositDueDaysBefore(Number(e.target.value))}
+                        className="w-28 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+                      />
+                      <span className="text-sm text-gray-500">days before the event date</span>
+                    </div>
+                  </div>
+
+                  {/* Final payment due */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Final Payment Due</label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="number" min="0"
+                        value={finalPaymentDueDaysBefore}
+                        onChange={e => setFinalPaymentDueDaysBefore(Number(e.target.value))}
+                        className="w-28 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+                      />
+                      <span className="text-sm text-gray-500">days before the event date</span>
+                    </div>
+                  </div>
+
+                  {/* Summary */}
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800 space-y-1">
+                    <p className="font-semibold text-blue-900">How this will appear on invoices:</p>
+                    <p>• Deposit ({depositPercentage}%) — due {depositDueDaysBefore} days before the event</p>
+                    <p>• Final payment ({100 - depositPercentage}%) — due {finalPaymentDueDaysBefore} days before the event</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end pt-4 border-t">
+                <button
+                  type="submit" disabled={saving}
+                  className="inline-flex items-center px-6 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  {saving ? 'Saving...' : 'Save Billing Settings'}
+                </button>
+              </div>
+            </form>
+          )}
+
           {/* Branding Tab */}
           {activeTab === 'branding' && <BrandingTab />}
+
+          {/* Multi-Role: Add Vendor Role card (shown on every tab) */}
+          <div className="mt-8 pt-6 border-t border-gray-100">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Multi-Role Access</p>
+            <AddRoleCard targetRole="vendor" />
+          </div>
         </div>
       </div>
     </div>

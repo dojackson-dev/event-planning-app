@@ -3,62 +3,96 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-import { Building2, Plus, Users, Globe, Settings } from 'lucide-react'
+import {
+  Building2,
+  Users,
+  Calendar,
+  DollarSign,
+  TrendingUp,
+  Activity,
+  ArrowRight,
+  Gift
+} from 'lucide-react'
 
-interface Tenant {
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+
+interface DashboardStats {
+  totalOwners: number
+  activeOwners: number
+  totalClients: number
+  totalEvents: number
+  totalBookings: number
+  totalRevenue: number
+  activeTrials: number
+  recentLogins: number
+  newOwnersThisMonth: number
+  newClientsThisMonth: number
+}
+
+interface RecentOwner {
   id: string
-  name: string
-  subdomain: string
-  custom_url: string | null
-  subscription_status: string
+  email: string
+  first_name: string
+  last_name: string
+  business_name: string
   created_at: string
 }
 
-interface Stats {
-  totalTenants: number
-  activeTenants: number
-  totalUsers: number
-}
-
-export default function AdminDashboard() {
-  const [tenants, setTenants] = useState<Tenant[]>([])
-  const [stats, setStats] = useState<Stats>({ totalTenants: 0, activeTenants: 0, totalUsers: 0 })
+export default function AdminDashboardPage() {
+  const [stats, setStats] = useState<DashboardStats>({
+    totalOwners: 0,
+    activeOwners: 0,
+    totalClients: 0,
+    totalEvents: 0,
+    totalBookings: 0,
+    totalRevenue: 0,
+    activeTrials: 0,
+    recentLogins: 0,
+    newOwnersThisMonth: 0,
+    newClientsThisMonth: 0
+  })
+  const [recentOwners, setRecentOwners] = useState<RecentOwner[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   useEffect(() => {
-    fetchData()
+    fetchDashboardData()
   }, [])
 
-  const fetchData = async () => {
+  const getAdminToken = async (): Promise<string | null> => {
+    const supabase = createClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.access_token || null
+  }
+
+  const fetchDashboardData = async () => {
     try {
-      const supabase = createClient()
+      const token = await getAdminToken()
+      if (!token) {
+        setError('Not authenticated. Please log in.')
+        setLoading(false)
+        return
+      }
 
-      // Fetch tenants
-      const { data: tenantsData, error: tenantsError } = await supabase
-        .from('tenants')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (tenantsError) throw tenantsError
-
-      // Fetch users count
-      const { count: usersCount, error: usersError } = await supabase
-        .from('users')
-        .select('*', { count: 'exact', head: true })
-
-      if (usersError) throw usersError
-
-      setTenants(tenantsData || [])
-      
-      const activeTenants = tenantsData?.filter(t => t.subscription_status === 'active').length || 0
-      
-      setStats({
-        totalTenants: tenantsData?.length || 0,
-        activeTenants,
-        totalUsers: usersCount || 0
+      const res = await fetch(`${API_URL}/admin/dashboard`, {
+        headers: { Authorization: `Bearer ${token}` }
       })
-    } catch (error) {
-      console.error('Error fetching data:', error)
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.message || `HTTP ${res.status}`)
+      }
+
+      const data = await res.json()
+      setStats({
+        ...data.stats,
+        activeOwners: data.stats.totalOwners,
+        recentLogins: 0,
+      })
+      setRecentOwners(data.recentOwners || [])
+    } catch (err: any) {
+      console.error('Error fetching dashboard data:', err)
+      setError(err.message || 'Failed to load dashboard data')
     } finally {
       setLoading(false)
     }
@@ -66,197 +100,226 @@ export default function AdminDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-lg">Loading admin dashboard...</div>
+      <div className="p-8">
+        <div className="animate-pulse space-y-6">
+          <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="h-32 bg-gray-200 rounded-xl"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="p-8">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-red-700">
+          <p className="font-semibold">Failed to load dashboard</p>
+          <p className="text-sm mt-1">{error}</p>
+          <button onClick={() => { setError(''); setLoading(true); fetchDashboardData() }} className="mt-3 text-sm underline">
+            Retry
+          </button>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="p-8">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-              <p className="mt-1 text-sm text-gray-500">Manage tenants and system settings</p>
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+        <p className="text-gray-600 mt-1">Overview of DoVenue Suite platform metrics</p>
+      </div>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {/* Owners */}
+        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+          <div className="flex items-center justify-between mb-4">
+            <div className="p-3 bg-blue-100 rounded-lg">
+              <Building2 className="h-6 w-6 text-blue-600" />
             </div>
-            <Link
-              href="/admin/add-tenant"
-              className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-            >
-              <Plus className="h-5 w-5 mr-2" />
-              Add Tenant
-            </Link>
+            {stats.newOwnersThisMonth > 0 && (
+              <span className="flex items-center text-sm text-green-600 font-medium">
+                <TrendingUp className="h-4 w-4 mr-1" />
+                +{stats.newOwnersThisMonth} this month
+              </span>
+            )}
           </div>
+          <p className="text-3xl font-bold text-gray-900">{stats.totalOwners}</p>
+          <p className="text-sm text-gray-600 mt-1">Total Owners</p>
+          <Link href="/admin/owners" className="text-blue-600 text-sm font-medium mt-3 inline-flex items-center hover:underline">
+            View all <ArrowRight className="h-4 w-4 ml-1" />
+          </Link>
+        </div>
+
+        {/* Clients */}
+        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+          <div className="flex items-center justify-between mb-4">
+            <div className="p-3 bg-green-100 rounded-lg">
+              <Users className="h-6 w-6 text-green-600" />
+            </div>
+            {stats.newClientsThisMonth > 0 && (
+              <span className="flex items-center text-sm text-green-600 font-medium">
+                <TrendingUp className="h-4 w-4 mr-1" />
+                +{stats.newClientsThisMonth} this month
+              </span>
+            )}
+          </div>
+          <p className="text-3xl font-bold text-gray-900">{stats.totalClients}</p>
+          <p className="text-sm text-gray-600 mt-1">Total Clients</p>
+          <Link href="/admin/clients" className="text-green-600 text-sm font-medium mt-3 inline-flex items-center hover:underline">
+            View all <ArrowRight className="h-4 w-4 ml-1" />
+          </Link>
+        </div>
+
+        {/* Events */}
+        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+          <div className="flex items-center justify-between mb-4">
+            <div className="p-3 bg-purple-100 rounded-lg">
+              <Calendar className="h-6 w-6 text-purple-600" />
+            </div>
+          </div>
+          <p className="text-3xl font-bold text-gray-900">{stats.totalEvents}</p>
+          <p className="text-sm text-gray-600 mt-1">Total Events</p>
+          <Link href="/admin/events" className="text-purple-600 text-sm font-medium mt-3 inline-flex items-center hover:underline">
+            View all <ArrowRight className="h-4 w-4 ml-1" />
+          </Link>
+        </div>
+
+        {/* Revenue */}
+        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+          <div className="flex items-center justify-between mb-4">
+            <div className="p-3 bg-yellow-100 rounded-lg">
+              <DollarSign className="h-6 w-6 text-yellow-600" />
+            </div>
+          </div>
+          <p className="text-3xl font-bold text-gray-900">${stats.totalRevenue.toLocaleString()}</p>
+          <p className="text-sm text-gray-600 mt-1">Total Revenue</p>
+          <Link href="/admin/revenue" className="text-yellow-600 text-sm font-medium mt-3 inline-flex items-center hover:underline">
+            View details <ArrowRight className="h-4 w-4 ml-1" />
+          </Link>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-3 bg-blue-100 rounded-lg">
-                <Building2 className="h-6 w-6 text-blue-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Tenants</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.totalTenants}</p>
-              </div>
+      {/* Secondary Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        {/* Active Trials */}
+        <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl shadow-sm p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-orange-100 text-sm font-medium">Active Trials</p>
+              <p className="text-4xl font-bold mt-2">{stats.activeTrials}</p>
             </div>
+            <Gift className="h-12 w-12 text-orange-200" />
           </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-3 bg-green-100 rounded-lg">
-                <Globe className="h-6 w-6 text-green-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Active Tenants</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.activeTenants}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-3 bg-purple-100 rounded-lg">
-                <Users className="h-6 w-6 text-purple-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Users</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.totalUsers}</p>
-              </div>
-            </div>
-          </div>
+          <Link href="/admin/trials" className="text-white text-sm font-medium mt-4 inline-flex items-center hover:underline">
+            Manage trials <ArrowRight className="h-4 w-4 ml-1" />
+          </Link>
         </div>
 
-        {/* Quick Actions */}
-        <div className="bg-white rounded-lg shadow mb-8 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Link
-              href="/admin/tenants"
-              className="flex items-center p-4 border border-gray-200 rounded-lg hover:border-primary-500 hover:bg-primary-50 transition-colors"
-            >
-              <Building2 className="h-5 w-5 text-primary-600 mr-3" />
-              <span className="font-medium text-gray-900">Manage Tenants</span>
-            </Link>
-            <Link
-              href="/admin/add-tenant"
-              className="flex items-center p-4 border border-gray-200 rounded-lg hover:border-primary-500 hover:bg-primary-50 transition-colors"
-            >
-              <Plus className="h-5 w-5 text-primary-600 mr-3" />
-              <span className="font-medium text-gray-900">Add New Tenant</span>
-            </Link>
-            <Link
-              href="/admin/websites"
-              className="flex items-center p-4 border border-gray-200 rounded-lg hover:border-primary-500 hover:bg-primary-50 transition-colors"
-            >
-              <Globe className="h-5 w-5 text-primary-600 mr-3" />
-              <span className="font-medium text-gray-900">Manage Websites</span>
-            </Link>
-            <Link
-              href="/admin/settings"
-              className="flex items-center p-4 border border-gray-200 rounded-lg hover:border-primary-500 hover:bg-primary-50 transition-colors"
-            >
-              <Settings className="h-5 w-5 text-primary-600 mr-3" />
-              <span className="font-medium text-gray-900">System Settings</span>
-            </Link>
+        {/* Total Bookings */}
+        <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl shadow-sm p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-indigo-100 text-sm font-medium">Total Bookings</p>
+              <p className="text-4xl font-bold mt-2">{stats.totalBookings}</p>
+            </div>
+            <Calendar className="h-12 w-12 text-indigo-200" />
           </div>
+          <Link href="/admin/bookings" className="text-white text-sm font-medium mt-4 inline-flex items-center hover:underline">
+            View bookings <ArrowRight className="h-4 w-4 ml-1" />
+          </Link>
         </div>
 
-        {/* Recent Tenants */}
-        <div className="bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Recent Tenants</h2>
+        {/* User Activity */}
+        <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl shadow-sm p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-emerald-100 text-sm font-medium">Active Today</p>
+              <p className="text-4xl font-bold mt-2">{stats.recentLogins}</p>
+            </div>
+            <Activity className="h-12 w-12 text-emerald-200" />
           </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+          <Link href="/admin/activity" className="text-white text-sm font-medium mt-4 inline-flex items-center hover:underline">
+            View activity <ArrowRight className="h-4 w-4 ml-1" />
+          </Link>
+        </div>
+      </div>
+
+      {/* Recent Owners Table */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-gray-900">Recent Owners</h2>
+          <Link href="/admin/owners" className="text-sm text-blue-600 hover:underline">
+            View all
+          </Link>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Owner
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Email
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Joined
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {recentOwners.length === 0 ? (
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tenant
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Subdomain
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Custom URL
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Created
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                    No owners found
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {tenants.slice(0, 5).map((tenant) => (
-                  <tr key={tenant.id} className="hover:bg-gray-50">
+              ) : (
+                recentOwners.map((owner) => (
+                  <tr key={owner.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="font-medium text-gray-900">{tenant.name}</div>
+                      <div className="flex items-center">
+                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                          <span className="text-blue-600 font-medium">
+                            {owner.first_name?.[0]}{owner.last_name?.[0]}
+                          </span>
+                        </div>
+                        <div className="ml-3">
+                          <p className="text-sm font-medium text-gray-900">
+                            {owner.first_name} {owner.last_name}
+                          </p>
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">{tenant.subdomain}</div>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      {owner.email}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {tenant.custom_url ? (
-                        <a
-                          href={tenant.custom_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm text-primary-600 hover:text-primary-800"
-                        >
-                          {tenant.custom_url}
-                        </a>
-                      ) : (
-                        <span className="text-sm text-gray-400">-</span>
-                      )}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      {new Date(owner.created_at).toLocaleDateString()}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          tenant.subscription_status === 'active'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-gray-100 text-gray-800'
-                        }`}
-                      >
-                        {tenant.subscription_status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(tenant.created_at).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <td className="px-6 py-4 whitespace-nowrap text-right">
                       <Link
-                        href={`/admin/tenants/${tenant.id}`}
-                        className="text-primary-600 hover:text-primary-900 font-medium"
+                        href={`/admin/owners/${owner.id}`}
+                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                       >
-                        Manage
+                        View
                       </Link>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {tenants.length > 5 && (
-            <div className="px-6 py-4 border-t border-gray-200">
-              <Link
-                href="/admin/tenants"
-                className="text-sm text-primary-600 hover:text-primary-800 font-medium"
-              >
-                View all tenants →
-              </Link>
-            </div>
-          )}
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

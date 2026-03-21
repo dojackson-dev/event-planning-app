@@ -1,215 +1,233 @@
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Message } from '../entities/message.entity';
-import { User } from '../entities/user.entity';
-import { Event } from '../entities/event.entity';
-import { TwilioService } from './twilio.service';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { SupabaseService } from '../supabase/supabase.service.js';
+import { TwilioService } from './twilio.service.js';
+
+export type MessageType = 'reminder' | 'invoice' | 'confirmation' | 'update' | 'support' | 'announcement' | 'custom';
+export type RecipientType = 'client' | 'guest' | 'security' | 'custom';
 
 @Injectable()
 export class MessagingService {
+  private readonly logger = new Logger(MessagingService.name);
+
   constructor(
-    @InjectRepository(Message)
-    private messageRepository: Repository<Message>,
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
-    @InjectRepository(Event)
-    private eventRepository: Repository<Event>,
+    private supabaseService: SupabaseService,
     private twilioService: TwilioService,
   ) {}
 
-  async findAll(): Promise<Message[]> {
-    return this.messageRepository.find({
-      relations: ['user', 'event'],
-      order: { createdAt: 'DESC' },
-    });
+  /** Normalize DB row: map `message` column -> `content` for frontend compatibility */
+  private mapRow(row: any) {
+    if (!row) return row;
+    const { message, ...rest } = row;
+    return { ...rest, content: rest.content ?? message };
   }
 
-  async findByEvent(eventId: string): Promise<Message[]> {
-    return this.messageRepository.find({
-      where: { eventId },
-      relations: ['user', 'event'],
-      order: { createdAt: 'DESC' },
-    });
+  async findAll(supabase: any, ownerId: string) {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*, event:events(id, name, date)')
+      .eq('owner_id', ownerId)
+      .order('created_at', { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data || []).map((r: any) => this.mapRow(r));
   }
 
-  async findByUser(userId: number): Promise<Message[]> {
-    return this.messageRepository.find({
-      where: { userId },
-      relations: ['user', 'event'],
-      order: { createdAt: 'DESC' },
-    });
+  async findByEvent(supabase: any, ownerId: string, eventId: string) {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*, event:events(id, name, date)')
+      .eq('owner_id', ownerId)
+      .eq('event_id', eventId)
+      .order('created_at', { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data || []).map((r: any) => this.mapRow(r));
   }
 
-  async findOne(id: number): Promise<Message | null> {
-    return this.messageRepository.findOne({
-      where: { id },
-      relations: ['user', 'event'],
-    });
+  async findOne(supabase: any, ownerId: string, id: string) {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*, event:events(id, name, date)')
+      .eq('owner_id', ownerId)
+      .eq('id', id)
+      .single();
+    if (error) throw new Error(error.message);
+    return this.mapRow(data);
   }
 
-  async sendMessage(messageData: {
+  async sendMessage(supabase: any, ownerId: string, messageData: {
     recipientPhone: string;
     recipientName: string;
-    recipientType: 'client' | 'guest' | 'security' | 'custom';
-    userId?: number;
+    recipientType: RecipientType;
+    userId?: string;
     eventId?: string;
-    messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom';
+    messageType: MessageType;
     content: string;
-  }): Promise<Message> {
-    const message = this.messageRepository.create({
-      ...messageData,
-      status: 'pending',
-    });
+    skipOptInCheck?: boolean;
+  }) {
+    // Enforce opt-in for named users (client/guest recipient types)
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-    const savedMessage = await this.messageRepository.save(message);
+    // When skipOptInCheck is true the caller is sending to an intake-form client.
+    // The "userId" in that case is the intake_form row UUID, NOT an auth.users UUID,
+    // so we must NOT store it as user_id (would violate the FK constraint).
+    const resolvedUserId =
+      !messageData.skipOptInCheck &&
+      messageData.userId &&
+      UUID_REGEX.test(messageData.userId)
+        ? messageData.userId
+        : null;
+
+    if (!messageData.skipOptInCheck && messageData.userId && UUID_REGEX.test(messageData.userId)) {
+      const { data: recipient } = await supabase
+        .from('users')
+        .select('sms_opt_in')
+        .eq('id', messageData.userId)
+        .single();
+
+      if (recipient && recipient.sms_opt_in === false) {
+        throw new BadRequestException(
+          `Recipient has not opted in to SMS messages. Messages can only be sent to users who have given express consent.`,
+        );
+      }
+    }
+
+    const { data: savedMessage, error: insertError } = await supabase
+      .from('messages')
+      .insert({
+        owner_id: ownerId,
+        recipient_phone: messageData.recipientPhone,
+        recipient_name: messageData.recipientName,
+        recipient_type: messageData.recipientType,
+        user_id: resolvedUserId,
+        // event_id FK references "events" but app uses table "event" (singular) — store null to avoid FK violation
+        event_id: null,
+        message_type: messageData.messageType,
+        // Write both columns: older schema uses "message", newer uses "content"
+        message: messageData.content,
+        content: messageData.content,
+        status: 'pending',
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      this.logger.error('messages insert failed', insertError.message, insertError);
+      throw new Error(`DB insert failed: ${insertError.message}`);
+    }
 
     try {
       const result = await this.twilioService.sendSMS(
         messageData.recipientPhone,
         messageData.content,
       );
-
-      savedMessage.status = 'sent';
-      savedMessage.twilioSid = result.sid;
-      savedMessage.sentAt = new Date();
-    } catch (error) {
-      savedMessage.status = 'failed';
-      savedMessage.errorMessage = error.message;
+      const { data: updated } = await supabase
+        .from('messages')
+        .update({ status: 'sent', twilio_sid: result.sid, sent_at: new Date().toISOString() })
+        .eq('id', savedMessage.id)
+        .select()
+        .single();
+      return this.mapRow(updated);
+    } catch (err: any) {
+      const { data: updated } = await supabase
+        .from('messages')
+        .update({ status: 'failed', error_message: err.message })
+        .eq('id', savedMessage.id)
+        .select()
+        .single();
+      return this.mapRow(updated);
     }
-
-    return this.messageRepository.save(savedMessage);
   }
 
-  async sendBulkMessages(messages: Array<{
-    recipientPhone: string;
-    recipientName: string;
-    recipientType: 'client' | 'guest' | 'security' | 'custom';
-    userId?: number;
-    eventId?: string;
-    messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom';
-    content: string;
-  }>): Promise<Message[]> {
-    const results: Message[] = [];
-
+  async sendBulkMessages(supabase: any, ownerId: string, messages: any[]) {
+    const results: any[] = [];
     for (const messageData of messages) {
       try {
-        const message = await this.sendMessage(messageData);
+        const message = await this.sendMessage(supabase, ownerId, messageData);
         results.push(message);
-      } catch (error) {
-        console.error(`Failed to send message to ${messageData.recipientPhone}:`, error);
-        const failedMessage = this.messageRepository.create({
-          ...messageData,
-          status: 'failed',
-          errorMessage: error.message,
-        });
-        results.push(await this.messageRepository.save(failedMessage));
+      } catch (err: any) {
+        console.error(`Failed to send to ${messageData.recipientPhone}:`, err);
       }
     }
-
     return results;
   }
 
-  async sendEventReminder(eventId: string, customMessage?: string): Promise<Message[]> {
-    const event = await this.eventRepository.findOne({
-      where: { id: eventId },
-    });
+  async updateMessageStatus(supabase: any, ownerId: string, id: string) {
+    const { data: message } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('owner_id', ownerId)
+      .eq('id', id)
+      .single();
 
-    if (!event) {
-      throw new Error('Event not found');
-    }
-
-    const owner = await this.userRepository.findOne({
-      where: { id: parseInt(event.ownerId) },
-    });
-
-    const eventDate = new Date(event.date);
-    const message = customMessage || 
-      `Reminder: Your event "${event.name}" is scheduled for ${eventDate.toLocaleDateString()} at ${eventDate.toLocaleTimeString()}. Looking forward to seeing you!`;
-
-    const messagesData: Array<{
-      recipientPhone: string;
-      recipientName: string;
-      recipientType: 'client' | 'guest' | 'security' | 'custom';
-      userId?: number;
-      eventId?: string;
-      messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom';
-      content: string;
-    }> = [];
-
-    // Send to client if phone exists
-    if (owner?.phone) {
-      messagesData.push({
-        recipientPhone: owner.phone,
-        recipientName: `${owner.firstName} ${owner.lastName}`,
-        recipientType: 'client' as const,
-        userId: owner.id,
-        eventId: event.id,
-        messageType: 'reminder' as const,
-        content: message,
-      });
-    }
-
-    return this.sendBulkMessages(messagesData);
-  }
-
-  async sendInvoiceUpdate(userId: number, invoiceId: number, message: string): Promise<Message> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-
-    if (!user) {
-      throw new Error('User not found');
-    }
-
-    if (!user.phone) {
-      throw new Error('User does not have a phone number');
-    }
-
-    return this.sendMessage({
-      recipientPhone: user.phone,
-      recipientName: `${user.firstName} ${user.lastName}`,
-      recipientType: 'client',
-      userId: user.id,
-      messageType: 'invoice',
-      content: message,
-    });
-  }
-
-  async updateMessageStatus(id: number): Promise<Message | null> {
-    const message = await this.messageRepository.findOne({ where: { id } });
-
-    if (!message || !message.twilioSid) {
-      return message;
-    }
+    if (!message || !message.twilio_sid) return this.mapRow(message);
 
     try {
-      const status = await this.twilioService.getMessageStatus(message.twilioSid);
-      message.status = status as any;
-      return this.messageRepository.save(message);
-    } catch (error) {
-      console.error('Failed to update message status:', error);
-      return message;
+      const status = await this.twilioService.getMessageStatus(message.twilio_sid);
+      const { data: updated } = await supabase
+        .from('messages')
+        .update({ status })
+        .eq('id', id)
+        .select()
+        .single();
+      return this.mapRow(updated);
+    } catch (err) {
+      console.error('Failed to update message status:', err);
+      return this.mapRow(message);
     }
   }
 
-  async deleteMessage(id: number): Promise<void> {
-    await this.messageRepository.delete(id);
+  async deleteMessage(supabase: any, ownerId: string, id: string) {
+    const { error } = await supabase
+      .from('messages')
+      .delete()
+      .eq('owner_id', ownerId)
+      .eq('id', id);
+    if (error) throw new Error(error.message);
   }
 
-  async getMessageStats(): Promise<{
-    total: number;
-    sent: number;
-    delivered: number;
-    failed: number;
-    pending: number;
-  }> {
-    const [total, sent, delivered, failed, pending] = await Promise.all([
-      this.messageRepository.count(),
-      this.messageRepository.count({ where: { status: 'sent' } }),
-      this.messageRepository.count({ where: { status: 'delivered' } }),
-      this.messageRepository.count({ where: { status: 'failed' } }),
-      this.messageRepository.count({ where: { status: 'pending' } }),
-    ]);
+  async getMessageStats(supabase: any, ownerId: string) {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('status')
+      .eq('owner_id', ownerId);
+    if (error) throw new Error(error.message);
+    const msgs = data || [];
+    return {
+      total: msgs.length,
+      sent: msgs.filter((m: any) => m.status === 'sent').length,
+      delivered: msgs.filter((m: any) => m.status === 'delivered').length,
+      failed: msgs.filter((m: any) => m.status === 'failed').length,
+      pending: msgs.filter((m: any) => m.status === 'pending').length,
+    };
+  }
 
-    return { total, sent, delivered, failed, pending };
+  /**
+   * Processes an inbound Twilio webhook message.
+   * Handles STOP (opt-out) and START (opt-in) keywords by updating the
+   * sms_opt_in flag on the matching user record — using the admin Supabase
+   * client so the webhook can run without a user JWT.
+   */
+  async handleInboundMessage(adminSupabase: any, body: string, from: string): Promise<void> {
+    const { action } = this.twilioService.parseInboundMessage(body, from);
+    if (!action) return;
+
+    const optIn = action === 'start';
+    const updatePayload: Record<string, any> = { sms_opt_in: optIn };
+    if (optIn) {
+      updatePayload.sms_opt_in_at = new Date().toISOString();
+      updatePayload.sms_opt_out_at = null;
+    } else {
+      updatePayload.sms_opt_out_at = new Date().toISOString();
+    }
+
+    const { error } = await adminSupabase
+      .from('users')
+      .update(updatePayload)
+      .eq('phone', from);
+
+    if (error) {
+      this.logger.error(`Failed to update opt-in for ${from}: ${error.message}`);
+    } else {
+      this.logger.log(`SMS opt-${optIn ? 'in' : 'out'} processed for ${from}`);
+    }
   }
 }

@@ -1,10 +1,24 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+export const dynamic = 'force-dynamic'
+
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
-import { ServiceItem, ServiceItemCategory, Booking, DiscountType } from '@/types'
+import { ServiceItem, ServiceItemCategory, DiscountType } from '@/types'
+
+interface BookingOption {
+  id: string
+  contact_name: string
+  contact_email: string
+  event_id?: string
+  event?: {
+    id: string
+    name: string
+    date: string
+  }
+}
 
 interface EstimateLineItem {
   id: string
@@ -20,11 +34,11 @@ interface EstimateLineItem {
   amount: number
 }
 
-export default function NewEstimatePage() {
+function NewEstimatePageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user } = useAuth()
-  const [bookings, setBookings] = useState<Booking[]>([])
+  const [bookings, setBookings] = useState<BookingOption[]>([])
   const [serviceItems, setServiceItems] = useState<ServiceItem[]>([])
   const [selectedBooking, setSelectedBooking] = useState('')
   const [lineItems, setLineItems] = useState<EstimateLineItem[]>([])
@@ -36,7 +50,7 @@ export default function NewEstimatePage() {
   const [terms, setTerms] = useState('This estimate is valid until the expiration date above.')
   const [issueDate, setIssueDate] = useState(new Date().toISOString().split('T')[0])
   const [expirationDate, setExpirationDate] = useState(
-    new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   )
   const [loading, setLoading] = useState(false)
 
@@ -73,8 +87,18 @@ export default function NewEstimatePage() {
 
   const fetchBookings = async () => {
     try {
-      const res = await api.get<Booking[]>('/bookings')
-      setBookings(res.data)
+      const res = await api.get<BookingOption[]>('/bookings')
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      // Only show bookings whose event date is today or in the future
+      const upcoming = (res.data || []).filter((b) => {
+        const dateStr = b.event?.date
+        if (!dateStr) return true
+        const [y, m, d] = dateStr.split('-').map(Number)
+        const eventDate = new Date(y, m - 1, d)
+        return eventDate >= today
+      })
+      setBookings(upcoming)
     } catch (err) {
       console.error('Failed to fetch bookings:', err)
     }
@@ -216,9 +240,9 @@ export default function NewEstimatePage() {
           </div>
         )}
 
-        {/* Booking */}
+        {/* Client */}
         <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Select Booking (Optional)</label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Select Event / Booking (Optional)</label>
           <select
             value={selectedBooking}
             onChange={e => setSelectedBooking(e.target.value)}
@@ -227,10 +251,15 @@ export default function NewEstimatePage() {
             <option value="">-- No booking --</option>
             {bookings.map(b => (
               <option key={b.id} value={b.id}>
-                {(b as any).event?.name || 'Event'}
+                {b.event?.name || 'Event'}
+                {b.contact_name ? ` — ${b.contact_name}` : ''}
+                {b.event?.date ? ` (${b.event.date})` : ''}
               </option>
             ))}
           </select>
+          {bookings.length === 0 && (
+            <p className="text-xs text-gray-400 mt-1">No upcoming bookings found. Estimates can still be created without linking to a booking.</p>
+          )}
         </div>
 
         {/* Dates */}
@@ -391,5 +420,13 @@ export default function NewEstimatePage() {
         </div>
       </form>
     </div>
+  )
+}
+
+export default function NewEstimatePage() {
+  return (
+    <Suspense fallback={<div className="p-6">Loading...</div>}>
+      <NewEstimatePageInner />
+    </Suspense>
   )
 }

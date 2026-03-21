@@ -16,12 +16,17 @@ export interface Invoice {
   total_amount: number;
   amount_paid: number;
   amount_due: number;
-  status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+  status: 'draft' | 'sent' | 'partial' | 'paid' | 'overdue' | 'cancelled';
   issue_date: string;
   due_date: string;
   paid_date?: string;
+  client_name?: string;
   notes?: string;
   terms?: string;
+  deposit_percentage?: number;
+  deposit_due_days_before?: number;
+  final_payment_due_days_before?: number;
+  public_token?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -80,50 +85,75 @@ export class InvoicesService {
   }
 
   async findAll(supabase: SupabaseClient, userId: string): Promise<Invoice[]> {
-    const { data, error } = await supabase
-      .from('invoices')
-      .select(`
-        *,
-        booking:booking(*),
-        intake_form:intake_forms(*),
-        items:invoice_items(*)
-      `)
-      .order('created_at', { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from('invoices')
+        .select(`
+          *,
+          booking:booking(*, event:event(id, name, date)),
+          intake_form:intake_forms(*),
+          items:invoice_items(*)
+        `)
+        .eq('owner_id', userId)
+        .order('created_at', { ascending: false });
 
-    if (error) throw error;
-    return data || [];
+      if (error) {
+        console.error('InvoicesService.findAll error:', error);
+        return [];
+      }
+      return data || [];
+    } catch (err) {
+      console.error('InvoicesService.findAll unexpected error:', err);
+      return [];
+    }
   }
 
   async findByOwner(supabase: SupabaseClient, userId: string, ownerId: string): Promise<Invoice[]> {
-    const { data, error } = await supabase
-      .from('invoices')
-      .select(`
-        *,
-        booking:booking(*),
-        intake_form:intake_forms(*),
-        items:invoice_items(*)
-      `)
-      .eq('owner_id', ownerId)
-      .order('created_at', { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from('invoices')
+        .select(`
+          *,
+          booking:booking(*, event:event(id, name, date)),
+          intake_form:intake_forms(*),
+          items:invoice_items(*)
+        `)
+        .eq('owner_id', ownerId)
+        .order('created_at', { ascending: false });
 
-    if (error) throw error;
-    return data || [];
+      if (error) {
+        console.error('InvoicesService.findByOwner error:', error);
+        return [];
+      }
+      return data || [];
+    } catch (err) {
+      console.error('InvoicesService.findByOwner unexpected error:', err);
+      return [];
+    }
   }
 
   async findByIntakeForm(supabase: SupabaseClient, userId: string, intakeFormId: string): Promise<Invoice[]> {
-    const { data, error } = await supabase
-      .from('invoices')
-      .select(`
-        *,
-        booking:booking(*),
-        intake_form:intake_forms(*),
-        items:invoice_items(*)
-      `)
-      .eq('intake_form_id', intakeFormId)
-      .order('created_at', { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from('invoices')
+        .select(`
+          *,
+          booking:booking(*, event:event(id, name, date)),
+          intake_form:intake_forms(*),
+          items:invoice_items(*)
+        `)
+        .eq('intake_form_id', intakeFormId)
+        .order('created_at', { ascending: false });
 
-    if (error) throw error;
-    return data || [];
+      if (error) {
+        console.error('InvoicesService.findByIntakeForm error:', error);
+        return [];
+      }
+      return data || [];
+    } catch (err) {
+      console.error('InvoicesService.findByIntakeForm unexpected error:', err);
+      return [];
+    }
   }
 
   async findOne(supabase: SupabaseClient, userId: string, id: string): Promise<Invoice> {
@@ -131,7 +161,7 @@ export class InvoicesService {
       .from('invoices')
       .select(`
         *,
-        booking:booking(*),
+        booking:booking(*, event:event(id, name, date)),
         intake_form:intake_forms(*),
         items:invoice_items(*)
       `)
@@ -225,6 +255,7 @@ export class InvoicesService {
         created_by: userId,
         booking_id: invoiceData.booking_id || null,
         intake_form_id: invoiceData.intake_form_id || null,
+        client_name: (invoiceData as any).client_name || null,
         subtotal: subtotal,
         tax_rate: Number(invoiceData.tax_rate) || 0,
         tax_amount: taxAmount,
@@ -237,6 +268,9 @@ export class InvoicesService {
         due_date: invoiceData.due_date,
         notes: invoiceData.notes || null,
         terms: invoiceData.terms || null,
+        deposit_percentage: invoiceData.deposit_percentage != null ? Number(invoiceData.deposit_percentage) : null,
+        deposit_due_days_before: invoiceData.deposit_due_days_before != null ? Number(invoiceData.deposit_due_days_before) : null,
+        final_payment_due_days_before: invoiceData.final_payment_due_days_before != null ? Number(invoiceData.final_payment_due_days_before) : null,
       })
       .select()
       .single();
@@ -271,7 +305,7 @@ export class InvoicesService {
         .eq('id', invoice.id)
         .select(`
           *,
-          booking:booking(*),
+          booking:booking(*, event:event(id, name, date)),
           intake_form:intake_forms(*),
           items:invoice_items(*)
         `)

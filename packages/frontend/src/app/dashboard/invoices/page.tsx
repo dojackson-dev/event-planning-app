@@ -6,6 +6,17 @@ import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Invoice, InvoiceStatus } from '@/types'
 
+function getCustomerName(invoice: any): string {
+  if (invoice.client_name) return invoice.client_name
+  const booking = invoice.booking as any
+  if (booking?.contact_name) return booking.contact_name
+  if (booking?.contact_email) return booking.contact_email
+  if (invoice.intake_form?.contact_name) return invoice.intake_form.contact_name
+  if (invoice.intake_form?.contact_email) return invoice.intake_form.contact_email
+  if (invoice.client_email) return invoice.client_email
+  return 'N/A'
+}
+
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
@@ -48,6 +59,8 @@ export default function InvoicesPage() {
     switch (status) {
       case InvoiceStatus.PAID:
         return 'bg-green-100 text-green-800'
+      case InvoiceStatus.PARTIAL:
+        return 'bg-amber-100 text-amber-800'
       case InvoiceStatus.SENT:
         return 'bg-blue-100 text-blue-800'
       case InvoiceStatus.OVERDUE:
@@ -158,9 +171,7 @@ export default function InvoicesPage() {
                     {invoice.invoice_number}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {invoice.booking?.user
-                      ? `${invoice.booking.user.firstName} ${invoice.booking.user.lastName}`
-                      : 'N/A'}
+                    {getCustomerName(invoice)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(invoice.issue_date).toLocaleDateString()}

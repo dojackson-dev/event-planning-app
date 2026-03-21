@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { OwnerBrandProvider, useOwnerBrand } from '@/contexts/OwnerBrandContext'
 import { NotificationProvider } from '@/contexts/NotificationContext'
 import NotificationPanel from '@/components/NotificationPanel'
+import RoleSwitcher from '@/components/RoleSwitcher'
 import { 
   LayoutDashboard, 
   Calendar, 
@@ -25,7 +26,8 @@ import {
   Receipt,
   Settings,
   ChevronDown,
-  Store
+  Store,
+  CreditCard
 } from 'lucide-react'
 
 function getInitials(name: string): string {
@@ -90,6 +92,7 @@ const navigation = [
   { name: 'Door Lists', href: '/dashboard/door-lists', icon: ListChecks },
   { name: 'Security', href: '/dashboard/security', icon: Shield },
   { name: 'Payments', href: '/dashboard/payments', icon: DollarSign },
+  { name: 'Billing', href: '/dashboard/billing', icon: CreditCard },
   { name: 'Messages', href: '/dashboard/messages', icon: MessageSquare },
   { name: 'Vendors', href: '/dashboard/vendors', icon: Store },
 ]
@@ -195,6 +198,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               )
             })}
           </nav>
+
+          {/* Role Switcher — only shown when user has multiple roles */}
+          <RoleSwitcher variant="sidebar" />
 
           {/* Logout */}
           <div className="p-4 border-t space-y-1">

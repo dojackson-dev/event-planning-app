@@ -53,6 +53,21 @@ interface Vendor {
   distance_miles?: number
 }
 
+interface Venue {
+  id: string
+  name: string
+  address?: string
+  city?: string
+  state?: string
+  zip_code?: string
+  capacity?: number
+  description?: string
+  profile_image_url?: string
+  website?: string
+  phone?: string
+  email?: string
+}
+
 interface VendorBooking {
   id: string
   vendor_account_id: string
@@ -164,6 +179,49 @@ function VendorCard({ vendor }: { vendor: Vendor }) {
   )
 }
 
+function VenueCard({ venue }: { venue: Venue }) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 hover:border-primary-300 hover:shadow-md transition-all overflow-hidden flex flex-col">
+      <div className="h-36 bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center relative overflow-hidden">
+        {venue.profile_image_url ? (
+          <img src={venue.profile_image_url} alt={venue.name} className="w-full h-full object-cover" />
+        ) : (
+          <span className="text-5xl">🏛️</span>
+        )}
+        {venue.capacity && (
+          <div className="absolute bottom-2 left-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full">
+            Up to {venue.capacity.toLocaleString()} guests
+          </div>
+        )}
+      </div>
+      <div className="p-4 flex flex-col flex-1">
+        <h3 className="font-semibold text-gray-900 leading-tight line-clamp-1 mb-1">{venue.name}</h3>
+        <span className="inline-flex items-center gap-1 text-xs text-gray-500 mb-2">🏛️ Venue</span>
+        {(venue.city || venue.state) && (
+          <p className="text-xs text-gray-400 flex items-center gap-1 mb-2">
+            <MapPin className="w-3 h-3" /> {[venue.city, venue.state].filter(Boolean).join(', ')}
+          </p>
+        )}
+        {venue.address && (
+          <p className="text-xs text-gray-400 truncate mb-2">{venue.address}</p>
+        )}
+        <div className="mt-auto flex items-center gap-3 pt-2 border-t border-gray-100 flex-wrap">
+          {venue.phone && (
+            <a href={`tel:${venue.phone}`} className="text-xs text-primary-600 hover:underline flex items-center gap-1">
+              📞 {venue.phone}
+            </a>
+          )}
+          {venue.website && (
+            <a href={venue.website} target="_blank" rel="noopener noreferrer" className="text-xs text-primary-600 hover:underline flex items-center gap-1">
+              <ExternalLink className="w-3 h-3" /> Website
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function BookingRow({ booking, onCancel }: { booking: VendorBooking; onCancel: (id: string) => void }) {
   const status = STATUS_CONFIG[booking.status] || STATUS_CONFIG.pending
   const vendor = booking.vendor_accounts
@@ -247,6 +305,7 @@ export default function DashboardVendorsPage() {
 
   // ── Find tab state ────────────────────────────────────────────
   const [vendors, setVendors] = useState<Vendor[]>([])
+  const [venues, setVenues] = useState<Venue[]>([])
   const [searching, setSearching] = useState(false)
   const [searched, setSearched] = useState(false)
   const [zipCode, setZipCode] = useState('')
@@ -286,17 +345,15 @@ export default function DashboardVendorsPage() {
       if (radiusMiles) params.set('radiusMiles', radiusMiles)
       if (category) params.set('category', category)
 
-      let data: Vendor[] = []
-
       if (zipCode) {
         const res = await api.get(`/vendors/search?${params}`)
-        data = res.data
+        setVendors(res.data.vendors || res.data || [])
+        setVenues(res.data.venues || [])
       } else {
         const res = await api.get(`/vendors/public?${params}`)
-        data = res.data
+        setVendors(res.data.vendors || res.data || [])
+        setVenues(res.data.venues || [])
       }
-
-      setVendors(data)
       setSearched(true)
     } catch {
       setSearchError('Search failed. Please try again.')
@@ -426,18 +483,30 @@ export default function DashboardVendorsPage() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto mb-3" />
               Searching vendors…
             </div>
-          ) : vendors.length === 0 && searched ? (
+          ) : vendors.length === 0 && venues.length === 0 && searched ? (
             <div className="text-center py-16 text-gray-400">
               <Store className="w-10 h-10 mx-auto mb-3 opacity-30" />
               <p className="font-medium">No vendors found</p>
               <p className="text-sm mt-1">Try a different zip code, larger radius, or different category</p>
             </div>
-          ) : vendors.length > 0 ? (
+          ) : (vendors.length > 0 || venues.length > 0) ? (
             <>
-              <p className="text-sm text-gray-500 mb-3">{vendors.length} vendor{vendors.length !== 1 ? 's' : ''} found</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {vendors.map(v => <VendorCard key={v.id} vendor={v} />)}
-              </div>
+              {vendors.length > 0 && (
+                <>
+                  <p className="text-sm text-gray-500 mb-3">{vendors.length} vendor{vendors.length !== 1 ? 's' : ''} found</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
+                    {vendors.map(v => <VendorCard key={v.id} vendor={v} />)}
+                  </div>
+                </>
+              )}
+              {venues.length > 0 && (
+                <>
+                  <h2 className="text-base font-semibold text-gray-700 mb-3 mt-2">🏛️ Venues ({venues.length})</h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {venues.map(v => <VenueCard key={v.id} venue={v} />)}
+                  </div>
+                </>
+              )}
             </>
           ) : null}
         </>

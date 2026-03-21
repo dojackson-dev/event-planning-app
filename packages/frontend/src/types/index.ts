@@ -1,8 +1,10 @@
 // Enums
 export enum UserRole {
+  ADMIN = 'admin',
   CUSTOMER = 'customer',
   OWNER = 'owner',
   PLANNER = 'planner',
+  VENDOR = 'vendor',
 }
 
 export enum EventStatus {
@@ -78,6 +80,7 @@ export enum ItemType {
 export enum InvoiceStatus {
   DRAFT = 'draft',
   SENT = 'sent',
+  PARTIAL = 'partial',
   PAID = 'paid',
   OVERDUE = 'overdue',
   CANCELLED = 'cancelled',
@@ -113,7 +116,12 @@ export interface User {
   firstName: string
   lastName: string
   role: UserRole
+  roles?: UserRole[]       // All roles this user has (multi-role support)
   phone?: string
+  smsOptIn?: boolean
+  smsOptInAt?: string
+  smsOptOutAt?: string
+  preferredContact?: 'phone' | 'email' | 'text'
   ownerId?: string // For customers/planners/staff - references their owner
   tenantId?: string // Only for owners who host their website with us (optional)
   createdAt: string
@@ -159,6 +167,14 @@ export interface Booking {
   eventId: string
   status: BookingStatus
   clientStatus: ClientStatus
+  // Snake_case aliases returned directly from backend
+  client_status?: string
+  payment_status?: string
+  contact_name?: string
+  contact_email?: string
+  contact_phone?: string
+  total_amount?: number
+  deposit_amount?: number
   totalPrice: number
   deposit: number
   paymentStatus: PaymentStatus
@@ -222,6 +238,8 @@ export interface Invoice {
   intake_form_id?: string // New: Link to intake form for quotes
   booking?: Booking
   intake_form?: any // Optional populated intake form data
+  client_name?: string
+  client_email?: string
   subtotal: number
   tax_amount: number
   tax_rate: number
@@ -235,6 +253,10 @@ export interface Invoice {
   paid_date?: string
   notes?: string
   terms?: string
+  deposit_percentage?: number
+  deposit_due_days_before?: number
+  final_payment_due_days_before?: number
+  public_token?: string
   items: InvoiceItem[]
   created_at: string
   updated_at: string
@@ -294,6 +316,7 @@ export interface Estimate {
   booking_id?: string
   intake_form_id?: string
   booking?: Booking
+  intake_form?: any
   subtotal: number
   tax_amount: number
   tax_rate: number
@@ -411,10 +434,10 @@ export interface Reminder {
 
 // Security
 export interface Security {
-  id: number
+  id: string
   name: string
   phone: string
-  eventId?: number
+  eventId?: string
   event?: Event
   arrivalTime?: string
   createdAt: string
@@ -462,7 +485,7 @@ export interface Message {
   user?: User
   eventId?: string
   event?: Event
-  messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom'
+  messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'support' | 'announcement' | 'custom'
   content: string
   status: 'pending' | 'sent' | 'delivered' | 'failed'
   twilioSid?: string
@@ -475,7 +498,7 @@ export interface Message {
 export interface MessageTemplate {
   id: string
   name: string
-  messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom'
+  messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'support' | 'announcement' | 'custom'
   content: string
   isActive: boolean
   sendBeforeDays?: number

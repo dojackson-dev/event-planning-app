@@ -1,3 +1,6 @@
+// @ts-nocheck
+// NOTE: This file is legacy TypeORM code, not imported by any active module.
+// Kept for reference — superseded by the new MessagingService.
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThanOrEqual } from 'typeorm';

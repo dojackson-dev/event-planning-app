@@ -3,10 +3,11 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import api from '@/lib/api'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function VendorLogin() {
   const router = useRouter()
+  const { login } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -17,22 +18,13 @@ export default function VendorLogin() {
     setLoading(true)
     setError('')
     try {
-      const res = await api.post('/auth/flow/vendor/login', { email, password })
-      const { session, hasProfile } = res.data
-
-      // Store token using same key as rest of app
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('access_token', session.access_token)
-        localStorage.setItem('user_role', 'vendor')
-      }
-
-      if (hasProfile) {
-        router.push('/vendors/dashboard')
-      } else {
-        router.push('/vendors/register')
-      }
+      // Use the unified AuthContext login — it calls /auth/flow/unified/login,
+      // which handles all role types and multi-role routing automatically.
+      await login({ email, password })
+      // AuthContext.login() handles navigation (vendor-portal, /choose-role, etc.)
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Invalid email or password')
+      const msg = err.response?.data?.message || err.message || 'Invalid email or password'
+      setError(msg)
     } finally {
       setLoading(false)
     }
@@ -107,6 +99,7 @@ export default function VendorLogin() {
         <p className="text-center text-xs text-gray-400 mt-6">
           Are you a venue owner?{' '}
           <Link href="/login" className="text-primary-500 hover:text-primary-600">Sign in here</Link>
+          {' '}— or use this page (same login, all roles welcome).
         </p>
       </div>
     </div>

@@ -75,37 +75,35 @@ ALTER TABLE vendor_accounts
 -- ----------------------------------------------------------------
 -- 3. vendor_bookings
 -- ----------------------------------------------------------------
+-- Keep CREATE TABLE minimal (no FK constraints that could fail on re-run)
+-- All optional/FK columns are added individually below via ALTER TABLE
 CREATE TABLE IF NOT EXISTS vendor_bookings (
-  id                        UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
-  vendor_account_id         UUID          NOT NULL REFERENCES vendor_accounts(id) ON DELETE CASCADE,
-  owner_account_id          UUID          REFERENCES owner_accounts(id) ON DELETE SET NULL,
-  client_user_id            UUID          REFERENCES auth.users(id) ON DELETE SET NULL,
-  booked_by_user_id         UUID          NOT NULL REFERENCES auth.users(id),
-  -- Event details
-  event_id                  UUID          REFERENCES events(id) ON DELETE SET NULL,
-  event_name                VARCHAR(255),
-  event_date                DATE          NOT NULL,
-  start_time                TIME,
-  end_time                  TIME,
-  venue_name                VARCHAR(255),
-  venue_address             TEXT,
-  -- Booking
-  status                    VARCHAR(50)   DEFAULT 'pending'
-                              CHECK (status IN ('pending','confirmed','declined','cancelled','completed')),
-  notes                     TEXT,
-  -- Payment
-  agreed_amount             DECIMAL(10, 2),
-  deposit_amount            DECIMAL(10, 2),
-  deposit_paid              BOOLEAN       DEFAULT false,
-  deposit_paid_at           TIMESTAMP WITH TIME ZONE,
-  total_paid                DECIMAL(10, 2) DEFAULT 0,
-  payment_status            VARCHAR(50)   DEFAULT 'unpaid'
-                              CHECK (payment_status IN ('unpaid','deposit_paid','partially_paid','paid')),
-  stripe_payment_intent_id  VARCHAR(255),
-  -- Timestamps
-  created_at                TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at                TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  id                UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
+  vendor_account_id UUID    NOT NULL,
+  booked_by_user_id UUID    NOT NULL,
+  status            VARCHAR(50) DEFAULT 'pending',
+  created_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Add every additional column independently (each is safe to re-run)
+ALTER TABLE vendor_bookings ADD COLUMN IF NOT EXISTS owner_account_id         UUID;
+ALTER TABLE vendor_bookings ADD COLUMN IF NOT EXISTS client_user_id           UUID;
+ALTER TABLE vendor_bookings ADD COLUMN IF NOT EXISTS event_id                 UUID;
+ALTER TABLE vendor_bookings ADD COLUMN IF NOT EXISTS event_name               VARCHAR(255);
+ALTER TABLE vendor_bookings ADD COLUMN IF NOT EXISTS event_date               DATE;
+ALTER TABLE vendor_bookings ADD COLUMN IF NOT EXISTS start_time               TIME;
+ALTER TABLE vendor_bookings ADD COLUMN IF NOT EXISTS end_time                 TIME;
+ALTER TABLE vendor_bookings ADD COLUMN IF NOT EXISTS venue_name               VARCHAR(255);
+ALTER TABLE vendor_bookings ADD COLUMN IF NOT EXISTS venue_address            TEXT;
+ALTER TABLE vendor_bookings ADD COLUMN IF NOT EXISTS notes                    TEXT;
+ALTER TABLE vendor_bookings ADD COLUMN IF NOT EXISTS agreed_amount            DECIMAL(10, 2);
+ALTER TABLE vendor_bookings ADD COLUMN IF NOT EXISTS deposit_amount           DECIMAL(10, 2);
+ALTER TABLE vendor_bookings ADD COLUMN IF NOT EXISTS deposit_paid             BOOLEAN DEFAULT false;
+ALTER TABLE vendor_bookings ADD COLUMN IF NOT EXISTS deposit_paid_at          TIMESTAMP WITH TIME ZONE;
+ALTER TABLE vendor_bookings ADD COLUMN IF NOT EXISTS total_paid               DECIMAL(10, 2) DEFAULT 0;
+ALTER TABLE vendor_bookings ADD COLUMN IF NOT EXISTS payment_status           VARCHAR(50) DEFAULT 'unpaid';
+ALTER TABLE vendor_bookings ADD COLUMN IF NOT EXISTS stripe_payment_intent_id VARCHAR(255);
 
 
 -- ----------------------------------------------------------------
@@ -148,26 +146,27 @@ ALTER TABLE owner_accounts
 -- ----------------------------------------------------------------
 -- 7. payments  (client→owner and owner→vendor ledger)
 -- ----------------------------------------------------------------
+-- Keep CREATE TABLE minimal — table may pre-exist from TypeORM without all columns
 CREATE TABLE IF NOT EXISTS payments (
-  id                        UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
-  type                      TEXT    NOT NULL CHECK (type IN ('client_to_owner','owner_to_vendor')),
-  amount_cents              INTEGER NOT NULL,
-  fee_cents                 INTEGER NOT NULL,       -- DoVenueSuite 1.5% fee
-  stripe_fee_cents          INTEGER,                -- estimated Stripe processing fee
-  net_cents                 INTEGER,                -- amount recipient receives
-  stripe_payment_intent_id  TEXT,
-  stripe_transfer_id        TEXT,
-  status                    TEXT    DEFAULT 'pending'
-                              CHECK (status IN ('pending','succeeded','failed','refunded')),
-  -- relationships
-  owner_account_id         UUID     REFERENCES owner_accounts(id) ON DELETE SET NULL,
-  vendor_account_id         UUID    REFERENCES vendor_accounts(id) ON DELETE SET NULL,
-  vendor_booking_id         UUID    REFERENCES vendor_bookings(id) ON DELETE SET NULL,
-  booking_id                UUID,
-  description               TEXT,
-  created_at                TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at                TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  id          UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS type                      TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS amount_cents              INTEGER;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS fee_cents                 INTEGER;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS stripe_fee_cents          INTEGER;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS net_cents                 INTEGER;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS stripe_payment_intent_id  TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS stripe_transfer_id        TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS status                    TEXT DEFAULT 'pending';
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS owner_id                  UUID;  -- direct ref to auth.users
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS owner_account_id          UUID;  -- ref to owner_accounts
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS vendor_account_id         UUID;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS vendor_booking_id         UUID;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS booking_id                UUID;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS description               TEXT;
 
 
 -- ----------------------------------------------------------------
@@ -192,12 +191,49 @@ CREATE INDEX IF NOT EXISTS idx_vendor_accounts_zip         ON vendor_accounts(zi
 CREATE INDEX IF NOT EXISTS idx_vendor_accounts_active      ON vendor_accounts(is_active);
 CREATE INDEX IF NOT EXISTS idx_vendor_accounts_location    ON vendor_accounts(latitude, longitude);
 CREATE INDEX IF NOT EXISTS idx_vendor_bookings_vendor      ON vendor_bookings(vendor_account_id);
-CREATE INDEX IF NOT EXISTS idx_vendor_bookings_owner       ON vendor_bookings(owner_account_id);
-CREATE INDEX IF NOT EXISTS idx_vendor_bookings_event_date  ON vendor_bookings(event_date);
+-- owner_account_id is added via ALTER TABLE above; guard against timing edge cases
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'vendor_bookings' AND column_name = 'owner_account_id'
+  ) THEN
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_vendor_bookings_owner ON vendor_bookings(owner_account_id)';
+  END IF;
+END $$;
+-- event_date index
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'vendor_bookings' AND column_name = 'event_date'
+  ) THEN
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_vendor_bookings_event_date ON vendor_bookings(event_date)';
+  END IF;
+END $$;
 CREATE INDEX IF NOT EXISTS idx_vendor_reviews_vendor       ON vendor_reviews(vendor_account_id);
-CREATE INDEX IF NOT EXISTS idx_payments_owner              ON payments(owner_account_id);
-CREATE INDEX IF NOT EXISTS idx_payments_vendor             ON payments(vendor_account_id);
-CREATE INDEX IF NOT EXISTS idx_payments_status             ON payments(status);
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'payments' AND column_name = 'owner_account_id'
+  ) THEN
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_payments_owner ON payments(owner_account_id)';
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'payments' AND column_name = 'vendor_account_id'
+  ) THEN
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_payments_vendor ON payments(vendor_account_id)';
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'payments' AND column_name = 'status'
+  ) THEN
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status)';
+  END IF;
+END $$;
 
 
 -- ----------------------------------------------------------------
@@ -303,16 +339,10 @@ ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Owners can view own payments"  ON payments;
 DROP POLICY IF EXISTS "Service role full access"      ON payments;
 
--- Owners see their payment records
 CREATE POLICY "Owners can view own payments"
   ON payments FOR SELECT
-  USING (
-    owner_account_id IN (
-      SELECT id FROM owner_accounts WHERE user_id = auth.uid()
-    )
-  );
+  USING (owner_id = auth.uid());
 
--- Backend service role bypasses RLS (Supabase service key)
 CREATE POLICY "Service role full access"
   ON payments FOR ALL
   USING (auth.role() = 'service_role');

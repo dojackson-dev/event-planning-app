@@ -187,10 +187,19 @@ export default function VendorInvoiceDetailPage() {
 
           {isPaid && (
             <div className="mt-5 pt-5 border-t border-gray-100">
-              <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 rounded-lg px-4 py-3 text-sm font-medium">
-                <CheckCircle2 className="w-4 h-4" />
-                Payment received {invoice.paid_at ? `on ${new Date(invoice.paid_at).toLocaleDateString()}` : ''}.
-                DoVenue Suite kept 1.5% as a platform fee.
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 rounded-lg px-4 py-3 text-sm font-medium">
+                  <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                  Payment received {invoice.paid_at ? `on ${new Date(invoice.paid_at).toLocaleDateString()}` : ''}.
+                </div>
+                <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm">
+                  <div className="text-gray-600">
+                    <span className="font-medium">Platform fee (5%):</span> ${(Number(invoice.total_amount) * 0.05).toFixed(2)}
+                  </div>
+                  <div className="font-bold text-gray-900">
+                    Your net payout: <span className="text-green-700">${(Number(invoice.total_amount) * 0.95).toFixed(2)}</span>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -231,6 +240,18 @@ export default function VendorInvoiceDetailPage() {
               <span>Total</span>
               <span>${Number(invoice.total_amount).toFixed(2)}</span>
             </div>
+            {!isPaid && (
+              <div className="flex justify-between text-sm text-orange-600 pt-1">
+                <span>Platform fee (5%)</span>
+                <span>-${(Number(invoice.total_amount) * 0.05).toFixed(2)}</span>
+              </div>
+            )}
+            {!isPaid && (
+              <div className="flex justify-between text-sm font-semibold text-green-700 pb-1">
+                <span>Your net payout</span>
+                <span>${(Number(invoice.total_amount) * 0.95).toFixed(2)}</span>
+              </div>
+            )}
           </div>
         </div>
 

@@ -365,7 +365,7 @@ export class StripeService {
 
   // ─── Stripe Connect ────────────────────────────────────────────────────────
 
-  private readonly APP_FEE_RATE = 0.015; // 1.5% DoVenueSuite fee
+  private readonly APP_FEE_RATE = 0.05; // 5% DoVenueSuite fee
 
   /**
    * Resolves the owner_accounts row for a given auth user ID.
@@ -511,9 +511,9 @@ export class StripeService {
 
   /**
    * Charge a client and route funds to an owner's Connect account.
-   * DoVenueSuite takes 1.5% as application_fee_amount.
+   * DoVenueSuite takes 5% as application_fee_amount.
    *
-   * Flow: Client card → Stripe → DoVenueSuite takes 1.5% → owner receives the rest
+   * Flow: Client card → Stripe → DoVenueSuite takes 5% → owner receives the rest
    * Returns a PaymentIntent client_secret for the frontend to complete payment.
    */
   async createClientPaymentIntent(
@@ -564,9 +564,9 @@ export class StripeService {
 
   /**
    * Transfer funds from owner to vendor for a completed booking.
-   * DoVenueSuite takes 1.5% as fee (paid by vendor — deducted from transfer).
+   * DoVenueSuite takes 5% as fee (paid by vendor — deducted from transfer).
    *
-   * Flow: Owner's balance → transfer to vendor → DoVenueSuite keeps 1.5%
+   * Flow: Owner's balance → transfer to vendor → DoVenueSuite keeps 5%
    */
   async payVendor(
     amountCents: number,

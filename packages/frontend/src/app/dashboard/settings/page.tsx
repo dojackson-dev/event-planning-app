@@ -737,7 +737,7 @@ export default function SettingsPage() {
                 <h4 className="text-sm font-semibold text-blue-800 mb-2">💰 How payouts work</h4>
                 <ul className="text-sm text-blue-700 space-y-1">
                   <li>• Clients pay you directly through DoVenueSuite</li>
-                  <li>• DoVenueSuite collects a <strong>1.5% platform fee</strong> per transaction</li>
+                  <li>• DoVenueSuite collects a <strong>5% platform fee</strong> per transaction</li>
                   <li>• Funds are deposited to your bank within 2 business days</li>
                   <li>• Pay your vendors directly from your DoVenueSuite balance</li>
                 </ul>

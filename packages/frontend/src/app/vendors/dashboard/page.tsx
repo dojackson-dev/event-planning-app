@@ -551,7 +551,7 @@ export default function VendorDashboard() {
               <h4 className="text-sm font-semibold text-blue-800 mb-2">💰 How vendor payouts work</h4>
               <ul className="text-sm text-blue-700 space-y-1">
                 <li>• Event owners pay you directly through DoVenueSuite</li>
-                <li>• DoVenueSuite collects a <strong>1.5% platform fee</strong> per payout</li>
+                <li>• DoVenueSuite collects a <strong>5% platform fee</strong> per payout</li>
                 <li>• Funds arrive in your bank within 2 business days</li>
                 <li>• Stripe handles all payment compliance and security</li>
               </ul>

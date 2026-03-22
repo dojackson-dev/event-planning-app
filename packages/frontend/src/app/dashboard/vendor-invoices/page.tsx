@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
+import { useAuth } from '@/contexts/AuthContext'
 import { Plus, FileText, Send, Eye, Loader2 } from 'lucide-react'
 
 interface VendorInvoice {
@@ -31,16 +32,22 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function VendorInvoicesPage() {
   const router = useRouter()
+  const { activeRole } = useAuth()
   const [invoices, setInvoices] = useState<VendorInvoice[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
+    // Owners don't have a vendor account — redirect to their vendor payments page
+    if (activeRole === 'owner') {
+      router.replace('/dashboard/vendors/payments')
+      return
+    }
     api.get('/vendor-invoices/mine')
       .then(r => setInvoices(r.data))
       .catch(e => setError(e.response?.data?.message || 'Failed to load invoices. Make sure your vendor account is set up.'))
       .finally(() => setLoading(false))
-  }, [])
+  }, [activeRole])
 
   const totalOutstanding = invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').reduce((s, i) => s + Number(i.amount_due), 0)
   const totalPaid = invoices.filter(i => i.status === 'paid').reduce((s, i) => s + Number(i.total_amount), 0)

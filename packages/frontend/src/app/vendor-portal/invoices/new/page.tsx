@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
-import { Plus, Trash2, FileText, Loader2, Save } from 'lucide-react'
+import { Plus, Trash2, FileText, Loader2, Save, Calendar, ChevronDown } from 'lucide-react'
 
 interface LineItem {
   description: string
@@ -12,14 +12,28 @@ interface LineItem {
   unit_price: number
 }
 
+interface BookingRequest {
+  id: string
+  client_name: string
+  client_email: string
+  client_phone: string | null
+  event_name: string | null
+  event_date: string | null
+  status: string
+  quoted_amount: number | null
+}
+
 export default function NewVendorInvoicePage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [bookingRequests, setBookingRequests] = useState<BookingRequest[]>([])
+  const [selectedBookingId, setSelectedBookingId] = useState<string>('')
 
-  const [clientName, setClientName] = useState('')
-  const [clientEmail, setClientEmail] = useState('')
-  const [clientPhone, setClientPhone] = useState('')
+  const [clientName, setClientName] = useState(() => searchParams.get('clientName') || '')
+  const [clientEmail, setClientEmail] = useState(() => searchParams.get('clientEmail') || '')
+  const [clientPhone, setClientPhone] = useState(() => searchParams.get('clientPhone') || '')
   const [issueDate, setIssueDate] = useState(new Date().toISOString().slice(0, 10))
   const [dueDate, setDueDate] = useState('')
   const [taxRate, setTaxRate] = useState(0)
@@ -27,6 +41,40 @@ export default function NewVendorInvoicePage() {
   const [notes, setNotes] = useState('')
   const [terms, setTerms] = useState('')
   const [items, setItems] = useState<LineItem[]>([{ description: '', quantity: 1, unit_price: 0 }])
+
+  // Pre-select booking from URL param if provided
+  const preselectedBookingId = searchParams.get('bookingId') || ''
+
+  useEffect(() => {
+    const fetchBookingRequests = async () => {
+      try {
+        const res = await api.get('/vendors/booking-requests/mine')
+        const all: BookingRequest[] = res.data || []
+        setBookingRequests(all.filter(r => r.status !== 'declined' && r.status !== 'cancelled'))
+        // Auto-select if bookingId in URL
+        if (preselectedBookingId) {
+          setSelectedBookingId(preselectedBookingId)
+        }
+      } catch {
+        // silently fail
+      }
+    }
+    fetchBookingRequests()
+  }, [])
+
+  // When a booking is selected, pre-fill client fields
+  const handleBookingSelect = (bookingId: string) => {
+    setSelectedBookingId(bookingId)
+    if (!bookingId) return
+    const req = bookingRequests.find(r => r.id === bookingId)
+    if (!req) return
+    setClientName(req.client_name)
+    setClientEmail(req.client_email)
+    if (req.client_phone) setClientPhone(req.client_phone)
+    if (req.quoted_amount && items.length === 1 && !items[0].description) {
+      setItems([{ description: req.event_name || 'Vendor Services', quantity: 1, unit_price: Number(req.quoted_amount) }])
+    }
+  }
 
   const addItem = () => setItems(prev => [...prev, { description: '', quantity: 1, unit_price: 0 }])
   const removeItem = (idx: number) => setItems(prev => prev.filter((_, i) => i !== idx))
@@ -91,6 +139,31 @@ export default function NewVendorInvoicePage() {
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 mb-6 text-sm">
             {error}
+          </div>
+        )}
+
+        {/* Booking selector */}
+        {bookingRequests.length > 0 && (
+          <div className="bg-white rounded-xl border border-primary-200 p-5 shadow-sm mb-6">
+            <h2 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-primary-500" />
+              Link to a Booking Request <span className="text-xs font-normal text-gray-400">(optional — auto-fills client info)</span>
+            </h2>
+            <div className="relative">
+              <select
+                value={selectedBookingId}
+                onChange={e => handleBookingSelect(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none pr-8 bg-white"
+              >
+                <option value="">-- Select a booking request --</option>
+                {bookingRequests.map(r => (
+                  <option key={r.id} value={r.id}>
+                    {r.client_name}{r.event_name ? ` — ${r.event_name}` : ''}{r.event_date ? ` (${r.event_date})` : ''}{r.quoted_amount ? ` · $${Number(r.quoted_amount).toFixed(2)}` : ''}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            </div>
           </div>
         )}
 

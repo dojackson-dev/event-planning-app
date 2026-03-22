@@ -5,7 +5,7 @@ import Link from 'next/link'
 import api from '@/lib/api'
 import {
   Calendar, User, Mail, Phone, MapPin, Clock,
-  CheckCircle2, XCircle, AlertCircle, Loader2, ChevronDown, DollarSign,
+  CheckCircle2, XCircle, AlertCircle, Loader2, ChevronDown, DollarSign, FileText,
 } from 'lucide-react'
 
 interface BookingRequest {
@@ -241,6 +241,19 @@ export default function BookingRequestsPage() {
                         <div className="flex items-center gap-2 text-sm text-gray-600">
                           <DollarSign className="w-4 h-4 text-gray-400" />
                           Quoted: <span className="font-semibold">${Number(req.quoted_amount).toFixed(2)}</span>
+                        </div>
+                      )}
+
+                      {/* Send Invoice button — available on all non-cancelled/declined requests */}
+                      {req.status !== 'declined' && req.status !== 'cancelled' && (
+                        <div className="pt-2 border-t border-gray-100">
+                          <Link
+                            href={`/vendor-portal/invoices/new?clientName=${encodeURIComponent(req.client_name)}&clientEmail=${encodeURIComponent(req.client_email)}&clientPhone=${encodeURIComponent(req.client_phone || '')}&bookingId=${req.id}&eventName=${encodeURIComponent(req.event_name || '')}`}
+                            className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-primary-50 border border-primary-200 text-primary-700 text-sm font-medium rounded-lg hover:bg-primary-100 transition-colors"
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                            Send Invoice
+                          </Link>
                         </div>
                       )}
                     </div>

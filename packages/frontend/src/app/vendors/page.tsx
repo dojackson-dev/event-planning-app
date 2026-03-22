@@ -190,12 +190,12 @@ export default function VendorsPage() {
     ? vendors.filter(v => v.category === category)
     : vendors
 
-  const renderStars = (rating?: number) => {
+  const renderStars = (rating?: number, reviewCount?: number) => {
     if (!rating) return null
     return (
       <span className="flex items-center gap-1 text-sm text-amber-500">
         {'★'.repeat(Math.round(rating))}{'☆'.repeat(5 - Math.round(rating))}
-        <span className="text-gray-500 text-xs">({rating.toFixed(1)})</span>
+        <span className="text-gray-500 text-xs">({rating.toFixed(1)}{reviewCount ? ` · ${reviewCount} review${reviewCount !== 1 ? 's' : ''}` : ''})</span>
       </span>
     )
   }
@@ -411,7 +411,7 @@ export default function VendorsPage() {
   )
 }
 
-function VendorCard({ vendor, renderStars }: { vendor: Vendor; renderStars: (r?: number) => React.ReactNode }) {
+function VendorCard({ vendor, renderStars }: { vendor: Vendor; renderStars: (r?: number, rc?: number) => React.ReactNode }) {
   const catColor = CATEGORY_COLORS[vendor.category] || 'bg-gray-100 text-gray-700'
   const catLabel = CATEGORIES.find(c => c.value === vendor.category)?.label || vendor.category
   const catIcon = CATEGORY_ICONS[vendor.category] || '⭐'
@@ -446,7 +446,7 @@ function VendorCard({ vendor, renderStars }: { vendor: Vendor; renderStars: (r?:
         </div>
 
         {/* Stars */}
-        {renderStars(vendor.avgRating)}
+        {renderStars(vendor.avgRating, vendor.reviewCount)}
 
         {/* Location */}
         {(vendor.city || vendor.state) && (
@@ -498,63 +498,47 @@ function VendorCard({ vendor, renderStars }: { vendor: Vendor; renderStars: (r?:
 function VenueCard({ venue }: { venue: Venue }) {
   const initials = venue.name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 hover:border-primary-300 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 overflow-hidden">
-      <div className="p-5">
-        <div className="flex items-start gap-4 mb-4">
-          <div className="w-16 h-16 rounded-xl border border-gray-100 overflow-hidden flex-shrink-0 bg-gray-100 flex items-center justify-center">
-            {venue.profile_image_url ? (
-              <img src={venue.profile_image_url} alt={venue.name} className="w-full h-full object-contain" />
-            ) : (
-              <span className="text-xl font-bold text-gray-400 select-none">{initials || '🏛️'}</span>
-            )}
+    <Link href={`/venues/${venue.id}`} className="block group">
+      <div className="bg-white rounded-2xl border border-gray-200 group-hover:border-primary-300 group-hover:shadow-lg group-hover:-translate-y-0.5 transition-all duration-200 overflow-hidden">
+        <div className="p-5">
+          <div className="flex items-start gap-4 mb-4">
+            <div className="w-16 h-16 rounded-xl border border-gray-100 overflow-hidden flex-shrink-0 bg-gray-100 flex items-center justify-center">
+              {venue.profile_image_url ? (
+                <img src={venue.profile_image_url} alt={venue.name} className="w-full h-full object-contain" />
+              ) : (
+                <span className="text-xl font-bold text-gray-400 select-none">{initials || '🏛️'}</span>
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-bold text-gray-900 text-base leading-snug line-clamp-2 mb-1.5">{venue.name}</h3>
+              <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+                🏛️ Venue
+              </span>
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="font-bold text-gray-900 text-base leading-snug line-clamp-2 mb-1.5">{venue.name}</h3>
-            <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
-              🏛️ Venue
-            </span>
-          </div>
-        </div>
 
-        {(venue.city || venue.state) && (
-          <p className="text-xs text-gray-500 mt-1">
-            📍 {[venue.address, venue.city, venue.state].filter(Boolean).join(', ')}
-            {venue.distance_miles != null && (
-              <span className="ml-1 text-primary-600 font-medium">({venue.distance_miles} mi)</span>
-            )}
-          </p>
-        )}
-        {venue.capacity && (
-          <p className="text-xs text-gray-500 mt-0.5">👥 Up to {venue.capacity.toLocaleString()} guests</p>
-        )}
-        {venue.description && (
-          <p className="text-sm text-gray-500 mt-2 line-clamp-2 leading-relaxed">{venue.description}</p>
-        )}
-
-        <div className="mt-4 flex gap-2">
-          {venue.website ? (
-            <a
-              href={venue.website.startsWith('http') ? venue.website : `https://${venue.website}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-1 text-center bg-primary-600 text-white text-sm py-2 rounded-xl hover:bg-primary-700 font-semibold transition-colors"
-            >
-              Visit Website
-            </a>
-          ) : venue.phone ? (
-            <a
-              href={`tel:${venue.phone}`}
-              className="flex-1 text-center bg-primary-600 text-white text-sm py-2 rounded-xl hover:bg-primary-700 font-semibold transition-colors"
-            >
-              📞 Call Venue
-            </a>
-          ) : (
-            <span className="flex-1 text-center border border-gray-200 text-gray-400 text-sm py-2 rounded-xl cursor-default text-xs">
-              Visit us to learn more
-            </span>
+          {(venue.city || venue.state) && (
+            <p className="text-xs text-gray-500 mt-1">
+              📍 {[venue.address, venue.city, venue.state].filter(Boolean).join(', ')}
+              {venue.distance_miles != null && (
+                <span className="ml-1 text-primary-600 font-medium">({venue.distance_miles} mi)</span>
+              )}
+            </p>
           )}
+          {venue.capacity && (
+            <p className="text-xs text-gray-500 mt-0.5">👥 Up to {venue.capacity.toLocaleString()} guests</p>
+          )}
+          {venue.description && (
+            <p className="text-sm text-gray-500 mt-2 line-clamp-2 leading-relaxed">{venue.description}</p>
+          )}
+
+          <div className="mt-4">
+            <span className="block w-full text-center bg-primary-600 text-white text-sm py-2 rounded-xl font-semibold group-hover:bg-primary-700 transition-colors">
+              View Venue →
+            </span>
+          </div>
         </div>
       </div>
-    </div>
+    </Link>
   )
 }

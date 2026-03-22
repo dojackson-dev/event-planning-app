@@ -221,6 +221,20 @@ export class VendorsService {
     return data || [];
   }
 
+  async getVenueById(id: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const { data, error } = await admin
+      .from('venues')
+      .select('id, name, address, city, state, zip_code, capacity, description, profile_image_url, website, phone, latitude, longitude, owner_account_id')
+      .eq('id', id)
+      .single();
+
+    if (error || !data) {
+      throw new NotFoundException('Venue not found');
+    }
+    return data;
+  }
+
   // ─────────────────────────────────────────────
   // VENDOR BOOKINGS
   // ─────────────────────────────────────────────

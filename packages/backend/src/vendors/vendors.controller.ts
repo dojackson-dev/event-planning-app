@@ -227,6 +227,7 @@ export class VendorsController {
     const userId = await this.getUserId(authorization);
     const ownerAccountId = await this.getOwnerAccountId(userId);
     this.logger.log(`POST /vendors/bookings — userId=${userId}, ownerAccountId=${ownerAccountId}, vendorAccountId=${dto?.vendorAccountId}`);
+    this.logger.log(`POST /vendors/bookings — dto: ${JSON.stringify(dto)}`);
     return this.vendorsService.createVendorBooking(userId, dto, ownerAccountId || undefined);
   }
 

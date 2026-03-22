@@ -541,26 +541,17 @@ function VenueCard({ venue }: { venue: Venue }) {
             >
               Visit Website
             </a>
-          ) : venue.email ? (
-            <a
-              href={`mailto:${venue.email}`}
-              className="flex-1 text-center bg-primary-600 text-white text-sm py-2 rounded-xl hover:bg-primary-700 font-semibold transition-colors"
-            >
-              ✉️ Email Venue
-            </a>
-          ) : (
-            <span className="flex-1 text-center border border-gray-200 text-gray-400 text-sm py-2 rounded-xl cursor-default">
-              Contact Info Pending
-            </span>
-          )}
-          {venue.phone && (
+          ) : venue.phone ? (
             <a
               href={`tel:${venue.phone}`}
-              className="px-3 py-2 border border-gray-200 rounded-xl text-gray-500 text-sm hover:bg-gray-50 transition-colors"
-              title="Call venue"
+              className="flex-1 text-center bg-primary-600 text-white text-sm py-2 rounded-xl hover:bg-primary-700 font-semibold transition-colors"
             >
-              📞
+              📞 Call Venue
             </a>
+          ) : (
+            <span className="flex-1 text-center border border-gray-200 text-gray-400 text-sm py-2 rounded-xl cursor-default text-xs">
+              Visit us to learn more
+            </span>
           )}
         </div>
       </div>

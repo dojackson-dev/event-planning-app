@@ -420,11 +420,11 @@ export class VendorsService {
 
       // If effective status changed, backfill the DB row so future queries are correct
       if (hasPaidInvoice && b.status !== 'paid') {
-        admin.from('vendor_bookings')
-          .update({ status: 'paid', updated_at: new Date().toISOString() })
-          .eq('id', b.id)
-          .then(() => {})
-          .catch(() => {});
+        void (async () => {
+          await admin.from('vendor_bookings')
+            .update({ status: 'paid', updated_at: new Date().toISOString() })
+            .eq('id', b.id);
+        })().catch(() => {});
       }
 
       const { vendor_invoices: _inv, ...rest } = b;

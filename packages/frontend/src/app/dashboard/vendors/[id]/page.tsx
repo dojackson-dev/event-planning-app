@@ -108,12 +108,14 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
   const [vendor, setVendor] = useState<VendorProfile | null>(null)
   const [reviews, setReviews] = useState<Review[]>([])
   const [events, setEvents] = useState<OwnerEvent[]>([])
-  const [eventClientMap, setEventClientMap] = useState<Record<string, string>>({})
+  const [eventClientMap, setEventClientMap] = useState<Record<string, ClientInfo>>({})
   const [loading, setLoading] = useState(true)
   const [bookingOpen, setBookingOpen] = useState(false)
   const [bookingSuccess, setBookingSuccess] = useState(false)
   const [bookingSubmitting, setBookingSubmitting] = useState(false)
   const [bookingError, setBookingError] = useState('')
+
+  interface ClientInfo { name: string; email?: string; phone?: string }
 
   const [form, setForm] = useState<BookingForm>({
     eventId: '',
@@ -143,10 +145,12 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
         setVendor(vendorRes.data)
         setReviews(reviewsRes.data)
         setEvents(eventsRes.data || [])
-        // Build event_id → contact_name map from bookings
-        const map: Record<string, string> = {}
+        // Build event_id → client info map from bookings
+        const map: Record<string, ClientInfo> = {}
         for (const b of (bookingsRes.data || [])) {
-          if (b.event_id && b.contact_name) map[b.event_id] = b.contact_name
+          if (b.event_id && b.contact_name) {
+            map[b.event_id] = { name: b.contact_name, email: b.contact_email || undefined, phone: b.contact_phone || undefined }
+          }
         }
         setEventClientMap(map)
       } catch {
@@ -161,6 +165,7 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
   // When an owner event is selected, pre-fill all event details
   const handleEventSelect = (eventId: string) => {
     const ev = events.find(e => e.id === eventId)
+    const client = eventClientMap[eventId]
     if (ev) {
       setForm(prev => ({
         ...prev,
@@ -171,6 +176,9 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
         endTime: ev.endTime || '',
         venueName: ev.venue || '',
         venueAddress: ev.location || '',
+        clientName: client?.name || prev.clientName,
+        clientEmail: client?.email || prev.clientEmail,
+        clientPhone: client?.phone || prev.clientPhone,
       }))
     } else {
       setForm(prev => ({ ...prev, eventId: '' }))
@@ -186,7 +194,6 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
     try {
       await api.post('/vendors/bookings', {
         vendorAccountId: params.id,
-        eventId: form.eventId || undefined,
         eventName: form.eventName,
         eventDate: form.eventDate,
         startTime: form.startTime || undefined,
@@ -208,7 +215,8 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
         clientName: '', clientEmail: '', clientPhone: '',
       })
     } catch (err: any) {
-      setBookingError(err.response?.data?.message || 'Failed to send booking request')
+      console.error('Booking 400 error — full response:', err.response?.data)
+      setBookingError(err.response?.data?.message || err.message || 'Failed to send booking request')
     } finally {
       setBookingSubmitting(false)
     }
@@ -438,7 +446,7 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
                     {events.map(ev => (
                       <option key={ev.id} value={ev.id}>
                         {ev.name}
-                        {eventClientMap[ev.id] ? ` — ${eventClientMap[ev.id]}` : ''}
+                        {eventClientMap[ev.id] ? ` — ${eventClientMap[ev.id].name}` : ''}
                         {ev.date ? ` (${new Date(ev.date + 'T00:00:00').toLocaleDateString()})` : ' (No date)'}
                       </option>
                     ))}

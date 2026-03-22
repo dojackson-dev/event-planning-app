@@ -37,7 +37,7 @@ export default function VendorInvoicesPage() {
   const [filter, setFilter] = useState('')
 
   useEffect(() => {
-    if (!user) { router.push('/vendor-portal/login'); return }
+    if (!user) { router.push('/login'); return }
     fetchInvoices()
   }, [user])
 

@@ -50,10 +50,20 @@ export default function NewVendorInvoicePage() {
       try {
         const res = await api.get('/vendors/booking-requests/mine')
         const all: BookingRequest[] = res.data || []
-        setBookingRequests(all.filter(r => r.status !== 'declined' && r.status !== 'cancelled'))
-        // Auto-select if bookingId in URL
+        const active = all.filter(r => r.status !== 'declined' && r.status !== 'cancelled')
+        setBookingRequests(active)
+        // Auto-select and auto-fill if bookingId in URL
         if (preselectedBookingId) {
           setSelectedBookingId(preselectedBookingId)
+          const req = active.find(r => r.id === preselectedBookingId)
+          if (req) {
+            setClientName(req.client_name)
+            setClientEmail(req.client_email)
+            if (req.client_phone) setClientPhone(req.client_phone)
+            if (req.quoted_amount) {
+              setItems([{ description: req.event_name || 'Vendor Services', quantity: 1, unit_price: Number(req.quoted_amount) }])
+            }
+          }
         }
       } catch {
         // silently fail
@@ -142,13 +152,15 @@ export default function NewVendorInvoicePage() {
           </div>
         )}
 
-        {/* Booking selector */}
-        {bookingRequests.length > 0 && (
-          <div className="bg-white rounded-xl border border-primary-200 p-5 shadow-sm mb-6">
-            <h2 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-primary-500" />
-              Link to a Booking Request <span className="text-xs font-normal text-gray-400">(optional — auto-fills client info)</span>
-            </h2>
+        {/* Booking selector — always visible */}
+        <div className="bg-white rounded-xl border border-primary-200 p-5 shadow-sm mb-6">
+          <h2 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-primary-500" />
+            Link to a Booking Request <span className="text-xs font-normal text-gray-400">(optional — auto-fills client info)</span>
+          </h2>
+          {bookingRequests.length === 0 ? (
+            <p className="text-sm text-gray-400 italic">No active booking requests found.</p>
+          ) : (
             <div className="relative">
               <select
                 value={selectedBookingId}
@@ -164,8 +176,8 @@ export default function NewVendorInvoicePage() {
               </select>
               <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Client info */}

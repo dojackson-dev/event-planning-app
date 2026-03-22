@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import api from '@/lib/api'
+import DashboardReturnButton from '@/components/DashboardReturnButton'
 
 const CATEGORIES = [
   { value: '', label: 'All Categories' },
@@ -216,6 +217,7 @@ export default function VendorsPage() {
               <Link href="/login" className="text-gray-600 hover:text-gray-900 text-sm font-medium">
                 Log In
               </Link>
+              <DashboardReturnButton />
             </div>
           </div>
         </div>

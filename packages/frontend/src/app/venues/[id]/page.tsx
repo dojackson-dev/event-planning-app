@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { MapPin, Phone, Globe, Users, Star, ArrowLeft, Building2 } from 'lucide-react'
+import DashboardReturnButton from '@/components/DashboardReturnButton'
 
 interface VenueProfile {
   id: string
@@ -63,6 +64,9 @@ export default function VenueProfilePage({ params }: { params: { id: string } })
             <ArrowLeft className="w-4 h-4" />
             Back to Directory
           </Link>
+          <div className="ml-auto">
+            <DashboardReturnButton />
+          </div>
         </div>
       </nav>
 

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
+import DashboardReturnButton from '@/components/DashboardReturnButton'
 
 const CATEGORY_LABELS: Record<string, string> = {
   dj: '🎵 DJ',
@@ -156,6 +157,7 @@ export default function VendorPublicProfile({ params }: { params: { id: string }
             >
               Book Now
             </button>
+            <DashboardReturnButton />
           </div>
         </div>
       </nav>

@@ -5,7 +5,8 @@ import Stripe from 'stripe';
 import * as nodemailer from 'nodemailer';
 import { CreateVendorInvoiceDto, UpdateVendorInvoiceDto, VendorInvoiceItemDto } from './dto/vendor-invoice.dto';
 
-const APP_FEE_RATE = 0.05; // 5% platform fee (charged on top of Stripe's standard processing fees)
+const APP_FEE_RATE = 0.05;           // 5% platform fee — vendor-to-client invoices
+const OWNER_BOOKING_FEE_RATE = 0.015; // 1.5% platform fee — owner-to-vendor invoices (1.5% above Stripe's processing fee)
 
 @Injectable()
 export class VendorInvoicesService {
@@ -118,12 +119,25 @@ export class VendorInvoicesService {
     const admin = this.supabaseService.getAdminClient();
     const vendorAccountId = await this.getVendorAccountId(userId);
 
-    const { data, error } = await admin
+
       .from('vendor_invoices')
       .select('*, vendor_invoice_items(*)')
       .eq('vendor_account_id', vendorAccountId)
+      .eq('invoice_type', 'client')
       .order('created_at', { ascending: false });
 
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  }
+
+  async listOwnerBookingInvoices(ownerAccountId: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const { data, error } = await admin
+      .from('vendor_invoices')
+      .select('*, vendor_invoice_items(*), vendor_accounts(business_name, email, phone), vendor_bookings(event_name, event_date, status)')
+      .eq('owner_account_id', ownerAccountId)
+      .eq('invoice_type', 'owner_booking')
+      .order('created_at', { ascending: false });
     if (error) throw new Error(error.message);
     return data ?? [];
   }
@@ -439,7 +453,8 @@ export class VendorInvoicesService {
 
     let feeCents = 0;
     if (hasConnect) {
-      feeCents = Math.round(amountCents * APP_FEE_RATE);
+      const feeRate = invoice.invoice_type === 'owner_booking' ? OWNER_BOOKING_FEE_RATE : APP_FEE_RATE;
+      feeCents = Math.round(amountCents * feeRate);
       sessionParams.payment_intent_data = {
         application_fee_amount: feeCents,
         transfer_data: { destination: vendor.stripe_account_id },

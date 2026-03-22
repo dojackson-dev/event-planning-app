@@ -300,7 +300,89 @@ export class VendorsService {
       }
     }
 
+    // Auto-create an owner-facing invoice when agreed_amount is set
+    if (ownerAccountId && dto.agreedAmount && Number(dto.agreedAmount) > 0) {
+      try {
+        await this.autoCreateOwnerBookingInvoice(data.id, vendor, dto, ownerAccountId, bookedByUserId);
+        this.logger.log(`Owner booking invoice auto-created for booking ${data.id}`);
+      } catch (invErr) {
+        this.logger.warn(`Failed to auto-create owner booking invoice: ${(invErr as Error).message}`);
+      }
+    }
+
     return data;
+  }
+
+  /**
+   * Auto-creates a vendor_invoice of type 'owner_booking' when an owner books a vendor.
+   * The invoice is from the vendor → to the owner. Fee: 1.5% above Stripe (platform takes 1.5%).
+   */
+  private async autoCreateOwnerBookingInvoice(
+    bookingId: string,
+    vendor: { id: string; business_name: string },
+    dto: CreateVendorBookingDto,
+    ownerAccountId: string,
+    ownerUserId: string,
+  ) {
+    const admin = this.supabaseService.getAdminClient();
+
+    // Fetch owner email from Supabase auth
+    const { data: { user }, error: userErr } = await admin.auth.admin.getUserById(ownerUserId);
+    if (userErr || !user?.email) throw new Error('Could not resolve owner email');
+
+    const ownerName = [
+      user.user_metadata?.first_name,
+      user.user_metadata?.last_name,
+    ].filter(Boolean).join(' ') || user.email;
+
+    // Sequential invoice number
+    const year = new Date().getFullYear();
+    const { count } = await admin
+      .from('vendor_invoices')
+      .select('*', { count: 'exact', head: true });
+    const seq = String((count ?? 0) + 1).padStart(5, '0');
+    const invoiceNumber = `BINV-${year}-${seq}`;
+
+    const amount = Number(dto.agreedAmount);
+    const issueDate = new Date().toISOString().split('T')[0];
+    const due = new Date();
+    due.setDate(due.getDate() + 14);
+    const dueDate = due.toISOString().split('T')[0];
+
+    const { data: invoice, error: invErr } = await admin
+      .from('vendor_invoices')
+      .insert({
+        vendor_account_id: vendor.id,
+        invoice_number: invoiceNumber,
+        client_name: ownerName,
+        client_email: user.email,
+        issue_date: issueDate,
+        due_date: dueDate,
+        subtotal: amount,
+        tax_rate: 0,
+        tax_amount: 0,
+        discount_amount: 0,
+        total_amount: amount,
+        amount_due: amount,
+        amount_paid: 0,
+        status: 'sent',
+        invoice_type: 'owner_booking',
+        owner_account_id: ownerAccountId,
+        vendor_booking_id: bookingId,
+        notes: `Auto-generated invoice for vendor booking: ${dto.eventName} on ${dto.eventDate}`,
+      })
+      .select()
+      .single();
+
+    if (invErr || !invoice) throw new Error(invErr?.message ?? 'Failed to insert owner booking invoice');
+
+    await admin.from('vendor_invoice_items').insert({
+      vendor_invoice_id: invoice.id,
+      description: `Vendor Services — ${vendor.business_name} · ${dto.eventName} (${dto.eventDate})`,
+      quantity: 1,
+      unit_price: amount,
+      amount,
+    });
   }
 
   async getVendorBookings(vendorUserId: string, status?: string) {

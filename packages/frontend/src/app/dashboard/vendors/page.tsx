@@ -17,6 +17,7 @@ import {
   AlertCircle,
   ChevronRight,
   Store,
+  CreditCard,
 } from 'lucide-react'
 
 const CATEGORIES = [
@@ -406,6 +407,12 @@ export default function DashboardVendorsPage() {
           </h1>
           <p className="text-gray-500 text-sm mt-0.5">Find and book event vendors for your venue</p>
         </div>
+        <Link
+          href="/dashboard/vendors/payments"
+          className="flex items-center gap-2 bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-2 rounded-lg text-sm font-medium hover:bg-indigo-100"
+        >
+          <CreditCard className="w-4 h-4" /> Vendor Payments
+        </Link>
       </div>
 
       {/* Tabs */}

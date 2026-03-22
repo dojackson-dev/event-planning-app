@@ -37,6 +37,24 @@ export class VendorInvoicesController {
     return user.id;
   }
 
+  private async getOwnerAccountId(userId: string): Promise<string | null> {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: membership } = await admin
+      .from('memberships')
+      .select('owner_account_id')
+      .eq('user_id', userId)
+      .eq('role', 'owner')
+      .single();
+    if (membership?.owner_account_id) return membership.owner_account_id;
+
+    const { data: ownerAccount } = await admin
+      .from('owner_accounts')
+      .select('id')
+      .eq('primary_owner_id', userId)
+      .single();
+    return ownerAccount?.id || null;
+  }
+
   // ─── PUBLIC routes (no auth) ─────────────────────────────────────────────────
 
   /** GET /vendor-invoices/public/:token — External client views their invoice */
@@ -68,6 +86,15 @@ export class VendorInvoicesController {
   async listInvoices(@Headers('authorization') auth: string) {
     const userId = await this.getUserId(auth);
     return this.vendorInvoicesService.listInvoices(userId);
+  }
+
+  /** GET /vendor-invoices/owner-bookings — Owner sees invoices they owe vendors */
+  @Get('owner-bookings')
+  async listOwnerBookingInvoices(@Headers('authorization') auth: string) {
+    const userId = await this.getUserId(auth);
+    const ownerAccountId = await this.getOwnerAccountId(userId);
+    if (!ownerAccountId) throw new UnauthorizedException('Not an owner account');
+    return this.vendorInvoicesService.listOwnerBookingInvoices(ownerAccountId);
   }
 
   /** GET /vendor-invoices/:id — Get single invoice */

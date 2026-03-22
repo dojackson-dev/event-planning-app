@@ -28,6 +28,7 @@ const STATUS_COLORS: Record<string, string> = {
   declined: 'bg-red-100 text-red-700',
   cancelled: 'bg-gray-100 text-gray-600',
   completed: 'bg-blue-100 text-blue-700',
+  paid: 'bg-emerald-100 text-emerald-700',
 }
 
 interface VendorProfile {
@@ -140,9 +141,9 @@ export default function VendorDashboard() {
   const stats = {
     pending: bookings.filter(b => b.status === 'pending').length,
     confirmed: bookings.filter(b => b.status === 'confirmed').length,
-    completed: bookings.filter(b => b.status === 'completed').length,
+    completed: bookings.filter(b => b.status === 'completed' || b.status === 'paid').length,
     revenue: bookings
-      .filter(b => b.payment_status === 'paid' || b.status === 'completed')
+      .filter(b => b.status === 'paid' || b.status === 'completed')
       .reduce((sum, b) => sum + (b.agreed_amount || 0), 0),
   }
 
@@ -274,6 +275,7 @@ export default function VendorDashboard() {
                 <option value="confirmed">Confirmed</option>
                 <option value="declined">Declined</option>
                 <option value="completed">Completed</option>
+                <option value="paid">Paid</option>
                 <option value="cancelled">Cancelled</option>
               </select>
             </div>
@@ -388,7 +390,7 @@ export default function VendorDashboard() {
 
         {/* EARNINGS TAB */}
         {activeTab === 'earnings' && (() => {
-          const paid = bookings.filter(b => b.payment_status === 'paid' || b.status === 'completed')
+          const paid = bookings.filter(b => b.status === 'paid' || b.status === 'completed')
           const confirmed = bookings.filter(b => b.status === 'confirmed')
           const totalEarned = paid.reduce((s, b) => s + (b.agreed_amount || 0), 0)
           const totalPending = confirmed.reduce((s, b) => s + (b.agreed_amount || 0), 0)

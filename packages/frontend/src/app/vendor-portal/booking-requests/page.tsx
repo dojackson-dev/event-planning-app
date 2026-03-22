@@ -5,7 +5,7 @@ import Link from 'next/link'
 import api from '@/lib/api'
 import {
   Calendar, User, Mail, Phone, MapPin, Clock,
-  CheckCircle2, XCircle, AlertCircle, Loader2, ChevronDown, DollarSign, FileText,
+  CheckCircle2, XCircle, AlertCircle, Loader2, ChevronDown, DollarSign, FileText, MessageSquare,
 } from 'lucide-react'
 
 interface BookingRequest {
@@ -22,6 +22,7 @@ interface BookingRequest {
   notes: string | null
   status: 'pending' | 'confirmed' | 'declined' | 'cancelled'
   quoted_amount: number | null
+  sms_opt_in: boolean
   created_at: string
 }
 
@@ -177,6 +178,11 @@ export default function BookingRequestsPage() {
                         {req.client_phone && (
                           <div className="flex items-center gap-2 text-gray-600">
                             <Phone className="w-4 h-4 text-gray-400" /> {req.client_phone}
+                            {req.sms_opt_in && (
+                              <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-200 font-medium">
+                                <MessageSquare className="w-3 h-3" /> SMS opt-in
+                              </span>
+                            )}
                           </div>
                         )}
                         {req.event_date && (

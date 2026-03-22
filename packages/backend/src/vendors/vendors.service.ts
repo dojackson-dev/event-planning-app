@@ -772,6 +772,7 @@ export class VendorsService {
         venue_name: dto.venueName ?? null,
         venue_address: dto.venueAddress ?? null,
         notes: dto.notes ?? null,
+        sms_opt_in: dto.smsOptIn ?? false,
         status: 'pending',
       })
       .select()

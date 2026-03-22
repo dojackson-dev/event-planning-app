@@ -122,6 +122,7 @@ export class SubmitBookingRequestDto {
   venueName?: string;
   venueAddress?: string;
   notes?: string;
+  smsOptIn?: boolean;
 }
 
 export class UpdateBookingRequestDto {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
-import { Calendar, User, Mail, Phone, MapPin, Clock, CheckCircle2, AlertCircle, Loader2, Building2, Send } from 'lucide-react'
+import { Calendar, User, Mail, Phone, MapPin, Clock, CheckCircle2, AlertCircle, Loader2, Building2, Send, MessageSquare } from 'lucide-react'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
@@ -50,6 +50,7 @@ export default function PublicBookingPage() {
   const [clientName, setClientName] = useState('')
   const [clientEmail, setClientEmail] = useState('')
   const [clientPhone, setClientPhone] = useState('')
+  const [smsOptIn, setSmsOptIn] = useState(true)
   const [eventName, setEventName] = useState('')
   const [eventDate, setEventDate] = useState('')
   const [startTime, setStartTime] = useState('')
@@ -92,6 +93,7 @@ export default function PublicBookingPage() {
           clientName,
           clientEmail,
           clientPhone: clientPhone || undefined,
+          smsOptIn: clientPhone ? smsOptIn : false,
           eventName: eventName || undefined,
           eventDate: eventDate || undefined,
           startTime: startTime || undefined,
@@ -256,6 +258,20 @@ export default function PublicBookingPage() {
                       className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>
+                  {clientPhone && (
+                    <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={smsOptIn}
+                        onChange={e => setSmsOptIn(e.target.checked)}
+                        className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span className="text-xs text-gray-500 flex items-center gap-1">
+                        <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
+                        Send me text updates when my request is confirmed or declined
+                      </span>
+                    </label>
+                  )}
                 </div>
               </div>
             </div>

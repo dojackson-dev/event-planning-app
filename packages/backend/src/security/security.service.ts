@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service.js';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 
 @Injectable()
 export class SecurityService {
-  constructor(private readonly supabaseService: SupabaseService) {}
+  constructor(
+    private readonly supabaseService: SupabaseService,
+    private readonly smsNotifications: SmsNotificationsService,
+  ) {}
 
   async findAll(supabase: SupabaseClient, ownerId: string): Promise<any[]> {
     const { data, error } = await supabase
@@ -42,9 +46,27 @@ export class SecurityService {
     const { data, error } = await supabase
       .from('security')
       .insert([{ ...securityData, owner_id: ownerId }])
-      .select()
+      .select('*, event:events(*)')
       .single();
     if (error) throw error;
+
+    // Notify the security personnel of their assignment
+    try {
+      const phone: string | null = data.phone ?? null;
+      const name: string = data.name ?? data.officer_name ?? 'Security Personnel';
+      const eventName: string = (data.event as any)?.name ?? 'the upcoming event';
+      const eventDate: string = (data.event as any)?.date
+        ? new Date((data.event as any).date).toLocaleDateString('en-US', {
+            weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+          })
+        : '';
+      const location: string | undefined =
+        (data.event as any)?.venue_name ?? (data.event as any)?.location ?? undefined;
+      await this.smsNotifications.securityAssigned(phone, name, eventName, eventDate, location);
+    } catch {
+      // SMS errors must never break security creation
+    }
+
     return data;
   }
 
@@ -54,9 +76,20 @@ export class SecurityService {
       .update(securityData)
       .eq('id', id)
       .eq('owner_id', ownerId)
-      .select()
+      .select('*, event:events(*)')
       .single();
     if (error) throw error;
+
+    // Notify the security personnel of the update
+    try {
+      const phone: string | null = data.phone ?? null;
+      const name: string = data.name ?? data.officer_name ?? 'Security Personnel';
+      const eventName: string = (data.event as any)?.name ?? 'the upcoming event';
+      await this.smsNotifications.securityUpdated(phone, name, eventName);
+    } catch {
+      // SMS errors must never break the update
+    }
+
     return data;
   }
 
@@ -66,9 +99,20 @@ export class SecurityService {
       .update({ arrival_time: new Date().toISOString() })
       .eq('id', id)
       .eq('owner_id', ownerId)
-      .select()
+      .select('*, event:events(*)')
       .single();
     if (error) throw error;
+
+    // Send arrival confirmation SMS
+    try {
+      const phone: string | null = data.phone ?? null;
+      const name: string = data.name ?? data.officer_name ?? 'Security Personnel';
+      const eventName: string = (data.event as any)?.name ?? 'the event';
+      await this.smsNotifications.securityArrivalRecorded(phone, name, eventName);
+    } catch {
+      // SMS errors must never break arrival recording
+    }
+
     return data;
   }
 

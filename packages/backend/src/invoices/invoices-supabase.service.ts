@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 
 export interface Invoice {
   id?: string;
@@ -54,7 +55,27 @@ export interface InvoiceItem {
 
 @Injectable()
 export class InvoicesService {
-  constructor(private readonly supabaseService: SupabaseService) {}
+  constructor(
+    private readonly supabaseService: SupabaseService,
+    private readonly smsNotifications: SmsNotificationsService,
+  ) {}
+
+  /**
+   * Look up the client phone number via the invoice's linked booking.
+   * Returns null if no booking or no phone on file.
+   */
+  private async lookupClientPhone(
+    supabase: SupabaseClient,
+    invoice: Invoice,
+  ): Promise<string | null> {
+    if (!invoice.booking_id) return null;
+    const { data: booking } = await supabase
+      .from('booking')
+      .select('contact_phone')
+      .eq('id', invoice.booking_id)
+      .single();
+    return (booking as any)?.contact_phone ?? null;
+  }
 
   private calculateInvoiceTotals(items: Partial<InvoiceItem>[], taxRate: number, discountAmount: number) {
     // Only revenue items count toward the client-facing invoice total
@@ -511,7 +532,39 @@ export class InvoicesService {
       updateData.paid_date = new Date().toISOString().split('T')[0];
     }
 
-    return this.update(supabase, userId, id, updateData);
+    const updated = await this.update(supabase, userId, id, updateData);
+
+    // ── SMS notifications ──────────────────────────────────────────────────
+    try {
+      const phone = await this.lookupClientPhone(supabase, updated);
+      const clientName = (updated as any).client_name || 'Valued Client';
+      if (status === 'sent') {
+        await this.smsNotifications.invoiceSent(
+          phone,
+          clientName,
+          updated.invoice_number,
+          updated.total_amount,
+        );
+      } else if (status === 'paid') {
+        await this.smsNotifications.invoicePaid(
+          phone,
+          clientName,
+          updated.invoice_number,
+          updated.total_amount,
+        );
+      } else if (status === 'overdue') {
+        await this.smsNotifications.invoiceOverdue(
+          phone,
+          clientName,
+          updated.invoice_number,
+          updated.amount_due,
+        );
+      }
+    } catch {
+      // SMS errors must never break the invoice update
+    }
+
+    return updated;
   }
 
   async recordPayment(supabase: SupabaseClient, userId: string, id: string, amount: number): Promise<Invoice> {
@@ -519,13 +572,40 @@ export class InvoicesService {
     const newAmountPaid = Number(invoice.amount_paid) + amount;
     
     const updateData: any = { amount_paid: newAmountPaid };
+    const isFullyPaid = newAmountPaid >= invoice.total_amount;
     
-    if (newAmountPaid >= invoice.total_amount) {
+    if (isFullyPaid) {
       updateData.status = 'paid';
       updateData.paid_date = new Date().toISOString().split('T')[0];
     }
 
-    return this.update(supabase, userId, id, updateData);
+    const updated = await this.update(supabase, userId, id, updateData);
+
+    // ── SMS notifications ──────────────────────────────────────────────────
+    try {
+      const phone = await this.lookupClientPhone(supabase, updated);
+      const clientName = (updated as any).client_name || 'Valued Client';
+      if (isFullyPaid) {
+        await this.smsNotifications.invoicePaid(
+          phone,
+          clientName,
+          updated.invoice_number,
+          updated.total_amount,
+        );
+      } else {
+        await this.smsNotifications.invoicePartialPayment(
+          phone,
+          clientName,
+          updated.invoice_number,
+          amount,
+          Number(updated.amount_due),
+        );
+      }
+    } catch {
+      // SMS errors must never break payment recording
+    }
+
+    return updated;
   }
 
   async delete(supabase: SupabaseClient, userId: string, id: string): Promise<void> {

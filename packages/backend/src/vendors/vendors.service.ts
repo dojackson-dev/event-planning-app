@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { TwilioService } from '../messaging/twilio.service';
+import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import {
   CreateVendorDto,
   UpdateVendorDto,
@@ -20,6 +21,7 @@ export class VendorsService {
   constructor(
     private readonly supabaseService: SupabaseService,
     private readonly twilioService: TwilioService,
+    private readonly smsNotifications: SmsNotificationsService,
   ) {}
 
   // ─────────────────────────────────────────────
@@ -289,10 +291,14 @@ export class VendorsService {
       const dateStr = new Date(dto.eventDate + 'T00:00:00').toLocaleDateString('en-US', {
         weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
       });
-      const amountStr = dto.agreedAmount ? ` — Agreed amount: $${Number(dto.agreedAmount).toLocaleString()}` : '';
-      const smsBody = `New booking request for ${vendor.business_name}! Event: "${dto.eventName}" on ${dateStr}${amountStr}. Log in to your vendor dashboard to confirm or decline.`;
       try {
-        await this.twilioService.sendSMS(vendor.phone, smsBody);
+        await this.smsNotifications.vendorBookingCreated(
+          vendor.phone,
+          vendor.business_name,
+          dto.eventName,
+          dateStr,
+          dto.agreedAmount ? Number(dto.agreedAmount) : undefined,
+        );
         this.logger.log(`SMS sent to vendor ${vendor.business_name} at ${vendor.phone}`);
       } catch (smsErr) {
         // Don't fail the booking if SMS fails
@@ -503,10 +509,37 @@ export class VendorsService {
       .from('vendor_bookings')
       .update(updatePayload)
       .eq('id', bookingId)
-      .select()
+      .select('*, vendor_accounts(business_name, phone)')
       .single();
 
     if (error) throw new BadRequestException(error.message);
+
+    // SMS notification when status changes
+    if (dto.status) {
+      try {
+        const vendor = (data.vendor_accounts as any);
+        const eventLabel = data.event_name ?? 'your event';
+        if (isVendor) {
+          // Vendor changed the status — notify the owner/booker via client_phone if present
+          const clientPhone: string | null = data.client_phone ?? null;
+          const clientName: string = data.client_name ?? 'Client';
+          await this.smsNotifications.vendorBookingStatusChanged(
+            clientPhone, clientName, eventLabel, dto.status,
+          );
+        } else {
+          // Owner changed the status — notify the vendor
+          await this.smsNotifications.vendorBookingStatusChanged(
+            vendor?.phone ?? null,
+            vendor?.business_name ?? 'Vendor',
+            eventLabel,
+            dto.status,
+          );
+        }
+      } catch {
+        // SMS errors must never break the booking update
+      }
+    }
+
     return data;
   }
 
@@ -750,7 +783,7 @@ export class VendorsService {
 
     const { data: link } = await admin
       .from('vendor_booking_links')
-      .select('id, vendor_account_id, vendor_accounts(phone)')
+      .select('id, vendor_account_id, vendor_accounts(phone, business_name)')
       .eq('slug', slug)
       .eq('is_active', true)
       .single();
@@ -784,9 +817,11 @@ export class VendorsService {
     const vendorPhone = (link.vendor_accounts as any)?.phone;
     if (vendorPhone) {
       try {
-        await this.twilioService.sendSMS(
+        await this.smsNotifications.vendorBookingCreated(
           vendorPhone,
-          `New booking request from ${dto.clientName}${dto.eventName ? ` for "${dto.eventName}"` : ''}${dto.eventDate ? ` on ${dto.eventDate}` : ''}. Log in to your vendor portal to respond.`,
+          (link.vendor_accounts as any)?.business_name ?? 'Vendor',
+          dto.eventName ?? 'New Event',
+          dto.eventDate ?? '',
         );
       } catch (err) {
         this.logger.warn('Failed to send SMS for booking request', (err as Error).message);
@@ -834,10 +869,28 @@ export class VendorsService {
       .from('vendor_booking_requests')
       .update(update)
       .eq('id', requestId)
-      .select()
+      .select('*, vendor_accounts(business_name)')
       .single();
 
     if (error) throw new BadRequestException(error.message);
+
+    // Notify client if request was confirmed or declined
+    if (dto.status && (data.client_phone || dto.status === 'confirmed' || dto.status === 'declined')) {
+      try {
+        const vendorName: string =
+          (data.vendor_accounts as any)?.business_name ?? 'Your vendor';
+        await this.smsNotifications.vendorBookingRequestUpdated(
+          data.client_phone ?? null,
+          data.client_name ?? 'Client',
+          dto.status,
+          vendorName,
+          dto.quotedAmount != null ? Number(dto.quotedAmount) : undefined,
+        );
+      } catch {
+        // SMS errors must never break the booking request update
+      }
+    }
+
     return data;
   }
 }

@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nest
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
 import { TwilioService } from '../messaging/twilio.service';
+import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import Stripe from 'stripe';
 import * as nodemailer from 'nodemailer';
 import { CreateVendorInvoiceDto, UpdateVendorInvoiceDto, VendorInvoiceItemDto } from './dto/vendor-invoice.dto';
@@ -19,6 +20,7 @@ export class VendorInvoicesService {
     private readonly supabaseService: SupabaseService,
     private readonly configService: ConfigService,
     private readonly twilioService: TwilioService,
+    private readonly smsNotifications: SmsNotificationsService,
   ) {
     const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (!secretKey) throw new Error('STRIPE_SECRET_KEY is not set');
@@ -427,15 +429,17 @@ export class VendorInvoicesService {
 
     // Send SMS with payment link if client has a phone number
     const clientPhone = (invoice as any).client_phone as string | null;
-    if (clientPhone) {
-      const amount = `$${Number(invoice.total_amount).toFixed(2)}`;
-      const smsBody = `Hi ${invoice.client_name}, you have an invoice for ${amount} from ${vendorName}. Pay here: ${payUrl}`;
-      try {
-        await this.twilioService.sendSMS(clientPhone, smsBody);
-        this.logger.log(`Invoice SMS sent to client at ${clientPhone}`);
-      } catch (smsErr: any) {
-        this.logger.warn(`Failed to send invoice SMS to ${clientPhone}: ${smsErr.message}`);
-      }
+    try {
+      await this.smsNotifications.vendorInvoiceSent(
+        clientPhone,
+        invoice.client_name,
+        vendorName,
+        invoice.total_amount,
+        payUrl,
+      );
+      if (clientPhone) this.logger.log(`Invoice SMS sent to client at ${clientPhone}`);
+    } catch (smsErr: any) {
+      this.logger.warn(`Failed to send invoice SMS to ${clientPhone}: ${smsErr?.message}`);
     }
 
     return { success: emailSent };
@@ -601,7 +605,7 @@ export class VendorInvoicesService {
     const admin = this.supabaseService.getAdminClient();
     const { data: invoice } = await admin
       .from('vendor_invoices')
-      .select('id, total_amount, amount_due, vendor_booking_id')
+      .select('id, total_amount, amount_due, vendor_booking_id, client_name, client_phone, vendor_account_id, vendor_accounts(business_name, phone)')
       .eq('stripe_checkout_session_id', sessionId)
       .maybeSingle();
 
@@ -631,6 +635,27 @@ export class VendorInvoicesService {
     }
 
     this.logger.log(`Vendor invoice ${invoice.id} marked paid via session ${sessionId}`);
+
+    // Notify vendor that payment was received
+    try {
+      const vendorPhone: string | null = (invoice.vendor_accounts as any)?.phone ?? null;
+      const vendorName: string = (invoice.vendor_accounts as any)?.business_name ?? 'Vendor';
+      await this.smsNotifications.vendorInvoicePaid(
+        vendorPhone,
+        vendorName,
+        invoice.client_name ?? 'Client',
+        invoice.total_amount,
+      );
+      // Also notify client that payment was received
+      await this.smsNotifications.paymentReceived(
+        invoice.client_phone ?? null,
+        invoice.client_name ?? 'Valued Client',
+        invoice.total_amount,
+        `your invoice from ${vendorName}`,
+      );
+    } catch {
+      // SMS errors must never break payment processing
+    }
   }
 
   // ─── Verify payment via Stripe (webhook fallback) ───────────────────────────

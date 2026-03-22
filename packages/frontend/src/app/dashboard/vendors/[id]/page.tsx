@@ -194,7 +194,6 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
     try {
       await api.post('/vendors/bookings', {
         vendorAccountId: params.id,
-        eventId: form.eventId || undefined,
         eventName: form.eventName,
         eventDate: form.eventDate,
         startTime: form.startTime || undefined,

@@ -69,6 +69,12 @@ export class VendorInvoicesController {
     return this.vendorInvoicesService.createCheckoutSession(token);
   }
 
+  /** POST /vendor-invoices/public/:token/verify-payment — Verify Stripe session and mark paid (webhook fallback) */
+  @Post('public/:token/verify-payment')
+  async verifyPayment(@Param('token') token: string) {
+    return this.vendorInvoicesService.verifyPayment(token);
+  }
+
   // ─── AUTHENTICATED routes ────────────────────────────────────────────────────
 
   /** POST /vendor-invoices — Create a new invoice */

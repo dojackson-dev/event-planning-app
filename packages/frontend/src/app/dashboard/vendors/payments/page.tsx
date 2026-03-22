@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useSearchParams, useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import {
   ArrowLeft,
@@ -52,16 +53,39 @@ const STATUS_CONFIG: Record<string, { label: string; classes: string; icon: Reac
 }
 
 export default function VendorPaymentsPage() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const [invoices, setInvoices] = useState<OwnerBookingInvoice[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [payingId, setPayingId] = useState<string | null>(null)
+  const [justPaid, setJustPaid] = useState(false)
 
-  useEffect(() => {
+  const fetchInvoices = () => {
+    setLoading(true)
     api.get('/vendor-invoices/owner-bookings')
       .then(r => setInvoices(r.data))
       .catch(e => setError(e.response?.data?.message || 'Failed to load vendor invoices'))
       .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    const paid = searchParams.get('paid') === 'true'
+    const token = searchParams.get('token')
+
+    if (paid && token) {
+      setJustPaid(true)
+      // Webhook fallback: verify payment with Stripe and mark as paid in DB
+      api.post(`/vendor-invoices/public/${token}/verify-payment`)
+        .catch(() => {})
+        .finally(() => {
+          fetchInvoices()
+          // Clean the URL params
+          router.replace('/dashboard/vendors/payments')
+        })
+    } else {
+      fetchInvoices()
+    }
   }, [])
 
   const handlePay = async (invoice: OwnerBookingInvoice) => {
@@ -96,6 +120,14 @@ export default function VendorPaymentsPage() {
           </p>
         </div>
       </div>
+
+      {/* Payment success banner */}
+      {justPaid && (
+        <div className="flex items-center gap-3 bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 mb-5 text-sm font-medium">
+          <CheckCircle className="w-5 h-5 flex-shrink-0" />
+          Payment successful! Your invoice has been marked as paid.
+        </div>
+      )}
 
       {/* Summary */}
       <div className="grid grid-cols-2 gap-4 mb-6">

@@ -41,6 +41,13 @@ export default function PublicInvoicePayPage() {
   const wasCanceled = searchParams.get('canceled') === 'true'
 
   useEffect(() => {
+    if (justPaid) {
+      // Verify with Stripe and mark paid in DB (webhook fallback for local dev)
+      fetch(`${API_URL}/vendor-invoices/public/${token}/verify-payment`, { method: 'POST' })
+        .then(r => r.json())
+        .then(d => d.paid && setInvoice(prev => prev ? { ...prev, status: 'paid' } : prev))
+        .catch(() => {})
+    }
     fetchInvoice()
   }, [token])
 

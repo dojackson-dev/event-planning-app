@@ -549,8 +549,12 @@ export class VendorInvoicesService {
           quantity: 1,
         },
       ],
-      success_url: `${this.frontendUrl}/pay/${token}?paid=true`,
-      cancel_url: `${this.frontendUrl}/pay/${token}?canceled=true`,
+      success_url: invoice.invoice_type === 'owner_booking'
+        ? `${this.frontendUrl}/dashboard/vendors/payments?paid=true&token=${token}`
+        : `${this.frontendUrl}/pay/${token}?paid=true`,
+      cancel_url: invoice.invoice_type === 'owner_booking'
+        ? `${this.frontendUrl}/dashboard/vendors/payments?canceled=true`
+        : `${this.frontendUrl}/pay/${token}?canceled=true`,
       metadata: { vendor_invoice_id: invoice.id, vendor_invoice_token: token },
       client_reference_id: invoice.id,
     };
@@ -605,5 +609,46 @@ export class VendorInvoicesService {
       .eq('id', invoice.id);
 
     this.logger.log(`Vendor invoice ${invoice.id} marked paid via session ${sessionId}`);
+  }
+
+  // ─── Verify payment via Stripe (webhook fallback) ───────────────────────────
+
+  async verifyPayment(token: string): Promise<{ status: string; paid: boolean }> {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: invoice } = await admin
+      .from('vendor_invoices')
+      .select('id, status, total_amount, stripe_checkout_session_id')
+      .eq('public_token', token)
+      .maybeSingle();
+
+    if (!invoice) throw new NotFoundException('Invoice not found');
+    if (invoice.status === 'paid') return { status: 'paid', paid: true };
+
+    // No session yet — can't verify
+    if (!invoice.stripe_checkout_session_id) return { status: invoice.status, paid: false };
+
+    // Ask Stripe directly
+    const session = await this.stripe.checkout.sessions.retrieve(invoice.stripe_checkout_session_id);
+    if (session.payment_status !== 'paid') return { status: invoice.status, paid: false };
+
+    // Stripe confirms paid — mark it now (webhook fallback)
+    const paymentIntentId = typeof session.payment_intent === 'string'
+      ? session.payment_intent
+      : (session.payment_intent as Stripe.PaymentIntent | null)?.id ?? null;
+
+    await admin
+      .from('vendor_invoices')
+      .update({
+        status: 'paid',
+        amount_paid: invoice.total_amount,
+        amount_due: 0,
+        paid_at: new Date().toISOString(),
+        stripe_payment_intent_id: paymentIntentId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', invoice.id);
+
+    this.logger.log(`Vendor invoice ${invoice.id} verified and marked paid (webhook fallback)`);
+    return { status: 'paid', paid: true };
   }
 }

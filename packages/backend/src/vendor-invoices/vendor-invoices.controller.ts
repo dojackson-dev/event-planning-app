@@ -94,7 +94,7 @@ export class VendorInvoicesController {
     const userId = await this.getUserId(auth);
     const ownerAccountId = await this.getOwnerAccountId(userId);
     if (!ownerAccountId) throw new UnauthorizedException('Not an owner account');
-    return this.vendorInvoicesService.listOwnerBookingInvoices(ownerAccountId);
+    return this.vendorInvoicesService.listOwnerBookingInvoices(ownerAccountId, userId);
   }
 
   /** GET /vendor-invoices/:id — Get single invoice */

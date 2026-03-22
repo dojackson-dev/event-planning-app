@@ -119,7 +119,7 @@ export class VendorInvoicesService {
     const admin = this.supabaseService.getAdminClient();
     const vendorAccountId = await this.getVendorAccountId(userId);
 
-
+    const { data, error } = await admin
       .from('vendor_invoices')
       .select('*, vendor_invoice_items(*)')
       .eq('vendor_account_id', vendorAccountId)
@@ -130,8 +130,51 @@ export class VendorInvoicesService {
     return data ?? [];
   }
 
-  async listOwnerBookingInvoices(ownerAccountId: string) {
+  async listOwnerBookingInvoices(ownerAccountId: string, ownerUserId: string) {
     const admin = this.supabaseService.getAdminClient();
+
+    // Find all owner vendor_bookings with an agreed_amount
+    const { data: bookings } = await admin
+      .from('vendor_bookings')
+      .select('id, vendor_account_id, event_name, event_date, agreed_amount, booked_by_user_id, vendor_accounts(id, business_name, phone)')
+      .eq('owner_account_id', ownerAccountId)
+      .not('agreed_amount', 'is', null)
+      .gt('agreed_amount', 0);
+
+    if (bookings && bookings.length > 0) {
+      // Find which bookings already have an invoice
+      const { data: existingInvoices } = await admin
+        .from('vendor_invoices')
+        .select('vendor_booking_id')
+        .eq('owner_account_id', ownerAccountId)
+        .eq('invoice_type', 'owner_booking')
+        .not('vendor_booking_id', 'is', null);
+
+      const invoicedBookingIds = new Set((existingInvoices ?? []).map((i: any) => i.vendor_booking_id));
+
+      // Auto-create invoices for any bookings that don't have one
+      for (const booking of bookings) {
+        if (!invoicedBookingIds.has(booking.id)) {
+          const vendor = booking.vendor_accounts as any;
+          if (!vendor) continue;
+          try {
+            const userId = booking.booked_by_user_id ?? ownerUserId;
+            await this.autoCreateOwnerBookingInvoice(
+              booking.id,
+              { id: vendor.id, business_name: vendor.business_name },
+              { vendorAccountId: vendor.id, eventName: booking.event_name ?? 'Vendor Event', eventDate: booking.event_date, agreedAmount: Number(booking.agreed_amount) } as any,
+              ownerAccountId,
+              userId,
+            );
+            this.logger.log(`Backfilled owner booking invoice for booking ${booking.id}`);
+          } catch (e) {
+            this.logger.warn(`Backfill invoice failed for booking ${booking.id}: ${(e as Error).message}`);
+          }
+        }
+      }
+    }
+
+    // Return all owner_booking invoices for this owner
     const { data, error } = await admin
       .from('vendor_invoices')
       .select('*, vendor_invoice_items(*), vendor_accounts(business_name, email, phone), vendor_bookings(event_name, event_date, status)')
@@ -140,6 +183,67 @@ export class VendorInvoicesService {
       .order('created_at', { ascending: false });
     if (error) throw new Error(error.message);
     return data ?? [];
+  }
+
+  private async autoCreateOwnerBookingInvoice(
+    bookingId: string,
+    vendor: { id: string; business_name: string },
+    dto: { vendorAccountId: string; eventName: string; eventDate?: string; agreedAmount: number },
+    ownerAccountId: string,
+    ownerUserId: string,
+  ) {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: { user }, error: userErr } = await admin.auth.admin.getUserById(ownerUserId);
+    if (userErr || !user?.email) throw new Error('Could not resolve owner email');
+
+    const ownerName = [user.user_metadata?.first_name, user.user_metadata?.last_name]
+      .filter(Boolean).join(' ') || user.email;
+
+    const year = new Date().getFullYear();
+    const { count } = await admin.from('vendor_invoices').select('*', { count: 'exact', head: true });
+    const seq = String((count ?? 0) + 1).padStart(5, '0');
+    const invoiceNumber = `BINV-${year}-${seq}`;
+
+    const amount = Number(dto.agreedAmount);
+    const issueDate = new Date().toISOString().split('T')[0];
+    const due = new Date();
+    due.setDate(due.getDate() + 14);
+    const dueDate = due.toISOString().split('T')[0];
+
+    const { data: invoice, error: invErr } = await admin
+      .from('vendor_invoices')
+      .insert({
+        vendor_account_id: vendor.id,
+        invoice_number: invoiceNumber,
+        client_name: ownerName,
+        client_email: user.email,
+        issue_date: issueDate,
+        due_date: dueDate,
+        subtotal: amount,
+        tax_rate: 0,
+        tax_amount: 0,
+        discount_amount: 0,
+        total_amount: amount,
+        amount_due: amount,
+        amount_paid: 0,
+        status: 'sent',
+        invoice_type: 'owner_booking',
+        owner_account_id: ownerAccountId,
+        vendor_booking_id: bookingId,
+        notes: `Auto-generated invoice for vendor booking: ${dto.eventName} on ${dto.eventDate ?? 'TBD'}`,
+      })
+      .select()
+      .single();
+
+    if (invErr || !invoice) throw new Error(invErr?.message ?? 'Failed to insert owner booking invoice');
+
+    await admin.from('vendor_invoice_items').insert({
+      vendor_invoice_id: invoice.id,
+      description: `Vendor Services — ${vendor.business_name} · ${dto.eventName} (${dto.eventDate ?? 'TBD'})`,
+      quantity: 1,
+      unit_price: amount,
+      amount,
+    });
   }
 
   async getInvoice(userId: string, invoiceId: string) {

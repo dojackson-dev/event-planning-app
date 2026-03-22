@@ -12,15 +12,17 @@ interface LineItem {
   unit_price: number
 }
 
-interface BookingRequest {
+// Unified booking option (from either vendor_bookings or vendor_booking_requests)
+interface BookingOption {
   id: string
-  client_name: string
-  client_email: string
+  source: 'booking' | 'request'
+  label: string
+  client_name: string | null
+  client_email: string | null
   client_phone: string | null
   event_name: string | null
   event_date: string | null
-  status: string
-  quoted_amount: number | null
+  amount: number | null
 }
 
 export default function NewVendorInvoicePage() {
@@ -28,7 +30,7 @@ export default function NewVendorInvoicePage() {
   const searchParams = useSearchParams()
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [bookingRequests, setBookingRequests] = useState<BookingRequest[]>([])
+  const [bookingOptions, setBookingOptions] = useState<BookingOption[]>([])
   const [selectedBookingId, setSelectedBookingId] = useState<string>('')
 
   const [clientName, setClientName] = useState(() => searchParams.get('clientName') || '')
@@ -46,43 +48,78 @@ export default function NewVendorInvoicePage() {
   const preselectedBookingId = searchParams.get('bookingId') || ''
 
   useEffect(() => {
-    const fetchBookingRequests = async () => {
+    const fetchAll = async () => {
+      const combined: BookingOption[] = []
       try {
-        const res = await api.get('/vendors/booking-requests/mine')
-        const all: BookingRequest[] = res.data || []
-        const active = all.filter(r => r.status !== 'declined' && r.status !== 'cancelled')
-        setBookingRequests(active)
-        // Auto-select and auto-fill if bookingId in URL
-        if (preselectedBookingId) {
-          setSelectedBookingId(preselectedBookingId)
-          const req = active.find(r => r.id === preselectedBookingId)
-          if (req) {
-            setClientName(req.client_name)
-            setClientEmail(req.client_email)
-            if (req.client_phone) setClientPhone(req.client_phone)
-            if (req.quoted_amount) {
-              setItems([{ description: req.event_name || 'Vendor Services', quantity: 1, unit_price: Number(req.quoted_amount) }])
-            }
+        // Fetch owner-created bookings (vendor_bookings)
+        const res1 = await api.get('/vendors/bookings/mine')
+        const bookings: any[] = res1.data || []
+        bookings
+          .filter(b => b.status !== 'cancelled')
+          .forEach(b => {
+            const clientLabel = b.client_name || b.event_name || 'Unnamed Booking'
+            combined.push({
+              id: b.id,
+              source: 'booking',
+              label: `${clientLabel}${b.event_name && b.client_name ? ` — ${b.event_name}` : ''}${b.event_date ? ` (${b.event_date})` : ''}${b.agreed_amount ? ` · $${Number(b.agreed_amount).toFixed(2)}` : ''}`,
+              client_name: b.client_name,
+              client_email: b.client_email,
+              client_phone: b.client_phone,
+              event_name: b.event_name,
+              event_date: b.event_date,
+              amount: b.agreed_amount ? Number(b.agreed_amount) : null,
+            })
+          })
+      } catch { /* silently ignore */ }
+      try {
+        // Fetch client-direct booking requests (vendor_booking_requests)
+        const res2 = await api.get('/vendors/booking-requests/mine')
+        const requests: any[] = res2.data || []
+        requests
+          .filter(r => r.status !== 'declined' && r.status !== 'cancelled')
+          .forEach(r => {
+            combined.push({
+              id: r.id,
+              source: 'request',
+              label: `${r.client_name}${r.event_name ? ` — ${r.event_name}` : ''}${r.event_date ? ` (${r.event_date})` : ''}${r.quoted_amount ? ` · $${Number(r.quoted_amount).toFixed(2)}` : ''} [Request]`,
+              client_name: r.client_name,
+              client_email: r.client_email,
+              client_phone: r.client_phone,
+              event_name: r.event_name,
+              event_date: r.event_date,
+              amount: r.quoted_amount ? Number(r.quoted_amount) : null,
+            })
+          })
+      } catch { /* silently ignore */ }
+      setBookingOptions(combined)
+      // Auto-select and auto-fill if bookingId in URL
+      if (preselectedBookingId) {
+        setSelectedBookingId(preselectedBookingId)
+        const opt = combined.find(o => o.id === preselectedBookingId)
+        if (opt) {
+          if (opt.client_name) setClientName(opt.client_name)
+          if (opt.client_email) setClientEmail(opt.client_email)
+          if (opt.client_phone) setClientPhone(opt.client_phone)
+          if (opt.amount) {
+            setItems([{ description: opt.event_name || 'Vendor Services', quantity: 1, unit_price: opt.amount }])
           }
         }
-      } catch {
-        // silently fail
       }
     }
-    fetchBookingRequests()
+    fetchAll()
   }, [])
 
-  // When a booking is selected, pre-fill client fields
+  // When a booking is selected from dropdown, pre-fill client fields
   const handleBookingSelect = (bookingId: string) => {
     setSelectedBookingId(bookingId)
     if (!bookingId) return
-    const req = bookingRequests.find(r => r.id === bookingId)
-    if (!req) return
-    setClientName(req.client_name)
-    setClientEmail(req.client_email)
-    if (req.client_phone) setClientPhone(req.client_phone)
-    if (req.quoted_amount && items.length === 1 && !items[0].description) {
-      setItems([{ description: req.event_name || 'Vendor Services', quantity: 1, unit_price: Number(req.quoted_amount) }])
+    const opt = bookingOptions.find(o => o.id === bookingId)
+    if (!opt) return
+    if (opt.client_name) setClientName(opt.client_name)
+    if (opt.client_email) setClientEmail(opt.client_email)
+    if (opt.client_phone) setClientPhone(opt.client_phone)
+    if (opt.amount && items.length === 1 && !items[0].description) {
+      setItems([{ description: opt.event_name || 'Vendor Services', quantity: 1, unit_price: opt.amount }])
     }
   }
 
@@ -158,8 +195,8 @@ export default function NewVendorInvoicePage() {
             <Calendar className="w-4 h-4 text-primary-500" />
             Link to a Booking Request <span className="text-xs font-normal text-gray-400">(optional — auto-fills client info)</span>
           </h2>
-          {bookingRequests.length === 0 ? (
-            <p className="text-sm text-gray-400 italic">No active booking requests found.</p>
+          {bookingOptions.length === 0 ? (
+            <p className="text-sm text-gray-400 italic">No active bookings found.</p>
           ) : (
             <div className="relative">
               <select
@@ -167,11 +204,9 @@ export default function NewVendorInvoicePage() {
                 onChange={e => handleBookingSelect(e.target.value)}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none pr-8 bg-white"
               >
-                <option value="">-- Select a booking request --</option>
-                {bookingRequests.map(r => (
-                  <option key={r.id} value={r.id}>
-                    {r.client_name}{r.event_name ? ` — ${r.event_name}` : ''}{r.event_date ? ` (${r.event_date})` : ''}{r.quoted_amount ? ` · $${Number(r.quoted_amount).toFixed(2)}` : ''}
-                  </option>
+                <option value="">-- Select a booking --</option>
+                {bookingOptions.map(o => (
+                  <option key={o.id} value={o.id}>{o.label}</option>
                 ))}
               </select>
               <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />

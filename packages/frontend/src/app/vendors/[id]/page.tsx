@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import DashboardReturnButton from '@/components/DashboardReturnButton'
+import { Phone, Mail, User, MessageSquare } from 'lucide-react'
 
 const CATEGORY_LABELS: Record<string, string> = {
   dj: '🎵 DJ',
@@ -48,6 +49,10 @@ interface Review {
 }
 
 interface BookingForm {
+  clientName: string
+  clientEmail: string
+  clientPhone: string
+  smsOptIn: boolean
   eventName: string
   eventDate: string
   startTime: string
@@ -63,6 +68,7 @@ export default function VendorPublicProfile({ params }: { params: { id: string }
   const [loading, setLoading] = useState(true)
   const [bookingOpen, setBookingOpen] = useState(false)
   const [bookingForm, setBookingForm] = useState<BookingForm>({
+    clientName: '', clientEmail: '', clientPhone: '', smsOptIn: true,
     eventName: '', eventDate: '', startTime: '', endTime: '', notes: '', agreedAmount: '',
   })
   const [bookingSubmitting, setBookingSubmitting] = useState(false)
@@ -97,6 +103,10 @@ export default function VendorPublicProfile({ params }: { params: { id: string }
     try {
       await api.post('/vendors/bookings', {
         vendorAccountId: params.id,
+        clientName: bookingForm.clientName || undefined,
+        clientEmail: bookingForm.clientEmail || undefined,
+        clientPhone: bookingForm.clientPhone || undefined,
+        smsOptIn: bookingForm.clientPhone ? bookingForm.smsOptIn : false,
         eventName: bookingForm.eventName,
         eventDate: bookingForm.eventDate,
         startTime: bookingForm.startTime || undefined,
@@ -106,7 +116,7 @@ export default function VendorPublicProfile({ params }: { params: { id: string }
       })
       setBookingSuccess(true)
       setBookingOpen(false)
-      setBookingForm({ eventName: '', eventDate: '', startTime: '', endTime: '', notes: '', agreedAmount: '' })
+      setBookingForm({ clientName: '', clientEmail: '', clientPhone: '', smsOptIn: true, eventName: '', eventDate: '', startTime: '', endTime: '', notes: '', agreedAmount: '' })
     } catch (err: any) {
       setBookingError(err.response?.data?.message || 'Failed to send booking request')
     } finally {
@@ -343,6 +353,67 @@ export default function VendorPublicProfile({ params }: { params: { id: string }
               {bookingError && <div className="bg-red-50 text-red-700 rounded p-3 text-sm mb-4">{bookingError}</div>}
 
               <form onSubmit={handleBookingSubmit} className="space-y-4">
+                {/* Client Info */}
+                <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Your Information</p>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Your Name</label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="text"
+                        value={bookingForm.clientName}
+                        onChange={e => setBookingForm(f => ({ ...f, clientName: e.target.value }))}
+                        placeholder="Jane Doe"
+                        className="w-full pl-9 pr-3 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Your Email</label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="email"
+                        value={bookingForm.clientEmail}
+                        onChange={e => setBookingForm(f => ({ ...f, clientEmail: e.target.value }))}
+                        placeholder="you@example.com"
+                        className="w-full pl-9 pr-3 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Your Phone {bookingForm.smsOptIn ? <span className="text-red-500">*</span> : <span className="text-gray-400">(optional)</span>}
+                    </label>
+                    <div className="relative">
+                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="tel"
+                        value={bookingForm.clientPhone}
+                        onChange={e => setBookingForm(f => ({ ...f, clientPhone: e.target.value }))}
+                        placeholder="(555) 000-0000"
+                        className="w-full pl-9 pr-3 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
+                      />
+                    </div>
+                    <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={bookingForm.smsOptIn}
+                        onChange={e => setBookingForm(f => ({ ...f, smsOptIn: e.target.checked }))}
+                        className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <span className="text-xs text-gray-500 flex items-center gap-1">
+                        <MessageSquare className="w-3.5 h-3.5 text-primary-400" />
+                        Text me when my booking is confirmed
+                      </span>
+                    </label>
+                    {bookingForm.smsOptIn && !bookingForm.clientPhone && (
+                      <p className="text-xs text-amber-600 mt-1">Enter your phone number above to receive texts.</p>
+                    )}
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Event Name *</label>
                   <input

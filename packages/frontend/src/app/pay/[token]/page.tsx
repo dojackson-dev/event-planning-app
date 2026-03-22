@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
-import { FileText, CheckCircle2, Loader2, AlertCircle, CreditCard, Lock, Building2 } from 'lucide-react'
+import Link from 'next/link'
+import { FileText, CheckCircle2, Loader2, AlertCircle, CreditCard, Lock, Building2, ArrowLeft } from 'lucide-react'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
@@ -103,6 +104,16 @@ export default function PublicInvoicePayPage() {
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
       <div className="max-w-lg mx-auto">
+        {/* Back to dashboard */}
+        <div className="mb-5">
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" /> Back to Dashboard
+          </Link>
+        </div>
+
         {/* Vendor branding */}
         <div className="text-center mb-6">
           {vendor?.profile_image_url ? (
@@ -197,9 +208,17 @@ export default function PublicInvoicePayPage() {
           {/* CTA */}
           <div className="px-6 py-5">
             {isPaid ? (
-              <div className="flex items-center gap-3 bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 text-sm font-medium">
-                <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
-                Payment received. Thank you!
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 text-sm font-medium">
+                  <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+                  Payment received. Thank you!
+                </div>
+                <Link
+                  href="/dashboard"
+                  className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white font-semibold py-3 rounded-xl hover:bg-gray-800 transition-colors text-sm"
+                >
+                  <ArrowLeft className="w-4 h-4" /> Go to Dashboard
+                </Link>
               </div>
             ) : isCancelled ? (
               <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 text-gray-500 rounded-xl px-4 py-3 text-sm">

@@ -141,7 +141,7 @@ export class OwnerController {
     // Get first venue
     const { data: venue, error } = await admin
       .from('venues')
-      .select('id, name, address, city, state, zip_code, phone, email, capacity, description')
+      .select('id, name, address, city, state, zip_code, phone, website, capacity, description')
       .eq('owner_account_id', ownerAccountId)
       .order('id', { ascending: true })
       .limit(1)
@@ -171,7 +171,7 @@ export class OwnerController {
       state?: string;
       zipCode?: string;
       phone?: string;
-      email?: string;
+      website?: string;
       capacity?: number;
       description?: string;
     },
@@ -191,14 +191,14 @@ export class OwnerController {
       .limit(1)
       .maybeSingle();
 
-    const updateData: Record<string, any> = { updated_at: new Date().toISOString() };
+    const updateData: Record<string, any> = {};
     if (body.name !== undefined) updateData.name = body.name;
     if (body.address !== undefined) updateData.address = body.address;
     if (body.city !== undefined) updateData.city = body.city;
     if (body.state !== undefined) updateData.state = body.state;
     if (body.zipCode !== undefined) updateData.zip_code = body.zipCode;
     if (body.phone !== undefined) updateData.phone = body.phone;
-    if (body.email !== undefined) updateData.email = body.email;
+    if (body.website !== undefined) updateData.website = body.website;
     if (body.capacity !== undefined) updateData.capacity = body.capacity || null;
     if (body.description !== undefined) updateData.description = body.description;
 
@@ -222,7 +222,7 @@ export class OwnerController {
           state: body.state,
           zip_code: body.zipCode,
           phone: body.phone,
-          email: body.email,
+          website: body.website,
           capacity: body.capacity || null,
           description: body.description,
         });

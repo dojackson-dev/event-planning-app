@@ -44,7 +44,7 @@ export default function SettingsPage() {
   const [venueState, setVenueState] = useState('')
   const [venueZipCode, setVenueZipCode] = useState('')
   const [venuePhone, setVenuePhone] = useState('')
-  const [venueEmail, setVenueEmail] = useState('')
+  const [venueWebsite, setVenueWebsite] = useState('')
   const [venueCapacity, setVenueCapacity] = useState('')
   const [venueDescription, setVenueDescription] = useState('')
   const [venueLoaded, setVenueLoaded] = useState(false)
@@ -98,7 +98,7 @@ export default function SettingsPage() {
         setVenueState(v.state || '')
         setVenueZipCode(v.zip_code || '')
         setVenuePhone(v.phone || '')
-        setVenueEmail(v.email || '')
+        setVenueWebsite(v.website || '')
         setVenueCapacity(v.capacity ? String(v.capacity) : '')
         setVenueDescription(v.description || '')
       }
@@ -196,7 +196,7 @@ export default function SettingsPage() {
         state: venueState,
         zipCode: venueZipCode,
         phone: venuePhone,
-        email: venueEmail,
+        website: venueWebsite,
         capacity: venueCapacity ? parseInt(venueCapacity, 10) : undefined,
         description: venueDescription,
       })
@@ -520,11 +520,11 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Venue Email</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Venue Website</label>
                   <input
-                    type="email" value={venueEmail} onChange={e => setVenueEmail(e.target.value)}
+                    type="url" value={venueWebsite} onChange={e => setVenueWebsite(e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                    placeholder="bookings@myvenue.com"
+                    placeholder="https://myvenue.com"
                   />
                 </div>
               </div>

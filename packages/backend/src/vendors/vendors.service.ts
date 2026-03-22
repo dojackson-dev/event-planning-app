@@ -276,7 +276,11 @@ export class VendorsService {
       .select()
       .single();
 
-    if (error) throw new BadRequestException(error.message);
+    if (error) {
+      this.logger.error(`Vendor booking insert failed: ${JSON.stringify({ code: error.code, message: error.message, details: error.details, hint: error.hint })}`);
+      this.logger.error(`Insert payload: vendor=${dto.vendorAccountId}, owner=${ownerAccountId}, user=${bookedByUserId}, event=${dto.eventName}, date=${dto.eventDate}`);
+      throw new BadRequestException(error.message);
+    }
 
     this.logger.log(`Vendor booking created: vendor ${dto.vendorAccountId} by user ${bookedByUserId}`);
 

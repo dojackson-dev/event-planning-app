@@ -208,7 +208,8 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
         clientName: '', clientEmail: '', clientPhone: '',
       })
     } catch (err: any) {
-      setBookingError(err.response?.data?.message || 'Failed to send booking request')
+      console.error('Booking 400 error — full response:', err.response?.data)
+      setBookingError(err.response?.data?.message || err.message || 'Failed to send booking request')
     } finally {
       setBookingSubmitting(false)
     }

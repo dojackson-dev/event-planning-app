@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
+import { TwilioService } from '../messaging/twilio.service';
 import Stripe from 'stripe';
 import * as nodemailer from 'nodemailer';
 import { CreateVendorInvoiceDto, UpdateVendorInvoiceDto, VendorInvoiceItemDto } from './dto/vendor-invoice.dto';
@@ -17,6 +18,7 @@ export class VendorInvoicesService {
   constructor(
     private readonly supabaseService: SupabaseService,
     private readonly configService: ConfigService,
+    private readonly twilioService: TwilioService,
   ) {
     const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (!secretKey) throw new Error('STRIPE_SECRET_KEY is not set');
@@ -421,6 +423,19 @@ export class VendorInvoicesService {
         .from('vendor_invoices')
         .update({ status: 'sent', updated_at: new Date().toISOString() })
         .eq('id', invoiceId);
+    }
+
+    // Send SMS with payment link if client has a phone number
+    const clientPhone = (invoice as any).client_phone as string | null;
+    if (clientPhone) {
+      const amount = `$${Number(invoice.total_amount).toFixed(2)}`;
+      const smsBody = `Hi ${invoice.client_name}, you have an invoice for ${amount} from ${vendorName}. Pay here: ${payUrl}`;
+      try {
+        await this.twilioService.sendSMS(clientPhone, smsBody);
+        this.logger.log(`Invoice SMS sent to client at ${clientPhone}`);
+      } catch (smsErr: any) {
+        this.logger.warn(`Failed to send invoice SMS to ${clientPhone}: ${smsErr.message}`);
+      }
     }
 
     return { success: emailSent };

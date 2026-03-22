@@ -83,6 +83,10 @@ export default function PublicBookingPage() {
       setError('Your name and email are required.')
       return
     }
+    if (smsOptIn && !clientPhone.trim()) {
+      setError('Please enter a phone number to receive text updates, or uncheck the text opt-in.')
+      return
+    }
 
     setSubmitting(true)
     try {
@@ -247,7 +251,9 @@ export default function PublicBookingPage() {
                   </div>
                 </div>
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Phone (optional)</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Phone {smsOptIn ? <span className="text-red-500">*</span> : <span className="text-gray-400">(optional)</span>}
+                  </label>
                   <div className="relative">
                     <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input
@@ -258,19 +264,20 @@ export default function PublicBookingPage() {
                       className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>
-                  {clientPhone && (
-                    <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={smsOptIn}
-                        onChange={e => setSmsOptIn(e.target.checked)}
-                        className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                      />
-                      <span className="text-xs text-gray-500 flex items-center gap-1">
-                        <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
-                        Send me text updates when my request is confirmed or declined
-                      </span>
-                    </label>
+                  <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={smsOptIn}
+                      onChange={e => setSmsOptIn(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span className="text-xs text-gray-500 flex items-center gap-1">
+                      <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
+                      Text me when my request is confirmed or declined
+                    </span>
+                  </label>
+                  {smsOptIn && !clientPhone && (
+                    <p className="text-xs text-amber-600 mt-1">Enter your phone number above to receive texts.</p>
                   )}
                 </div>
               </div>

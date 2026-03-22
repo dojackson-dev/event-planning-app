@@ -395,7 +395,7 @@ export class VendorsService {
       .eq('user_id', vendorUserId)
       .single();
 
-    if (!vendor) throw new NotFoundException('Vendor account not found');
+    if (!vendor) return [];  // user has no vendor account — return empty instead of 404
 
     let query = admin
       .from('vendor_bookings')

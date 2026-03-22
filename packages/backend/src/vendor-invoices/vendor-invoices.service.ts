@@ -587,7 +587,7 @@ export class VendorInvoicesService {
     const admin = this.supabaseService.getAdminClient();
     const { data: invoice } = await admin
       .from('vendor_invoices')
-      .select('id, total_amount, amount_due')
+      .select('id, total_amount, amount_due, vendor_booking_id')
       .eq('stripe_checkout_session_id', sessionId)
       .maybeSingle();
 
@@ -608,6 +608,14 @@ export class VendorInvoicesService {
       })
       .eq('id', invoice.id);
 
+    // Also mark the associated vendor booking as paid
+    if (invoice.vendor_booking_id) {
+      await admin
+        .from('vendor_bookings')
+        .update({ status: 'paid', updated_at: new Date().toISOString() })
+        .eq('id', invoice.vendor_booking_id);
+    }
+
     this.logger.log(`Vendor invoice ${invoice.id} marked paid via session ${sessionId}`);
   }
 
@@ -617,7 +625,7 @@ export class VendorInvoicesService {
     const admin = this.supabaseService.getAdminClient();
     const { data: invoice } = await admin
       .from('vendor_invoices')
-      .select('id, status, total_amount, stripe_checkout_session_id')
+      .select('id, status, total_amount, stripe_checkout_session_id, vendor_booking_id')
       .eq('public_token', token)
       .maybeSingle();
 
@@ -647,6 +655,14 @@ export class VendorInvoicesService {
         updated_at: new Date().toISOString(),
       })
       .eq('id', invoice.id);
+
+    // Also mark the associated vendor booking as paid
+    if (invoice.vendor_booking_id) {
+      await admin
+        .from('vendor_bookings')
+        .update({ status: 'paid', updated_at: new Date().toISOString() })
+        .eq('id', invoice.vendor_booking_id);
+    }
 
     this.logger.log(`Vendor invoice ${invoice.id} verified and marked paid (webhook fallback)`);
     return { status: 'paid', paid: true };

@@ -55,7 +55,7 @@ interface VendorBooking {
   event_date: string
   start_time: string
   end_time: string
-  status: 'pending' | 'confirmed' | 'declined' | 'cancelled' | 'completed'
+  status: 'pending' | 'confirmed' | 'declined' | 'cancelled' | 'completed' | 'paid'
   agreed_amount: number
   deposit_amount: number
   notes: string
@@ -86,6 +86,7 @@ const INVOICE_STATUS: Record<string, { label: string; color: string; icon: React
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   pending:   { label: 'Pending',   color: 'bg-yellow-100 text-yellow-700 border-yellow-200', icon: <AlertCircle className="w-4 h-4" /> },
   confirmed: { label: 'Confirmed', color: 'bg-green-100 text-green-700 border-green-200',    icon: <CheckCircle2 className="w-4 h-4" /> },
+  paid:      { label: 'Paid',      color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: <DollarSign className="w-4 h-4" /> },
   declined:  { label: 'Declined',  color: 'bg-red-100 text-red-700 border-red-200',          icon: <XCircle className="w-4 h-4" /> },
   cancelled: { label: 'Cancelled', color: 'bg-gray-100 text-gray-600 border-gray-200',       icon: <XCircle className="w-4 h-4" /> },
   completed: { label: 'Completed', color: 'bg-blue-100 text-blue-700 border-blue-200',       icon: <CheckCircle2 className="w-4 h-4" /> },
@@ -112,6 +113,7 @@ export default function VendorPortalPage() {
   const [loadingAccount, setLoadingAccount] = useState(true)
   const [loadingBookings, setLoadingBookings] = useState(true)
   const [loadingInvoices, setLoadingInvoices] = useState(true)
+  const [bookingsError, setBookingsError] = useState('')
   const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'invoices'>('overview')
   const [statusFilter, setStatusFilter] = useState('')
   const [respondingId, setRespondingId] = useState<string | null>(null)
@@ -137,8 +139,9 @@ export default function VendorPortalPage() {
     try {
       const res = await api.get('/vendors/bookings/mine')
       setBookings(res.data || [])
-    } catch {
-      // silently fail
+      setBookingsError('')
+    } catch (e: any) {
+      setBookingsError(e.response?.data?.message || 'Failed to load bookings')
     } finally {
       setLoadingBookings(false)
     }
@@ -500,7 +503,7 @@ export default function VendorPortalPage() {
               {[
                 { label: 'Pending',   value: counts['pending']   || 0, color: 'text-yellow-600' },
                 { label: 'Confirmed', value: counts['confirmed'] || 0, color: 'text-green-600' },
-                { label: 'Completed', value: counts['completed'] || 0, color: 'text-blue-600' },
+                { label: 'Paid',      value: counts['paid']      || 0, color: 'text-emerald-600' },
                 { label: 'Total',     value: bookings.length,           color: 'text-gray-700' },
               ].map(s => (
                 <div key={s.label} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm text-center">
@@ -516,6 +519,7 @@ export default function VendorPortalPage() {
                 { value: '', label: `All (${bookings.length})` },
                 { value: 'pending',   label: `Pending (${counts['pending']   || 0})` },
                 { value: 'confirmed', label: `Confirmed (${counts['confirmed'] || 0})` },
+                { value: 'paid',      label: `Paid (${counts['paid']      || 0})` },
                 { value: 'completed', label: `Completed (${counts['completed'] || 0})` },
                 { value: 'declined',  label: `Declined (${counts['declined']  || 0})` },
                 { value: 'cancelled', label: `Cancelled (${counts['cancelled'] || 0})` },
@@ -538,6 +542,11 @@ export default function VendorPortalPage() {
               <div className="flex items-center justify-center py-20 text-gray-400">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mr-3" />
                 Loading bookings…
+              </div>
+            ) : bookingsError ? (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center text-red-600 text-sm">
+                <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-60" />
+                {bookingsError}
               </div>
             ) : filteredBookings.length === 0 ? (
               <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">

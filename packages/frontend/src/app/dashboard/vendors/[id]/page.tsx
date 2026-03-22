@@ -455,37 +455,37 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
               )}
 
               {/* Client Info */}
-              <div>
-                <p className="block text-sm font-medium text-gray-700 mb-2">Client Information</p>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Client Information</p>
+                <div className="grid grid-cols-1 gap-3">
                   <div>
-                    <label className="block text-xs text-gray-500 mb-1">Name</label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Client Name</label>
                     <input
                       type="text"
                       value={form.clientName}
                       onChange={e => setForm(p => ({ ...p, clientName: e.target.value }))}
                       placeholder="Client full name"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-500 mb-1">Email</label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Client Email</label>
                     <input
                       type="email"
                       value={form.clientEmail}
                       onChange={e => setForm(p => ({ ...p, clientEmail: e.target.value }))}
                       placeholder="client@email.com"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-500 mb-1">Phone</label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Client Phone</label>
                     <input
                       type="tel"
                       value={form.clientPhone}
                       onChange={e => setForm(p => ({ ...p, clientPhone: e.target.value }))}
                       placeholder="(555) 000-0000"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
                     />
                   </div>
                 </div>

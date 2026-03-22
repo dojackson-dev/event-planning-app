@@ -5,11 +5,12 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
-import { FileText, Plus, Send, Eye, CheckCircle2, Clock, XCircle, AlertCircle, DollarSign, ChevronRight } from 'lucide-react'
+import { FileText, Plus, Send, Eye, CheckCircle2, Clock, XCircle, AlertCircle, DollarSign, ChevronRight, Building2 } from 'lucide-react'
 
 interface VendorInvoice {
   id: string
   invoice_number: string
+  invoice_type: 'client' | 'owner_booking'
   client_name: string
   client_email: string
   total_amount: number
@@ -154,7 +155,14 @@ export default function VendorInvoicesPage() {
                     <div className="flex items-center gap-3">
                       <DollarSign className="w-8 h-8 text-primary-100 bg-primary-50 rounded-lg p-1.5 flex-shrink-0" />
                       <div>
-                        <p className="font-semibold text-gray-900">{inv.invoice_number}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-gray-900">{inv.invoice_number}</p>
+                          {inv.invoice_type === 'owner_booking' && (
+                            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 border border-violet-200 font-medium">
+                              <Building2 className="w-3 h-3" /> Owner Booking
+                            </span>
+                          )}
+                        </div>
                         <p className="text-sm text-gray-500">{inv.client_name} · {inv.client_email}</p>
                       </div>
                     </div>

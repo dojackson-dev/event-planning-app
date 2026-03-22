@@ -123,7 +123,6 @@ export class VendorInvoicesService {
       .from('vendor_invoices')
       .select('*, vendor_invoice_items(*)')
       .eq('vendor_account_id', vendorAccountId)
-      .eq('invoice_type', 'client')
       .order('created_at', { ascending: false });
 
     if (error) throw new Error(error.message);

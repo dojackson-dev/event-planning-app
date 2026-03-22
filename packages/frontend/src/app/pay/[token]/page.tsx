@@ -98,7 +98,7 @@ export default function PublicInvoicePayPage() {
   const isPaid = invoice.status === 'paid' || justPaid
   const isCancelled = invoice.status === 'cancelled'
   const vendor = invoice.vendor_accounts
-  const feeNote = '1.5% platform fee applies to payments processed via DoVenue Suite.'
+  const feeNote = '5% platform fee applies to payments processed via DoVenue Suite.'
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">

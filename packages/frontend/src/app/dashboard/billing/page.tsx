@@ -374,7 +374,7 @@ export default function BillingPage() {
               </div>
               <p className="text-sm text-gray-500">
                 Connect your Stripe account to accept payments from clients and pay vendors.
-                DoVenueSuite takes a 1.5% platform fee on each transaction.
+                DoVenueSuite takes a 5% platform fee on each transaction.
               </p>
               {connectStatus?.connectId && (
                 <p className="text-xs text-gray-400 mt-1 font-mono">{connectStatus.connectId}</p>

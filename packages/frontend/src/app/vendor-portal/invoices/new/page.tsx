@@ -342,6 +342,18 @@ export default function NewVendorInvoicePage() {
                 <span>Total</span>
                 <span>${total.toFixed(2)}</span>
               </div>
+              {total > 0 && (
+                <>
+                  <div className="flex justify-between text-sm text-orange-600">
+                    <span>Platform fee (5%)</span>
+                    <span>-${(total * 0.05).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm font-semibold text-green-700">
+                    <span>Your net payout</span>
+                    <span>${(total * 0.95).toFixed(2)}</span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 

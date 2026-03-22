@@ -163,6 +163,12 @@ export class VendorsController {
     return this.vendorsService.geocodeAutocomplete(query);
   }
 
+  /** GET /vendors/venue/:id - public venue profile */
+  @Get('venue/:id')
+  async getVenue(@Param('id') venueId: string) {
+    return this.vendorsService.getVenueById(venueId);
+  }
+
   /** GET /vendors/:id - public vendor profile */
   @Get(':id')
   async getVendor(@Param('id') vendorId: string) {

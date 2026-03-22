@@ -499,19 +499,26 @@ export default function VendorPortalPage() {
         {activeTab === 'bookings' && (
           <>
             {/* Stats row */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-              {[
-                { label: 'Pending',   value: counts['pending']   || 0, color: 'text-yellow-600' },
-                { label: 'Confirmed', value: counts['confirmed'] || 0, color: 'text-green-600' },
-                { label: 'Paid',      value: counts['paid']      || 0, color: 'text-emerald-600' },
-                { label: 'Total',     value: bookings.length,           color: 'text-gray-700' },
-              ].map(s => (
-                <div key={s.label} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm text-center">
-                  <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
+            {(() => {
+              const revenue = bookings
+                .filter(b => b.status === 'paid' || b.status === 'completed')
+                .reduce((sum, b) => sum + (Number(b.agreed_amount) || 0), 0)
+              return (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+                  {[
+                    { label: 'Pending',   value: String(counts['pending']   || 0),                                    color: 'text-yellow-600' },
+                    { label: 'Confirmed', value: String(counts['confirmed'] || 0),                                   color: 'text-green-600'  },
+                    { label: 'Completed', value: String((counts['completed'] || 0) + (counts['paid'] || 0)),         color: 'text-blue-600'   },
+                    { label: 'Revenue',   value: `$${revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: 'text-emerald-600' },
+                  ].map(s => (
+                    <div key={s.label} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm text-center">
+                      <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              )
+            })()}
 
             {/* Filter pills */}
             <div className="flex gap-2 flex-wrap mb-4">

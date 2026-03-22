@@ -399,17 +399,41 @@ export class VendorsService {
 
     let query = admin
       .from('vendor_bookings')
-      .select('*')
+      .select('*, vendor_invoices(id, status, invoice_type, vendor_booking_id)')
       .eq('vendor_account_id', vendor.id)
       .order('event_date', { ascending: true });
 
-    if (status) {
+    if (status && status !== 'paid') {
       query = query.eq('status', status);
     }
 
     const { data, error } = await query;
     if (error) throw new BadRequestException(error.message);
-    return data || [];
+
+    // Derive effective status: if any linked owner_booking invoice is paid → show as paid
+    const rows = (data || []).map((b: any) => {
+      const invoices: any[] = b.vendor_invoices ?? [];
+      const hasPaidInvoice = invoices.some(
+        (inv: any) => inv.invoice_type === 'owner_booking' && inv.status === 'paid' && inv.vendor_booking_id === b.id,
+      );
+      const effectiveStatus = hasPaidInvoice ? 'paid' : b.status;
+
+      // If effective status changed, backfill the DB row so future queries are correct
+      if (hasPaidInvoice && b.status !== 'paid') {
+        admin.from('vendor_bookings')
+          .update({ status: 'paid', updated_at: new Date().toISOString() })
+          .eq('id', b.id)
+          .then(() => {})
+          .catch(() => {});
+      }
+
+      const { vendor_invoices: _inv, ...rest } = b;
+      return { ...rest, status: effectiveStatus };
+    });
+
+    // Apply paid filter after derivation
+    if (status === 'paid') return rows.filter((r: any) => r.status === 'paid');
+    return rows;
   }
 
   async getOwnerVendorBookings(ownerAccountId: string) {

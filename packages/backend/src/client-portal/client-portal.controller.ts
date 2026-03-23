@@ -9,6 +9,7 @@ import {
   Logger,
   Param,
   Put,
+  Query,
 } from '@nestjs/common';
 import { ClientAuthService } from './client-auth.service';
 import { ClientPortalService } from './client-portal.service';
@@ -63,7 +64,7 @@ export class ClientPortalController {
   @Get('overview')
   async getOverview(@Headers('x-client-token') token: string) {
     const session = this.requireSession(token);
-    return this.clientPortalService.getOverview(session.clientId);
+    return this.clientPortalService.getOverview(session.clientId, session.phone);
   }
 
   // ── Bookings ──────────────────────────────────────────────────────────────
@@ -71,7 +72,7 @@ export class ClientPortalController {
   @Get('bookings')
   async getBookings(@Headers('x-client-token') token: string) {
     const session = this.requireSession(token);
-    return this.clientPortalService.getBookings(session.clientId);
+    return this.clientPortalService.getBookings(session.clientId, session.phone);
   }
 
   // ── Events ────────────────────────────────────────────────────────────────
@@ -79,15 +80,51 @@ export class ClientPortalController {
   @Get('events')
   async getEvents(@Headers('x-client-token') token: string) {
     const session = this.requireSession(token);
-    return this.clientPortalService.getEvents(session.clientId);
+    return this.clientPortalService.getEvents(session.clientId, session.phone);
   }
 
   // ── Vendors ───────────────────────────────────────────────────────────────
 
+  @Get('vendors/browse')
+  async browseVendors(
+    @Headers('x-client-token') token: string,
+    @Query('category') category: string,
+  ) {
+    this.requireSession(token);
+    return this.clientPortalService.browseVendors(category || undefined);
+  }
+
+  @Post('vendors/book')
+  async bookVendor(
+    @Headers('x-client-token') token: string,
+    @Body() body: {
+      vendorAccountId: string;
+      eventName: string;
+      eventDate: string;
+      startTime?: string;
+      endTime?: string;
+      venueName?: string;
+      venueAddress?: string;
+      notes?: string;
+    },
+  ) {
+    const session = this.requireSession(token);
+    if (!body?.vendorAccountId || !body?.eventName || !body?.eventDate) {
+      throw new BadRequestException('vendorAccountId, eventName, and eventDate are required');
+    }
+    const clientName = [session.firstName, session.lastName].filter(Boolean).join(' ') || session.phone;
+    return this.clientPortalService.bookVendor(
+      session.clientId,
+      session.phone,
+      clientName,
+      body,
+    );
+  }
+
   @Get('vendors')
   async getVendors(@Headers('x-client-token') token: string) {
     const session = this.requireSession(token);
-    return this.clientPortalService.getVendors(session.clientId);
+    return this.clientPortalService.getVendors(session.clientId, session.phone);
   }
 
   // ── Contracts ─────────────────────────────────────────────────────────────
@@ -111,7 +148,7 @@ export class ClientPortalController {
   @Get('items')
   async getItems(@Headers('x-client-token') token: string) {
     const session = this.requireSession(token);
-    return this.clientPortalService.getItems(session.clientId);
+    return this.clientPortalService.getItems(session.clientId, session.phone);
   }
 
   // ── Messages ──────────────────────────────────────────────────────────────

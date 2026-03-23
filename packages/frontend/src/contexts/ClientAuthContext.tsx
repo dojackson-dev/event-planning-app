@@ -70,7 +70,14 @@ export function ClientAuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(CLIENT_SESSION_KEY, JSON.stringify(clientInfo))
     setClientToken(token)
     setClient(clientInfo)
-    router.push('/client-portal')
+    // Redirect to any pending page (e.g. vendor profile they were trying to book)
+    const pendingRedirect = sessionStorage.getItem('post_login_redirect')
+    if (pendingRedirect) {
+      sessionStorage.removeItem('post_login_redirect')
+      router.push(pendingRedirect)
+    } else {
+      router.push('/client-portal')
+    }
   }
 
   const clientLogout = () => {

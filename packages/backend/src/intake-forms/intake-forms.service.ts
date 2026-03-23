@@ -2,6 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { SupabaseClient } from '@supabase/supabase-js';
 
+function normalizePhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+  return `+${digits}`;
+}
+
 @Injectable()
 export class IntakeFormsService {
   constructor(private readonly supabaseService: SupabaseService) {}
@@ -136,6 +143,26 @@ export class IntakeFormsService {
       .update({ status: 'converted' })
       .eq('id', intakeFormId)
       .eq('user_id', userId);
+
+    // Link the booking to the client's user account if one exists with this phone.
+    // This allows the client to immediately see their event in the client portal.
+    if (intakeForm.contact_phone) {
+      const normalizedPhone = normalizePhone(intakeForm.contact_phone);
+      const { data: clientUser } = await supabaseAdmin
+        .from('users')
+        .select('id')
+        .eq('phone_number', normalizedPhone)
+        .eq('role', 'customer')
+        .maybeSingle();
+
+      if (clientUser) {
+        await supabaseAdmin
+          .from('booking')
+          .update({ user_id: clientUser.id })
+          .eq('id', booking.id);
+        booking.user_id = clientUser.id;
+      }
+    }
 
     return {
       booking,

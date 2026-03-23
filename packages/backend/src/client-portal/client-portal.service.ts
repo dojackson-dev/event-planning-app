@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 
 @Injectable()
@@ -8,14 +8,14 @@ export class ClientPortalService {
   constructor(private readonly supabaseService: SupabaseService) {}
 
   /** Overview stats for the client dashboard */
-  async getOverview(clientId: string) {
+  async getOverview(clientId: string, clientPhone: string) {
     const supabase = this.supabaseService.getAdminClient();
 
     const [bookingsRes, contractsRes, estimatesRes] = await Promise.all([
       supabase
         .from('booking')
         .select('id, status, total_price, deposit, payment_status, created_at, event:event(id, name, date, start_time, end_time, venue, status)')
-        .eq('user_id', clientId)
+        .or(`user_id.eq.${clientId},contact_phone.eq.${clientPhone}`)
         .order('created_at', { ascending: false }),
       supabase
         .from('contracts')
@@ -35,7 +35,7 @@ export class ClientPortalService {
   }
 
   /** All bookings for the client including event + vendor info */
-  async getBookings(clientId: string) {
+  async getBookings(clientId: string, clientPhone: string) {
     const supabase = this.supabaseService.getAdminClient();
 
     const { data, error } = await supabase
@@ -46,7 +46,7 @@ export class ClientPortalService {
           id, name, description, date, start_time, end_time, venue, location, max_guests, status, event_type
         )
       `)
-      .eq('user_id', clientId)
+      .or(`user_id.eq.${clientId},contact_phone.eq.${clientPhone}`)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -56,15 +56,15 @@ export class ClientPortalService {
     return data || [];
   }
 
-  /** All events linked to this client (via bookings) */
-  async getEvents(clientId: string) {
+  /** All events linked to this client (via bookings by user_id or contact_phone) */
+  async getEvents(clientId: string, clientPhone: string) {
     const supabase = this.supabaseService.getAdminClient();
 
-    // Get all event IDs the client is booked into
+    // Get all event IDs the client is associated with (by user_id OR phone)
     const { data: bookings, error: bErr } = await supabase
       .from('booking')
       .select('event_id')
-      .eq('user_id', clientId);
+      .or(`user_id.eq.${clientId},contact_phone.eq.${clientPhone}`);
 
     if (bErr || !bookings?.length) return [];
 
@@ -83,36 +83,135 @@ export class ClientPortalService {
     return events || [];
   }
 
-  /** Vendors booked for this client's events */
-  async getVendors(clientId: string) {
+  /** Vendors booked for this client's events, plus any vendors the client booked directly */
+  async getVendors(clientId: string, clientPhone: string) {
     const supabase = this.supabaseService.getAdminClient();
 
-    // Get event IDs
+    // Get event IDs from all bookings associated with this client (by user_id OR phone)
     const { data: bookings } = await supabase
       .from('booking')
       .select('event_id')
-      .eq('user_id', clientId);
+      .or(`user_id.eq.${clientId},contact_phone.eq.${clientPhone}`);
 
-    if (!bookings?.length) return [];
+    const eventIds = [...new Set((bookings || []).map((b: any) => b.event_id).filter(Boolean))];
 
-    const eventIds = [...new Set(bookings.map((b: any) => b.event_id))];
+    const vendorSelect = `
+      *,
+      vendor:vendor_accounts(
+        id, business_name, category, city, state, phone, email, website, instagram,
+        bio, hourly_rate, flat_rate, rate_description, is_verified, profile_image_url
+      )
+    `;
 
-    // Get vendor bookings for those events
+    // Run both queries in parallel: event-linked vendors and direct client bookings
+    const [eventVendorsRes, directVendorsRes] = await Promise.all([
+      eventIds.length
+        ? supabase
+            .from('vendor_bookings')
+            .select(vendorSelect)
+            .in('event_id', eventIds)
+            .in('status', ['confirmed', 'pending', 'completed'])
+            .order('created_at', { ascending: false })
+        : { data: [] as any[], error: null },
+      supabase
+        .from('vendor_bookings')
+        .select(vendorSelect)
+        .eq('client_user_id', clientId)
+        .order('created_at', { ascending: false }),
+    ]);
+
+    if (eventVendorsRes.error) {
+      this.logger.error('getVendors (event) error', eventVendorsRes.error);
+    }
+    if (directVendorsRes.error) {
+      this.logger.error('getVendors (direct) error', directVendorsRes.error);
+    }
+
+    // Merge and deduplicate by id
+    const combined = [
+      ...(eventVendorsRes.data || []),
+      ...(directVendorsRes.data || []),
+    ];
+    const seen = new Set<string>();
+    return combined.filter((b: any) => {
+      if (seen.has(b.id)) return false;
+      seen.add(b.id);
+      return true;
+    });
+  }
+
+  /** Book a vendor directly from the client portal */
+  async bookVendor(
+    clientId: string,
+    clientPhone: string,
+    clientName: string,
+    dto: {
+      vendorAccountId: string;
+      eventName: string;
+      eventDate: string;
+      startTime?: string;
+      endTime?: string;
+      venueName?: string;
+      venueAddress?: string;
+      notes?: string;
+    },
+  ) {
+    const supabase = this.supabaseService.getAdminClient();
+
+    const { data: vendor } = await supabase
+      .from('vendor_accounts')
+      .select('id, business_name')
+      .eq('id', dto.vendorAccountId)
+      .eq('is_active', true)
+      .single();
+
+    if (!vendor) throw new NotFoundException('Vendor not found');
+
     const { data, error } = await supabase
       .from('vendor_bookings')
-      .select(`
-        *,
-        vendor:vendors(
-          id, business_name, category, city, state, phone, email, website, instagram,
-          bio, hourly_rate, flat_rate, rate_description, is_verified, profile_image_url
-        )
-      `)
-      .in('event_id', eventIds)
-      .in('status', ['confirmed', 'pending'])
-      .order('created_at', { ascending: false });
+      .insert({
+        vendor_account_id: dto.vendorAccountId,
+        client_user_id: clientId,
+        client_name: clientName,
+        client_phone: clientPhone,
+        booked_by_user_id: clientId,
+        event_name: dto.eventName,
+        event_date: dto.eventDate,
+        start_time: dto.startTime ?? null,
+        end_time: dto.endTime ?? null,
+        venue_name: dto.venueName ?? null,
+        venue_address: dto.venueAddress ?? null,
+        notes: dto.notes ?? null,
+        status: 'pending',
+      })
+      .select()
+      .single();
 
+    if (error) throw new BadRequestException(error.message);
+
+    this.logger.log(`Client ${clientId} booked vendor ${dto.vendorAccountId}`);
+    return data;
+  }
+
+  /** Browse all active vendors (public directory, accessible within client portal) */
+  async browseVendors(category?: string) {
+    const supabase = this.supabaseService.getAdminClient();
+
+    let query = supabase
+      .from('vendor_accounts')
+      .select(
+        'id, business_name, category, city, state, bio, profile_image_url, hourly_rate, flat_rate, rate_description, is_verified, phone, email, website, instagram',
+      )
+      .eq('is_active', true)
+      .order('business_name', { ascending: true });
+
+    if (category) {
+      query = query.eq('category', category);
+    }
+
+    const { data, error } = await query;
     if (error) {
-      this.logger.error('getVendors error', error);
+      this.logger.error('browseVendors error', error);
       return [];
     }
     return data || [];
@@ -266,14 +365,14 @@ export class ClientPortalService {
   }
 
   /** Items & packages the owner offers */
-  async getItems(clientId: string) {
+  async getItems(clientId: string, clientPhone: string) {
     const supabase = this.supabaseService.getAdminClient();
 
-    // Get owner ID from bookings
+    // Get owner ID from bookings (by user_id or contact_phone)
     const { data: bookings } = await supabase
       .from('booking')
       .select('event:event(owner_id)')
-      .eq('user_id', clientId)
+      .or(`user_id.eq.${clientId},contact_phone.eq.${clientPhone}`)
       .limit(1);
 
     const ownerId = (bookings?.[0] as any)?.event?.owner_id;

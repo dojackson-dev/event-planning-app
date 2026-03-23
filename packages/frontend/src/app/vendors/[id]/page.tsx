@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
+import clientApi from '@/lib/clientApi'
 import DashboardReturnButton from '@/components/DashboardReturnButton'
-import { Phone, Mail, User, MessageSquare } from 'lucide-react'
+import { Phone, Mail, User, MessageSquare, LogIn } from 'lucide-react'
 
 const CATEGORY_LABELS: Record<string, string> = {
   dj: '🎵 DJ',
@@ -78,6 +79,24 @@ export default function VendorPublicProfile({ params }: { params: { id: string }
   const [reviewSubmitting, setReviewSubmitting] = useState(false)
   const [reviewError, setReviewError] = useState('')
 
+  // Detect whether the visitor is logged in as a client (via client portal)
+  const [isClientLoggedIn, setIsClientLoggedIn] = useState(false)
+  const [clientSession, setClientSession] = useState<{ firstName: string; lastName: string; phone: string } | null>(null)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('client_token')
+      const sessionStr = localStorage.getItem('client_session')
+      if (token && sessionStr) {
+        try {
+          const sess = JSON.parse(sessionStr)
+          setIsClientLoggedIn(true)
+          setClientSession(sess)
+        } catch { /* ignore */ }
+      }
+    }
+  }, [])
+
   useEffect(() => {
     const loadVendor = async () => {
       try {
@@ -101,19 +120,32 @@ export default function VendorPublicProfile({ params }: { params: { id: string }
     setBookingSubmitting(true)
     setBookingError('')
     try {
-      await api.post('/vendors/bookings', {
-        vendorAccountId: params.id,
-        clientName: bookingForm.clientName || undefined,
-        clientEmail: bookingForm.clientEmail || undefined,
-        clientPhone: bookingForm.clientPhone || undefined,
-        smsOptIn: bookingForm.clientPhone ? bookingForm.smsOptIn : false,
-        eventName: bookingForm.eventName,
-        eventDate: bookingForm.eventDate,
-        startTime: bookingForm.startTime || undefined,
-        endTime: bookingForm.endTime || undefined,
-        notes: bookingForm.notes || undefined,
-        agreedAmount: bookingForm.agreedAmount ? parseFloat(bookingForm.agreedAmount) : undefined,
-      })
+      if (isClientLoggedIn) {
+        // Client portal path — booking is tied to the client's account
+        await clientApi.post('/vendors/book', {
+          vendorAccountId: params.id,
+          eventName: bookingForm.eventName,
+          eventDate: bookingForm.eventDate,
+          startTime: bookingForm.startTime || undefined,
+          endTime: bookingForm.endTime || undefined,
+          notes: bookingForm.notes || undefined,
+        })
+      } else {
+        // Owner / anonymous path — captures contact info manually
+        await api.post('/vendors/bookings', {
+          vendorAccountId: params.id,
+          clientName: bookingForm.clientName || undefined,
+          clientEmail: bookingForm.clientEmail || undefined,
+          clientPhone: bookingForm.clientPhone || undefined,
+          smsOptIn: bookingForm.clientPhone ? bookingForm.smsOptIn : false,
+          eventName: bookingForm.eventName,
+          eventDate: bookingForm.eventDate,
+          startTime: bookingForm.startTime || undefined,
+          endTime: bookingForm.endTime || undefined,
+          notes: bookingForm.notes || undefined,
+          agreedAmount: bookingForm.agreedAmount ? parseFloat(bookingForm.agreedAmount) : undefined,
+        })
+      }
       setBookingSuccess(true)
       setBookingOpen(false)
       setBookingForm({ clientName: '', clientEmail: '', clientPhone: '', smsOptIn: true, eventName: '', eventDate: '', startTime: '', endTime: '', notes: '', agreedAmount: '' })
@@ -271,12 +303,44 @@ export default function VendorPublicProfile({ params }: { params: { id: string }
         <div className="bg-gradient-to-r from-primary-500 to-purple-600 rounded-xl p-6 mb-6 text-white text-center">
           <h2 className="text-xl font-bold mb-2">Ready to book {vendor.business_name}?</h2>
           <p className="text-primary-100 text-sm mb-4">Send a booking request and they'll confirm within 24 hours.</p>
-          <button
-            onClick={() => setBookingOpen(true)}
-            className="bg-white text-primary-700 font-bold px-8 py-3 rounded-xl hover:bg-primary-50 transition-colors"
-          >
-            Book This Vendor
-          </button>
+          {isClientLoggedIn ? (
+            <div className="space-y-2">
+              <p className="text-primary-200 text-xs">
+                Booking as <span className="font-semibold text-white">{[clientSession?.firstName, clientSession?.lastName].filter(Boolean).join(' ') || clientSession?.phone}</span>
+                {' — '}
+                <Link href="/client-portal/vendors" className="underline hover:text-white">view in your portal</Link>
+              </p>
+              <button
+                onClick={() => setBookingOpen(true)}
+                className="bg-white text-primary-700 font-bold px-8 py-3 rounded-xl hover:bg-primary-50 transition-colors"
+              >
+                Book This Vendor
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <button
+                onClick={() => setBookingOpen(true)}
+                className="bg-white text-primary-700 font-bold px-8 py-3 rounded-xl hover:bg-primary-50 transition-colors"
+              >
+                Book This Vendor
+              </button>
+              <p className="text-primary-200 text-xs">
+                Already have a client account?{' '}
+                <button
+                  onClick={() => {
+                    if (typeof window !== 'undefined') {
+                      sessionStorage.setItem('post_login_redirect', window.location.pathname)
+                    }
+                    router.push('/client-login')
+                  }}
+                  className="underline hover:text-white font-medium"
+                >
+                  Log in to book through your portal
+                </button>
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Reviews */}
@@ -353,8 +417,9 @@ export default function VendorPublicProfile({ params }: { params: { id: string }
               {bookingError && <div className="bg-red-50 text-red-700 rounded p-3 text-sm mb-4">{bookingError}</div>}
 
               <form onSubmit={handleBookingSubmit} className="space-y-4">
-                {/* Client Info */}
-                <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
+                {/* Client Info — only shown when not logged into client portal */}
+                {!isClientLoggedIn && (
+                  <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Your Information</p>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Your Name</label>
@@ -413,6 +478,14 @@ export default function VendorPublicProfile({ params }: { params: { id: string }
                     )}
                   </div>
                 </div>
+                )}
+
+                {isClientLoggedIn && clientSession && (
+                  <div className="bg-primary-50 border border-primary-200 rounded-xl px-4 py-3 flex items-center gap-2 text-sm text-primary-700">
+                    <LogIn className="h-4 w-4 flex-shrink-0" />
+                    Booking as <strong>{[clientSession.firstName, clientSession.lastName].filter(Boolean).join(' ') || clientSession.phone}</strong>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Event Name *</label>

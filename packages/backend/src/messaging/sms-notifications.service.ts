@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { TwilioService } from './twilio.service';
 
 /**
@@ -8,12 +9,27 @@ import { TwilioService } from './twilio.service';
  * through this service.  All methods accept a nullable `phone` parameter and
  * silently skip sending if it is absent, so callers never need to guard against
  * missing phone numbers.
+ *
+ * Every message includes a relevant deep-link so the recipient can log in and
+ * act immediately.
  */
 @Injectable()
 export class SmsNotificationsService {
   private readonly logger = new Logger(SmsNotificationsService.name);
+  private readonly frontendUrl: string;
 
-  constructor(private readonly twilioService: TwilioService) {}
+  constructor(
+    private readonly twilioService: TwilioService,
+    private readonly configService: ConfigService,
+  ) {
+    this.frontendUrl = this.configService.get<string>('FRONTEND_URL', 'http://localhost:3000');
+  }
+
+  // ─── URL helpers ──────────────────────────────────────────────────────────
+
+  private url(path: string): string {
+    return `${this.frontendUrl}${path}`;
+  }
 
   // ─── Internal helper ──────────────────────────────────────────────────────
 
@@ -36,10 +52,10 @@ export class SmsNotificationsService {
     payUrl?: string,
   ): Promise<void> {
     const amt = `$${Number(amount).toFixed(2)}`;
-    const link = payUrl ? ` Pay securely here: ${payUrl}` : '';
+    const link = payUrl ?? this.url('/client-portal');
     await this.trySend(
       phone,
-      `Hi ${clientName}, invoice ${invoiceNumber} for ${amt} has been sent to you.${link}`,
+      `Hi ${clientName}, invoice ${invoiceNumber} for ${amt} has been sent to you. View & pay here: ${link}`,
     );
   }
 
@@ -52,7 +68,7 @@ export class SmsNotificationsService {
     const amt = `$${Number(amount).toFixed(2)}`;
     await this.trySend(
       phone,
-      `Hi ${clientName}, your payment of ${amt} for invoice ${invoiceNumber} has been received. Thank you!`,
+      `Hi ${clientName}, your payment of ${amt} for invoice ${invoiceNumber} has been received. Thank you! View your records: ${this.url('/client-portal')}`,
     );
   }
 
@@ -63,7 +79,7 @@ export class SmsNotificationsService {
   ): Promise<void> {
     await this.trySend(
       phone,
-      `Hi ${clientName}, invoice ${invoiceNumber} has been updated. Log in to view the latest details.`,
+      `Hi ${clientName}, invoice ${invoiceNumber} has been updated. Log in to view the latest details: ${this.url('/client-portal')}`,
     );
   }
 
@@ -76,7 +92,7 @@ export class SmsNotificationsService {
     const amt = `$${Number(amount).toFixed(2)}`;
     await this.trySend(
       phone,
-      `Hi ${clientName}, invoice ${invoiceNumber} for ${amt} is now past due. Please make payment at your earliest convenience.`,
+      `Hi ${clientName}, invoice ${invoiceNumber} for ${amt} is now past due. Please make payment: ${this.url('/client-portal')}`,
     );
   }
 
@@ -91,7 +107,7 @@ export class SmsNotificationsService {
     const remaining = `$${Number(remainingAmount).toFixed(2)}`;
     await this.trySend(
       phone,
-      `Hi ${clientName}, a payment of ${paid} has been recorded on invoice ${invoiceNumber}. Remaining balance: ${remaining}.`,
+      `Hi ${clientName}, a payment of ${paid} has been recorded on invoice ${invoiceNumber}. Remaining balance: ${remaining}. Log in: ${this.url('/client-portal')}`,
     );
   }
 
@@ -106,7 +122,7 @@ export class SmsNotificationsService {
     const amt = `$${Number(amount).toFixed(2)}`;
     await this.trySend(
       phone,
-      `Hi ${clientName}, estimate ${estimateNumber} for ${amt} has been sent for your review. Log in to approve or decline.`,
+      `Hi ${clientName}, estimate ${estimateNumber} for ${amt} is ready for your review. Approve or decline here: ${this.url('/client-portal/estimates')}`,
     );
   }
 
@@ -117,7 +133,7 @@ export class SmsNotificationsService {
   ): Promise<void> {
     await this.trySend(
       phone,
-      `Great news! Estimate ${estimateNumber} has been approved by ${notifyName}.`,
+      `Great news! Estimate ${estimateNumber} has been approved by ${notifyName}. Log in to view: ${this.url('/dashboard')}`,
     );
   }
 
@@ -128,7 +144,7 @@ export class SmsNotificationsService {
   ): Promise<void> {
     await this.trySend(
       phone,
-      `Hi ${clientName}, estimate ${estimateNumber} has been declined. Please contact us if you have questions.`,
+      `Hi ${clientName}, estimate ${estimateNumber} has been declined. Contact us with any questions. View details: ${this.url('/client-portal/estimates')}`,
     );
   }
 
@@ -139,7 +155,7 @@ export class SmsNotificationsService {
   ): Promise<void> {
     await this.trySend(
       phone,
-      `Hi ${clientName}, estimate ${estimateNumber} has been updated. Log in to review the changes.`,
+      `Hi ${clientName}, estimate ${estimateNumber} has been updated. Review the changes: ${this.url('/client-portal/estimates')}`,
     );
   }
 
@@ -150,7 +166,7 @@ export class SmsNotificationsService {
   ): Promise<void> {
     await this.trySend(
       phone,
-      `Hi ${clientName}, estimate ${estimateNumber} has expired. Please contact us to request a new one.`,
+      `Hi ${clientName}, estimate ${estimateNumber} has expired. Please contact us to request a new one. View your estimates: ${this.url('/client-portal/estimates')}`,
     );
   }
 
@@ -163,7 +179,7 @@ export class SmsNotificationsService {
   ): Promise<void> {
     await this.trySend(
       phone,
-      `Hi ${clientName}, contract ${contractNumber} is ready for your review and signature. Log in to your portal to sign.`,
+      `Hi ${clientName}, contract ${contractNumber} is ready for your signature. Sign here: ${this.url('/client-portal/contracts')}`,
     );
   }
 
@@ -174,7 +190,7 @@ export class SmsNotificationsService {
   ): Promise<void> {
     await this.trySend(
       phone,
-      `Contract ${contractNumber} has been signed by ${clientName}. Check your portal for the signed copy.`,
+      `Contract ${contractNumber} has been signed by ${clientName}. Log in to view the signed copy: ${this.url('/dashboard')}`,
     );
   }
 
@@ -185,7 +201,7 @@ export class SmsNotificationsService {
   ): Promise<void> {
     await this.trySend(
       phone,
-      `Hi ${clientName}, contract ${contractNumber} has been updated. Log in to review the changes.`,
+      `Hi ${clientName}, contract ${contractNumber} has been updated. Log in to review the changes: ${this.url('/client-portal/contracts')}`,
     );
   }
 
@@ -196,15 +212,8 @@ export class SmsNotificationsService {
   ): Promise<void> {
     await this.trySend(
       phone,
-      `Hi ${signerName}, you have successfully signed contract ${contractNumber}. A copy is available in your portal.`,
+      `Hi ${signerName}, you have successfully signed contract ${contractNumber}. View your copy here: ${this.url('/client-portal/contracts')}`,
     );
-  }
-
-  /**
-   * Generic send – use only when no typed method fits.
-   */
-  async send(phone: string | null | undefined, body: string): Promise<void> {
-    await this.trySend(phone, body);
   }
 
   // ─── SECURITY PERSONNEL ──────────────────────────────────────────────────
@@ -219,7 +228,7 @@ export class SmsNotificationsService {
     const loc = location ? ` at ${location}` : '';
     await this.trySend(
       phone,
-      `Hi ${name}, you have been assigned to security for "${eventName}" on ${date}${loc}. Please confirm your availability.`,
+      `Hi ${name}, you have been assigned to security for "${eventName}" on ${date}${loc}. Please confirm your availability. Log in: ${this.url('/vendor-portal/login')}`,
     );
   }
 
@@ -230,7 +239,7 @@ export class SmsNotificationsService {
   ): Promise<void> {
     await this.trySend(
       phone,
-      `Hi ${name}, your security assignment for "${eventName}" has been updated. Log in to view the details.`,
+      `Hi ${name}, your security assignment for "${eventName}" has been updated. Log in to view the details: ${this.url('/vendor-portal/login')}`,
     );
   }
 
@@ -239,7 +248,7 @@ export class SmsNotificationsService {
     name: string,
     eventName: string,
   ): Promise<void> {
-    await this.trySend(phone, `Arrival confirmed for ${name} at "${eventName}".`);
+    await this.trySend(phone, `Arrival confirmed for ${name} at "${eventName}". View your portal: ${this.url('/vendor-portal')}`);
   }
 
   // ─── VENDOR BOOKINGS ──────────────────────────────────────────────────────
@@ -254,7 +263,7 @@ export class SmsNotificationsService {
     const amt = amount ? ` — Agreed amount: $${Number(amount).toLocaleString()}` : '';
     await this.trySend(
       phone,
-      `New booking request for ${vendorName}! Event: "${eventName}" on ${date}${amt}. Log in to confirm or decline.`,
+      `New booking request for ${vendorName}! Event: "${eventName}" on ${date}${amt}. Confirm or decline here: ${this.url('/vendor-portal')}`,
     );
   }
 
@@ -263,6 +272,7 @@ export class SmsNotificationsService {
     recipientName: string,
     eventName: string,
     status: string,
+    isVendor = false,
   ): Promise<void> {
     const statusMessages: Record<string, string> = {
       confirmed: `Your booking for "${eventName}" has been confirmed!`,
@@ -274,7 +284,10 @@ export class SmsNotificationsService {
     const msg =
       statusMessages[status] ??
       `Your booking for "${eventName}" has been updated to: ${status}.`;
-    await this.trySend(phone, `Hi ${recipientName}, ${msg}`);
+    const portalLink = isVendor
+      ? this.url('/vendor-portal')
+      : this.url('/client-portal');
+    await this.trySend(phone, `Hi ${recipientName}, ${msg} View details: ${portalLink}`);
   }
 
   async vendorBookingRequestUpdated(
@@ -289,17 +302,17 @@ export class SmsNotificationsService {
     if (status === 'confirmed') {
       await this.trySend(
         phone,
-        `Hi ${clientName}, great news! ${vendorName} has confirmed your booking request${amt}.`,
+        `Hi ${clientName}, great news! ${vendorName} has confirmed your booking request${amt}. Log in to your portal: ${this.url('/client-portal')}`,
       );
     } else if (status === 'declined') {
       await this.trySend(
         phone,
-        `Hi ${clientName}, ${vendorName} is unable to accommodate your booking request at this time.`,
+        `Hi ${clientName}, ${vendorName} is unable to accommodate your booking request at this time. View details: ${this.url('/client-portal')}`,
       );
     } else {
       await this.trySend(
         phone,
-        `Hi ${clientName}, your booking request with ${vendorName} has been updated to: ${status}${amt}.`,
+        `Hi ${clientName}, your booking request with ${vendorName} has been updated to: ${status}${amt}. Log in: ${this.url('/client-portal')}`,
       );
     }
   }
@@ -314,10 +327,10 @@ export class SmsNotificationsService {
     payUrl?: string,
   ): Promise<void> {
     const amt = `$${Number(amount).toFixed(2)}`;
-    const link = payUrl ? ` Pay here: ${payUrl}` : '';
+    const link = payUrl ?? this.url('/client-portal');
     await this.trySend(
       phone,
-      `Hi ${clientName}, you have an invoice for ${amt} from ${vendorName}.${link}`,
+      `Hi ${clientName}, you have an invoice for ${amt} from ${vendorName}. Pay here: ${link}`,
     );
   }
 
@@ -330,7 +343,7 @@ export class SmsNotificationsService {
     const amt = `$${Number(amount).toFixed(2)}`;
     await this.trySend(
       phone,
-      `Payment of ${amt} received from ${clientName}. Your invoice has been marked as paid. — ${vendorName}`,
+      `Payment of ${amt} received from ${clientName}. Your invoice has been marked as paid. View your invoices: ${this.url('/vendor-portal/invoices')} — ${vendorName}`,
     );
   }
 
@@ -342,7 +355,7 @@ export class SmsNotificationsService {
   ): Promise<void> {
     await this.trySend(
       phone,
-      `Hi ${clientName}, your invoice ${invoiceNumber} from ${vendorName} has been updated. Log in to view the changes.`,
+      `Hi ${clientName}, your invoice ${invoiceNumber} from ${vendorName} has been updated. Log in to view: ${this.url('/client-portal')}`,
     );
   }
 
@@ -353,14 +366,18 @@ export class SmsNotificationsService {
     recipientName: string,
     senderName: string,
     preview?: string,
+    isVendor = false,
   ): Promise<void> {
     const snippet =
       preview
         ? `: "${preview.substring(0, 80)}${preview.length > 80 ? '...' : ''}"`
         : '';
+    const portalLink = isVendor
+      ? this.url('/vendor-portal')
+      : this.url('/client-portal/messages');
     await this.trySend(
       phone,
-      `Hi ${recipientName}, you have a new message from ${senderName}${snippet}. Log in to reply.`,
+      `Hi ${recipientName}, you have a new message from ${senderName}${snippet}. Reply here: ${portalLink}`,
     );
   }
 
@@ -375,7 +392,7 @@ export class SmsNotificationsService {
     const amt = `$${Number(amount).toFixed(2)}`;
     await this.trySend(
       phone,
-      `Hi ${clientName}, your payment of ${amt} for ${reference} has been received. Thank you!`,
+      `Hi ${clientName}, your payment of ${amt} for ${reference} has been received. Thank you! View your portal: ${this.url('/client-portal')}`,
     );
   }
 
@@ -385,11 +402,21 @@ export class SmsNotificationsService {
     amount: number,
     dueDate: string,
     reference: string,
+    payUrl?: string,
   ): Promise<void> {
     const amt = `$${Number(amount).toFixed(2)}`;
+    const link = payUrl ?? this.url('/client-portal');
     await this.trySend(
       phone,
-      `Hi ${clientName}, a friendly reminder that ${amt} for ${reference} is due on ${dueDate}.`,
+      `Hi ${clientName}, a friendly reminder that ${amt} for ${reference} is due on ${dueDate}. Pay here: ${link}`,
     );
   }
+
+  /**
+   * Generic send — use only when no typed method fits.
+   */
+  async send(phone: string | null | undefined, body: string): Promise<void> {
+    await this.trySend(phone, body);
+  }
 }
+

@@ -524,7 +524,7 @@ export class VendorsService {
           const clientPhone: string | null = data.client_phone ?? null;
           const clientName: string = data.client_name ?? 'Client';
           await this.smsNotifications.vendorBookingStatusChanged(
-            clientPhone, clientName, eventLabel, dto.status,
+            clientPhone, clientName, eventLabel, dto.status, false,
           );
         } else {
           // Owner changed the status — notify the vendor
@@ -533,6 +533,7 @@ export class VendorsService {
             vendor?.business_name ?? 'Vendor',
             eventLabel,
             dto.status,
+            true, // recipient is a vendor → vendor portal link
           );
         }
       } catch {

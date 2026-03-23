@@ -14,12 +14,12 @@ export class IntakeFormsService {
   constructor(private readonly supabaseService: SupabaseService) {}
 
   async create(supabase: SupabaseClient, userId: string, createDto: any) {
-    // Temporarily remove accessibility_requirements due to PostgREST cache issue
-    const { accessibility_requirements, ...dtoWithoutAccessibility } = createDto;
+    // Remove columns that don't exist in the intake_forms table
+    const { accessibility_requirements, preferred_contact, ...safeDto } = createDto;
     
     const { data, error } = await supabase
       .from('intake_forms')
-      .insert([{ ...dtoWithoutAccessibility, user_id: userId }])
+      .insert([{ ...safeDto, user_id: userId }])
       .select()
       .single();
 

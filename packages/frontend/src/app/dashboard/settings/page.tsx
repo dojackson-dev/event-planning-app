@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter, useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
@@ -26,7 +26,7 @@ import ConnectBankButton from '@/components/ConnectBankButton'
 import AddRoleCard from '@/components/AddRoleCard'
 import Link from 'next/link'
 
-export default function SettingsPage() {
+function SettingsPageContent() {
   const { user, logout } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -1002,5 +1002,13 @@ function BrandingTab() {
         <p className="text-xs text-gray-400 mt-1">Contact support to update your business name.</p>
       </div>
     </div>
+  )
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense>
+      <SettingsPageContent />
+    </Suspense>
   )
 }

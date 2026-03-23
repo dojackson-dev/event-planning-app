@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import api from '@/lib/api'
@@ -52,7 +52,7 @@ const STATUS_CONFIG: Record<string, { label: string; classes: string; icon: Reac
   cancelled: { label: 'Cancelled', classes: 'bg-gray-100 text-gray-400', icon: null },
 }
 
-export default function VendorPaymentsPage() {
+function VendorPaymentsPageContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [invoices, setInvoices] = useState<OwnerBookingInvoice[]>([])
@@ -277,5 +277,13 @@ function InvoiceRow({
         ) : null}
       </div>
     </div>
+  )
+}
+
+export default function VendorPaymentsPage() {
+  return (
+    <Suspense>
+      <VendorPaymentsPageContent />
+    </Suspense>
   )
 }

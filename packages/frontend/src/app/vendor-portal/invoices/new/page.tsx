@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
@@ -25,7 +25,7 @@ interface BookingOption {
   amount: number | null
 }
 
-export default function NewVendorInvoicePage() {
+function NewVendorInvoicePageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [saving, setSaving] = useState(false)
@@ -450,5 +450,13 @@ export default function NewVendorInvoicePage() {
         </form>
       </div>
     </div>
+  )
+}
+
+export default function NewVendorInvoicePage() {
+  return (
+    <Suspense>
+      <NewVendorInvoicePageContent />
+    </Suspense>
   )
 }

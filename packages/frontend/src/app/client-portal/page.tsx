@@ -16,12 +16,28 @@ import {
   Clock,
   AlertCircle,
   DollarSign,
+  CheckCheck,
+  X,
 } from 'lucide-react'
 
 interface OverviewData {
   bookings: any[]
   contracts: any[]
   estimates: any[]
+}
+
+interface PendingConfirmation {
+  id: string
+  status: string
+  contact_name: string
+  client_confirmation_status: string
+  event: {
+    id: string
+    name: string
+    date: string
+    start_time: string | null
+    venue: string | null
+  } | null
 }
 
 const statusColor: Record<string, string> = {
@@ -39,13 +55,36 @@ export default function ClientPortalPage() {
   const { client } = useClientAuth()
   const [data, setData] = useState<OverviewData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [pendingConfirmations, setPendingConfirmations] = useState<PendingConfirmation[]>([])
+  const [respondingTo, setRespondingTo] = useState<string | null>(null)
 
   useEffect(() => {
     clientApi.get('/overview')
       .then((res) => setData(res.data))
       .catch(console.error)
       .finally(() => setLoading(false))
+
+    clientApi.get('/confirmations')
+      .then((res) => setPendingConfirmations(res.data || []))
+      .catch(console.error)
   }, [])
+
+  const handleConfirmationResponse = async (bookingId: string, action: 'confirmed' | 'rejected') => {
+    setRespondingTo(bookingId)
+    try {
+      await clientApi.post(`/confirmations/${bookingId}`, { action })
+      setPendingConfirmations(prev => prev.filter(c => c.id !== bookingId))
+      if (action === 'confirmed') {
+        // Reload overview so the event appears in upcoming
+        const res = await clientApi.get('/overview')
+        setData(res.data)
+      }
+    } catch (err) {
+      console.error('Failed to respond to confirmation', err)
+    } finally {
+      setRespondingTo(null)
+    }
+  }
 
   const upcoming = (data?.bookings ?? [])
     .filter((b: any) => b.event?.date && new Date(b.event.date) >= new Date())
@@ -65,6 +104,49 @@ export default function ClientPortalPage() {
           Here's everything you need to know about your upcoming events.
         </p>
       </div>
+
+      {/* Pending Event Confirmations */}
+      {pendingConfirmations.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 text-amber-500" />
+            Action Required — Please confirm your event booking{pendingConfirmations.length > 1 ? 's' : ''}
+          </h2>
+          {pendingConfirmations.map((conf) => (
+            <div key={conf.id} className="bg-amber-50 border border-amber-200 rounded-xl p-5">
+              <p className="text-sm font-semibold text-gray-900 mb-1">
+                Did you book <span className="text-primary-700">{conf.event?.name ?? 'an event'}</span>?
+              </p>
+              <div className="text-xs text-gray-500 mb-4 space-y-0.5">
+                {conf.event?.date && (
+                  <p>📅 {new Date(conf.event.date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                )}
+                {conf.event?.start_time && <p>🕐 {conf.event.start_time}</p>}
+                {conf.event?.venue && <p>📍 {conf.event.venue}</p>}
+                {conf.contact_name && <p>👤 Booked under: {conf.contact_name}</p>}
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => handleConfirmationResponse(conf.id, 'confirmed')}
+                  disabled={respondingTo === conf.id}
+                  className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-4 py-2 rounded-lg disabled:opacity-50"
+                >
+                  <CheckCheck className="h-4 w-4" />
+                  Yes, confirm
+                </button>
+                <button
+                  onClick={() => handleConfirmationResponse(conf.id, 'rejected')}
+                  disabled={respondingTo === conf.id}
+                  className="flex items-center gap-1.5 bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 text-sm font-medium px-4 py-2 rounded-lg disabled:opacity-50"
+                >
+                  <X className="h-4 w-4" />
+                  Not my booking
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center h-40 text-gray-500">Loading your information...</div>

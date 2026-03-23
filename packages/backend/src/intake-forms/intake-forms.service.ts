@@ -118,7 +118,7 @@ export class IntakeFormsService {
       status: 'pending',
       contact_name: intakeForm.contact_name,
       contact_email: intakeForm.contact_email,
-      contact_phone: intakeForm.contact_phone,
+      contact_phone: intakeForm.contact_phone ? normalizePhone(intakeForm.contact_phone) : null,
       special_requests: [
         intakeForm.special_requests,
         intakeForm.catering_requirements ? `Catering: ${intakeForm.catering_requirements}` : null,
@@ -158,9 +158,10 @@ export class IntakeFormsService {
       if (clientUser) {
         await supabaseAdmin
           .from('booking')
-          .update({ user_id: clientUser.id })
+          .update({ user_id: clientUser.id, client_confirmation_status: 'pending' })
           .eq('id', booking.id);
         booking.user_id = clientUser.id;
+        booking.client_confirmation_status = 'pending';
       }
     }
 

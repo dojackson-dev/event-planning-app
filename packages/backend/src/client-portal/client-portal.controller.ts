@@ -127,6 +127,27 @@ export class ClientPortalController {
     return this.clientPortalService.getVendors(session.clientId, session.phone);
   }
 
+  // ── Booking Confirmations ─────────────────────────────────────────────────
+
+  @Get('confirmations')
+  async getPendingConfirmations(@Headers('x-client-token') token: string) {
+    const session = this.requireSession(token);
+    return this.clientPortalService.getPendingConfirmations(session.clientId);
+  }
+
+  @Post('confirmations/:bookingId')
+  async respondToConfirmation(
+    @Headers('x-client-token') token: string,
+    @Param('bookingId') bookingId: string,
+    @Body() body: { action: 'confirmed' | 'rejected' },
+  ) {
+    const session = this.requireSession(token);
+    if (body.action !== 'confirmed' && body.action !== 'rejected') {
+      throw new BadRequestException('action must be "confirmed" or "rejected"');
+    }
+    return this.clientPortalService.respondToConfirmation(session.clientId, bookingId, body.action);
+  }
+
   // ── Contracts ─────────────────────────────────────────────────────────────
 
   @Get('contracts')

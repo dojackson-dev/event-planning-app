@@ -103,8 +103,8 @@ export class ClientPortalService {
       )
     `;
 
-    // Run both queries in parallel: event-linked vendors and direct client bookings
-    const [eventVendorsRes, directVendorsRes] = await Promise.all([
+    // Run three queries in parallel: event-linked vendors, direct by user_id, direct by phone
+    const [eventVendorsRes, directVendorsRes, phoneVendorsRes] = await Promise.all([
       eventIds.length
         ? supabase
             .from('vendor_bookings')
@@ -118,6 +118,13 @@ export class ClientPortalService {
         .select(vendorSelect)
         .eq('client_user_id', clientId)
         .order('created_at', { ascending: false }),
+      clientPhone
+        ? supabase
+            .from('vendor_bookings')
+            .select(vendorSelect)
+            .eq('client_phone', clientPhone)
+            .order('created_at', { ascending: false })
+        : { data: [] as any[], error: null },
     ]);
 
     if (eventVendorsRes.error) {
@@ -131,6 +138,7 @@ export class ClientPortalService {
     const combined = [
       ...(eventVendorsRes.data || []),
       ...(directVendorsRes.data || []),
+      ...(phoneVendorsRes.data || []),
     ];
     const seen = new Set<string>();
     return combined.filter((b: any) => {
@@ -362,6 +370,59 @@ export class ClientPortalService {
       this.logger.error('markNotificationRead error', error);
     }
     return { success: !error };
+  }
+
+  /** Bookings pending client confirmation (linked via intake form phone match) */
+  async getPendingConfirmations(clientId: string) {
+    const supabase = this.supabaseService.getAdminClient();
+
+    const { data, error } = await supabase
+      .from('booking')
+      .select(`
+        id, status, contact_name, contact_phone, client_confirmation_status,
+        event:event(id, name, date, start_time, venue)
+      `)
+      .eq('user_id', clientId)
+      .eq('client_confirmation_status', 'pending')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      this.logger.error('getPendingConfirmations error', error);
+      return [];
+    }
+    return data || [];
+  }
+
+  /** Client confirms or rejects a booking that was linked to them via phone */
+  async respondToConfirmation(clientId: string, bookingId: string, action: 'confirmed' | 'rejected') {
+    const supabase = this.supabaseService.getAdminClient();
+
+    // Verify this booking belongs to this client and is pending
+    const { data: booking, error: fetchErr } = await supabase
+      .from('booking')
+      .select('id, client_confirmation_status')
+      .eq('id', bookingId)
+      .eq('user_id', clientId)
+      .eq('client_confirmation_status', 'pending')
+      .maybeSingle();
+
+    if (fetchErr || !booking) {
+      throw new NotFoundException('Booking not found or already responded to.');
+    }
+
+    const updates: any = { client_confirmation_status: action };
+    if (action === 'rejected') {
+      // Unlink from this client if they reject — keeps the booking on owner side
+      updates.user_id = null;
+    }
+
+    const { error } = await supabase
+      .from('booking')
+      .update(updates)
+      .eq('id', bookingId);
+
+    if (error) throw new BadRequestException(error.message);
+    return { success: true, action };
   }
 
   /** Items & packages the owner offers */

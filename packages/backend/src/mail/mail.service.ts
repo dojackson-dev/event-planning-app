@@ -11,10 +11,11 @@ export class MailService {
     // Configure email transporter
     // In development, you can use a service like Ethereal Email for testing
     // In production, use a real SMTP service (Gmail, SendGrid, AWS SES, etc.)
+    const port = parseInt(process.env.SMTP_PORT || '587');
     this.transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST || 'smtp.ethereal.email',
-      port: parseInt(process.env.SMTP_PORT || '587'),
-      secure: false, // true for 465, false for other ports
+      port,
+      secure: port === 465, // true for SSL (465), false for STARTTLS (587)
       auth: {
         user: process.env.SMTP_USER || '',
         pass: process.env.SMTP_PASS || '',

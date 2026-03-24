@@ -16,14 +16,16 @@ export class IntakeFormsService {
   async create(supabase: SupabaseClient, userId: string, createDto: any) {
     // Remove columns that don't exist in the intake_forms table
     const { accessibility_requirements, preferred_contact, ...safeDto } = createDto;
-    
-    const { data, error } = await supabase
+
+    // Use admin client to bypass RLS for the insert (owner creating a client intake form)
+    const supabaseAdmin = this.supabaseService.getAdminClient();
+    const { data, error } = await supabaseAdmin
       .from('intake_forms')
       .insert([{ ...safeDto, user_id: userId }])
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) throw new Error(`Intake form insert failed: ${error.message} (code: ${error.code})`);
     return data;
   }
 

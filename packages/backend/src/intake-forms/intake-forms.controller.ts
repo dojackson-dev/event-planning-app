@@ -45,8 +45,8 @@ export class IntakeFormsController {
       const result = await this.intakeFormsService.create(supabaseWithAuth, userId, createDto);
       console.log('Successfully created intake form:', result);
       return result;
-    } catch (error) {
-      console.error('Error creating intake form:', error);
+    } catch (error: any) {
+      console.error('Error creating intake form:', error?.message || error);
       throw error;
     }
   }

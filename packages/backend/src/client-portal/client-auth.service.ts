@@ -1,7 +1,7 @@
 import { Injectable, UnauthorizedException, BadRequestException, Logger } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { TwilioService } from '../messaging/twilio.service';
-import { randomBytes } from 'crypto';
+import { randomBytes, createHash } from 'crypto';
 
 interface OtpRecord {
   code: string;
@@ -9,6 +9,7 @@ interface OtpRecord {
   expiresAt: Date;
   agreedToSms: boolean;
   agreedToTerms: boolean;
+  name?: string;
 }
 
 export interface ClientSession {
@@ -34,12 +35,13 @@ export class ClientAuthService {
 
   /**
    * Request an OTP for the given phone number.
-   * The phone must belong to a client (role = 'customer') in the users table.
+   * Matches against the users table OR submitted intake forms (by phone + optional name).
    */
   async requestOtp(
     phone: string,
     agreedToSms: boolean,
     agreedToTerms: boolean,
+    name?: string,
   ): Promise<{ message: string; devOtp?: string }> {
     if (!agreedToSms || !agreedToTerms) {
       throw new BadRequestException(
@@ -57,6 +59,7 @@ export class ClientAuthService {
       supabase = this.supabaseService.getClient();
     }
 
+    // Check existing users table first
     const { data: clientUser, error } = await supabase
       .from('users')
       .select('id, first_name, last_name, phone_number, role')
@@ -64,14 +67,48 @@ export class ClientAuthService {
       .maybeSingle();
 
     if (error) {
-      this.logger.error('DB error looking up phone', error);
-      // Return generic message – don't leak internal errors
-      return { message: 'If this number is on file, you will receive a verification code shortly.' };
+      this.logger.error('DB error looking up phone in users', error);
     }
 
-    if (!clientUser) {
-      // Don't leak whether the phone exists – still say we sent it
-      this.logger.warn(`OTP requested for unknown phone: ${normalized}`);
+    let clientFound = !!clientUser;
+
+    // If not in users, check intake_forms by phone variants (+ name match if provided)
+    if (!clientFound) {
+      const phoneVariants = this.buildPhoneVariants(normalized);
+      const intakeResults = await Promise.all(
+        phoneVariants.map(p =>
+          supabase
+            .from('intake_forms')
+            .select('id, contact_name, contact_phone')
+            .eq('contact_phone', p)
+            .limit(10),
+        ),
+      );
+      const allIntakeForms = intakeResults.flatMap((r: any) => r.data || []);
+
+      if (allIntakeForms.length > 0) {
+        if (name) {
+          // Verify at least one intake form name matches (case-insensitive, first-name match)
+          const nameLower = name.toLowerCase().trim();
+          const inputFirst = nameLower.split(/\s+/)[0];
+          clientFound = allIntakeForms.some((f: any) => {
+            const intakeName = (f.contact_name || '').toLowerCase().trim();
+            const intakeFirst = intakeName.split(/\s+/)[0];
+            return (
+              intakeName === nameLower ||
+              intakeName.includes(nameLower) ||
+              nameLower.includes(intakeName) ||
+              intakeFirst === inputFirst
+            );
+          });
+        } else {
+          clientFound = true;
+        }
+      }
+    }
+
+    if (!clientFound) {
+      this.logger.warn(`OTP requested for unrecognized phone: ${normalized}`);
       return { message: 'If this number is on file, you will receive a verification code shortly.' };
     }
 
@@ -82,6 +119,7 @@ export class ClientAuthService {
       expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 min
       agreedToSms,
       agreedToTerms,
+      name,
     });
 
     this.logger.log(`OTP generated for ${normalized}`);
@@ -105,10 +143,12 @@ export class ClientAuthService {
 
   /**
    * Verify an OTP and return a session token.
+   * Handles clients found in users table OR intake_forms only (auto-derives identity from intake).
    */
   async verifyOtp(
     phone: string,
     code: string,
+    name?: string,
   ): Promise<{ token: string; client: Omit<ClientSession, 'expiresAt'> }> {
     const normalized = this.normalizePhone(phone);
     const record = this.otpStore.get(normalized);
@@ -137,24 +177,57 @@ export class ClientAuthService {
       supabase = this.supabaseService.getClient();
     }
 
-    const { data: clientUser, error } = await supabase
+    const { data: clientUser } = await supabase
       .from('users')
       .select('id, first_name, last_name, phone_number')
       .eq('phone_number', normalized)
       .maybeSingle();
 
-    if (error || !clientUser) {
-      throw new UnauthorizedException('Client account not found.');
+    let clientId: string;
+    let firstName: string;
+    let lastName: string;
+
+    if (clientUser) {
+      clientId = clientUser.id;
+      firstName = clientUser.first_name || '';
+      lastName = clientUser.last_name || '';
+    } else {
+      // No users entry – derive identity from the name entered at login or intake forms
+      const enteredName = (record.name || name || '').trim();
+      if (enteredName) {
+        const parts = enteredName.split(/\s+/);
+        firstName = parts[0] || '';
+        lastName = parts.slice(1).join(' ') || '';
+      } else {
+        // Last-resort: pull name from a matching intake form
+        const phoneVariants = this.buildPhoneVariants(normalized);
+        const intakeResults = await Promise.all(
+          phoneVariants.map(p =>
+            supabase
+              .from('intake_forms')
+              .select('contact_name')
+              .eq('contact_phone', p)
+              .limit(1),
+          ),
+        );
+        const allForms = intakeResults.flatMap((r: any) => r.data || []);
+        const intakeName = allForms[0]?.contact_name || '';
+        const parts = intakeName.split(/\s+/);
+        firstName = parts[0] || '';
+        lastName = parts.slice(1).join(' ') || '';
+      }
+      // Generate a stable, UUID-format client ID derived from the phone number
+      clientId = this.generatePhoneClientId(normalized);
     }
 
-    // Issue a session token (random, stored server-side)
+    // Issue a session token – 30-day expiry for persistent login
     const token = randomBytes(32).toString('hex');
     const session: ClientSession = {
-      clientId: clientUser.id,
+      clientId,
       phone: normalized,
-      firstName: clientUser.first_name,
-      lastName: clientUser.last_name,
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+      firstName,
+      lastName,
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
     };
     this.sessionStore.set(token, session);
 
@@ -198,5 +271,21 @@ export class ClientAuthService {
     if (digits.length === 10) return `+1${digits}`;
     if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
     return `+${digits}`;
+  }
+
+  private buildPhoneVariants(phone: string): string[] {
+    const digits = phone.replace(/\D/g, '');
+    const last10 = digits.slice(-10);
+    return [...new Set([phone, last10, `1${last10}`, `+1${last10}`])].filter(Boolean);
+  }
+
+  /**
+   * Generate a stable, UUID-format ID derived from a phone number.
+   * Used for intake-form-only clients who have no auth.users entry.
+   * Queries against booking.user_id won't match (intentional); phone-based queries handle lookup.
+   */
+  private generatePhoneClientId(phone: string): string {
+    const hash = createHash('sha256').update(`dovenue:client:${phone}`).digest('hex');
+    return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-b${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
   }
 }

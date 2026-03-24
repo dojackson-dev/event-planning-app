@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useClientAuth } from '@/contexts/ClientAuthContext'
-import { Phone, ShieldCheck, ArrowLeft, MessageSquare } from 'lucide-react'
+import { Phone, ShieldCheck, ArrowLeft, MessageSquare, User } from 'lucide-react'
 
 type Step = 'phone' | 'otp'
 
@@ -12,6 +12,7 @@ export default function ClientLoginPage() {
   const { requestOtp, verifyOtp } = useClientAuth()
 
   const [step, setStep] = useState<Step>('phone')
+  const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [otp, setOtp] = useState('')
   const [agreedToSms, setAgreedToSms] = useState(false)
@@ -24,6 +25,11 @@ export default function ClientLoginPage() {
     e.preventDefault()
     setError('')
 
+    if (!name.trim()) {
+      setError('Please enter your full name.')
+      return
+    }
+
     if (!agreedToSms || !agreedToTerms) {
       setError('Please agree to both SMS communications and the Terms of Service / Privacy Policy to continue.')
       return
@@ -31,7 +37,7 @@ export default function ClientLoginPage() {
 
     setLoading(true)
     try {
-      const result = await requestOtp(phone, agreedToSms, agreedToTerms)
+      const result = await requestOtp(name.trim(), phone, agreedToSms, agreedToTerms)
       if (result.devOtp) setDevOtp(result.devOtp)
       setStep('otp')
     } catch (err: any) {
@@ -47,7 +53,7 @@ export default function ClientLoginPage() {
     setError('')
     setLoading(true)
     try {
-      await verifyOtp(phone, otp)
+      await verifyOtp(phone, otp, name.trim())
       // redirect handled by context
     } catch (err: any) {
       const msg = err.response?.data?.message || err.message || 'Invalid or expired code.'
@@ -99,6 +105,31 @@ export default function ClientLoginPage() {
                       <p className="text-sm text-red-700">{error}</p>
                     </div>
                   )}
+
+                  {/* Full Name Input */}
+                  <div>
+                    <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+                      Full Name
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <User className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <input
+                        id="name"
+                        type="text"
+                        autoComplete="name"
+                        required
+                        placeholder="Jane Smith"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className="block w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-gray-900 placeholder-gray-400"
+                      />
+                    </div>
+                    <p className="mt-1.5 text-xs text-gray-500">
+                      Enter the name you provided on your event intake form.
+                    </p>
+                  </div>
 
                   {/* Phone Input */}
                   <div>

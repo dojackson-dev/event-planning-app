@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { SupabaseService } from '../supabase/supabase.service';
 import { Booking } from '../entities/booking.entity';
@@ -85,6 +85,41 @@ export class BookingsService {
       .eq('id', id);
 
     if (error) throw error;
+  }
+
+  /**
+   * Owner resends a client confirmation notification.
+   * Resets client_confirmation_status back to 'pending' so the client sees it again.
+   */
+  async resendClientConfirmation(bookingId: string): Promise<{ success: boolean; message: string }> {
+    const supabase = this.supabaseService.getAdminClient();
+
+    const { data: booking, error: fetchErr } = await supabase
+      .from('booking')
+      .select('id, client_confirmation_status, contact_phone')
+      .eq('id', bookingId)
+      .maybeSingle();
+
+    if (fetchErr || !booking) {
+      throw new NotFoundException('Booking not found.');
+    }
+
+    if (!booking.contact_phone) {
+      throw new BadRequestException('This booking has no client phone number to notify.');
+    }
+
+    if (booking.client_confirmation_status === 'confirmed') {
+      throw new BadRequestException('Client has already confirmed this booking.');
+    }
+
+    const { error } = await supabase
+      .from('booking')
+      .update({ client_confirmation_status: 'pending' })
+      .eq('id', bookingId);
+
+    if (error) throw new BadRequestException(error.message);
+
+    return { success: true, message: 'Event notification resent to client.' };
   }
 
   // Helper: check for scheduling conflicts for the booking's event and create notifications

@@ -18,8 +18,8 @@ interface ClientAuthContextType {
   clientToken: string | null
   loading: boolean
   isClientAuthenticated: boolean
-  requestOtp: (phone: string, agreedToSms: boolean, agreedToTerms: boolean) => Promise<{ devOtp?: string }>
-  verifyOtp: (phone: string, code: string) => Promise<void>
+  requestOtp: (name: string, phone: string, agreedToSms: boolean, agreedToTerms: boolean) => Promise<{ devOtp?: string }>
+  verifyOtp: (phone: string, code: string, name?: string) => Promise<void>
   clientLogout: () => void
 }
 
@@ -51,11 +51,13 @@ export function ClientAuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const requestOtp = async (
+    name: string,
     phone: string,
     agreedToSms: boolean,
     agreedToTerms: boolean,
   ): Promise<{ devOtp?: string }> => {
     const res = await axios.post(`${API_URL}/client-portal/auth/request-otp`, {
+      name,
       phone,
       agreedToSms,
       agreedToTerms,
@@ -63,8 +65,8 @@ export function ClientAuthProvider({ children }: { children: ReactNode }) {
     return res.data
   }
 
-  const verifyOtp = async (phone: string, code: string): Promise<void> => {
-    const res = await axios.post(`${API_URL}/client-portal/auth/verify-otp`, { phone, code })
+  const verifyOtp = async (phone: string, code: string, name?: string): Promise<void> => {
+    const res = await axios.post(`${API_URL}/client-portal/auth/verify-otp`, { phone, code, name })
     const { token, client: clientInfo } = res.data as { token: string; client: ClientSession }
     localStorage.setItem(CLIENT_TOKEN_KEY, token)
     localStorage.setItem(CLIENT_SESSION_KEY, JSON.stringify(clientInfo))

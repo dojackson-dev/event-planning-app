@@ -27,22 +27,23 @@ export class ClientPortalController {
 
   @Post('auth/request-otp')
   async requestOtp(
-    @Body() body: { phone: string; agreedToSms: boolean; agreedToTerms: boolean },
+    @Body() body: { phone: string; agreedToSms: boolean; agreedToTerms: boolean; name?: string },
   ) {
     if (!body?.phone) throw new BadRequestException('phone is required');
     return this.clientAuthService.requestOtp(
       body.phone,
       !!body.agreedToSms,
       !!body.agreedToTerms,
+      body.name?.trim() || undefined,
     );
   }
 
   @Post('auth/verify-otp')
-  async verifyOtp(@Body() body: { phone: string; code: string }) {
+  async verifyOtp(@Body() body: { phone: string; code: string; name?: string }) {
     if (!body?.phone || !body?.code) {
       throw new BadRequestException('phone and code are required');
     }
-    return this.clientAuthService.verifyOtp(body.phone, body.code);
+    return this.clientAuthService.verifyOtp(body.phone, body.code, body.name?.trim() || undefined);
   }
 
   @Post('auth/logout')

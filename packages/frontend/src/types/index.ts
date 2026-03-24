@@ -169,6 +169,7 @@ export interface Booking {
   clientStatus: ClientStatus
   // Snake_case aliases returned directly from backend
   client_status?: string
+  client_confirmation_status?: 'pending' | 'confirmed' | 'rejected' | null
   payment_status?: string
   contact_name?: string
   contact_email?: string

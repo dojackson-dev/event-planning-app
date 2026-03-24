@@ -90,4 +90,13 @@ export class BookingsController {
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
     return this.bookingsService.remove(supabaseWithAuth, id);
   }
+
+  @Patch(':id/resend-confirmation')
+  async resendConfirmation(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+  ) {
+    await this.getUserId(authorization); // ensures owner is authenticated
+    return this.bookingsService.resendClientConfirmation(id);
+  }
 }

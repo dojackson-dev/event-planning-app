@@ -99,4 +99,12 @@ export class IntakeFormsController {
       throw error;
     }
   }
+
+  @Post(':id/resend-invitation')
+  async resendInvitation(@Headers('authorization') authorization: string, @Param('id') id: string) {
+    const token = this.extractToken(authorization);
+    const userId = await this.getUserId(authorization);
+    const supabaseWithAuth = this.supabaseService.setAuthContext(token);
+    return this.intakeFormsService.resendInvitation(supabaseWithAuth, userId, id);
+  }
 }

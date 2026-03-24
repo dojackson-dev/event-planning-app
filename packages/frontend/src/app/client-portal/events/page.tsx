@@ -68,7 +68,10 @@ export default function ClientEventsPage() {
       {events.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
           <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500">No events found for your account.</p>
+          <p className="text-gray-500 font-medium">No confirmed events yet.</p>
+          <p className="text-gray-400 text-sm mt-1">
+            Events will appear here once you confirm them via the invitation link sent to your email.
+          </p>
         </div>
       ) : (
         <div className="space-y-4">

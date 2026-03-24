@@ -118,6 +118,92 @@ export class MailService {
     }
   }
 
+  /**
+   * Send a client intake-form invitation email.
+   * The link directs the client to the invite page where they confirm their event via SMS OTP.
+   */
+  async sendClientInvitation(params: {
+    clientName: string;
+    clientEmail: string;
+    inviteToken: string;
+    eventType: string;
+    eventDate: string;
+    eventTime?: string | null;
+    guestCount?: number | null;
+    ownerName?: string;
+  }): Promise<void> {
+    try {
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const inviteUrl = `${frontendUrl}/invite?token=${params.inviteToken}`;
+      const formattedDate = params.eventDate
+        ? new Date(params.eventDate + 'T12:00:00').toLocaleDateString('en-US', {
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+          })
+        : 'TBD';
+
+      const mailOptions = {
+        from: `"DoVenue Suites" <${process.env.SMTP_FROM || 'noreply@dovenue.com'}>`,
+        to: params.clientEmail,
+        subject: `You're Invited – Confirm Your Event at DoVenue Suites`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb; padding: 32px 16px;">
+            <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08);">
+              <div style="background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); padding: 32px 32px 24px; text-align: center;">
+                <h1 style="color: white; margin: 0; font-size: 26px; font-weight: 700;">DoVenue Suites</h1>
+                <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">Client Portal Invitation</p>
+              </div>
+
+              <div style="padding: 32px;">
+                <p style="color: #374151; font-size: 16px; margin-bottom: 8px;">Hello <strong>${params.clientName}</strong>,</p>
+                <p style="color: #374151; font-size: 15px; line-height: 1.6;">
+                  ${params.ownerName ? `<strong>${params.ownerName}</strong> has` : 'Your event planner has'} submitted your event details and is requesting your confirmation.
+                  Please review the information below and confirm your event.
+                </p>
+
+                <div style="background: #f0f4ff; border-left: 4px solid #2563eb; border-radius: 8px; padding: 20px 24px; margin: 24px 0;">
+                  <h3 style="margin: 0 0 12px; color: #1e3a5f; font-size: 16px;">Event Details</h3>
+                  <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #374151;">
+                    <tr><td style="padding: 4px 0; color: #6b7280; width: 110px;">Event Type</td><td style="padding: 4px 0; font-weight: 600;">${params.eventType}</td></tr>
+                    <tr><td style="padding: 4px 0; color: #6b7280;">Date</td><td style="padding: 4px 0; font-weight: 600;">${formattedDate}</td></tr>
+                    ${params.eventTime ? `<tr><td style="padding: 4px 0; color: #6b7280;">Time</td><td style="padding: 4px 0; font-weight: 600;">${params.eventTime}</td></tr>` : ''}
+                    ${params.guestCount ? `<tr><td style="padding: 4px 0; color: #6b7280;">Guests</td><td style="padding: 4px 0; font-weight: 600;">${params.guestCount}</td></tr>` : ''}
+                  </table>
+                </div>
+
+                <p style="color: #374151; font-size: 14px; line-height: 1.6;">
+                  Click the button below to confirm your event. You will be asked to verify your identity via a text message sent to your phone number on file.
+                </p>
+
+                <div style="text-align: center; margin: 32px 0;">
+                  <a href="${inviteUrl}"
+                     style="display: inline-block; background: #2563eb; color: white; padding: 14px 40px; text-decoration: none; border-radius: 8px; font-size: 16px; font-weight: 600; letter-spacing: 0.3px;">
+                    Confirm My Event
+                  </a>
+                </div>
+
+                <p style="color: #9ca3af; font-size: 12px; text-align: center; margin-top: 24px;">
+                  If you did not expect this email, please disregard it. This link is unique to you.
+                </p>
+              </div>
+            </div>
+          </div>
+        `,
+        text: `Hello ${params.clientName},\n\nYou have been invited to confirm your event at DoVenue Suites.\n\nEvent: ${params.eventType}\nDate: ${formattedDate}${params.eventTime ? `\nTime: ${params.eventTime}` : ''}\n\nConfirm here: ${inviteUrl}\n\nDoVenue Suites`,
+      };
+
+      const info = await this.transporter.sendMail(mailOptions);
+      console.log('Client invitation sent:', info.messageId);
+
+      if (process.env.NODE_ENV !== 'production' && process.env.SMTP_HOST?.includes('ethereal')) {
+        const nodemailer = await import('nodemailer');
+        console.log('[DEV] Invite email preview URL:', nodemailer.getTestMessageUrl(info));
+      }
+    } catch (error) {
+      console.error('Failed to send client invitation email:', error);
+      // Non-fatal — don't break the intake form submission
+    }
+  }
+
   async sendContractSignedNotification(contract: Contract, client: User, owner: User): Promise<void> {
     try {
       const contractUrl = `${process.env.FRONTEND_URL || 'http://localhost:3001'}/dashboard/contracts/${contract.id}`;

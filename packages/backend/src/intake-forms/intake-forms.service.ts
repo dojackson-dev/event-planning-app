@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { MailService } from '../mail/mail.service';
 import { SupabaseClient } from '@supabase/supabase-js';
 
 function normalizePhone(phone: string): string {
@@ -11,7 +12,10 @@ function normalizePhone(phone: string): string {
 
 @Injectable()
 export class IntakeFormsService {
-  constructor(private readonly supabaseService: SupabaseService) {}
+  constructor(
+    private readonly supabaseService: SupabaseService,
+    private readonly mailService: MailService,
+  ) {}
 
   async create(supabase: SupabaseClient, userId: string, createDto: any) {
     // Remove columns that don't exist in the intake_forms table
@@ -26,6 +30,40 @@ export class IntakeFormsService {
       .single();
 
     if (error) throw new Error(`Intake form insert failed: ${error.message} (code: ${error.code})`);
+
+    // Send invitation email to client if contact_email is present
+    if (data?.contact_email && data?.invite_token) {
+      // Optionally look up the owner's name for a personal touch in the email
+      let ownerName: string | undefined;
+      try {
+        const { data: owner } = await supabaseAdmin
+          .from('users')
+          .select('first_name, last_name')
+          .eq('id', userId)
+          .maybeSingle();
+        if (owner) ownerName = [owner.first_name, owner.last_name].filter(Boolean).join(' ');
+      } catch { /* ignore */ }
+
+      await this.mailService.sendClientInvitation({
+        clientName: data.contact_name || 'Valued Client',
+        clientEmail: data.contact_email,
+        inviteToken: data.invite_token,
+        eventType: data.event_type || 'Event',
+        eventDate: data.event_date,
+        eventTime: data.event_time ?? null,
+        guestCount: data.guest_count ?? null,
+        ownerName,
+      });
+
+      // Mark invite_sent_at
+      await supabaseAdmin
+        .from('intake_forms')
+        .update({ invite_sent_at: new Date().toISOString(), invite_status: 'sent' })
+        .eq('id', data.id);
+      data.invite_sent_at = new Date().toISOString();
+      data.invite_status = 'sent';
+    }
+
     return data;
   }
 
@@ -74,6 +112,52 @@ export class IntakeFormsService {
 
     if (error) throw error;
     return { message: 'Intake form deleted successfully' };
+  }
+
+  /**
+   * Resend the invitation email to the client for a given intake form.
+   * Resets invite_status to 'sent' regardless of current state.
+   */
+  async resendInvitation(supabase: SupabaseClient, userId: string, id: string) {
+    const supabaseAdmin = this.supabaseService.getAdminClient();
+
+    const { data: form, error } = await supabase
+      .from('intake_forms')
+      .select('*')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .single();
+
+    if (error || !form) throw new Error('Intake form not found');
+    if (!form.contact_email) throw new Error('This intake form has no client email address');
+
+    let ownerName: string | undefined;
+    try {
+      const { data: owner } = await supabaseAdmin
+        .from('users')
+        .select('first_name, last_name')
+        .eq('id', userId)
+        .maybeSingle();
+      if (owner) ownerName = [owner.first_name, owner.last_name].filter(Boolean).join(' ');
+    } catch { /* ignore */ }
+
+    await this.mailService.sendClientInvitation({
+      clientName: form.contact_name || 'Valued Client',
+      clientEmail: form.contact_email,
+      inviteToken: form.invite_token,
+      eventType: form.event_type || 'Event',
+      eventDate: form.event_date,
+      eventTime: form.event_time ?? null,
+      guestCount: form.guest_count ?? null,
+      ownerName,
+    });
+
+    await supabaseAdmin
+      .from('intake_forms')
+      .update({ invite_sent_at: new Date().toISOString(), invite_status: 'sent' })
+      .eq('id', id);
+
+    return { success: true, message: 'Invitation resent successfully' };
   }
 
   async convertToBooking(supabase: SupabaseClient, userId: string, intakeFormId: string) {

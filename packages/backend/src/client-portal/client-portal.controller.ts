@@ -215,4 +215,41 @@ export class ClientPortalController {
     const session = this.requireSession(token);
     return this.clientPortalService.markNotificationRead(session.clientId, id);
   }
+
+  // ── Invite-based Confirmation Flow ────────────────────────────────────────
+
+  /**
+   * Public endpoint: returns intake form event details for the invite landing page.
+   * No session required — the token itself grants access to the display data.
+   */
+  @Get('invite/:token')
+  async getInvite(@Param('token') token: string) {
+    if (!token) throw new BadRequestException('invite token is required');
+    return this.clientPortalService.getIntakeFormByToken(token);
+  }
+
+  /**
+   * Confirm the invite — client must be authenticated via SMS OTP.
+   * Their session phone must match the intake form's contact_phone.
+   */
+  @Post('invite/:token/confirm')
+  async confirmInvite(
+    @Headers('x-client-token') clientToken: string,
+    @Param('token') inviteToken: string,
+  ) {
+    const session = this.requireSession(clientToken);
+    return this.clientPortalService.confirmInvite(inviteToken, session.phone, session.clientId);
+  }
+
+  /**
+   * Decline the invite — client must be authenticated.
+   */
+  @Post('invite/:token/decline')
+  async declineInvite(
+    @Headers('x-client-token') clientToken: string,
+    @Param('token') inviteToken: string,
+  ) {
+    const session = this.requireSession(clientToken);
+    return this.clientPortalService.declineInvite(inviteToken, session.phone);
+  }
 }

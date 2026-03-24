@@ -95,10 +95,20 @@ export class ClientPortalService {
 
     const phoneVariants = buildPhoneVariants(clientPhone);
 
-    // Run separate queries to avoid PostgREST OR-filter encoding issues with '+' in phone
+    // Only return events from bookings the client has explicitly confirmed via the invite link
     const [byUserId, ...byPhones] = await Promise.all([
-      supabase.from('booking').select('event_id').eq('user_id', clientId),
-      ...phoneVariants.map(p => supabase.from('booking').select('event_id').eq('contact_phone', p)),
+      supabase
+        .from('booking')
+        .select('event_id')
+        .eq('user_id', clientId)
+        .eq('client_confirmation_status', 'confirmed'),
+      ...phoneVariants.map(p =>
+        supabase
+          .from('booking')
+          .select('event_id')
+          .eq('contact_phone', p)
+          .eq('client_confirmation_status', 'confirmed'),
+      ),
     ]);
 
     const allBookings = [
@@ -488,6 +498,152 @@ export class ClientPortalService {
 
     if (error) throw new BadRequestException(error.message);
     return { success: true, action };
+  }
+
+  // ── Invite-based confirmation flow ────────────────────────────────────────
+
+  /**
+   * Public: look up intake form details by invite token for the landing page.
+   * Returns only the event/contact fields needed to display the invite card.
+   */
+  async getIntakeFormByToken(token: string) {
+    const supabase = this.supabaseService.getAdminClient();
+    const { data, error } = await supabase
+      .from('intake_forms')
+      .select('id, contact_name, contact_email, contact_phone, event_type, event_date, event_time, guest_count, venue_preference, special_requests, invite_status, invite_token')
+      .eq('invite_token', token)
+      .maybeSingle();
+
+    if (error || !data) throw new NotFoundException('Invitation not found or has expired.');
+
+    // Don't expose the raw phone number or email in the response (security)
+    const { contact_phone, contact_email, ...publicFields } = data;
+    return {
+      ...publicFields,
+      // Mask the phone so the client knows what to enter (last 4 digits only)
+      phoneHint: contact_phone ? `***-***-${contact_phone.replace(/\D/g, '').slice(-4)}` : null,
+    };
+  }
+
+  /**
+   * Confirm an invite: verifies the logged-in client's phone matches the intake form,
+   * then creates the event + booking with client_confirmation_status = 'confirmed'.
+   * This is the ONLY way a client can confirm their event.
+   */
+  async confirmInvite(token: string, clientPhone: string, clientId: string) {
+    const supabase = this.supabaseService.getAdminClient();
+
+    // 1. Load the intake form
+    const { data: form, error: formErr } = await supabase
+      .from('intake_forms')
+      .select('*')
+      .eq('invite_token', token)
+      .maybeSingle();
+
+    if (formErr || !form) throw new NotFoundException('Invitation not found.');
+
+    if (form.invite_status === 'confirmed') {
+      throw new BadRequestException('This event has already been confirmed.');
+    }
+
+    // 2. Verify the client's phone matches (using variants so format doesn't matter)
+    const clientVariants = buildPhoneVariants(clientPhone);
+    const formVariants = form.contact_phone ? buildPhoneVariants(form.contact_phone) : [];
+    const phoneMatches = clientVariants.some(v => formVariants.includes(v));
+
+    if (!phoneMatches) {
+      throw new BadRequestException(
+        'The phone number on your account does not match the one on this invitation.',
+      );
+    }
+
+    // 3. Create the event
+    const eventData = {
+      name: `${form.event_type || 'Event'} - ${form.contact_name}`,
+      date: form.event_date,
+      start_time: form.event_time || '00:00',
+      end_time: '23:59',
+      description: form.special_requests || '',
+      status: 'scheduled' as const,
+      guest_count: form.guest_count,
+      venue: form.venue_preference || 'TBD',
+      owner_id: form.user_id,
+    };
+
+    const { data: event, error: eventErr } = await supabase
+      .from('event')
+      .insert([eventData])
+      .select()
+      .single();
+
+    if (eventErr) throw new BadRequestException(`Failed to create event: ${eventErr.message}`);
+
+    // 4. Create the booking – mark confirmed immediately
+    const normalizedPhone = clientPhone; // already normalized by auth service
+    const bookingData = {
+      user_id: form.user_id,
+      event_id: event.id,
+      booking_date: new Date().toISOString().split('T')[0],
+      status: 'pending',
+      contact_name: form.contact_name,
+      contact_email: form.contact_email,
+      contact_phone: normalizedPhone,
+      special_requests: form.special_requests,
+      notes: 'Confirmed by client via invitation email.',
+      client_confirmation_status: 'confirmed',
+    };
+
+    const { data: booking, error: bookingErr } = await supabase
+      .from('booking')
+      .insert([bookingData])
+      .select()
+      .single();
+
+    if (bookingErr) {
+      // Roll back event
+      await supabase.from('event').delete().eq('id', event.id);
+      throw new BadRequestException(`Failed to create booking: ${bookingErr.message}`);
+    }
+
+    // 5. Mark intake form as confirmed
+    await supabase
+      .from('intake_forms')
+      .update({ invite_status: 'confirmed', status: 'confirmed' })
+      .eq('id', form.id);
+
+    this.logger.log(`Client ${clientPhone} confirmed invite ${token} → booking ${booking.id}`);
+    return { success: true, event, booking };
+  }
+
+  /**
+   * Decline an invite via the invite link (before confirming).
+   */
+  async declineInvite(token: string, clientPhone: string) {
+    const supabase = this.supabaseService.getAdminClient();
+
+    const { data: form, error } = await supabase
+      .from('intake_forms')
+      .select('id, contact_phone, invite_status')
+      .eq('invite_token', token)
+      .maybeSingle();
+
+    if (error || !form) throw new NotFoundException('Invitation not found.');
+    if (form.invite_status === 'confirmed') {
+      throw new BadRequestException('This event has already been confirmed and cannot be declined.');
+    }
+
+    const clientVariants = buildPhoneVariants(clientPhone);
+    const formVariants = form.contact_phone ? buildPhoneVariants(form.contact_phone) : [];
+    if (!clientVariants.some(v => formVariants.includes(v))) {
+      throw new BadRequestException('Phone number does not match this invitation.');
+    }
+
+    await supabase
+      .from('intake_forms')
+      .update({ invite_status: 'declined' })
+      .eq('id', form.id);
+
+    return { success: true, message: 'Invitation declined.' };
   }
 
   /** Items & packages the owner offers */

@@ -35,7 +35,7 @@ export class ClientAuthService {
 
   /**
    * Request an OTP for the given phone number.
-   * Matches against the users table OR submitted intake forms (by phone + optional name).
+   * Matches against: users table, intake_forms, or booking contact_phone.
    */
   async requestOtp(
     phone: string,
@@ -50,6 +50,7 @@ export class ClientAuthService {
     }
 
     const normalized = this.normalizePhone(phone);
+    const phoneVariants = this.buildPhoneVariants(normalized);
 
     // Prefer admin client (bypasses RLS); fall back to anon if service key not configured
     let supabase: any;
@@ -59,22 +60,23 @@ export class ClientAuthService {
       supabase = this.supabaseService.getClient();
     }
 
-    // Check existing users table first
-    const { data: clientUser, error } = await supabase
-      .from('users')
-      .select('id, first_name, last_name, phone_number, role')
-      .eq('phone_number', normalized)
-      .maybeSingle();
-
-    if (error) {
-      this.logger.error('DB error looking up phone in users', error);
+    // 1. Check users table with all phone variants
+    let clientFound = false;
+    const userResults = await Promise.all(
+      phoneVariants.map(p =>
+        supabase
+          .from('users')
+          .select('id')
+          .eq('phone_number', p)
+          .limit(1),
+      ),
+    );
+    if (userResults.some((r: any) => r.data?.length > 0)) {
+      clientFound = true;
     }
 
-    let clientFound = !!clientUser;
-
-    // If not in users, check intake_forms by phone variants (+ name match if provided)
+    // 2. Check intake_forms by phone variants (+ optional name match)
     if (!clientFound) {
-      const phoneVariants = this.buildPhoneVariants(normalized);
       const intakeResults = await Promise.all(
         phoneVariants.map(p =>
           supabase
@@ -85,25 +87,25 @@ export class ClientAuthService {
         ),
       );
       const allIntakeForms = intakeResults.flatMap((r: any) => r.data || []);
-
       if (allIntakeForms.length > 0) {
-        if (name) {
-          // Verify at least one intake form name matches (case-insensitive, first-name match)
-          const nameLower = name.toLowerCase().trim();
-          const inputFirst = nameLower.split(/\s+/)[0];
-          clientFound = allIntakeForms.some((f: any) => {
-            const intakeName = (f.contact_name || '').toLowerCase().trim();
-            const intakeFirst = intakeName.split(/\s+/)[0];
-            return (
-              intakeName === nameLower ||
-              intakeName.includes(nameLower) ||
-              nameLower.includes(intakeName) ||
-              intakeFirst === inputFirst
-            );
-          });
-        } else {
-          clientFound = true;
-        }
+        clientFound = name ? this.nameMatches(name, allIntakeForms.map((f: any) => f.contact_name)) : true;
+      }
+    }
+
+    // 3. Check booking.contact_phone by phone variants (+ optional name match)
+    if (!clientFound) {
+      const bookingResults = await Promise.all(
+        phoneVariants.map(p =>
+          supabase
+            .from('booking')
+            .select('id, contact_name, contact_phone')
+            .eq('contact_phone', p)
+            .limit(10),
+        ),
+      );
+      const allBookings = bookingResults.flatMap((r: any) => r.data || []);
+      if (allBookings.length > 0) {
+        clientFound = name ? this.nameMatches(name, allBookings.map((b: any) => b.contact_name)) : true;
       }
     }
 
@@ -143,7 +145,7 @@ export class ClientAuthService {
 
   /**
    * Verify an OTP and return a session token.
-   * Handles clients found in users table OR intake_forms only (auto-derives identity from intake).
+   * Handles clients found in users table, intake_forms, or booking.contact_phone.
    */
   async verifyOtp(
     phone: string,
@@ -177,44 +179,58 @@ export class ClientAuthService {
       supabase = this.supabaseService.getClient();
     }
 
-    const { data: clientUser } = await supabase
-      .from('users')
-      .select('id, first_name, last_name, phone_number')
-      .eq('phone_number', normalized)
-      .maybeSingle();
+    const phoneVariants = this.buildPhoneVariants(normalized);
 
-    let clientId: string;
-    let firstName: string;
-    let lastName: string;
+    // 1. Look up in users table using all phone variants
+    let clientId: string | null = null;
+    let firstName = '';
+    let lastName = '';
 
-    if (clientUser) {
-      clientId = clientUser.id;
-      firstName = clientUser.first_name || '';
-      lastName = clientUser.last_name || '';
-    } else {
-      // No users entry – derive identity from the name entered at login or intake forms
+    for (const variant of phoneVariants) {
+      const { data: u } = await supabase
+        .from('users')
+        .select('id, first_name, last_name')
+        .eq('phone_number', variant)
+        .maybeSingle();
+      if (u) {
+        clientId = u.id;
+        firstName = u.first_name || '';
+        lastName = u.last_name || '';
+        break;
+      }
+    }
+
+    if (!clientId) {
+      // 2. Derive name from: login input → intake forms → bookings
       const enteredName = (record.name || name || '').trim();
       if (enteredName) {
         const parts = enteredName.split(/\s+/);
         firstName = parts[0] || '';
         lastName = parts.slice(1).join(' ') || '';
       } else {
-        // Last-resort: pull name from a matching intake form
-        const phoneVariants = this.buildPhoneVariants(normalized);
+        // Try intake forms first
         const intakeResults = await Promise.all(
           phoneVariants.map(p =>
-            supabase
-              .from('intake_forms')
-              .select('contact_name')
-              .eq('contact_phone', p)
-              .limit(1),
+            supabase.from('intake_forms').select('contact_name').eq('contact_phone', p).limit(1),
           ),
         );
-        const allForms = intakeResults.flatMap((r: any) => r.data || []);
-        const intakeName = allForms[0]?.contact_name || '';
-        const parts = intakeName.split(/\s+/);
-        firstName = parts[0] || '';
-        lastName = parts.slice(1).join(' ') || '';
+        const intakeName = intakeResults.flatMap((r: any) => r.data || [])[0]?.contact_name || '';
+        if (intakeName) {
+          const parts = intakeName.split(/\s+/);
+          firstName = parts[0] || '';
+          lastName = parts.slice(1).join(' ') || '';
+        } else {
+          // Try bookings
+          const bookingResults = await Promise.all(
+            phoneVariants.map(p =>
+              supabase.from('booking').select('contact_name').eq('contact_phone', p).limit(1),
+            ),
+          );
+          const bookingName = bookingResults.flatMap((r: any) => r.data || [])[0]?.contact_name || '';
+          const parts = bookingName.split(/\s+/);
+          firstName = parts[0] || '';
+          lastName = parts.slice(1).join(' ') || '';
+        }
       }
       // Generate a stable, UUID-format client ID derived from the phone number
       clientId = this.generatePhoneClientId(normalized);
@@ -277,6 +293,25 @@ export class ClientAuthService {
     const digits = phone.replace(/\D/g, '');
     const last10 = digits.slice(-10);
     return [...new Set([phone, last10, `1${last10}`, `+1${last10}`])].filter(Boolean);
+  }
+
+  /**
+   * Fuzzy name match: returns true if the login-entered name roughly matches
+   * any candidate name (first-name match, full-name substring, etc.).
+   */
+  private nameMatches(input: string, candidates: string[]): boolean {
+    const inputLower = input.toLowerCase().trim();
+    const inputFirst = inputLower.split(/\s+/)[0];
+    return candidates.some(candidate => {
+      const c = (candidate || '').toLowerCase().trim();
+      const cFirst = c.split(/\s+/)[0];
+      return (
+        c === inputLower ||
+        c.includes(inputLower) ||
+        inputLower.includes(c) ||
+        cFirst === inputFirst
+      );
+    });
   }
 
   /**

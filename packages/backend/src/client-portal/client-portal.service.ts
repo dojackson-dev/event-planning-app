@@ -417,23 +417,43 @@ export class ClientPortalService {
     const supabase = this.supabaseService.getAdminClient();
     const phoneVariants = buildPhoneVariants(clientPhone);
 
-    const results = await Promise.all(
-      phoneVariants.map(p =>
-        supabase
-          .from('booking')
-          .select(`
-            id, status, contact_name, contact_phone, client_confirmation_status,
-            event:event(id, name, date, start_time, venue)
-          `)
-          .eq('contact_phone', p)
-          .eq('client_confirmation_status', 'pending')
-          .order('created_at', { ascending: false })
-      )
-    );
+    const bookingSelect = `
+      id, status, contact_name, contact_phone, client_confirmation_status,
+      event:event(id, name, date, start_time, venue)
+    `;
+
+    // Query for explicit 'pending' confirmations AND null status (pre-migration bookings)
+    // Run both in parallel across all phone variants
+    const [pendingResults, nullResults] = await Promise.all([
+      Promise.all(
+        phoneVariants.map(p =>
+          supabase
+            .from('booking')
+            .select(bookingSelect)
+            .eq('contact_phone', p)
+            .eq('client_confirmation_status', 'pending')
+            .order('created_at', { ascending: false })
+        )
+      ),
+      Promise.all(
+        phoneVariants.map(p =>
+          supabase
+            .from('booking')
+            .select(bookingSelect)
+            .eq('contact_phone', p)
+            .is('client_confirmation_status', null)
+            .order('created_at', { ascending: false })
+        )
+      ),
+    ]);
 
     const seen = new Set<string>();
     const merged: any[] = [];
-    for (const row of results.flatMap(r => r.data || [])) {
+    const allRows = [
+      ...pendingResults.flatMap(r => r.data || []),
+      ...nullResults.flatMap(r => r.data || []),
+    ];
+    for (const row of allRows) {
       if (!seen.has(row.id)) { seen.add(row.id); merged.push(row); }
     }
     return merged;

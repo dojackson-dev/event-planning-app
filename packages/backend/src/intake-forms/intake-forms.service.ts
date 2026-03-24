@@ -146,29 +146,19 @@ export class IntakeFormsService {
       .eq('id', intakeFormId)
       .eq('user_id', userId);
 
-    // Mark the booking as pending client confirmation if a client account exists for
-    // this phone. We match via contact_phone (normalized) so we do NOT touch user_id
-    // (which has an auth.users FK constraint — client portal users are phone-only and
-    // may not have auth.users entries).
+    // Always mark the booking as pending client confirmation when there's a contact phone.
+    // This allows ANY phone-only client (even without a users table entry) to see the
+    // confirmation card when they log into the client portal.
     if (intakeForm.contact_phone) {
-      const normalizedPhone = normalizePhone(intakeForm.contact_phone);
-      const { data: clientUser } = await supabaseAdmin
-        .from('users')
-        .select('id')
-        .eq('phone_number', normalizedPhone)
-        .maybeSingle();
-
-      if (clientUser) {
-        // Only update client_confirmation_status — never change user_id
-        try {
-          await supabaseAdmin
-            .from('booking')
-            .update({ client_confirmation_status: 'pending' })
-            .eq('id', booking.id);
-          booking.client_confirmation_status = 'pending';
-        } catch {
-          // Column may not exist yet if migration hasn't been run — safe to ignore
-        }
+      try {
+        await supabaseAdmin
+          .from('booking')
+          .update({ client_confirmation_status: 'pending' })
+          .eq('id', booking.id);
+        booking.client_confirmation_status = 'pending';
+      } catch {
+        // Column may not exist yet if migration hasn't been run — safe to ignore
+        console.warn('[convertToBooking] client_confirmation_status column missing — run add-client-confirmation-to-booking.sql migration');
       }
     }
 

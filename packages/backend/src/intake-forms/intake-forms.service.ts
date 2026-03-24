@@ -144,24 +144,29 @@ export class IntakeFormsService {
       .eq('id', intakeFormId)
       .eq('user_id', userId);
 
-    // Link the booking to the client's user account if one exists with this phone.
-    // This allows the client to immediately see their event in the client portal.
+    // Mark the booking as pending client confirmation if a client account exists for
+    // this phone. We match via contact_phone (normalized) so we do NOT touch user_id
+    // (which has an auth.users FK constraint — client portal users are phone-only and
+    // may not have auth.users entries).
     if (intakeForm.contact_phone) {
       const normalizedPhone = normalizePhone(intakeForm.contact_phone);
       const { data: clientUser } = await supabaseAdmin
         .from('users')
         .select('id')
         .eq('phone_number', normalizedPhone)
-        .eq('role', 'customer')
         .maybeSingle();
 
       if (clientUser) {
-        await supabaseAdmin
-          .from('booking')
-          .update({ user_id: clientUser.id, client_confirmation_status: 'pending' })
-          .eq('id', booking.id);
-        booking.user_id = clientUser.id;
-        booking.client_confirmation_status = 'pending';
+        // Only update client_confirmation_status — never change user_id
+        try {
+          await supabaseAdmin
+            .from('booking')
+            .update({ client_confirmation_status: 'pending' })
+            .eq('id', booking.id);
+          booking.client_confirmation_status = 'pending';
+        } catch {
+          // Column may not exist yet if migration hasn't been run — safe to ignore
+        }
       }
     }
 

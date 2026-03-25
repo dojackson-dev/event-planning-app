@@ -122,7 +122,7 @@ export class ClientPortalService {
 
     const { data: events, error: eErr } = await supabase
       .from('event')
-      .select('*, owner:users!owner_id(id, first_name, last_name, phone_number, email)')
+      .select('*')
       .in('id', eventIds)
       .order('date', { ascending: true });
 
@@ -130,7 +130,20 @@ export class ClientPortalService {
       this.logger.error('getEvents error', eErr);
       return [];
     }
-    return events || [];
+    if (!events?.length) return [];
+
+    // Fetch owner info separately so a missing FK never breaks event display
+    const ownerIds = [...new Set(events.map((e: any) => e.owner_id).filter(Boolean))];
+    let ownersById: Record<string, any> = {};
+    if (ownerIds.length) {
+      const { data: owners } = await supabase
+        .from('users')
+        .select('id, first_name, last_name, phone_number, email')
+        .in('id', ownerIds);
+      for (const o of owners || []) ownersById[o.id] = o;
+    }
+
+    return events.map((e: any) => ({ ...e, owner: ownersById[e.owner_id] || null }));
   }
 
   /** Vendors booked for this client's events, plus any vendors the client booked directly */

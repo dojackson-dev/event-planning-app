@@ -109,6 +109,23 @@ export class ClientAuthService {
       }
     }
 
+    // 4. Check vendor_booking_requests.client_phone (submitted via vendor public booking form)
+    if (!clientFound) {
+      const vendorRequestResults = await Promise.all(
+        phoneVariants.map(p =>
+          supabase
+            .from('vendor_booking_requests')
+            .select('id, client_name, client_phone')
+            .eq('client_phone', p)
+            .limit(10),
+        ),
+      );
+      const allVendorRequests = vendorRequestResults.flatMap((r: any) => r.data || []);
+      if (allVendorRequests.length > 0) {
+        clientFound = name ? this.nameMatches(name, allVendorRequests.map((r: any) => r.client_name)) : true;
+      }
+    }
+
     if (!clientFound) {
       this.logger.warn(`OTP requested for unrecognized phone: ${normalized}`);
       return { message: 'If this number is on file, you will receive a verification code shortly.' };
@@ -227,9 +244,22 @@ export class ClientAuthService {
             ),
           );
           const bookingName = bookingResults.flatMap((r: any) => r.data || [])[0]?.contact_name || '';
-          const parts = bookingName.split(/\s+/);
-          firstName = parts[0] || '';
-          lastName = parts.slice(1).join(' ') || '';
+          if (bookingName) {
+            const parts = bookingName.split(/\s+/);
+            firstName = parts[0] || '';
+            lastName = parts.slice(1).join(' ') || '';
+          } else {
+            // Try vendor_booking_requests (submitted via vendor public booking form)
+            const vendorRequestResults = await Promise.all(
+              phoneVariants.map(p =>
+                supabase.from('vendor_booking_requests').select('client_name').eq('client_phone', p).limit(1),
+              ),
+            );
+            const vendorRequestName = vendorRequestResults.flatMap((r: any) => r.data || [])[0]?.client_name || '';
+            const parts = vendorRequestName.split(/\s+/);
+            firstName = parts[0] || '';
+            lastName = parts.slice(1).join(' ') || '';
+          }
         }
       }
       // Generate a stable, UUID-format client ID derived from the phone number

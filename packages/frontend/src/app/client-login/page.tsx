@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useClientAuth } from '@/contexts/ClientAuthContext'
@@ -8,8 +9,9 @@ import { Phone, ShieldCheck, ArrowLeft, MessageSquare, User } from 'lucide-react
 
 type Step = 'phone' | 'otp'
 
-export default function ClientLoginPage() {
+function ClientLoginForm() {
   const { requestOtp, verifyOtp } = useClientAuth()
+  const searchParams = useSearchParams()
 
   const [step, setStep] = useState<Step>('phone')
   const [name, setName] = useState('')
@@ -20,6 +22,14 @@ export default function ClientLoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [devOtp, setDevOtp] = useState<string | null>(null)
+
+  // Pre-fill from URL params (e.g. redirected from vendor booking form)
+  useEffect(() => {
+    const phoneParam = searchParams.get('phone')
+    const nameParam = searchParams.get('name')
+    if (phoneParam) setPhone(decodeURIComponent(phoneParam))
+    if (nameParam) setName(decodeURIComponent(nameParam))
+  }, [searchParams])
 
   const handleRequestOtp = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -127,7 +137,7 @@ export default function ClientLoginPage() {
                       />
                     </div>
                     <p className="mt-1.5 text-xs text-gray-500">
-                      Enter the name you provided on your event intake form.
+                      Enter the name you used when booking or on your event intake form.
                     </p>
                   </div>
 
@@ -271,5 +281,13 @@ export default function ClientLoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function ClientLoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <ClientLoginForm />
+    </Suspense>
   )
 }

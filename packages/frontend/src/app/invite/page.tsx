@@ -71,11 +71,23 @@ function InvitePage() {
     }
 
     axios.get(`${API_URL}/client-portal/invite/${token}`)
-      .then((res) => {
+      .then(async (res) => {
         setForm(res.data)
         if (res.data.invite_status === 'confirmed') {
           setStep('already-confirmed')
         } else {
+          // If there's a stored token, quickly validate it's still alive
+          const storedToken = typeof window !== 'undefined' ? localStorage.getItem('client_token') : null
+          if (storedToken) {
+            try {
+              await axios.get(`${API_URL}/client-portal/overview`, { headers: { 'x-client-token': storedToken } })
+              // Session still valid
+            } catch {
+              // Session expired — clear it so user goes to phone step
+              localStorage.removeItem('client_token')
+              localStorage.removeItem('client_session')
+            }
+          }
           setStep('details')
         }
       })
@@ -142,7 +154,16 @@ function InvitePage() {
       setStep('confirmed')
       setTimeout(() => router.push('/client-portal/events'), 3000)
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Could not confirm your event. Please try again.')
+      if (err.response?.status === 401) {
+        // Session expired — clear stale token and re-verify
+        localStorage.removeItem('client_token')
+        localStorage.removeItem('client_session')
+        setClientToken(null)
+        setError('')
+        setStep('phone')
+      } else {
+        setError(err.response?.data?.message || 'Could not confirm your event. Please try again.')
+      }
     } finally {
       setLoading(false)
     }
@@ -159,7 +180,15 @@ function InvitePage() {
       )
       setStep('declined')
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Could not process your response.')
+      if (err.response?.status === 401) {
+        localStorage.removeItem('client_token')
+        localStorage.removeItem('client_session')
+        setClientToken(null)
+        setError('')
+        setStep('phone')
+      } else {
+        setError(err.response?.data?.message || 'Could not process your response.')
+      }
     } finally {
       setLoading(false)
     }

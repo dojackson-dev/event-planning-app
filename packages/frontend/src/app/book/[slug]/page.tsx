@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useParams } from 'next/navigation'
-import { Calendar, User, Mail, Phone, MapPin, Clock, CheckCircle2, AlertCircle, Loader2, Building2, Send, MessageSquare } from 'lucide-react'
+import { useParams, useRouter } from 'next/navigation'
+import { Calendar, User, Mail, Phone, MapPin, Clock, CheckCircle2, AlertCircle, Loader2, Building2, Send, MessageSquare, ArrowRight } from 'lucide-react'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
@@ -38,6 +38,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export default function PublicBookingPage() {
   const params = useParams()
+  const router = useRouter()
   const slug = params.slug as string
 
   const [linkInfo, setLinkInfo] = useState<BookingLinkInfo | null>(null)
@@ -144,6 +145,11 @@ export default function PublicBookingPage() {
   const vendor = linkInfo.vendor_accounts
 
   if (submitted) {
+    const portalParams = new URLSearchParams()
+    if (clientPhone) portalParams.set('phone', clientPhone)
+    if (clientName) portalParams.set('name', clientName)
+    const portalUrl = `/client-login?${portalParams.toString()}`
+
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-10">
         <div className="bg-white rounded-2xl border border-gray-200 p-10 max-w-md w-full text-center shadow-sm">
@@ -152,7 +158,22 @@ export default function PublicBookingPage() {
           <p className="text-gray-500 text-sm mb-1">
             Your booking request has been sent to <strong>{vendor.business_name}</strong>.
           </p>
-          <p className="text-gray-400 text-sm">They will review your request and get back to you at <strong>{clientEmail}</strong>.</p>
+          <p className="text-gray-400 text-sm mb-6">They will review your request and get back to you at <strong>{clientEmail}</strong>.</p>
+
+          {clientPhone && (
+            <div className="border-t border-gray-100 pt-6">
+              <p className="text-sm text-gray-600 mb-4">
+                Track your booking and event updates in the <strong>Client Portal</strong>.
+              </p>
+              <button
+                onClick={() => router.push(portalUrl)}
+                className="inline-flex items-center gap-2 w-full justify-center py-3 px-5 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition-colors"
+              >
+                Go to Client Portal
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
     )

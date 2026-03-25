@@ -68,6 +68,8 @@ interface OwnerEvent {
   id: string
   name: string
   date: string
+  startTime?: string
+  endTime?: string
   venue?: string
   location?: string
 }
@@ -83,6 +85,9 @@ interface BookingForm {
   notes: string
   agreedAmount: string
   depositAmount: string
+  clientName: string
+  clientEmail: string
+  clientPhone: string
 }
 
 function StarDisplay({ rating }: { rating: number }) {
@@ -103,11 +108,14 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
   const [vendor, setVendor] = useState<VendorProfile | null>(null)
   const [reviews, setReviews] = useState<Review[]>([])
   const [events, setEvents] = useState<OwnerEvent[]>([])
+  const [eventClientMap, setEventClientMap] = useState<Record<string, ClientInfo>>({})
   const [loading, setLoading] = useState(true)
   const [bookingOpen, setBookingOpen] = useState(false)
   const [bookingSuccess, setBookingSuccess] = useState(false)
   const [bookingSubmitting, setBookingSubmitting] = useState(false)
   const [bookingError, setBookingError] = useState('')
+
+  interface ClientInfo { name: string; email?: string; phone?: string }
 
   const [form, setForm] = useState<BookingForm>({
     eventId: '',
@@ -120,19 +128,31 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
     notes: '',
     agreedAmount: '',
     depositAmount: '',
+    clientName: '',
+    clientEmail: '',
+    clientPhone: '',
   })
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [vendorRes, reviewsRes, eventsRes] = await Promise.all([
+        const [vendorRes, reviewsRes, eventsRes, bookingsRes] = await Promise.all([
           api.get(`/vendors/${params.id}`),
           api.get(`/vendors/${params.id}/reviews`),
           api.get('/events').catch(() => ({ data: [] })),
+          api.get('/bookings').catch(() => ({ data: [] })),
         ])
         setVendor(vendorRes.data)
         setReviews(reviewsRes.data)
         setEvents(eventsRes.data || [])
+        // Build event_id → client info map from bookings
+        const map: Record<string, ClientInfo> = {}
+        for (const b of (bookingsRes.data || [])) {
+          if (b.event_id && b.contact_name) {
+            map[b.event_id] = { name: b.contact_name, email: b.contact_email || undefined, phone: b.contact_phone || undefined }
+          }
+        }
+        setEventClientMap(map)
       } catch {
         router.push('/dashboard/vendors')
       } finally {
@@ -142,27 +162,38 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
     load()
   }, [params.id, router])
 
-  // When an owner event is selected, pre-fill event name + date
+  // When an owner event is selected, pre-fill all event details
   const handleEventSelect = (eventId: string) => {
     const ev = events.find(e => e.id === eventId)
-    setForm(prev => ({
-      ...prev,
-      eventId,
-      eventName: ev?.name || prev.eventName,
-      eventDate: ev?.date ? ev.date.split('T')[0] : prev.eventDate,
-      venueName: ev?.venue || prev.venueName,
-      venueAddress: ev?.location || prev.venueAddress,
-    }))
+    const client = eventClientMap[eventId]
+    if (ev) {
+      setForm(prev => ({
+        ...prev,
+        eventId,
+        eventName: ev.name || prev.eventName,
+        eventDate: ev.date ? ev.date.split('T')[0] : prev.eventDate,
+        startTime: ev.startTime || '',
+        endTime: ev.endTime || '',
+        venueName: ev.venue || '',
+        venueAddress: ev.location || '',
+        clientName: client?.name || prev.clientName,
+        clientEmail: client?.email || prev.clientEmail,
+        clientPhone: client?.phone || prev.clientPhone,
+      }))
+    } else {
+      setForm(prev => ({ ...prev, eventId: '' }))
+    }
   }
 
   const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!form.eventName.trim()) { setBookingError('Event name is required'); return }
+    if (!form.eventDate) { setBookingError('Event date is required'); return }
     setBookingSubmitting(true)
     setBookingError('')
     try {
       await api.post('/vendors/bookings', {
         vendorAccountId: params.id,
-        eventId: form.eventId || undefined,
         eventName: form.eventName,
         eventDate: form.eventDate,
         startTime: form.startTime || undefined,
@@ -172,15 +203,20 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
         notes: form.notes || undefined,
         agreedAmount: form.agreedAmount ? parseFloat(form.agreedAmount) : undefined,
         depositAmount: form.depositAmount ? parseFloat(form.depositAmount) : undefined,
+        clientName: form.clientName || undefined,
+        clientEmail: form.clientEmail || undefined,
+        clientPhone: form.clientPhone || undefined,
       })
       setBookingSuccess(true)
       setBookingOpen(false)
       setForm({
         eventId: '', eventName: '', eventDate: '', startTime: '', endTime: '',
         venueName: '', venueAddress: '', notes: '', agreedAmount: '', depositAmount: '',
+        clientName: '', clientEmail: '', clientPhone: '',
       })
     } catch (err: any) {
-      setBookingError(err.response?.data?.message || 'Failed to send booking request')
+      console.error('Booking 400 error — full response:', err.response?.data)
+      setBookingError(err.response?.data?.message || err.message || 'Failed to send booking request')
     } finally {
       setBookingSubmitting(false)
     }
@@ -409,12 +445,51 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
                     <option value="">— Select an event —</option>
                     {events.map(ev => (
                       <option key={ev.id} value={ev.id}>
-                        {ev.name} ({ev.date ? new Date(ev.date + 'T00:00:00').toLocaleDateString() : 'No date'})
+                        {ev.name}
+                        {eventClientMap[ev.id] ? ` — ${eventClientMap[ev.id].name}` : ''}
+                        {ev.date ? ` (${new Date(ev.date + 'T00:00:00').toLocaleDateString()})` : ' (No date)'}
                       </option>
                     ))}
                   </select>
                 </div>
               )}
+
+              {/* Client Info */}
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Client Information</p>
+                <div className="grid grid-cols-1 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Client Name</label>
+                    <input
+                      type="text"
+                      value={form.clientName}
+                      onChange={e => setForm(p => ({ ...p, clientName: e.target.value }))}
+                      placeholder="Client full name"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Client Email</label>
+                    <input
+                      type="email"
+                      value={form.clientEmail}
+                      onChange={e => setForm(p => ({ ...p, clientEmail: e.target.value }))}
+                      placeholder="client@email.com"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Client Phone</label>
+                    <input
+                      type="tel"
+                      value={form.clientPhone}
+                      onChange={e => setForm(p => ({ ...p, clientPhone: e.target.value }))}
+                      placeholder="(555) 000-0000"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
 
               {/* Event name */}
               <div>

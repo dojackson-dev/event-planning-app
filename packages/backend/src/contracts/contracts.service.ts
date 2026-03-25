@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 
 @Injectable()
 export class ContractsService {
-  constructor() {}
+  constructor(private readonly smsNotifications: SmsNotificationsService) {}
 
   async findAll(supabase: SupabaseClient): Promise<any[]> {
     const { data, error } = await supabase
@@ -88,6 +89,35 @@ export class ContractsService {
       .select()
       .single();
     if (error) throw error;
+
+    // Notify owner that client has signed, and confirm to client
+    try {
+      const contractNumber: string = data.contract_number ?? id;
+      const signerName: string = signatureData.signerName || data.signer_name || 'Client';
+
+      // Look up owner phone from users table
+      if (data.owner_id) {
+        const { data: ownerUser } = await supabase
+          .from('users')
+          .select('phone')
+          .eq('id', data.owner_id)
+          .single();
+        const ownerPhone: string | null = (ownerUser as any)?.phone ?? null;
+        await this.smsNotifications.contractSigned(ownerPhone, signerName, contractNumber);
+      }
+
+      // Also confirm to client (if they have a phone on the contract)
+      const clientPhone: string | null =
+        data.client_phone ?? data.contact_phone ?? null;
+      await this.smsNotifications.contractSignedConfirmToClient(
+        clientPhone,
+        signerName,
+        contractNumber,
+      );
+    } catch {
+      // SMS errors must never break the signing flow
+    }
+
     return data;
   }
 
@@ -102,6 +132,18 @@ export class ContractsService {
       .select()
       .single();
     if (error) throw error;
+
+    // Notify client via SMS
+    try {
+      const clientPhone: string | null =
+        data.client_phone ?? data.contact_phone ?? null;
+      const clientName: string = data.client_name ?? data.contact_name ?? 'Valued Client';
+      const contractNumber: string = data.contract_number ?? id;
+      await this.smsNotifications.contractSent(clientPhone, clientName, contractNumber);
+    } catch {
+      // SMS errors must never break the contract send
+    }
+
     return data;
   }
 

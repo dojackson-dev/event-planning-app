@@ -247,12 +247,12 @@ export default function RegisterPage() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Venue Phone</label>
-                  <input
-                    type="tel" value={venuePhone} onChange={e => setVenuePhone(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    placeholder="(555) 987-6543"
+                <div className="sm:col-span-2">
+                  <PhoneInput
+                    label="Venue Phone"
+                    value={venuePhone}
+                    onChange={setVenuePhone}
+                    hideSmsOptIn
                   />
                 </div>
                 <div>

@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 
 export interface Estimate {
   id?: string;
@@ -45,6 +46,24 @@ export interface EstimateItem {
 
 @Injectable()
 export class EstimatesService {
+  constructor(private readonly smsNotifications: SmsNotificationsService) {}
+
+  /**
+   * Look up the client phone number via the estimate's linked booking.
+   */
+  private async lookupClientPhone(
+    supabase: SupabaseClient,
+    estimate: Estimate,
+  ): Promise<string | null> {
+    if (!(estimate as any).booking_id) return null;
+    const { data: booking } = await supabase
+      .from('booking')
+      .select('contact_phone')
+      .eq('id', (estimate as any).booking_id)
+      .single();
+    return (booking as any)?.contact_phone ?? null;
+  }
+
   private calculateTotals(items: Partial<EstimateItem>[], taxRate: number, discountAmount: number) {
     const subtotal = items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
     const taxAmount = subtotal * (taxRate / 100);
@@ -71,28 +90,36 @@ export class EstimatesService {
   // ─── Finders ────────────────────────────────────────────────────────────────
 
   async findAll(supabase: SupabaseClient, userId: string): Promise<Estimate[]> {
-    const { data, error } = await supabase
-      .from('estimates')
-      .select('*, booking:booking(*), intake_form:intake_forms(*), items:estimate_items(*)')
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    return data || [];
+    try {
+      const { data, error } = await supabase
+        .from('estimates')
+        .select('*, booking:booking(id, contact_name, contact_email, contact_phone, event_id, total_amount), intake_form:intake_forms(*), items:estimate_items(*)')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    } catch {
+      return [];
+    }
   }
 
   async findByOwner(supabase: SupabaseClient, ownerId: string): Promise<Estimate[]> {
-    const { data, error } = await supabase
-      .from('estimates')
-      .select('*, booking:booking(*), intake_form:intake_forms(*), items:estimate_items(*)')
-      .eq('owner_id', ownerId)
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    return data || [];
+    try {
+      const { data, error } = await supabase
+        .from('estimates')
+        .select('*, booking:booking(id, contact_name, contact_email, contact_phone, event_id, total_amount), intake_form:intake_forms(*), items:estimate_items(*)')
+        .eq('owner_id', ownerId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    } catch {
+      return [];
+    }
   }
 
   async findOne(supabase: SupabaseClient, id: string): Promise<Estimate> {
     const { data, error } = await supabase
       .from('estimates')
-      .select('*, booking:booking(*), intake_form:intake_forms(*), items:estimate_items(*)')
+      .select('*, booking:booking(id, contact_name, contact_email, contact_phone, event_id, total_amount), intake_form:intake_forms(*), items:estimate_items(*)')
       .eq('id', id)
       .single();
     if (error) throw new NotFoundException('Estimate not found');
@@ -166,7 +193,7 @@ export class EstimatesService {
         .from('estimates')
         .update({ subtotal: totals.subtotal, tax_amount: totals.taxAmount, total_amount: totals.totalAmount })
         .eq('id', estimate.id)
-        .select('*, booking:booking(*), intake_form:intake_forms(*), items:estimate_items(*)')
+        .select('*, booking:booking(id, contact_name, contact_email, contact_phone, event_id, total_amount), intake_form:intake_forms(*), items:estimate_items(*)')
         .single();
       if (upErr) throw upErr;
       return updated;
@@ -225,7 +252,39 @@ export class EstimatesService {
     const today = new Date().toISOString().split('T')[0];
     if (status === 'approved') updateData.approved_date = today;
     if (status === 'rejected') updateData.rejected_date = today;
-    return this.update(supabase, id, updateData);
+
+    const updated = await this.update(supabase, id, updateData);
+
+    // ── SMS notifications ──────────────────────────────────────────────────
+    try {
+      const phone = await this.lookupClientPhone(supabase, updated);
+      const clientName =
+        (updated as any).booking?.contact_name || 'Valued Client';
+      if (status === 'sent') {
+        await this.smsNotifications.estimateSent(
+          phone,
+          clientName,
+          updated.estimate_number,
+          updated.total_amount,
+        );
+      } else if (status === 'rejected') {
+        await this.smsNotifications.estimateRejected(
+          phone,
+          clientName,
+          updated.estimate_number,
+        );
+      } else if (status === 'expired') {
+        await this.smsNotifications.estimateExpired(
+          phone,
+          clientName,
+          updated.estimate_number,
+        );
+      }
+    } catch {
+      // SMS errors must never break the estimate update
+    }
+
+    return updated;
   }
 
   async updateItem(supabase: SupabaseClient, itemId: string, itemData: Partial<EstimateItem>): Promise<EstimateItem> {

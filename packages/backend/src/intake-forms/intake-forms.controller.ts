@@ -45,8 +45,8 @@ export class IntakeFormsController {
       const result = await this.intakeFormsService.create(supabaseWithAuth, userId, createDto);
       console.log('Successfully created intake form:', result);
       return result;
-    } catch (error) {
-      console.error('Error creating intake form:', error);
+    } catch (error: any) {
+      console.error('Error creating intake form:', error?.message || error);
       throw error;
     }
   }
@@ -98,5 +98,13 @@ export class IntakeFormsController {
       console.error('Error converting to booking:', error);
       throw error;
     }
+  }
+
+  @Post(':id/resend-invitation')
+  async resendInvitation(@Headers('authorization') authorization: string, @Param('id') id: string) {
+    const token = this.extractToken(authorization);
+    const userId = await this.getUserId(authorization);
+    const supabaseWithAuth = this.supabaseService.setAuthContext(token);
+    return this.intakeFormsService.resendInvitation(supabaseWithAuth, userId, id);
   }
 }

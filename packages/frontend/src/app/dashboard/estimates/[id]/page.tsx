@@ -93,7 +93,7 @@ export default function EstimateDetailPage() {
   const canSend = estimate.status === EstimateStatus.DRAFT
   const canApprove = estimate.status === EstimateStatus.SENT
   const canReject = estimate.status === EstimateStatus.SENT
-  const canConvert = estimate.status === EstimateStatus.APPROVED
+  const canConvert = [EstimateStatus.DRAFT, EstimateStatus.SENT, EstimateStatus.APPROVED].includes(estimate.status)
 
   return (
     <div className="p-6 max-w-4xl mx-auto">

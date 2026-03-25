@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
 import { Booking, ClientStatus, BookingStatus } from '@/types'
-import { Eye, Download, Mail } from 'lucide-react'
+import { Eye, Download, Mail, RefreshCw, XCircle } from 'lucide-react'
 import { format } from 'date-fns'
 
 const clientStatusLabels: Record<ClientStatus, string> = {
@@ -52,6 +52,28 @@ export default function BookingsPage() {
       fetchBookings()
     } catch (error) {
       console.error('Failed to update client status:', error)
+    }
+  }
+
+  const cancelBooking = async (bookingId: string) => {
+    if (!confirm('Cancel this booking? The client will be notified.')) return
+    try {
+      await api.patch(`/bookings/${bookingId}/cancel`)
+      fetchBookings()
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || 'Failed to cancel booking.'
+      alert(msg)
+    }
+  }
+
+  const resendConfirmation = async (bookingId: string) => {
+    try {
+      await api.patch(`/bookings/${bookingId}/resend-confirmation`)
+      alert('Event notification resent to client.')
+      fetchBookings()
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || 'Failed to resend notification.'
+      alert(msg)
     }
   }
 
@@ -141,13 +163,16 @@ export default function BookingsPage() {
                   Paid
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Client Confirm
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredBookings.map((booking) => (
-                <tr key={booking.id} className="hover:bg-gray-50">
+                <tr key={booking.id} className={`hover:bg-gray-50 ${booking.status === BookingStatus.CANCELLED ? 'opacity-60' : ''}`}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {booking.id.slice(0, 8)}
                   </td>
@@ -187,8 +212,23 @@ export default function BookingsPage() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     ${booking.totalAmountPaid?.toFixed(2) ?? '0.00'}
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    {booking.client_confirmation_status ? (
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        booking.client_confirmation_status === 'confirmed'
+                          ? 'bg-green-100 text-green-800'
+                          : booking.client_confirmation_status === 'rejected'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {booking.client_confirmation_status}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 items-center">
                       <Link
                         href={`/dashboard/bookings/${booking.id}`}
                         className="text-primary-600 hover:text-primary-900"
@@ -208,6 +248,24 @@ export default function BookingsPage() {
                       >
                         <Mail className="h-5 w-5" />
                       </button>
+                      {booking.status !== BookingStatus.CANCELLED && (
+                        <button
+                          onClick={() => cancelBooking(booking.id)}
+                          className="text-red-600 hover:text-red-900"
+                          title="Cancel Booking"
+                        >
+                          <XCircle className="h-5 w-5" />
+                        </button>
+                      )}
+                      {booking.client_confirmation_status === 'rejected' && (
+                        <button
+                          onClick={() => resendConfirmation(booking.id)}
+                          className="text-amber-600 hover:text-amber-800"
+                          title="Resend event notification to client"
+                        >
+                          <RefreshCw className="h-5 w-5" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -215,7 +273,7 @@ export default function BookingsPage() {
 
               {filteredBookings.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-6 py-4 text-center text-sm text-gray-500">
+                  <td colSpan={9} className="px-6 py-4 text-center text-sm text-gray-500">
                     No bookings found
                   </td>
                 </tr>

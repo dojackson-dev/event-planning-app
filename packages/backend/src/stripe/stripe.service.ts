@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { SupabaseService } from '../supabase/supabase.service';
+import { VendorInvoicesService } from '../vendor-invoices/vendor-invoices.service';
 
 @Injectable()
 export class StripeService {
@@ -13,6 +14,7 @@ export class StripeService {
   constructor(
     private readonly configService: ConfigService,
     private readonly supabaseService: SupabaseService,
+    private readonly vendorInvoicesService: VendorInvoicesService,
   ) {
     const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (!secretKey) {
@@ -149,6 +151,9 @@ export class StripeService {
       case 'checkout.session.completed':
         await this.handleCheckoutComplete(event.data.object as Stripe.Checkout.Session);
         break;
+      case 'payment_intent.succeeded':
+        await this.handlePaymentIntentSucceeded(event.data.object as Stripe.PaymentIntent);
+        break;
       case 'customer.subscription.created':
       case 'customer.subscription.updated':
         await this.handleSubscriptionUpdate(event.data.object as Stripe.Subscription);
@@ -200,6 +205,26 @@ export class StripeService {
   // ─── Private Webhook Handlers ──────────────────────────────────────────────
 
   private async handleCheckoutComplete(session: Stripe.Checkout.Session): Promise<void> {
+    const invoiceId = session.metadata?.invoice_id;
+
+    // ── App invoice one-time payment ─────────────────────────────────────────
+    if (invoiceId) {
+      await this.markInvoicePaid(invoiceId, session.amount_total ?? 0);
+      this.logger.log(`Invoice ${invoiceId} marked paid via checkout session ${session.id}`);
+      return;
+    }
+
+    // ── Vendor invoice payment ────────────────────────────────────────────────
+    if (session.metadata?.vendor_invoice_id) {
+      const paymentIntentId = typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : (session.payment_intent as Stripe.PaymentIntent | null)?.id ?? null;
+      await this.vendorInvoicesService.markInvoicePaidBySession(session.id, paymentIntentId);
+      this.logger.log(`Vendor invoice checkout complete — session ${session.id}`);
+      return;
+    }
+
+    // ── Owner subscription checkout ──────────────────────────────────────────
     const ownerAccountId = session.client_reference_id;
     if (!ownerAccountId) return;
 
@@ -209,6 +234,54 @@ export class StripeService {
 
     await this.syncSubscriptionToDb(ownerAccountId, subscriptionId, 'active');
     this.logger.log(`Checkout complete — owner ${ownerAccountId} is now active`);
+  }
+
+  /**
+   * Handle payment_intent.succeeded — marks the matching invoice as paid.
+   * Fired for direct PaymentIntents (charge-client flow).
+   */
+  private async handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent): Promise<void> {
+    const invoiceId = paymentIntent.metadata?.invoice_id;
+    if (!invoiceId) return;
+    await this.markInvoicePaid(invoiceId, paymentIntent.amount);
+    this.logger.log(`Invoice ${invoiceId} marked paid via PaymentIntent ${paymentIntent.id}`);
+  }
+
+  /**
+   * Record a (possibly partial) payment against an invoice.
+   * - Adds amountCents to amount_paid, recalculates amount_due.
+   * - If fully paid: status = 'paid'. If partial: status = 'partial'.
+   */
+  private async markInvoicePaid(invoiceId: string, amountCents: number): Promise<void> {
+    const admin = this.supabaseService.getAdminClient();
+    const amountDollars = amountCents / 100;
+
+    const { data: invoice } = await admin
+      .from('invoices')
+      .select('total_amount, amount_paid')
+      .eq('id', invoiceId)
+      .maybeSingle();
+
+    const total = Number(invoice?.total_amount ?? amountDollars);
+    const previouslyPaid = Number(invoice?.amount_paid ?? 0);
+    const newAmountPaid = Math.min(previouslyPaid + amountDollars, total);
+    const newAmountDue = Math.max(0, total - newAmountPaid);
+    const isFullyPaid = newAmountDue <= 0.005; // allow $0.01 rounding tolerance
+
+    const { error } = await admin
+      .from('invoices')
+      .update({
+        status: isFullyPaid ? 'paid' : 'partial',
+        amount_paid: isFullyPaid ? total : newAmountPaid,
+        amount_due: isFullyPaid ? 0 : newAmountDue,
+        ...(isFullyPaid ? { paid_date: new Date().toISOString() } : {}),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', invoiceId);
+
+    if (error) {
+      this.logger.error(`Failed to record payment for invoice ${invoiceId}: ${error.message}`);
+    }
   }
 
   private async handleSubscriptionUpdate(subscription: Stripe.Subscription): Promise<void> {
@@ -292,7 +365,40 @@ export class StripeService {
 
   // ─── Stripe Connect ────────────────────────────────────────────────────────
 
-  private readonly APP_FEE_RATE = 0.015; // 1.5% DoVenueSuite fee
+  private readonly APP_FEE_RATE = 0.05; // 5% DoVenueSuite fee
+
+  /**
+   * Resolves the owner_accounts row for a given auth user ID.
+   * Primary path: memberships table (user_id → owner_account_id).
+   * Fallback: direct user_id column on owner_accounts.
+   */
+  private async getOwnerAccountByUserId(userId: string, admin: any): Promise<any | null> {
+    // Primary: look up via memberships
+    const { data: membership } = await admin
+      .from('memberships')
+      .select('owner_account_id')
+      .eq('user_id', userId)
+      .limit(1)
+      .maybeSingle();
+
+    if (membership?.owner_account_id) {
+      const { data: owner } = await admin
+        .from('owner_accounts')
+        .select('*')
+        .eq('id', membership.owner_account_id)
+        .maybeSingle();
+      return owner ?? null;
+    }
+
+    // Fallback: direct user_id column (legacy)
+    const { data: owner } = await admin
+      .from('owner_accounts')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    return owner ?? null;
+  }
 
   /**
    * Create (or retrieve) a Stripe Connect Express account for an owner,
@@ -301,12 +407,7 @@ export class StripeService {
   async createOwnerConnectOnboarding(userId: string, email: string): Promise<string> {
     const admin = this.supabaseService.getAdminClient();
 
-    const { data: owner } = await admin
-      .from('owner_accounts')
-      .select('id, stripe_connect_id, stripe_connect_status')
-      .eq('primary_owner_id', userId)
-      .maybeSingle();
-
+    const owner = await this.getOwnerAccountByUserId(userId, admin);
     if (!owner) throw new Error('Owner account not found');
 
     let connectId = owner.stripe_connect_id;
@@ -383,15 +484,11 @@ export class StripeService {
    */
   async getOwnerConnectStatus(userId: string): Promise<{ status: string; connectId: string | null }> {
     const admin = this.supabaseService.getAdminClient();
-    const { data } = await admin
-      .from('owner_accounts')
-      .select('stripe_connect_id, stripe_connect_status')
-      .eq('primary_owner_id', userId)
-      .maybeSingle();
+    const owner = await this.getOwnerAccountByUserId(userId, admin);
 
     return {
-      status: data?.stripe_connect_status ?? 'not_connected',
-      connectId: data?.stripe_connect_id ?? null,
+      status: owner?.stripe_connect_status ?? 'not_connected',
+      connectId: owner?.stripe_connect_id ?? null,
     };
   }
 
@@ -414,24 +511,20 @@ export class StripeService {
 
   /**
    * Charge a client and route funds to an owner's Connect account.
-   * DoVenueSuite takes 1.5% as application_fee_amount.
+   * DoVenueSuite takes 5% as application_fee_amount.
    *
-   * Flow: Client card → Stripe → DoVenueSuite takes 1.5% → owner receives the rest
+   * Flow: Client card → Stripe → DoVenueSuite takes 5% → owner receives the rest
    * Returns a PaymentIntent client_secret for the frontend to complete payment.
    */
   async createClientPaymentIntent(
     amountCents: number,
     ownerUserId: string,
     description: string,
+    invoiceId?: string,
   ): Promise<{ clientSecret: string; paymentIntentId: string; feeCents: number }> {
     const admin = this.supabaseService.getAdminClient();
 
-    const { data: owner } = await admin
-      .from('owner_accounts')
-      .select('id, stripe_connect_id, stripe_connect_status')
-      .eq('primary_owner_id', ownerUserId)
-      .maybeSingle();
-
+    const owner = await this.getOwnerAccountByUserId(ownerUserId, admin);
     if (!owner?.stripe_connect_id || owner.stripe_connect_status !== 'active') {
       throw new Error('Owner has not completed Stripe Connect onboarding');
     }
@@ -444,7 +537,10 @@ export class StripeService {
       application_fee_amount: feeCents,
       transfer_data: { destination: owner.stripe_connect_id },
       description,
-      metadata: { owner_account_id: String(owner.id) },
+      metadata: {
+        owner_account_id: String(owner.id),
+        ...(invoiceId ? { invoice_id: invoiceId } : {}),
+      },
     });
 
     // Record in stripe_payments ledger
@@ -468,9 +564,9 @@ export class StripeService {
 
   /**
    * Transfer funds from owner to vendor for a completed booking.
-   * DoVenueSuite takes 1.5% as fee (paid by vendor — deducted from transfer).
+   * DoVenueSuite takes 5% as fee (paid by vendor — deducted from transfer).
    *
-   * Flow: Owner's balance → transfer to vendor → DoVenueSuite keeps 1.5%
+   * Flow: Owner's balance → transfer to vendor → DoVenueSuite keeps 5%
    */
   async payVendor(
     amountCents: number,
@@ -481,11 +577,7 @@ export class StripeService {
   ): Promise<{ transferId: string; feeCents: number; netCents: number }> {
     const admin = this.supabaseService.getAdminClient();
 
-    const { data: owner } = await admin
-      .from('owner_accounts')
-      .select('id, stripe_connect_id')
-      .eq('primary_owner_id', ownerUserId)
-      .maybeSingle();
+    const owner = await this.getOwnerAccountByUserId(ownerUserId, admin);
 
     const { data: vendor } = await admin
       .from('vendor_accounts')
@@ -531,44 +623,102 @@ export class StripeService {
   }
 
   /**
-   * Create a Stripe Checkout session (one-time payment) for an invoice.
-   * Returns a hosted payment URL the owner can send directly to the client.
+   * Generate a client-facing payment page URL for an invoice.
+   * Returns our own frontend URL (/pay/invoice/:token) so the client can
+   * choose how much to pay (deposit, full balance, or custom amount).
    */
   async createInvoicePaymentLink(
     invoiceId: string,
-    amountCents: number,
-    description: string,
+    _amountCents: number,
+    _description: string,
     ownerUserId: string,
   ): Promise<string> {
     const admin = this.supabaseService.getAdminClient();
 
-    const { data: owner } = await admin
-      .from('owner_accounts')
-      .select('id, stripe_connect_id, stripe_connect_status')
-      .eq('primary_owner_id', ownerUserId)
+    const { data: inv } = await admin
+      .from('invoices')
+      .select('public_token')
+      .eq('id', invoiceId)
       .maybeSingle();
 
+    if (!inv?.public_token) {
+      throw new Error('Invoice not found or missing public token');
+    }
+
+    return `${this.frontendUrl}/pay/invoice/${inv.public_token}`;
+  }
+
+  /**
+   * Public: fetch a safe subset of invoice data for the client payment page.
+   */
+  async getPublicInvoice(token: string) {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data, error } = await admin
+      .from('invoices')
+      .select(`
+        id, invoice_number, client_name, client_email,
+        total_amount, amount_paid, amount_due, status,
+        issue_date, due_date, notes, terms,
+        deposit_percentage, deposit_due_days_before, final_payment_due_days_before,
+        booking:booking(event:event(id, name, date)),
+        items:invoice_items(id, description, quantity, unit_price, amount, item_type)
+      `)
+      .eq('public_token', token)
+      .maybeSingle();
+
+    if (error || !data) throw new Error('Invoice not found');
+    return data;
+  }
+
+  /**
+   * Public: create a Stripe Checkout session for a specific payment amount.
+   * Used by the client-facing /pay/invoice/[token] page.
+   */
+  async createPublicInvoiceCheckout(token: string, amountCents: number): Promise<string> {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: inv, error } = await admin
+      .from('invoices')
+      .select('id, invoice_number, amount_due, total_amount, owner_id')
+      .eq('public_token', token)
+      .maybeSingle();
+
+    if (error || !inv) throw new Error('Invoice not found');
+
+    const maxCents = Math.round(Number(inv.amount_due) * 100);
+    const safeCents = Math.min(amountCents, maxCents);
+    if (safeCents < 50) throw new Error('Minimum payment is $0.50');
+
+    // Look up owner Connect account
+    let owner: any = null;
+    if (inv.owner_id) {
+      const { data } = await admin.from('owner_accounts').select('stripe_connect_id, stripe_connect_status').eq('id', inv.owner_id).maybeSingle();
+      owner = data;
+    }
     const hasConnect = owner?.stripe_connect_id && owner?.stripe_connect_status === 'active';
 
-    const sessionParams: Stripe.Checkout.SessionCreateParams = {
+    const description = `Invoice ${inv.invoice_number} — $${(safeCents / 100).toFixed(2)}`;
+
+    const sessionParams: any = {
       mode: 'payment',
       payment_method_types: ['card'],
       line_items: [{
         price_data: {
           currency: 'usd',
-          unit_amount: amountCents,
-          product_data: { name: description || 'Invoice Payment' },
+          unit_amount: safeCents,
+          product_data: { name: description },
         },
         quantity: 1,
       }],
-      success_url: `${this.frontendUrl}/dashboard/invoices/${invoiceId}?paid=true`,
-      cancel_url: `${this.frontendUrl}/dashboard/invoices/${invoiceId}?canceled=true`,
-      client_reference_id: invoiceId,
-      metadata: { invoice_id: invoiceId },
+      success_url: `${this.frontendUrl}/pay/invoice/${token}?paid=true`,
+      cancel_url: `${this.frontendUrl}/pay/invoice/${token}?canceled=true`,
+      client_reference_id: inv.id,
+      metadata: { invoice_id: inv.id },
     };
 
     if (hasConnect) {
-      const feeCents = Math.round(amountCents * this.APP_FEE_RATE);
+      const feeCents = Math.round(safeCents * this.APP_FEE_RATE);
       sessionParams.payment_intent_data = {
         application_fee_amount: feeCents,
         transfer_data: { destination: owner!.stripe_connect_id! },
@@ -576,7 +726,7 @@ export class StripeService {
     }
 
     const session = await this.stripe.checkout.sessions.create(sessionParams);
-    this.logger.log(`Created invoice payment link for invoice ${invoiceId}: ${session.url}`);
+    this.logger.log(`Created public checkout for invoice ${inv.id} (${safeCents} cents): ${session.url}`);
     return session.url!;
   }
 

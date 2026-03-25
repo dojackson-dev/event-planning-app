@@ -1,5 +1,7 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
@@ -29,6 +31,7 @@ function NewInvoicePageContent() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [serviceItems, setServiceItems] = useState<ServiceItem[]>([])
   const [selectedBooking, setSelectedBooking] = useState<string>('')
+  const [clientName, setClientName] = useState<string>('')
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([])
   const [expenseItems, setExpenseItems] = useState<InvoiceLineItem[]>([])
   const [vendorBookingBanner, setVendorBookingBanner] = useState<string>('')
@@ -39,11 +42,24 @@ function NewInvoicePageContent() {
   const [terms, setTerms] = useState('Payment due within 30 days')
   const [issueDate, setIssueDate] = useState(new Date().toISOString().split('T')[0])
   const [dueDate, setDueDate] = useState(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
+  // Payment schedule — loaded from owner Settings → Billing (read-only here)
+  const [ownerDepositPct, setOwnerDepositPct] = useState<number | null>(null)
+  const [ownerDepositDays, setOwnerDepositDays] = useState<number | null>(null)
+  const [ownerFinalDays, setOwnerFinalDays] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     fetchBookings()
     fetchServiceItems()
+    // Load owner payment schedule defaults
+    api.get('/owner/payment-schedule').then(res => {
+      const d = res.data
+      if (d.depositPercentage !== null && d.depositPercentage !== undefined) {
+        setOwnerDepositPct(Number(d.depositPercentage))
+        setOwnerDepositDays(Number(d.depositDueDaysBefore))
+        setOwnerFinalDays(Number(d.finalPaymentDueDaysBefore))
+      }
+    }).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -77,17 +93,10 @@ function NewInvoicePageContent() {
   const fetchBookings = async () => {
     try {
       const response = await api.get<Booking[]>('/bookings')
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
+      // Only remove cancelled bookings — invoices can be for past or future events
       const active = response.data.filter((b) => {
-        // Remove cancelled bookings
-        if (b.clientStatus === 'cancelled' || b.status === 'cancelled') return false
-        // Remove bookings where event date has already passed
-        if (b.event?.date) {
-          const [y, m, d] = b.event.date.split('-').map(Number)
-          const eventDate = new Date(y, m - 1, d)
-          if (eventDate < today) return false
-        }
+        const status = (b.client_status || b.clientStatus || '').toLowerCase()
+        if (status === 'cancelled' || (b.status || '').toLowerCase() === 'cancelled') return false
         return true
       })
       setBookings(active)
@@ -263,12 +272,16 @@ function NewInvoicePageContent() {
       const invoiceData = {
         invoice: {
           booking_id: selectedBooking && selectedBooking !== '' ? selectedBooking : null,
+          client_name: clientName || null,
           owner_id: user?.id,
           tax_rate: includeTax ? Number(taxRate) : 0,
           discount_amount: Number(discountAmount),
           amount_paid: 0,
           issue_date: issueDate,
           due_date: dueDate,
+          deposit_percentage: ownerDepositPct,
+          deposit_due_days_before: ownerDepositDays,
+          final_payment_due_days_before: ownerFinalDays,
           notes,
           terms,
           status: 'draft',
@@ -321,25 +334,57 @@ function NewInvoicePageContent() {
       )}
 
       <form onSubmit={handleSubmit} className="bg-white shadow-md rounded-lg p-6">
-        {/* Booking Selection */}
+        {/* Event / Booking Selection */}
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Select Booking (Optional)
+            Link to Event / Booking (Optional)
           </label>
+          {bookings.length === 0 ? (
+            <p className="text-sm text-gray-500 mt-1">
+              No bookings found. Invoices can still be created without linking to a booking.
+            </p>
+          ) : null}
           <select
             value={selectedBooking}
-            onChange={(e) => setSelectedBooking(e.target.value)}
+            onChange={(e) => {
+              const bookingId = e.target.value
+              setSelectedBooking(bookingId)
+              if (bookingId) {
+                const b = bookings.find(bk => bk.id === bookingId)
+                if (b) setClientName(b.contact_name || b.contact_email || '')
+              }
+            }}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
-            <option value="">-- Select a booking (optional) --</option>
-            {bookings.map((booking) => (
-              <option key={booking.id} value={booking.id}>
-                {booking.user ? `${booking.user.firstName} ${booking.user.lastName}` : 'Customer'}
-                {booking.event?.name ? ` — ${booking.event.name}` : ''}
-                {booking.event?.date ? ` (${booking.event.date})` : ''}
-              </option>
-            ))}
+            <option value="">-- Select an event / booking (optional) --</option>
+            {bookings.map((booking) => {
+              const clientName = booking.contact_name ||
+                (booking.user ? `${booking.user.firstName} ${booking.user.lastName}` : '')
+              const eventName = booking.event?.name || ''
+              const eventDate = booking.event?.date || ''
+              return (
+                <option key={booking.id} value={booking.id}>
+                  {eventName || 'Event'}
+                  {clientName ? ` — ${clientName}` : ''}
+                  {eventDate ? ` (${eventDate})` : ''}
+                </option>
+              )
+            })}
           </select>
+        </div>
+
+        {/* Client Name */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Client Name
+          </label>
+          <input
+            type="text"
+            value={clientName}
+            onChange={(e) => setClientName(e.target.value)}
+            placeholder="Enter client name"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+          />
         </div>
 
         {/* Invoice Dates */}
@@ -369,6 +414,21 @@ function NewInvoicePageContent() {
             />
           </div>
         </div>
+
+        {/* Payment Schedule — from owner Settings → Billing */}
+        {ownerDepositPct !== null && (
+          <div className="mb-6 flex items-start gap-3 border border-blue-200 bg-blue-50 rounded-lg px-4 py-3 text-sm text-blue-800">
+            <span className="text-base mt-0.5">💳</span>
+            <div>
+              <p className="font-semibold text-blue-900 mb-0.5">Payment schedule will be applied</p>
+              <p>Deposit ({ownerDepositPct}%) — due {ownerDepositDays} days before the event</p>
+              <p>Final payment ({100 - ownerDepositPct}%) — due {ownerFinalDays} days before the event</p>
+              <a href="/dashboard/settings?tab=billing" className="text-xs text-blue-600 underline mt-1 inline-block">
+                Change in Settings → Billing
+              </a>
+            </div>
+          </div>
+        )}
 
         {/* Service Items Quick Add */}
         <div className="mb-6">

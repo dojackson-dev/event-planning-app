@@ -60,7 +60,27 @@ export class AuthFlowService {
 
     const userId = authData.user.id;
 
-    // 2. Create owner_account with trial
+    // 2. Create user record first (owner_accounts FK references users.id)
+    const { error: userError } = await supabase
+      .from('users')
+      .insert({
+        id: userId,
+        email: dto.email,
+        first_name: dto.firstName,
+        last_name: dto.lastName,
+        role: 'owner',
+        roles: ['owner'],
+        phone_number: dto.phoneNumber,
+        email_verified: false, // Will be verified via Supabase email
+        phone_verified: false, // Skip SMS for now
+        sms_opt_in: dto.smsOptIn === true,
+        sms_opt_in_at: dto.smsOptIn === true ? new Date().toISOString() : null,
+        status: 'active',
+      });
+
+    if (userError) throw new BadRequestException(userError.message);
+
+    // 3. Create owner_account with trial (FK primary_owner_id → users.id)
     const { data: ownerAccount, error: accountError } = await supabase
       .from('owner_accounts')
       .insert({
@@ -75,25 +95,6 @@ export class AuthFlowService {
 
     // Create trial period (30 days default, or configurable)
     await this.trialService.createTrial(ownerAccount.id);
-
-    // 3. Create user record
-    const { error: userError } = await supabase
-      .from('users')
-      .insert({
-        id: userId,
-        email: dto.email,
-        first_name: dto.firstName,
-        last_name: dto.lastName,
-        role: 'owner',
-        phone_number: dto.phoneNumber,
-        email_verified: false, // Will be verified via Supabase email
-        phone_verified: false, // Skip SMS for now
-        sms_opt_in: dto.smsOptIn === true,
-        sms_opt_in_at: dto.smsOptIn === true ? new Date().toISOString() : null,
-        status: 'active',
-      });
-
-    if (userError) throw new BadRequestException(userError.message);
 
     // 4. Create membership
     const { error: memberError } = await supabase
@@ -125,13 +126,13 @@ export class AuthFlowService {
 
     if (venueError) throw new BadRequestException(venueError.message);
 
-    // 6. Send welcome SMS to anyone who provided a phone number
-    if (dto.phoneNumber) {
+    // 6. Send welcome SMS if they opted in
+    if (dto.phoneNumber && dto.smsOptIn) {
       try {
-        const smsBody = dto.smsOptIn
-          ? `Welcome to DoVenue Suite, ${dto.firstName}! Your account is ready. You're opted in to SMS notifications for event updates, confirmations, and reminders.`
-          : `Welcome to DoVenue Suite, ${dto.firstName}! Your account has been created successfully. Log in at your venue dashboard to get started.`;
-        await this.twilioService.sendSMS(dto.phoneNumber, smsBody);
+        await this.twilioService.sendSMS(
+          dto.phoneNumber,
+          'Welcome to DoVenue Suite! You are now subscribed to SMS notifications for account updates, event confirmations, reminders, and more. To unsubscribe at any time, reply STOP. You\'ll receive a confirmation: "You have successfully been unsubscribed. You will not receive any more messages from this number. Reply START to resubscribe." Msg & data rates may apply.',
+        );
       } catch {
         // Non-fatal — don't block account creation if SMS fails
       }
@@ -174,6 +175,27 @@ export class AuthFlowService {
   }
 
   /**
+   * Helper: check whether a user record includes a given role
+   * Checks both the legacy single `role` column and the new `roles[]` array.
+   */
+  private userHasRole(user: any, role: string): boolean {
+    if (user.role === role) return true;
+    if (Array.isArray(user.roles) && user.roles.includes(role)) return true;
+    return false;
+  }
+
+  /**
+   * Helper: get all roles for a user as a clean string array
+   */
+  private getUserRoles(user: any): string[] {
+    const rolesArray: string[] = Array.isArray(user.roles) && user.roles.length > 0
+      ? user.roles
+      : user.role ? [user.role] : [];
+    // Deduplicate
+    return [...new Set(rolesArray)];
+  }
+
+  /**
    * OWNER LOGIN FLOW
    * Check email verified, subscription status (skipped for now)
    */
@@ -187,16 +209,17 @@ export class AuthFlowService {
 
     if (authError) throw new UnauthorizedException(authError.message);
 
-    // Check user status
+    // Check user status — use left joins to avoid false-negative "User not found"
+    // when a user exists in auth but their membership record is incomplete
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('*, memberships!inner(owner_account_id, owner_accounts!inner(subscription_status))')
+      .select('*, memberships(owner_account_id, owner_accounts(subscription_status))')
       .eq('id', authData.user.id)
       .single();
 
     if (userError || !user) throw new UnauthorizedException('User not found');
 
-    if (user.role !== 'owner') {
+    if (!this.userHasRole(user, 'owner')) {
       throw new UnauthorizedException('Not an owner account');
     }
 
@@ -214,6 +237,7 @@ export class AuthFlowService {
     return {
       session: authData.session,
       user,
+      roles: this.getUserRoles(user),
       subscriptionStatus,
       accessGranted: true,
     };
@@ -425,6 +449,7 @@ export class AuthFlowService {
     firstName: string;
     lastName: string;
     phoneNumber?: string;
+    smsOptIn?: boolean;
   }) {
     const adminClient = this.supabaseService.getAdminClient();
 
@@ -468,14 +493,28 @@ export class AuthFlowService {
         first_name: dto.firstName,
         last_name: dto.lastName,
         role: 'vendor',
+        roles: ['vendor'],
         phone_number: dto.phoneNumber,
         email_verified: false,
         phone_verified: false,
-        sms_opt_in: false,
+        sms_opt_in: dto.smsOptIn === true,
+        sms_opt_in_at: dto.smsOptIn === true ? new Date().toISOString() : null,
         status: 'active',
       });
 
     if (userError) throw new BadRequestException(userError.message);
+
+    // Send welcome SMS if opted in
+    if (dto.phoneNumber && dto.smsOptIn) {
+      try {
+        await this.twilioService.sendSMS(
+          dto.phoneNumber,
+          'Welcome to DoVenue Suite! You are now subscribed to SMS notifications for account updates, event confirmations, reminders, and more. To unsubscribe at any time, reply STOP. Msg & data rates may apply.',
+        );
+      } catch {
+        // Non-fatal — don\'t block account creation if SMS fails
+      }
+    }
 
     return {
       userId,
@@ -503,7 +542,7 @@ export class AuthFlowService {
       .eq('id', authData.user.id)
       .single();
 
-    if (!user || user.role !== 'vendor') {
+    if (!user || !this.userHasRole(user, 'vendor')) {
       throw new UnauthorizedException('Not a vendor account');
     }
 
@@ -518,8 +557,123 @@ export class AuthFlowService {
     return {
       session: authData.session,
       user,
+      roles: this.getUserRoles(user),
       vendorAccount,
       hasProfile: !!vendorAccount,
+    };
+  }
+
+  /**
+   * UNIFIED LOGIN
+   * Single endpoint for all roles. Returns all roles the user has.
+   * Frontend uses the roles array to decide where to navigate.
+   */
+  async unifiedLogin(email: string, password: string) {
+    const supabase = this.supabaseService.getClient();
+    const adminClient = this.supabaseService.getAdminClient();
+
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (authError) throw new UnauthorizedException(authError.message);
+
+    const { data: dbUser } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', authData.user.id)
+      .single();
+
+    // Fall back to Supabase auth metadata if no users-table row exists yet
+    const user = dbUser ?? {
+      id:            authData.user.id,
+      email:         authData.user.email,
+      first_name:    authData.user.user_metadata?.first_name ?? '',
+      last_name:     authData.user.user_metadata?.last_name ?? '',
+      role:          authData.user.user_metadata?.role ?? 'owner',
+      roles:         authData.user.user_metadata?.roles ?? null,
+      created_at:    authData.user.created_at,
+      updated_at:    authData.user.updated_at,
+    };
+
+    const roles = this.getUserRoles(user);
+
+    // Fetch owner subscription status if user is an owner
+    let subscriptionStatus: string | null = null;
+    let ownerAccountId: string | null = null;
+    if (this.userHasRole(user, 'owner')) {
+      const { data: membership } = await supabase
+        .from('memberships')
+        .select('owner_account_id, owner_accounts(subscription_status)')
+        .eq('user_id', user.id)
+        .limit(1)
+        .single();
+      subscriptionStatus = (membership?.owner_accounts as any)?.subscription_status ?? null;
+      ownerAccountId = membership?.owner_account_id ?? null;
+    }
+
+    // Fetch vendor account if user is a vendor
+    let vendorAccount: any = null;
+    if (this.userHasRole(user, 'vendor')) {
+      const { data: va } = await adminClient
+        .from('vendor_accounts')
+        .select('id, business_name, category, is_active')
+        .eq('user_id', user.id)
+        .single();
+      vendorAccount = va;
+    }
+
+    return {
+      session: authData.session,
+      user,
+      roles,
+      subscriptionStatus,
+      ownerAccountId,
+      vendorAccount,
+      hasVendorProfile: !!vendorAccount,
+      accessGranted: true,
+    };
+  }
+
+  /**
+   * ADD ROLE TO EXISTING USER
+   * Call this when an owner wants to also become a vendor, or vice versa.
+   * The caller must pass a valid access_token so we can identify them.
+   */
+  async addRoleToUser(accessToken: string, newRole: 'owner' | 'vendor') {
+    const supabase = this.supabaseService.getClient();
+    const adminClient = this.supabaseService.getAdminClient();
+
+    // Verify token and get user id
+    const { data: { user: authUser }, error: authErr } = await supabase.auth.getUser(accessToken);
+    if (authErr || !authUser) throw new UnauthorizedException('Invalid or expired token');
+
+    const { data: user, error: userErr } = await adminClient
+      .from('users')
+      .select('id, role, roles')
+      .eq('id', authUser.id)
+      .single();
+
+    if (userErr || !user) throw new UnauthorizedException('User not found');
+
+    const currentRoles = this.getUserRoles(user);
+    if (currentRoles.includes(newRole)) {
+      return { message: 'Role already assigned', roles: currentRoles };
+    }
+
+    const updatedRoles = [...currentRoles, newRole];
+
+    const { error: updateErr } = await adminClient
+      .from('users')
+      .update({ roles: updatedRoles })
+      .eq('id', user.id);
+
+    if (updateErr) throw new BadRequestException(updateErr.message);
+
+    return {
+      message: `Role '${newRole}' added successfully`,
+      roles: updatedRoles,
     };
   }
 

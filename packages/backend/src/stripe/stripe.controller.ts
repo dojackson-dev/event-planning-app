@@ -6,6 +6,7 @@ import {
   Headers,
   RawBody,
   Query,
+  Param,
   HttpCode,
   HttpStatus,
   BadRequestException,
@@ -200,13 +201,13 @@ export class StripeController {
    */
   @Post('payments/charge-client')
   async chargeClient(
-    @Body() body: { amountCents: number; ownerUserId: string; description?: string },
+    @Body() body: { amountCents: number; ownerUserId: string; description?: string; invoiceId?: string },
   ): Promise<{ clientSecret: string; paymentIntentId: string; feeCents: number }> {
-    const { amountCents, ownerUserId, description = 'Event booking payment' } = body;
+    const { amountCents, ownerUserId, description = 'Event booking payment', invoiceId } = body;
     if (!amountCents || !ownerUserId) {
       throw new BadRequestException('amountCents and ownerUserId are required');
     }
-    return this.stripeService.createClientPaymentIntent(amountCents, ownerUserId, description);
+    return this.stripeService.createClientPaymentIntent(amountCents, ownerUserId, description, invoiceId);
   }
 
   /**
@@ -240,14 +241,42 @@ export class StripeController {
   @Post('payment-link')
   async createPaymentLink(
     @Headers('authorization') authorization: string,
-    @Body() body: { invoiceId: string; amountCents: number; description?: string },
+    @Body() body: { invoiceId: string; amountCents?: number; description?: string },
   ): Promise<{ url: string }> {
     const userId = await this.getUserIdFromAuth(authorization);
-    const { invoiceId, amountCents, description = 'Invoice Payment' } = body;
-    if (!invoiceId || !amountCents) {
-      throw new BadRequestException('invoiceId and amountCents are required');
+    const { invoiceId, amountCents = 0, description = 'Invoice Payment' } = body;
+    if (!invoiceId) {
+      throw new BadRequestException('invoiceId is required');
     }
     const url = await this.stripeService.createInvoicePaymentLink(invoiceId, amountCents, description, userId);
+    return { url };
+  }
+
+  /**
+   * GET /stripe/invoice-pay/:token
+   * Public endpoint — returns safe invoice data for the client payment page.
+   */
+  @Get('invoice-pay/:token')
+  async getPublicInvoice(@Param('token') token: string) {
+    return this.stripeService.getPublicInvoice(token);
+  }
+
+  /**
+   * POST /stripe/invoice-pay/:token/checkout
+   * Public endpoint — creates a Stripe Checkout session for the chosen amount.
+   * Body: { amountCents: number }
+   * Returns: { url: string }
+   */
+  @Post('invoice-pay/:token/checkout')
+  async publicInvoiceCheckout(
+    @Param('token') token: string,
+    @Body() body: { amountCents: number },
+  ): Promise<{ url: string }> {
+    const { amountCents } = body;
+    if (!amountCents || amountCents < 50) {
+      throw new BadRequestException('amountCents must be at least 50 (i.e. $0.50)');
+    }
+    const url = await this.stripeService.createPublicInvoiceCheckout(token, amountCents);
     return { url };
   }
 }

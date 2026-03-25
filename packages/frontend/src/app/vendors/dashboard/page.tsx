@@ -6,6 +6,21 @@ import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import ImageUpload from '@/components/ImageUpload'
 import ConnectBankButton from '@/components/ConnectBankButton'
+import AddressAutocomplete from '@/components/AddressAutocomplete'
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+  startOfWeek,
+  endOfWeek,
+  eachDayOfInterval,
+  isSameMonth,
+  isSameDay,
+  isToday,
+  addMonths,
+  subMonths,
+} from 'date-fns'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-700',
@@ -13,6 +28,7 @@ const STATUS_COLORS: Record<string, string> = {
   declined: 'bg-red-100 text-red-700',
   cancelled: 'bg-gray-100 text-gray-600',
   completed: 'bg-blue-100 text-blue-700',
+  paid: 'bg-emerald-100 text-emerald-700',
 }
 
 interface VendorProfile {
@@ -67,7 +83,7 @@ export default function VendorDashboard() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [reviews, setReviews] = useState<Review[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'earnings' | 'reviews' | 'profile' | 'payouts'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'calendar' | 'earnings' | 'reviews' | 'profile' | 'payouts'>('overview')
   const [statusFilter, setStatusFilter] = useState('all')
   const [updating, setUpdating] = useState<string | null>(null)
 
@@ -125,9 +141,9 @@ export default function VendorDashboard() {
   const stats = {
     pending: bookings.filter(b => b.status === 'pending').length,
     confirmed: bookings.filter(b => b.status === 'confirmed').length,
-    completed: bookings.filter(b => b.status === 'completed').length,
+    completed: bookings.filter(b => b.status === 'completed' || b.status === 'paid').length,
     revenue: bookings
-      .filter(b => b.payment_status === 'paid' || b.status === 'completed')
+      .filter(b => b.status === 'paid' || b.status === 'completed')
       .reduce((sum, b) => sum + (b.agreed_amount || 0), 0),
   }
 
@@ -152,12 +168,18 @@ export default function VendorDashboard() {
           <div className="flex items-center gap-4">
             <Link href="/vendors" className="text-sm text-gray-500 hover:text-gray-700">View Directory</Link>
             {profile && (
-              <Link href={`/vendors/${profile.id}`} className="text-sm text-primary-600 hover:text-primary-700 font-medium">
-                My Public Profile →
+              <Link href={`/vendors/${profile.id}`} className="text-sm text-gray-500 hover:text-gray-700">
+                My Public Profile
               </Link>
             )}
             <Link href="/vendors/settings" className="text-sm text-gray-500 hover:text-gray-700">
               ⚙️ Settings
+            </Link>
+            <Link
+              href="/vendor-portal"
+              className="text-sm font-semibold bg-primary-600 text-white px-3 py-1.5 rounded-lg hover:bg-primary-700 transition-colors"
+            >
+              Vendor Portal →
             </Link>
             <button
               onClick={handleLogout}
@@ -212,7 +234,8 @@ export default function VendorDashboard() {
         <div className="flex border-b mb-6 gap-1 bg-white rounded-t-xl px-4 pt-4 overflow-x-auto">
           {([
             { id: 'overview',  label: '📊 Overview' },
-            { id: 'bookings',  label: '📅 Bookings' },
+            { id: 'bookings',  label: '� Bookings' },
+            { id: 'calendar',  label: '📆 Calendar' },
             { id: 'earnings',  label: '💰 Earnings' },
             { id: 'reviews',   label: `⭐ Reviews${reviews.length > 0 ? ` (${reviews.length})` : ''}` },
             { id: 'profile',   label: '✏️ Profile' },
@@ -232,6 +255,11 @@ export default function VendorDashboard() {
           ))}
         </div>
 
+        {/* CALENDAR TAB */}
+        {activeTab === 'calendar' && (
+          <VendorCalendarTab bookings={bookings} />
+        )}
+
         {/* BOOKINGS TAB */}
         {activeTab === 'bookings' && (
           <div className="bg-white rounded-xl shadow-sm p-6">
@@ -247,6 +275,7 @@ export default function VendorDashboard() {
                 <option value="confirmed">Confirmed</option>
                 <option value="declined">Declined</option>
                 <option value="completed">Completed</option>
+                <option value="paid">Paid</option>
                 <option value="cancelled">Cancelled</option>
               </select>
             </div>
@@ -361,7 +390,7 @@ export default function VendorDashboard() {
 
         {/* EARNINGS TAB */}
         {activeTab === 'earnings' && (() => {
-          const paid = bookings.filter(b => b.payment_status === 'paid' || b.status === 'completed')
+          const paid = bookings.filter(b => b.status === 'paid' || b.status === 'completed')
           const confirmed = bookings.filter(b => b.status === 'confirmed')
           const totalEarned = paid.reduce((s, b) => s + (b.agreed_amount || 0), 0)
           const totalPending = confirmed.reduce((s, b) => s + (b.agreed_amount || 0), 0)
@@ -524,7 +553,7 @@ export default function VendorDashboard() {
               <h4 className="text-sm font-semibold text-blue-800 mb-2">💰 How vendor payouts work</h4>
               <ul className="text-sm text-blue-700 space-y-1">
                 <li>• Event owners pay you directly through DoVenueSuite</li>
-                <li>• DoVenueSuite collects a <strong>1.5% platform fee</strong> per payout</li>
+                <li>• DoVenueSuite collects a <strong>5% platform fee</strong> per payout</li>
                 <li>• Funds arrive in your bank within 2 business days</li>
                 <li>• Stripe handles all payment compliance and security</li>
               </ul>
@@ -536,6 +565,175 @@ export default function VendorDashboard() {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+const BOOKING_STATUS_DOT: Record<string, string> = {
+  pending:   'bg-yellow-400',
+  confirmed: 'bg-green-500',
+  completed: 'bg-blue-500',
+  declined:  'bg-red-400',
+  cancelled: 'bg-gray-400',
+}
+
+function VendorCalendarTab({ bookings }: { bookings: Booking[] }) {
+  const [currentDate, setCurrentDate] = useState(new Date())
+  const [selected, setSelected] = useState<Booking | null>(null)
+
+  const monthStart = startOfMonth(currentDate)
+  const monthEnd   = endOfMonth(currentDate)
+  const calStart   = startOfWeek(monthStart, { weekStartsOn: 0 })
+  const calEnd     = endOfWeek(monthEnd,   { weekStartsOn: 0 })
+  const days       = eachDayOfInterval({ start: calStart, end: calEnd })
+
+  // Parse event_date as local date to avoid UTC-offset shift
+  const parseLocal = (s: string) => {
+    const [y, m, d] = s.split('T')[0].split('-').map(Number)
+    return new Date(y, m - 1, d)
+  }
+
+  const bookingsOnDay = (day: Date) =>
+    bookings.filter(b => isSameDay(parseLocal(b.event_date), day))
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm p-6">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-5">
+        <h2 className="text-lg font-bold text-gray-900">
+          {format(currentDate, 'MMMM yyyy')}
+        </h2>
+        <div className="flex gap-1">
+          <button
+            onClick={() => setCurrentDate(d => subMonths(d, 1))}
+            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => setCurrentDate(new Date())}
+            className="px-3 py-1 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
+          >
+            Today
+          </button>
+          <button
+            onClick={() => setCurrentDate(d => addMonths(d, 1))}
+            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Day-of-week headers */}
+      <div className="grid grid-cols-7 mb-1">
+        {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
+          <div key={d} className="text-center text-xs font-semibold text-gray-400 py-1">{d}</div>
+        ))}
+      </div>
+
+      {/* Calendar grid */}
+      <div className="grid grid-cols-7 border-l border-t border-gray-100">
+        {days.map(day => {
+          const dayBookings = bookingsOnDay(day)
+          const inMonth = isSameMonth(day, currentDate)
+          const today   = isToday(day)
+          return (
+            <div
+              key={day.toISOString()}
+              className={`min-h-[72px] border-r border-b border-gray-100 p-1 ${inMonth ? 'bg-white' : 'bg-gray-50'}`}
+            >
+              <span className={`inline-flex items-center justify-center w-6 h-6 text-xs font-medium rounded-full mb-0.5 ${
+                today
+                  ? 'bg-primary-600 text-white'
+                  : inMonth ? 'text-gray-700' : 'text-gray-300'
+              }`}>
+                {format(day, 'd')}
+              </span>
+              <div className="space-y-0.5">
+                {dayBookings.slice(0, 3).map(b => (
+                  <button
+                    key={b.id}
+                    onClick={() => setSelected(b)}
+                    className={`w-full text-left truncate text-xs px-1 py-0.5 rounded font-medium flex items-center gap-1 ${
+                      b.status === 'pending'   ? 'bg-yellow-50 text-yellow-700' :
+                      b.status === 'confirmed' ? 'bg-green-50 text-green-700'  :
+                      b.status === 'completed' ? 'bg-blue-50 text-blue-600'    :
+                      'bg-gray-100 text-gray-500'
+                    }`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${BOOKING_STATUS_DOT[b.status] || 'bg-gray-400'}`} />
+                    <span className="truncate">{b.event_name}</span>
+                  </button>
+                ))}
+                {dayBookings.length > 3 && (
+                  <p className="text-xs text-gray-400 pl-1">+{dayBookings.length - 3} more</p>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Legend */}
+      <div className="flex gap-4 mt-4 flex-wrap">
+        {[
+          { label: 'Pending',   color: 'bg-yellow-400' },
+          { label: 'Confirmed', color: 'bg-green-500'  },
+          { label: 'Completed', color: 'bg-blue-500'   },
+          { label: 'Declined',  color: 'bg-red-400'    },
+        ].map(l => (
+          <div key={l.label} className="flex items-center gap-1.5 text-xs text-gray-500">
+            <span className={`w-2 h-2 rounded-full ${l.color}`} />
+            {l.label}
+          </div>
+        ))}
+      </div>
+
+      {/* Detail modal */}
+      {selected && (
+        <div
+          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+          onClick={() => setSelected(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between mb-4">
+              <h3 className="font-bold text-gray-900 text-lg leading-snug">{selected.event_name}</h3>
+              <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600 ml-2 flex-shrink-0">✕</button>
+            </div>
+            <div className="space-y-2 text-sm text-gray-600">
+              <p>
+                <span className="font-medium text-gray-700">📅 Date: </span>
+                {parseLocal(selected.event_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+              </p>
+              {(selected.start_time || selected.end_time) && (
+                <p>
+                  <span className="font-medium text-gray-700">🕐 Time: </span>
+                  {[selected.start_time, selected.end_time].filter(Boolean).join(' – ')}
+                </p>
+              )}
+              {selected.venue_name && (
+                <p><span className="font-medium text-gray-700">📍 Venue: </span>{selected.venue_name}</p>
+              )}
+              {selected.agreed_amount != null && (
+                <p><span className="font-medium text-gray-700">💰 Amount: </span>${selected.agreed_amount.toLocaleString()}</p>
+              )}
+              {selected.notes && (
+                <p className="italic text-gray-500">"{selected.notes}"</p>
+              )}
+              <p>
+                <span className="font-medium text-gray-700">Status: </span>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[selected.status] || 'bg-gray-100 text-gray-600'}`}>
+                  {selected.status}
+                </span>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -625,10 +823,19 @@ function EditProfileTab({ profile, onUpdate }: { profile: VendorProfile; onUpdat
         {/* Location */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Street Address</label>
-          <input type="text" value={address} onChange={e => setAddress(e.target.value)}
+          <AddressAutocomplete
+            value={address}
+            onChange={setAddress}
+            onSelect={({ address: a, city: c, state: s, zip: z }) => {
+              setAddress(a)
+              setCity(c)
+              setState(s)
+              setZipCode(z)
+            }}
+            placeholder="Start typing your street address…"
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-            placeholder="123 Main Street (optional — shown only to booked clients)"
           />
+          <p className="text-xs text-gray-400 mt-1">Selecting a suggestion auto-fills city, state &amp; zip. Only shown to booked clients.</p>
         </div>
         <div className="grid grid-cols-3 gap-3">
           <div className="col-span-1">

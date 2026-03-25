@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
+import AddRoleCard from '@/components/AddRoleCard'
+import ConnectBankButton from '@/components/ConnectBankButton'
 import {
   User,
   Lock,
@@ -16,9 +18,10 @@ import {
   CheckCircle,
   Bell,
   Settings,
+  Building2,
 } from 'lucide-react'
 
-type Tab = 'account' | 'password' | 'notifications' | 'delete'
+type Tab = 'account' | 'password' | 'notifications' | 'payouts' | 'delete'
 
 export default function VendorSettingsPage() {
   const router = useRouter()
@@ -172,6 +175,7 @@ export default function VendorSettingsPage() {
     { id: 'account',       label: 'Account Info',      icon: <User className="h-4 w-4" /> },
     { id: 'password',      label: 'Change Password',   icon: <Lock className="h-4 w-4" /> },
     { id: 'notifications', label: 'Notifications',     icon: <Bell className="h-4 w-4" /> },
+    { id: 'payouts',       label: 'Payouts & Bank',    icon: <Building2 className="h-4 w-4" /> },
     { id: 'delete',        label: 'Delete Account',    icon: <Trash2 className="h-4 w-4" /> },
   ]
 
@@ -424,6 +428,39 @@ export default function VendorSettingsPage() {
               </div>
             )}
 
+            {/* ── PAYOUTS TAB ── */}
+            {activeTab === 'payouts' && (
+              <div className="max-w-lg space-y-6">
+                <div>
+                  <h3 className="text-base font-semibold text-gray-900 mb-1">Bank Account &amp; Payouts</h3>
+                  <p className="text-sm text-gray-500">
+                    Connect your bank account to receive payments from clients directly through DoVenueSuite. Powered by Stripe Connect.
+                  </p>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+                  <h4 className="text-sm font-semibold text-blue-800 mb-2">💰 How vendor payouts work</h4>
+                  <ul className="text-sm text-blue-700 space-y-1.5">
+                    <li>• Event owners pay you directly through DoVenueSuite</li>
+                    <li>• DoVenueSuite collects a <strong>5% platform fee</strong> per transaction</li>
+                    <li>• Stripe's standard card processing fees also apply (~2.9% + 30¢)</li>
+                    <li>• Funds arrive in your bank within 2 business days after payout</li>
+                    <li>• All payment handling is secure and managed by Stripe</li>
+                  </ul>
+                </div>
+
+                <ConnectBankButton role="vendor" email={email} />
+
+                <div className="pt-2 border-t border-gray-100">
+                  <p className="text-xs text-gray-400">
+                    By connecting your bank account you agree to{' '}
+                    <a href="https://stripe.com/connect-account/legal" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600">Stripe's Connected Account Agreement</a>.
+                    Your banking information is stored securely by Stripe and never shared with DoVenueSuite.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* ── DELETE TAB ── */}
             {activeTab === 'delete' && (
               <div className="max-w-xl">
@@ -489,6 +526,12 @@ export default function VendorSettingsPage() {
                 )}
               </div>
             )}
+          </div>
+
+          {/* Multi-Role: Add Owner Role card */}
+          <div className="mt-8 pt-6 border-t border-gray-100 px-6 pb-6">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Multi-Role Access</p>
+            <AddRoleCard targetRole="owner" />
           </div>
         </div>
       </div>

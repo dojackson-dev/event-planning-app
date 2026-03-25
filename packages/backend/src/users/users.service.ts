@@ -17,14 +17,15 @@ export class UsersService {
       phone: form.phone || form.contact_phone || null,
       role: 'customer',
       smsOptIn: form.sms_opt_in ?? false,
+      preferredContact: form.preferred_contact || 'phone',
     };
   }
 
   async findAll(supabase: any, ownerId: string) {
     const { data, error } = await supabase
       .from('intake_forms')
-      .select('id, contact_name, contact_email, contact_phone, sms_opt_in')
-      .eq('owner_id', ownerId)
+      .select('id, contact_name, contact_email, contact_phone, sms_opt_in, preferred_contact')
+      .eq('user_id', ownerId)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -32,7 +33,7 @@ export class UsersService {
       const { data: fallback, error: fallbackError } = await supabase
         .from('intake_forms')
         .select('id, contact_name, contact_email, contact_phone')
-        .eq('owner_id', ownerId)
+        .eq('user_id', ownerId)
         .order('created_at', { ascending: false });
       if (fallbackError) throw new Error(fallbackError.message);
       const seen = new Set<string>();
@@ -58,14 +59,12 @@ export class UsersService {
   async findOne(supabase: any, ownerId: string, id: string) {
     const { data, error } = await supabase
       .from('intake_forms')
-      .select('id, contact_name, contact_email, contact_phone, sms_opt_in')
-      .eq('owner_id', ownerId)
+      .select('id, contact_name, contact_email, contact_phone, sms_opt_in, preferred_contact')
+      .eq('user_id', ownerId)
       .eq('id', id)
       .single();
 
     if (error) throw new Error(error.message);
     return data ? this.toUser(data) : null;
-  }
-}
   }
 }

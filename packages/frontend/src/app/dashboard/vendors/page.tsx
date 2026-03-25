@@ -17,6 +17,7 @@ import {
   AlertCircle,
   ChevronRight,
   Store,
+  CreditCard,
 } from 'lucide-react'
 
 const CATEGORIES = [
@@ -51,6 +52,21 @@ interface Vendor {
   avgRating?: number
   reviewCount?: number
   distance_miles?: number
+}
+
+interface Venue {
+  id: string
+  name: string
+  address?: string
+  city?: string
+  state?: string
+  zip_code?: string
+  capacity?: number
+  description?: string
+  profile_image_url?: string
+  website?: string
+  phone?: string
+  email?: string
 }
 
 interface VendorBooking {
@@ -105,53 +121,57 @@ function StarRating({ rating, count }: { rating?: number; count?: number }) {
 function VendorCard({ vendor }: { vendor: Vendor }) {
   const icon = CATEGORY_ICON[vendor.category] || '⭐'
   const catLabel = CATEGORIES.find(c => c.value === vendor.category)?.label || vendor.category
+  const initials = vendor.business_name
+    .split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
 
   return (
     <Link
       href={`/dashboard/vendors/${vendor.id}`}
-      className="bg-white rounded-xl border border-gray-200 hover:border-primary-300 hover:shadow-md transition-all group overflow-hidden flex flex-col"
+      className="group bg-white rounded-2xl border border-gray-200 hover:border-primary-300 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col"
     >
-      {/* Image / Placeholder */}
-      <div className="h-36 bg-gradient-to-br from-primary-50 to-purple-50 flex items-center justify-center relative overflow-hidden">
-        {vendor.profile_image_url ? (
-          <img
-            src={vendor.profile_image_url}
-            alt={vendor.business_name}
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <span className="text-5xl">{icon}</span>
-        )}
-        {vendor.is_verified && (
-          <div className="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
-            <CheckCircle className="w-3 h-3" /> Verified
+      <div className="p-5 flex flex-col flex-1">
+        {/* Top row: logo + badges */}
+        <div className="flex items-start gap-4 mb-4">
+          {/* Logo square */}
+          <div className="w-16 h-16 rounded-xl border border-gray-100 overflow-hidden flex-shrink-0 bg-gray-100 flex items-center justify-center">
+            {vendor.profile_image_url ? (
+              <img src={vendor.profile_image_url} alt={vendor.business_name} className="w-full h-full object-contain" />
+            ) : (
+              <span className="text-xl font-bold text-gray-400 select-none">{initials || icon}</span>
+            )}
           </div>
-        )}
-        {vendor.distance_miles != null && (
-          <div className="absolute bottom-2 left-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
-            <MapPin className="w-3 h-3" /> {vendor.distance_miles.toFixed(1)} mi
-          </div>
-        )}
-      </div>
 
-      {/* Info */}
-      <div className="p-4 flex flex-col flex-1">
-        <div className="flex items-start justify-between gap-2 mb-1">
-          <h3 className="font-semibold text-gray-900 group-hover:text-primary-600 leading-tight line-clamp-1">
-            {vendor.business_name}
-          </h3>
+          {/* Name + meta */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-1 mb-1">
+              <h3 className="font-semibold text-gray-900 group-hover:text-primary-600 leading-snug line-clamp-2 text-sm">
+                {vendor.business_name}
+              </h3>
+              {vendor.is_verified && (
+                <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+              )}
+            </div>
+            <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+              {icon} {catLabel}
+            </span>
+          </div>
         </div>
-        <span className="inline-flex items-center gap-1 text-xs text-gray-500 mb-2">
-          {icon} {catLabel}
-        </span>
+
+        {/* Location */}
         {(vendor.city || vendor.state) && (
-          <p className="text-xs text-gray-400 flex items-center gap-1 mb-2">
-            <MapPin className="w-3 h-3" /> {[vendor.city, vendor.state].filter(Boolean).join(', ')}
+          <p className="text-xs text-gray-400 flex items-center gap-1 mb-3">
+            <MapPin className="w-3 h-3 flex-shrink-0" />
+            {[vendor.city, vendor.state].filter(Boolean).join(', ')}
+            {vendor.distance_miles != null && (
+              <span className="ml-1 text-primary-500 font-medium">{vendor.distance_miles.toFixed(1)} mi</span>
+            )}
           </p>
         )}
-        <div className="mt-auto flex items-center justify-between pt-2 border-t border-gray-100">
+
+        {/* Footer: rating + price */}
+        <div className="mt-auto flex items-center justify-between pt-3 border-t border-gray-100">
           <StarRating rating={vendor.avgRating} count={vendor.reviewCount} />
-          <div className="text-xs text-gray-500">
+          <div className="text-xs font-medium text-gray-500">
             {vendor.hourly_rate ? (
               <span className="flex items-center gap-0.5"><DollarSign className="w-3 h-3" />{vendor.hourly_rate}/hr</span>
             ) : vendor.flat_rate ? (
@@ -161,6 +181,55 @@ function VendorCard({ vendor }: { vendor: Vendor }) {
         </div>
       </div>
     </Link>
+  )
+}
+
+function VenueCard({ venue }: { venue: Venue }) {
+  const initials = venue.name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 hover:border-primary-300 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col">
+      <div className="p-5 flex flex-col flex-1">
+        <div className="flex items-start gap-4 mb-4">
+          <div className="w-16 h-16 rounded-xl border border-gray-100 overflow-hidden flex-shrink-0 bg-gray-100 flex items-center justify-center">
+            {venue.profile_image_url ? (
+              <img src={venue.profile_image_url} alt={venue.name} className="w-full h-full object-contain" />
+            ) : (
+              <span className="text-xl font-bold text-gray-400 select-none">{initials || '🏛️'}</span>
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-gray-900 leading-snug line-clamp-2 text-sm mb-1.5">{venue.name}</h3>
+            <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+              🏛️ Venue
+            </span>
+          </div>
+        </div>
+        {(venue.city || venue.state) && (
+          <p className="text-xs text-gray-400 flex items-center gap-1 mb-2">
+            <MapPin className="w-3 h-3 flex-shrink-0" />
+            {[venue.city, venue.state].filter(Boolean).join(', ')}
+          </p>
+        )}
+        {venue.address && (
+          <p className="text-xs text-gray-400 truncate mb-2">{venue.address}</p>
+        )}
+        {venue.capacity && (
+          <p className="text-xs text-gray-400 mb-2">👥 Up to {venue.capacity.toLocaleString()} guests</p>
+        )}
+        <div className="mt-auto flex items-center gap-3 pt-3 border-t border-gray-100 flex-wrap">
+          {venue.phone && (
+            <a href={`tel:${venue.phone}`} className="text-xs text-primary-600 hover:underline flex items-center gap-1">
+              📞 {venue.phone}
+            </a>
+          )}
+          {venue.website && (
+            <a href={venue.website} target="_blank" rel="noopener noreferrer" className="text-xs text-primary-600 hover:underline flex items-center gap-1">
+              <ExternalLink className="w-3 h-3" /> Website
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -214,12 +283,20 @@ function BookingRow({ booking, onCancel }: { booking: VendorBooking; onCancel: (
           View <ChevronRight className="w-3 h-3" />
         </Link>
         {(booking.status === 'confirmed' || booking.status === 'completed') && (
-          <Link
-            href={`/dashboard/invoices/new?vendorBookingId=${booking.id}`}
-            className="text-xs px-2 py-1 bg-primary-50 border border-primary-200 text-primary-700 rounded hover:bg-primary-100"
-          >
-            + Invoice
-          </Link>
+          <>
+            <Link
+              href={`/dashboard/estimates/new?vendorBookingId=${booking.id}`}
+              className="text-xs px-2 py-1 bg-amber-50 border border-amber-200 text-amber-700 rounded hover:bg-amber-100"
+            >
+              + Estimate
+            </Link>
+            <Link
+              href={`/dashboard/invoices/new?vendorBookingId=${booking.id}`}
+              className="text-xs px-2 py-1 bg-primary-50 border border-primary-200 text-primary-700 rounded hover:bg-primary-100"
+            >
+              + Invoice
+            </Link>
+          </>
         )}
         {(booking.status === 'pending' || booking.status === 'confirmed') && (
           <button
@@ -239,6 +316,7 @@ export default function DashboardVendorsPage() {
 
   // ── Find tab state ────────────────────────────────────────────
   const [vendors, setVendors] = useState<Vendor[]>([])
+  const [venues, setVenues] = useState<Venue[]>([])
   const [searching, setSearching] = useState(false)
   const [searched, setSearched] = useState(false)
   const [zipCode, setZipCode] = useState('')
@@ -278,17 +356,15 @@ export default function DashboardVendorsPage() {
       if (radiusMiles) params.set('radiusMiles', radiusMiles)
       if (category) params.set('category', category)
 
-      let data: Vendor[] = []
-
       if (zipCode) {
         const res = await api.get(`/vendors/search?${params}`)
-        data = res.data
+        setVendors(res.data.vendors || res.data || [])
+        setVenues(res.data.venues || [])
       } else {
         const res = await api.get(`/vendors/public?${params}`)
-        data = res.data
+        setVendors(res.data.vendors || res.data || [])
+        setVenues(res.data.venues || [])
       }
-
-      setVendors(data)
       setSearched(true)
     } catch {
       setSearchError('Search failed. Please try again.')
@@ -331,6 +407,12 @@ export default function DashboardVendorsPage() {
           </h1>
           <p className="text-gray-500 text-sm mt-0.5">Find and book event vendors for your venue</p>
         </div>
+        <Link
+          href="/dashboard/vendors/payments"
+          className="flex items-center gap-2 bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-2 rounded-lg text-sm font-medium hover:bg-indigo-100"
+        >
+          <CreditCard className="w-4 h-4" /> Vendor Payments
+        </Link>
       </div>
 
       {/* Tabs */}
@@ -418,18 +500,30 @@ export default function DashboardVendorsPage() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto mb-3" />
               Searching vendors…
             </div>
-          ) : vendors.length === 0 && searched ? (
+          ) : vendors.length === 0 && venues.length === 0 && searched ? (
             <div className="text-center py-16 text-gray-400">
               <Store className="w-10 h-10 mx-auto mb-3 opacity-30" />
               <p className="font-medium">No vendors found</p>
               <p className="text-sm mt-1">Try a different zip code, larger radius, or different category</p>
             </div>
-          ) : vendors.length > 0 ? (
+          ) : (vendors.length > 0 || venues.length > 0) ? (
             <>
-              <p className="text-sm text-gray-500 mb-3">{vendors.length} vendor{vendors.length !== 1 ? 's' : ''} found</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {vendors.map(v => <VendorCard key={v.id} vendor={v} />)}
-              </div>
+              {vendors.length > 0 && (
+                <>
+                  <p className="text-sm text-gray-500 mb-3">{vendors.length} vendor{vendors.length !== 1 ? 's' : ''} found</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
+                    {vendors.map(v => <VendorCard key={v.id} vendor={v} />)}
+                  </div>
+                </>
+              )}
+              {venues.length > 0 && (
+                <>
+                  <h2 className="text-base font-semibold text-gray-700 mb-3 mt-2">🏛️ Venues ({venues.length})</h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {venues.map(v => <VenueCard key={v.id} venue={v} />)}
+                  </div>
+                </>
+              )}
             </>
           ) : null}
         </>

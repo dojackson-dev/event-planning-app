@@ -2,13 +2,15 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
+import { Users, Store } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
 export default function Home() {
   const { isAuthenticated, loading } = useAuth()
   const router = useRouter()
+  const [showFeatures, setShowFeatures] = useState(false)
 
   useEffect(() => {
     if (!loading && isAuthenticated) {
@@ -30,42 +32,35 @@ export default function Home() {
       {/* Navigation Header */}
       <nav className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <Image 
-                src="/lib/LogoDVS.png" 
-                alt="EventSuite Logo" 
-                width={360} 
-                height={96}
-                className="h-24 w-auto"
-              />
-            </div>
-            <div className="flex items-center gap-4">
-              <Link
-                href="/vendors"
-                className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium"
-              >
-                Find Vendors
-              </Link>
+          {/* Logo row — centered */}
+          <div className="flex justify-center items-center py-4 border-b border-gray-100">
+            <img src="/lib/LogoDVS.png" alt="EventSuite Logo" style={{ height: '72px', width: 'auto' }} />
+          </div>
+          {/* Log In row */}
+          <div className="flex justify-center items-center py-3">
+            <Link
+              href="/login"
+              className="bg-primary-600 text-white hover:bg-primary-700 px-6 py-2 rounded-md text-sm font-medium w-full max-w-xs text-center"
+            >
+              Owner/Vendor Login
+            </Link>
+          </div>
+          {/* Secondary links row */}
+          <div className="flex justify-center items-center gap-4 py-3">
               <Link
                 href="/client-login"
-                className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium border border-gray-300 rounded-md"
+                className="text-primary-600 hover:bg-primary-50 px-3 py-2 rounded-md text-sm font-medium border border-primary-600 flex items-center gap-2"
               >
+                <Users className="h-4 w-4" />
                 Client Portal
               </Link>
               <Link
-                href="/login"
-                className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium"
+                href="/vendors"
+                className="text-primary-600 hover:bg-primary-50 px-3 py-2 rounded-md text-sm font-medium border border-primary-600 flex items-center gap-2"
               >
-                Log In
+                <Store className="h-4 w-4" />
+                Find Vendors
               </Link>
-              <Link
-                href="/signup"
-                className="bg-primary-600 text-white hover:bg-primary-700 px-4 py-2 rounded-md text-sm font-medium"
-              >
-                Sign Up
-              </Link>
-            </div>
           </div>
         </div>
       </nav>
@@ -119,89 +114,97 @@ export default function Home() {
             <p className="mt-4 max-w-2xl text-xl text-gray-500 lg:mx-auto">
               From client intake to event day, manage every aspect of your event venue business.
             </p>
+            <div className="mt-6 flex justify-center">
+              <button
+                onClick={() => setShowFeatures(prev => !prev)}
+                className="inline-flex items-center gap-2 px-6 py-2 rounded-full border-2 border-primary-600 text-primary-600 font-semibold text-sm hover:bg-primary-600 hover:text-white transition-all duration-200"
+              >
+                {showFeatures ? 'Hide Features ▲' : 'Explore Features ▼'}
+              </button>
+            </div>
           </div>
 
-          <div className="mt-10">
-            <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-3">
+          {showFeatures && <div className="mt-10">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 mt-10">
               {/* Feature 1 */}
-              <div className="flex flex-col items-center">
-                <div className="flex items-center justify-center h-12 w-12 rounded-md bg-primary-500 text-white">
+              <div className="flex flex-col items-center px-6 py-8 rounded-xl border border-gray-200 bg-white shadow-sm hover:shadow-md hover:border-primary-200 transition-all duration-200">
+                <div className="flex items-center justify-center h-12 w-12 rounded-full bg-primary-50 border border-primary-100 text-primary-600">
                   <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                 </div>
-                <h3 className="mt-4 text-lg leading-6 font-medium text-gray-900">Event Management</h3>
-                <p className="mt-2 text-base text-gray-500 text-center">
+                <h3 className="mt-4 text-base font-semibold text-gray-900">Event Management</h3>
+                <p className="mt-2 text-sm text-gray-500 text-center leading-relaxed">
                   Track all your events, bookings, and client details in one centralized location.
                 </p>
               </div>
 
               {/* Feature 2 */}
-              <div className="flex flex-col items-center">
-                <div className="flex items-center justify-center h-12 w-12 rounded-md bg-primary-500 text-white">
+              <div className="flex flex-col items-center px-6 py-8 rounded-xl border border-gray-200 bg-white shadow-sm hover:shadow-md hover:border-primary-200 transition-all duration-200">
+                <div className="flex items-center justify-center h-12 w-12 rounded-full bg-primary-50 border border-primary-100 text-primary-600">
                   <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
                 </div>
-                <h3 className="mt-4 text-lg leading-6 font-medium text-gray-900">Client Portal</h3>
-                <p className="mt-2 text-base text-gray-500 text-center">
+                <h3 className="mt-4 text-base font-semibold text-gray-900">Client Portal</h3>
+                <p className="mt-2 text-sm text-gray-500 text-center leading-relaxed">
                   Give your clients access to view their bookings, contracts, and event details.
                 </p>
               </div>
 
               {/* Feature 3 */}
-              <div className="flex flex-col items-center">
-                <div className="flex items-center justify-center h-12 w-12 rounded-md bg-primary-500 text-white">
+              <div className="flex flex-col items-center px-6 py-8 rounded-xl border border-gray-200 bg-white shadow-sm hover:shadow-md hover:border-primary-200 transition-all duration-200">
+                <div className="flex items-center justify-center h-12 w-12 rounded-full bg-primary-50 border border-primary-100 text-primary-600">
                   <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                 </div>
-                <h3 className="mt-4 text-lg leading-6 font-medium text-gray-900">Document Management</h3>
-                <p className="mt-2 text-base text-gray-500 text-center">
+                <h3 className="mt-4 text-base font-semibold text-gray-900">Document Management</h3>
+                <p className="mt-2 text-sm text-gray-500 text-center leading-relaxed">
                   Store and manage contracts, insurance certificates, and important documents.
                 </p>
               </div>
 
               {/* Feature 4 */}
-              <div className="flex flex-col items-center">
-                <div className="flex items-center justify-center h-12 w-12 rounded-md bg-primary-500 text-white">
+              <div className="flex flex-col items-center px-6 py-8 rounded-xl border border-gray-200 bg-white shadow-sm hover:shadow-md hover:border-primary-200 transition-all duration-200">
+                <div className="flex items-center justify-center h-12 w-12 rounded-full bg-primary-50 border border-primary-100 text-primary-600">
                   <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <h3 className="mt-4 text-lg leading-6 font-medium text-gray-900">Payment Tracking</h3>
-                <p className="mt-2 text-base text-gray-500 text-center">
+                <h3 className="mt-4 text-base font-semibold text-gray-900">Payment Tracking</h3>
+                <p className="mt-2 text-sm text-gray-500 text-center leading-relaxed">
                   Monitor deposits, payments, and outstanding balances for all your bookings.
                 </p>
               </div>
 
               {/* Feature 5 */}
-              <div className="flex flex-col items-center">
-                <div className="flex items-center justify-center h-12 w-12 rounded-md bg-primary-500 text-white">
+              <div className="flex flex-col items-center px-6 py-8 rounded-xl border border-gray-200 bg-white shadow-sm hover:shadow-md hover:border-primary-200 transition-all duration-200">
+                <div className="flex items-center justify-center h-12 w-12 rounded-full bg-primary-50 border border-primary-100 text-primary-600">
                   <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                   </svg>
                 </div>
-                <h3 className="mt-4 text-lg leading-6 font-medium text-gray-900">Automated Reminders</h3>
-                <p className="mt-2 text-base text-gray-500 text-center">
+                <h3 className="mt-4 text-base font-semibold text-gray-900">Automated Reminders</h3>
+                <p className="mt-2 text-sm text-gray-500 text-center leading-relaxed">
                   Send automated email and SMS reminders to clients about upcoming events and deadlines.
                 </p>
               </div>
 
               {/* Feature 6 */}
-              <div className="flex flex-col items-center">
-                <div className="flex items-center justify-center h-12 w-12 rounded-md bg-primary-500 text-white">
+              <div className="flex flex-col items-center px-6 py-8 rounded-xl border border-gray-200 bg-white shadow-sm hover:shadow-md hover:border-primary-200 transition-all duration-200">
+                <div className="flex items-center justify-center h-12 w-12 rounded-full bg-primary-50 border border-primary-100 text-primary-600">
                   <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                   </svg>
                 </div>
-                <h3 className="mt-4 text-lg leading-6 font-medium text-gray-900">Analytics & Reports</h3>
-                <p className="mt-2 text-base text-gray-500 text-center">
+                <h3 className="mt-4 text-base font-semibold text-gray-900">Analytics & Reports</h3>
+                <p className="mt-2 text-sm text-gray-500 text-center leading-relaxed">
                   Get insights into your business with comprehensive analytics and reporting.
                 </p>
               </div>
             </div>
-          </div>
+          </div>}
         </div>
       </div>
 

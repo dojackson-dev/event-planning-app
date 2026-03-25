@@ -122,7 +122,7 @@ export class ClientPortalService {
 
     const { data: events, error: eErr } = await supabase
       .from('event')
-      .select('*')
+      .select('*, owner:users!owner_id(id, first_name, last_name, phone_number, email)')
       .in('id', eventIds)
       .order('date', { ascending: true });
 
@@ -344,15 +344,29 @@ export class ClientPortalService {
     const supabase = this.supabaseService.getAdminClient();
 
     // Verify the recipient is actually an owner/vendor that this client is booked with
-    const { data: bookings } = await supabase
-      .from('booking')
-      .select('event_id, event:event(owner_id)')
-      .eq('user_id', clientId);
+    const phoneVariants = buildPhoneVariants(clientPhone);
+    const [byUserId, ...byPhones] = await Promise.all([
+      supabase
+        .from('booking')
+        .select('event_id, event:event(owner_id)')
+        .eq('user_id', clientId),
+      ...phoneVariants.map(p =>
+        supabase
+          .from('booking')
+          .select('event_id, event:event(owner_id)')
+          .eq('contact_phone', p),
+      ),
+    ]);
 
-    const ownerIds = (bookings || []).map((b: any) => b.event?.owner_id).filter(Boolean);
+    const allMsgBookings = [
+      ...(byUserId.data || []),
+      ...byPhones.flatMap(r => r.data || []),
+    ];
+
+    const ownerIds = allMsgBookings.map((b: any) => b.event?.owner_id).filter(Boolean);
 
     // Also collect vendor IDs for their events
-    const eventIds = (bookings || []).map((b: any) => b.event_id).filter(Boolean);
+    const eventIds = allMsgBookings.map((b: any) => b.event_id).filter(Boolean);
     const { data: vendorBookings } = await supabase
       .from('vendor_bookings')
       .select('vendor_user_id')
@@ -610,6 +624,20 @@ export class ClientPortalService {
       .from('intake_forms')
       .update({ invite_status: 'confirmed', status: 'confirmed' })
       .eq('id', form.id);
+
+    // 6. Insert a notification so the client sees confirmation in their portal
+    try {
+      await supabase.from('notifications').insert({
+        user_id: clientId,
+        event_id: event.id,
+        type: 'booking',
+        message: `Your event "${event.name}" has been confirmed! Check the Events tab for details.`,
+        read: false,
+        created_at: new Date().toISOString(),
+      });
+    } catch (notifErr) {
+      this.logger.warn('[confirmInvite] notification insert failed:', notifErr);
+    }
 
     this.logger.log(`Client ${clientPhone} confirmed invite ${token} → booking ${booking.id}`);
     return { success: true, event, booking };

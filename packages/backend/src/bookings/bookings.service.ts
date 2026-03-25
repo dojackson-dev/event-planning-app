@@ -17,7 +17,6 @@ export class BookingsService {
         *,
         event:event(id, name, date, start_time, end_time, venue, location, status)
       `)
-      .not('status', 'eq', 'cancelled')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -78,13 +77,83 @@ export class BookingsService {
     return data;
   }
 
-  async remove(supabase: SupabaseClient, id: string): Promise<void> {
-    const { error } = await supabase
+  /**
+   * Soft-cancel a booking (sets status = 'cancelled', client_confirmation_status = 'cancelled').
+   * Cancels the linked event and inserts a notification so the client knows.
+   */
+  async cancelBooking(supabase: SupabaseClient, id: string): Promise<{ success: boolean }> {
+    const supabaseAdmin = this.supabaseService.getAdminClient();
+
+    const { data: booking, error: fetchErr } = await supabaseAdmin
       .from('booking')
-      .delete()
+      .select('id, contact_phone, contact_name, event_id, client_confirmation_status')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (fetchErr || !booking) throw new NotFoundException('Booking not found');
+
+    // Cancel the booking
+    const { error: cancelErr } = await supabaseAdmin
+      .from('booking')
+      .update({ status: 'cancelled', client_confirmation_status: 'cancelled' })
       .eq('id', id);
 
-    if (error) throw error;
+    if (cancelErr) throw new BadRequestException(cancelErr.message);
+
+    // Cancel the linked event
+    if (booking.event_id) {
+      await supabaseAdmin
+        .from('event')
+        .update({ status: 'cancelled' })
+        .eq('id', booking.event_id);
+    }
+
+    // Notify the client
+    await this.createClientNotification(supabaseAdmin, {
+      clientPhone: booking.contact_phone,
+      eventId: booking.event_id,
+      type: 'booking',
+      message: `Your booking has been cancelled by the event organiser.`,
+    });
+
+    return { success: true };
+  }
+
+  async remove(supabase: SupabaseClient, id: string): Promise<void> {
+    // Soft-cancel rather than hard-delete so client sees cancellation
+    await this.cancelBooking(supabase, id);
+  }
+
+  /**
+   * Create a notification row in the notifications table for a client.
+   * Silently ignores errors so it never breaks the main flow.
+   */
+  private async createClientNotification(
+    supabase: SupabaseClient,
+    params: { clientPhone?: string | null; eventId?: string | null; type: string; message: string },
+  ) {
+    try {
+      if (!params.clientPhone) return;
+      // Look up User ID by phone so notification appears in their portal
+      const digits = params.clientPhone.replace(/\D/g, '').slice(-10);
+      const variants = [params.clientPhone, digits, `1${digits}`, `+1${digits}`];
+      let userId: string | null = null;
+      for (const v of variants) {
+        const { data: u } = await supabase.from('users').select('id').eq('phone_number', v).maybeSingle();
+        if (u) { userId = u.id; break; }
+      }
+      if (!userId) return; // phone-only clients have no users row — skip
+      await supabase.from('notifications').insert({
+        user_id: userId,
+        event_id: params.eventId ?? null,
+        type: params.type,
+        message: params.message,
+        read: false,
+        created_at: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.warn('[createClientNotification] failed:', (err as any)?.message);
+    }
   }
 
   /**

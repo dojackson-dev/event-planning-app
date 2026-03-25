@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
 import { Booking, ClientStatus, BookingStatus } from '@/types'
-import { Eye, Download, Mail, RefreshCw } from 'lucide-react'
+import { Eye, Download, Mail, RefreshCw, XCircle } from 'lucide-react'
 import { format } from 'date-fns'
 
 const clientStatusLabels: Record<ClientStatus, string> = {
@@ -52,6 +52,17 @@ export default function BookingsPage() {
       fetchBookings()
     } catch (error) {
       console.error('Failed to update client status:', error)
+    }
+  }
+
+  const cancelBooking = async (bookingId: string) => {
+    if (!confirm('Cancel this booking? The client will be notified.')) return
+    try {
+      await api.patch(`/bookings/${bookingId}/cancel`)
+      fetchBookings()
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || 'Failed to cancel booking.'
+      alert(msg)
     }
   }
 
@@ -161,7 +172,7 @@ export default function BookingsPage() {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredBookings.map((booking) => (
-                <tr key={booking.id} className="hover:bg-gray-50">
+                <tr key={booking.id} className={`hover:bg-gray-50 ${booking.status === BookingStatus.CANCELLED ? 'opacity-60' : ''}`}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {booking.id.slice(0, 8)}
                   </td>
@@ -237,6 +248,15 @@ export default function BookingsPage() {
                       >
                         <Mail className="h-5 w-5" />
                       </button>
+                      {booking.status !== BookingStatus.CANCELLED && (
+                        <button
+                          onClick={() => cancelBooking(booking.id)}
+                          className="text-red-600 hover:text-red-900"
+                          title="Cancel Booking"
+                        >
+                          <XCircle className="h-5 w-5" />
+                        </button>
+                      )}
                       {booking.client_confirmation_status === 'rejected' && (
                         <button
                           onClick={() => resendConfirmation(booking.id)}

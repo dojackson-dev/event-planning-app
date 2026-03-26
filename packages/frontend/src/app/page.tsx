@@ -11,6 +11,7 @@ export default function Home() {
   const { isAuthenticated, loading } = useAuth()
   const router = useRouter()
   const [showFeatures, setShowFeatures] = useState(false)
+  const [showVendors, setShowVendors] = useState(false)
 
   useEffect(() => {
     if (!loading && isAuthenticated) {
@@ -208,39 +209,58 @@ export default function Home() {
         </div>
       </div>
 
-      {/* CTA Section */}
       {/* Vendor Directory Banner */}
-      <div className="py-16 bg-gradient-to-br from-purple-600 to-primary-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="lg:flex lg:items-center lg:justify-between">
-            <div className="text-white">
-              <h2 className="text-3xl font-extrabold sm:text-4xl">
-                Find Local Vendors & Venues
-              </h2>
-              <p className="mt-3 text-lg text-purple-100 max-w-xl">
-                Browse DJs, photographers, decorators, planners, musicians, and more — all searchable by location within your chosen radius. Venues listed too.
-              </p>
-              <div className="mt-6 flex flex-wrap gap-2">
-                {['🎵 DJs', '📷 Photographers', '🌸 Decorators', '📋 Planners', '🎸 Musicians', '🎤 MC/Host', '🪑 Furniture'].map(c => (
-                  <span key={c} className="bg-white/20 text-white text-sm px-3 py-1 rounded-full">{c}</span>
-                ))}
-              </div>
+      <div className="py-16 bg-gradient-to-br from-white to-primary-700">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <div className="flex justify-center mb-4">
+            <div className="flex items-center justify-center h-16 w-16 rounded-full bg-primary-100 border-2 border-primary-200">
+              <svg className="h-8 w-8 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
             </div>
-            <div className="mt-8 lg:mt-0 flex flex-col sm:flex-row gap-3 lg:flex-col xl:flex-row">
+          </div>
+          <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">
+            Find Local Vendors & Venues
+          </h2>
+          <p className="mt-3 text-lg text-gray-600 max-w-xl mx-auto">
+            Browse DJs, photographers, decorators, planners, musicians, and more — all searchable by location within your chosen radius. Venues listed too.
+          </p>
+          <div className="mt-6 flex justify-center">
+            <img
+              src="/lib/vendor.png"
+              alt="Find Local Vendors & Venues"
+              className="w-full max-w-lg rounded-2xl shadow-md object-cover"
+              style={{ maxHeight: '300px' }}
+            />
+          </div>
+          <div className="mt-6 flex justify-center">
+            <button
+              onClick={() => setShowVendors(prev => !prev)}
+              className="inline-flex items-center gap-2 px-6 py-2 rounded-full border-2 border-white text-white font-semibold text-sm hover:bg-white hover:text-primary-700 transition-all duration-200"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+              {showVendors ? 'Hide Options ▲' : 'Connect To Venues & Vendors ▼'}
+            </button>
+          </div>
+          {showVendors && (
+            <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
               <Link
                 href="/vendors"
-                className="inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-xl text-purple-700 bg-white hover:bg-purple-50"
+                className="inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-xl text-white bg-primary-600 hover:bg-primary-700"
               >
                 Browse Directory
               </Link>
               <Link
                 href="/signup"
-                className="inline-flex items-center justify-center px-8 py-3 border-2 border-white text-base font-medium rounded-xl text-white hover:bg-white/10"
+                className="inline-flex items-center justify-center px-8 py-3 border-2 border-primary-600 text-base font-medium rounded-xl text-primary-600 hover:bg-primary-50"
               >
                 List Your Business
               </Link>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
@@ -254,6 +274,13 @@ export default function Home() {
           <p className="mt-4 text-lg leading-6 text-primary-200">
             Join hundreds of event venue owners who trust EventSuite to manage their business.
           </p>
+          <div className="mt-6 flex justify-center">
+            <img
+              src="/lib/signup.png"
+              alt="Event venue management"
+              className="w-full max-w-sm rounded-2xl shadow-lg object-cover"
+            />
+          </div>
           <Link
             href="/signup"
             className="mt-8 w-full inline-flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-primary-600 bg-white hover:bg-primary-50 sm:w-auto"

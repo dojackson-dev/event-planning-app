@@ -79,7 +79,7 @@ function ClientLoginForm() {
       <nav className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <Link href="/">
-            <Image src="/lib/LogoDVS.png" alt="DoVenue Suites" width={240} height={64} className="h-16 w-auto" />
+            <img src="/lib/LogoDVS.png" alt="DoVenue Suites" style={{ height: '64px', width: 'auto' }} />
           </Link>
           <Link href="/" className="flex items-center gap-1 text-sm text-gray-600 hover:text-primary-600">
             <ArrowLeft className="h-4 w-4" />

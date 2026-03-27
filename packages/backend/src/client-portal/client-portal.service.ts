@@ -55,7 +55,7 @@ export class ClientPortalService {
     const bookingIds = bookings.map((b: any) => b.id);
 
     // ── Contracts: by client_id OR intake_form_id ─────────────────────────────
-    const contractQueries: Promise<any>[] = [
+    const contractQueries: any[] = [
       supabase.from('contracts').select('id, status, created_at').eq('client_id', clientId),
     ];
     if (intakeFormIds.length) {
@@ -65,7 +65,7 @@ export class ClientPortalService {
     }
 
     // ── Estimates: by client_phone (direct), booking_id, or intake_form_id ──
-    const estimateQueries: Promise<any>[] = [
+    const estimateQueries: any[] = [
       // Direct phone match (most reliable)
       ...phoneVariants.map(p =>
         supabase.from('estimates').select('id, status, total_amount, created_at').eq('client_phone', p).neq('status', 'draft'),
@@ -335,7 +335,7 @@ export class ClientPortalService {
     const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
 
     const contractSelect = `*, event:event(id, name, date)`;
-    const queries: Promise<any>[] = [
+    const queries: any[] = [
       supabase.from('contracts').select(contractSelect).eq('client_id', clientId).order('created_at', { ascending: false }),
     ];
     if (intakeFormIds.length) {
@@ -376,7 +376,7 @@ export class ClientPortalService {
     const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
 
     const estimateSelect = `*, items:estimate_items(*), booking:booking(id, contact_name, event_id)`;
-    const queries: Promise<any>[] = [
+    const queries: any[] = [
       // Direct client_phone match (most reliable — populated when estimate is created/sent)
       ...phoneVariants.map(p =>
         supabase.from('estimates').select(estimateSelect).eq('client_phone', p).neq('status', 'draft').order('created_at', { ascending: false }),

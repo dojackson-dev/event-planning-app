@@ -64,9 +64,12 @@ export class ClientPortalService {
       );
     }
 
-    // ── Estimates: by client_id OR booking_id OR intake_form_id ──────────────
+    // ── Estimates: by client_phone (direct), booking_id, or intake_form_id ──
     const estimateQueries: Promise<any>[] = [
-      supabase.from('estimates').select('id, status, total_amount, created_at').eq('client_id', clientId),
+      // Direct phone match (most reliable)
+      ...phoneVariants.map(p =>
+        supabase.from('estimates').select('id, status, total_amount, created_at').eq('client_phone', p).neq('status', 'draft'),
+      ),
     ];
     if (bookingIds.length) {
       estimateQueries.push(
@@ -374,7 +377,10 @@ export class ClientPortalService {
 
     const estimateSelect = `*, items:estimate_items(*), booking:booking(id, contact_name, event_id)`;
     const queries: Promise<any>[] = [
-      supabase.from('estimates').select(estimateSelect).eq('client_id', clientId).order('created_at', { ascending: false }),
+      // Direct client_phone match (most reliable — populated when estimate is created/sent)
+      ...phoneVariants.map(p =>
+        supabase.from('estimates').select(estimateSelect).eq('client_phone', p).neq('status', 'draft').order('created_at', { ascending: false }),
+      ),
     ];
     if (bookingIds.length) {
       queries.push(

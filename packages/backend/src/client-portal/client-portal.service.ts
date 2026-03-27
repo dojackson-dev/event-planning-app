@@ -20,44 +20,81 @@ export class ClientPortalService {
 
   constructor(private readonly supabaseService: SupabaseService) {}
 
+  /** Helper: returns intake form IDs linked to any of the client's phone variants */
+  private async getIntakeFormIds(supabase: any, phoneVariants: string[]): Promise<string[]> {
+    const results = await Promise.all(
+      phoneVariants.map(p =>
+        supabase.from('intake_forms').select('id').eq('contact_phone', p),
+      ),
+    );
+    return [...new Set(results.flatMap((r: any) => (r.data || []).map((i: any) => i.id)))];
+  }
+
   /** Overview stats for the client dashboard */
   async getOverview(clientId: string, clientPhone: string) {
     const supabase = this.supabaseService.getAdminClient();
     const phoneVariants = buildPhoneVariants(clientPhone);
 
+    // ── Bookings (by user_id + all phone variants) ────────────────────────────
+    const bookingSelect = 'id, status, total_price, deposit, payment_status, created_at, event:event(id, name, date, start_time, end_time, venue, status)';
     const [byUserId, ...byPhones] = await Promise.all([
-      supabase
-        .from('booking')
-        .select('id, status, total_price, deposit, payment_status, created_at, event:event(id, name, date, start_time, end_time, venue, status)')
-        .eq('user_id', clientId)
-        .order('created_at', { ascending: false }),
+      supabase.from('booking').select(bookingSelect).eq('user_id', clientId).order('created_at', { ascending: false }),
       ...phoneVariants.map(p =>
-        supabase
-          .from('booking')
-          .select('id, status, total_price, deposit, payment_status, created_at, event:event(id, name, date, start_time, end_time, venue, status)')
-          .eq('contact_phone', p)
-          .order('created_at', { ascending: false })
+        supabase.from('booking').select(bookingSelect).eq('contact_phone', p).order('created_at', { ascending: false }),
       ),
-      supabase.from('contracts').select('id, status, created_at').eq('client_id', clientId),
-      supabase.from('estimates').select('id, status, total_amount, created_at').eq('client_id', clientId),
     ]);
-
-    // Last two are contracts and estimates
-    const contractsRes = byPhones[byPhones.length - 2];
-    const estimatesRes = byPhones[byPhones.length - 1];
-    const bookingResults = byPhones.slice(0, byPhones.length - 2);
 
     const seen = new Set<string>();
     const bookings: any[] = [];
-    for (const row of [(byUserId.data || []), ...bookingResults.map(r => r.data || [])].flat()) {
+    for (const row of [(byUserId.data || []), ...byPhones.map((r: any) => r.data || [])].flat()) {
       if (!seen.has(row.id)) { seen.add(row.id); bookings.push(row); }
     }
 
-    return {
-      bookings,
-      contracts: contractsRes.data || [],
-      estimates: estimatesRes.data || [],
-    };
+    // ── Linked intake form IDs (used for contracts + estimates) ───────────────
+    const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
+    const bookingIds = bookings.map((b: any) => b.id);
+
+    // ── Contracts: by client_id OR intake_form_id ─────────────────────────────
+    const contractQueries: Promise<any>[] = [
+      supabase.from('contracts').select('id, status, created_at').eq('client_id', clientId),
+    ];
+    if (intakeFormIds.length) {
+      contractQueries.push(
+        supabase.from('contracts').select('id, status, created_at').in('intake_form_id', intakeFormIds),
+      );
+    }
+
+    // ── Estimates: by client_id OR booking_id OR intake_form_id ──────────────
+    const estimateQueries: Promise<any>[] = [
+      supabase.from('estimates').select('id, status, total_amount, created_at').eq('client_id', clientId),
+    ];
+    if (bookingIds.length) {
+      estimateQueries.push(
+        supabase.from('estimates').select('id, status, total_amount, created_at').in('booking_id', bookingIds).neq('status', 'draft'),
+      );
+    }
+    if (intakeFormIds.length) {
+      estimateQueries.push(
+        supabase.from('estimates').select('id, status, total_amount, created_at').in('intake_form_id', intakeFormIds).neq('status', 'draft'),
+      );
+    }
+
+    const [contractResults, estimateResults] = await Promise.all([
+      Promise.all(contractQueries),
+      Promise.all(estimateQueries),
+    ]);
+
+    const contractSeen = new Set<string>();
+    const contracts = contractResults
+      .flatMap((r: any) => r.data || [])
+      .filter((c: any) => { if (contractSeen.has(c.id)) return false; contractSeen.add(c.id); return true; });
+
+    const estimateSeen = new Set<string>();
+    const estimates = estimateResults
+      .flatMap((r: any) => r.data || [])
+      .filter((e: any) => { if (estimateSeen.has(e.id)) return false; estimateSeen.add(e.id); return true; });
+
+    return { bookings, contracts, estimates };
   }
 
   /** All bookings for the client including event + vendor info */
@@ -288,44 +325,81 @@ export class ClientPortalService {
     return data || [];
   }
 
-  /** Contracts for this client */
-  async getContracts(clientId: string) {
+  /** Contracts for this client (by client_id or intake_form linked to their phone) */
+  async getContracts(clientId: string, clientPhone: string) {
     const supabase = this.supabaseService.getAdminClient();
+    const phoneVariants = buildPhoneVariants(clientPhone);
+    const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
 
-    const { data, error } = await supabase
-      .from('contracts')
-      .select(`
-        *,
-        event:event(id, name, date)
-      `)
-      .eq('client_id', clientId)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      this.logger.error('getContracts error', error);
-      return [];
+    const contractSelect = `*, event:event(id, name, date)`;
+    const queries: Promise<any>[] = [
+      supabase.from('contracts').select(contractSelect).eq('client_id', clientId).order('created_at', { ascending: false }),
+    ];
+    if (intakeFormIds.length) {
+      queries.push(
+        supabase.from('contracts').select(contractSelect).in('intake_form_id', intakeFormIds).order('created_at', { ascending: false }),
+      );
     }
-    return data || [];
+
+    const results = await Promise.all(queries);
+    const seen = new Set<string>();
+    return results
+      .flatMap((r: any) => {
+        if (r.error) this.logger.error('getContracts error', r.error);
+        return r.data || [];
+      })
+      .filter((c: any) => {
+        if (seen.has(c.id)) return false;
+        seen.add(c.id);
+        return true;
+      })
+      .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }
 
-  /** Estimates for this client */
-  async getEstimates(clientId: string) {
+  /** Estimates for this client (by client_id, booking phone, or intake_form phone) */
+  async getEstimates(clientId: string, clientPhone: string) {
     const supabase = this.supabaseService.getAdminClient();
+    const phoneVariants = buildPhoneVariants(clientPhone);
 
-    const { data, error } = await supabase
-      .from('estimates')
-      .select(`
-        *,
-        event:event(id, name, date)
-      `)
-      .eq('client_id', clientId)
-      .order('created_at', { ascending: false });
+    // Get booking IDs and intake form IDs for this client
+    const [bookingByUserId, ...bookingByPhones] = await Promise.all([
+      supabase.from('booking').select('id').eq('user_id', clientId),
+      ...phoneVariants.map(p => supabase.from('booking').select('id').eq('contact_phone', p)),
+    ]);
+    const bookingIds = [...new Set(
+      [...(bookingByUserId.data || []), ...bookingByPhones.flatMap((r: any) => r.data || [])].map((b: any) => b.id),
+    )];
 
-    if (error) {
-      this.logger.error('getEstimates error', error);
-      return [];
+    const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
+
+    const estimateSelect = `*, items:estimate_items(*), booking:booking(id, contact_name, event_id)`;
+    const queries: Promise<any>[] = [
+      supabase.from('estimates').select(estimateSelect).eq('client_id', clientId).order('created_at', { ascending: false }),
+    ];
+    if (bookingIds.length) {
+      queries.push(
+        supabase.from('estimates').select(estimateSelect).in('booking_id', bookingIds).neq('status', 'draft').order('created_at', { ascending: false }),
+      );
     }
-    return data || [];
+    if (intakeFormIds.length) {
+      queries.push(
+        supabase.from('estimates').select(estimateSelect).in('intake_form_id', intakeFormIds).neq('status', 'draft').order('created_at', { ascending: false }),
+      );
+    }
+
+    const results = await Promise.all(queries);
+    const seen = new Set<string>();
+    return results
+      .flatMap((r: any) => {
+        if (r.error) this.logger.error('getEstimates error', r.error);
+        return r.data || [];
+      })
+      .filter((e: any) => {
+        if (seen.has(e.id)) return false;
+        seen.add(e.id);
+        return true;
+      })
+      .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }
 
   /** Messages between this client and their owner/vendors */

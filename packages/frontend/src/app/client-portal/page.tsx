@@ -50,10 +50,13 @@ export default function ClientPortalPage() {
     .filter((b: any) => b.event?.date && new Date(b.event.date) >= new Date())
     .slice(0, 3)
 
-  const totalDue = (data?.bookings ?? []).reduce(
-    (sum: number, b: any) => sum + Number(b.total_price ?? 0) - Number(b.total_amount_paid ?? 0),
-    0,
-  )
+  const totalDue = (data?.bookings ?? []).reduce((sum: number, b: any) => {
+    const price = Number(b.total_price ?? 0)
+    if (!price) return sum
+    if (b.payment_status === 'paid') return sum
+    if (b.payment_status === 'deposit_paid') return sum + price - Number(b.deposit ?? 0)
+    return sum + price // unpaid or partially_paid
+  }, 0)
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">

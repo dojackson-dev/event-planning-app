@@ -154,7 +154,7 @@ export class ClientPortalController {
   @Get('contracts')
   async getContracts(@Headers('x-client-token') token: string) {
     const session = this.requireSession(token);
-    return this.clientPortalService.getContracts(session.clientId);
+    return this.clientPortalService.getContracts(session.clientId, session.phone);
   }
 
   // ── Estimates ─────────────────────────────────────────────────────────────
@@ -162,7 +162,7 @@ export class ClientPortalController {
   @Get('estimates')
   async getEstimates(@Headers('x-client-token') token: string) {
     const session = this.requireSession(token);
-    return this.clientPortalService.getEstimates(session.clientId);
+    return this.clientPortalService.getEstimates(session.clientId, session.phone);
   }
 
   // ── Items & Packages ──────────────────────────────────────────────────────

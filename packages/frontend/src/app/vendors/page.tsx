@@ -208,7 +208,7 @@ export default function VendorsPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <Link href="/" className="flex items-center gap-2">
-              <Image src="/lib/LogoDVS.png" alt="DoVenueSuite" width={180} height={48} className="h-10 w-auto" />
+              <img src="/lib/LogoDVS.png" alt="DoVenueSuite" style={{ height: '40px', width: 'auto' }} />
             </Link>
             <div className="flex items-center gap-4">
               <Link href="/signup" className="bg-primary-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-primary-700">

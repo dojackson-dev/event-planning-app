@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { OwnerBrandProvider, useOwnerBrand } from '@/contexts/OwnerBrandContext'
@@ -57,24 +56,24 @@ function BrandLogo({ variant }: { variant: 'sidebar' | 'mobile' }) {
             <p className="text-white/80 text-xs font-medium text-center truncate max-w-[160px]">{businessName}</p>
           </div>
         ) : (
-          <Image src="/lib/LogoDVS.png" alt="DoVenueSuite" width={400} height={133} className="h-28 w-auto" style={{ width: 'auto' }} />
+          <img src="/lib/LogoDVS.png" alt="DoVenueSuite" style={{ height: '112px', width: 'auto' }} />
         )}
       </div>
     )
   }
 
-  // mobile variant
+  // mobile variant — rendered on bg-primary-600 row
   return logoUrl ? (
-    <img src={logoUrl} alt={businessName || 'Logo'} className="h-10 max-w-[160px] object-contain" />
+    <img src={logoUrl} alt={businessName || 'Logo'} className="h-10 max-w-[200px] object-contain" />
   ) : businessName ? (
     <div className="flex items-center gap-2">
-      <div className="w-8 h-8 rounded-lg bg-primary-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+      <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
         {initials}
       </div>
-      <span className="font-bold text-gray-900 text-sm truncate max-w-[130px]">{businessName}</span>
+      <span className="font-bold text-white text-sm truncate max-w-[160px]">{businessName}</span>
     </div>
   ) : (
-    <Image src="/lib/LogoDVS.png" alt="DoVenueSuite" width={320} height={107} className="h-24 w-auto" style={{ width: 'auto' }} />
+    <img src="/lib/LogoDVS.png" alt="DoVenueSuite" style={{ height: '40px', width: 'auto' }} />
   )
 }
 
@@ -129,21 +128,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <OwnerBrandProvider>
     <div className="min-h-screen bg-gray-50">
       {/* Mobile Header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 bg-white border-b border-gray-200 z-50">
-        <div className="flex items-center justify-between h-16 px-4 pt-2">
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-50">
+        {/* Row 1 — Logo */}
+        <div className="flex items-center justify-center h-16 bg-primary-600 px-4">
           <BrandLogo variant="mobile" />
-          <div className="flex items-center gap-3">
-            {/* Notification Bell - Mobile */}
-            <NotificationPanel />
-            
-            {/* Menu Toggle */}
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 rounded-md text-gray-600 hover:bg-gray-100"
-            >
-              {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-            </button>
-          </div>
+        </div>
+        {/* Row 2 — Controls */}
+        <div className="flex items-center justify-end h-12 bg-white border-b border-gray-200 px-4 gap-3">
+          {/* Notification Bell - Mobile */}
+          <NotificationPanel />
+          {/* Menu Toggle */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="p-2 rounded-md text-gray-600 hover:bg-gray-100"
+          >
+            {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+          </button>
         </div>
       </div>
 
@@ -232,7 +232,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </div>
 
       {/* Main content */}
-      <div className="lg:pl-64 pt-16 lg:pt-0 min-h-screen">
+      <div className="lg:pl-64 pt-28 lg:pt-0 min-h-screen">
         {/* Desktop Top Bar with Notifications */}
         <div className="hidden lg:flex items-center justify-end h-16 px-8 bg-white border-b border-gray-100 sticky top-0 z-30">
           <div className="flex items-center gap-4">

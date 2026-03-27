@@ -51,10 +51,10 @@ export default function ClientPortalPage() {
     .slice(0, 3)
 
   const totalDue = (data?.bookings ?? []).reduce((sum: number, b: any) => {
-    const price = Number(b.total_price ?? 0)
+    const price = Number(b.total_amount ?? 0)
     if (!price) return sum
     if (b.payment_status === 'paid') return sum
-    if (b.payment_status === 'deposit_paid') return sum + price - Number(b.deposit ?? 0)
+    if (b.payment_status === 'deposit_paid') return sum + price - Number(b.deposit_amount ?? 0)
     return sum + price // unpaid or partially_paid
   }, 0)
 

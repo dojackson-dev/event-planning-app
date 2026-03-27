@@ -36,7 +36,7 @@ export class ClientPortalService {
     const phoneVariants = buildPhoneVariants(clientPhone);
 
     // ── Bookings (by user_id + all phone variants) ────────────────────────────
-    const bookingSelect = 'id, status, total_price, deposit, payment_status, created_at, event:event(id, name, date, start_time, end_time, venue, status)';
+    const bookingSelect = 'id, status, total_amount, deposit_amount, payment_status, created_at, event:event(id, name, date, start_time, end_time, venue, status)';
     const [byUserId, ...byPhones] = await Promise.all([
       supabase.from('booking').select(bookingSelect).eq('user_id', clientId).order('created_at', { ascending: false }),
       ...phoneVariants.map(p =>
@@ -135,19 +135,21 @@ export class ClientPortalService {
 
     const phoneVariants = buildPhoneVariants(clientPhone);
 
-    // Only return events from bookings the client has explicitly confirmed via the invite link
+    // Return events from all non-cancelled/rejected bookings linked to this client.
+    // We intentionally do NOT filter by client_confirmation_status so that bookings
+    // created by the owner (which default to 'pending') still surface to the client.
     const [byUserId, ...byPhones] = await Promise.all([
       supabase
         .from('booking')
         .select('event_id')
         .eq('user_id', clientId)
-        .eq('client_confirmation_status', 'confirmed'),
+        .not('status', 'eq', 'cancelled'),
       ...phoneVariants.map(p =>
         supabase
           .from('booking')
           .select('event_id')
           .eq('contact_phone', p)
-          .eq('client_confirmation_status', 'confirmed'),
+          .not('status', 'eq', 'cancelled'),
       ),
     ]);
 

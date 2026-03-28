@@ -46,6 +46,21 @@ export class ContractsService {
       .eq('id', id)
       .single();
     if (error) throw error;
+    if (!data) return null;
+
+    // Enrich with owner name for the detail page (uses admin to bypass RLS)
+    const admin = this.supabaseService.getAdminClient();
+    if (data.owner_id) {
+      const { data: ownerUser } = await admin
+        .from('users')
+        .select('first_name, last_name, email')
+        .eq('id', data.owner_id)
+        .single();
+      if (ownerUser) {
+        data.owner_name = `${ownerUser.first_name ?? ''} ${ownerUser.last_name ?? ''}`.trim() || null;
+        data.owner_email = ownerUser.email ?? null;
+      }
+    }
     return data;
   }
 

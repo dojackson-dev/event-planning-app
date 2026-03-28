@@ -330,15 +330,20 @@ export class ClientPortalService {
     return data || [];
   }
 
-  /** Contracts for this client (by client_id or intake_form linked to their phone) */
+  /** Contracts for this client (by client_id, client_phone, or intake_form linked to their phone) */
   async getContracts(clientId: string, clientPhone: string) {
     const supabase = this.supabaseService.getAdminClient();
     const phoneVariants = buildPhoneVariants(clientPhone);
     const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
 
-    const contractSelect = `*, event:event(id, name, date)`;
+    // Note: contracts table has no event_id FK — do not attempt an event join here
+    const contractSelect = `*`;
     const queries: any[] = [
       supabase.from('contracts').select(contractSelect).eq('client_id', clientId).order('created_at', { ascending: false }),
+      // Direct phone match (populated when contract is created from intake form)
+      ...phoneVariants.map(p =>
+        supabase.from('contracts').select(contractSelect).eq('client_phone', p).order('created_at', { ascending: false }),
+      ),
     ];
     if (intakeFormIds.length) {
       queries.push(

@@ -12,13 +12,7 @@ export default function PrivacyPolicy() {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
               <Link href="/">
-                <Image 
-                  src="/lib/LogoDVS.png" 
-                  alt="DoVenue Suite Logo" 
-                  width={360} 
-                  height={96}
-                  className="h-24 w-auto"
-                />
+                <img src="/lib/LogoDVS.png" alt="DoVenue Suite Logo" style={{ height: '64px', width: 'auto' }} />
               </Link>
             </div>
             <div className="flex items-center gap-4">

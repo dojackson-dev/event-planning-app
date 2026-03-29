@@ -57,7 +57,7 @@ function ClientPortalLayoutInner({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-gray-50">
       {/* Mobile top bar */}
       <div className="lg:hidden fixed top-0 inset-x-0 z-50 bg-white border-b border-gray-200 h-16 flex items-center justify-between px-4">
-        <Image src="/lib/LogoDVS.png" alt="DoVenue Suites" width={180} height={48} className="h-12 w-auto" />
+        <img src="/lib/LogoDVS.png" alt="DoVenue Suites" style={{ height: '48px', width: 'auto' }} />
         <button
           onClick={() => setMobileOpen(!mobileOpen)}
           className="p-2 rounded-md text-gray-500 hover:bg-gray-100"
@@ -81,7 +81,7 @@ function ClientPortalLayoutInner({ children }: { children: React.ReactNode }) {
       >
         {/* Logo */}
         <div className="hidden lg:flex items-center justify-center h-20 px-4 bg-primary-600">
-          <Image src="/lib/LogoDVS.png" alt="DoVenue Suites" width={220} height={60} className="h-16 w-auto" />
+          <img src="/lib/LogoDVS.png" alt="DoVenue Suites" style={{ height: '64px', width: 'auto' }} />
         </div>
 
         {/* Client info */}

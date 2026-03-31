@@ -14,6 +14,15 @@ import {
   UpdateBookingRequestDto,
 } from './dto/vendor.dto';
 
+function normalizePhone(phone: string | null | undefined): string | null {
+  if (!phone) return null;
+  const digits = phone.replace(/\D/g, '');
+  if (phone.match(/^\+1\d{10}$/)) return phone;
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+  return phone;
+}
+
 @Injectable()
 export class VendorsService {
   private readonly logger = new Logger(VendorsService.name);
@@ -52,7 +61,7 @@ export class VendorsService {
         website: dto.website,
         instagram: dto.instagram,
         facebook: dto.facebook,
-        phone: dto.phone,
+        phone: normalizePhone(dto.phone),
         email: dto.email,
         address: dto.address,
         city: dto.city,
@@ -123,7 +132,7 @@ export class VendorsService {
     if (dto.website !== undefined) updatePayload.website = dto.website;
     if (dto.instagram !== undefined) updatePayload.instagram = dto.instagram;
     if (dto.facebook !== undefined) updatePayload.facebook = dto.facebook;
-    if (dto.phone !== undefined) updatePayload.phone = dto.phone;
+    if (dto.phone !== undefined) updatePayload.phone = normalizePhone(dto.phone);
     if (dto.email !== undefined) updatePayload.email = dto.email;
     if (dto.address !== undefined) updatePayload.address = dto.address;
     if (dto.city !== undefined) updatePayload.city = dto.city;
@@ -272,7 +281,7 @@ export class VendorsService {
         deposit_amount: dto.depositAmount || null,
         client_name: dto.clientName || null,
         client_email: dto.clientEmail || null,
-        client_phone: dto.clientPhone || null,
+        client_phone: normalizePhone(dto.clientPhone) || null,
         status: 'pending',
       })
       .select()
@@ -798,7 +807,7 @@ export class VendorsService {
         booking_link_id: link.id,
         client_name: dto.clientName,
         client_email: dto.clientEmail,
-        client_phone: dto.clientPhone ?? null,
+        client_phone: normalizePhone(dto.clientPhone) ?? null,
         event_name: dto.eventName ?? null,
         event_date: dto.eventDate ?? null,
         start_time: dto.startTime ?? null,

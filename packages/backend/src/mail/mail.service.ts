@@ -205,6 +205,64 @@ export class MailService {
     }
   }
 
+  async sendInvoiceCreated(params: {
+    clientName: string;
+    clientEmail: string;
+    invoiceNumber: string;
+    totalAmount: number;
+    dueDate: string;
+    invoiceUrl: string;
+  }): Promise<void> {
+    try {
+      const formattedAmount = `$${Number(params.totalAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      const formattedDue = new Date(params.dueDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+
+      const mailOptions = {
+        from: `"DoVenue Suites" <${process.env.SMTP_FROM || 'noreply@dovenue.com'}>`,
+        to: params.clientEmail,
+        subject: `Invoice ${params.invoiceNumber} is Ready – View & Pay Online`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb; padding: 32px 16px;">
+            <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08);">
+              <div style="background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); padding: 32px 32px 24px; text-align: center;">
+                <h1 style="color: white; margin: 0; font-size: 26px; font-weight: 700;">DoVenue Suites</h1>
+                <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">Invoice Ready</p>
+              </div>
+              <div style="padding: 32px;">
+                <p style="color: #374151; font-size: 16px; margin-bottom: 8px;">Hi <strong>${params.clientName}</strong>,</p>
+                <p style="color: #374151; font-size: 15px; line-height: 1.6;">Your invoice is ready. Please review the details below and make your payment at your earliest convenience.</p>
+
+                <div style="background: #f0f4ff; border-left: 4px solid #2563eb; border-radius: 8px; padding: 20px 24px; margin: 24px 0;">
+                  <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #374151;">
+                    <tr><td style="padding: 6px 0; color: #6b7280; width: 130px;">Invoice #</td><td style="padding: 6px 0; font-weight: 600;">${params.invoiceNumber}</td></tr>
+                    <tr><td style="padding: 6px 0; color: #6b7280;">Amount Due</td><td style="padding: 6px 0; font-weight: 700; font-size: 18px; color: #2563eb;">${formattedAmount}</td></tr>
+                    <tr><td style="padding: 6px 0; color: #6b7280;">Due Date</td><td style="padding: 6px 0; font-weight: 600;">${formattedDue}</td></tr>
+                  </table>
+                </div>
+
+                <div style="text-align: center; margin: 32px 0;">
+                  <a href="${params.invoiceUrl}"
+                     style="display: inline-block; background: #2563eb; color: white; padding: 14px 40px; text-decoration: none; border-radius: 8px; font-size: 16px; font-weight: 600; letter-spacing: 0.3px;">
+                    View &amp; Pay Invoice
+                  </a>
+                </div>
+
+                <p style="color: #9ca3af; font-size: 12px; text-align: center; margin-top: 24px;">If you did not expect this invoice, please contact us directly.</p>
+              </div>
+            </div>
+          </div>
+        `,
+        text: `Hi ${params.clientName},\n\nYour invoice ${params.invoiceNumber} for ${formattedAmount} is ready.\nDue: ${formattedDue}\n\nView and pay here: ${params.invoiceUrl}\n\nDoVenue Suites`,
+      };
+
+      const info = await this.transporter.sendMail(mailOptions);
+      console.log('Invoice created notification sent:', info.messageId);
+    } catch (error) {
+      console.error('Failed to send invoice created email:', error);
+      // Non-fatal
+    }
+  }
+
   async sendContractSignedNotification(contract: Contract, client: User, owner: User): Promise<void> {
     try {
       const contractUrl = `${process.env.FRONTEND_URL || 'http://localhost:3001'}/dashboard/contracts/${contract.id}`;

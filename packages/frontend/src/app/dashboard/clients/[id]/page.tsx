@@ -82,6 +82,7 @@ export default function ClientDetailPage() {
   const [messageContent, setMessageContent] = useState('')
   const [appointmentData, setAppointmentData] = useState({ date: '', time: '', notes: '' })
   const [workflowStep, setWorkflowStep] = useState<number>(1)
+  const [converting, setConverting] = useState(false)
 
   // ── Vendor booking state ──────────────────────────────────────
   const [eventVendors, setEventVendors] = useState<EventVendorBooking[]>([])
@@ -379,7 +380,6 @@ export default function ClientDetailPage() {
             { step: 5, label: 'Booked',            icon: CheckCircle, active: 'bg-green-600',   ring: 'ring-green-300',   bar: 'bg-green-600'   },
           ] as const
           const current = workflowStep
-          const [converting, setConverting] = useState(false)
           const handleStep = async (n: number) => {
             if (n === 5) return // step 5 is auto-only
             if (n === 4 && current < 4) {

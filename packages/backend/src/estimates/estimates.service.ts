@@ -150,6 +150,20 @@ export class EstimatesService {
     }
   }
 
+  async findByIntakeForm(supabase: SupabaseClient, intakeFormId: string): Promise<Estimate[]> {
+    try {
+      const { data, error } = await supabase
+        .from('estimates')
+        .select('*, items:estimate_items(*)')
+        .eq('intake_form_id', intakeFormId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    } catch {
+      return [];
+    }
+  }
+
   async findOne(supabase: SupabaseClient, id: string): Promise<Estimate> {
     const { data, error } = await supabase
       .from('estimates')

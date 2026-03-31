@@ -8,18 +8,6 @@ import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { ServiceItem, ServiceItemCategory, DiscountType } from '@/types'
 
-interface BookingOption {
-  id: string
-  contact_name: string
-  contact_email: string
-  event_id?: string
-  event?: {
-    id: string
-    name: string
-    date: string
-  }
-}
-
 interface EstimateLineItem {
   id: string
   service_item_id?: string | null
@@ -38,9 +26,11 @@ function NewEstimatePageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user } = useAuth()
-  const [bookings, setBookings] = useState<BookingOption[]>([])
+  const [events, setEvents] = useState<any[]>([])
   const [serviceItems, setServiceItems] = useState<ServiceItem[]>([])
-  const [selectedBooking, setSelectedBooking] = useState('')
+  const [selectedEvent, setSelectedEvent] = useState('')
+  const [clientName, setClientName] = useState('')
+  const [intakeFormId, setIntakeFormId] = useState<string | null>(null)
   const [lineItems, setLineItems] = useState<EstimateLineItem[]>([])
   const [vendorBookingBanner, setVendorBookingBanner] = useState<string>('')
   const [includeTax, setIncludeTax] = useState(false)
@@ -55,9 +45,19 @@ function NewEstimatePageInner() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    fetchBookings()
+    fetchEvents()
     fetchServiceItems()
   }, [])
+
+  // Pre-fill from client workflow (clientId URL param)
+  useEffect(() => {
+    const clientId = searchParams?.get('clientId')
+    if (!clientId) return
+    setIntakeFormId(clientId)
+    api.get(`/intake-forms/${clientId}`).then(res => {
+      setClientName(res.data.contact_name || '')
+    }).catch(() => {})
+  }, [searchParams])
 
   // Pre-fill vendor booking as a line item when vendorBookingId is in URL
   useEffect(() => {
@@ -85,22 +85,16 @@ function NewEstimatePageInner() {
     }).catch(() => {})
   }, [searchParams])
 
-  const fetchBookings = async () => {
+  const fetchEvents = async () => {
     try {
-      const res = await api.get<BookingOption[]>('/bookings')
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      // Only show bookings whose event date is today or in the future
-      const upcoming = (res.data || []).filter((b) => {
-        const dateStr = b.event?.date
-        if (!dateStr) return true
-        const [y, m, d] = dateStr.split('-').map(Number)
-        const eventDate = new Date(y, m - 1, d)
-        return eventDate >= today
-      })
-      setBookings(upcoming)
+      const res = await api.get('/events')
+      const today = new Date().toISOString().split('T')[0]
+      const upcoming = (res.data || []).filter((e: any) =>
+        e.status !== 'cancelled' && e.date >= today
+      )
+      setEvents(upcoming)
     } catch (err) {
-      console.error('Failed to fetch bookings:', err)
+      console.error('Failed to fetch events:', err)
     }
   }
 
@@ -192,8 +186,9 @@ function NewEstimatePageInner() {
     try {
       const body = {
         estimate: {
-          booking_id: selectedBooking || null,
           owner_id: user?.id,
+          intake_form_id: intakeFormId || null,
+          client_name: clientName || null,
           tax_rate: includeTax ? Number(taxRate) : 0,
           discount_amount: Number(discountAmount),
           issue_date: issueDate,
@@ -240,25 +235,42 @@ function NewEstimatePageInner() {
           </div>
         )}
 
-        {/* Client */}
+        {/* Client Name */}
         <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Select Event / Booking (Optional)</label>
-          <select
-            value={selectedBooking}
-            onChange={e => setSelectedBooking(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-          >
-            <option value="">-- No booking --</option>
-            {bookings.map(b => (
-              <option key={b.id} value={b.id}>
-                {b.event?.name || 'Event'}
-                {b.contact_name ? ` — ${b.contact_name}` : ''}
-                {b.event?.date ? ` (${b.event.date})` : ''}
-              </option>
-            ))}
-          </select>
-          {bookings.length === 0 && (
-            <p className="text-xs text-gray-400 mt-1">No upcoming bookings found. Estimates can still be created without linking to a booking.</p>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Client Name</label>
+          {intakeFormId ? (
+            <div className="px-3 py-2 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-800 font-medium">
+              {clientName || 'Loading…'}
+            </div>
+          ) : (
+            <input
+              type="text"
+              value={clientName}
+              onChange={e => setClientName(e.target.value)}
+              placeholder="Enter client name"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+          )}
+        </div>
+
+        {/* Event (Optional) */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">Link to Event (Optional)</label>
+          {events.length === 0 ? (
+            <p className="text-xs text-gray-400 mt-1">No upcoming events found. Estimates can be created without linking to an event.</p>
+          ) : (
+            <select
+              value={selectedEvent}
+              onChange={e => setSelectedEvent(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              <option value="">-- No event --</option>
+              {events.map((ev: any) => (
+                <option key={ev.id} value={ev.id}>
+                  {ev.name || 'Event'}{ev.date ? ` (${new Date(ev.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})` : ''}
+                </option>
+              ))}
+            </select>
           )}
         </div>
 

@@ -83,6 +83,7 @@ export default function ClientDetailPage() {
   const [appointmentData, setAppointmentData] = useState({ date: '', time: '', notes: '' })
   const [workflowStep, setWorkflowStep] = useState<number>(1)
   const [converting, setConverting] = useState(false)
+  const [clientEstimateId, setClientEstimateId] = useState<string | null>(null)
 
   // ── Vendor booking state ──────────────────────────────────────
   const [eventVendors, setEventVendors] = useState<EventVendorBooking[]>([])
@@ -110,6 +111,12 @@ export default function ClientDetailPage() {
       setNotes(response.data.notes || '')
       setEditData(response.data)
       fetchEventVendors(response.data.event_date)
+      // Load latest estimate for this client
+      api.get(`/estimates?intakeFormId=${params.id}`).then(res => {
+        const estimates: any[] = res.data || []
+        const latest = estimates[0]
+        if (latest) setClientEstimateId(latest.id)
+      }).catch(() => {})
       // Restore saved workflow step for this client
       const saved = localStorage.getItem(`workflow_step_${params.id}`)
       if (saved) {
@@ -383,8 +390,52 @@ export default function ClientDetailPage() {
           const handleStep = async (n: number) => {
             if (n === 5) return // step 5 is auto-only
             if (n === 1) {
-              // Navigate to create estimate/invoice page pre-filled with this client
-              router.push(`/dashboard/invoices/new?clientId=${params.id}&type=estimate`)
+              // Navigate to create estimate page pre-filled with this client
+              router.push(`/dashboard/estimates/new?clientId=${params.id}`)
+              return
+            }
+            if (n === 2 && current < 2) {
+              // Estimate Approved — mark the estimate as approved
+              setConverting(true)
+              try {
+                if (clientEstimateId) {
+                  await api.put(`/estimates/${clientEstimateId}/status`, { status: 'approved' })
+                }
+                const val = 2
+                setWorkflowStep(val)
+                localStorage.setItem(`workflow_step_${params.id}`, String(val))
+              } catch (err: any) {
+                alert(err.response?.data?.message || 'Could not mark estimate as approved.')
+              } finally {
+                setConverting(false)
+              }
+              return
+            }
+            if (n === 3 && current < 3) {
+              // Send Invoice — convert approved estimate to invoice, then navigate to it
+              setConverting(true)
+              try {
+                let estimateId = clientEstimateId
+                if (!estimateId) {
+                  const res = await api.get(`/estimates?intakeFormId=${params.id}`)
+                  const estimates: any[] = res.data || []
+                  estimateId = estimates[0]?.id || null
+                  if (estimateId) setClientEstimateId(estimateId)
+                }
+                if (!estimateId) {
+                  alert('No estimate found for this client. Please create an estimate first (Step 1).')
+                  setConverting(false)
+                  return
+                }
+                const invoice = await api.post(`/estimates/${estimateId}/convert-to-invoice`)
+                setWorkflowStep(3)
+                localStorage.setItem(`workflow_step_${params.id}`, '3')
+                router.push(`/dashboard/invoices/${invoice.data.id}`)
+              } catch (err: any) {
+                alert(err.response?.data?.message || 'Could not convert estimate to invoice.')
+              } finally {
+                setConverting(false)
+              }
               return
             }
             if (n === 4 && current < 4) {
@@ -495,7 +546,7 @@ export default function ClientDetailPage() {
                   )
                 })}
               </div>
-              <p className="text-[10px] text-gray-400 mt-2">Mark steps 1–3 as you progress. Clicking <strong>Deposit Confirmed</strong> automatically books the client and notifies any conflicting leads.</p>
+              <p className="text-[10px] text-gray-400 mt-2">Step 1 creates your estimate. Step 2 marks the client's approval. Step 3 converts the estimate to an invoice. Clicking <strong>Deposit Confirmed</strong> automatically books the client and notifies any conflicting leads.</p>
             </div>
           )
         })()}

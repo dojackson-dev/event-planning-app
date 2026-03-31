@@ -111,7 +111,12 @@ export default function ClientDetailPage() {
       fetchEventVendors(response.data.event_date)
       // Restore saved workflow step for this client
       const saved = localStorage.getItem(`workflow_step_${params.id}`)
-      if (saved) setWorkflowStep(parseInt(saved))
+      if (saved) {
+        setWorkflowStep(parseInt(saved))
+      } else if (response.data.status === 'converted') {
+        setWorkflowStep(5)
+        localStorage.setItem(`workflow_step_${params.id}`, '5')
+      }
     } catch (error) {
       console.error('Error fetching client:', error)
     } finally {
@@ -367,14 +372,35 @@ export default function ClientDetailPage() {
         {/* Booking Workflow Progress */}
         {(() => {
           const STEPS = [
-            { step: 1, label: 'Send Estimate',                    icon: FileText,    active: 'bg-blue-600',    ring: 'ring-blue-300',    bar: 'bg-blue-600'    },
-            { step: 2, label: 'Estimate Approved',                icon: CheckCircle, active: 'bg-green-600',   ring: 'ring-green-300',   bar: 'bg-green-600'   },
-            { step: 3, label: 'Send Invoice',                     icon: FileText,    active: 'bg-indigo-600',  ring: 'ring-indigo-300',  bar: 'bg-indigo-600'  },
-            { step: 4, label: 'Deposit Confirmed',                icon: DollarSign,  active: 'bg-emerald-600', ring: 'ring-emerald-300', bar: 'bg-emerald-600' },
-            { step: 5, label: 'Convert to Confirmed Booking',     icon: Calendar,    active: 'bg-purple-600',  ring: 'ring-purple-300',  bar: 'bg-purple-600'  },
+            { step: 1, label: 'Send Estimate',     icon: FileText,    active: 'bg-blue-600',    ring: 'ring-blue-300',    bar: 'bg-blue-600'    },
+            { step: 2, label: 'Estimate Approved', icon: CheckCircle, active: 'bg-green-600',   ring: 'ring-green-300',   bar: 'bg-green-600'   },
+            { step: 3, label: 'Send Invoice',      icon: FileText,    active: 'bg-indigo-600',  ring: 'ring-indigo-300',  bar: 'bg-indigo-600'  },
+            { step: 4, label: 'Deposit Confirmed', icon: DollarSign,  active: 'bg-emerald-600', ring: 'ring-emerald-300', bar: 'bg-emerald-600' },
+            { step: 5, label: 'Booked',            icon: CheckCircle, active: 'bg-green-600',   ring: 'ring-green-300',   bar: 'bg-green-600'   },
           ] as const
           const current = workflowStep
-          const handleStep = (n: number) => {
+          const [converting, setConverting] = useState(false)
+          const handleStep = async (n: number) => {
+            if (n === 5) return // step 5 is auto-only
+            if (n === 4 && current < 4) {
+              // Clicking Deposit Confirmed → auto-convert to booking
+              setWorkflowStep(4)
+              localStorage.setItem(`workflow_step_${params.id}`, '4')
+              setConverting(true)
+              try {
+                await api.post(`/intake-forms/${params.id}/convert-to-booking`, {})
+                setWorkflowStep(5)
+                localStorage.setItem(`workflow_step_${params.id}`, '5')
+                await fetchClient()
+              } catch (err: any) {
+                alert(err.response?.data?.message || 'Could not confirm booking. Please try again.')
+                setWorkflowStep(3)
+                localStorage.setItem(`workflow_step_${params.id}`, '3')
+              } finally {
+                setConverting(false)
+              }
+              return
+            }
             const next = n === current ? n - 1 : n
             const val = Math.max(0, next)
             setWorkflowStep(val)
@@ -386,9 +412,13 @@ export default function ClientDetailPage() {
             <div className="bg-white rounded-lg shadow p-5 mb-6">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Booking Progress</h2>
-                {current > 0 && (
+                {current >= 5 ? (
+                  <span className="text-xs font-bold px-3 py-1 rounded-full text-white bg-green-600 flex items-center gap-1">
+                    <CheckCircle className="h-3.5 w-3.5" /> Booked
+                  </span>
+                ) : current > 0 && (
                   <span className={`text-xs font-semibold px-2 py-0.5 rounded-full text-white ${activeStep?.active ?? 'bg-gray-400'}`}>
-                    Step {current} of {STEPS.length} — {activeStep?.label}
+                    {converting ? 'Confirming booking…' : `Step ${current} of ${STEPS.length} — ${activeStep?.label}`}
                   </span>
                 )}
               </div>
@@ -407,25 +437,52 @@ export default function ClientDetailPage() {
                   const Icon = s.icon
                   return (
                     <div key={s.step} className="flex items-center gap-1 flex-shrink-0">
-                      <button
-                        onClick={() => handleStep(s.step)}
-                        title={s.label}
-                        className={`flex flex-col items-center px-2.5 py-2.5 rounded-xl border-2 w-[7.5rem] text-center transition-all
-                          ${
-                            isCurrent
-                              ? `border-current ${s.active} text-white shadow-md ring-2 ${s.ring}`
-                              : done
-                              ? `${s.active} border-transparent text-white opacity-80`
-                              : 'border-gray-200 bg-gray-50 text-gray-400 hover:bg-gray-100'
-                          }`}
-                      >
-                        <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold mb-1.5
-                          ${isCurrent || done ? 'bg-white/30 text-white' : 'bg-gray-200 text-gray-500'}`}>
-                          {done ? '✓' : s.step}
+                      {s.step === 5 ? (
+                        // Step 5 is auto-set — render as a read-only badge
+                        <div
+                          className={`flex flex-col items-center px-2.5 py-2.5 rounded-xl border-2 w-[7.5rem] text-center
+                            ${current >= 5
+                              ? 'bg-green-600 border-transparent text-white shadow-md ring-2 ring-green-300'
+                              : 'border-gray-200 bg-gray-50 text-gray-300'
+                            }`}
+                        >
+                          <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold mb-1.5
+                            ${current >= 5 ? 'bg-white/30 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                            {current >= 5 ? '✓' : 5}
+                          </div>
+                          <Icon className="h-4 w-4 mb-1" />
+                          <span className="text-[10px] font-bold leading-tight">
+                            {current >= 5 ? '✓ Booked' : 'Booked'}
+                          </span>
+                          {current < 5 && (
+                            <span className="text-[9px] leading-tight opacity-60 mt-0.5">auto</span>
+                          )}
                         </div>
-                        <Icon className="h-4 w-4 mb-1" />
-                        <span className="text-[10px] font-medium leading-tight">{s.label}</span>
-                      </button>
+                      ) : (
+                        <button
+                          onClick={() => handleStep(s.step)}
+                          disabled={converting}
+                          title={s.label}
+                          className={`flex flex-col items-center px-2.5 py-2.5 rounded-xl border-2 w-[7.5rem] text-center transition-all disabled:opacity-60
+                            ${
+                              isCurrent
+                                ? `border-current ${s.active} text-white shadow-md ring-2 ${s.ring}`
+                                : done
+                                ? `${s.active} border-transparent text-white opacity-80`
+                                : 'border-gray-200 bg-gray-50 text-gray-400 hover:bg-gray-100'
+                            }`}
+                        >
+                          <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold mb-1.5
+                            ${isCurrent || done ? 'bg-white/30 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                            {done ? '✓' : s.step}
+                          </div>
+                          <Icon className="h-4 w-4 mb-1" />
+                          <span className="text-[10px] font-medium leading-tight">{s.label}</span>
+                          {s.step === 4 && current < 4 && (
+                            <span className="text-[9px] leading-tight opacity-70 mt-0.5">→ auto-books</span>
+                          )}
+                        </button>
+                      )}
                       {idx < STEPS.length - 1 && (
                         <ArrowRight className={`h-3.5 w-3.5 flex-shrink-0 ${s.step < current ? 'text-gray-400' : 'text-gray-200'}`} />
                       )}
@@ -433,7 +490,7 @@ export default function ClientDetailPage() {
                   )
                 })}
               </div>
-              <p className="text-[10px] text-gray-400 mt-2">Click a step to mark progress. Steps 6 &amp; 7 (conflict resolution &amp; notifications) run automatically when booking is confirmed.</p>
+              <p className="text-[10px] text-gray-400 mt-2">Mark steps 1–3 as you progress. Clicking <strong>Deposit Confirmed</strong> automatically books the client and notifies any conflicting leads.</p>
             </div>
           )
         })()}

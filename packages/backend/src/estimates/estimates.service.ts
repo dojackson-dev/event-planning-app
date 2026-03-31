@@ -9,6 +9,8 @@ export interface Estimate {
   booking_id?: string;
   intake_form_id?: string;
   created_by?: string;
+  client_phone?: string;
+  client_email?: string;
   subtotal: number;
   tax_amount: number;
   tax_rate: number;
@@ -49,19 +51,51 @@ export class EstimatesService {
   constructor(private readonly smsNotifications: SmsNotificationsService) {}
 
   /**
-   * Look up the client phone number via the estimate's linked booking.
+   * Look up the client phone + email from an estimate's linked booking or intake form.
+   * Also persists them back onto the estimate row for future lookup.
    */
-  private async lookupClientPhone(
+  private async lookupAndPersistClientContact(
     supabase: SupabaseClient,
     estimate: Estimate,
-  ): Promise<string | null> {
-    if (!(estimate as any).booking_id) return null;
-    const { data: booking } = await supabase
-      .from('booking')
-      .select('contact_phone')
-      .eq('id', (estimate as any).booking_id)
-      .single();
-    return (booking as any)?.contact_phone ?? null;
+  ): Promise<{ phone: string | null; email: string | null }> {
+    // Already stored directly — use it
+    if ((estimate as any).client_phone) {
+      return { phone: (estimate as any).client_phone, email: (estimate as any).client_email ?? null };
+    }
+
+    let phone: string | null = null;
+    let email: string | null = null;
+
+    if ((estimate as any).booking_id) {
+      const { data: booking } = await supabase
+        .from('booking')
+        .select('contact_phone, contact_email')
+        .eq('id', (estimate as any).booking_id)
+        .single();
+      phone = (booking as any)?.contact_phone ?? null;
+      email = (booking as any)?.contact_email ?? null;
+    }
+
+    if (!phone && (estimate as any).intake_form_id) {
+      const { data: form } = await supabase
+        .from('intake_forms')
+        .select('contact_phone, contact_email')
+        .eq('id', (estimate as any).intake_form_id)
+        .single();
+      phone = (form as any)?.contact_phone ?? null;
+      email = (form as any)?.contact_email ?? null;
+    }
+
+    // Persist for next time so client portal can query directly
+    if (phone && estimate.id) {
+      await supabase
+        .from('estimates')
+        .update({ client_phone: phone, client_email: email })
+        .eq('id', estimate.id)
+        .then(() => {}); // fire-and-forget
+    }
+
+    return { phone, email };
   }
 
   private calculateTotals(items: Partial<EstimateItem>[], taxRate: number, discountAmount: number) {
@@ -116,6 +150,20 @@ export class EstimatesService {
     }
   }
 
+  async findByIntakeForm(supabase: SupabaseClient, intakeFormId: string): Promise<Estimate[]> {
+    try {
+      const { data, error } = await supabase
+        .from('estimates')
+        .select('*, items:estimate_items(*)')
+        .eq('intake_form_id', intakeFormId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    } catch {
+      return [];
+    }
+  }
+
   async findOne(supabase: SupabaseClient, id: string): Promise<Estimate> {
     const { data, error } = await supabase
       .from('estimates')
@@ -157,6 +205,20 @@ export class EstimatesService {
       Number(estimateData.discount_amount) || 0,
     );
 
+    // Resolve client contact info from booking or intake form
+    let clientPhone: string | null = estimateData.client_phone || null;
+    let clientEmail: string | null = estimateData.client_email || null;
+    if (!clientPhone && estimateData.booking_id) {
+      const { data: bk } = await supabase.from('booking').select('contact_phone, contact_email').eq('id', estimateData.booking_id).single();
+      clientPhone = (bk as any)?.contact_phone ?? null;
+      clientEmail = (bk as any)?.contact_email ?? null;
+    }
+    if (!clientPhone && estimateData.intake_form_id) {
+      const { data: fm } = await supabase.from('intake_forms').select('contact_phone, contact_email').eq('id', estimateData.intake_form_id).single();
+      clientPhone = (fm as any)?.contact_phone ?? null;
+      clientEmail = (fm as any)?.contact_email ?? null;
+    }
+
     const { data, error } = await supabase
       .from('estimates')
       .insert({
@@ -165,6 +227,8 @@ export class EstimatesService {
         created_by: userId,
         booking_id: estimateData.booking_id || null,
         intake_form_id: estimateData.intake_form_id || null,
+        client_phone: clientPhone,
+        client_email: clientEmail,
         subtotal,
         tax_rate: Number(estimateData.tax_rate) || 0,
         tax_amount: taxAmount,
@@ -255,9 +319,9 @@ export class EstimatesService {
 
     const updated = await this.update(supabase, id, updateData);
 
-    // ── SMS notifications ──────────────────────────────────────────────────
+    // ── Persist client contact + SMS notifications ──────────────────────────
     try {
-      const phone = await this.lookupClientPhone(supabase, updated);
+      const { phone } = await this.lookupAndPersistClientContact(supabase, updated);
       const clientName =
         (updated as any).booking?.contact_name || 'Valued Client';
       if (status === 'sent') {

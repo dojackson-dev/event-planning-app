@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
+import { MailService } from '../mail/mail.service';
 
 export interface Invoice {
   id?: string;
@@ -58,6 +59,7 @@ export class InvoicesService {
   constructor(
     private readonly supabaseService: SupabaseService,
     private readonly smsNotifications: SmsNotificationsService,
+    private readonly mailService: MailService,
   ) {}
 
   /**
@@ -333,10 +335,82 @@ export class InvoicesService {
         .single();
 
       if (updateError) throw updateError;
-      return updatedInvoice as Invoice;
+      const finalInvoice = updatedInvoice as Invoice;
+      await this.sendInvoiceNotifications(supabase, finalInvoice).catch(() => {});
+      return finalInvoice;
     }
 
+    await this.sendInvoiceNotifications(supabase, invoice).catch(() => {});
     return invoice;
+  }
+
+  /**
+   * Send SMS + email to the client when an invoice is created.
+   * Looks up client contact info from the linked intake form or booking.
+   * All errors are swallowed so notifications never break invoice creation.
+   */
+  private async sendInvoiceNotifications(supabase: SupabaseClient, invoice: Invoice): Promise<void> {
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const invoiceUrl = `${frontendUrl}/client-portal/invoices/${invoice.id}`;
+
+    // Resolve client details
+    let clientName = (invoice as any).client_name || 'Valued Client';
+    let clientPhone: string | null = null;
+    let clientEmail: string | null = null;
+
+    // Try intake form first
+    if ((invoice as any).intake_form) {
+      const form = (invoice as any).intake_form;
+      clientName = form.contact_name || clientName;
+      clientPhone = form.contact_phone || null;
+      clientEmail = form.contact_email || null;
+    } else if (invoice.intake_form_id) {
+      const { data: form } = await supabase
+        .from('intake_forms')
+        .select('contact_name, contact_phone, contact_email')
+        .eq('id', invoice.intake_form_id)
+        .single();
+      if (form) {
+        clientName = (form as any).contact_name || clientName;
+        clientPhone = (form as any).contact_phone || null;
+        clientEmail = (form as any).contact_email || null;
+      }
+    }
+
+    // Fall back to booking
+    if (!clientPhone && invoice.booking_id) {
+      const { data: booking } = await supabase
+        .from('booking')
+        .select('contact_name, contact_phone, contact_email')
+        .eq('id', invoice.booking_id)
+        .single();
+      if (booking) {
+        clientName = (booking as any).contact_name || clientName;
+        clientPhone = (booking as any).contact_phone || null;
+        clientEmail = (booking as any).contact_email || null;
+      }
+    }
+
+    // SMS
+    await this.smsNotifications.invoiceSent(
+      clientPhone,
+      clientName,
+      invoice.invoice_number,
+      invoice.total_amount,
+      invoiceUrl,
+    );
+
+    // Email (only if we have an address)
+    if (clientEmail) {
+      await this.mailService.sendInvoiceCreated({
+        clientName,
+        clientEmail,
+        invoiceNumber: invoice.invoice_number,
+        totalAmount: invoice.total_amount,
+        dueDate: invoice.due_date,
+        invoiceUrl,
+      });
+    }
   }
 
   async createInvoiceItems(supabase: SupabaseClient, userId: string, invoiceId: string, items: Partial<InvoiceItem>[]): Promise<InvoiceItem[]> {

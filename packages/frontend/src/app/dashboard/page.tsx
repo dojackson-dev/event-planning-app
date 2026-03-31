@@ -344,7 +344,7 @@ export default function DashboardPage() {
                       )}
                       <div className="flex items-center">
                         <Calendar className="h-4 w-4 mr-1.5" />
-                        {new Date(client.event_date).toLocaleDateString()}
+                        {new Date(client.event_date + 'T12:00:00').toLocaleDateString()}
                       </div>
                       <div className="flex items-center">
                         <Users className="h-4 w-4 mr-1.5" />

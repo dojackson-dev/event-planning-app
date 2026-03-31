@@ -136,20 +136,47 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
   useEffect(() => {
     const load = async () => {
       try {
-        const [vendorRes, reviewsRes, eventsRes, bookingsRes] = await Promise.all([
+        const [vendorRes, reviewsRes, eventsRes, bookingsRes, intakeRes] = await Promise.all([
           api.get(`/vendors/${params.id}`),
           api.get(`/vendors/${params.id}/reviews`),
           api.get('/events').catch(() => ({ data: [] })),
           api.get('/bookings').catch(() => ({ data: [] })),
+          api.get('/intake-forms').catch(() => ({ data: [] })),
         ])
         setVendor(vendorRes.data)
         setReviews(reviewsRes.data)
-        setEvents(eventsRes.data || [])
+
+        // Real events from the event table
+        const today = new Date().toISOString().split('T')[0]
+        const realEvents: OwnerEvent[] = (eventsRes.data || []).filter((ev: any) =>
+          ev.status !== 'cancelled' && ev.date >= today
+        )
+
+        // Intake forms that haven't been converted yet (same as calendar)
+        const intakeForms: OwnerEvent[] = (intakeRes.data || [])
+          .filter((f: any) => f.event_date && f.event_date.split('T')[0] >= today && (f.status === 'new' || f.status === 'contacted'))
+          .map((f: any) => ({
+            id: `intake-${f.id}`,
+            name: `${f.event_type ? f.event_type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) : 'Event'} — ${f.contact_name}`,
+            date: f.event_date.split('T')[0],
+            startTime: f.event_time || undefined,
+            venue: f.venue_preference || undefined,
+          }))
+
+        // Merge: real events first, then intake-form entries
+        setEvents([...realEvents, ...intakeForms])
+
         // Build event_id → client info map from bookings
         const map: Record<string, ClientInfo> = {}
         for (const b of (bookingsRes.data || [])) {
           if (b.event_id && b.contact_name) {
             map[b.event_id] = { name: b.contact_name, email: b.contact_email || undefined, phone: b.contact_phone || undefined }
+          }
+        }
+        // Also add intake-form contact info
+        for (const f of (intakeRes.data || [])) {
+          if (f.contact_name) {
+            map[`intake-${f.id}`] = { name: f.contact_name, email: f.contact_email || undefined, phone: f.contact_phone || undefined }
           }
         }
         setEventClientMap(map)
@@ -167,6 +194,8 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
     const ev = events.find(e => e.id === eventId)
     const client = eventClientMap[eventId]
     if (ev) {
+      // Strip the 'intake-' prefix for display — we don't send it to the API
+      const isIntake = eventId.startsWith('intake-')
       setForm(prev => ({
         ...prev,
         eventId,
@@ -180,6 +209,10 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
         clientEmail: client?.email || prev.clientEmail,
         clientPhone: client?.phone || prev.clientPhone,
       }))
+      // For intake form entries the name already contains the client name; keep it clean
+      if (isIntake && client?.name) {
+        // name is already "Event Type — Client Name", no extra change needed
+      }
     } else {
       setForm(prev => ({ ...prev, eventId: '' }))
     }
@@ -447,7 +480,7 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
                       <option key={ev.id} value={ev.id}>
                         {ev.name}
                         {eventClientMap[ev.id] ? ` — ${eventClientMap[ev.id].name}` : ''}
-                        {ev.date ? ` (${new Date(ev.date + 'T00:00:00').toLocaleDateString()})` : ' (No date)'}
+                        {ev.date ? ` (${new Date(ev.date + 'T12:00:00').toLocaleDateString()})` : ' (No date)'}
                       </option>
                     ))}
                   </select>

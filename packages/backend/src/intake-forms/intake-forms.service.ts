@@ -23,6 +23,11 @@ export class IntakeFormsService {
     // Remove columns that don't exist in the intake_forms table
     const { accessibility_requirements, preferred_contact, ...safeDto } = createDto;
 
+    // Normalize phone to E.164 on the way in
+    if (safeDto.contact_phone) {
+      safeDto.contact_phone = normalizePhone(safeDto.contact_phone);
+    }
+
     // Use admin client to bypass RLS for the insert (owner creating a client intake form)
     const supabaseAdmin = this.supabaseService.getAdminClient();
     const { data, error } = await supabaseAdmin
@@ -93,6 +98,10 @@ export class IntakeFormsService {
   }
 
   async update(supabase: SupabaseClient, userId: string, id: string, updateDto: any) {
+    // Normalize phone on update too
+    if (updateDto.contact_phone) {
+      updateDto.contact_phone = normalizePhone(updateDto.contact_phone);
+    }
     const { data, error } = await supabase
       .from('intake_forms')
       .update(updateDto)

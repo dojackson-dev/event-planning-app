@@ -382,6 +382,11 @@ export default function ClientDetailPage() {
           const current = workflowStep
           const handleStep = async (n: number) => {
             if (n === 5) return // step 5 is auto-only
+            if (n === 1) {
+              // Navigate to create estimate/invoice page pre-filled with this client
+              router.push(`/dashboard/invoices/new?clientId=${params.id}&type=estimate`)
+              return
+            }
             if (n === 4 && current < 4) {
               // Clicking Deposit Confirmed → auto-convert to booking
               setWorkflowStep(4)

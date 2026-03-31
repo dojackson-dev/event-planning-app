@@ -32,6 +32,8 @@ function NewInvoicePageContent() {
   const [serviceItems, setServiceItems] = useState<ServiceItem[]>([])
   const [selectedBooking, setSelectedBooking] = useState<string>('')
   const [clientName, setClientName] = useState<string>('')
+  const [intakeFormId, setIntakeFormId] = useState<string | null>(null)
+  const [invoiceType, setInvoiceType] = useState<'invoice' | 'estimate'>('invoice')
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([])
   const [expenseItems, setExpenseItems] = useState<InvoiceLineItem[]>([])
   const [vendorBookingBanner, setVendorBookingBanner] = useState<string>('')
@@ -61,6 +63,19 @@ function NewInvoicePageContent() {
       }
     }).catch(() => {})
   }, [])
+
+  // Pre-fill from client detail page workflow (clientId + type=estimate)
+  useEffect(() => {
+    const clientId = searchParams?.get('clientId')
+    const type = searchParams?.get('type')
+    if (type === 'estimate') setInvoiceType('estimate')
+    if (!clientId) return
+    setIntakeFormId(clientId)
+    api.get(`/intake-forms/${clientId}`).then(res => {
+      const form = res.data
+      setClientName(form.contact_name || '')
+    }).catch(() => {})
+  }, [searchParams])
 
   useEffect(() => {
     const vendorBookingId = searchParams?.get('vendorBookingId')
@@ -271,8 +286,7 @@ function NewInvoicePageContent() {
     try {
       const invoiceData = {
         invoice: {
-          booking_id: selectedBooking && selectedBooking !== '' ? selectedBooking : null,
-          client_name: clientName || null,
+          booking_id: selectedBooking && selectedBooking !== '' ? selectedBooking : null,          intake_form_id: intakeFormId || null,          client_name: clientName || null,
           owner_id: user?.id,
           tax_rate: includeTax ? Number(taxRate) : 0,
           discount_amount: Number(discountAmount),
@@ -324,7 +338,9 @@ function NewInvoicePageContent() {
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Create New Invoice</h1>
+        <h1 className="text-2xl font-bold text-gray-900">
+          {invoiceType === 'estimate' ? 'Create New Estimate' : 'Create New Invoice'}
+        </h1>
       </div>
 
       {vendorBookingBanner && (

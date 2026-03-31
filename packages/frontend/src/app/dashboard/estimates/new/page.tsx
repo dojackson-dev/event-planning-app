@@ -35,6 +35,7 @@ function NewEstimatePageInner() {
   const [clientEventType, setClientEventType] = useState<string | null>(null)
   const [lineItems, setLineItems] = useState<EstimateLineItem[]>([])
   const [vendorBookingBanner, setVendorBookingBanner] = useState<string>('')
+  const [vendorBookings, setVendorBookings] = useState<any[]>([])
   const [includeTax, setIncludeTax] = useState(false)
   const [taxRate, setTaxRate] = useState(0)
   const [discountAmount, setDiscountAmount] = useState(0)
@@ -49,6 +50,10 @@ function NewEstimatePageInner() {
   useEffect(() => {
     fetchEvents()
     fetchServiceItems()
+    api.get('/vendors/bookings/owner').then(res => {
+      const confirmed = (res.data || []).filter((b: any) => b.status === 'confirmed' || b.status === 'completed')
+      setVendorBookings(confirmed)
+    }).catch(() => {})
   }, [])
 
   // Pre-fill from client workflow (clientId URL param)
@@ -309,6 +314,57 @@ function NewEstimatePageInner() {
             <p className="text-xs text-gray-400 mt-1">Client must approve before this date.</p>
           </div>
         </div>
+
+        {/* Confirmed Vendor Bookings */}
+        {vendorBookings.length > 0 && (
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Vendor Bookings</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {vendorBookings.map((vb: any) => {
+                const vendor = vb.vendor_accounts
+                const amount = Number(vb.agreed_amount) || 0
+                const alreadyAdded = lineItems.some(li => li.id === `vendor-${vb.id}`)
+                return (
+                  <div key={vb.id} className={`flex items-center justify-between p-3 border rounded-lg text-sm ${
+                    alreadyAdded ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'
+                  }`}>
+                    <div className="flex-1 min-w-0 mr-2">
+                      <p className="font-medium text-gray-900 truncate">{vendor?.business_name || 'Vendor'}</p>
+                      <p className="text-xs text-gray-500 truncate">{vb.event_name}</p>
+                      <p className="text-xs font-semibold text-amber-700">{amount > 0 ? `$${amount.toLocaleString()}` : 'No amount set'}</p>
+                    </div>
+                    {alreadyAdded ? (
+                      <span className="text-xs text-green-700 font-medium flex-shrink-0">✓ Added</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const item: EstimateLineItem = {
+                            id: `vendor-${vb.id}`,
+                            service_item_id: null,
+                            description: `Vendor Cost: ${vendor?.business_name || 'Vendor'} — ${vb.event_name}`,
+                            quantity: 1,
+                            standardPrice: amount,
+                            unitPrice: amount,
+                            subtotal: amount,
+                            discountType: DiscountType.NONE,
+                            discountValue: 0,
+                            discountAmount: 0,
+                            amount,
+                          }
+                          setLineItems(prev => [...prev, item])
+                        }}
+                        className="text-xs px-2 py-1 bg-amber-600 text-white rounded hover:bg-amber-700 flex-shrink-0"
+                      >
+                        + Add
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Quick Add Service Items */}
         <div className="mb-6">

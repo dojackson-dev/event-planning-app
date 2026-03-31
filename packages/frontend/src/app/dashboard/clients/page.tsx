@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import type { Invoice } from '@/types'
-import { User, Calendar, Mail, Phone, Clock, Eye, CheckCircle, Search, MessageSquare, FileText, Clock as ClockIcon, Trash2, DollarSign, AlertTriangle, ArrowRight } from 'lucide-react'
+import { User, Calendar, Mail, Phone, Clock, Eye, CheckCircle, Search, MessageSquare, FileText, Clock as ClockIcon, Trash2 } from 'lucide-react'
 
 interface IntakeForm {
   id: string
@@ -197,35 +197,6 @@ export default function ClientsPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Clients & Leads</h1>
           <p className="mt-2 text-gray-600">Manage intake forms and convert leads to bookings</p>
-        </div>
-
-        {/* Booking Workflow Progression */}
-        <div className="bg-white rounded-lg shadow p-5 mb-8">
-          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Booking Workflow — Process Order</h2>
-          <div className="flex items-start gap-1 overflow-x-auto pb-1">
-            {([
-              { step: 1, label: 'Send Estimate', icon: FileText,      bg: 'bg-blue-50',    border: 'border-blue-200',   text: 'text-blue-700',   dot: 'bg-blue-600'    },
-              { step: 2, label: 'Estimate Approved', icon: CheckCircle, bg: 'bg-green-50',   border: 'border-green-200',  text: 'text-green-700',  dot: 'bg-green-600'   },
-              { step: 3, label: 'Send Invoice',      icon: FileText,      bg: 'bg-indigo-50',  border: 'border-indigo-200', text: 'text-indigo-700', dot: 'bg-indigo-600'  },
-              { step: 4, label: 'Deposit Confirmed', icon: DollarSign,    bg: 'bg-emerald-50', border: 'border-emerald-200',text: 'text-emerald-700',dot: 'bg-emerald-600' },
-              { step: 5, label: 'Convert to Confirmed Booking', icon: Calendar, bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700', dot: 'bg-purple-600' },
-              { step: 6, label: 'Message Conflicting Same-Day Events', icon: AlertTriangle, bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700', dot: 'bg-orange-600' },
-              { step: 7, label: 'Notify Others — Date Now Booked, Choose New Date', icon: MessageSquare, bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700', dot: 'bg-red-600' },
-            ] as const).map((item, idx) => (
-              <div key={item.step} className="flex items-center gap-1 flex-shrink-0">
-                <div className={`flex flex-col items-center border rounded-xl px-3 py-3 w-36 text-center ${item.bg} ${item.border}`}>
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold mb-2 ${item.dot}`}>
-                    {item.step}
-                  </div>
-                  <item.icon className={`h-5 w-5 mb-1.5 ${item.text}`} />
-                  <span className={`text-xs font-medium leading-tight ${item.text}`}>{item.label}</span>
-                </div>
-                {idx < 6 && (
-                  <ArrowRight className="h-4 w-4 text-gray-300 flex-shrink-0" />
-                )}
-              </div>
-            ))}
-          </div>
         </div>
 
         {/* Stats */}

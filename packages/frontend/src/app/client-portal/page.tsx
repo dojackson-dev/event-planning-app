@@ -47,7 +47,7 @@ export default function ClientPortalPage() {
   }, [])
 
   const upcoming = (data?.bookings ?? [])
-    .filter((b: any) => b.event?.date && new Date(b.event.date) >= new Date())
+    .filter((b: any) => b.event?.date && new Date(b.event.date + 'T12:00:00') >= new Date())
     .slice(0, 3)
 
   const totalDue = (data?.bookings ?? []).reduce((sum: number, b: any) => {
@@ -127,7 +127,7 @@ export default function ClientPortalPage() {
                     <div>
                       <p className="font-medium text-gray-900">{b.event?.name ?? 'Event'}</p>
                       <p className="text-sm text-gray-500 mt-0.5">
-                        {b.event?.date ? new Date(b.event.date).toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' }) : ''}
+                        {b.event?.date ? new Date(b.event.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' }) : ''}
                         {b.event?.start_time ? ` · ${b.event.start_time}` : ''}
                       </p>
                       {b.event?.venue && <p className="text-xs text-gray-400">{b.event.venue}</p>}

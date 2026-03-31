@@ -299,7 +299,7 @@ export default function VendorDashboard() {
                           </span>
                         </div>
                         <p className="text-sm text-gray-500">
-                          📅 {new Date(booking.event_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                          📅 {new Date(booking.event_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
                           {booking.start_time && ` · ${booking.start_time}`}
                           {booking.end_time && ` – ${booking.end_time}`}
                         </p>
@@ -369,17 +369,17 @@ export default function VendorDashboard() {
 
             <div className="mt-4">
               <h3 className="text-sm font-semibold text-gray-700 mb-2">Upcoming Confirmed Events</h3>
-              {bookings.filter(b => b.status === 'confirmed' && new Date(b.event_date) >= new Date()).length === 0 ? (
+              {bookings.filter(b => b.status === 'confirmed' && new Date(b.event_date + 'T12:00:00') >= new Date()).length === 0 ? (
                 <p className="text-sm text-gray-400">No upcoming events.</p>
               ) : (
                 <div className="space-y-2">
                   {bookings
-                    .filter(b => b.status === 'confirmed' && new Date(b.event_date) >= new Date())
+                    .filter(b => b.status === 'confirmed' && new Date(b.event_date + 'T12:00:00') >= new Date())
                     .slice(0, 5)
                     .map(b => (
                       <div key={b.id} className="flex items-center justify-between text-sm border-b pb-2">
                         <span className="font-medium">{b.event_name}</span>
-                        <span className="text-gray-500">{new Date(b.event_date).toLocaleDateString()}</span>
+                        <span className="text-gray-500">{new Date(b.event_date + 'T12:00:00').toLocaleDateString()}</span>
                       </div>
                     ))}
                 </div>
@@ -398,7 +398,7 @@ export default function VendorDashboard() {
           // Group completed/paid by month
           const byMonth: Record<string, number> = {}
           paid.forEach(b => {
-            const month = new Date(b.event_date).toLocaleString('default', { month: 'short', year: 'numeric' })
+            const month = new Date(b.event_date + 'T12:00:00').toLocaleString('default', { month: 'short', year: 'numeric' })
             byMonth[month] = (byMonth[month] || 0) + (b.agreed_amount || 0)
           })
           const months = Object.entries(byMonth).sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
@@ -470,7 +470,7 @@ export default function VendorDashboard() {
                         {paid.map(b => (
                           <tr key={b.id}>
                             <td className="py-2 pr-4 font-medium text-gray-800">{b.event_name}</td>
-                            <td className="py-2 pr-4 text-gray-500">{new Date(b.event_date).toLocaleDateString()}</td>
+                            <td className="py-2 pr-4 text-gray-500">{new Date(b.event_date + 'T12:00:00').toLocaleDateString()}</td>
                             <td className="py-2 text-right font-semibold text-green-700">${(b.agreed_amount || 0).toLocaleString()}</td>
                           </tr>
                         ))}

@@ -200,7 +200,26 @@ export default function ClientIntakePage() {
 
       // Submit intake form
       await api.post('/intake-forms', dbData)
-      
+
+      // If a walkthrough was requested, create an appointment so it appears on the calendar
+      if (formData.walkthroughRequested && formData.preferredWalkthroughDate) {
+        try {
+          await api.post('/appointments', {
+            client_name: dbData.contact_name,
+            client_email: formData.email || null,
+            client_phone: formData.phone || null,
+            appointment_date: formData.preferredWalkthroughDate,
+            appointment_time: formData.preferredWalkthroughTime || null,
+            duration_minutes: 60,
+            notes: `Venue walkthrough for ${eventTypeLabels[formData.eventType]} on ${formData.eventDate}`,
+            status: 'scheduled',
+          })
+        } catch (apptErr: any) {
+          console.error('Failed to create walkthrough appointment:', apptErr.response?.data || apptErr.message)
+          // Non-fatal — intake form was already saved
+        }
+      }
+
       // Show success message
       alert('Client intake form submitted successfully!')
       router.push('/dashboard/bookings')

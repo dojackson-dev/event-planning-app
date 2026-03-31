@@ -111,20 +111,30 @@ export default function ClientDetailPage() {
       setNotes(response.data.notes || '')
       setEditData(response.data)
       fetchEventVendors(response.data.event_date)
-      // Load latest estimate for this client
-      api.get(`/estimates?intakeFormId=${params.id}`).then(res => {
-        const estimates: any[] = res.data || []
-        const latest = estimates[0]
-        if (latest) setClientEstimateId(latest.id)
-      }).catch(() => {})
-      // Restore saved workflow step for this client
-      const saved = localStorage.getItem(`workflow_step_${params.id}`)
-      if (saved) {
-        setWorkflowStep(parseInt(saved))
-      } else if (response.data.status === 'converted') {
-        setWorkflowStep(5)
-        localStorage.setItem(`workflow_step_${params.id}`, '5')
+
+      // Determine starting step: saved > auto-detected from status
+      const savedStepStr = localStorage.getItem(`workflow_step_${params.id}`)
+      const baseStep = response.data.status === 'converted'
+        ? 5
+        : savedStepStr ? parseInt(savedStepStr) : 1
+      let detectedStep = baseStep
+
+      // Check if estimate exists → step 1 done
+      const estimateRes = await api.get(`/estimates?intakeFormId=${params.id}`).catch(() => ({ data: [] }))
+      const estimates: any[] = estimateRes.data || []
+      const latestEstimate = estimates[0]
+      if (latestEstimate) {
+        setClientEstimateId(latestEstimate.id)
+        if (detectedStep < 2) detectedStep = 2
       }
+
+      // Check if invoice exists → step 3 done
+      const invoiceRes = await api.get(`/invoices?intakeFormId=${params.id}`).catch(() => ({ data: [] }))
+      const invoices: any[] = invoiceRes.data || []
+      if (invoices.length > 0 && detectedStep < 4) detectedStep = 4
+
+      setWorkflowStep(detectedStep)
+      localStorage.setItem(`workflow_step_${params.id}`, String(detectedStep))
     } catch (error) {
       console.error('Error fetching client:', error)
     } finally {
@@ -380,11 +390,11 @@ export default function ClientDetailPage() {
         {/* Booking Workflow Progress */}
         {(() => {
           const STEPS = [
-            { step: 1, label: 'Send Estimate',     icon: FileText,    active: 'bg-blue-600',    ring: 'ring-blue-300',    bar: 'bg-blue-600'    },
-            { step: 2, label: 'Estimate Approved', icon: CheckCircle, active: 'bg-green-600',   ring: 'ring-green-300',   bar: 'bg-green-600'   },
-            { step: 3, label: 'Send Invoice',      icon: FileText,    active: 'bg-indigo-600',  ring: 'ring-indigo-300',  bar: 'bg-indigo-600'  },
-            { step: 4, label: 'Deposit Confirmed', icon: DollarSign,  active: 'bg-emerald-600', ring: 'ring-emerald-300', bar: 'bg-emerald-600' },
-            { step: 5, label: 'Booked',            icon: CheckCircle, active: 'bg-green-600',   ring: 'ring-green-300',   bar: 'bg-green-600'   },
+            { step: 1, label: 'Send Estimate',     icon: FileText    },
+            { step: 2, label: 'Estimate Approved', icon: CheckCircle },
+            { step: 3, label: 'Send Invoice',      icon: FileText    },
+            { step: 4, label: 'Deposit Confirmed', icon: DollarSign  },
+            { step: 5, label: 'Booked',            icon: CheckCircle },
           ] as const
           const current = workflowStep
           const handleStep = async (n: number) => {
@@ -463,7 +473,6 @@ export default function ClientDetailPage() {
             localStorage.setItem(`workflow_step_${params.id}`, String(val))
           }
           const pct = current <= 1 ? 0 : Math.round(((current - 1) / (STEPS.length - 1)) * 100)
-          const activeStep = STEPS[current - 1]
           return (
             <div className="bg-white rounded-lg shadow p-5 mb-6">
               <div className="flex items-center justify-between mb-3">
@@ -473,15 +482,15 @@ export default function ClientDetailPage() {
                     <CheckCircle className="h-3.5 w-3.5" /> Booked
                   </span>
                 ) : current > 0 && (
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full text-white ${activeStep?.active ?? 'bg-gray-400'}`}>
-                    {converting ? 'Confirming booking…' : `Step ${current} of ${STEPS.length} — ${activeStep?.label}`}
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full text-white bg-blue-600">
+                    {converting ? 'Working…' : `Step ${current} of ${STEPS.length} — ${STEPS[current - 1]?.label}`}
                   </span>
                 )}
               </div>
               {/* Progress bar */}
               <div className="w-full bg-gray-100 rounded-full h-2 mb-4">
                 <div
-                  className={`h-2 rounded-full transition-all duration-300 ${activeStep?.bar ?? 'bg-gray-300'}`}
+                  className={`h-2 rounded-full transition-all duration-300 ${current >= 5 ? 'bg-green-500' : 'bg-blue-600'}`}
                   style={{ width: `${pct}%` }}
                 />
               </div>
@@ -494,17 +503,18 @@ export default function ClientDetailPage() {
                   return (
                     <div key={s.step} className="flex items-center gap-1 flex-shrink-0">
                       {s.step === 5 ? (
-                        // Step 5 is auto-set — render as a read-only badge
                         <div
                           className={`flex flex-col items-center px-2.5 py-2.5 rounded-xl border-2 w-[7.5rem] text-center
                             ${current >= 5
                               ? 'bg-green-600 border-transparent text-white shadow-md ring-2 ring-green-300'
+                              : done
+                              ? 'bg-gray-100 border-gray-200 text-gray-500'
                               : 'border-gray-200 bg-gray-50 text-gray-300'
                             }`}
                         >
                           <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold mb-1.5
-                            ${current >= 5 ? 'bg-white/30 text-white' : 'bg-gray-200 text-gray-400'}`}>
-                            {current >= 5 ? '✓' : 5}
+                            ${current >= 5 ? 'bg-white/30 text-white' : done ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                            {current >= 5 || done ? '✓' : 5}
                           </div>
                           <Icon className="h-4 w-4 mb-1" />
                           <span className="text-[10px] font-bold leading-tight">
@@ -522,14 +532,14 @@ export default function ClientDetailPage() {
                           className={`flex flex-col items-center px-2.5 py-2.5 rounded-xl border-2 w-[7.5rem] text-center transition-all disabled:opacity-60
                             ${
                               isCurrent
-                                ? `border-current ${s.active} text-white shadow-md ring-2 ${s.ring}`
+                                ? 'bg-blue-600 border-blue-600 text-white shadow-md ring-2 ring-blue-300'
                                 : done
-                                ? `${s.active} border-transparent text-white opacity-80`
+                                ? 'bg-gray-100 border-gray-200 text-gray-500'
                                 : 'border-gray-200 bg-gray-50 text-gray-400 hover:bg-gray-100'
                             }`}
                         >
                           <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold mb-1.5
-                            ${isCurrent || done ? 'bg-white/30 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                            ${isCurrent ? 'bg-white/30 text-white' : done ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500'}`}>
                             {done ? '✓' : s.step}
                           </div>
                           <Icon className="h-4 w-4 mb-1" />
@@ -540,13 +550,13 @@ export default function ClientDetailPage() {
                         </button>
                       )}
                       {idx < STEPS.length - 1 && (
-                        <ArrowRight className={`h-3.5 w-3.5 flex-shrink-0 ${s.step < current ? 'text-gray-400' : 'text-gray-200'}`} />
+                        <ArrowRight className={`h-3.5 w-3.5 flex-shrink-0 ${done ? 'text-green-400' : 'text-gray-200'}`} />
                       )}
                     </div>
                   )
                 })}
               </div>
-              <p className="text-[10px] text-gray-400 mt-2">Step 1 creates your estimate. Step 2 marks the client's approval. Step 3 converts the estimate to an invoice. Clicking <strong>Deposit Confirmed</strong> automatically books the client and notifies any conflicting leads.</p>
+              <p className="text-[10px] text-gray-400 mt-2">Step 1 creates your estimate. Step 2 marks the client\'s approval. Step 3 converts the estimate to an invoice. Clicking <strong>Deposit Confirmed</strong> automatically books the client and notifies any conflicting leads.</p>
             </div>
           )
         })()}

@@ -34,6 +34,8 @@ function NewInvoicePageContent() {
   const [clientName, setClientName] = useState<string>('')
   const [intakeFormId, setIntakeFormId] = useState<string | null>(null)
   const [invoiceType, setInvoiceType] = useState<'invoice' | 'estimate'>('invoice')
+  const [clientEventDate, setClientEventDate] = useState<string | null>(null)
+  const [clientEventType, setClientEventType] = useState<string | null>(null)
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([])
   const [expenseItems, setExpenseItems] = useState<InvoiceLineItem[]>([])
   const [vendorBookingBanner, setVendorBookingBanner] = useState<string>('')
@@ -74,6 +76,8 @@ function NewInvoicePageContent() {
     api.get(`/intake-forms/${clientId}`).then(res => {
       const form = res.data
       setClientName(form.contact_name || '')
+      setClientEventDate(form.event_date || null)
+      setClientEventType(form.event_type || null)
     }).catch(() => {})
   }, [searchParams])
 
@@ -347,8 +351,24 @@ function NewInvoicePageContent() {
         </div>
       )}
 
+      {/* Client event banner when coming from client workflow */}
+      {intakeFormId && clientEventDate && (
+        <div className="mb-4 bg-blue-50 border border-blue-200 text-blue-900 rounded-lg px-4 py-3 text-sm flex items-center gap-3">
+          <span className="text-blue-500 text-xl">📅</span>
+          <div>
+            <p className="font-semibold">
+              {clientEventType ? clientEventType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Event'} for {clientName}
+            </p>
+            <p className="text-xs text-blue-700">
+              {new Date(clientEventDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+            </p>
+          </div>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="bg-white shadow-md rounded-lg p-6">
-        {/* Event / Booking Selection */}
+        {/* Event Selection — only when not pre-filled from a client */}
+        {!intakeFormId && (
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Link to Event (Optional)
@@ -371,6 +391,7 @@ function NewInvoicePageContent() {
             ))}
           </select>
         </div>
+        )}
 
         {/* Client Name */}
         <div className="mb-6">

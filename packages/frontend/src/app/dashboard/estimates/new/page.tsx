@@ -31,6 +31,8 @@ function NewEstimatePageInner() {
   const [selectedEvent, setSelectedEvent] = useState('')
   const [clientName, setClientName] = useState('')
   const [intakeFormId, setIntakeFormId] = useState<string | null>(null)
+  const [clientEventDate, setClientEventDate] = useState<string | null>(null)
+  const [clientEventType, setClientEventType] = useState<string | null>(null)
   const [lineItems, setLineItems] = useState<EstimateLineItem[]>([])
   const [vendorBookingBanner, setVendorBookingBanner] = useState<string>('')
   const [includeTax, setIncludeTax] = useState(false)
@@ -56,6 +58,8 @@ function NewEstimatePageInner() {
     setIntakeFormId(clientId)
     api.get(`/intake-forms/${clientId}`).then(res => {
       setClientName(res.data.contact_name || '')
+      setClientEventDate(res.data.event_date || null)
+      setClientEventType(res.data.event_type || null)
     }).catch(() => {})
   }, [searchParams])
 
@@ -235,6 +239,21 @@ function NewEstimatePageInner() {
           </div>
         )}
 
+        {/* Client info banner when coming from client workflow */}
+        {intakeFormId && clientEventDate && (
+          <div className="mb-6 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-3">
+            <span className="text-blue-500 text-xl">📅</span>
+            <div>
+              <p className="text-sm font-semibold text-blue-900">
+                {clientEventType ? clientEventType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Event'} for {clientName}
+              </p>
+              <p className="text-xs text-blue-700">
+                {new Date(clientEventDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Client Name */}
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">Client Name</label>
@@ -253,7 +272,8 @@ function NewEstimatePageInner() {
           )}
         </div>
 
-        {/* Event (Optional) */}
+        {/* Event link — only shown when NOT pre-filled from a client */}
+        {!intakeFormId && (
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">Link to Event (Optional)</label>
           {events.length === 0 ? (
@@ -273,6 +293,7 @@ function NewEstimatePageInner() {
             </select>
           )}
         </div>
+        )}
 
         {/* Dates */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">

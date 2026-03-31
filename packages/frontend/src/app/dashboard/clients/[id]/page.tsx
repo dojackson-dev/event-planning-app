@@ -238,15 +238,25 @@ export default function ClientDetailPage() {
 
   const handleSendMessage = async () => {
     if (!client || !messageContent.trim()) return
+    if (!client.contact_phone) {
+      alert('This client has no phone number on file. SMS cannot be sent.')
+      return
+    }
     try {
-      // TODO: Implement message API endpoint
-      console.log('Sending message to', client.contact_email, ':', messageContent)
-      alert('Message sent successfully!')
+      await api.post('/messages/send', {
+        recipientPhone: client.contact_phone,
+        recipientName: client.contact_name,
+        recipientType: 'client',
+        messageType: 'custom',
+        content: messageContent,
+        skipOptInCheck: true,
+      })
+      alert('SMS sent successfully!')
       setShowMessageModal(false)
       setMessageContent('')
-    } catch (error) {
-      console.error('Error sending message:', error)
-      alert('Failed to send message')
+    } catch (error: any) {
+      console.error('Error sending SMS:', error)
+      alert(error.response?.data?.message || 'Failed to send SMS')
     }
   }
 
@@ -635,7 +645,7 @@ export default function ClientDetailPage() {
                   className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2"
                 >
                   <MessageSquare className="h-4 w-4" />
-                  Send Message
+                  Send SMS
                 </button>
 
                 <button
@@ -705,16 +715,19 @@ export default function ClientDetailPage() {
         {showMessageModal && client && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
-              <h2 className="text-xl font-bold mb-4">Send Message to {client.contact_name}</h2>
+              <h2 className="text-xl font-bold mb-4">Send SMS to {client.contact_name}</h2>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone (SMS)</label>
                   <input
-                    type="email"
-                    value={client.contact_email}
+                    type="tel"
+                    value={client.contact_phone || 'No phone on file'}
                     disabled
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
                   />
+                  {!client.contact_phone && (
+                    <p className="text-xs text-red-500 mt-1">No phone number — SMS cannot be sent.</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
@@ -735,9 +748,10 @@ export default function ClientDetailPage() {
                   </button>
                   <button
                     onClick={handleSendMessage}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    disabled={!client.contact_phone}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Send
+                    Send SMS
                   </button>
                 </div>
               </div>

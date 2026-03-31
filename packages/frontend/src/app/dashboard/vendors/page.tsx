@@ -233,7 +233,7 @@ function VenueCard({ venue }: { venue: Venue }) {
   )
 }
 
-function BookingRow({ booking, onCancel }: { booking: VendorBooking; onCancel: (id: string) => void }) {
+function BookingRow({ booking, onCancel, onConfirm }: { booking: VendorBooking; onCancel: (id: string) => void; onConfirm: (id: string) => void }) {
   const status = STATUS_CONFIG[booking.status] || STATUS_CONFIG.pending
   const vendor = booking.vendor_accounts
   const icon = vendor ? (CATEGORY_ICON[vendor.category] || '⭐') : '⭐'
@@ -297,6 +297,14 @@ function BookingRow({ booking, onCancel }: { booking: VendorBooking; onCancel: (
               + Invoice
             </Link>
           </>
+        )}
+        {booking.status === 'pending' && (
+          <button
+            onClick={() => onConfirm(booking.id)}
+            className="text-xs px-2 py-1 bg-green-50 border border-green-200 text-green-700 rounded hover:bg-green-100 font-medium"
+          >
+            Confirm
+          </button>
         )}
         {(booking.status === 'pending' || booking.status === 'confirmed') && (
           <button
@@ -377,6 +385,16 @@ export default function DashboardVendorsPage() {
   useEffect(() => {
     handleSearch()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleConfirmBooking = async (bookingId: string) => {
+    if (!confirm('You confirm that Vendor Has Agreed to Booking')) return
+    try {
+      await api.put(`/vendors/bookings/${bookingId}`, { status: 'confirmed' })
+      setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status: 'confirmed' } : b))
+    } catch {
+      alert('Failed to confirm booking. Please try again.')
+    }
+  }
 
   const handleCancelBooking = async (bookingId: string) => {
     if (!confirm('Cancel this vendor booking?')) return
@@ -575,7 +593,7 @@ export default function DashboardVendorsPage() {
           ) : (
             <div className="space-y-3">
               {filteredBookings.map(b => (
-                <BookingRow key={b.id} booking={b} onCancel={handleCancelBooking} />
+                <BookingRow key={b.id} booking={b} onCancel={handleCancelBooking} onConfirm={handleConfirmBooking} />
               ))}
             </div>
           )}

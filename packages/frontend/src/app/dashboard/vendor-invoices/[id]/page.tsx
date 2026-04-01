@@ -56,9 +56,19 @@ export default function VendorInvoiceDetailPage() {
 
   useEffect(() => {
     api.get(`/vendor-invoices/${id}`)
-      .then(r => setInvoice(r.data))
-      .catch(e => setError(e.response?.data?.message || 'Invoice not found'))
-      .finally(() => setLoading(false))
+      .then(r => { setInvoice(r.data); setLoading(false) })
+      .catch(err => {
+        // Owner viewing a vendor invoice they owe — fall back to owner route
+        if (err.response?.status === 403) {
+          api.get(`/vendor-invoices/owner/${id}`)
+            .then(r => setInvoice(r.data))
+            .catch(e => setError(e.response?.data?.message || 'Invoice not found'))
+            .finally(() => setLoading(false))
+        } else {
+          setError(err.response?.data?.message || 'Invoice not found')
+          setLoading(false)
+        }
+      })
   }, [id])
 
   const payLink = invoice?.public_token ? `${FRONTEND_URL}/pay/${invoice.public_token}` : ''

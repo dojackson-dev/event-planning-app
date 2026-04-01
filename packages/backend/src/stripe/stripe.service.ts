@@ -22,7 +22,7 @@ export class StripeService {
     }
     this.stripe = new Stripe(secretKey);
     this.webhookSecret = this.configService.get<string>('STRIPE_WEBHOOK_SECRET', '');
-    this.frontendUrl = this.configService.get<string>('FRONTEND_URL', 'http://localhost:3000');
+    this.frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://dovenuesuite.com');
   }
 
   // ─── Customer ─────────────────────────────────────────────────────────────

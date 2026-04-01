@@ -37,7 +37,9 @@ export default function DoorListsPage() {
 
   useEffect(() => {
     if (selectedEvent && guestLists.length > 0) {
-      const list = guestLists.find(gl => gl.eventId?.toString() === selectedEvent)
+      const list = guestLists.find(gl =>
+        (gl.event_id ?? (gl as any).eventId)?.toString() === selectedEvent
+      )
       setSelectedGuestList(list || null)
     }
   }, [selectedEvent, guestLists])
@@ -61,7 +63,17 @@ export default function DoorListsPage() {
   const fetchGuestLists = async () => {
     try {
       const response = await api.get<GuestList[]>('/guest-lists')
-      setGuestLists(response.data)
+      const lists = response.data.map((gl: any) => ({
+        ...gl,
+        event_id: gl.event_id ?? gl.eventId,
+        guests: (gl.guests || []).map((g: any) => ({
+          ...g,
+          plusOneCount: g.plus_one_count ?? g.plusOneCount ?? 0,
+          hasArrived: !!(g.has_arrived ?? g.hasArrived),
+          arrivedAt: g.arrived_at ?? g.arrivedAt ?? undefined,
+        })),
+      }))
+      setGuestLists(lists)
     } catch (error) {
       console.error('Failed to fetch guest lists:', error)
     } finally {
@@ -98,15 +110,17 @@ export default function DoorListsPage() {
     if (searchTerm) {
       filtered = filtered.filter(guest => 
         guest.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        guest.phone.includes(searchTerm)
+        (guest.phone ?? '').includes(searchTerm)
       )
     }
 
+    const hasArrived = (g: any) => !!(g.has_arrived || g.hasArrived)
+
     // Apply status filter
     if (filterStatus === 'arrived') {
-      filtered = filtered.filter(guest => (guest as any).hasArrived || ((guest as any).has_arrived || guest.hasArrived))
+      filtered = filtered.filter(guest => hasArrived(guest))
     } else if (filterStatus === 'pending') {
-      filtered = filtered.filter(guest => !((guest as any).hasArrived || ((guest as any).has_arrived || guest.hasArrived)))
+      filtered = filtered.filter(guest => !hasArrived(guest))
     }
 
     return filtered
@@ -116,8 +130,8 @@ export default function DoorListsPage() {
     if (!selectedGuestList?.guests) return { total: 0, arrived: 0, pending: 0, totalWithPlus: 0 }
     
     const guests = selectedGuestList.guests
-    const arrived = guests.filter(g => (g as any).hasArrived || g.hasArrived).length
-    const totalWithPlus = guests.reduce((sum, g) => sum + 1 + ((g as any).plusOneCount || g.plusOneCount || 0), 0)
+    const arrived = guests.filter(g => !!(( g as any).has_arrived || (g as any).hasArrived || g.hasArrived)).length
+    const totalWithPlus = guests.reduce((sum, g) => sum + 1 + ((g as any).plus_one_count ?? (g as any).plusOneCount ?? g.plusOneCount ?? 0), 0)
     
     return {
       total: guests.length,

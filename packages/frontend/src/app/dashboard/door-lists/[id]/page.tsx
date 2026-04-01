@@ -48,10 +48,23 @@ export default function DoorListDetailPage() {
     }
   }, [autoRefresh])
 
+  const normalizeGuest = (g: any): Guest => ({
+    id: g.id,
+    name: g.name,
+    phone: g.phone ?? '',
+    plusOneCount: g.plus_one_count ?? g.plusOneCount ?? 0,
+    hasArrived: !!(g.has_arrived ?? g.hasArrived),
+    arrivedAt: g.arrived_at ?? g.arrivedAt ?? undefined,
+  })
+
   const fetchGuestList = async () => {
     try {
       const response = await api.get<GuestList>(`/guest-lists/${params.id}`)
-      setGuestList(response.data)
+      const data = response.data
+      if (data && Array.isArray((data as any).guests)) {
+        (data as any).guests = (data as any).guests.map(normalizeGuest)
+      }
+      setGuestList(data)
     } catch (error) {
       console.error('Failed to fetch guest list:', error)
     } finally {
@@ -90,13 +103,18 @@ export default function DoorListDetailPage() {
     if (!guestList?.guests) return
 
     const headers = ['Name', 'Phone', 'Plus Ones', 'Status', 'Arrival Time']
-    const rows = guestList.guests.map(guest => [
-      guest.name,
-      guest.phone,
-      guest.plusOneCount.toString(),
-      guest.hasArrived ? 'Arrived' : 'Pending',
-      guest.arrivedAt ? new Date(guest.arrivedAt).toLocaleString() : '-'
-    ])
+    const rows = guestList.guests.map(guest => {
+      const arrived = !!((guest as any).has_arrived || guest.hasArrived)
+      const plusOnes = (guest as any).plus_one_count ?? guest.plusOneCount ?? 0
+      const arrivedAt = (guest as any).arrived_at || guest.arrivedAt
+      return [
+        guest.name,
+        guest.phone ?? '',
+        plusOnes.toString(),
+        arrived ? 'Arrived' : 'Pending',
+        arrivedAt ? new Date(arrivedAt).toLocaleString() : '-'
+      ]
+    })
 
     const csvContent = [
       headers.join(','),
@@ -116,25 +134,29 @@ export default function DoorListDetailPage() {
     
     let filtered = guestList.guests
 
+    const hasArrived = (g: any) => !!(g.has_arrived || g.hasArrived)
+
     if (searchTerm) {
       filtered = filtered.filter(guest => 
         guest.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        guest.phone.includes(searchTerm)
+        (guest.phone ?? '').includes(searchTerm)
       )
     }
 
     if (filterStatus === 'arrived') {
-      filtered = filtered.filter(guest => guest.hasArrived)
+      filtered = filtered.filter(guest => hasArrived(guest))
     } else if (filterStatus === 'pending') {
-      filtered = filtered.filter(guest => !guest.hasArrived)
+      filtered = filtered.filter(guest => !hasArrived(guest))
     }
 
     // Sort: pending first, then by name
     return filtered.sort((a, b) => {
-      if (a.hasArrived === b.hasArrived) {
+      const aArrived = hasArrived(a)
+      const bArrived = hasArrived(b)
+      if (aArrived === bArrived) {
         return a.name.localeCompare(b.name)
       }
-      return a.hasArrived ? 1 : -1
+      return aArrived ? 1 : -1
     })
   }
 
@@ -142,10 +164,12 @@ export default function DoorListDetailPage() {
     if (!guestList?.guests) return { total: 0, arrived: 0, pending: 0, totalWithPlus: 0, arrivedWithPlus: 0 }
     
     const guests = guestList.guests
-    const arrivedGuests = guests.filter(g => g.hasArrived)
+    const hasArrived = (g: any) => !!(g.has_arrived || g.hasArrived)
+    const arrivedGuests = guests.filter(g => hasArrived(g))
     const arrived = arrivedGuests.length
-    const totalWithPlus = guests.reduce((sum, g) => sum + 1 + g.plusOneCount, 0)
-    const arrivedWithPlus = arrivedGuests.reduce((sum, g) => sum + 1 + g.plusOneCount, 0)
+    const plusCount = (g: any) => (g as any).plus_one_count ?? g.plusOneCount ?? 0
+    const totalWithPlus = guests.reduce((sum, g) => sum + 1 + plusCount(g), 0)
+    const arrivedWithPlus = arrivedGuests.reduce((sum, g) => sum + 1 + plusCount(g), 0)
     
     return {
       total: guests.length,

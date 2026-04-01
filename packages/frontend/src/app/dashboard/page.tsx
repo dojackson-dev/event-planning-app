@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
-import { Event, Booking, ClientStatus } from '@/types'
-import { Calendar, Users, DollarSign, CheckCircle, Clock, ArrowRight, UserPlus, Mail, Phone } from 'lucide-react'
+import { Event, Booking, ClientStatus, Invoice, InvoiceStatus } from '@/types'
+import { Calendar, Users, DollarSign, CheckCircle, Clock, ArrowRight, UserPlus, Mail, Phone, AlertCircle } from 'lucide-react'
 import { parseLocalDate } from '@/lib/dateUtils'
 import SetupChecklist from '@/components/SetupChecklist'
 
@@ -24,8 +24,8 @@ interface IntakeForm {
 export default function DashboardPage() {
   const { user } = useAuth()
   const [stats, setStats] = useState({
-    totalEvents: 0,
-    upcomingEvents: 0,
+    unpaidInvoices: 0,
+    unpaidAmount: 0,
     totalBookings: 0,
     pendingBookings: 0,
     totalRevenue: 0,
@@ -45,10 +45,19 @@ export default function DashboardPage() {
 
   const fetchDashboardData = async () => {
     try {
-      // Fetch events
+      // Fetch events (still needed for upcoming bookings)
       const eventsRes = await api.get<Event[]>('/events')
       const events = eventsRes.data
-      const upcomingEvents = events.filter(e => parseLocalDate(e.date) >= new Date(new Date().setHours(0, 0, 0, 0)))
+
+      // Fetch invoices for unpaid count
+      const invoicesRes = await api.get<Invoice[]>('/invoices')
+      const invoices = invoicesRes.data
+      const unpaidInvoices = invoices.filter(inv =>
+        inv.status === InvoiceStatus.SENT ||
+        inv.status === InvoiceStatus.PARTIAL ||
+        inv.status === InvoiceStatus.OVERDUE
+      )
+      const unpaidAmount = unpaidInvoices.reduce((sum, inv) => sum + Number(inv.amount_due ?? 0), 0)
 
       // Fetch bookings
       const bookingsRes = await api.get<Booking[]>('/bookings')
@@ -68,8 +77,8 @@ export default function DashboardPage() {
       const newClients = clients.filter(c => c.status === 'new')
 
       setStats({
-        totalEvents: events.length,
-        upcomingEvents: upcomingEvents.length,
+        unpaidInvoices: unpaidInvoices.length,
+        unpaidAmount,
         totalBookings: bookings.length,
         pendingBookings: pendingBookings.length,
         totalRevenue,
@@ -137,15 +146,15 @@ export default function DashboardPage() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
-        <Link href="/dashboard/events" className="bg-white rounded-xl shadow-sm p-5 sm:p-6 border border-gray-100 hover:shadow-md hover:border-primary-200 transition-all cursor-pointer">
+        <Link href="/dashboard/invoices" className="bg-white rounded-xl shadow-sm p-5 sm:p-6 border border-gray-100 hover:shadow-md hover:border-red-200 transition-all cursor-pointer">
           <div className="flex items-center justify-between">
             <div className="flex-1">
-              <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">Total Events</p>
-              <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.totalEvents}</p>
-              <p className="text-xs text-gray-500 mt-1">{stats.upcomingEvents} upcoming</p>
+              <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">Unpaid Invoices</p>
+              <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.unpaidInvoices}</p>
+              <p className="text-xs text-gray-500 mt-1">${stats.unpaidAmount.toFixed(2)} outstanding</p>
             </div>
-            <div className="bg-primary-50 p-3 rounded-lg">
-              <Calendar className="h-8 w-8 sm:h-10 sm:w-10 text-primary-600" />
+            <div className="bg-red-50 p-3 rounded-lg">
+              <AlertCircle className="h-8 w-8 sm:h-10 sm:w-10 text-red-500" />
             </div>
           </div>
         </Link>

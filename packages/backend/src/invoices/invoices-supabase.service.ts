@@ -613,6 +613,7 @@ export class InvoicesService {
       const phone = await this.lookupClientPhone(supabase, updated);
       const clientName = (updated as any).client_name || 'Valued Client';
       if (status === 'sent') {
+        // Fires on both initial send and resend from the dashboard
         await this.smsNotifications.invoiceSent(
           phone,
           clientName,

@@ -1,7 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
-import { TwilioService } from '../messaging/twilio.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import Stripe from 'stripe';
 import * as nodemailer from 'nodemailer';
@@ -19,7 +18,6 @@ export class VendorInvoicesService {
   constructor(
     private readonly supabaseService: SupabaseService,
     private readonly configService: ConfigService,
-    private readonly twilioService: TwilioService,
     private readonly smsNotifications: SmsNotificationsService,
   ) {
     const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');

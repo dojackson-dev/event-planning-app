@@ -1,6 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
-import { TwilioService } from '../messaging/twilio.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import {
   CreateVendorDto,
@@ -29,7 +28,6 @@ export class VendorsService {
 
   constructor(
     private readonly supabaseService: SupabaseService,
-    private readonly twilioService: TwilioService,
     private readonly smsNotifications: SmsNotificationsService,
   ) {}
 

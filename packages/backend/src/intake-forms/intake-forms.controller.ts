@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Headers, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Headers, UnauthorizedException, NotFoundException } from '@nestjs/common';
 import { IntakeFormsService } from './intake-forms.service';
 import { SupabaseService } from '../supabase/supabase.service';
 
@@ -33,6 +33,62 @@ export class IntakeFormsController {
       throw new UnauthorizedException('Invalid token');
     }
     return user.id;
+  }
+
+  /** Resolves an identifier that is either a UUID (primary_owner_id) or an intake_slug.
+   *  Returns the primary_owner_id (UUID) in both cases. */
+  private async resolveOwnerIdentifier(identifier: string): Promise<string> {
+    const admin = this.supabaseService.getAdminClient();
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+
+    if (isUuid) {
+      const { data, error } = await admin
+        .from('owner_accounts')
+        .select('primary_owner_id')
+        .eq('primary_owner_id', identifier)
+        .single();
+      if (error || !data) throw new NotFoundException('Owner not found');
+      return data.primary_owner_id;
+    }
+
+    // Treat as a slug
+    const { data, error } = await admin
+      .from('owner_accounts')
+      .select('primary_owner_id')
+      .eq('intake_slug', identifier)
+      .single();
+    if (error || !data) throw new NotFoundException('Owner not found');
+    return data.primary_owner_id;
+  }
+
+  /** Public: returns the owner's business name so the form page can display a branded header.
+   *  Accepts either a UUID or an intake_slug as :ownerId. */
+  @Get('public-form/:ownerId')
+  async getPublicFormInfo(@Param('ownerId') ownerId: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const resolvedId = await this.resolveOwnerIdentifier(ownerId);
+    const { data, error } = await admin
+      .from('owner_accounts')
+      .select('business_name, logo_url, intake_slug')
+      .eq('primary_owner_id', resolvedId)
+      .single();
+    if (error || !data) throw new NotFoundException('Owner not found');
+    return { businessName: data.business_name, logoUrl: data.logo_url, intakeSlug: data.intake_slug };
+  }
+
+  /** Public: submit a client intake form for a specific owner — no auth required.
+   *  Accepts either a UUID or an intake_slug as :ownerId. */
+  @Post('public/:ownerId')
+  async createPublic(@Param('ownerId') ownerId: string, @Body() createDto: any) {
+    try {
+      const admin = this.supabaseService.getAdminClient();
+      const resolvedId = await this.resolveOwnerIdentifier(ownerId);
+      const result = await this.intakeFormsService.create(admin, resolvedId, createDto);
+      return result;
+    } catch (error: any) {
+      console.error('Public intake form error:', error?.message || error);
+      throw error;
+    }
   }
 
   @Post()

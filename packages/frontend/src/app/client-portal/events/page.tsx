@@ -100,7 +100,7 @@ export default function ClientEventsPage() {
                       {event.date && (
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3.5 w-3.5" />
-                          {new Date(event.date).toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' })}
+                          {new Date(event.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' })}
                         </span>
                       )}
                       {event.start_time && (
@@ -140,9 +140,8 @@ export default function ClientEventsPage() {
                         <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Booking Details</h4>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
                           <InfoItem label="Booking Status" value={booking.status} />
-                          <InfoItem label="Total Price" value={`$${Number(booking.total_price ?? 0).toFixed(2)}`} />
-                          <InfoItem label="Deposit" value={`$${Number(booking.deposit ?? 0).toFixed(2)}`} />
-                          <InfoItem label="Amount Paid" value={`$${Number(booking.total_amount_paid ?? 0).toFixed(2)}`} />
+                          <InfoItem label="Total Price" value={`$${Number(booking.total_amount ?? 0).toFixed(2)}`} />
+                          <InfoItem label="Deposit" value={`$${Number(booking.deposit_amount ?? 0).toFixed(2)}`} />
                           <InfoItem label="Payment Status" value={booking.payment_status ?? '—'} />
                           <InfoItem label="Client Status" value={booking.client_status ?? '—'} />
                         </div>

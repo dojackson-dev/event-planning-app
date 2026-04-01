@@ -99,8 +99,9 @@ export default function ContractDetailPage() {
   }
 
   const handleDownload = () => {
-    if (contract?.fileUrl) {
-      window.open(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}${contract.fileUrl}`, '_blank')
+    const url = (contract as any)?.file_url ?? contract?.fileUrl
+    if (url) {
+      window.open(url, '_blank')
     }
   }
 
@@ -135,9 +136,10 @@ export default function ContractDetailPage() {
     )
   }
 
-  const isOwner = user?.role === 'owner' && user?.id === contract.ownerId
-  const isClient = user?.id === contract.clientId
-  const canSign = isClient && contract.status === ContractStatus.SENT
+  const c = contract as any // raw snake_case from API
+  const isOwner = user?.role === 'owner' && user?.id === (c.owner_id ?? contract.ownerId)
+  const isClient = user?.id === (c.client_id ?? contract.clientId)
+  const canSign = isClient && (c.status === 'sent' || contract.status === ContractStatus.SENT)
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
@@ -151,7 +153,7 @@ export default function ContractDetailPage() {
             ← Back to Contracts
           </button>
           <h1 className="text-2xl font-bold text-gray-900">{contract.title}</h1>
-          <p className="text-gray-600 mt-1">Contract #{contract.contractNumber}</p>
+          <p className="text-gray-600 mt-1">Contract #{c.contract_number ?? contract.contractNumber}</p>
         </div>
         <span
           className={`px-3 py-1 text-sm font-semibold rounded-full capitalize ${getStatusColor(
@@ -168,51 +170,53 @@ export default function ContractDetailPage() {
           <div>
             <h3 className="text-sm font-medium text-gray-500">Client</h3>
             <p className="mt-1 text-gray-900">
-              {contract.client
+              {c.client_name ?? (contract.client
                 ? `${contract.client.firstName} ${contract.client.lastName}`
-                : 'N/A'}
+                : 'N/A')}
             </p>
-            <p className="text-sm text-gray-500">{contract.client?.email}</p>
+            <p className="text-sm text-gray-500">{c.client_email ?? contract.client?.email}</p>
+            {c.client_phone && <p className="text-sm text-gray-500">{c.client_phone}</p>}
           </div>
 
           <div>
             <h3 className="text-sm font-medium text-gray-500">Owner</h3>
             <p className="mt-1 text-gray-900">
-              {contract.owner
+              {c.owner_name ?? (contract.owner
                 ? `${contract.owner.firstName} ${contract.owner.lastName}`
-                : 'N/A'}
+                : 'N/A')}
             </p>
+            <p className="text-sm text-gray-500">{c.owner_email ?? ''}</p>
           </div>
 
           <div>
             <h3 className="text-sm font-medium text-gray-500">Created Date</h3>
             <p className="mt-1 text-gray-900">
-              {new Date(contract.createdAt).toLocaleDateString()}
+              {new Date(c.created_at ?? contract.createdAt).toLocaleDateString()}
             </p>
           </div>
 
-          {contract.sentDate && (
+          {(c.sent_date ?? contract.sentDate) && (
             <div>
               <h3 className="text-sm font-medium text-gray-500">Sent Date</h3>
               <p className="mt-1 text-gray-900">
-                {new Date(contract.sentDate).toLocaleDateString()}
+                {new Date(c.sent_date ?? contract.sentDate!).toLocaleDateString()}
               </p>
             </div>
           )}
 
-          {contract.signedDate && (
+          {(c.signed_date ?? contract.signedDate) && (
             <div>
               <h3 className="text-sm font-medium text-gray-500">Signed Date</h3>
               <p className="mt-1 text-gray-900">
-                {new Date(contract.signedDate).toLocaleDateString()}
+                {new Date(c.signed_date ?? contract.signedDate!).toLocaleDateString()}
               </p>
             </div>
           )}
 
-          {contract.signerName && (
+          {(c.signer_name ?? contract.signerName) && (
             <div>
               <h3 className="text-sm font-medium text-gray-500">Signed By</h3>
-              <p className="mt-1 text-gray-900">{contract.signerName}</p>
+              <p className="mt-1 text-gray-900">{c.signer_name ?? contract.signerName}</p>
             </div>
           )}
         </div>
@@ -241,10 +245,10 @@ export default function ContractDetailPage() {
               <FileText className="h-6 w-6 text-primary-600" />
             </div>
             <div>
-              <p className="text-sm font-medium text-gray-900">{contract.fileName || 'Contract Document'}</p>
-              {contract.fileSize && (
+              <p className="text-sm font-medium text-gray-900">{c.file_name ?? contract.fileName ?? 'Contract Document'}</p>
+              {(c.file_size ?? contract.fileSize) && (
                 <p className="text-xs text-gray-500">
-                  {(contract.fileSize / 1024 / 1024).toFixed(2)} MB
+                  {((c.file_size ?? contract.fileSize!) / 1024 / 1024).toFixed(2)} MB
                 </p>
               )}
             </div>
@@ -260,17 +264,17 @@ export default function ContractDetailPage() {
       </div>
 
       {/* Signature Section */}
-      {contract.status === ContractStatus.SIGNED && contract.signatureData && (
+      {contract.status === ContractStatus.SIGNED && (c.signature_data ?? contract.signatureData) && (
         <div className="bg-white shadow-md rounded-lg p-6 mb-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Electronic Signature</h3>
           <div className="border border-gray-300 rounded-lg p-4 bg-gray-50">
             <img
-              src={contract.signatureData}
+              src={c.signature_data ?? contract.signatureData}
               alt="Signature"
               className="max-w-md h-32 mx-auto"
             />
             <p className="text-center text-sm text-gray-600 mt-2">
-              Signed by {contract.signerName} on {new Date(contract.signedDate!).toLocaleString()}
+              Signed by {c.signer_name ?? contract.signerName} on {new Date(c.signed_date ?? contract.signedDate!).toLocaleString()}
             </p>
           </div>
         </div>
@@ -278,7 +282,7 @@ export default function ContractDetailPage() {
 
       {/* Action Buttons */}
       <div className="flex gap-3">
-        {isOwner && contract.status === ContractStatus.DRAFT && (
+        {isOwner && (c.status === 'draft' || contract.status === ContractStatus.DRAFT) && (
           <button
             onClick={handleSend}
             disabled={sending}

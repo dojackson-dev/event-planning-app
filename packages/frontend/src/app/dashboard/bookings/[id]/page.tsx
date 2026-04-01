@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import axios from 'axios';
+import api from '@/lib/api';
 import Link from 'next/link';
 
 interface Booking {
@@ -36,27 +36,14 @@ export default function BookingDetailPage() {
   useEffect(() => {
     const fetchBooking = async () => {
       try {
-        const token = localStorage.getItem('access_token');
-        if (!token) {
-          setError('Authentication required');
-          setLoading(false);
-          return;
-        }
-
-        const response = await axios.get(
-          `http://localhost:3000/bookings/${params.id}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
+        const response = await api.get(`/bookings/${params.id}`);
         setBooking(response.data);
       } catch (err: any) {
         console.error('Failed to fetch booking:', err);
         if (err.response?.status === 401) {
           setError('Session expired. Please login again.');
+        } else if (err.response?.status === 404) {
+          setError('Booking not found.');
         } else {
           setError(err.response?.data?.message || 'Failed to load booking');
         }

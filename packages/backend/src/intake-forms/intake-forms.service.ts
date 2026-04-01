@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { MailService } from '../mail/mail.service';
+import { TwilioService } from '../messaging/twilio.service';
 import { SupabaseClient } from '@supabase/supabase-js';
 
 function normalizePhone(phone: string): string {
@@ -15,11 +16,17 @@ export class IntakeFormsService {
   constructor(
     private readonly supabaseService: SupabaseService,
     private readonly mailService: MailService,
+    private readonly twilioService: TwilioService,
   ) {}
 
   async create(supabase: SupabaseClient, userId: string, createDto: any) {
     // Remove columns that don't exist in the intake_forms table
     const { accessibility_requirements, preferred_contact, ...safeDto } = createDto;
+
+    // Normalize phone to E.164 on the way in
+    if (safeDto.contact_phone) {
+      safeDto.contact_phone = normalizePhone(safeDto.contact_phone);
+    }
 
     // Use admin client to bypass RLS for the insert (owner creating a client intake form)
     const supabaseAdmin = this.supabaseService.getAdminClient();
@@ -64,6 +71,21 @@ export class IntakeFormsService {
       data.invite_status = 'sent';
     }
 
+    // Send SMS invitation if contact_phone is present (independent of email)
+    if (data?.contact_phone && data?.invite_token) {
+      try {
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        const inviteUrl = `${frontendUrl}/invite?token=${data.invite_token}`;
+        const clientName = data.contact_name || 'Valued Client';
+        await this.twilioService.sendSMS(
+          data.contact_phone,
+          `Hi ${clientName}, you've been invited to confirm your event details. Tap here to review and confirm: ${inviteUrl}`,
+        );
+      } catch (smsErr) {
+        console.warn('[IntakeFormsService] SMS invite failed:', smsErr);
+      }
+    }
+
     return data;
   }
 
@@ -91,6 +113,10 @@ export class IntakeFormsService {
   }
 
   async update(supabase: SupabaseClient, userId: string, id: string, updateDto: any) {
+    // Normalize phone on update too
+    if (updateDto.contact_phone) {
+      updateDto.contact_phone = normalizePhone(updateDto.contact_phone);
+    }
     const { data, error } = await supabase
       .from('intake_forms')
       .update(updateDto)
@@ -156,6 +182,20 @@ export class IntakeFormsService {
       .from('intake_forms')
       .update({ invite_sent_at: new Date().toISOString(), invite_status: 'sent' })
       .eq('id', id);
+
+    // Also resend via SMS if phone is available (independent channel)
+    if (form.contact_phone) {
+      try {
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        const inviteUrl = `${frontendUrl}/invite?token=${form.invite_token}`;
+        await this.twilioService.sendSMS(
+          form.contact_phone,
+          `Hi ${form.contact_name || 'Valued Client'}, you've been invited to confirm your event details. Tap here to review and confirm: ${inviteUrl}`,
+        );
+      } catch (smsErr) {
+        console.warn('[IntakeFormsService] SMS resend failed:', smsErr);
+      }
+    }
 
     return { success: true, message: 'Invitation resent successfully' };
   }
@@ -244,6 +284,48 @@ export class IntakeFormsService {
         // Column may not exist yet if migration hasn't been run — safe to ignore
         console.warn('[convertToBooking] client_confirmation_status column missing — run add-client-confirmation-to-booking.sql migration');
       }
+    }
+
+    // ── Steps 6 & 7: notify conflicting same-date leads automatically ──────────
+    // Find all other intake forms for this owner on the same date that haven't
+    // already been converted. Send each an SMS informing them the date is taken.
+    try {
+      const eventDateStr = intakeForm.event_date.split('T')[0];
+
+      const { data: conflicting } = await supabaseAdmin
+        .from('intake_forms')
+        .select('id, contact_name, contact_phone, event_date')
+        .eq('user_id', userId)
+        .neq('id', intakeFormId)
+        .neq('status', 'converted')
+        .filter('event_date', 'gte', eventDateStr)
+        .filter('event_date', 'lt', `${eventDateStr}T23:59:59`);
+
+      if (conflicting && conflicting.length > 0) {
+        const formattedDate = new Date(`${eventDateStr}T12:00:00`).toLocaleDateString('en-US', {
+          weekday: 'long',
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+        });
+
+        for (const lead of conflicting) {
+          if (!lead.contact_phone) continue;
+          const phone = normalizePhone(lead.contact_phone);
+          const message =
+            `Hi ${lead.contact_name}, we wanted to let you know that ${formattedDate} ` +
+            `has been reserved by another client and is no longer available. ` +
+            `Please contact us so we can help you choose a new date for your event.`;
+          try {
+            await this.twilioService.sendSMS(phone, message);
+          } catch (smsErr) {
+            console.warn(`[convertToBooking] SMS failed for lead ${lead.id}:`, smsErr);
+          }
+        }
+      }
+    } catch (notifyErr) {
+      // Non-fatal — booking was already confirmed; just log
+      console.warn('[convertToBooking] Conflict notification error:', notifyErr);
     }
 
     return {

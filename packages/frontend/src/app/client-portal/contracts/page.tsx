@@ -81,7 +81,7 @@ export default function ClientContractsPage() {
                         <Calendar className="h-3.5 w-3.5" />
                         {contract.event.name}
                         {contract.event.date &&
-                          ` · ${new Date(contract.event.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                          ` · ${new Date(contract.event.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
                         }
                       </p>
                     )}

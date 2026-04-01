@@ -1,10 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
+import { SupabaseService } from '../supabase/supabase.service';
+import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class ContractsService {
-  constructor(private readonly smsNotifications: SmsNotificationsService) {}
+  constructor(
+    private readonly smsNotifications: SmsNotificationsService,
+    private readonly supabaseService: SupabaseService,
+    private readonly mailService: MailService,
+  ) {}
 
   async findAll(supabase: SupabaseClient): Promise<any[]> {
     const { data, error } = await supabase
@@ -42,6 +48,21 @@ export class ContractsService {
       .eq('id', id)
       .single();
     if (error) throw error;
+    if (!data) return null;
+
+    // Enrich with owner name for the detail page (uses admin to bypass RLS)
+    const admin = this.supabaseService.getAdminClient();
+    if (data.owner_id) {
+      const { data: ownerUser } = await admin
+        .from('users')
+        .select('first_name, last_name, email')
+        .eq('id', data.owner_id)
+        .single();
+      if (ownerUser) {
+        data.owner_name = `${ownerUser.first_name ?? ''} ${ownerUser.last_name ?? ''}`.trim() || null;
+        data.owner_email = ownerUser.email ?? null;
+      }
+    }
     return data;
   }
 
@@ -51,9 +72,38 @@ export class ContractsService {
       .select('*', { count: 'exact', head: true });
     const contractNumber = `CON-${new Date().getFullYear()}-${String((count || 0) + 1).padStart(5, '0')}`;
 
+    // Auto-populate client contact info from the linked intake form so that
+    // sendContract() can SMS the client without a separate lookup.
+    let clientName: string | undefined = contractData.client_name;
+    let clientPhone: string | undefined = contractData.client_phone;
+    let clientEmail: string | undefined = contractData.client_email;
+
+    if (contractData.intake_form_id && (!clientPhone || !clientName)) {
+      const admin = this.supabaseService.getAdminClient();
+      const { data: form } = await admin
+        .from('intake_forms')
+        .select('contact_name, contact_phone, contact_email')
+        .eq('id', contractData.intake_form_id)
+        .single();
+      if (form) {
+        clientName  = clientName  ?? form.contact_name  ?? undefined;
+        clientPhone = clientPhone ?? form.contact_phone ?? undefined;
+        clientEmail = clientEmail ?? form.contact_email ?? undefined;
+      }
+    }
+
+    const payload: any = {
+      ...contractData,
+      contract_number: contractNumber,
+      status: contractData.status || 'draft',
+    };
+    if (clientName)  payload.client_name  = clientName;
+    if (clientPhone) payload.client_phone = clientPhone;
+    if (clientEmail) payload.client_email = clientEmail;
+
     const { data, error } = await supabase
       .from('contracts')
-      .insert([{ ...contractData, contract_number: contractNumber, status: contractData.status || 'draft' }])
+      .insert([payload])
       .select()
       .single();
     if (error) throw error;
@@ -142,6 +192,43 @@ export class ContractsService {
       await this.smsNotifications.contractSent(clientPhone, clientName, contractNumber);
     } catch {
       // SMS errors must never break the contract send
+    }
+
+    // Send contract email via Resend
+    try {
+      const clientEmail: string | null = data.client_email ?? data.contact_email ?? null;
+      const clientName: string = data.client_name ?? data.contact_name ?? 'Valued Client';
+      const contractNumber: string = data.contract_number ?? id;
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const contractUrl = `${frontendUrl}/client-portal/contracts/${id}`;
+
+      let ownerName = 'Your Event Coordinator';
+      if (data.owner_id) {
+        const admin = this.supabaseService.getAdminClient();
+        const { data: ownerUser } = await admin
+          .from('users')
+          .select('first_name, last_name')
+          .eq('id', data.owner_id)
+          .maybeSingle();
+        if (ownerUser) {
+          ownerName =
+            `${ownerUser.first_name ?? ''} ${ownerUser.last_name ?? ''}`.trim() || ownerName;
+        }
+      }
+
+      if (clientEmail) {
+        await this.mailService.sendContractWithResend({
+          clientName,
+          clientEmail,
+          ownerName,
+          contractNumber,
+          contractTitle: data.title ?? 'Contract',
+          contractDescription: data.description ?? undefined,
+          contractUrl,
+        });
+      }
+    } catch {
+      // Email errors must never break the contract send
     }
 
     return data;

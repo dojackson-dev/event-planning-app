@@ -1,6 +1,17 @@
-import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Headers, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Headers, UnauthorizedException, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { ContractsService } from './contracts.service';
 import { SupabaseService } from '../supabase/supabase.service';
+
+interface MulterFile {
+  fieldname: string;
+  originalname: string;
+  encoding: string;
+  mimetype: string;
+  size: number;
+  buffer: Buffer;
+}
 
 @Controller('contracts')
 export class ContractsController {
@@ -59,6 +70,56 @@ export class ContractsController {
     const token = this.extractToken(authorization);
     const supabase = this.supabaseService.setAuthContext(token);
     return this.contractsService.findOne(supabase, id);
+  }
+
+  @Post('upload')
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
+  async uploadContractFile(
+    @UploadedFile() file: MulterFile,
+    @Headers('authorization') authorization: string,
+  ) {
+    await this.getUserId(authorization);
+
+    if (!file) throw new BadRequestException('No file provided');
+
+    const allowedTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ];
+    if (!allowedTypes.includes(file.mimetype)) {
+      throw new BadRequestException('File must be a PDF or Word document (.pdf, .doc, .docx)');
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      throw new BadRequestException('File must be under 10 MB');
+    }
+
+    const admin = this.supabaseService.getAdminClient();
+
+    // Ensure bucket exists
+    await admin.storage.createBucket('contracts', { public: false }).catch(() => {/* already exists */});
+
+    const ext = file.originalname.split('.').pop() ?? 'pdf';
+    const storagePath = `uploads/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+    const { error: uploadError } = await admin.storage
+      .from('contracts')
+      .upload(storagePath, file.buffer, { contentType: file.mimetype, upsert: false });
+
+    if (uploadError) throw new BadRequestException('File upload failed: ' + uploadError.message);
+
+    // Return a signed URL valid for 10 years (contracts need long-lived access)
+    const { data: signedData } = await admin.storage
+      .from('contracts')
+      .createSignedUrl(storagePath, 60 * 60 * 24 * 365 * 10);
+
+    return {
+      path: signedData?.signedUrl ?? storagePath,
+      storagePath,
+      originalname: file.originalname,
+      size: file.size,
+      mimetype: file.mimetype,
+    };
   }
 
   @Post()

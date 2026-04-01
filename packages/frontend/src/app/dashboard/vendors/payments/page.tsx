@@ -224,7 +224,10 @@ function InvoiceRow({
   const isOverdue = !isPaid && new Date(invoice.due_date) < new Date()
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-start gap-4">
+    <Link
+      href={`/dashboard/vendor-invoices/${invoice.id}`}
+      className="bg-white rounded-xl border border-gray-200 p-4 flex items-start gap-4 hover:border-indigo-300 hover:shadow-sm transition-all cursor-pointer"
+    >
       {/* Vendor icon */}
       <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0">
         <Building2 className="w-5 h-5 text-indigo-500" />
@@ -267,7 +270,7 @@ function InvoiceRow({
           </span>
         ) : canPay ? (
           <button
-            onClick={() => onPay(invoice)}
+            onClick={e => { e.preventDefault(); onPay(invoice) }}
             disabled={paying}
             className="flex items-center gap-1.5 bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-indigo-700 disabled:opacity-50"
           >
@@ -276,7 +279,7 @@ function InvoiceRow({
           </button>
         ) : null}
       </div>
-    </div>
+    </Link>
   )
 }
 

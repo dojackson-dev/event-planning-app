@@ -125,7 +125,9 @@ export default function AdminBookingsPage() {
   function formatDate(dateStr: string | null) {
     if (!dateStr) return '—'
     try {
-      return new Date(dateStr).toLocaleDateString('en-US', {
+      // Append T12:00:00 to avoid UTC midnight timezone shifts for date-only strings
+      const normalized = dateStr.includes('T') ? dateStr : dateStr + 'T12:00:00'
+      return new Date(normalized).toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
         day: 'numeric',

@@ -8,18 +8,6 @@ import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { ServiceItem, ServiceItemCategory, DiscountType } from '@/types'
 
-interface BookingOption {
-  id: string
-  contact_name: string
-  contact_email: string
-  event_id?: string
-  event?: {
-    id: string
-    name: string
-    date: string
-  }
-}
-
 interface EstimateLineItem {
   id: string
   service_item_id?: string | null
@@ -38,11 +26,16 @@ function NewEstimatePageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user } = useAuth()
-  const [bookings, setBookings] = useState<BookingOption[]>([])
+  const [events, setEvents] = useState<any[]>([])
   const [serviceItems, setServiceItems] = useState<ServiceItem[]>([])
-  const [selectedBooking, setSelectedBooking] = useState('')
+  const [selectedEvent, setSelectedEvent] = useState('')
+  const [clientName, setClientName] = useState('')
+  const [intakeFormId, setIntakeFormId] = useState<string | null>(null)
+  const [clientEventDate, setClientEventDate] = useState<string | null>(null)
+  const [clientEventType, setClientEventType] = useState<string | null>(null)
   const [lineItems, setLineItems] = useState<EstimateLineItem[]>([])
   const [vendorBookingBanner, setVendorBookingBanner] = useState<string>('')
+  const [vendorBookings, setVendorBookings] = useState<any[]>([])
   const [includeTax, setIncludeTax] = useState(false)
   const [taxRate, setTaxRate] = useState(0)
   const [discountAmount, setDiscountAmount] = useState(0)
@@ -55,9 +48,25 @@ function NewEstimatePageInner() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    fetchBookings()
+    fetchEvents()
     fetchServiceItems()
+    api.get('/vendors/bookings/owner').then(res => {
+      const confirmed = (res.data || []).filter((b: any) => b.status === 'confirmed' || b.status === 'completed')
+      setVendorBookings(confirmed)
+    }).catch(() => {})
   }, [])
+
+  // Pre-fill from client workflow (clientId URL param)
+  useEffect(() => {
+    const clientId = searchParams?.get('clientId')
+    if (!clientId) return
+    setIntakeFormId(clientId)
+    api.get(`/intake-forms/${clientId}`).then(res => {
+      setClientName(res.data.contact_name || '')
+      setClientEventDate(res.data.event_date || null)
+      setClientEventType(res.data.event_type || null)
+    }).catch(() => {})
+  }, [searchParams])
 
   // Pre-fill vendor booking as a line item when vendorBookingId is in URL
   useEffect(() => {
@@ -85,22 +94,16 @@ function NewEstimatePageInner() {
     }).catch(() => {})
   }, [searchParams])
 
-  const fetchBookings = async () => {
+  const fetchEvents = async () => {
     try {
-      const res = await api.get<BookingOption[]>('/bookings')
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      // Only show bookings whose event date is today or in the future
-      const upcoming = (res.data || []).filter((b) => {
-        const dateStr = b.event?.date
-        if (!dateStr) return true
-        const [y, m, d] = dateStr.split('-').map(Number)
-        const eventDate = new Date(y, m - 1, d)
-        return eventDate >= today
-      })
-      setBookings(upcoming)
+      const res = await api.get('/events')
+      const today = new Date().toISOString().split('T')[0]
+      const upcoming = (res.data || []).filter((e: any) =>
+        e.status !== 'cancelled' && e.date >= today
+      )
+      setEvents(upcoming)
     } catch (err) {
-      console.error('Failed to fetch bookings:', err)
+      console.error('Failed to fetch events:', err)
     }
   }
 
@@ -192,8 +195,9 @@ function NewEstimatePageInner() {
     try {
       const body = {
         estimate: {
-          booking_id: selectedBooking || null,
           owner_id: user?.id,
+          intake_form_id: intakeFormId || null,
+          client_name: clientName || null,
           tax_rate: includeTax ? Number(taxRate) : 0,
           discount_amount: Number(discountAmount),
           issue_date: issueDate,
@@ -240,27 +244,61 @@ function NewEstimatePageInner() {
           </div>
         )}
 
-        {/* Client */}
+        {/* Client info banner when coming from client workflow */}
+        {intakeFormId && clientEventDate && (
+          <div className="mb-6 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-3">
+            <span className="text-blue-500 text-xl">📅</span>
+            <div>
+              <p className="text-sm font-semibold text-blue-900">
+                {clientEventType ? clientEventType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Event'} for {clientName}
+              </p>
+              <p className="text-xs text-blue-700">
+                {new Date(clientEventDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Client Name */}
         <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Select Event / Booking (Optional)</label>
-          <select
-            value={selectedBooking}
-            onChange={e => setSelectedBooking(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-          >
-            <option value="">-- No booking --</option>
-            {bookings.map(b => (
-              <option key={b.id} value={b.id}>
-                {b.event?.name || 'Event'}
-                {b.contact_name ? ` — ${b.contact_name}` : ''}
-                {b.event?.date ? ` (${b.event.date})` : ''}
-              </option>
-            ))}
-          </select>
-          {bookings.length === 0 && (
-            <p className="text-xs text-gray-400 mt-1">No upcoming bookings found. Estimates can still be created without linking to a booking.</p>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Client Name</label>
+          {intakeFormId ? (
+            <div className="px-3 py-2 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-800 font-medium">
+              {clientName || 'Loading…'}
+            </div>
+          ) : (
+            <input
+              type="text"
+              value={clientName}
+              onChange={e => setClientName(e.target.value)}
+              placeholder="Enter client name"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
           )}
         </div>
+
+        {/* Event link — only shown when NOT pre-filled from a client */}
+        {!intakeFormId && (
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">Link to Event (Optional)</label>
+          {events.length === 0 ? (
+            <p className="text-xs text-gray-400 mt-1">No upcoming events found. Estimates can be created without linking to an event.</p>
+          ) : (
+            <select
+              value={selectedEvent}
+              onChange={e => setSelectedEvent(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              <option value="">-- No event --</option>
+              {events.map((ev: any) => (
+                <option key={ev.id} value={ev.id}>
+                  {ev.name || 'Event'}{ev.date ? ` (${new Date(ev.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})` : ''}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+        )}
 
         {/* Dates */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -276,6 +314,57 @@ function NewEstimatePageInner() {
             <p className="text-xs text-gray-400 mt-1">Client must approve before this date.</p>
           </div>
         </div>
+
+        {/* Confirmed Vendor Bookings */}
+        {vendorBookings.length > 0 && (
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Vendor Bookings</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {vendorBookings.map((vb: any) => {
+                const vendor = vb.vendor_accounts
+                const amount = Number(vb.agreed_amount) || 0
+                const alreadyAdded = lineItems.some(li => li.id === `vendor-${vb.id}`)
+                return (
+                  <div key={vb.id} className={`flex items-center justify-between p-3 border rounded-lg text-sm ${
+                    alreadyAdded ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'
+                  }`}>
+                    <div className="flex-1 min-w-0 mr-2">
+                      <p className="font-medium text-gray-900 truncate">{vendor?.business_name || 'Vendor'}</p>
+                      <p className="text-xs text-gray-500 truncate">{vb.event_name}</p>
+                      <p className="text-xs font-semibold text-amber-700">{amount > 0 ? `$${amount.toLocaleString()}` : 'No amount set'}</p>
+                    </div>
+                    {alreadyAdded ? (
+                      <span className="text-xs text-green-700 font-medium flex-shrink-0">✓ Added</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const item: EstimateLineItem = {
+                            id: `vendor-${vb.id}`,
+                            service_item_id: null,
+                            description: `Vendor Cost: ${vendor?.business_name || 'Vendor'} — ${vb.event_name}`,
+                            quantity: 1,
+                            standardPrice: amount,
+                            unitPrice: amount,
+                            subtotal: amount,
+                            discountType: DiscountType.NONE,
+                            discountValue: 0,
+                            discountAmount: 0,
+                            amount,
+                          }
+                          setLineItems(prev => [...prev, item])
+                        }}
+                        className="text-xs px-2 py-1 bg-amber-600 text-white rounded hover:bg-amber-700 flex-shrink-0"
+                      >
+                        + Add
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Quick Add Service Items */}
         <div className="mb-6">

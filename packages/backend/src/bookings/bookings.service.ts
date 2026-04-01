@@ -1,22 +1,26 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { SupabaseService } from '../supabase/supabase.service';
+import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import { Booking } from '../entities/booking.entity';
 
 @Injectable()
 export class BookingsService {
   constructor(
     private readonly supabaseService: SupabaseService,
+    private readonly smsNotifications: SmsNotificationsService,
   ) {}
 
   async findAll(supabase: SupabaseClient): Promise<Booking[]> {
     console.log('Fetching bookings...');
+    // A booking is defined as an event with deposit paid or complete balance paid
     const { data, error } = await supabase
       .from('booking')
       .select(`
         *,
         event:event(id, name, date, start_time, end_time, venue, location, status)
       `)
+      .in('client_status', ['deposit_paid', 'completed'])
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -37,7 +41,8 @@ export class BookingsService {
       .eq('id', id)
       .single();
 
-    if (error) throw error;
+    if (error && error.code !== 'PGRST116') throw error;
+    if (!data) throw new NotFoundException(`Booking ${id} not found`);
     return data;
   }
 
@@ -72,6 +77,28 @@ export class BookingsService {
       await this.checkForConflicts(supabase, data);
     } catch (err) {
       console.error('Error checking booking conflicts:', err?.message || err);
+    }
+
+    // SMS notification when a booking is confirmed
+    if (booking.status === 'confirmed' && data?.contact_phone) {
+      try {
+        const { data: fullBooking } = await supabase
+          .from('booking')
+          .select('contact_phone, contact_name, event:event(name)')
+          .eq('id', id)
+          .single();
+        if (fullBooking?.contact_phone) {
+          await this.smsNotifications.vendorBookingStatusChanged(
+            fullBooking.contact_phone,
+            fullBooking.contact_name || 'Valued Client',
+            (fullBooking.event as any)?.name || 'your event',
+            'confirmed',
+            false,
+          );
+        }
+      } catch {
+        // SMS errors must never break the booking update
+      }
     }
 
     return data;

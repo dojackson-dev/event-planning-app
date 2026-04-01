@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Estimate, EstimateStatus } from '@/types'
+import { Search } from 'lucide-react'
 
 function getClientName(estimate: Estimate): string {
   const booking = (estimate.booking as any)
@@ -33,6 +34,7 @@ export default function EstimatesPage() {
   const [estimates, setEstimates] = useState<Estimate[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<EstimateStatus | 'all'>('all')
+  const [searchTerm, setSearchTerm] = useState('')
   const router = useRouter()
   const { user } = useAuth()
 
@@ -63,7 +65,16 @@ export default function EstimatesPage() {
     }
   }
 
-  const filtered = filter === 'all' ? estimates : estimates.filter(e => e.status === filter)
+  const filtered = estimates
+    .filter(e => filter === 'all' || e.status === filter)
+    .filter(e => {
+      if (!searchTerm) return true
+      const q = searchTerm.toLowerCase()
+      return (
+        e.estimate_number.toLowerCase().includes(q) ||
+        getClientName(e).toLowerCase().includes(q)
+      )
+    })
 
   const isExpiringSoon = (e: Estimate) => {
     if (e.status !== EstimateStatus.SENT && e.status !== EstimateStatus.DRAFT) return false
@@ -87,19 +98,28 @@ export default function EstimatesPage() {
         </button>
       </div>
 
-      {/* Filters */}
-      <div className="mb-6 flex gap-2 flex-wrap">
-        {(['all', ...Object.values(EstimateStatus)] as const).map(s => (
-          <button
-            key={s}
-            onClick={() => setFilter(s)}
-            className={`px-3 py-1 rounded-full text-sm font-medium capitalize transition-colors ${
-              filter === s ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            {s}
-          </button>
-        ))}
+      {/* Search + Filter */}
+      <div className="mb-6 flex flex-col sm:flex-row gap-3">
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
+          <input
+            type="text"
+            placeholder="Search by estimate # or client name..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+          />
+        </div>
+        <select
+          value={filter}
+          onChange={e => setFilter(e.target.value as EstimateStatus | 'all')}
+          className="px-4 py-2 border border-gray-300 rounded-md bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
+        >
+          <option value="all">All Statuses</option>
+          {Object.values(EstimateStatus).map(s => (
+            <option key={s} value={s} className="capitalize">{s}</option>
+          ))}
+        </select>
       </div>
 
       {filtered.length === 0 ? (
@@ -110,58 +130,98 @@ export default function EstimatesPage() {
           </button>
         </div>
       ) : (
-        <div className="bg-white shadow-sm rounded-lg overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Number</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Client</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Issue Date</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Expires</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Total</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {filtered.map(estimate => (
-                <tr
-                  key={estimate.id}
-                  className="hover:bg-gray-50 cursor-pointer"
-                  onClick={() => router.push(`/dashboard/estimates/${estimate.id}`)}
-                >
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{estimate.estimate_number}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900">{getClientName(estimate)}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${statusColors[estimate.status]}`}>
-                      {estimate.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">
-                    {new Date(estimate.issue_date).toLocaleDateString()}
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    <span className={isExpiringSoon(estimate) ? 'text-orange-600 font-semibold' : 'text-gray-600'}>
-                      {new Date(estimate.expiration_date).toLocaleDateString()}
-                      {isExpiringSoon(estimate) && ' ⚠'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">
-                    ${Number(estimate.total_amount).toFixed(2)}
-                  </td>
-                  <td className="px-4 py-3 text-center" onClick={e => e.stopPropagation()}>
-                    <button
-                      onClick={() => handleDelete(estimate.id, estimate.estimate_number)}
-                      className="text-red-600 hover:text-red-800 text-xs px-2 py-1 rounded hover:bg-red-50"
-                    >
-                      Delete
-                    </button>
-                  </td>
+        <>
+          {/* Mobile card view */}
+          <div className="block md:hidden space-y-3">
+            {filtered.map(estimate => (
+              <div
+                key={estimate.id}
+                className="bg-white rounded-lg shadow p-4 cursor-pointer active:bg-gray-50 hover:shadow-md transition-shadow"
+                onClick={() => router.push(`/dashboard/estimates/${estimate.id}`)}
+              >
+                <div className="flex justify-between items-start">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-gray-900">{estimate.estimate_number}</p>
+                    <p className="text-sm text-gray-600 truncate">{getClientName(estimate)}</p>
+                  </div>
+                  <span className={`ml-2 px-2 py-1 text-xs font-medium rounded-full flex-shrink-0 capitalize ${statusColors[estimate.status]}`}>
+                    {estimate.status}
+                  </span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-600">
+                  <span className="font-semibold text-gray-900">${Number(estimate.total_amount).toFixed(2)}</span>
+                  <span>·</span>
+                  <span className={isExpiringSoon(estimate) ? 'text-orange-600 font-semibold' : ''}>
+                    Exp: {new Date(estimate.expiration_date).toLocaleDateString()}{isExpiringSoon(estimate) && ' ⚠'}
+                  </span>
+                </div>
+                <div className="mt-3 pt-3 border-t flex justify-between items-center" onClick={e => e.stopPropagation()}>
+                  <span className="text-xs text-gray-400">Tap to view details →</span>
+                  <button
+                    onClick={() => handleDelete(estimate.id, estimate.estimate_number)}
+                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg text-xs"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop table view */}
+          <div className="hidden md:block bg-white shadow-sm rounded-lg overflow-hidden">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Number</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Client</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Issue Date</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Expires</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Total</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {filtered.map(estimate => (
+                  <tr
+                    key={estimate.id}
+                    className="hover:bg-gray-50 cursor-pointer"
+                    onClick={() => router.push(`/dashboard/estimates/${estimate.id}`)}
+                  >
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{estimate.estimate_number}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">{getClientName(estimate)}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${statusColors[estimate.status]}`}>
+                        {estimate.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600">
+                      {new Date(estimate.issue_date).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      <span className={isExpiringSoon(estimate) ? 'text-orange-600 font-semibold' : 'text-gray-600'}>
+                        {new Date(estimate.expiration_date).toLocaleDateString()}
+                        {isExpiringSoon(estimate) && ' ⚠'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">
+                      ${Number(estimate.total_amount).toFixed(2)}
+                    </td>
+                    <td className="px-4 py-3 text-center" onClick={e => e.stopPropagation()}>
+                      <button
+                        onClick={() => handleDelete(estimate.id, estimate.estimate_number)}
+                        className="text-red-600 hover:text-red-800 text-xs px-2 py-1 rounded hover:bg-red-50"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   )

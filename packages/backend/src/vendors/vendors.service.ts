@@ -1,6 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
-import { TwilioService } from '../messaging/twilio.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import {
   CreateVendorDto,
@@ -14,13 +13,21 @@ import {
   UpdateBookingRequestDto,
 } from './dto/vendor.dto';
 
+function normalizePhone(phone: string | null | undefined): string | null {
+  if (!phone) return null;
+  const digits = phone.replace(/\D/g, '');
+  if (phone.match(/^\+1\d{10}$/)) return phone;
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+  return phone;
+}
+
 @Injectable()
 export class VendorsService {
   private readonly logger = new Logger(VendorsService.name);
 
   constructor(
     private readonly supabaseService: SupabaseService,
-    private readonly twilioService: TwilioService,
     private readonly smsNotifications: SmsNotificationsService,
   ) {}
 
@@ -52,7 +59,7 @@ export class VendorsService {
         website: dto.website,
         instagram: dto.instagram,
         facebook: dto.facebook,
-        phone: dto.phone,
+        phone: normalizePhone(dto.phone),
         email: dto.email,
         address: dto.address,
         city: dto.city,
@@ -123,7 +130,7 @@ export class VendorsService {
     if (dto.website !== undefined) updatePayload.website = dto.website;
     if (dto.instagram !== undefined) updatePayload.instagram = dto.instagram;
     if (dto.facebook !== undefined) updatePayload.facebook = dto.facebook;
-    if (dto.phone !== undefined) updatePayload.phone = dto.phone;
+    if (dto.phone !== undefined) updatePayload.phone = normalizePhone(dto.phone);
     if (dto.email !== undefined) updatePayload.email = dto.email;
     if (dto.address !== undefined) updatePayload.address = dto.address;
     if (dto.city !== undefined) updatePayload.city = dto.city;
@@ -272,7 +279,7 @@ export class VendorsService {
         deposit_amount: dto.depositAmount || null,
         client_name: dto.clientName || null,
         client_email: dto.clientEmail || null,
-        client_phone: dto.clientPhone || null,
+        client_phone: normalizePhone(dto.clientPhone) || null,
         status: 'pending',
       })
       .select()
@@ -447,12 +454,34 @@ export class VendorsService {
 
     const { data, error } = await admin
       .from('vendor_bookings')
-      .select('*, vendor_accounts(id, business_name, category, profile_image_url, phone, email)')
+      .select('*, vendor_accounts(id, business_name, category, profile_image_url, phone, email), vendor_invoices(id, status, invoice_type, vendor_booking_id)')
       .eq('owner_account_id', ownerAccountId)
       .order('event_date', { ascending: true });
 
     if (error) throw new BadRequestException(error.message);
-    return data || [];
+
+    // Derive effective status: if any linked owner_booking invoice is paid → show as paid
+    const rows = (data || []).map((b: any) => {
+      const invoices: any[] = b.vendor_invoices ?? [];
+      const hasPaidInvoice = invoices.some(
+        (inv: any) => inv.invoice_type === 'owner_booking' && inv.status === 'paid' && inv.vendor_booking_id === b.id,
+      );
+      const effectiveStatus = hasPaidInvoice ? 'paid' : b.status;
+
+      // Backfill DB so future reads are consistent
+      if (hasPaidInvoice && b.status !== 'paid') {
+        void (async () => {
+          await admin.from('vendor_bookings')
+            .update({ status: 'paid', updated_at: new Date().toISOString() })
+            .eq('id', b.id);
+        })().catch(() => {});
+      }
+
+      const { vendor_invoices: _inv, ...rest } = b;
+      return { ...rest, status: effectiveStatus };
+    });
+
+    return rows;
   }
 
   async getVendorBookingById(bookingId: string) {
@@ -798,7 +827,7 @@ export class VendorsService {
         booking_link_id: link.id,
         client_name: dto.clientName,
         client_email: dto.clientEmail,
-        client_phone: dto.clientPhone ?? null,
+        client_phone: normalizePhone(dto.clientPhone) ?? null,
         event_name: dto.eventName ?? null,
         event_date: dto.eventDate ?? null,
         start_time: dto.startTime ?? null,

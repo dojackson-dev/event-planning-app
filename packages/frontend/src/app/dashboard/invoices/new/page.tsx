@@ -6,7 +6,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
-import { ServiceItem, ServiceItemCategory, Booking, DiscountType } from '@/types'
+import { ServiceItem, ServiceItemCategory, DiscountType } from '@/types'
 
 interface InvoiceLineItem {
   id: string
@@ -28,10 +28,14 @@ function NewInvoicePageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user } = useAuth()
-  const [bookings, setBookings] = useState<Booking[]>([])
+  const [events, setEvents] = useState<any[]>([])
   const [serviceItems, setServiceItems] = useState<ServiceItem[]>([])
   const [selectedBooking, setSelectedBooking] = useState<string>('')
   const [clientName, setClientName] = useState<string>('')
+  const [intakeFormId, setIntakeFormId] = useState<string | null>(null)
+  const [invoiceType, setInvoiceType] = useState<'invoice' | 'estimate'>('invoice')
+  const [clientEventDate, setClientEventDate] = useState<string | null>(null)
+  const [clientEventType, setClientEventType] = useState<string | null>(null)
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([])
   const [expenseItems, setExpenseItems] = useState<InvoiceLineItem[]>([])
   const [vendorBookingBanner, setVendorBookingBanner] = useState<string>('')
@@ -49,7 +53,7 @@ function NewInvoicePageContent() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    fetchBookings()
+    fetchEvents()
     fetchServiceItems()
     // Load owner payment schedule defaults
     api.get('/owner/payment-schedule').then(res => {
@@ -61,6 +65,21 @@ function NewInvoicePageContent() {
       }
     }).catch(() => {})
   }, [])
+
+  // Pre-fill from client detail page workflow (clientId + type=estimate)
+  useEffect(() => {
+    const clientId = searchParams?.get('clientId')
+    const type = searchParams?.get('type')
+    if (type === 'estimate') setInvoiceType('estimate')
+    if (!clientId) return
+    setIntakeFormId(clientId)
+    api.get(`/intake-forms/${clientId}`).then(res => {
+      const form = res.data
+      setClientName(form.contact_name || '')
+      setClientEventDate(form.event_date || null)
+      setClientEventType(form.event_type || null)
+    }).catch(() => {})
+  }, [searchParams])
 
   useEffect(() => {
     const vendorBookingId = searchParams?.get('vendorBookingId')
@@ -90,18 +109,16 @@ function NewInvoicePageContent() {
     }).catch(() => {})
   }, [searchParams])
 
-  const fetchBookings = async () => {
+  const fetchEvents = async () => {
     try {
-      const response = await api.get<Booking[]>('/bookings')
-      // Only remove cancelled bookings — invoices can be for past or future events
-      const active = response.data.filter((b) => {
-        const status = (b.client_status || b.clientStatus || '').toLowerCase()
-        if (status === 'cancelled' || (b.status || '').toLowerCase() === 'cancelled') return false
-        return true
-      })
-      setBookings(active)
+      const response = await api.get('/events')
+      const today = new Date().toISOString().split('T')[0]
+      const upcoming = (response.data || []).filter((e: any) =>
+        e.status !== 'cancelled' && e.date >= today
+      )
+      setEvents(upcoming)
     } catch (error) {
-      console.error('Failed to fetch bookings:', error)
+      console.error('Failed to fetch events:', error)
     }
   }
 
@@ -271,8 +288,7 @@ function NewInvoicePageContent() {
     try {
       const invoiceData = {
         invoice: {
-          booking_id: selectedBooking && selectedBooking !== '' ? selectedBooking : null,
-          client_name: clientName || null,
+          booking_id: null,          intake_form_id: intakeFormId || null,          client_name: clientName || null,
           owner_id: user?.id,
           tax_rate: includeTax ? Number(taxRate) : 0,
           discount_amount: Number(discountAmount),
@@ -324,7 +340,9 @@ function NewInvoicePageContent() {
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Create New Invoice</h1>
+        <h1 className="text-2xl font-bold text-gray-900">
+          {invoiceType === 'estimate' ? 'Create New Estimate' : 'Create New Invoice'}
+        </h1>
       </div>
 
       {vendorBookingBanner && (
@@ -333,45 +351,47 @@ function NewInvoicePageContent() {
         </div>
       )}
 
+      {/* Client event banner when coming from client workflow */}
+      {intakeFormId && clientEventDate && (
+        <div className="mb-4 bg-blue-50 border border-blue-200 text-blue-900 rounded-lg px-4 py-3 text-sm flex items-center gap-3">
+          <span className="text-blue-500 text-xl">📅</span>
+          <div>
+            <p className="font-semibold">
+              {clientEventType ? clientEventType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Event'} for {clientName}
+            </p>
+            <p className="text-xs text-blue-700">
+              {new Date(clientEventDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+            </p>
+          </div>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="bg-white shadow-md rounded-lg p-6">
-        {/* Event / Booking Selection */}
+        {/* Event Selection — only when not pre-filled from a client */}
+        {!intakeFormId && (
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Link to Event / Booking (Optional)
+            Link to Event (Optional)
           </label>
-          {bookings.length === 0 ? (
+          {events.length === 0 ? (
             <p className="text-sm text-gray-500 mt-1">
-              No bookings found. Invoices can still be created without linking to a booking.
+              No upcoming events found. Invoices can still be created without linking to an event.
             </p>
           ) : null}
           <select
             value={selectedBooking}
-            onChange={(e) => {
-              const bookingId = e.target.value
-              setSelectedBooking(bookingId)
-              if (bookingId) {
-                const b = bookings.find(bk => bk.id === bookingId)
-                if (b) setClientName(b.contact_name || b.contact_email || '')
-              }
-            }}
+            onChange={(e) => setSelectedBooking(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
-            <option value="">-- Select an event / booking (optional) --</option>
-            {bookings.map((booking) => {
-              const clientName = booking.contact_name ||
-                (booking.user ? `${booking.user.firstName} ${booking.user.lastName}` : '')
-              const eventName = booking.event?.name || ''
-              const eventDate = booking.event?.date || ''
-              return (
-                <option key={booking.id} value={booking.id}>
-                  {eventName || 'Event'}
-                  {clientName ? ` — ${clientName}` : ''}
-                  {eventDate ? ` (${eventDate})` : ''}
-                </option>
-              )
-            })}
+            <option value="">-- Select an event (optional) --</option>
+            {events.map((ev: any) => (
+              <option key={ev.id} value={ev.id}>
+                {ev.name || 'Event'}{ev.date ? ` (${new Date(ev.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})` : ''}
+              </option>
+            ))}
           </select>
         </div>
+        )}
 
         {/* Client Name */}
         <div className="mb-6">

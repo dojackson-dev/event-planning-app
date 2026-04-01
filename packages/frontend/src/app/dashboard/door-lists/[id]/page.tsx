@@ -20,7 +20,9 @@ import {
   RefreshCw,
   UserPlus,
   Trash2,
-  Edit
+  Edit,
+  Plus,
+  X
 } from 'lucide-react'
 import { parseLocalDate } from '@/lib/dateUtils'
 
@@ -33,6 +35,11 @@ export default function DoorListDetailPage() {
   const [filterStatus, setFilterStatus] = useState<'all' | 'arrived' | 'pending'>('all')
   const [loading, setLoading] = useState(true)
   const [autoRefresh, setAutoRefresh] = useState(false)
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [addName, setAddName] = useState('')
+  const [addPhone, setAddPhone] = useState('')
+  const [addPlusOnes, setAddPlusOnes] = useState(0)
+  const [addLoading, setAddLoading] = useState(false)
 
   useEffect(() => {
     fetchGuestList()
@@ -89,6 +96,29 @@ export default function DoorListDetailPage() {
     } catch (error) {
       console.error('Failed to check out guest:', error)
       alert('Failed to check out guest')
+    }
+  }
+
+  const handleAddGuest = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!guestList) return
+    setAddLoading(true)
+    try {
+      await api.post(`/guest-lists/${guestList.id}/guests`, {
+        name: addName,
+        phone: addPhone || undefined,
+        plusOnes: addPlusOnes,
+      })
+      setAddName('')
+      setAddPhone('')
+      setAddPlusOnes(0)
+      setShowAddForm(false)
+      fetchGuestList()
+    } catch (error) {
+      console.error('Failed to add guest:', error)
+      alert('Failed to add guest')
+    } finally {
+      setAddLoading(false)
     }
   }
 
@@ -243,7 +273,7 @@ export default function DoorListDetailPage() {
                 })}
               </p>
               <p className="text-sm text-gray-500 mt-1">
-                Access Code: <span className="font-mono font-semibold">{guestList.accessCode}</span>
+                Access Code: <span className="font-mono font-semibold">{(guestList as any).access_code ?? (guestList as any).accessCode}</span>
               </p>
             </div>
 
@@ -258,6 +288,14 @@ export default function DoorListDetailPage() {
               >
                 <RefreshCw className={`h-4 w-4 ${autoRefresh ? 'animate-spin' : ''}`} />
                 Auto-Refresh {autoRefresh ? 'On' : 'Off'}
+              </button>
+
+              <button
+                onClick={() => setShowAddForm(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+              >
+                <UserPlus className="h-4 w-4" />
+                Add Guest
               </button>
 
               <button
@@ -278,6 +316,70 @@ export default function DoorListDetailPage() {
             </div>
           </div>
         </div>
+
+        {/* Add Guest Form */}
+        {showAddForm && (
+          <div className="mb-6 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Add Guest</h2>
+              <button onClick={() => setShowAddForm(false)} className="p-1 hover:bg-gray-100 rounded">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form onSubmit={handleAddGuest} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+                <input
+                  type="text"
+                  value={addName}
+                  onChange={e => setAddName(e.target.value)}
+                  required
+                  autoFocus
+                  placeholder="Guest name"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                <input
+                  type="tel"
+                  value={addPhone}
+                  onChange={e => setAddPhone(e.target.value)}
+                  placeholder="Optional"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Plus Ones</label>
+                <input
+                  type="number"
+                  value={addPlusOnes}
+                  onChange={e => setAddPlusOnes(Number(e.target.value))}
+                  min={0}
+                  max={(guestList as any).max_guests_per_person ?? 10}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+              <div className="md:col-span-3 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAddForm(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={addLoading}
+                  className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 flex items-center gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  {addLoading ? 'Adding…' : 'Add Guest'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">

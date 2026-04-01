@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { ArrowLeft, Calendar, Mail, Phone, Users, Clock, MapPin, Utensils, Wrench, Heart, Accessibility, DollarSign, Info, CheckCircle, MessageSquare, FileText, Clock as ClockIcon, Pencil, Store, X, ChevronRight, ArrowRight } from 'lucide-react'
+import { ArrowLeft, Calendar, Mail, Phone, Users, Clock, MapPin, Utensils, Wrench, Heart, Accessibility, DollarSign, Info, CheckCircle, MessageSquare, FileText, Clock as ClockIcon, Pencil, Store, X, ChevronRight } from 'lucide-react'
 
 const VENDOR_CATEGORIES = [
   { value: '', label: 'All Categories' },
@@ -80,10 +80,8 @@ export default function ClientDetailPage() {
   const [editData, setEditData] = useState<Partial<IntakeForm>>({})
   const [saving, setSaving] = useState(false)
   const [messageContent, setMessageContent] = useState('')
+  const [messageSending, setMessageSending] = useState(false)
   const [appointmentData, setAppointmentData] = useState({ date: '', time: '', notes: '' })
-  const [workflowStep, setWorkflowStep] = useState<number>(1)
-  const [converting, setConverting] = useState(false)
-  const [clientEstimateId, setClientEstimateId] = useState<string | null>(null)
 
   // ── Vendor booking state ──────────────────────────────────────
   const [eventVendors, setEventVendors] = useState<EventVendorBooking[]>([])
@@ -111,30 +109,6 @@ export default function ClientDetailPage() {
       setNotes(response.data.notes || '')
       setEditData(response.data)
       fetchEventVendors(response.data.event_date)
-
-      // Determine starting step: saved > auto-detected from status
-      const savedStepStr = localStorage.getItem(`workflow_step_${params.id}`)
-      const baseStep = response.data.status === 'converted'
-        ? 5
-        : savedStepStr ? parseInt(savedStepStr) : 1
-      let detectedStep = baseStep
-
-      // Check if estimate exists → step 1 done
-      const estimateRes = await api.get(`/estimates?intakeFormId=${params.id}`).catch(() => ({ data: [] }))
-      const estimates: any[] = estimateRes.data || []
-      const latestEstimate = estimates[0]
-      if (latestEstimate) {
-        setClientEstimateId(latestEstimate.id)
-        if (detectedStep < 2) detectedStep = 2
-      }
-
-      // Check if invoice exists → step 3 done
-      const invoiceRes = await api.get(`/invoices?intakeFormId=${params.id}`).catch(() => ({ data: [] }))
-      const invoices: any[] = invoiceRes.data || []
-      if (invoices.length > 0 && detectedStep < 4) detectedStep = 4
-
-      setWorkflowStep(detectedStep)
-      localStorage.setItem(`workflow_step_${params.id}`, String(detectedStep))
     } catch (error) {
       console.error('Error fetching client:', error)
     } finally {
@@ -266,24 +240,27 @@ export default function ClientDetailPage() {
   const handleSendMessage = async () => {
     if (!client || !messageContent.trim()) return
     if (!client.contact_phone) {
-      alert('This client has no phone number on file. SMS cannot be sent.')
+      alert('This client has no phone number on file.')
       return
     }
+    setMessageSending(true)
     try {
       await api.post('/messages/send', {
         recipientPhone: client.contact_phone,
         recipientName: client.contact_name,
         recipientType: 'client',
         messageType: 'custom',
-        content: messageContent,
+        content: messageContent.trim(),
         skipOptInCheck: true,
       })
-      alert('SMS sent successfully!')
       setShowMessageModal(false)
       setMessageContent('')
+      alert(`SMS sent to ${client.contact_name}`)
     } catch (error: any) {
-      console.error('Error sending SMS:', error)
+      console.error('Error sending message:', error)
       alert(error.response?.data?.message || 'Failed to send SMS')
+    } finally {
+      setMessageSending(false)
     }
   }
 
@@ -319,7 +296,7 @@ export default function ClientDetailPage() {
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString + 'T12:00:00').toLocaleDateString('en-US', {
+    return new Date(dateString).toLocaleDateString('en-US', {
       month: 'long',
       day: 'numeric',
       year: 'numeric'
@@ -386,180 +363,6 @@ export default function ClientDetailPage() {
             </span>
           </div>
         </div>
-
-        {/* Booking Workflow Progress */}
-        {(() => {
-          const STEPS = [
-            { step: 1, label: 'Send Estimate',     icon: FileText    },
-            { step: 2, label: 'Estimate Approved', icon: CheckCircle },
-            { step: 3, label: 'Send Invoice',      icon: FileText    },
-            { step: 4, label: 'Deposit Confirmed', icon: DollarSign  },
-            { step: 5, label: 'Booked',            icon: CheckCircle },
-          ] as const
-          const current = workflowStep
-          const handleStep = async (n: number) => {
-            if (n === 5) return // step 5 is auto-only
-            if (n === 1) {
-              // Navigate to create estimate page pre-filled with this client
-              router.push(`/dashboard/estimates/new?clientId=${params.id}`)
-              return
-            }
-            if (n === 2 && current < 2) {
-              // Estimate Approved — mark the estimate as approved
-              setConverting(true)
-              try {
-                if (clientEstimateId) {
-                  await api.put(`/estimates/${clientEstimateId}/status`, { status: 'approved' })
-                }
-                const val = 2
-                setWorkflowStep(val)
-                localStorage.setItem(`workflow_step_${params.id}`, String(val))
-              } catch (err: any) {
-                alert(err.response?.data?.message || 'Could not mark estimate as approved.')
-              } finally {
-                setConverting(false)
-              }
-              return
-            }
-            if (n === 3 && current < 3) {
-              // Send Invoice — convert approved estimate to invoice, then navigate to it
-              setConverting(true)
-              try {
-                let estimateId = clientEstimateId
-                if (!estimateId) {
-                  const res = await api.get(`/estimates?intakeFormId=${params.id}`)
-                  const estimates: any[] = res.data || []
-                  estimateId = estimates[0]?.id || null
-                  if (estimateId) setClientEstimateId(estimateId)
-                }
-                if (!estimateId) {
-                  alert('No estimate found for this client. Please create an estimate first (Step 1).')
-                  setConverting(false)
-                  return
-                }
-                const invoice = await api.post(`/estimates/${estimateId}/convert-to-invoice`)
-                setWorkflowStep(3)
-                localStorage.setItem(`workflow_step_${params.id}`, '3')
-                router.push(`/dashboard/invoices/${invoice.data.id}`)
-              } catch (err: any) {
-                alert(err.response?.data?.message || 'Could not convert estimate to invoice.')
-              } finally {
-                setConverting(false)
-              }
-              return
-            }
-            if (n === 4 && current < 4) {
-              // Clicking Deposit Confirmed → auto-convert to booking
-              setWorkflowStep(4)
-              localStorage.setItem(`workflow_step_${params.id}`, '4')
-              setConverting(true)
-              try {
-                await api.post(`/intake-forms/${params.id}/convert-to-booking`, {})
-                setWorkflowStep(5)
-                localStorage.setItem(`workflow_step_${params.id}`, '5')
-                await fetchClient()
-              } catch (err: any) {
-                alert(err.response?.data?.message || 'Could not confirm booking. Please try again.')
-                setWorkflowStep(3)
-                localStorage.setItem(`workflow_step_${params.id}`, '3')
-              } finally {
-                setConverting(false)
-              }
-              return
-            }
-            const next = n === current ? n - 1 : n
-            const val = Math.max(0, next)
-            setWorkflowStep(val)
-            localStorage.setItem(`workflow_step_${params.id}`, String(val))
-          }
-          const pct = current <= 1 ? 0 : Math.round(((current - 1) / (STEPS.length - 1)) * 100)
-          return (
-            <div className="bg-white rounded-lg shadow p-5 mb-6">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Booking Progress</h2>
-                {current >= 5 ? (
-                  <span className="text-xs font-bold px-3 py-1 rounded-full text-white bg-green-600 flex items-center gap-1">
-                    <CheckCircle className="h-3.5 w-3.5" /> Booked
-                  </span>
-                ) : current > 0 && (
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full text-white bg-blue-600">
-                    {converting ? 'Working…' : `Step ${current} of ${STEPS.length} — ${STEPS[current - 1]?.label}`}
-                  </span>
-                )}
-              </div>
-              {/* Progress bar */}
-              <div className="w-full bg-gray-100 rounded-full h-2 mb-4">
-                <div
-                  className={`h-2 rounded-full transition-all duration-300 ${current >= 5 ? 'bg-green-500' : 'bg-blue-600'}`}
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-              {/* Step dots */}
-              <div className="flex items-center gap-1 overflow-x-auto pb-1">
-                {STEPS.map((s, idx) => {
-                  const done = s.step < current
-                  const isCurrent = s.step === current
-                  const Icon = s.icon
-                  return (
-                    <div key={s.step} className="flex items-center gap-1 flex-shrink-0">
-                      {s.step === 5 ? (
-                        <div
-                          className={`flex flex-col items-center px-2.5 py-2.5 rounded-xl border-2 w-[7.5rem] text-center
-                            ${current >= 5
-                              ? 'bg-green-600 border-transparent text-white shadow-md ring-2 ring-green-300'
-                              : done
-                              ? 'bg-gray-100 border-gray-200 text-gray-500'
-                              : 'border-gray-200 bg-gray-50 text-gray-300'
-                            }`}
-                        >
-                          <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold mb-1.5
-                            ${current >= 5 ? 'bg-white/30 text-white' : done ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-400'}`}>
-                            {current >= 5 || done ? '✓' : 5}
-                          </div>
-                          <Icon className="h-4 w-4 mb-1" />
-                          <span className="text-[10px] font-bold leading-tight">
-                            {current >= 5 ? '✓ Booked' : 'Booked'}
-                          </span>
-                          {current < 5 && (
-                            <span className="text-[9px] leading-tight opacity-60 mt-0.5">auto</span>
-                          )}
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => handleStep(s.step)}
-                          disabled={converting}
-                          title={s.label}
-                          className={`flex flex-col items-center px-2.5 py-2.5 rounded-xl border-2 w-[7.5rem] text-center transition-all disabled:opacity-60
-                            ${
-                              isCurrent
-                                ? 'bg-blue-600 border-blue-600 text-white shadow-md ring-2 ring-blue-300'
-                                : done
-                                ? 'bg-gray-100 border-gray-200 text-gray-500'
-                                : 'border-gray-200 bg-gray-50 text-gray-400 hover:bg-gray-100'
-                            }`}
-                        >
-                          <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold mb-1.5
-                            ${isCurrent ? 'bg-white/30 text-white' : done ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500'}`}>
-                            {done ? '✓' : s.step}
-                          </div>
-                          <Icon className="h-4 w-4 mb-1" />
-                          <span className="text-[10px] font-medium leading-tight">{s.label}</span>
-                          {s.step === 4 && current < 4 && (
-                            <span className="text-[9px] leading-tight opacity-70 mt-0.5">→ auto-books</span>
-                          )}
-                        </button>
-                      )}
-                      {idx < STEPS.length - 1 && (
-                        <ArrowRight className={`h-3.5 w-3.5 flex-shrink-0 ${done ? 'text-green-400' : 'text-gray-200'}`} />
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-              <p className="text-[10px] text-gray-400 mt-2">Step 1 creates your estimate. Step 2 marks the client\'s approval. Step 3 converts the estimate to an invoice. Clicking <strong>Deposit Confirmed</strong> automatically books the client and notifies any conflicting leads.</p>
-            </div>
-          )
-        })()}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Content */}
@@ -846,7 +649,7 @@ export default function ClientDetailPage() {
                   className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2"
                 >
                   <MessageSquare className="h-4 w-4" />
-                  Send SMS
+                  Send Message
                 </button>
 
                 <button
@@ -919,40 +722,42 @@ export default function ClientDetailPage() {
               <h2 className="text-xl font-bold mb-4">Send SMS to {client.contact_name}</h2>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone (SMS)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
                   <input
-                    type="tel"
+                    type="text"
                     value={client.contact_phone || 'No phone on file'}
                     disabled
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
                   />
-                  {!client.contact_phone && (
-                    <p className="text-xs text-red-500 mt-1">No phone number — SMS cannot be sent.</p>
-                  )}
                 </div>
+                {!client.contact_phone && (
+                  <p className="text-sm text-red-600">⚠ No phone number on file for this client. Add one via Edit Client Details.</p>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
                   <textarea
                     value={messageContent}
                     onChange={(e) => setMessageContent(e.target.value)}
-                    placeholder="Type your message here..."
+                    placeholder="Type your SMS message here..."
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     rows={4}
+                    maxLength={1600}
                   />
+                  <p className="text-xs text-gray-400 text-right mt-1">{messageContent.length}/1600</p>
                 </div>
                 <div className="flex gap-3 justify-end pt-4">
                   <button
-                    onClick={() => setShowMessageModal(false)}
+                    onClick={() => { setShowMessageModal(false); setMessageContent('') }}
                     className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleSendMessage}
-                    disabled={!client.contact_phone}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={messageSending || !messageContent.trim() || !client.contact_phone}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
-                    Send SMS
+                    {messageSending ? 'Sending...' : 'Send SMS'}
                   </button>
                 </div>
               </div>

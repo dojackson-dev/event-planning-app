@@ -307,7 +307,7 @@ export class AuthFlowService {
     return {
       inviteId: invite.id,
       inviteToken,
-      inviteLink: `${process.env.FRONTEND_URL}/invite/${inviteToken}`,
+      inviteLink: `${process.env.FRONTEND_URL || 'https://dovenuesuite.com'}/invite/${inviteToken}`,
       expiresAt: invite.expires_at,
     };
   }

@@ -23,7 +23,7 @@ export class VendorInvoicesService {
     const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (!secretKey) throw new Error('STRIPE_SECRET_KEY is not set');
     this.stripe = new Stripe(secretKey);
-    this.frontendUrl = this.configService.get<string>('FRONTEND_URL', 'http://localhost:3000');
+    this.frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://dovenuesuite.com');
   }
 
   // ─── Invoice number generation ──────────────────────────────────────────────
@@ -259,6 +259,36 @@ export class VendorInvoicesService {
       .single();
 
     if (error || !data) throw new NotFoundException('Invoice not found');
+    return data;
+  }
+
+  /** Owner (payer) fetches a vendor invoice linked to one of their bookings */
+  async getInvoiceAsOwner(ownerAccountId: string, invoiceId: string) {
+    const admin = this.supabaseService.getAdminClient();
+
+    // Verify the invoice belongs to a booking owned by this owner
+    const { data, error } = await admin
+      .from('vendor_invoices')
+      .select('*, vendor_invoice_items(*), vendor_accounts(business_name, email, phone, city, state)')
+      .eq('id', invoiceId)
+      .single();
+
+    if (error || !data) throw new NotFoundException('Invoice not found');
+
+    // Security check: the linked vendor_booking must belong to this owner
+    if (data.vendor_booking_id) {
+      const { data: booking } = await admin
+        .from('vendor_bookings')
+        .select('owner_account_id')
+        .eq('id', data.vendor_booking_id)
+        .single();
+      if (!booking || booking.owner_account_id !== ownerAccountId) {
+        throw new ForbiddenException('Access denied');
+      }
+    } else if (data.owner_account_id !== ownerAccountId) {
+      throw new ForbiddenException('Access denied');
+    }
+
     return data;
   }
 

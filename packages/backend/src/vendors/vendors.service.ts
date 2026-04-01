@@ -454,12 +454,34 @@ export class VendorsService {
 
     const { data, error } = await admin
       .from('vendor_bookings')
-      .select('*, vendor_accounts(id, business_name, category, profile_image_url, phone, email)')
+      .select('*, vendor_accounts(id, business_name, category, profile_image_url, phone, email), vendor_invoices(id, status, invoice_type, vendor_booking_id)')
       .eq('owner_account_id', ownerAccountId)
       .order('event_date', { ascending: true });
 
     if (error) throw new BadRequestException(error.message);
-    return data || [];
+
+    // Derive effective status: if any linked owner_booking invoice is paid → show as paid
+    const rows = (data || []).map((b: any) => {
+      const invoices: any[] = b.vendor_invoices ?? [];
+      const hasPaidInvoice = invoices.some(
+        (inv: any) => inv.invoice_type === 'owner_booking' && inv.status === 'paid' && inv.vendor_booking_id === b.id,
+      );
+      const effectiveStatus = hasPaidInvoice ? 'paid' : b.status;
+
+      // Backfill DB so future reads are consistent
+      if (hasPaidInvoice && b.status !== 'paid') {
+        void (async () => {
+          await admin.from('vendor_bookings')
+            .update({ status: 'paid', updated_at: new Date().toISOString() })
+            .eq('id', b.id);
+        })().catch(() => {});
+      }
+
+      const { vendor_invoices: _inv, ...rest } = b;
+      return { ...rest, status: effectiveStatus };
+    });
+
+    return rows;
   }
 
   async getVendorBookingById(bookingId: string) {

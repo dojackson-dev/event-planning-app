@@ -103,6 +103,18 @@ export class VendorInvoicesController {
     return this.vendorInvoicesService.listOwnerBookingInvoices(ownerAccountId, userId);
   }
 
+  /** GET /vendor-invoices/owner/:id — Owner views a specific vendor invoice they owe */
+  @Get('owner/:id')
+  async getInvoiceAsOwner(
+    @Headers('authorization') auth: string,
+    @Param('id') id: string,
+  ) {
+    const userId = await this.getUserId(auth);
+    const ownerAccountId = await this.getOwnerAccountId(userId);
+    if (!ownerAccountId) throw new UnauthorizedException('Not an owner account');
+    return this.vendorInvoicesService.getInvoiceAsOwner(ownerAccountId, id);
+  }
+
   /** GET /vendor-invoices/:id — Get single invoice */
   @Get(':id')
   async getInvoice(

@@ -192,7 +192,11 @@ export default function GuestListsPage() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredLists.map((list) => (
-                  <tr key={list.id} className="hover:bg-gray-50">
+                  <tr
+                    key={list.id}
+                    onClick={() => router.push(`/dashboard/guest-lists/${list.id}`)}
+                    className="hover:bg-gray-50 cursor-pointer"
+                  >
                     <td className="px-6 py-4">
                       <div className="text-sm font-medium text-gray-900">{list.event?.name}</div>
                       <div className="text-xs text-gray-500">
@@ -206,7 +210,7 @@ export default function GuestListsPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <button
-                        onClick={() => copyAccessCode(list.accessCode)}
+                        onClick={(e) => { e.stopPropagation(); copyAccessCode(list.accessCode) }}
                         className="inline-flex items-center gap-2 px-3 py-1 bg-purple-100 text-purple-800 rounded-md hover:bg-purple-200 font-mono text-sm"
                         title="Click to copy access code"
                       >
@@ -236,7 +240,7 @@ export default function GuestListsPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm" onClick={(e) => e.stopPropagation()}>
                       <div className="flex gap-2 flex-wrap">
                         <button
                           onClick={() => router.push(`/dashboard/guest-lists/${list.id}`)}

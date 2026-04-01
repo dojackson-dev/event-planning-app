@@ -5,13 +5,15 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Contract, ContractStatus } from '@/types'
-import { FileText, Plus, Search } from 'lucide-react'
+import { FileText, Plus, Search, ChevronDown } from 'lucide-react'
 
 export default function ContractsPage() {
   const [contracts, setContracts] = useState<Contract[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<ContractStatus | 'all'>('all')
   const [searchTerm, setSearchTerm] = useState('')
+  const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [recentlyChanged, setRecentlyChanged] = useState<Set<string>>(new Set())
   const router = useRouter()
   const { user } = useAuth()
 
@@ -31,6 +33,28 @@ export default function ContractsPage() {
     }
   }
 
+  const handleStatusChange = async (contract: Contract, newStatus: ContractStatus) => {
+    if (newStatus === contract.status) return
+    setUpdatingId(contract.id)
+    try {
+      await api.patch(`/contracts/${contract.id}`, { status: newStatus })
+      setContracts(prev => prev.map(c => c.id === contract.id ? { ...c, status: newStatus, updatedAt: new Date().toISOString() } : c))
+      setRecentlyChanged(prev => new Set(prev).add(contract.id))
+      setTimeout(() => {
+        setRecentlyChanged(prev => {
+          const next = new Set(prev)
+          next.delete(contract.id)
+          return next
+        })
+      }, 3000)
+    } catch (error) {
+      console.error('Failed to update contract status:', error)
+      alert('Failed to update status. Please try again.')
+    } finally {
+      setUpdatingId(null)
+    }
+  }
+
   const getStatusColor = (status: ContractStatus) => {
     switch (status) {
       case ContractStatus.SIGNED:
@@ -46,13 +70,64 @@ export default function ContractsPage() {
     }
   }
 
+  // Cancelled contracts older than 7 days are hidden except in the 'cancelled' filter
+  const isVisibleCancelled = (contract: Contract) => {
+    const updated = new Date(contract.updatedAt)
+    const daysSince = (Date.now() - updated.getTime()) / (1000 * 60 * 60 * 24)
+    return daysSince <= 7
+  }
+
   const filteredContracts = contracts
-    .filter(contract => filter === 'all' || contract.status === filter)
-    .filter(contract => 
-      searchTerm === '' || 
+    .filter(contract => {
+      if (contract.status === ContractStatus.CANCELLED && filter !== ContractStatus.CANCELLED) {
+        return isVisibleCancelled(contract)
+      }
+      return filter === 'all' || contract.status === filter
+    })
+    .filter(contract =>
+      searchTerm === '' ||
       contract.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       contract.contractNumber.toLowerCase().includes(searchTerm.toLowerCase())
     )
+
+  const StatusSelector = ({ contract }: { contract: Contract }) => {
+    const highlighted = recentlyChanged.has(contract.id)
+    if (user?.role !== 'owner') {
+      return (
+        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(contract.status)}`}>
+          {contract.status.charAt(0).toUpperCase() + contract.status.slice(1)}
+        </span>
+      )
+    }
+    return (
+      <div
+        className={`relative inline-flex items-center rounded-full transition-all duration-300 ${highlighted ? 'ring-2 ring-green-400 ring-offset-1' : ''}`}
+        onClick={e => e.stopPropagation()}
+      >
+        <select
+          value={contract.status}
+          onChange={e => handleStatusChange(contract, e.target.value as ContractStatus)}
+          disabled={updatingId === contract.id}
+          className={`pl-2 pr-6 py-1 text-xs font-semibold rounded-full border-0 cursor-pointer appearance-none focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${getStatusColor(contract.status)}`}
+        >
+          {Object.values(ContractStatus).map(s => (
+            <option key={s} value={s} className="bg-white text-gray-900 font-normal">
+              {s.charAt(0).toUpperCase() + s.slice(1)}
+            </option>
+          ))}
+        </select>
+        <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none opacity-60" />
+        {updatingId === contract.id && (
+          <span className="absolute -right-5 top-1/2 -translate-y-1/2">
+            <svg className="animate-spin h-3 w-3 text-gray-500" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+            </svg>
+          </span>
+        )}
+      </div>
+    )
+  }
 
   if (loading) {
     return (
@@ -98,10 +173,16 @@ export default function ContractsPage() {
         >
           <option value="all">All Statuses</option>
           {Object.values(ContractStatus).map(s => (
-            <option key={s} value={s} className="capitalize">{s}</option>
+            <option key={s} value={s} className="capitalize">{s.charAt(0).toUpperCase() + s.slice(1)}</option>
           ))}
         </select>
       </div>
+
+      {filter !== ContractStatus.CANCELLED && (
+        <p className="text-xs text-gray-400 mb-3 -mt-3">
+          Cancelled contracts are hidden after 7 days. Use the &quot;Cancelled&quot; filter to see all.
+        </p>
+      )}
 
       {/* Mobile card view */}
       <div className="block md:hidden space-y-3">
@@ -111,17 +192,19 @@ export default function ContractsPage() {
           filteredContracts.map((contract) => (
             <div
               key={contract.id}
-              className="bg-white rounded-lg shadow p-4 cursor-pointer active:bg-gray-50 hover:shadow-md transition-shadow"
+              className={`bg-white rounded-lg shadow p-4 cursor-pointer active:bg-gray-50 hover:shadow-md transition-all duration-300 ${
+                recentlyChanged.has(contract.id) ? 'ring-2 ring-green-400 shadow-md' : ''
+              }`}
               onClick={() => router.push(`/dashboard/contracts/${contract.id}`)}
             >
-              <div className="flex justify-between items-start">
+              <div className="flex justify-between items-start gap-2">
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-gray-900 truncate">{contract.title}</p>
                   <p className="text-sm text-gray-500">{contract.contractNumber}</p>
                 </div>
-                <span className={`ml-2 px-2 py-1 text-xs font-semibold rounded-full flex-shrink-0 ${getStatusColor(contract.status)}`}>
-                  {contract.status}
-                </span>
+                <div className="flex-shrink-0">
+                  <StatusSelector contract={contract} />
+                </div>
               </div>
               <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-600">
                 <span>
@@ -175,7 +258,11 @@ export default function ContractsPage() {
               filteredContracts.map((contract) => (
                 <tr
                   key={contract.id}
-                  className="hover:bg-gray-50 cursor-pointer"
+                  className={`cursor-pointer transition-all duration-300 ${
+                    recentlyChanged.has(contract.id)
+                      ? 'bg-green-50 hover:bg-green-50'
+                      : 'hover:bg-gray-50'
+                  }`}
                   onClick={() => router.push(`/dashboard/contracts/${contract.id}`)}
                 >
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
@@ -193,9 +280,7 @@ export default function ContractsPage() {
                     {new Date(contract.createdAt).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(contract.status)}`}>
-                      {contract.status}
-                    </span>
+                    <StatusSelector contract={contract} />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium" onClick={e => e.stopPropagation()}>
                     <button

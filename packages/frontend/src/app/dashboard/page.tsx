@@ -22,7 +22,7 @@ interface IntakeForm {
 }
 
 export default function DashboardPage() {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const [stats, setStats] = useState({
     unpaidInvoices: 0,
     unpaidAmount: 0,
@@ -38,10 +38,20 @@ export default function DashboardPage() {
   const [recentClients, setRecentClients] = useState<IntakeForm[]>([])
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
+  const [intakeSlug, setIntakeSlug] = useState<string | null>(null)
 
   useEffect(() => {
+    if (authLoading || !user) return
     fetchDashboardData()
-  }, [])
+  }, [authLoading, user])
+
+  useEffect(() => {
+    if (!user?.id) return
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/intake-forms/public-form/${user.id}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.intakeSlug) setIntakeSlug(data.intakeSlug) })
+      .catch(() => {})
+  }, [user?.id])
 
   const fetchDashboardData = async () => {
     try {
@@ -52,12 +62,12 @@ export default function DashboardPage() {
       // Fetch invoices for unpaid count
       const invoicesRes = await api.get<Invoice[]>('/invoices')
       const invoices = invoicesRes.data
-      // Only count invoices that are linked to a booking (client booked) AND have been sent
+      // Count invoices linked to a booking where money is still owed (any status except paid/cancelled)
       const unpaidInvoices = invoices.filter(inv =>
         !!inv.booking_id &&
-        (inv.status === InvoiceStatus.SENT ||
-          inv.status === InvoiceStatus.PARTIAL ||
-          inv.status === InvoiceStatus.OVERDUE)
+        inv.status !== InvoiceStatus.PAID &&
+        inv.status !== InvoiceStatus.CANCELLED &&
+        Number(inv.amount_due ?? 0) > 0
       )
       const unpaidAmount = unpaidInvoices.reduce((sum, inv) => sum + Number(inv.amount_due ?? 0), 0)
 
@@ -286,20 +296,21 @@ export default function DashboardPage() {
       </div>
       {/* Share Client Intake Form */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl shadow-sm p-5 mb-6 sm:mb-8 text-white">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h2 className="text-base font-bold mb-1">Share Your Client Intake Form</h2>
-            <p className="text-blue-100 text-sm">Send this link to clients to collect event details automatically.</p>
-          </div>
+        <h2 className="text-base font-bold mb-1">Share Your Client Intake Form</h2>
+        <p className="text-blue-100 text-sm mb-3">Send this link to clients to collect event details automatically.</p>
+        <div className="flex items-center gap-2 bg-white/10 border border-white/30 rounded-lg px-3 py-2">
+          <span className="flex-1 text-sm font-mono truncate select-all">
+            dovenuesuite.com/intake/{intakeSlug ?? user?.id}
+          </span>
           <button
             onClick={() => {
-              navigator.clipboard.writeText(`${window.location.origin}/intake/${user?.id}`)
+              navigator.clipboard.writeText(`https://dovenuesuite.com/intake/${intakeSlug ?? user?.id}`)
               setCopied(true)
               setTimeout(() => setCopied(false), 2000)
             }}
-            className="flex items-center gap-2 px-5 py-2.5 bg-white text-blue-700 rounded-lg font-semibold text-sm hover:bg-blue-50 transition-colors whitespace-nowrap"
+            className="flex-shrink-0 px-4 py-1.5 bg-white text-blue-700 rounded-md font-semibold text-sm hover:bg-blue-50 transition-colors"
           >
-            {copied ? '✓ Copied!' : 'Copy Link'}
+            {copied ? '✓ Copied!' : 'Copy'}
           </button>
         </div>
       </div>

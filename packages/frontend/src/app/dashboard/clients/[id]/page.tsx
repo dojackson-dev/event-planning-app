@@ -80,6 +80,7 @@ export default function ClientDetailPage() {
   const [editData, setEditData] = useState<Partial<IntakeForm>>({})
   const [saving, setSaving] = useState(false)
   const [messageContent, setMessageContent] = useState('')
+  const [messageSending, setMessageSending] = useState(false)
   const [appointmentData, setAppointmentData] = useState({ date: '', time: '', notes: '' })
 
   // ── Vendor booking state ──────────────────────────────────────
@@ -238,15 +239,28 @@ export default function ClientDetailPage() {
 
   const handleSendMessage = async () => {
     if (!client || !messageContent.trim()) return
+    if (!client.contact_phone) {
+      alert('This client has no phone number on file.')
+      return
+    }
+    setMessageSending(true)
     try {
-      // TODO: Implement message API endpoint
-      console.log('Sending message to', client.contact_email, ':', messageContent)
-      alert('Message sent successfully!')
+      await api.post('/messages/send', {
+        recipientPhone: client.contact_phone,
+        recipientName: client.contact_name,
+        recipientType: 'client',
+        messageType: 'custom',
+        content: messageContent.trim(),
+        skipOptInCheck: true,
+      })
       setShowMessageModal(false)
       setMessageContent('')
-    } catch (error) {
+      alert(`SMS sent to ${client.contact_name}`)
+    } catch (error: any) {
       console.error('Error sending message:', error)
-      alert('Failed to send message')
+      alert(error.response?.data?.message || 'Failed to send SMS')
+    } finally {
+      setMessageSending(false)
     }
   }
 
@@ -705,39 +719,45 @@ export default function ClientDetailPage() {
         {showMessageModal && client && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
-              <h2 className="text-xl font-bold mb-4">Send Message to {client.contact_name}</h2>
+              <h2 className="text-xl font-bold mb-4">Send SMS to {client.contact_name}</h2>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
                   <input
-                    type="email"
-                    value={client.contact_email}
+                    type="text"
+                    value={client.contact_phone || 'No phone on file'}
                     disabled
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
                   />
                 </div>
+                {!client.contact_phone && (
+                  <p className="text-sm text-red-600">⚠ No phone number on file for this client. Add one via Edit Client Details.</p>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
                   <textarea
                     value={messageContent}
                     onChange={(e) => setMessageContent(e.target.value)}
-                    placeholder="Type your message here..."
+                    placeholder="Type your SMS message here..."
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     rows={4}
+                    maxLength={1600}
                   />
+                  <p className="text-xs text-gray-400 text-right mt-1">{messageContent.length}/1600</p>
                 </div>
                 <div className="flex gap-3 justify-end pt-4">
                   <button
-                    onClick={() => setShowMessageModal(false)}
+                    onClick={() => { setShowMessageModal(false); setMessageContent('') }}
                     className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleSendMessage}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    disabled={messageSending || !messageContent.trim() || !client.contact_phone}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
-                    Send
+                    {messageSending ? 'Sending...' : 'Send SMS'}
                   </button>
                 </div>
               </div>

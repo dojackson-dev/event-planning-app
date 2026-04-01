@@ -13,12 +13,14 @@ export class BookingsService {
 
   async findAll(supabase: SupabaseClient): Promise<Booking[]> {
     console.log('Fetching bookings...');
+    // A booking is defined as an event with deposit paid or complete balance paid
     const { data, error } = await supabase
       .from('booking')
       .select(`
         *,
         event:event(id, name, date, start_time, end_time, venue, location, status)
       `)
+      .in('client_status', ['deposit_paid', 'completed'])
       .order('created_at', { ascending: false });
 
     if (error) {

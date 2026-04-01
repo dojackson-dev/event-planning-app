@@ -30,7 +30,7 @@ export default function BookingsPage() {
   const router = useRouter()
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<'all' | BookingStatus>('all')
+  const [filter, setFilter] = useState<'all' | 'deposit_paid' | 'completed'>('all')
 
   useEffect(() => {
     fetchBookings()
@@ -79,9 +79,10 @@ export default function BookingsPage() {
     }
   }
 
-  const filteredBookings = filter === 'all' 
-    ? bookings 
-    : bookings.filter(b => b.status === filter)
+  // A booking is an event with deposit paid or complete balance paid
+  const filteredBookings = filter === 'all'
+    ? bookings
+    : bookings.filter(b => (b.client_status ?? b.clientStatus) === filter)
 
   if (loading) {
     return <div>Loading...</div>
@@ -93,7 +94,7 @@ export default function BookingsPage() {
         <h1 className="text-3xl font-bold text-gray-900">Bookings</h1>
       </div>
 
-      {/* Filters */}
+      {/* Filters — Bookings = events with deposit paid or full balance paid */}
       <div className="mb-6 flex gap-4 flex-wrap">
         <button
           onClick={() => setFilter('all')}
@@ -106,34 +107,24 @@ export default function BookingsPage() {
           All
         </button>
         <button
-          onClick={() => setFilter(BookingStatus.PENDING)}
+          onClick={() => setFilter('deposit_paid')}
           className={`px-4 py-2 rounded-md transition-colors ${
-            filter === BookingStatus.PENDING
+            filter === 'deposit_paid'
               ? 'bg-primary-600 text-white'
               : 'bg-white text-gray-700 hover:bg-gray-100'
           }`}
         >
-          Pending
+          Deposit Paid
         </button>
         <button
-          onClick={() => setFilter(BookingStatus.CONFIRMED)}
+          onClick={() => setFilter('completed')}
           className={`px-4 py-2 rounded-md transition-colors ${
-            filter === BookingStatus.CONFIRMED
+            filter === 'completed'
               ? 'bg-primary-600 text-white'
               : 'bg-white text-gray-700 hover:bg-gray-100'
           }`}
         >
-          Confirmed
-        </button>
-        <button
-          onClick={() => setFilter(BookingStatus.CANCELLED)}
-          className={`px-4 py-2 rounded-md transition-colors ${
-            filter === BookingStatus.CANCELLED
-              ? 'bg-primary-600 text-white'
-              : 'bg-white text-gray-700 hover:bg-gray-100'
-          }`}
-        >
-          Cancelled
+          Balance Paid
         </button>
       </div>
 
@@ -151,16 +142,15 @@ export default function BookingsPage() {
               <div className="flex justify-between items-start">
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-gray-900 truncate">
-                    {booking.user ? `${booking.user.firstName} ${booking.user.lastName}` : 'N/A'}
+                    {booking.contact_name || (booking.user ? `${booking.user.firstName} ${booking.user.lastName}` : 'N/A')}
                   </p>
                   <p className="text-sm text-gray-600 truncate">{booking.event?.name || 'N/A'}</p>
                 </div>
                 <span className={`ml-2 px-2 py-1 text-xs font-semibold rounded-full flex-shrink-0 ${
-                  booking.status === BookingStatus.CONFIRMED ? 'bg-green-100 text-green-800' :
-                  booking.status === BookingStatus.PENDING ? 'bg-yellow-100 text-yellow-800' :
-                  'bg-red-100 text-red-800'
+                  (booking.client_status ?? booking.clientStatus) === 'completed' ? 'bg-green-100 text-green-800' :
+                  'bg-purple-100 text-purple-800'
                 }`}>
-                  {booking.status}
+                  {(booking.client_status ?? booking.clientStatus) === 'completed' ? 'Balance Paid' : 'Deposit Paid'}
                 </span>
               </div>
               <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-600">

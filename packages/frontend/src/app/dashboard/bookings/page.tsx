@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { Booking, ClientStatus, BookingStatus } from '@/types'
-import { Eye, Download, Mail, RefreshCw, XCircle } from 'lucide-react'
+import { Booking, ClientStatus } from '@/types'
+import { Eye, Download, Mail, RefreshCw, XCircle, Search } from 'lucide-react'
 import { format } from 'date-fns'
 
 const clientStatusLabels: Record<ClientStatus, string> = {
@@ -30,7 +30,8 @@ export default function BookingsPage() {
   const router = useRouter()
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<'all' | BookingStatus>('all')
+  const [filter, setFilter] = useState<'all' | 'deposit_paid' | 'completed'>('all')
+  const [searchTerm, setSearchTerm] = useState('')
 
   useEffect(() => {
     fetchBookings()
@@ -79,9 +80,16 @@ export default function BookingsPage() {
     }
   }
 
-  const filteredBookings = filter === 'all' 
-    ? bookings 
-    : bookings.filter(b => b.status === filter)
+  // A booking is an event with deposit paid or complete balance paid
+  const filteredBookings = bookings
+    .filter(b => filter === 'all' || (b.client_status ?? b.clientStatus) === filter)
+    .filter(b => {
+      if (!searchTerm) return true
+      const q = searchTerm.toLowerCase()
+      const name = (b.contact_name || (b.user ? `${b.user.firstName} ${b.user.lastName}` : '')).toLowerCase()
+      const eventName = (b.event?.name || '').toLowerCase()
+      return name.includes(q) || eventName.includes(q) || (b.contact_email || '').toLowerCase().includes(q)
+    })
 
   if (loading) {
     return <div>Loading...</div>
@@ -93,48 +101,27 @@ export default function BookingsPage() {
         <h1 className="text-3xl font-bold text-gray-900">Bookings</h1>
       </div>
 
-      {/* Filters */}
-      <div className="mb-6 flex gap-4 flex-wrap">
-        <button
-          onClick={() => setFilter('all')}
-          className={`px-4 py-2 rounded-md transition-colors ${
-            filter === 'all'
-              ? 'bg-primary-600 text-white'
-              : 'bg-white text-gray-700 hover:bg-gray-100'
-          }`}
+      {/* Search + Filter — Bookings = events with deposit paid or full balance paid */}
+      <div className="mb-6 flex flex-col sm:flex-row gap-3">
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
+          <input
+            type="text"
+            placeholder="Search by client name or event..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+          />
+        </div>
+        <select
+          value={filter}
+          onChange={e => setFilter(e.target.value as 'all' | 'deposit_paid' | 'completed')}
+          className="px-4 py-2 border border-gray-300 rounded-md bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
         >
-          All
-        </button>
-        <button
-          onClick={() => setFilter(BookingStatus.PENDING)}
-          className={`px-4 py-2 rounded-md transition-colors ${
-            filter === BookingStatus.PENDING
-              ? 'bg-primary-600 text-white'
-              : 'bg-white text-gray-700 hover:bg-gray-100'
-          }`}
-        >
-          Pending
-        </button>
-        <button
-          onClick={() => setFilter(BookingStatus.CONFIRMED)}
-          className={`px-4 py-2 rounded-md transition-colors ${
-            filter === BookingStatus.CONFIRMED
-              ? 'bg-primary-600 text-white'
-              : 'bg-white text-gray-700 hover:bg-gray-100'
-          }`}
-        >
-          Confirmed
-        </button>
-        <button
-          onClick={() => setFilter(BookingStatus.CANCELLED)}
-          className={`px-4 py-2 rounded-md transition-colors ${
-            filter === BookingStatus.CANCELLED
-              ? 'bg-primary-600 text-white'
-              : 'bg-white text-gray-700 hover:bg-gray-100'
-          }`}
-        >
-          Cancelled
-        </button>
+          <option value="all">All Bookings</option>
+          <option value="deposit_paid">Deposit Paid</option>
+          <option value="completed">Balance Paid</option>
+        </select>
       </div>
 
       {/* Mobile card view */}
@@ -145,22 +132,21 @@ export default function BookingsPage() {
           filteredBookings.map((booking) => (
             <div
               key={booking.id}
-              className={`bg-white rounded-lg shadow p-4 cursor-pointer active:bg-gray-50 hover:shadow-md transition-shadow ${booking.status === BookingStatus.CANCELLED ? 'opacity-60' : ''}`}
+              className={`bg-white rounded-lg shadow p-4 cursor-pointer active:bg-gray-50 hover:shadow-md transition-shadow ${(booking.client_status ?? booking.clientStatus) === 'cancelled' ? 'opacity-60' : ''}`}
               onClick={() => router.push(`/dashboard/bookings/${booking.id}`)}
             >
               <div className="flex justify-between items-start">
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-gray-900 truncate">
-                    {booking.user ? `${booking.user.firstName} ${booking.user.lastName}` : 'N/A'}
+                    {booking.contact_name || (booking.user ? `${booking.user.firstName} ${booking.user.lastName}` : 'N/A')}
                   </p>
                   <p className="text-sm text-gray-600 truncate">{booking.event?.name || 'N/A'}</p>
                 </div>
                 <span className={`ml-2 px-2 py-1 text-xs font-semibold rounded-full flex-shrink-0 ${
-                  booking.status === BookingStatus.CONFIRMED ? 'bg-green-100 text-green-800' :
-                  booking.status === BookingStatus.PENDING ? 'bg-yellow-100 text-yellow-800' :
-                  'bg-red-100 text-red-800'
+                  (booking.client_status ?? booking.clientStatus) === 'completed' ? 'bg-green-100 text-green-800' :
+                  'bg-purple-100 text-purple-800'
                 }`}>
-                  {booking.status}
+                  {(booking.client_status ?? booking.clientStatus) === 'completed' ? 'Balance Paid' : 'Deposit Paid'}
                 </span>
               </div>
               <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-600">
@@ -182,7 +168,7 @@ export default function BookingsPage() {
               <div className="mt-3 pt-3 border-t flex justify-between items-center" onClick={e => e.stopPropagation()}>
                 <span className="text-xs text-gray-400">Tap to view details →</span>
                 <div className="flex gap-1">
-                  {booking.status !== BookingStatus.CANCELLED && (
+                  {(booking.client_status ?? booking.clientStatus) !== 'cancelled' && (
                     <button
                       onClick={() => cancelBooking(booking.id)}
                       className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
@@ -226,7 +212,7 @@ export default function BookingsPage() {
                   Client Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
+                  Payment Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Total Price
@@ -246,7 +232,7 @@ export default function BookingsPage() {
               {filteredBookings.map((booking) => (
                 <tr
                   key={booking.id}
-                  className={`hover:bg-gray-50 cursor-pointer ${booking.status === BookingStatus.CANCELLED ? 'opacity-60' : ''}`}
+                  className={`hover:bg-gray-50 cursor-pointer ${(booking.client_status ?? booking.clientStatus) === 'cancelled' ? 'opacity-60' : ''}`}
                   onClick={() => router.push(`/dashboard/bookings/${booking.id}`)}
                 >
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
@@ -273,13 +259,11 @@ export default function BookingsPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      booking.status === BookingStatus.CONFIRMED
+                      (booking.client_status ?? booking.clientStatus) === 'completed'
                         ? 'bg-green-100 text-green-800'
-                        : booking.status === BookingStatus.PENDING
-                        ? 'bg-yellow-100 text-yellow-800'
-                        : 'bg-red-100 text-red-800'
+                        : 'bg-purple-100 text-purple-800'
                     }`}>
-                      {booking.status}
+                      {(booking.client_status ?? booking.clientStatus) === 'completed' ? 'Balance Paid' : 'Deposit Paid'}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -324,7 +308,7 @@ export default function BookingsPage() {
                       >
                         <Mail className="h-5 w-5" />
                       </button>
-                      {booking.status !== BookingStatus.CANCELLED && (
+                      {(booking.client_status ?? booking.clientStatus) !== 'cancelled' && (
                         <button
                           onClick={() => cancelBooking(booking.id)}
                           className="text-red-600 hover:text-red-900"

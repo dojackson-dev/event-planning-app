@@ -61,7 +61,8 @@ export default function InvoiceDetailPage() {
     if (!invoice) return
 
     try {
-      await api.put(`/invoices/${invoice.id}`, { status })
+      // Use the /status endpoint so the backend also sends SMS/email notification
+      await api.put(`/invoices/${invoice.id}/status`, { status })
       fetchInvoice()
     } catch (error) {
       console.error('Failed to update status:', error)
@@ -157,7 +158,15 @@ export default function InvoiceDetailPage() {
                   onClick={() => handleStatusUpdate(InvoiceStatus.SENT)}
                   className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
                 >
-                  Mark as Sent
+                  Send Invoice
+                </button>
+              )}
+              {(invoice.status === InvoiceStatus.SENT || invoice.status === InvoiceStatus.PARTIAL || invoice.status === InvoiceStatus.OVERDUE) && (
+                <button
+                  onClick={() => handleStatusUpdate(invoice.status)}
+                  className="bg-blue-100 text-blue-700 px-4 py-2 rounded-md hover:bg-blue-200"
+                >
+                  Resend Invoice
                 </button>
               )}
             </>

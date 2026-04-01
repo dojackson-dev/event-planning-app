@@ -245,71 +245,37 @@ export default function ClientsPage() {
           </div>
         </div>
 
-        {/* Search Box */}
+        {/* Search + Filter */}
         <div className="bg-white rounded-lg shadow p-4 mb-6">
-          <div className="flex items-center gap-3 px-2">
-            <Search className="h-5 w-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search by name, email, or phone..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1 outline-none text-gray-900 placeholder-gray-500"
-            />
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm('')}
-                className="text-gray-400 hover:text-gray-600 font-semibold"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Filters */}
-        <div className="bg-white rounded-lg shadow p-4 mb-6">
-          <div className="flex gap-2">
-            <button
-              onClick={() => setFilter('all')}
-              className={`px-4 py-2 rounded-lg ${
-                filter === 'all'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1 flex items-center gap-3 border border-gray-300 rounded-md px-3 py-2">
+              <Search className="h-5 w-5 text-gray-400 flex-shrink-0" />
+              <input
+                type="text"
+                placeholder="Search by name, email, or phone..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="flex-1 outline-none text-gray-900 placeholder-gray-500"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="text-gray-400 hover:text-gray-600 font-semibold"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            <select
+              value={filter}
+              onChange={e => setFilter(e.target.value as 'all' | 'new' | 'contacted' | 'converted')}
+              className="px-4 py-2 border border-gray-300 rounded-md bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              All ({clients.length})
-            </button>
-            <button
-              onClick={() => setFilter('new')}
-              className={`px-4 py-2 rounded-lg ${
-                filter === 'new'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              New ({clients.filter(c => c.status === 'new').length})
-            </button>
-            <button
-              onClick={() => setFilter('contacted')}
-              className={`px-4 py-2 rounded-lg ${
-                filter === 'contacted'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Contacted ({clients.filter(c => c.status === 'contacted').length})
-            </button>
-            <button
-              onClick={() => setFilter('converted')}
-              className={`px-4 py-2 rounded-lg ${
-                filter === 'converted'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Converted ({clients.filter(c => c.status === 'converted').length})
-            </button>
+              <option value="all">All ({clients.length})</option>
+              <option value="new">New ({clients.filter(c => c.status === 'new').length})</option>
+              <option value="contacted">Contacted ({clients.filter(c => c.status === 'contacted').length})</option>
+              <option value="converted">Converted ({clients.filter(c => c.status === 'converted').length})</option>
+            </select>
           </div>
         </div>
 

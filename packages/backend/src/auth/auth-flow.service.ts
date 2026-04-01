@@ -87,6 +87,7 @@ export class AuthFlowService {
         business_name: dto.businessName,
         primary_owner_id: userId,
         subscription_status: 'trial', // Start with free trial
+        intake_slug: await this.generateUniqueSlug(dto.businessName, supabase),
       })
       .select()
       .single();
@@ -172,6 +173,26 @@ export class AuthFlowService {
     if (error) throw new BadRequestException(error.message);
 
     return { message: 'Phone verified successfully' };
+  }
+
+  /** Converts a business name to a URL-safe slug and ensures it's unique in owner_accounts. */
+  private async generateUniqueSlug(businessName: string, supabase: any): Promise<string> {
+    const base = businessName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+
+    let slug = base;
+    let attempt = 2;
+    while (true) {
+      const { data } = await supabase
+        .from('owner_accounts')
+        .select('id')
+        .eq('intake_slug', slug)
+        .maybeSingle();
+      if (!data) return slug; // slug is free
+      slug = `${base}-${attempt++}`;
+    }
   }
 
   /**

@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
-import { Event, Booking, ClientStatus } from '@/types'
-import { Calendar, Users, DollarSign, CheckCircle, Clock, ArrowRight, UserPlus, Mail, Phone } from 'lucide-react'
+import { Event, Booking, ClientStatus, Invoice, InvoiceStatus } from '@/types'
+import { Calendar, Users, DollarSign, CheckCircle, Clock, ArrowRight, UserPlus, Mail, Phone, AlertCircle } from 'lucide-react'
 import { parseLocalDate } from '@/lib/dateUtils'
 import SetupChecklist from '@/components/SetupChecklist'
 
@@ -22,10 +22,10 @@ interface IntakeForm {
 }
 
 export default function DashboardPage() {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const [stats, setStats] = useState({
-    totalEvents: 0,
-    upcomingEvents: 0,
+    unpaidInvoices: 0,
+    unpaidAmount: 0,
     totalBookings: 0,
     pendingBookings: 0,
     totalRevenue: 0,
@@ -38,17 +38,38 @@ export default function DashboardPage() {
   const [recentClients, setRecentClients] = useState<IntakeForm[]>([])
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
+  const [intakeSlug, setIntakeSlug] = useState<string | null>(null)
 
   useEffect(() => {
+    if (authLoading || !user) return
     fetchDashboardData()
-  }, [])
+  }, [authLoading, user])
+
+  useEffect(() => {
+    if (!user?.id) return
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/intake-forms/public-form/${user.id}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.intakeSlug) setIntakeSlug(data.intakeSlug) })
+      .catch(() => {})
+  }, [user?.id])
 
   const fetchDashboardData = async () => {
     try {
-      // Fetch events
+      // Fetch events (still needed for upcoming bookings)
       const eventsRes = await api.get<Event[]>('/events')
       const events = eventsRes.data
-      const upcomingEvents = events.filter(e => parseLocalDate(e.date) >= new Date(new Date().setHours(0, 0, 0, 0)))
+
+      // Fetch invoices for unpaid count
+      const invoicesRes = await api.get<Invoice[]>('/invoices')
+      const invoices = invoicesRes.data
+      // Count invoices linked to a booking where money is still owed (any status except paid/cancelled)
+      const unpaidInvoices = invoices.filter(inv =>
+        !!inv.booking_id &&
+        inv.status !== InvoiceStatus.PAID &&
+        inv.status !== InvoiceStatus.CANCELLED &&
+        Number(inv.amount_due ?? 0) > 0
+      )
+      const unpaidAmount = unpaidInvoices.reduce((sum, inv) => sum + Number(inv.amount_due ?? 0), 0)
 
       // Fetch bookings
       const bookingsRes = await api.get<Booking[]>('/bookings')
@@ -68,8 +89,8 @@ export default function DashboardPage() {
       const newClients = clients.filter(c => c.status === 'new')
 
       setStats({
-        totalEvents: events.length,
-        upcomingEvents: upcomingEvents.length,
+        unpaidInvoices: unpaidInvoices.length,
+        unpaidAmount,
         totalBookings: bookings.length,
         pendingBookings: pendingBookings.length,
         totalRevenue,
@@ -137,15 +158,15 @@ export default function DashboardPage() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
-        <Link href="/dashboard/events" className="bg-white rounded-xl shadow-sm p-5 sm:p-6 border border-gray-100 hover:shadow-md hover:border-primary-200 transition-all cursor-pointer">
+        <Link href="/dashboard/invoices" className="bg-white rounded-xl shadow-sm p-5 sm:p-6 border border-gray-100 hover:shadow-md hover:border-red-200 transition-all cursor-pointer">
           <div className="flex items-center justify-between">
             <div className="flex-1">
-              <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">Total Events</p>
-              <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.totalEvents}</p>
-              <p className="text-xs text-gray-500 mt-1">{stats.upcomingEvents} upcoming</p>
+              <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">Unpaid Invoices</p>
+              <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.unpaidInvoices}</p>
+              <p className="text-xs text-gray-500 mt-1">${stats.unpaidAmount.toFixed(2)} outstanding</p>
             </div>
-            <div className="bg-primary-50 p-3 rounded-lg">
-              <Calendar className="h-8 w-8 sm:h-10 sm:w-10 text-primary-600" />
+            <div className="bg-red-50 p-3 rounded-lg">
+              <AlertCircle className="h-8 w-8 sm:h-10 sm:w-10 text-red-500" />
             </div>
           </div>
         </Link>
@@ -275,20 +296,21 @@ export default function DashboardPage() {
       </div>
       {/* Share Client Intake Form */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl shadow-sm p-5 mb-6 sm:mb-8 text-white">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h2 className="text-base font-bold mb-1">Share Your Client Intake Form</h2>
-            <p className="text-blue-100 text-sm">Send this link to clients to collect event details automatically.</p>
-          </div>
+        <h2 className="text-base font-bold mb-1">Share Your Client Intake Form</h2>
+        <p className="text-blue-100 text-sm mb-3">Send this link to clients to collect event details automatically.</p>
+        <div className="flex items-center gap-2 bg-white/10 border border-white/30 rounded-lg px-3 py-2">
+          <span className="flex-1 text-sm font-mono truncate select-all">
+            dovenuesuite.com/intake/{intakeSlug ?? user?.id}
+          </span>
           <button
             onClick={() => {
-              navigator.clipboard.writeText(`${window.location.origin}/intake/${user?.id}`)
+              navigator.clipboard.writeText(`https://dovenuesuite.com/intake/${intakeSlug ?? user?.id}`)
               setCopied(true)
               setTimeout(() => setCopied(false), 2000)
             }}
-            className="flex items-center gap-2 px-5 py-2.5 bg-white text-blue-700 rounded-lg font-semibold text-sm hover:bg-blue-50 transition-colors whitespace-nowrap"
+            className="flex-shrink-0 px-4 py-1.5 bg-white text-blue-700 rounded-md font-semibold text-sm hover:bg-blue-50 transition-colors"
           >
-            {copied ? '✓ Copied!' : 'Copy Link'}
+            {copied ? '✓ Copied!' : 'Copy'}
           </button>
         </div>
       </div>

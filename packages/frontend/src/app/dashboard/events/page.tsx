@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { Event } from '@/types'
-import { Plus, Calendar, MapPin, Users, Settings, Edit2, Trash2, ChevronDown } from 'lucide-react'
+import { Plus, Calendar, MapPin, Users, Settings, Edit2, Trash2, ChevronDown, Search } from 'lucide-react'
 import { format } from 'date-fns'
 
 // Parse date string without timezone conversion (YYYY-MM-DD -> Date at midnight local time)
@@ -33,6 +33,7 @@ export default function EventsPage() {
   const [events, setEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'past'>('all')
+  const [searchTerm, setSearchTerm] = useState('')
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -71,11 +72,15 @@ export default function EventsPage() {
   const filteredEvents = events.filter(event => {
     const eventDate = parseLocalDate(event.date)
     const now = new Date()
-    
-    if (filter === 'upcoming') {
-      return eventDate >= now
-    } else if (filter === 'past') {
-      return eventDate < now
+    if (filter === 'upcoming' && eventDate < now) return false
+    if (filter === 'past' && eventDate >= now) return false
+    if (searchTerm) {
+      const q = searchTerm.toLowerCase()
+      return (
+        event.name.toLowerCase().includes(q) ||
+        (event.venue || '').toLowerCase().includes(q) ||
+        (event.location || '').toLowerCase().includes(q)
+      )
     }
     return true
   })
@@ -126,38 +131,27 @@ export default function EventsPage() {
         </Link>
       </div>
 
-      {/* Filters */}
-      <div className="mb-6 flex gap-4">
-        <button
-          onClick={() => setFilter('all')}
-          className={`px-4 py-2 rounded-md transition-colors ${
-            filter === 'all'
-              ? 'bg-primary-600 text-white'
-              : 'bg-white text-gray-700 hover:bg-gray-100'
-          }`}
+      {/* Search + Filter */}
+      <div className="mb-6 flex flex-col sm:flex-row gap-3">
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
+          <input
+            type="text"
+            placeholder="Search by name, venue, or location..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+          />
+        </div>
+        <select
+          value={filter}
+          onChange={e => setFilter(e.target.value as 'all' | 'upcoming' | 'past')}
+          className="px-4 py-2 border border-gray-300 rounded-md bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
         >
-          All Events
-        </button>
-        <button
-          onClick={() => setFilter('upcoming')}
-          className={`px-4 py-2 rounded-md transition-colors ${
-            filter === 'upcoming'
-              ? 'bg-primary-600 text-white'
-              : 'bg-white text-gray-700 hover:bg-gray-100'
-          }`}
-        >
-          Upcoming
-        </button>
-        <button
-          onClick={() => setFilter('past')}
-          className={`px-4 py-2 rounded-md transition-colors ${
-            filter === 'past'
-              ? 'bg-primary-600 text-white'
-              : 'bg-white text-gray-700 hover:bg-gray-100'
-          }`}
-        >
-          Past Events
-        </button>
+          <option value="all">All Events</option>
+          <option value="upcoming">Upcoming</option>
+          <option value="past">Past Events</option>
+        </select>
       </div>
 
       {/* Events Grid */}

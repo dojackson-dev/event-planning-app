@@ -2,12 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class ContractsService {
   constructor(
     private readonly smsNotifications: SmsNotificationsService,
     private readonly supabaseService: SupabaseService,
+    private readonly mailService: MailService,
   ) {}
 
   async findAll(supabase: SupabaseClient): Promise<any[]> {
@@ -190,6 +192,43 @@ export class ContractsService {
       await this.smsNotifications.contractSent(clientPhone, clientName, contractNumber);
     } catch {
       // SMS errors must never break the contract send
+    }
+
+    // Send contract email via Resend
+    try {
+      const clientEmail: string | null = data.client_email ?? data.contact_email ?? null;
+      const clientName: string = data.client_name ?? data.contact_name ?? 'Valued Client';
+      const contractNumber: string = data.contract_number ?? id;
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const contractUrl = `${frontendUrl}/client-portal/contracts/${id}`;
+
+      let ownerName = 'Your Event Coordinator';
+      if (data.owner_id) {
+        const admin = this.supabaseService.getAdminClient();
+        const { data: ownerUser } = await admin
+          .from('users')
+          .select('first_name, last_name')
+          .eq('id', data.owner_id)
+          .maybeSingle();
+        if (ownerUser) {
+          ownerName =
+            `${ownerUser.first_name ?? ''} ${ownerUser.last_name ?? ''}`.trim() || ownerName;
+        }
+      }
+
+      if (clientEmail) {
+        await this.mailService.sendContractWithResend({
+          clientName,
+          clientEmail,
+          ownerName,
+          contractNumber,
+          contractTitle: data.title ?? 'Contract',
+          contractDescription: data.description ?? undefined,
+          contractUrl,
+        });
+      }
+    } catch {
+      // Email errors must never break the contract send
     }
 
     return data;

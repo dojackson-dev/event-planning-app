@@ -437,6 +437,20 @@ export class SmsNotificationsService {
     );
   }
 
+  // ─── INTAKE FORMS ─────────────────────────────────────────────────────────
+
+  async newIntakeFormSubmission(
+    phone: string | null | undefined,
+    clientName: string,
+    eventType: string,
+    eventDate: string,
+  ): Promise<void> {
+    await this.trySend(
+      phone,
+      `DoVenue Suite Client Message\nNew intake form submitted by ${clientName} for a ${eventType} event on ${eventDate}. Log in to review: ${this.url('/dashboard/clients')}`,
+    );
+  }
+
   /**
    * Generic send — use only when no typed method fits.
    */

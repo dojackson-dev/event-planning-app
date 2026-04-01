@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { MailService } from '../mail/mail.service';
 import { TwilioService } from '../messaging/twilio.service';
+import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import { SupabaseClient } from '@supabase/supabase-js';
 
 function normalizePhone(phone: string): string {
@@ -17,6 +18,7 @@ export class IntakeFormsService {
     private readonly supabaseService: SupabaseService,
     private readonly mailService: MailService,
     private readonly twilioService: TwilioService,
+    private readonly smsNotifications: SmsNotificationsService,
   ) {}
 
   async create(supabase: SupabaseClient, userId: string, createDto: any) {
@@ -333,6 +335,61 @@ export class IntakeFormsService {
       event,
       message: 'Successfully converted intake form to booking',
     };
+  }
+
+  async getPublicOwnerInfo(ownerId: string) {
+    const supabaseAdmin = this.supabaseService.getAdminClient();
+    const { data: owner, error } = await supabaseAdmin
+      .from('users')
+      .select('first_name, last_name, email, phone')
+      .eq('id', ownerId)
+      .maybeSingle();
+    if (error || !owner) throw new Error('Owner not found');
+    return {
+      ownerName: [owner.first_name, owner.last_name].filter(Boolean).join(' ') || 'Event Planner',
+    };
+  }
+
+  async createPublic(ownerId: string, dto: any) {
+    const supabaseAdmin = this.supabaseService.getAdminClient();
+    const { accessibility_requirements, preferred_contact, ...safeDto } = dto;
+
+    if (safeDto.contact_phone) {
+      safeDto.contact_phone = normalizePhone(safeDto.contact_phone);
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('intake_forms')
+      .insert([{ ...safeDto, user_id: ownerId }])
+      .select()
+      .single();
+
+    if (error) throw new Error(`Public intake form insert failed: ${error.message}`);
+
+    // Notify the owner via SMS
+    try {
+      const { data: owner } = await supabaseAdmin
+        .from('users')
+        .select('phone')
+        .eq('id', ownerId)
+        .maybeSingle();
+      const ownerPhone = (owner as any)?.phone ?? null;
+      const eventDate = safeDto.event_date
+        ? new Date(safeDto.event_date + 'T12:00:00').toLocaleDateString('en-US', {
+            month: 'short', day: 'numeric', year: 'numeric',
+          })
+        : 'TBD';
+      await this.smsNotifications.newIntakeFormSubmission(
+        ownerPhone,
+        safeDto.contact_name || 'A client',
+        safeDto.event_type || 'event',
+        eventDate,
+      );
+    } catch (smsErr) {
+      console.warn('[IntakeFormsService.createPublic] Owner SMS failed:', smsErr);
+    }
+
+    return data;
   }
 }
 

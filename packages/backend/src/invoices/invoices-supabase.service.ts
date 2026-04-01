@@ -23,6 +23,7 @@ export interface Invoice {
   due_date: string;
   paid_date?: string;
   client_name?: string;
+  client_phone?: string;
   notes?: string;
   terms?: string;
   deposit_percentage?: number;
@@ -63,20 +64,32 @@ export class InvoicesService {
   ) {}
 
   /**
-   * Look up the client phone number via the invoice's linked booking.
-   * Returns null if no booking or no phone on file.
+   * Look up the client phone number via the invoice's linked booking or intake form.
+   * Returns null if neither is linked or no phone is on file.
    */
   private async lookupClientPhone(
     supabase: SupabaseClient,
     invoice: Invoice,
   ): Promise<string | null> {
-    if (!invoice.booking_id) return null;
-    const { data: booking } = await supabase
-      .from('booking')
-      .select('contact_phone')
-      .eq('id', invoice.booking_id)
-      .single();
-    return (booking as any)?.contact_phone ?? null;
+    if (invoice.client_phone) return invoice.client_phone;
+    if (invoice.booking_id) {
+      const { data: booking } = await supabase
+        .from('booking')
+        .select('contact_phone')
+        .eq('id', invoice.booking_id)
+        .single();
+      const phone = (booking as any)?.contact_phone ?? null;
+      if (phone) return phone;
+    }
+    if ((invoice as any).intake_form_id) {
+      const { data: form } = await supabase
+        .from('intake_forms')
+        .select('contact_phone')
+        .eq('id', (invoice as any).intake_form_id)
+        .single();
+      return (form as any)?.contact_phone ?? null;
+    }
+    return null;
   }
 
   private calculateInvoiceTotals(items: Partial<InvoiceItem>[], taxRate: number, discountAmount: number) {
@@ -279,6 +292,7 @@ export class InvoicesService {
         booking_id: invoiceData.booking_id || null,
         intake_form_id: invoiceData.intake_form_id || null,
         client_name: (invoiceData as any).client_name || null,
+        client_phone: (invoiceData as any).client_phone || null,
         subtotal: subtotal,
         tax_rate: Number(invoiceData.tax_rate) || 0,
         tax_amount: taxAmount,

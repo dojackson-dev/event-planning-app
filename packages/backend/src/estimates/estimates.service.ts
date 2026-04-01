@@ -98,6 +98,22 @@ export class EstimatesService {
     return { phone, email };
   }
 
+  private async lookupOwnerPhone(
+    supabase: SupabaseClient,
+    ownerId: string,
+  ): Promise<string | null> {
+    try {
+      const { data } = await supabase
+        .from('users')
+        .select('phone')
+        .eq('id', ownerId)
+        .single();
+      return (data as any)?.phone ?? null;
+    } catch {
+      return null;
+    }
+  }
+
   private calculateTotals(items: Partial<EstimateItem>[], taxRate: number, discountAmount: number) {
     const subtotal = items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
     const taxAmount = subtotal * (taxRate / 100);
@@ -340,6 +356,13 @@ export class EstimatesService {
       } else if (status === 'expired') {
         await this.smsNotifications.estimateExpired(
           phone,
+          clientName,
+          updated.estimate_number,
+        );
+      } else if (status === 'approved') {
+        const ownerPhone = await this.lookupOwnerPhone(supabase, updated.owner_id!);
+        await this.smsNotifications.estimateApproved(
+          ownerPhone,
           clientName,
           updated.estimate_number,
         );

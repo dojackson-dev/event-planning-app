@@ -32,6 +32,7 @@ function NewInvoicePageContent() {
   const [serviceItems, setServiceItems] = useState<ServiceItem[]>([])
   const [selectedBooking, setSelectedBooking] = useState<string>('')
   const [clientName, setClientName] = useState<string>('')
+  const [clientPhone, setClientPhone] = useState<string>('')
   const [intakeFormId, setIntakeFormId] = useState<string | null>(null)
   const [invoiceType, setInvoiceType] = useState<'invoice' | 'estimate'>('invoice')
   const [clientEventDate, setClientEventDate] = useState<string | null>(null)
@@ -289,6 +290,7 @@ function NewInvoicePageContent() {
       const invoiceData = {
         invoice: {
           booking_id: null,          intake_form_id: intakeFormId || null,          client_name: clientName || null,
+          client_phone: clientPhone || null,
           owner_id: user?.id,
           tax_rate: includeTax ? Number(taxRate) : 0,
           discount_amount: Number(discountAmount),
@@ -407,7 +409,21 @@ function NewInvoicePageContent() {
           />
         </div>
 
-        {/* Invoice Dates */}
+        {/* Client Phone */}
+        {!intakeFormId && (
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Client Phone <span className="text-gray-400 font-normal">(for SMS notifications)</span>
+          </label>
+          <input
+            type="tel"
+            value={clientPhone}
+            onChange={(e) => setClientPhone(e.target.value)}
+            placeholder="e.g. 555-867-5309"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+          />
+        </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">

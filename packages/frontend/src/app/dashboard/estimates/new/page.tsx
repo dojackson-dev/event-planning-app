@@ -30,6 +30,7 @@ function NewEstimatePageInner() {
   const [serviceItems, setServiceItems] = useState<ServiceItem[]>([])
   const [selectedEvent, setSelectedEvent] = useState('')
   const [clientName, setClientName] = useState('')
+  const [clientPhone, setClientPhone] = useState('')
   const [intakeFormId, setIntakeFormId] = useState<string | null>(null)
   const [clientEventDate, setClientEventDate] = useState<string | null>(null)
   const [clientEventType, setClientEventType] = useState<string | null>(null)
@@ -198,6 +199,7 @@ function NewEstimatePageInner() {
           owner_id: user?.id,
           intake_form_id: intakeFormId || null,
           client_name: clientName || null,
+          client_phone: clientPhone || null,
           tax_rate: includeTax ? Number(taxRate) : 0,
           discount_amount: Number(discountAmount),
           issue_date: issueDate,
@@ -276,6 +278,22 @@ function NewEstimatePageInner() {
             />
           )}
         </div>
+
+        {/* Client Phone */}
+        {!intakeFormId && (
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Client Phone <span className="text-gray-400 font-normal">(for SMS notifications)</span>
+          </label>
+          <input
+            type="tel"
+            value={clientPhone}
+            onChange={e => setClientPhone(e.target.value)}
+            placeholder="e.g. 555-867-5309"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+          />
+        </div>
+        )}
 
         {/* Event link — only shown when NOT pre-filled from a client */}
         {!intakeFormId && (

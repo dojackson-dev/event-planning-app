@@ -37,6 +37,7 @@ export default function DashboardPage() {
   const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([])
   const [recentClients, setRecentClients] = useState<IntakeForm[]>([])
   const [loading, setLoading] = useState(true)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     fetchDashboardData()
@@ -272,6 +273,26 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+      {/* Share Client Intake Form */}
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl shadow-sm p-5 mb-6 sm:mb-8 text-white">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h2 className="text-base font-bold mb-1">Share Your Client Intake Form</h2>
+            <p className="text-blue-100 text-sm">Send this link to clients to collect event details automatically.</p>
+          </div>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(`${window.location.origin}/intake/${user?.id}`)
+              setCopied(true)
+              setTimeout(() => setCopied(false), 2000)
+            }}
+            className="flex items-center gap-2 px-5 py-2.5 bg-white text-blue-700 rounded-lg font-semibold text-sm hover:bg-blue-50 transition-colors whitespace-nowrap"
+          >
+            {copied ? '✓ Copied!' : 'Copy Link'}
+          </button>
+        </div>
+      </div>
+
       {/* Quick Vendor Booking Link */}
       <div className="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-xl shadow-sm p-6 mb-6 sm:mb-8 text-white">
         <div className="flex items-start justify-between">

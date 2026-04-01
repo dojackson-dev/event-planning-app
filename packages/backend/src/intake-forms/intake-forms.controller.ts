@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Headers, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Headers, UnauthorizedException, NotFoundException } from '@nestjs/common';
 import { IntakeFormsService } from './intake-forms.service';
 import { SupabaseService } from '../supabase/supabase.service';
 
@@ -33,6 +33,39 @@ export class IntakeFormsController {
       throw new UnauthorizedException('Invalid token');
     }
     return user.id;
+  }
+
+  /** Public: returns the owner's business name so the form page can display a branded header. */
+  @Get('public-form/:ownerId')
+  async getPublicFormInfo(@Param('ownerId') ownerId: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const { data, error } = await admin
+      .from('owner_accounts')
+      .select('id, business_name, logo_url')
+      .eq('primary_owner_id', ownerId)
+      .single();
+    if (error || !data) throw new NotFoundException('Owner not found');
+    return { businessName: data.business_name, logoUrl: data.logo_url };
+  }
+
+  /** Public: submit a client intake form for a specific owner — no auth required. */
+  @Post('public/:ownerId')
+  async createPublic(@Param('ownerId') ownerId: string, @Body() createDto: any) {
+    try {
+      const admin = this.supabaseService.getAdminClient();
+      // Verify owner exists
+      const { data: owner, error: ownerErr } = await admin
+        .from('owner_accounts')
+        .select('id')
+        .eq('primary_owner_id', ownerId)
+        .single();
+      if (ownerErr || !owner) throw new NotFoundException('Owner not found');
+      const result = await this.intakeFormsService.create(admin, ownerId, createDto);
+      return result;
+    } catch (error: any) {
+      console.error('Public intake form error:', error?.message || error);
+      throw error;
+    }
   }
 
   @Post()

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Estimate, EstimateStatus } from '@/types'
+import { Search } from 'lucide-react'
 
 function getClientName(estimate: Estimate): string {
   const booking = (estimate.booking as any)
@@ -33,6 +34,7 @@ export default function EstimatesPage() {
   const [estimates, setEstimates] = useState<Estimate[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<EstimateStatus | 'all'>('all')
+  const [searchTerm, setSearchTerm] = useState('')
   const router = useRouter()
   const { user } = useAuth()
 
@@ -63,7 +65,16 @@ export default function EstimatesPage() {
     }
   }
 
-  const filtered = filter === 'all' ? estimates : estimates.filter(e => e.status === filter)
+  const filtered = estimates
+    .filter(e => filter === 'all' || e.status === filter)
+    .filter(e => {
+      if (!searchTerm) return true
+      const q = searchTerm.toLowerCase()
+      return (
+        e.estimate_number.toLowerCase().includes(q) ||
+        getClientName(e).toLowerCase().includes(q)
+      )
+    })
 
   const isExpiringSoon = (e: Estimate) => {
     if (e.status !== EstimateStatus.SENT && e.status !== EstimateStatus.DRAFT) return false
@@ -87,19 +98,28 @@ export default function EstimatesPage() {
         </button>
       </div>
 
-      {/* Filters */}
-      <div className="mb-6 flex gap-2 flex-wrap">
-        {(['all', ...Object.values(EstimateStatus)] as const).map(s => (
-          <button
-            key={s}
-            onClick={() => setFilter(s)}
-            className={`px-3 py-1 rounded-full text-sm font-medium capitalize transition-colors ${
-              filter === s ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            {s}
-          </button>
-        ))}
+      {/* Search + Filter */}
+      <div className="mb-6 flex flex-col sm:flex-row gap-3">
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
+          <input
+            type="text"
+            placeholder="Search by estimate # or client name..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+          />
+        </div>
+        <select
+          value={filter}
+          onChange={e => setFilter(e.target.value as EstimateStatus | 'all')}
+          className="px-4 py-2 border border-gray-300 rounded-md bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
+        >
+          <option value="all">All Statuses</option>
+          {Object.values(EstimateStatus).map(s => (
+            <option key={s} value={s} className="capitalize">{s}</option>
+          ))}
+        </select>
       </div>
 
       {filtered.length === 0 ? (

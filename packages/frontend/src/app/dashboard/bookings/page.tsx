@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { Booking, ClientStatus } from '@/types'
-import { Eye, Download, Mail, RefreshCw, XCircle } from 'lucide-react'
+import { Eye, Download, Mail, RefreshCw, XCircle, Search } from 'lucide-react'
 import { format } from 'date-fns'
 
 const clientStatusLabels: Record<ClientStatus, string> = {
@@ -31,6 +31,7 @@ export default function BookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'deposit_paid' | 'completed'>('all')
+  const [searchTerm, setSearchTerm] = useState('')
 
   useEffect(() => {
     fetchBookings()
@@ -80,9 +81,15 @@ export default function BookingsPage() {
   }
 
   // A booking is an event with deposit paid or complete balance paid
-  const filteredBookings = filter === 'all'
-    ? bookings
-    : bookings.filter(b => (b.client_status ?? b.clientStatus) === filter)
+  const filteredBookings = bookings
+    .filter(b => filter === 'all' || (b.client_status ?? b.clientStatus) === filter)
+    .filter(b => {
+      if (!searchTerm) return true
+      const q = searchTerm.toLowerCase()
+      const name = (b.contact_name || (b.user ? `${b.user.firstName} ${b.user.lastName}` : '')).toLowerCase()
+      const eventName = (b.event?.name || '').toLowerCase()
+      return name.includes(q) || eventName.includes(q) || (b.contact_email || '').toLowerCase().includes(q)
+    })
 
   if (loading) {
     return <div>Loading...</div>
@@ -94,38 +101,27 @@ export default function BookingsPage() {
         <h1 className="text-3xl font-bold text-gray-900">Bookings</h1>
       </div>
 
-      {/* Filters — Bookings = events with deposit paid or full balance paid */}
-      <div className="mb-6 flex gap-4 flex-wrap">
-        <button
-          onClick={() => setFilter('all')}
-          className={`px-4 py-2 rounded-md transition-colors ${
-            filter === 'all'
-              ? 'bg-primary-600 text-white'
-              : 'bg-white text-gray-700 hover:bg-gray-100'
-          }`}
+      {/* Search + Filter — Bookings = events with deposit paid or full balance paid */}
+      <div className="mb-6 flex flex-col sm:flex-row gap-3">
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
+          <input
+            type="text"
+            placeholder="Search by client name or event..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+          />
+        </div>
+        <select
+          value={filter}
+          onChange={e => setFilter(e.target.value as 'all' | 'deposit_paid' | 'completed')}
+          className="px-4 py-2 border border-gray-300 rounded-md bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
         >
-          All
-        </button>
-        <button
-          onClick={() => setFilter('deposit_paid')}
-          className={`px-4 py-2 rounded-md transition-colors ${
-            filter === 'deposit_paid'
-              ? 'bg-primary-600 text-white'
-              : 'bg-white text-gray-700 hover:bg-gray-100'
-          }`}
-        >
-          Deposit Paid
-        </button>
-        <button
-          onClick={() => setFilter('completed')}
-          className={`px-4 py-2 rounded-md transition-colors ${
-            filter === 'completed'
-              ? 'bg-primary-600 text-white'
-              : 'bg-white text-gray-700 hover:bg-gray-100'
-          }`}
-        >
-          Balance Paid
-        </button>
+          <option value="all">All Bookings</option>
+          <option value="deposit_paid">Deposit Paid</option>
+          <option value="completed">Balance Paid</option>
+        </select>
       </div>
 
       {/* Mobile card view */}

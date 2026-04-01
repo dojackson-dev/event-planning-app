@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Invoice, InvoiceStatus } from '@/types'
+import { Search } from 'lucide-react'
 
 function getCustomerName(invoice: any): string {
   if (invoice.client_name) return invoice.client_name
@@ -21,6 +22,7 @@ export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<InvoiceStatus | 'all'>('all')
+  const [searchTerm, setSearchTerm] = useState('')
   const router = useRouter()
   const { user } = useAuth()
 
@@ -74,9 +76,17 @@ export default function InvoicesPage() {
     }
   }
 
-  const filteredInvoices = filter === 'all'
-    ? invoices
-    : invoices.filter(inv => inv.status === filter)
+  const filteredInvoices = invoices
+    .filter(inv => filter === 'all' || inv.status === filter)
+    .filter(inv => {
+      if (!searchTerm) return true
+      const q = searchTerm.toLowerCase()
+      return (
+        inv.invoice_number.toLowerCase().includes(q) ||
+        getCustomerName(inv).toLowerCase().includes(q) ||
+        (inv.client_email || '').toLowerCase().includes(q)
+      )
+    })
 
   if (loading) {
     return (
@@ -102,31 +112,28 @@ export default function InvoicesPage() {
         )}
       </div>
 
-      {/* Filters */}
-      <div className="mb-6 flex gap-2">
-        <button
-          onClick={() => setFilter('all')}
-          className={`px-4 py-2 rounded-md ${
-            filter === 'all'
-              ? 'bg-primary-600 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
+      {/* Search + Filter */}
+      <div className="mb-6 flex flex-col sm:flex-row gap-3">
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
+          <input
+            type="text"
+            placeholder="Search by invoice # or customer name..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+          />
+        </div>
+        <select
+          value={filter}
+          onChange={e => setFilter(e.target.value as InvoiceStatus | 'all')}
+          className="px-4 py-2 border border-gray-300 rounded-md bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
         >
-          All
-        </button>
-        {Object.values(InvoiceStatus).map((status) => (
-          <button
-            key={status}
-            onClick={() => setFilter(status)}
-            className={`px-4 py-2 rounded-md capitalize ${
-              filter === status
-                ? 'bg-primary-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            {status}
-          </button>
-        ))}
+          <option value="all">All Statuses</option>
+          {Object.values(InvoiceStatus).map(s => (
+            <option key={s} value={s} className="capitalize">{s}</option>
+          ))}
+        </select>
       </div>
 
       {/* Mobile card view */}

@@ -314,126 +314,178 @@ export default function ClientsPage() {
         </div>
 
         {/* Clients List */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          {filteredClients.length === 0 ? (
-            <div className="p-12 text-center">
-              <User className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600">No clients found</p>
+        {filteredClients.length === 0 ? (
+          <div className="bg-white rounded-lg shadow p-12 text-center">
+            <User className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-600">No clients found</p>
+          </div>
+        ) : (
+          <>
+            {/* Mobile card view */}
+            <div className="block md:hidden space-y-3">
+              {filteredClients.map((client) => (
+                <div
+                  key={client.id}
+                  className="bg-white rounded-lg shadow p-4 cursor-pointer active:bg-gray-50 hover:shadow-md transition-shadow"
+                  onClick={() => router.push(`/dashboard/clients/${client.id}`)}
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-gray-900 truncate">{client.contact_name}</p>
+                      <p className="text-sm text-gray-500 truncate">{client.contact_email}</p>
+                      {client.contact_phone && <p className="text-sm text-gray-500">{client.contact_phone}</p>}
+                    </div>
+                    <span className={`ml-2 px-2 py-1 text-xs font-semibold rounded-full flex-shrink-0 ${getStatusColor(client.status)}`}>
+                      {client.status}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2 text-sm text-gray-600">
+                    <span>{formatEventType(client.event_type)}</span>
+                    <span>·</span>
+                    <span>{formatDate(client.event_date)}</span>
+                    <span>·</span>
+                    <span>{client.guest_count} guests</span>
+                  </div>
+                  <div className="mt-3 pt-3 border-t flex justify-between items-center" onClick={e => e.stopPropagation()}>
+                    <span className="text-xs text-gray-400">Tap to view details →</span>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => { setSelectedClient(client); setShowMessageModal(true) }}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                        title="Send SMS"
+                      >
+                        <MessageSquare className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => { setSelectedClient(client); setShowInvoiceModal(true); fetchClientInvoices(client.id) }}
+                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
+                        title="Send invoice"
+                      >
+                        <FileText className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => { setSelectedClient(client); setShowAppointmentModal(true) }}
+                        className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg"
+                        title="Schedule appointment"
+                      >
+                        <ClockIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteClient(client)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                        title="Delete"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Event</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Guests</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Submitted</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredClients.map((client) => (
-                    <tr key={client.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">{client.contact_name}</div>
-                          <div className="text-sm text-gray-500 flex items-center gap-1">
-                            <Mail className="h-3 w-3" />
-                            {client.contact_email}
-                          </div>
-                          {client.contact_phone && (
-                            <div className="text-sm text-gray-500 flex items-center gap-1">
-                              <Phone className="h-3 w-3" />
-                              {client.contact_phone}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{formatEventType(client.event_type)}</div>
-                        {client.budget_range && (
-                          <div className="text-sm text-gray-500">{client.budget_range}</div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-1 text-sm text-gray-900">
-                          <Calendar className="h-4 w-4" />
-                          {formatDate(client.event_date)}
-                        </div>
-                        {client.event_time && (
-                          <div className="text-sm text-gray-500">{client.event_time}</div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {client.guest_count}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(client.status)}`}>
-                          {client.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatDate(client.created_at)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-y-2">
-                        <div className="flex items-center gap-2 justify-end flex-wrap">
-                          <button
-                            onClick={() => {
-                              setSelectedClient(client)
-                              setShowMessageModal(true)
-                            }}
-                            className="text-blue-600 hover:text-blue-900 flex items-center gap-1 px-2 py-1 rounded hover:bg-blue-50"
-                            title="Send message"
-                          >
-                            <MessageSquare className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedClient(client)
-                              setShowInvoiceModal(true)
-                              fetchClientInvoices(client.id)
-                            }}
-                            className="text-green-600 hover:text-green-900 flex items-center gap-1 px-2 py-1 rounded hover:bg-green-50"
-                            title="Send invoice"
-                          >
-                            <FileText className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedClient(client)
-                              setShowAppointmentModal(true)
-                            }}
-                            className="text-purple-600 hover:text-purple-900 flex items-center gap-1 px-2 py-1 rounded hover:bg-purple-50"
-                            title="Make appointment"
-                          >
-                            <ClockIcon className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => router.push(`/dashboard/clients/${client.id}`)}
-                            className="text-blue-600 hover:text-blue-900 flex items-center gap-1 px-2 py-1 rounded hover:bg-blue-50"
-                            title="View details"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteClient(client)}
-                            className="text-red-600 hover:text-red-900 flex items-center gap-1 px-2 py-1 rounded hover:bg-red-50"
-                            title="Delete client"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </td>
+
+            {/* Desktop table view */}
+            <div className="hidden md:block bg-white rounded-lg shadow overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Event</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Guests</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Submitted</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredClients.map((client) => (
+                      <tr
+                        key={client.id}
+                        className="hover:bg-gray-50 cursor-pointer"
+                        onClick={() => router.push(`/dashboard/clients/${client.id}`)}
+                      >
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">{client.contact_name}</div>
+                            <div className="text-sm text-gray-500 flex items-center gap-1">
+                              <Mail className="h-3 w-3" />
+                              {client.contact_email}
+                            </div>
+                            {client.contact_phone && (
+                              <div className="text-sm text-gray-500 flex items-center gap-1">
+                                <Phone className="h-3 w-3" />
+                                {client.contact_phone}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">{formatEventType(client.event_type)}</div>
+                          {client.budget_range && (
+                            <div className="text-sm text-gray-500">{client.budget_range}</div>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-1 text-sm text-gray-900">
+                            <Calendar className="h-4 w-4" />
+                            {formatDate(client.event_date)}
+                          </div>
+                          {client.event_time && (
+                            <div className="text-sm text-gray-500">{client.event_time}</div>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {client.guest_count}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(client.status)}`}>
+                            {client.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {formatDate(client.created_at)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center gap-2 justify-end flex-wrap">
+                            <button
+                              onClick={() => { setSelectedClient(client); setShowMessageModal(true) }}
+                              className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
+                              title="Send message"
+                            >
+                              <MessageSquare className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => { setSelectedClient(client); setShowInvoiceModal(true); fetchClientInvoices(client.id) }}
+                              className="text-green-600 hover:text-green-900 p-1 rounded hover:bg-green-50"
+                              title="Send invoice"
+                            >
+                              <FileText className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => { setSelectedClient(client); setShowAppointmentModal(true) }}
+                              className="text-purple-600 hover:text-purple-900 p-1 rounded hover:bg-purple-50"
+                              title="Make appointment"
+                            >
+                              <ClockIcon className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteClient(client)}
+                              className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50"
+                              title="Delete client"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          )}
-        </div>
+          </>
+        )}
 
         {/* Message Modal */}
         {showMessageModal && selectedClient && (

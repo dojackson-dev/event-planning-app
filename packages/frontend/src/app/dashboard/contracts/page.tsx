@@ -118,8 +118,44 @@ export default function ContractsPage() {
         </div>
       </div>
 
-      {/* Contracts Table */}
-      <div className="bg-white shadow-md rounded-lg overflow-hidden">
+      {/* Mobile card view */}
+      <div className="block md:hidden space-y-3">
+        {filteredContracts.length === 0 ? (
+          <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">No contracts found</div>
+        ) : (
+          filteredContracts.map((contract) => (
+            <div
+              key={contract.id}
+              className="bg-white rounded-lg shadow p-4 cursor-pointer active:bg-gray-50 hover:shadow-md transition-shadow"
+              onClick={() => router.push(`/dashboard/contracts/${contract.id}`)}
+            >
+              <div className="flex justify-between items-start">
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-900 truncate">{contract.title}</p>
+                  <p className="text-sm text-gray-500">{contract.contractNumber}</p>
+                </div>
+                <span className={`ml-2 px-2 py-1 text-xs font-semibold rounded-full flex-shrink-0 ${getStatusColor(contract.status)}`}>
+                  {contract.status}
+                </span>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-600">
+                <span>
+                  {contract.client ? `${contract.client.firstName} ${contract.client.lastName}` : 'N/A'}
+                </span>
+                <span>·</span>
+                <span>{new Date(contract.createdAt).toLocaleDateString()}</span>
+              </div>
+              <div className="mt-3 pt-3 border-t flex justify-between items-center">
+                <span className="text-xs text-gray-400">Tap to view details →</span>
+                <FileText className="h-4 w-4 text-gray-400" />
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop table view */}
+      <div className="hidden md:block bg-white shadow-md rounded-lg overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
@@ -152,7 +188,11 @@ export default function ContractsPage() {
               </tr>
             ) : (
               filteredContracts.map((contract) => (
-                <tr key={contract.id} className="hover:bg-gray-50">
+                <tr
+                  key={contract.id}
+                  className="hover:bg-gray-50 cursor-pointer"
+                  onClick={() => router.push(`/dashboard/contracts/${contract.id}`)}
+                >
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {contract.contractNumber}
                   </td>
@@ -168,15 +208,11 @@ export default function ContractsPage() {
                     {new Date(contract.createdAt).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span
-                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(
-                        contract.status
-                      )}`}
-                    >
+                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(contract.status)}`}>
                       {contract.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium" onClick={e => e.stopPropagation()}>
                     <button
                       onClick={() => router.push(`/dashboard/contracts/${contract.id}`)}
                       className="text-primary-600 hover:text-primary-900"

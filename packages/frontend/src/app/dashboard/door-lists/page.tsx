@@ -55,14 +55,16 @@ export default function DoorListsPage() {
   const fetchEvents = async () => {
     try {
       const response = await api.get<Event[]>('/events')
-      // Filter to upcoming or today's events
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const upcomingEvents = response.data.filter(event => {
+      // Show events from 3 days ago through the future so door lists work
+      // for events happening now, today, or recently completed
+      const cutoff = new Date()
+      cutoff.setDate(cutoff.getDate() - 3)
+      cutoff.setHours(0, 0, 0, 0)
+      const relevantEvents = response.data.filter(event => {
         const eventDate = parseLocalDate(event.date)
-        return eventDate >= today
+        return eventDate >= cutoff
       })
-      setEvents(upcomingEvents)
+      setEvents(relevantEvents)
     } catch (error) {
       console.error('Failed to fetch events:', error)
     }

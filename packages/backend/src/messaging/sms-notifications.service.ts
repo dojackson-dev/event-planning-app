@@ -22,7 +22,7 @@ export class SmsNotificationsService {
     private readonly twilioService: TwilioService,
     private readonly configService: ConfigService,
   ) {
-    this.frontendUrl = this.configService.get<string>('FRONTEND_URL', 'http://localhost:3000');
+    this.frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://dovenuesuite.com');
   }
 
   // ─── URL helpers ──────────────────────────────────────────────────────────

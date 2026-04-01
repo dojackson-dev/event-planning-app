@@ -24,7 +24,7 @@ export class MailService {
 
   async sendContractNotification(contract: Contract, client: User, owner: User): Promise<void> {
     try {
-      const contractUrl = `${process.env.FRONTEND_URL || 'http://localhost:3001'}/dashboard/contracts/${contract.id}`;
+      const contractUrl = `${process.env.FRONTEND_URL || 'https://dovenuesuite.com'}/dashboard/contracts/${contract.id}`;
       
       const mailOptions = {
         from: `"${owner.firstName} ${owner.lastName}" <${process.env.SMTP_FROM || 'noreply@dovenue.com'}>`,
@@ -120,7 +120,7 @@ export class MailService {
 
   async sendContractSignedNotification(contract: Contract, client: User, owner: User): Promise<void> {
     try {
-      const contractUrl = `${process.env.FRONTEND_URL || 'http://localhost:3001'}/dashboard/contracts/${contract.id}`;
+      const contractUrl = `${process.env.FRONTEND_URL || 'https://dovenuesuite.com'}/dashboard/contracts/${contract.id}`;
       
       const mailOptions = {
         from: `"DoVenueSuite" <${process.env.SMTP_FROM || 'noreply@dovenue.com'}>`,

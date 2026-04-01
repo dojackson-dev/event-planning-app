@@ -39,7 +39,8 @@ export class BookingsService {
       .eq('id', id)
       .single();
 
-    if (error) throw error;
+    if (error && error.code !== 'PGRST116') throw error;
+    if (!data) throw new NotFoundException(`Booking ${id} not found`);
     return data;
   }
 

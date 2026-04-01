@@ -21,6 +21,8 @@ export interface Estimate {
   rejected_date?: string;
   converted_invoice_id?: string;
   converted_at?: string;
+  client_name?: string;
+  client_phone?: string;
   notes?: string;
   terms?: string;
   created_at?: string;
@@ -49,19 +51,47 @@ export class EstimatesService {
   constructor(private readonly smsNotifications: SmsNotificationsService) {}
 
   /**
-   * Look up the client phone number via the estimate's linked booking.
+   * Look up the client phone number via the estimate's linked booking or intake form.
    */
   private async lookupClientPhone(
     supabase: SupabaseClient,
     estimate: Estimate,
   ): Promise<string | null> {
-    if (!(estimate as any).booking_id) return null;
-    const { data: booking } = await supabase
-      .from('booking')
-      .select('contact_phone')
-      .eq('id', (estimate as any).booking_id)
+    if (estimate.client_phone) return estimate.client_phone;
+    if ((estimate as any).booking_id) {
+      const { data: booking } = await supabase
+        .from('booking')
+        .select('contact_phone')
+        .eq('id', (estimate as any).booking_id)
+        .single();
+      const phone = (booking as any)?.contact_phone ?? null;
+      if (phone) return phone;
+    }
+    if ((estimate as any).intake_form_id) {
+      const { data: form } = await supabase
+        .from('intake_forms')
+        .select('contact_phone')
+        .eq('id', (estimate as any).intake_form_id)
+        .single();
+      return (form as any)?.contact_phone ?? null;
+    }
+    return null;
+  }
+
+  /**
+   * Look up the owner's phone number for owner-facing notifications.
+   */
+  private async lookupOwnerPhone(
+    supabase: SupabaseClient,
+    ownerId: string | undefined,
+  ): Promise<string | null> {
+    if (!ownerId) return null;
+    const { data: user } = await supabase
+      .from('users')
+      .select('phone_number')
+      .eq('id', ownerId)
       .single();
-    return (booking as any)?.contact_phone ?? null;
+    return (user as any)?.phone_number ?? null;
   }
 
   private calculateTotals(items: Partial<EstimateItem>[], taxRate: number, discountAmount: number) {
@@ -173,6 +203,8 @@ export class EstimatesService {
         status: estimateData.status || 'draft',
         issue_date: estimateData.issue_date,
         expiration_date: estimateData.expiration_date,
+        client_name: estimateData.client_name || null,
+        client_phone: estimateData.client_phone || null,
         notes: estimateData.notes || null,
         terms: estimateData.terms || null,
       })
@@ -259,13 +291,21 @@ export class EstimatesService {
     try {
       const phone = await this.lookupClientPhone(supabase, updated);
       const clientName =
-        (updated as any).booking?.contact_name || 'Valued Client';
+        updated.client_name || (updated as any).booking?.contact_name || 'Valued Client';
       if (status === 'sent') {
         await this.smsNotifications.estimateSent(
           phone,
           clientName,
           updated.estimate_number,
           updated.total_amount,
+        );
+      } else if (status === 'approved') {
+        // Notify the OWNER that the client approved the estimate
+        const ownerPhone = await this.lookupOwnerPhone(supabase, updated.owner_id);
+        await this.smsNotifications.estimateApproved(
+          ownerPhone,
+          clientName,
+          updated.estimate_number,
         );
       } else if (status === 'rejected') {
         await this.smsNotifications.estimateRejected(

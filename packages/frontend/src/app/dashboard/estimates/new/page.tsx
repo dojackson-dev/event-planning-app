@@ -12,6 +12,7 @@ interface BookingOption {
   id: string
   contact_name: string
   contact_email: string
+  contact_phone?: string
   event_id?: string
   event?: {
     id: string
@@ -41,6 +42,8 @@ function NewEstimatePageInner() {
   const [bookings, setBookings] = useState<BookingOption[]>([])
   const [serviceItems, setServiceItems] = useState<ServiceItem[]>([])
   const [selectedBooking, setSelectedBooking] = useState('')
+  const [clientName, setClientName] = useState('')
+  const [clientPhone, setClientPhone] = useState('')
   const [lineItems, setLineItems] = useState<EstimateLineItem[]>([])
   const [vendorBookingBanner, setVendorBookingBanner] = useState<string>('')
   const [includeTax, setIncludeTax] = useState(false)
@@ -193,6 +196,8 @@ function NewEstimatePageInner() {
       const body = {
         estimate: {
           booking_id: selectedBooking || null,
+          client_name: clientName || null,
+          client_phone: clientPhone || null,
           owner_id: user?.id,
           tax_rate: includeTax ? Number(taxRate) : 0,
           discount_amount: Number(discountAmount),
@@ -245,7 +250,17 @@ function NewEstimatePageInner() {
           <label className="block text-sm font-medium text-gray-700 mb-2">Select Event / Booking (Optional)</label>
           <select
             value={selectedBooking}
-            onChange={e => setSelectedBooking(e.target.value)}
+            onChange={e => {
+              setSelectedBooking(e.target.value)
+              const b = bookings.find(bk => bk.id === e.target.value)
+              if (b) {
+                setClientName(b.contact_name || '')
+                setClientPhone(b.contact_phone || '')
+              } else {
+                setClientName('')
+                setClientPhone('')
+              }
+            }}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
             <option value="">-- No booking --</option>
@@ -260,6 +275,30 @@ function NewEstimatePageInner() {
           {bookings.length === 0 && (
             <p className="text-xs text-gray-400 mt-1">No upcoming bookings found. Estimates can still be created without linking to a booking.</p>
           )}
+        </div>
+
+        {/* Client Info */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Client Name</label>
+            <input
+              type="text"
+              value={clientName}
+              onChange={e => setClientName(e.target.value)}
+              placeholder="Enter client name"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Client Phone (for SMS notification)</label>
+            <input
+              type="tel"
+              value={clientPhone}
+              onChange={e => setClientPhone(e.target.value)}
+              placeholder="(555) 123-4567"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+          </div>
         </div>
 
         {/* Dates */}

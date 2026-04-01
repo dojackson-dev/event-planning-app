@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 
 @Injectable()
 export class IntakeFormsService {
-  constructor(private readonly supabaseService: SupabaseService) {}
+  constructor(
+    private readonly supabaseService: SupabaseService,
+    private readonly smsNotifications: SmsNotificationsService,
+  ) {}
 
   async create(supabase: SupabaseClient, userId: string, createDto: any) {
     // Temporarily remove accessibility_requirements due to PostgREST cache issue
@@ -142,6 +146,85 @@ export class IntakeFormsService {
       event,
       message: 'Successfully converted intake form to booking',
     };
+  }
+
+  /**
+   * Public: fetch owner branding info for displaying on the public intake form.
+   * No auth required — only exposes business_name and logo_url.
+   */
+  async getPublicOwnerInfo(ownerId: string): Promise<{ businessName: string; logoUrl: string | null }> {
+    const admin = this.supabaseService.getAdminClient();
+
+    // Resolve owner_account_id via memberships (primary) or direct user_id (fallback)
+    const { data: membership } = await admin
+      .from('memberships')
+      .select('owner_account_id')
+      .eq('user_id', ownerId)
+      .limit(1)
+      .maybeSingle();
+
+    let ownerAccountId = membership?.owner_account_id ?? null;
+
+    if (!ownerAccountId) {
+      const { data: ownerAccount } = await admin
+        .from('owner_accounts')
+        .select('id')
+        .eq('user_id', ownerId)
+        .maybeSingle();
+      ownerAccountId = ownerAccount?.id ?? null;
+    }
+
+    if (!ownerAccountId) return { businessName: '', logoUrl: null };
+
+    const { data } = await admin
+      .from('owner_accounts')
+      .select('business_name, logo_url')
+      .eq('id', ownerAccountId)
+      .maybeSingle();
+
+    return {
+      businessName: data?.business_name || '',
+      logoUrl: data?.logo_url || null,
+    };
+  }
+
+  /**
+   * Public: submit an intake form on behalf of a client (no auth token).
+   * Saves the form with user_id = ownerId, then SMS-notifies the owner.
+   */
+  async createPublic(ownerId: string, dto: any): Promise<any> {
+    const admin = this.supabaseService.getAdminClient();
+
+    // Strip field causing PostgREST cache issues
+    const { accessibility_requirements, ...dtoWithoutAccessibility } = dto;
+
+    const { data, error } = await admin
+      .from('intake_forms')
+      .insert([{ ...dtoWithoutAccessibility, user_id: ownerId }])
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Look up owner's phone from users table and send SMS notification
+    try {
+      const { data: ownerUser } = await admin
+        .from('users')
+        .select('phone_number')
+        .eq('id', ownerId)
+        .maybeSingle();
+
+      const ownerPhone: string | null = (ownerUser as any)?.phone_number ?? null;
+      const clientName = dto.contact_name || `${dto.first_name || ''} ${dto.last_name || ''}`.trim() || 'A client';
+      const eventType = dto.event_type || 'event';
+      const eventDate = dto.event_date || 'a date TBD';
+
+      await this.smsNotifications.newIntakeFormSubmission(ownerPhone, clientName, eventType, eventDate);
+    } catch {
+      // SMS errors must never block form submission
+    }
+
+    return data;
   }
 }
 

@@ -52,10 +52,12 @@ export default function DashboardPage() {
       // Fetch invoices for unpaid count
       const invoicesRes = await api.get<Invoice[]>('/invoices')
       const invoices = invoicesRes.data
+      // Only count invoices that are linked to a booking (client booked) AND have been sent
       const unpaidInvoices = invoices.filter(inv =>
-        inv.status === InvoiceStatus.SENT ||
-        inv.status === InvoiceStatus.PARTIAL ||
-        inv.status === InvoiceStatus.OVERDUE
+        !!inv.booking_id &&
+        (inv.status === InvoiceStatus.SENT ||
+          inv.status === InvoiceStatus.PARTIAL ||
+          inv.status === InvoiceStatus.OVERDUE)
       )
       const unpaidAmount = unpaidInvoices.reduce((sum, inv) => sum + Number(inv.amount_due ?? 0), 0)
 

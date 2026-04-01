@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { Booking, ClientStatus, BookingStatus } from '@/types'
+import { Booking, ClientStatus } from '@/types'
 import { Eye, Download, Mail, RefreshCw, XCircle } from 'lucide-react'
 import { format } from 'date-fns'
 
@@ -136,7 +136,7 @@ export default function BookingsPage() {
           filteredBookings.map((booking) => (
             <div
               key={booking.id}
-              className={`bg-white rounded-lg shadow p-4 cursor-pointer active:bg-gray-50 hover:shadow-md transition-shadow ${booking.status === BookingStatus.CANCELLED ? 'opacity-60' : ''}`}
+              className={`bg-white rounded-lg shadow p-4 cursor-pointer active:bg-gray-50 hover:shadow-md transition-shadow ${(booking.client_status ?? booking.clientStatus) === 'cancelled' ? 'opacity-60' : ''}`}
               onClick={() => router.push(`/dashboard/bookings/${booking.id}`)}
             >
               <div className="flex justify-between items-start">
@@ -172,7 +172,7 @@ export default function BookingsPage() {
               <div className="mt-3 pt-3 border-t flex justify-between items-center" onClick={e => e.stopPropagation()}>
                 <span className="text-xs text-gray-400">Tap to view details →</span>
                 <div className="flex gap-1">
-                  {booking.status !== BookingStatus.CANCELLED && (
+                  {(booking.client_status ?? booking.clientStatus) !== 'cancelled' && (
                     <button
                       onClick={() => cancelBooking(booking.id)}
                       className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
@@ -216,7 +216,7 @@ export default function BookingsPage() {
                   Client Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
+                  Payment Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Total Price
@@ -236,7 +236,7 @@ export default function BookingsPage() {
               {filteredBookings.map((booking) => (
                 <tr
                   key={booking.id}
-                  className={`hover:bg-gray-50 cursor-pointer ${booking.status === BookingStatus.CANCELLED ? 'opacity-60' : ''}`}
+                  className={`hover:bg-gray-50 cursor-pointer ${(booking.client_status ?? booking.clientStatus) === 'cancelled' ? 'opacity-60' : ''}`}
                   onClick={() => router.push(`/dashboard/bookings/${booking.id}`)}
                 >
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
@@ -263,13 +263,11 @@ export default function BookingsPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      booking.status === BookingStatus.CONFIRMED
+                      (booking.client_status ?? booking.clientStatus) === 'completed'
                         ? 'bg-green-100 text-green-800'
-                        : booking.status === BookingStatus.PENDING
-                        ? 'bg-yellow-100 text-yellow-800'
-                        : 'bg-red-100 text-red-800'
+                        : 'bg-purple-100 text-purple-800'
                     }`}>
-                      {booking.status}
+                      {(booking.client_status ?? booking.clientStatus) === 'completed' ? 'Balance Paid' : 'Deposit Paid'}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -314,7 +312,7 @@ export default function BookingsPage() {
                       >
                         <Mail className="h-5 w-5" />
                       </button>
-                      {booking.status !== BookingStatus.CANCELLED && (
+                      {(booking.client_status ?? booking.clientStatus) !== 'cancelled' && (
                         <button
                           onClick={() => cancelBooking(booking.id)}
                           className="text-red-600 hover:text-red-900"

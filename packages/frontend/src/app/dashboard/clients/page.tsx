@@ -242,7 +242,10 @@ export default function ClientsPage() {
       <div className="max-w-7xl mx-auto px-4 py-4">
         {/* Stats row */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-          <div className="bg-white rounded-2xl shadow-sm p-4 flex items-center gap-3">
+          <button
+            onClick={() => setFilter('all')}
+            className={`bg-white rounded-2xl shadow-sm p-4 flex items-center gap-3 text-left transition-all touch-manipulation hover:shadow-md active:scale-95 ${filter === 'all' ? 'ring-2 ring-blue-500' : ''}`}
+          >
             <div className="bg-blue-50 rounded-xl p-2 flex-shrink-0">
               <User className="h-5 w-5 text-blue-600" />
             </div>
@@ -250,8 +253,11 @@ export default function ClientsPage() {
               <p className="text-xs text-gray-500">Total</p>
               <p className="text-xl font-bold text-gray-900">{clients.length}</p>
             </div>
-          </div>
-          <div className="bg-white rounded-2xl shadow-sm p-4 flex items-center gap-3">
+          </button>
+          <button
+            onClick={() => setFilter('new')}
+            className={`bg-white rounded-2xl shadow-sm p-4 flex items-center gap-3 text-left transition-all touch-manipulation hover:shadow-md active:scale-95 ${filter === 'new' ? 'ring-2 ring-blue-500' : ''}`}
+          >
             <div className="bg-blue-50 rounded-xl p-2 flex-shrink-0">
               <Clock className="h-5 w-5 text-blue-500" />
             </div>
@@ -259,8 +265,11 @@ export default function ClientsPage() {
               <p className="text-xs text-gray-500">New</p>
               <p className="text-xl font-bold text-blue-600">{clients.filter(c => c.status === 'new').length}</p>
             </div>
-          </div>
-          <div className="bg-white rounded-2xl shadow-sm p-4 flex items-center gap-3">
+          </button>
+          <button
+            onClick={() => setFilter('contacted')}
+            className={`bg-white rounded-2xl shadow-sm p-4 flex items-center gap-3 text-left transition-all touch-manipulation hover:shadow-md active:scale-95 ${filter === 'contacted' ? 'ring-2 ring-yellow-500' : ''}`}
+          >
             <div className="bg-yellow-50 rounded-xl p-2 flex-shrink-0">
               <Mail className="h-5 w-5 text-yellow-500" />
             </div>
@@ -268,8 +277,11 @@ export default function ClientsPage() {
               <p className="text-xs text-gray-500">Contacted</p>
               <p className="text-xl font-bold text-yellow-600">{clients.filter(c => c.status === 'contacted').length}</p>
             </div>
-          </div>
-          <div className="bg-white rounded-2xl shadow-sm p-4 flex items-center gap-3">
+          </button>
+          <button
+            onClick={() => setFilter('converted')}
+            className={`bg-white rounded-2xl shadow-sm p-4 flex items-center gap-3 text-left transition-all touch-manipulation hover:shadow-md active:scale-95 ${filter === 'converted' ? 'ring-2 ring-green-500' : ''}`}
+          >
             <div className="bg-green-50 rounded-xl p-2 flex-shrink-0">
               <CheckCircle className="h-5 w-5 text-green-500" />
             </div>
@@ -277,7 +289,7 @@ export default function ClientsPage() {
               <p className="text-xs text-gray-500">Converted</p>
               <p className="text-xl font-bold text-green-600">{clients.filter(c => c.status === 'converted').length}</p>
             </div>
-          </div>
+          </button>
         </div>
 
         {/* Clients grid */}
@@ -324,8 +336,8 @@ export default function ClientsPage() {
                         {client.status.charAt(0).toUpperCase() + client.status.slice(1)}
                       </span>
                       <button
-                        onClick={() => handleDeleteClient(client)}
-                        className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        onClick={(e) => { e.stopPropagation(); handleDeleteClient(client) }}
+                        className="p-3 text-gray-300 hover:text-red-500 hover:bg-red-50 active:bg-red-100 rounded-lg transition-colors touch-manipulation"
                         title="Delete client"
                       >
                         <Trash2 className="h-4 w-4" />

@@ -134,8 +134,19 @@ export class ContractsController {
   }
 
   @Put(':id')
-  @Patch(':id')
   async update(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+    @Body() contractData: any,
+  ): Promise<any | null> {
+    await this.getUserId(authorization);
+    const token = this.extractToken(authorization);
+    const supabase = this.supabaseService.setAuthContext(token);
+    return this.contractsService.update(supabase, id, contractData);
+  }
+
+  @Patch(':id')
+  async partialUpdate(
     @Headers('authorization') authorization: string,
     @Param('id') id: string,
     @Body() contractData: any,

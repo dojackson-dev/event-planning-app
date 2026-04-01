@@ -115,9 +115,19 @@ export class MessagingService {
     }
 
     try {
+      const typeLabel: Record<string, string> = {
+        reminder: 'Reminder',
+        invoice: 'Invoice',
+        confirmation: 'Confirmation',
+        update: 'Update',
+        support: 'Support',
+        announcement: 'Announcement',
+        custom: 'Custom',
+      };
+      const label = typeLabel[messageData.messageType] ?? 'Notification';
       const result = await this.twilioService.sendSMS(
         messageData.recipientPhone,
-        messageData.content,
+        `DoVenue Suite ${label} Message\n${messageData.content}`,
       );
       const { data: updated } = await supabase
         .from('messages')

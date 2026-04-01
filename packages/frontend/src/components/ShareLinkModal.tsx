@@ -55,6 +55,24 @@ export default function ShareLinkModal({
 
         {/* Content */}
         <div className="p-6 space-y-6">
+          {/* Combined Share Button */}
+          <div className="bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg p-5 text-white">
+            <p className="text-sm font-medium mb-1 opacity-90">Quick share — link &amp; code together</p>
+            <p className="text-xs opacity-75 mb-4">Copies a ready-to-send message with the link and access code in one tap</p>
+            <button
+              onClick={() => copyToClipboard(
+                `You've been invited to view and edit the guest list!\n\nLink: ${editLink}\nAccess Code: ${accessCode}\n\nOpen the link and enter the code to get started.`,
+                'combined'
+              )}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-white text-purple-700 font-semibold rounded-lg hover:bg-purple-50 transition-colors"
+            >
+              {copiedItem === 'combined' ? (
+                <><Check className="w-5 h-5" /> Copied! Send it now</>
+              ) : (
+                <><Copy className="w-5 h-5" /> Copy Link &amp; Code Together</>
+              )}
+            </button>
+          </div>
           {/* Access Code Section */}
           <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-6 border border-purple-200">
             <div className="flex items-center gap-2 mb-3">
@@ -163,9 +181,9 @@ export default function ShareLinkModal({
           <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
             <h4 className="font-semibold text-gray-900 mb-2">How to Share:</h4>
             <ol className="list-decimal list-inside space-y-2 text-sm text-gray-600">
-              <li>Copy the access code and share it via text/email</li>
-              <li>Copy the appropriate link and send it to your guests or security</li>
-              <li>Recipients will need both the link AND the access code to access the list</li>
+              <li>Tap <strong>Copy Link &amp; Code Together</strong> above and paste into a text or email</li>
+              <li>Or copy the link and code separately using the buttons below</li>
+              <li>Recipients need both the link AND the access code to access the list</li>
               <li>Lock the guest list when you want to prevent further edits</li>
             </ol>
           </div>

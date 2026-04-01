@@ -7,10 +7,8 @@ import { User } from '../entities/user.entity';
 @Injectable()
 export class MailService {
   private transporter: nodemailer.Transporter;
-  private resend: Resend;
 
   constructor() {
-    this.resend = new Resend(process.env.RESEND_API_KEY || '');
     // Configure email transporter
     // In development, you can use a service like Ethereal Email for testing
     // In production, use a real SMTP service (Gmail, SendGrid, AWS SES, etc.)
@@ -335,6 +333,7 @@ export class MailService {
       return;
     }
     try {
+      const resend = new Resend(process.env.RESEND_API_KEY);
       const formattedDate = params.eventDate
         ? new Date(params.eventDate + 'T12:00:00').toLocaleDateString('en-US', {
             weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -395,7 +394,7 @@ export class MailService {
         </div>
       `;
 
-      await this.resend.emails.send({
+      await resend.emails.send({
         from: `DoVenue Suites <noreply@dovenue.com>`,
         to: params.clientEmail,
         subject: `Contract Ready for Signature – ${params.contractNumber}`,

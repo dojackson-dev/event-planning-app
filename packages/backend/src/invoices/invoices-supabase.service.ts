@@ -350,7 +350,7 @@ export class InvoicesService {
    * All errors are swallowed so notifications never break invoice creation.
    */
   private async sendInvoiceNotifications(supabase: SupabaseClient, invoice: Invoice): Promise<void> {
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://dovenuesuite.com';
     const invoiceUrl = `${frontendUrl}/client-portal/invoices/${invoice.id}`;
 
     // Resolve client details

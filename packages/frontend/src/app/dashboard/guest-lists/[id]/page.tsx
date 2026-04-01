@@ -173,6 +173,10 @@ export default function GuestListDetailPage() {
         shareToken={guestList.share_token}
         arrivalToken={guestList.arrival_token}
         accessCode={guestList.access_code}
+        onSmsClient={async () => {
+          const res = await api.post(`/guest-lists/${params.id}/sms-client`)
+          if (!res.data.sent) throw new Error(res.data.error || 'Failed to send SMS')
+        }}
       />
 
       {/* Add Guest Form */}

@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import * as crypto from 'crypto';
 
 @Injectable()
 export class GuestListsService {
-  constructor(private supabaseService: SupabaseService) {}
+  constructor(
+    private supabaseService: SupabaseService,
+    private smsNotifications: SmsNotificationsService,
+  ) {}
 
   private generateToken(): string {
     return crypto.randomBytes(32).toString('hex');
@@ -346,4 +350,56 @@ export class GuestListsService {
     if (error && error.code !== 'PGRST116') throw error;
     return data;
   }
-}
+
+  async smsClientInvite(id: number): Promise<{ sent: boolean; to?: string; error?: string }> {
+    const supabase = this.supabaseService.getAdminClient();
+
+    // Fetch the guest list
+    const { data: guestList, error } = await supabase
+      .from('guest_lists')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (error || !guestList) throw new Error('Guest list not found');
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const shareUrl = `${frontendUrl}/guest-list/share/${guestList.share_token}`;
+    const message =
+      `You've been invited to view and edit the guest list!\n\n` +
+      `Link: ${shareUrl}\nAccess Code: ${guestList.access_code}\n\n` +
+      `Open the link and enter the code to get started.`;
+
+    // Try to find the client's phone — check intake_forms first, then users
+    let phone: string | null = null;
+
+    if (guestList.client_id) {
+      // Check intake_forms (contact_phone)
+      const { data: form } = await supabase
+        .from('intake_forms')
+        .select('contact_phone, contact_name')
+        .eq('id', guestList.client_id)
+        .maybeSingle();
+      if (form?.contact_phone) phone = form.contact_phone;
+
+      // Fallback: check users table
+      if (!phone) {
+        const { data: userRow } = await supabase
+          .from('users')
+          .select('phone')
+          .eq('id', guestList.client_id)
+          .maybeSingle();
+        if (userRow?.phone) phone = userRow.phone;
+      }
+    }
+
+    if (!phone) {
+      return { sent: false, error: 'No phone number found for this client.' };
+    }
+
+    try {
+      await this.smsNotifications.send(phone, message);
+      return { sent: true, to: phone };
+    } catch (smsErr: any) {
+      return { sent: false, error: smsErr?.message || 'SMS failed' };
+    }
+  }

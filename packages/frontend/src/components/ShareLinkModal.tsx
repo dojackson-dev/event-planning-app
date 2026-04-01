@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Copy, Check, ExternalLink, Lock } from 'lucide-react'
+import { X, Copy, Check, ExternalLink, Lock, MessageSquare } from 'lucide-react'
 
 interface ShareLinkModalProps {
   isOpen: boolean
@@ -10,6 +10,7 @@ interface ShareLinkModalProps {
   arrivalToken: string
   accessCode: string
   eventName?: string
+  onSmsClient?: () => Promise<void>
 }
 
 export default function ShareLinkModal({
@@ -19,8 +20,12 @@ export default function ShareLinkModal({
   arrivalToken,
   accessCode,
   eventName,
+  onSmsClient,
 }: ShareLinkModalProps) {
   const [copiedItem, setCopiedItem] = useState<string | null>(null)
+  const [smsLoading, setSmsLoading] = useState(false)
+  const [smsSent, setSmsSent] = useState(false)
+  const [smsError, setSmsError] = useState<string | null>(null)
 
   if (!isOpen) return null
 
@@ -72,6 +77,38 @@ export default function ShareLinkModal({
                 <><Copy className="w-5 h-5" /> Copy Link &amp; Code Together</>
               )}
             </button>
+            {onSmsClient && (
+              <div className="mt-3">
+                <button
+                  onClick={async () => {
+                    setSmsLoading(true)
+                    setSmsError(null)
+                    try {
+                      await onSmsClient()
+                      setSmsSent(true)
+                      setTimeout(() => setSmsSent(false), 4000)
+                    } catch (err: any) {
+                      setSmsError(err?.message || 'Failed to send SMS')
+                    } finally {
+                      setSmsLoading(false)
+                    }
+                  }}
+                  disabled={smsLoading || smsSent}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition-colors disabled:opacity-60"
+                >
+                  {smsSent ? (
+                    <><Check className="w-5 h-5" /> SMS Sent to Client!</>
+                  ) : smsLoading ? (
+                    'Sending SMS...'
+                  ) : (
+                    <><MessageSquare className="w-5 h-5" /> SMS Link &amp; Code to Client</>
+                  )}
+                </button>
+                {smsError && (
+                  <p className="text-xs text-red-200 mt-1 text-center">{smsError}</p>
+                )}
+              </div>
+            )}
           </div>
           {/* Access Code Section */}
           <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-6 border border-purple-200">

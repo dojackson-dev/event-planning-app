@@ -71,6 +71,21 @@ export class IntakeFormsService {
       data.invite_status = 'sent';
     }
 
+    // Send SMS invitation if contact_phone is present (independent of email)
+    if (data?.contact_phone && data?.invite_token) {
+      try {
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        const inviteUrl = `${frontendUrl}/invite?token=${data.invite_token}`;
+        const clientName = data.contact_name || 'Valued Client';
+        await this.twilioService.sendSMS(
+          data.contact_phone,
+          `Hi ${clientName}, you've been invited to confirm your event details. Tap here to review and confirm: ${inviteUrl}`,
+        );
+      } catch (smsErr) {
+        console.warn('[IntakeFormsService] SMS invite failed:', smsErr);
+      }
+    }
+
     return data;
   }
 
@@ -167,6 +182,20 @@ export class IntakeFormsService {
       .from('intake_forms')
       .update({ invite_sent_at: new Date().toISOString(), invite_status: 'sent' })
       .eq('id', id);
+
+    // Also resend via SMS if phone is available (independent channel)
+    if (form.contact_phone) {
+      try {
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        const inviteUrl = `${frontendUrl}/invite?token=${form.invite_token}`;
+        await this.twilioService.sendSMS(
+          form.contact_phone,
+          `Hi ${form.contact_name || 'Valued Client'}, you've been invited to confirm your event details. Tap here to review and confirm: ${inviteUrl}`,
+        );
+      } catch (smsErr) {
+        console.warn('[IntakeFormsService] SMS resend failed:', smsErr);
+      }
+    }
 
     return { success: true, message: 'Invitation resent successfully' };
   }

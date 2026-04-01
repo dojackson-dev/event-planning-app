@@ -129,8 +129,47 @@ export default function InvoicesPage() {
         ))}
       </div>
 
-      {/* Invoices Table */}
-      <div className="bg-white shadow-md rounded-lg overflow-hidden overflow-x-auto">
+      {/* Mobile card view */}
+      <div className="block md:hidden space-y-3">
+        {filteredInvoices.length === 0 ? (
+          <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">No invoices found</div>
+        ) : (
+          filteredInvoices.map((invoice) => (
+            <div
+              key={invoice.id}
+              className="bg-white rounded-lg shadow p-4 cursor-pointer active:bg-gray-50 hover:shadow-md transition-shadow"
+              onClick={() => router.push(`/dashboard/invoices/${invoice.id}`)}
+            >
+              <div className="flex justify-between items-start">
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-900">{invoice.invoice_number}</p>
+                  <p className="text-sm text-gray-600 truncate">{getCustomerName(invoice)}</p>
+                </div>
+                <span className={`ml-2 px-2 py-1 text-xs font-semibold rounded-full flex-shrink-0 ${getStatusColor(invoice.status)}`}>
+                  {invoice.status}
+                </span>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-600">
+                <span>${Number(invoice.total_amount).toFixed(2)}</span>
+                <span>·</span>
+                <span>Due {new Date(invoice.due_date).toLocaleDateString()}</span>
+              </div>
+              <div className="mt-3 pt-3 border-t flex justify-between items-center" onClick={e => e.stopPropagation()}>
+                <span className="text-xs text-gray-400">Tap to view details →</span>
+                <button
+                  onClick={() => handleDelete(invoice.id, invoice.invoice_number)}
+                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg text-xs"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop table view */}
+      <div className="hidden md:block bg-white shadow-md rounded-lg overflow-hidden overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
@@ -166,7 +205,11 @@ export default function InvoicesPage() {
               </tr>
             ) : (
               filteredInvoices.map((invoice) => (
-                <tr key={invoice.id} className="hover:bg-gray-50">
+                <tr
+                  key={invoice.id}
+                  className="hover:bg-gray-50 cursor-pointer"
+                  onClick={() => router.push(`/dashboard/invoices/${invoice.id}`)}
+                >
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {invoice.invoice_number}
                   </td>
@@ -183,15 +226,11 @@ export default function InvoicesPage() {
                     ${Number(invoice.total_amount).toFixed(2)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span
-                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(
-                        invoice.status
-                      )}`}
-                    >
+                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(invoice.status)}`}>
                       {invoice.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium" onClick={e => e.stopPropagation()}>
                     <button
                       onClick={() => router.push(`/dashboard/invoices/${invoice.id}`)}
                       className="text-primary-600 hover:text-primary-900 mr-4"

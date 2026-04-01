@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { Event } from '@/types'
 import { Plus, Calendar, MapPin, Users, Settings, Edit2, Trash2, ChevronDown } from 'lucide-react'
@@ -28,6 +29,7 @@ const formatTime = (timeString: string | undefined): string => {
 }
 
 export default function EventsPage() {
+  const router = useRouter()
   const [events, setEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'past'>('all')
@@ -163,13 +165,12 @@ export default function EventsPage() {
         {filteredEvents.map((event) => (
           <div
             key={event.id}
-            className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow"
+            className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow cursor-pointer"
+            onClick={() => router.push(`/dashboard/events/${event.id}`)}
           >
             <div className="p-6">
               <div className="flex justify-between items-start mb-4">
-                <Link href={`/dashboard/events/${event.id}`} className="flex-1">
-                  <h3 className="text-lg font-semibold text-gray-900 hover:text-primary-600">{event.name}</h3>
-                </Link>
+                <h3 className="text-lg font-semibold text-gray-900 hover:text-primary-600 flex-1">{event.name}</h3>
                 <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(event.status)}`}>
                   {event.status}
                 </span>
@@ -197,7 +198,7 @@ export default function EventsPage() {
                 </p>
                 <div className="relative" ref={el => { if (el) dropdownRefs.current[event.id] = el }}>
                   <button
-                    onClick={() => setOpenDropdown(openDropdown === event.id ? null : event.id)}
+                    onClick={(e) => { e.stopPropagation(); setOpenDropdown(openDropdown === event.id ? null : event.id) }}
                     className="inline-flex items-center px-3 py-1 bg-primary-600 text-white text-xs font-medium rounded-lg hover:bg-primary-700 transition-colors"
                   >
                     <Settings className="h-3 w-3 mr-1" />

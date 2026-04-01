@@ -1,12 +1,14 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { SupabaseService } from '../supabase/supabase.service';
+import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import { Booking } from '../entities/booking.entity';
 
 @Injectable()
 export class BookingsService {
   constructor(
     private readonly supabaseService: SupabaseService,
+    private readonly smsNotifications: SmsNotificationsService,
   ) {}
 
   async findAll(supabase: SupabaseClient): Promise<Booking[]> {
@@ -72,6 +74,28 @@ export class BookingsService {
       await this.checkForConflicts(supabase, data);
     } catch (err) {
       console.error('Error checking booking conflicts:', err?.message || err);
+    }
+
+    // SMS notification when a booking is confirmed
+    if (booking.status === 'confirmed' && data?.contact_phone) {
+      try {
+        const { data: fullBooking } = await supabase
+          .from('booking')
+          .select('contact_phone, contact_name, event:event(name)')
+          .eq('id', id)
+          .single();
+        if (fullBooking?.contact_phone) {
+          await this.smsNotifications.vendorBookingStatusChanged(
+            fullBooking.contact_phone,
+            fullBooking.contact_name || 'Valued Client',
+            (fullBooking.event as any)?.name || 'your event',
+            'confirmed',
+            false,
+          );
+        }
+      } catch {
+        // SMS errors must never break the booking update
+      }
     }
 
     return data;

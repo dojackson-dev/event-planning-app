@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import { Contract } from '../entities/contract.entity';
 import { User } from '../entities/user.entity';
 
@@ -308,6 +309,102 @@ export class MailService {
       console.log('Contract signed notification sent:', info.messageId);
     } catch (error) {
       console.error('Failed to send contract signed notification email:', error);
+    }
+  }
+
+  /**
+   * Send a contract-ready-for-signature email using Resend.
+   * Called whenever an owner marks a contract as "sent" to the client.
+   */
+  async sendContractWithResend(params: {
+    clientName: string;
+    clientEmail: string;
+    ownerName: string;
+    contractNumber: string;
+    contractTitle: string;
+    contractDescription?: string;
+    contractUrl: string;
+    eventName?: string;
+    eventDate?: string;
+    eventVenue?: string;
+  }): Promise<void> {
+    if (!process.env.RESEND_API_KEY) {
+      console.warn('[MailService] RESEND_API_KEY not set — skipping Resend contract email');
+      return;
+    }
+    try {
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      const formattedDate = params.eventDate
+        ? new Date(params.eventDate + 'T12:00:00').toLocaleDateString('en-US', {
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+          })
+        : null;
+
+      const eventBlock = (params.eventName || formattedDate || params.eventVenue)
+        ? `
+          <div style="background:#e8f4f8;border-left:4px solid #2563eb;border-radius:8px;padding:20px 24px;margin:20px 0;">
+            <h3 style="margin:0 0 12px;color:#1e3a5f;font-size:15px;">Event Information</h3>
+            <table style="width:100%;border-collapse:collapse;font-size:14px;color:#374151;">
+              ${params.eventName ? `<tr><td style="padding:4px 0;color:#6b7280;width:80px;">Event</td><td style="padding:4px 0;font-weight:600;">${params.eventName}</td></tr>` : ''}
+              ${formattedDate ? `<tr><td style="padding:4px 0;color:#6b7280;">Date</td><td style="padding:4px 0;font-weight:600;">${formattedDate}</td></tr>` : ''}
+              ${params.eventVenue ? `<tr><td style="padding:4px 0;color:#6b7280;">Venue</td><td style="padding:4px 0;font-weight:600;">${params.eventVenue}</td></tr>` : ''}
+            </table>
+          </div>`
+        : '';
+
+      const html = `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f9fafb;padding:32px 16px;">
+          <div style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+            <div style="background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%);padding:32px;text-align:center;">
+              <h1 style="color:white;margin:0;font-size:24px;font-weight:700;">DoVenue Suites</h1>
+              <p style="color:rgba(255,255,255,0.85);margin:8px 0 0;font-size:14px;">Contract Ready for Your Signature</p>
+            </div>
+            <div style="padding:32px;">
+              <p style="color:#374151;font-size:16px;margin:0 0 8px;">Hello <strong>${params.clientName}</strong>,</p>
+              <p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 20px;">
+                <strong>${params.ownerName}</strong> has sent you a contract to review and sign.
+              </p>
+              <div style="background:#f0f4ff;border-left:4px solid #2563eb;border-radius:8px;padding:20px 24px;margin:0 0 20px;">
+                <h3 style="margin:0 0 12px;color:#1e3a5f;font-size:15px;">Contract Details</h3>
+                <table style="width:100%;border-collapse:collapse;font-size:14px;color:#374151;">
+                  <tr><td style="padding:4px 0;color:#6b7280;width:140px;">Contract Number</td><td style="padding:4px 0;font-weight:600;">${params.contractNumber}</td></tr>
+                  <tr><td style="padding:4px 0;color:#6b7280;">Title</td><td style="padding:4px 0;font-weight:600;">${params.contractTitle}</td></tr>
+                  ${params.contractDescription ? `<tr><td style="padding:4px 0;color:#6b7280;">Description</td><td style="padding:4px 0;">${params.contractDescription}</td></tr>` : ''}
+                </table>
+              </div>
+              ${eventBlock}
+              <p style="color:#374151;font-size:14px;line-height:1.6;">
+                Please review the contract carefully and provide your electronic signature to proceed.
+              </p>
+              <div style="text-align:center;margin:28px 0;">
+                <a href="${params.contractUrl}"
+                   style="display:inline-block;background:#2563eb;color:white;padding:14px 40px;text-decoration:none;border-radius:8px;font-size:16px;font-weight:600;letter-spacing:0.3px;">
+                  View &amp; Sign Contract
+                </a>
+              </div>
+              <p style="color:#6b7280;font-size:13px;">
+                If you have any questions, please contact ${params.ownerName}.
+              </p>
+              <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
+              <p style="color:#9ca3af;font-size:12px;text-align:center;margin:0;">
+                This is an automated message from DoVenue Suites. Please do not reply to this email.
+              </p>
+            </div>
+          </div>
+        </div>
+      `;
+
+      await resend.emails.send({
+        from: `DoVenue Suites <noreply@dovenue.com>`,
+        to: params.clientEmail,
+        subject: `Contract Ready for Signature – ${params.contractNumber}`,
+        html,
+      });
+
+      console.log('[MailService] Resend contract email sent to', params.clientEmail);
+    } catch (error) {
+      console.error('[MailService] Resend contract email failed:', error);
+      // Non-fatal — SMS is already sent; don't break the contract send flow
     }
   }
 }

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import type { Invoice } from '@/types'
-import { User, Calendar, Mail, Phone, Clock, Eye, CheckCircle, Search, MessageSquare, FileText, Clock as ClockIcon, Trash2 } from 'lucide-react'
+import { User, Calendar, Mail, Phone, Clock, Eye, CheckCircle, Search, MessageSquare, FileText, Clock as ClockIcon, Trash2, Zap } from 'lucide-react'
 
 interface IntakeForm {
   id: string
@@ -46,6 +46,7 @@ export default function ClientsPage() {
   const [clientInvoices, setClientInvoices] = useState<Invoice[]>([])
   const [selectedInvoiceId, setSelectedInvoiceId] = useState('')
   const [loadingInvoices, setLoadingInvoices] = useState(false)
+  const [activatingId, setActivatingId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchClients()
@@ -135,6 +136,19 @@ export default function ClientsPage() {
     } catch (error) {
       console.error('Error creating appointment:', error)
       alert('Failed to create appointment')
+    }
+  }
+
+  const handleActivateLead = async (client: IntakeForm) => {
+    if (!confirm(`Activate "${client.contact_name}" as a booking?`)) return
+    setActivatingId(client.id)
+    try {
+      await api.post(`/intake-forms/${client.id}/convert-to-booking`, {})
+      setClients(prev => prev.map(c => c.id === client.id ? { ...c, status: 'converted' } : c))
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Failed to activate lead')
+    } finally {
+      setActivatingId(null)
     }
   }
 
@@ -382,6 +396,16 @@ export default function ClientsPage() {
                       <Eye className="h-4 w-4" />
                       View Details
                     </button>
+                    {client.status !== 'converted' && (
+                      <button
+                        onClick={() => handleActivateLead(client)}
+                        disabled={activatingId === client.id}
+                        className="flex items-center justify-center gap-2 h-11 px-3 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white text-sm font-semibold rounded-xl transition-colors col-span-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Zap className="h-4 w-4" />
+                        {activatingId === client.id ? 'Activating...' : 'Activate Lead'}
+                      </button>
+                    )}
                     <button
                       onClick={() => { setSelectedClient(client); setShowMessageModal(true) }}
                       className="flex items-center justify-center gap-2 h-11 px-3 bg-gray-100 hover:bg-blue-50 active:bg-blue-100 text-gray-700 hover:text-blue-700 text-sm font-medium rounded-xl transition-colors"

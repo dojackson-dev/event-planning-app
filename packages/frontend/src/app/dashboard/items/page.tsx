@@ -172,17 +172,17 @@ export default function ItemsPage() {
       </div>
 
       {/* Filters */}
-      <div className="mb-6 flex gap-4">
-        <button
-          onClick={() => setFilter('all')}
-          className={`px-4 py-2 rounded-md transition-colors ${
-            filter === 'all'
-              ? 'bg-primary-600 text-white'
-              : 'bg-white text-gray-700 hover:bg-gray-100'
-          }`}
+      <div className="mb-6">
+        <select
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          className="w-full sm:w-64 px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500 text-sm bg-white"
         >
-          All Items
-        </button>
+          <option value="all">All Items</option>
+          {Object.entries(categoryLabels).map(([value, label]) => (
+            <option key={value} value={value}>{label}</option>
+          ))}
+        </select>
       </div>
 
       {/* Items Grid */}

@@ -117,7 +117,7 @@ export default function ShareLinkModal({
               <h3 className="text-lg font-semibold text-gray-900">Access Code</h3>
             </div>
             <p className="text-sm text-gray-600 mb-4">
-              Share this code with guests so they can access the door list
+              Share this code with event coordinators and security so they can access door list
             </p>
             <div className="flex items-center gap-3">
               <div className="flex-1 bg-white px-4 py-3 rounded-md border-2 border-purple-300">

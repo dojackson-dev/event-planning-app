@@ -717,7 +717,7 @@ export default function ClientDetailPage() {
 
         {/* Message Modal */}
         {showMessageModal && client && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 overflow-y-auto p-4">
             <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
               <h2 className="text-xl font-bold mb-4">Send SMS to {client.contact_name}</h2>
               <div className="space-y-4">
@@ -767,7 +767,7 @@ export default function ClientDetailPage() {
 
         {/* Invoice Modal */}
         {showInvoiceModal && client && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 overflow-y-auto p-4">
             <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
               <h2 className="text-xl font-bold mb-4">Send Invoice to {client.contact_name}</h2>
               <div className="space-y-4">
@@ -810,7 +810,7 @@ export default function ClientDetailPage() {
 
         {/* Edit Client Modal */}
         {showEditModal && client && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 overflow-y-auto p-4">
             <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
               <h2 className="text-xl font-bold mb-6">Edit Client Details</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -908,7 +908,7 @@ export default function ClientDetailPage() {
 
         {/* Appointment Modal */}
         {showAppointmentModal && client && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 overflow-y-auto p-4">
             <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
               <h2 className="text-xl font-bold mb-4">Schedule Appointment with {client.contact_name}</h2>
               <div className="space-y-4">
@@ -971,7 +971,7 @@ export default function ClientDetailPage() {
 
       {/* ─── Vendor Booking Modal ─────────────────────────────── */}
       {showVendorModal && client && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 overflow-y-auto p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
             {/* Modal header */}
             <div className="flex items-center justify-between px-6 py-4 border-b">

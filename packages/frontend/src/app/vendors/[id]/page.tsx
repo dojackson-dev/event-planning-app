@@ -214,10 +214,8 @@ export default function VendorPublicProfile({ params }: { params: { id: string }
       <div className="max-w-4xl mx-auto px-4 py-8">
         {/* Hero Card */}
         <div className="bg-white rounded-xl shadow-sm overflow-hidden mb-6">
-          {/* Cover band */}
-          <div className="h-32 bg-gradient-to-r from-primary-500 to-purple-600" />
-          <div className="px-6 pb-6">
-            <div className="flex items-end gap-4 -mt-10 mb-4">
+          <div className="px-6 pt-6 pb-6">
+            <div className="flex items-center gap-4 mb-4">
               <div className="w-20 h-20 rounded-full border-4 border-white bg-white shadow overflow-hidden flex-shrink-0">
                 {vendor.profile_image_url ? (
                   <img src={vendor.profile_image_url} alt={vendor.business_name} className="w-full h-full object-cover" />

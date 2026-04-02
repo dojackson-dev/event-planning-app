@@ -159,6 +159,7 @@ export default function VendorDashboard() {
   const [activeTab, setActiveTab] = useState<TabId>('bookings')
   const [statusFilter, setStatusFilter] = useState('all')
   const [updating, setUpdating] = useState<string | null>(null)
+  const [highlightedBookingId, setHighlightedBookingId] = useState<string | null>(null)
 
   useEffect(() => {
     const loadData = async () => {
@@ -388,10 +389,20 @@ export default function VendorDashboard() {
                 .filter(b => b.status === 'confirmed' && new Date(b.event_date) >= new Date())
                 .slice(0, 5)
                 .map(b => (
-                  <div key={b.id} className="flex items-center justify-between text-sm border-b border-blue-500 pb-2">
-                    <span className="font-medium text-white">{b.event_name}</span>
-                    <span className="text-blue-200">{new Date(b.event_date).toLocaleDateString()}</span>
-                  </div>
+                  <button
+                    key={b.id}
+                    onClick={() => { setHighlightedBookingId(b.id); setActiveTab('bookings'); setTimeout(() => document.getElementById(`booking-${b.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100) }}
+                    className="w-full flex items-center justify-between bg-white/10 hover:bg-white/20 transition-colors rounded-lg px-4 py-3 text-left"
+                  >
+                    <div>
+                      <p className="font-semibold text-white text-sm">{b.event_name}</p>
+                      {b.venue_name && <p className="text-xs text-blue-200 mt-0.5">📍 {b.venue_name}</p>}
+                    </div>
+                    <div className="text-right flex-shrink-0 ml-3">
+                      <p className="text-sm text-white font-medium">{new Date(b.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                      {b.agreed_amount > 0 && <p className="text-xs text-blue-200">${b.agreed_amount.toLocaleString()}</p>}
+                    </div>
+                  </button>
                 ))}
             </div>
           )}
@@ -442,7 +453,7 @@ export default function VendorDashboard() {
                 {filteredBookings.map(booking => {
                   const statusCfg = STATUS_CONFIG[booking.status] || STATUS_CONFIG.pending
                   return (
-                    <div key={booking.id} className="border border-gray-100 rounded-xl p-4">
+                    <div id={`booking-${booking.id}`} key={booking.id} className={`border rounded-xl p-4 transition-colors ${highlightedBookingId === booking.id ? 'border-blue-400 ring-2 ring-blue-300 bg-blue-50' : 'border-gray-100'}`}>
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1 flex-wrap">

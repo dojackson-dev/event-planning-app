@@ -354,30 +354,34 @@ export default function VendorDashboard() {
         </button>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
           {[
-            { label: 'Pending',   value: stats.pending,                       color: 'text-yellow-600', bg: 'bg-yellow-50'  },
-            { label: 'Confirmed', value: stats.confirmed,                      color: 'text-green-600',  bg: 'bg-green-50'   },
-            { label: 'Completed', value: stats.completed,                      color: 'text-blue-600',   bg: 'bg-blue-50'    },
-            { label: 'Revenue',   value: `$${stats.revenue.toLocaleString()}`, color: 'text-primary-600', bg: 'bg-primary-50' },
+            { label: 'Pending',   value: stats.pending,                       color: 'text-yellow-600', bg: 'bg-yellow-50',  border: 'border-yellow-200', tab: 'bookings'  as TabId },
+            { label: 'Confirmed', value: stats.confirmed,                      color: 'text-green-600',  bg: 'bg-green-50',   border: 'border-green-200',  tab: 'bookings'  as TabId },
+            { label: 'Completed', value: stats.completed,                      color: 'text-blue-600',   bg: 'bg-blue-50',    border: 'border-blue-200',   tab: 'bookings'  as TabId },
+            { label: 'Revenue',   value: `$${stats.revenue.toLocaleString()}`, color: 'text-primary-600', bg: 'bg-primary-50', border: 'border-primary-200', tab: 'earnings' as TabId },
           ].map(s => (
-            <div key={s.label} className={`${s.bg} rounded-xl p-4`}>
+            <button
+              key={s.label}
+              onClick={() => setActiveTab(s.tab)}
+              className={`${s.bg} border ${s.border} rounded-xl p-4 text-left hover:opacity-80 transition-opacity w-full`}
+            >
               <p className="text-xs text-gray-500 font-medium">{s.label}</p>
               <p className={`text-2xl font-bold mt-1 ${s.color}`}>{s.value}</p>
-            </div>
+            </button>
           ))}
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b mb-6 gap-1 bg-white rounded-t-xl px-4 pt-4 overflow-x-auto">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-6">
           {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors whitespace-nowrap ${
+              className={`px-3 py-2.5 text-sm font-medium rounded-xl transition-colors text-center whitespace-nowrap ${
                 activeTab === tab.id
-                  ? 'border-b-2 border-primary-600 text-primary-600'
-                  : 'text-gray-500 hover:text-gray-700'
+                  ? 'bg-primary-600 text-white shadow-sm'
+                  : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
               }`}
             >
               {tab.label}

@@ -451,6 +451,21 @@ export class SmsNotificationsService {
     );
   }
 
+  // ─── VENDOR REVIEWS ──────────────────────────────────────────────────────
+
+  async vendorReviewReceived(
+    phone: string | null | undefined,
+    vendorName: string,
+    rating: number,
+    vendorAccountId: string,
+  ): Promise<void> {
+    const stars = '⭐'.repeat(Math.min(5, Math.max(1, rating)));
+    await this.trySend(
+      phone,
+      `DoVenue Suite Review Message\nHi ${vendorName}, you just received a new ${stars} review! See it here: ${this.url(`/vendors/${vendorAccountId}`)}`,
+    );
+  }
+
   /**
    * Generic send — use only when no typed method fits.
    */

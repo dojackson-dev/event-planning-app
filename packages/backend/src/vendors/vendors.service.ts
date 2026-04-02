@@ -593,6 +593,23 @@ export class VendorsService {
       .single();
 
     if (error) throw new BadRequestException(error.message);
+
+    // Notify the vendor via SMS
+    const { data: vendorAccount } = await admin
+      .from('vendor_accounts')
+      .select('business_name, phone')
+      .eq('id', dto.vendorAccountId)
+      .single();
+
+    if (vendorAccount?.phone) {
+      this.smsNotifications.vendorReviewReceived(
+        normalizePhone(vendorAccount.phone),
+        vendorAccount.business_name || 'Vendor',
+        dto.rating,
+        dto.vendorAccountId,
+      ).catch((err: any) => this.logger.warn(`Review SMS failed: ${err?.message}`));
+    }
+
     return data;
   }
 

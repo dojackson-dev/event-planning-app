@@ -99,11 +99,16 @@ function NewEstimatePageInner() {
     }).catch(() => {})
   }, [searchParams])
 
-  // When an event is selected, autofill client info from the linked booking
+  // When an event is selected, autofill client info:
+  // 1. Try linked booking (deposit_paid / completed)
+  // 2. Fall back to the event's linked intake form
   useEffect(() => {
     if (!selectedEvent) {
       setBookingId(null)
       setAutofilledFromBooking(false)
+      setIntakeFormId(null)
+      setClientName('')
+      setClientPhone('')
       return
     }
     const booking = allBookings.find((b: any) => b.event_id === selectedEvent)
@@ -112,11 +117,26 @@ function NewEstimatePageInner() {
       setClientName(booking.contact_name || '')
       setClientPhone(booking.contact_phone || '')
       setAutofilledFromBooking(true)
-    } else {
-      setBookingId(null)
-      setAutofilledFromBooking(false)
+      return
     }
-  }, [selectedEvent, allBookings])
+    // No paid booking — look up the event's linked intake form
+    setBookingId(null)
+    setAutofilledFromBooking(false)
+    const ev = events.find((e: any) => e.id === selectedEvent)
+    const formId = ev?.intakeFormId || ev?.intake_form_id
+    if (formId) {
+      setIntakeFormId(formId)
+      api.get(`/intake-forms/${formId}`).then(res => {
+        setClientName(res.data.contact_name || '')
+        setClientPhone(res.data.contact_phone || '')
+        setAutofilledFromBooking(true)
+      }).catch(() => {})
+    } else {
+      setIntakeFormId(null)
+      setClientName('')
+      setClientPhone('')
+    }
+  }, [selectedEvent, allBookings, events])
 
   const fetchEvents = async () => {
     try {

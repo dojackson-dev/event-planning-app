@@ -270,12 +270,6 @@ export default function VendorDashboard() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <Link href="/vendors" className="text-sm text-gray-500 hover:text-gray-700">Directory</Link>
-            {profile && (
-              <Link href={`/vendors/${profile.id}`} className="text-sm text-gray-500 hover:text-gray-700">
-                My Profile
-              </Link>
-            )}
             <Link href="/vendors/settings" className="text-sm text-gray-500 hover:text-gray-700">⚙️ Settings</Link>
             <button
               onClick={handleLogout}

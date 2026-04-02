@@ -670,7 +670,7 @@ export default function ClientDetailPage() {
             </div>
           </div>
 
-          {/* Sidebar */
+          {/* Sidebar */}
           <div className="space-y-6">
             {/* Status Management */}
             <div className="bg-white rounded-lg shadow p-6">

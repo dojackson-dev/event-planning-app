@@ -115,18 +115,6 @@ export class IntakeFormsController {
     return this.intakeFormsService.findAll(supabaseWithAuth, userId);
   }
 
-  // ── Public routes (no auth required) ─────────────────────────────────────
-
-  @Get('public-form/:ownerId')
-  async getPublicOwnerInfo(@Param('ownerId') ownerId: string) {
-    return this.intakeFormsService.getPublicOwnerInfo(ownerId);
-  }
-
-  @Post('public/:ownerId')
-  async createPublic(@Param('ownerId') ownerId: string, @Body() createDto: any) {
-    return this.intakeFormsService.createPublic(ownerId, createDto);
-  }
-
   // ── Authenticated routes ───────────────────────────────────────────────────
 
   @Get(':id')

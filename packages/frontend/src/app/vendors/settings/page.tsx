@@ -223,30 +223,29 @@ export default function VendorSettingsPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          {/* Tab bar */}
-          <div className="border-b border-gray-200">
-            <nav className="flex overflow-x-auto">
-              {tabs.map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => { setActiveTab(tab.id); setMessage(null) }}
-                  className={`inline-flex items-center gap-2 px-5 py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                    activeTab === tab.id
-                      ? tab.id === 'delete'
-                        ? 'border-red-500 text-red-600'
-                        : 'border-primary-600 text-primary-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  {tab.icon}
-                  {tab.label}
-                </button>
-              ))}
-            </nav>
-          </div>
+        {/* Tab grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-6">
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => { setActiveTab(tab.id); setMessage(null) }}
+              className={`flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium rounded-xl transition-colors ${
+                activeTab === tab.id
+                  ? tab.id === 'delete'
+                    ? 'bg-red-600 text-white shadow-sm'
+                    : 'bg-primary-600 text-white shadow-sm'
+                  : tab.id === 'delete'
+                    ? 'bg-white text-red-500 border border-red-200 hover:bg-red-50'
+                    : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+              }`}
+            >
+              {tab.icon}
+              <span className="truncate">{tab.label}</span>
+            </button>
+          ))}
+        </div>
 
-          <div className="p-6">
+        <div className="bg-white rounded-xl shadow-sm p-6">
             {/* ── ACCOUNT TAB ── */}
             {activeTab === 'account' && (
               <form onSubmit={handleSaveAccount} className="space-y-6 max-w-lg">
@@ -526,10 +525,9 @@ export default function VendorSettingsPage() {
                 )}
               </div>
             )}
-          </div>
 
           {/* Multi-Role: Add Owner Role card */}
-          <div className="mt-8 pt-6 border-t border-gray-100 px-6 pb-6">
+          <div className="mt-8 pt-6 border-t border-gray-100">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Multi-Role Access</p>
             <AddRoleCard targetRole="owner" />
           </div>

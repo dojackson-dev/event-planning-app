@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { ArrowLeft, Calendar, Mail, Phone, Users, Clock, MapPin, Utensils, Wrench, Heart, Accessibility, DollarSign, Info, CheckCircle, MessageSquare, FileText, Clock as ClockIcon, Pencil, Store, X, ChevronRight } from 'lucide-react'
+import { ArrowLeft, Calendar, Mail, Phone, Users, Clock, MapPin, Utensils, Wrench, Heart, Accessibility, DollarSign, Info, CheckCircle, MessageSquare, FileText, Clock as ClockIcon, Pencil, Store, X, ChevronRight, PlusCircle } from 'lucide-react'
+import { Invoice, Estimate, EstimateStatus, InvoiceStatus } from '@/types'
 
 const VENDOR_CATEGORIES = [
   { value: '', label: 'All Categories' },
@@ -95,6 +96,10 @@ export default function ClientDetailPage() {
   const [vbNotes, setVbNotes] = useState('')
   const [vbSubmitting, setVbSubmitting] = useState(false)
 
+  // ── Estimates & Invoices ──────────────────────────────────────
+  const [clientEstimates, setClientEstimates] = useState<Estimate[]>([])
+  const [clientInvoices, setClientInvoices] = useState<Invoice[]>([])
+
   useEffect(() => {
     if (params.id) {
       fetchClient()
@@ -109,6 +114,8 @@ export default function ClientDetailPage() {
       setNotes(response.data.notes || '')
       setEditData(response.data)
       fetchEventVendors(response.data.event_date)
+      api.get<Estimate[]>(`/estimates?intakeFormId=${params.id}`).then(r => setClientEstimates(r.data || [])).catch(() => {})
+      api.get<Invoice[]>(`/invoices?intakeFormId=${params.id}`).then(r => setClientInvoices(r.data || [])).catch(() => {})
     } catch (error) {
       console.error('Error fetching client:', error)
     } finally {
@@ -573,9 +580,97 @@ export default function ClientDetailPage() {
                 )}
               </div>
             </div>
+
+            {/* Estimates */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">Estimates</h2>
+                <button
+                  onClick={() => router.push(`/dashboard/estimates/new?clientId=${client.id}`)}
+                  className="flex items-center gap-1 text-sm bg-teal-600 text-white px-3 py-1.5 rounded-lg hover:bg-teal-700"
+                >
+                  <PlusCircle className="h-4 w-4" />
+                  New Estimate
+                </button>
+              </div>
+              {clientEstimates.length === 0 ? (
+                <p className="text-sm text-gray-500">No estimates yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {clientEstimates.map(est => (
+                    <a
+                      key={est.id}
+                      href={`/dashboard/estimates/${est.id}`}
+                      className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{est.estimate_number}</p>
+                        <p className="text-xs text-gray-500">{new Date(est.issue_date).toLocaleDateString()}</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${
+                          est.status === EstimateStatus.APPROVED ? 'bg-green-100 text-green-700' :
+                          est.status === EstimateStatus.SENT ? 'bg-blue-100 text-blue-700' :
+                          est.status === EstimateStatus.REJECTED ? 'bg-red-100 text-red-700' :
+                          est.status === EstimateStatus.CONVERTED ? 'bg-purple-100 text-purple-700' :
+                          est.status === EstimateStatus.EXPIRED ? 'bg-yellow-100 text-yellow-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>{est.status}</span>
+                        <span className="text-sm font-semibold text-gray-900">${est.total_amount.toFixed(2)}</span>
+                        <ChevronRight className="h-4 w-4 text-gray-400" />
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Invoices */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">Invoices</h2>
+                <button
+                  onClick={() => router.push(`/dashboard/invoices/new?clientId=${client.id}`)}
+                  className="flex items-center gap-1 text-sm bg-purple-600 text-white px-3 py-1.5 rounded-lg hover:bg-purple-700"
+                >
+                  <PlusCircle className="h-4 w-4" />
+                  New Invoice
+                </button>
+              </div>
+              {clientInvoices.length === 0 ? (
+                <p className="text-sm text-gray-500">No invoices yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {clientInvoices.map(inv => (
+                    <a
+                      key={inv.id}
+                      href={`/dashboard/invoices/${inv.id}`}
+                      className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{inv.invoice_number}</p>
+                        <p className="text-xs text-gray-500">{new Date(inv.issue_date).toLocaleDateString()}</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${
+                          inv.status === InvoiceStatus.PAID ? 'bg-green-100 text-green-700' :
+                          inv.status === InvoiceStatus.SENT ? 'bg-blue-100 text-blue-700' :
+                          inv.status === InvoiceStatus.OVERDUE ? 'bg-red-100 text-red-700' :
+                          inv.status === InvoiceStatus.PARTIAL ? 'bg-yellow-100 text-yellow-700' :
+                          inv.status === InvoiceStatus.CANCELLED ? 'bg-gray-100 text-gray-500' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>{inv.status}</span>
+                        <span className="text-sm font-semibold text-gray-900">${inv.total_amount.toFixed(2)}</span>
+                        <ChevronRight className="h-4 w-4 text-gray-400" />
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Sidebar */}
+          {/* Sidebar */
           <div className="space-y-6">
             {/* Status Management */}
             <div className="bg-white rounded-lg shadow p-6">
@@ -653,11 +748,19 @@ export default function ClientDetailPage() {
                 </button>
 
                 <button
-                  onClick={() => setShowInvoiceModal(true)}
+                  onClick={() => router.push(`/dashboard/estimates/new?clientId=${client.id}`)}
+                  className="w-full bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 flex items-center justify-center gap-2"
+                >
+                  <PlusCircle className="h-4 w-4" />
+                  Create Estimate
+                </button>
+
+                <button
+                  onClick={() => router.push(`/dashboard/invoices/new?clientId=${client.id}`)}
                   className="w-full bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center justify-center gap-2"
                 >
-                  <FileText className="h-4 w-4" />
-                  Send Invoice
+                  <PlusCircle className="h-4 w-4" />
+                  Create Invoice
                 </button>
 
                 <button

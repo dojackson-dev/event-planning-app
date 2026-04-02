@@ -252,8 +252,9 @@ export default function ItemsPage() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto">
+          <div className="flex min-h-full items-start justify-center p-4 sm:items-center">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">
               {editingItem ? 'Edit Item' : 'Add New Item'}
             </h2>
@@ -356,6 +357,7 @@ export default function ItemsPage() {
                 </button>
               </div>
             </form>
+          </div>
           </div>
         </div>
       )}

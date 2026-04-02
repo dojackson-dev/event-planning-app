@@ -28,9 +28,9 @@ export default function VendorNav({ profile, currentPage }: VendorNavProps) {
             <Store className="w-5 h-5 text-primary-600" />
             <div>
               <p className="font-semibold text-gray-900 leading-none">
-                {profile?.business_name || 'Vendor Dashboard'}
+                {profile?.business_name || 'My Business'}
               </p>
-              <p className="text-xs text-gray-400">{profile?.email}</p>
+              <p className="text-xs text-primary-500 font-semibold tracking-widest uppercase">VendorSuite</p>
             </div>
           </Link>
           {currentPage && (

@@ -46,18 +46,21 @@ function BrandLogo({ variant }: { variant: 'sidebar' | 'mobile' }) {
   if (variant === 'sidebar') {
     return (
       <div className="hidden lg:flex items-center justify-center h-20 px-4 pt-4 bg-primary-600">
-        {logoUrl ? (
-          <img src={logoUrl} alt={businessName || 'Logo'} className="max-h-14 max-w-[180px] w-auto object-contain" />
-        ) : !loading && businessName ? (
-          <div className="flex flex-col items-center gap-1">
-            <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-white font-bold text-2xl">
-              {initials}
+        <div className="flex flex-col items-center gap-1 w-full">
+          {logoUrl ? (
+            <img src={logoUrl} alt={businessName || 'Logo'} className="max-h-12 max-w-[160px] w-auto object-contain" />
+          ) : !loading && businessName ? (
+            <div className="flex flex-col items-center gap-1">
+              <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-white font-bold text-2xl">
+                {initials}
+              </div>
+              <p className="text-white/80 text-xs font-medium text-center truncate max-w-[160px]">{businessName}</p>
             </div>
-            <p className="text-white/80 text-xs font-medium text-center truncate max-w-[160px]">{businessName}</p>
-          </div>
-        ) : (
-          <img src="/lib/LogoDVS.png" alt="DoVenueSuite" style={{ height: '112px', width: 'auto' }} />
-        )}
+          ) : (
+            <img src="/lib/LogoDVS.png" alt="DoVenueSuite" style={{ height: '80px', width: 'auto' }} />
+          )}
+          <span className="text-white/60 text-[10px] font-semibold tracking-widest uppercase mt-0.5">OwnerSuite</span>
+        </div>
       </div>
     )
   }
@@ -73,7 +76,10 @@ function BrandLogo({ variant }: { variant: 'sidebar' | 'mobile' }) {
       <span className="font-bold text-white text-sm truncate max-w-[160px]">{businessName}</span>
     </div>
   ) : (
-    <img src="/lib/LogoDVS.png" alt="DoVenueSuite" style={{ height: '40px', width: 'auto' }} />
+    <div className="flex items-center gap-2">
+      <img src="/lib/LogoDVS.png" alt="DoVenueSuite" style={{ height: '36px', width: 'auto' }} />
+      <span className="text-white/70 text-[10px] font-semibold tracking-widest uppercase">OwnerSuite</span>
+    </div>
   )
 }
 

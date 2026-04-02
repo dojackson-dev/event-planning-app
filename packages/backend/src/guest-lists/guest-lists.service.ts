@@ -369,26 +369,44 @@ export class GuestListsService {
       `Link: ${shareUrl}\nAccess Code: ${guestList.access_code}\n\n` +
       `Open the link and enter the code to get started.`;
 
-    // Try to find the client's phone — check intake_forms first, then users
+    // Look up phone via: guest_list.event_id → event.client_id → intake_forms.contact_phone
     let phone: string | null = null;
 
-    if (guestList.client_id) {
-      // Check intake_forms (contact_phone)
+    if (guestList.event_id) {
+      // Get the event to find the client_id
+      const { data: event } = await supabase
+        .from('event')
+        .select('client_id')
+        .eq('id', guestList.event_id)
+        .maybeSingle();
+
+      if (event?.client_id) {
+        // client_id on event references intake_forms.id
+        const { data: form } = await supabase
+          .from('intake_forms')
+          .select('contact_phone, contact_name')
+          .eq('id', event.client_id)
+          .maybeSingle();
+        if (form?.contact_phone) phone = form.contact_phone;
+      }
+    }
+
+    // Fallback: try guest_list.client_id directly against intake_forms or users
+    if (!phone && guestList.client_id) {
       const { data: form } = await supabase
         .from('intake_forms')
-        .select('contact_phone, contact_name')
+        .select('contact_phone')
         .eq('id', guestList.client_id)
         .maybeSingle();
       if (form?.contact_phone) phone = form.contact_phone;
 
-      // Fallback: check users table
       if (!phone) {
         const { data: userRow } = await supabase
           .from('users')
-          .select('phone')
+          .select('phone_number')
           .eq('id', guestList.client_id)
           .maybeSingle();
-        if (userRow?.phone) phone = userRow.phone;
+        if (userRow?.phone_number) phone = userRow.phone_number;
       }
     }
 

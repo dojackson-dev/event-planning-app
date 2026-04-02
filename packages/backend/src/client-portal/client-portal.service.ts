@@ -253,6 +253,41 @@ export class ClientPortalService {
     });
   }
 
+  /** Leave a review for a vendor from the client portal */
+  async leaveVendorReview(
+    clientId: string,
+    reviewerName: string,
+    vendorAccountId: string,
+    rating: number,
+    reviewText?: string,
+  ) {
+    const supabase = this.supabaseService.getAdminClient();
+
+    const { data: vendor } = await supabase
+      .from('vendor_accounts')
+      .select('id')
+      .eq('id', vendorAccountId)
+      .single();
+
+    if (!vendor) throw new NotFoundException('Vendor not found');
+
+    const { data, error } = await supabase
+      .from('vendor_reviews')
+      .insert({
+        vendor_account_id: vendorAccountId,
+        reviewer_user_id: clientId,
+        reviewer_name: reviewerName,
+        rating,
+        review_text: reviewText || null,
+        is_public: true,
+      })
+      .select()
+      .single();
+
+    if (error) throw new BadRequestException(error.message);
+    return data;
+  }
+
   /** Book a vendor directly from the client portal */
   async bookVendor(
     clientId: string,

@@ -161,7 +161,7 @@ export default function VendorPublicProfile({ params }: { params: { id: string }
     setReviewSubmitting(true)
     setReviewError('')
     try {
-      const res = await api.post('/vendors/reviews', {
+      const res = await clientApi.post('/vendors/review', {
         vendorAccountId: params.id,
         rating: reviewForm.rating,
         reviewText: reviewForm.text,
@@ -348,35 +348,54 @@ export default function VendorPublicProfile({ params }: { params: { id: string }
           {/* Leave a review */}
           <div className="border border-gray-100 rounded-xl p-4 mb-6 bg-gray-50">
             <h3 className="text-sm font-semibold text-gray-700 mb-3">Leave a Review</h3>
-            {reviewError && <div className="text-sm text-red-600 mb-2">{reviewError}</div>}
-            <form onSubmit={handleReviewSubmit} className="space-y-3">
-              <div className="flex items-center gap-1">
-                {[1,2,3,4,5].map(star => (
+            {isClientLoggedIn ? (
+              <>
+                {reviewError && <div className="text-sm text-red-600 mb-2">{reviewError}</div>}
+                <form onSubmit={handleReviewSubmit} className="space-y-3">
+                  <div className="flex items-center gap-1">
+                    {[1,2,3,4,5].map(star => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setReviewForm(f => ({ ...f, rating: star }))}
+                        className={`text-2xl transition-colors ${star <= reviewForm.rating ? 'text-yellow-400' : 'text-gray-200 hover:text-yellow-200'}`}
+                      >
+                        ★
+                      </button>
+                    ))}
+                  </div>
+                  <textarea
+                    value={reviewForm.text}
+                    onChange={e => setReviewForm(f => ({ ...f, text: e.target.value }))}
+                    rows={3}
+                    placeholder="Share your experience..."
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none bg-white"
+                  />
                   <button
-                    key={star}
-                    type="button"
-                    onClick={() => setReviewForm(f => ({ ...f, rating: star }))}
-                    className={`text-2xl transition-colors ${star <= reviewForm.rating ? 'text-yellow-400' : 'text-gray-200 hover:text-yellow-200'}`}
+                    type="submit"
+                    disabled={reviewSubmitting || !reviewForm.text}
+                    className="bg-primary-600 text-white px-5 py-2 rounded-lg text-sm font-semibold hover:bg-primary-700 disabled:opacity-50"
                   >
-                    ★
+                    {reviewSubmitting ? 'Submitting...' : 'Submit Review'}
                   </button>
-                ))}
+                </form>
+              </>
+            ) : (
+              <div className="text-center py-3">
+                <p className="text-sm text-gray-500 mb-2">You must be logged in to leave a review.</p>
+                <button
+                  onClick={() => {
+                    if (typeof window !== 'undefined') {
+                      sessionStorage.setItem('post_login_redirect', window.location.pathname)
+                    }
+                    router.push('/client-login')
+                  }}
+                  className="bg-primary-600 text-white px-5 py-2 rounded-lg text-sm font-semibold hover:bg-primary-700"
+                >
+                  Log in to leave a review
+                </button>
               </div>
-              <textarea
-                value={reviewForm.text}
-                onChange={e => setReviewForm(f => ({ ...f, text: e.target.value }))}
-                rows={3}
-                placeholder="Share your experience..."
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none bg-white"
-              />
-              <button
-                type="submit"
-                disabled={reviewSubmitting || !reviewForm.text}
-                className="bg-primary-600 text-white px-5 py-2 rounded-lg text-sm font-semibold hover:bg-primary-700 disabled:opacity-50"
-              >
-                {reviewSubmitting ? 'Submitting...' : 'Submit Review'}
-              </button>
-            </form>
+            )}
           </div>
 
           {reviews.length === 0 ? (

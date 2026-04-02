@@ -133,6 +133,12 @@ export default function VendorDashboard() {
 
       <div className="max-w-6xl mx-auto px-4 py-8">
 
+        {/* Suite title */}
+        <div className="mb-6 bg-blue-600 rounded-xl px-6 py-4 text-center">
+          <h1 className="text-2xl font-bold text-white">VendorSuite</h1>
+          <p className="text-sm text-blue-100 mt-0.5">Welcome back, {profile?.business_name || 'Vendor'}</p>
+        </div>
+
         {/* Quick Overview - only shown when there are pending bookings */}
         {pendingCount > 0 && (
           <div className="bg-white rounded-xl shadow-sm p-5 mb-6">
@@ -225,27 +231,29 @@ export default function VendorDashboard() {
         </div>
 
         {/* Upcoming Confirmed Events */}
-        <div className="bg-blue-600 rounded-xl p-5">
-          <h3 className="text-sm font-semibold text-white mb-3">Upcoming Confirmed Events</h3>
+        <div className="bg-white rounded-xl overflow-hidden shadow-sm">
+          <div className="bg-blue-600 px-5 py-3">
+            <h3 className="text-sm font-semibold text-white">Upcoming Confirmed Events</h3>
+          </div>
           {upcomingConfirmed.length === 0 ? (
-            <p className="text-sm text-blue-200">No upcoming confirmed events.</p>
+            <p className="text-sm text-gray-500 px-5 py-4">No upcoming confirmed events.</p>
           ) : (
-            <div className="space-y-2">
+            <div className="divide-y divide-gray-100">
               {upcomingConfirmed.map(b => (
                 <Link
                   key={b.id}
                   href="/vendors/dashboard/bookings"
-                  className="flex items-center justify-between bg-white/10 hover:bg-white/20 transition-colors rounded-lg px-4 py-3"
+                  className="flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition-colors"
                 >
                   <div>
-                    <p className="font-semibold text-white text-sm">{b.event_name}</p>
-                    {b.venue_name && <p className="text-xs text-blue-200 mt-0.5">📍 {b.venue_name}</p>}
+                    <p className="font-semibold text-gray-900 text-sm">{b.event_name}</p>
+                    {b.venue_name && <p className="text-xs text-gray-500 mt-0.5">📍 {b.venue_name}</p>}
                   </div>
                   <div className="text-right flex-shrink-0 ml-3">
-                    <p className="text-sm text-white font-medium">
+                    <p className="text-sm text-gray-700 font-medium">
                       {new Date(b.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </p>
-                    {b.agreed_amount > 0 && <p className="text-xs text-blue-200">${b.agreed_amount.toLocaleString()}</p>}
+                    {b.agreed_amount > 0 && <p className="text-xs text-gray-500">${b.agreed_amount.toLocaleString()}</p>}
                   </div>
                 </Link>
               ))}

@@ -186,8 +186,6 @@ export default function VendorSettingsPage() {
         <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href="/" className="text-primary-600 font-bold text-lg">DoVenueSuite</Link>
-            <span className="text-gray-300">|</span>
-            <span className="text-gray-700 font-medium">Vendor Settings</span>
           </div>
           <Link
             href="/vendors/dashboard"

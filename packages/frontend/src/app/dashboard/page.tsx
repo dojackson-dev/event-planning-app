@@ -187,7 +187,7 @@ export default function DashboardPage() {
         <Link href="/dashboard/clients" className="bg-white rounded-xl shadow-sm p-5 sm:p-6 border border-gray-100 hover:shadow-md hover:border-purple-200 transition-all cursor-pointer">
           <div className="flex items-center justify-between">
             <div className="flex-1">
-              <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">New Clients</p>
+              <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">New Leads</p>
               <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.totalClients}</p>
               <p className="text-xs text-gray-500 mt-1">{stats.newClients} new leads</p>
             </div>

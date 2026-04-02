@@ -403,3 +403,4 @@ export class GuestListsService {
       return { sent: false, error: smsErr?.message || 'SMS failed' };
     }
   }
+}

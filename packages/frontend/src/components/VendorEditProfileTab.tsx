@@ -77,7 +77,7 @@ export default function VendorEditProfileTab({ profile, onUpdate }: Props) {
             <label className="block text-sm font-medium text-gray-700 mb-2">Cover Photo</label>
             <ImageUpload
               currentUrl={coverUrl}
-              uploadType="vendor-logo"
+              uploadType="vendor-cover"
               shape="landscape"
               onUpload={(url) => setCoverUrl(url)}
             />

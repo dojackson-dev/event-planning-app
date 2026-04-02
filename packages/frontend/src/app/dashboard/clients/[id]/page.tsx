@@ -733,10 +733,10 @@ export default function ClientDetailPage() {
                 >
                   <CheckCircle className="h-4 w-4" />
                   {client.status === 'converted' 
-                    ? 'Already Converted' 
+                    ? 'Already Activated' 
                     : updating 
-                    ? 'Converting...' 
-                    : 'Convert to Booking'}
+                    ? 'Activating...' 
+                    : 'Activate Client'}
                 </button>
 
                 <button
@@ -745,22 +745,6 @@ export default function ClientDetailPage() {
                 >
                   <MessageSquare className="h-4 w-4" />
                   Send Message
-                </button>
-
-                <button
-                  onClick={() => router.push(`/dashboard/estimates/new?clientId=${client.id}`)}
-                  className="w-full bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 flex items-center justify-center gap-2"
-                >
-                  <PlusCircle className="h-4 w-4" />
-                  Create Estimate
-                </button>
-
-                <button
-                  onClick={() => router.push(`/dashboard/invoices/new?clientId=${client.id}`)}
-                  className="w-full bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center justify-center gap-2"
-                >
-                  <PlusCircle className="h-4 w-4" />
-                  Create Invoice
                 </button>
 
                 <button

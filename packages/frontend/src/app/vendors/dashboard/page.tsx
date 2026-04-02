@@ -282,11 +282,11 @@ export default function VendorDashboard() {
 
       <div className="max-w-6xl mx-auto px-4 py-8">
 
-        {/* Quick Overview */}
+        {/* Quick Overview - only shown when there are pending bookings */}
+        {pendingCount > 0 && (
         <div className="bg-white rounded-xl shadow-sm p-5 mb-6">
           <h2 className="text-sm font-semibold text-gray-700 mb-3">Quick Overview</h2>
-          {pendingCount > 0 && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-3">
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
               <p className="text-yellow-800 font-medium text-sm">
                 ⏳ You have {pendingCount} pending booking request{pendingCount > 1 ? 's' : ''} awaiting your response.
               </p>
@@ -294,24 +294,8 @@ export default function VendorDashboard() {
                 Review bookings →
               </button>
             </div>
-          )}
-          <h3 className="text-xs font-semibold text-gray-500 uppercase mb-2">Upcoming Confirmed Events</h3>
-          {bookings.filter(b => b.status === 'confirmed' && new Date(b.event_date) >= new Date()).length === 0 ? (
-            <p className="text-sm text-gray-400">No upcoming events.</p>
-          ) : (
-            <div className="space-y-2">
-              {bookings
-                .filter(b => b.status === 'confirmed' && new Date(b.event_date) >= new Date())
-                .slice(0, 5)
-                .map(b => (
-                  <div key={b.id} className="flex items-center justify-between text-sm border-b pb-2">
-                    <span className="font-medium">{b.event_name}</span>
-                    <span className="text-gray-500">{new Date(b.event_date).toLocaleDateString()}</span>
-                  </div>
-                ))}
-            </div>
-          )}
         </div>
+        )}
 
         {/* Quick action cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
@@ -391,6 +375,26 @@ export default function VendorDashboard() {
               {tab.label}
             </button>
           ))}
+        </div>
+
+        {/* Upcoming Confirmed Events */}
+        <div className="bg-blue-600 rounded-xl p-5 mb-6">
+          <h3 className="text-sm font-semibold text-white mb-3">Upcoming Confirmed Events</h3>
+          {bookings.filter(b => b.status === 'confirmed' && new Date(b.event_date) >= new Date()).length === 0 ? (
+            <p className="text-sm text-blue-200">No upcoming events.</p>
+          ) : (
+            <div className="space-y-2">
+              {bookings
+                .filter(b => b.status === 'confirmed' && new Date(b.event_date) >= new Date())
+                .slice(0, 5)
+                .map(b => (
+                  <div key={b.id} className="flex items-center justify-between text-sm border-b border-blue-500 pb-2">
+                    <span className="font-medium text-white">{b.event_name}</span>
+                    <span className="text-blue-200">{new Date(b.event_date).toLocaleDateString()}</span>
+                  </div>
+                ))}
+            </div>
+          )}
         </div>
 
         {/* ── BOOKINGS TAB ─────────────────────────────────────────── */}

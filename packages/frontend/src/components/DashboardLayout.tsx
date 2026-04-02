@@ -66,19 +66,21 @@ function BrandLogo({ variant }: { variant: 'sidebar' | 'mobile' }) {
   }
 
   // mobile variant — rendered on bg-primary-600 row
-  return logoUrl ? (
-    <img src={logoUrl} alt={businessName || 'Logo'} className="h-10 max-w-[200px] object-contain" />
-  ) : businessName ? (
+  return (
     <div className="flex items-center gap-2">
-      <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-        {initials}
+      {logoUrl ? (
+        <img src={logoUrl} alt={businessName || 'Logo'} className="h-9 max-w-[140px] object-contain" />
+      ) : businessName ? (
+        <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+          {initials}
+        </div>
+      ) : (
+        <img src="/lib/LogoDVS.png" alt="DoVenueSuite" style={{ height: '36px', width: 'auto' }} />
+      )}
+      <div className="flex flex-col leading-tight">
+        {businessName && !logoUrl && <span className="font-bold text-white text-sm truncate max-w-[140px]">{businessName}</span>}
+        <span className="text-white/70 text-[10px] font-semibold tracking-widest uppercase">OwnerSuite</span>
       </div>
-      <span className="font-bold text-white text-sm truncate max-w-[160px]">{businessName}</span>
-    </div>
-  ) : (
-    <div className="flex items-center gap-2">
-      <img src="/lib/LogoDVS.png" alt="DoVenueSuite" style={{ height: '36px', width: 'auto' }} />
-      <span className="text-white/70 text-[10px] font-semibold tracking-widest uppercase">OwnerSuite</span>
     </div>
   )
 }

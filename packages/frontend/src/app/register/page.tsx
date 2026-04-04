@@ -1,21 +1,26 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
 import PhoneInput from '@/components/PhoneInput'
 
-export default function RegisterPage() {
-  const router = useRouter()
+// Separated so useSearchParams is inside a Suspense boundary
+function ReferralCapture({ onCode }: { onCode: (code: string) => void }) {
   const searchParams = useSearchParams()
-
-  // Capture affiliate referral code from ?ref= query param
-  const [referralCode, setReferralCode] = useState<string | null>(null)
   useEffect(() => {
     const ref = searchParams.get('ref')
-    if (ref) setReferralCode(ref)
-  }, [searchParams])
+    if (ref) onCode(ref)
+  }, [searchParams, onCode])
+  return null
+}
+
+export default function RegisterPage() {
+  const router = useRouter()
+
+  // Capture affiliate referral code from ?ref= query param (set by <ReferralCapture>)
+  const [referralCode, setReferralCode] = useState<string | null>(null)
 
   // ── Personal info ──────────────────────────────────────────
   const [firstName, setFirstName] = useState('')
@@ -118,6 +123,10 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      {/* Reads ?ref= param without breaking SSR — must be inside Suspense */}
+      <Suspense fallback={null}>
+        <ReferralCapture onCode={setReferralCode} />
+      </Suspense>
       <div className="max-w-2xl mx-auto">
         <div className="text-center mb-8">
           <Link href="/" className="text-primary-600 hover:text-primary-700 text-sm font-medium">

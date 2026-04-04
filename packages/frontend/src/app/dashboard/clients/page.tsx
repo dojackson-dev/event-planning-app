@@ -229,24 +229,22 @@ export default function ClientsPage() {
               </button>
             )}
           </div>
-          {/* Filter chips */}
-          <div className="flex justify-center gap-2 mt-2 overflow-x-auto pb-1 scrollbar-hide">
-            {(['all', 'new', 'contacted', 'converted'] as const).map((f) => {
-              const count = f === 'all' ? clients.length : clients.filter(c => c.status === f).length
-              return (
-                <button
-                  key={f}
-                  onClick={() => setFilter(f)}
-                  className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-                    filter === f
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  {f.charAt(0).toUpperCase() + f.slice(1)} ({count})
-                </button>
-              )
-            })}
+          {/* Filter dropdown */}
+          <div className="flex justify-center mt-2">
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value as typeof filter)}
+              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {(['all', 'new', 'contacted', 'converted'] as const).map((f) => {
+                const count = f === 'all' ? clients.length : clients.filter(c => c.status === f).length
+                return (
+                  <option key={f} value={f}>
+                    {f.charAt(0).toUpperCase() + f.slice(1)} ({count})
+                  </option>
+                )
+              })}
+            </select>
           </div>
         </div>
       </div>

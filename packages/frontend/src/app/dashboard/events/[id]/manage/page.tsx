@@ -215,32 +215,22 @@ export default function EventManagementPage() {
 
   const loadEventData = async () => {
     try {
-      // Load event and associated management data
-      const response = await api.get(`/events/${eventId}/management`);
-      setFormData(response.data);
-      // Load invoices linked to this event's booking
-      const bookingId = response.data.bookingId || response.data.booking_id;
-      loadEventInvoices(bookingId, response.data.clientName);
+      const eventResponse = await api.get(`/events/${eventId}`);
+      const event = eventResponse.data;
+      setFormData(prev => ({
+        ...prev,
+        eventId: eventId,
+        eventName: event.name || '',
+        eventType: event.eventType || EventType.WEDDING_RECEPTION,
+        eventDate: event.date || '',
+        startTime: event.startTime || '',
+        endTime: event.endTime || '',
+        venue: event.venue || '',
+      }));
+      loadEventInvoices(event.bookingId, event.name);
     } catch (error) {
-      console.error('Error loading event management data:', error);
-      // Initialize with basic event data from the events API as fallback
-      try {
-        const eventResponse = await api.get(`/events/${eventId}`);
-        const event = eventResponse.data;
-        setFormData(prev => ({
-          ...prev,
-          eventId: eventId,
-          eventName: event.name || '',
-          eventType: event.eventType || EventType.WEDDING_RECEPTION,
-          eventDate: event.date || '',
-          startTime: event.startTime || '',
-          endTime: event.endTime || '',
-          venue: event.venue || '',
-        }));
-      } catch (fallbackError) {
-        console.error('Error loading event data:', fallbackError);
-        alert('Unable to load event data. Please try again.');
-      }
+      console.error('Error loading event data:', error);
+      alert('Unable to load event data. Please try again.');
     }
   };
 

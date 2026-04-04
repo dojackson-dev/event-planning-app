@@ -277,14 +277,17 @@ export class GuestListsService {
       .insert({
         guest_list_id: guestListId,
         name: guestData.name,
-        phone: guestData.phone,
+        phone: guestData.phone || null,
         plus_one_count: guestData.plusOnes || 0,
         has_arrived: false,
       })
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('[GuestListsService] addGuest error:', error.message, error.details, error.hint);
+      throw error;
+    }
     return data;
   }
 

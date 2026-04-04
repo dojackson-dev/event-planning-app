@@ -20,8 +20,8 @@ export default function NewGuestListPage() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    fetchEvents()
-  }, [])
+    if (user) fetchEvents()
+  }, [user])
 
   const fetchClients = async () => {
     try {

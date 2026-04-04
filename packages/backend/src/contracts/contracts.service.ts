@@ -106,7 +106,10 @@ export class ContractsService {
       .insert([payload])
       .select()
       .single();
-    if (error) throw error;
+    if (error) {
+      console.error('[ContractsService] insert error:', error.message, error.details, error.hint);
+      throw error;
+    }
     return data;
   }
 

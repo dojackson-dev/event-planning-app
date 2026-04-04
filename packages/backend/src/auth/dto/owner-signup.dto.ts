@@ -6,6 +6,7 @@ export class OwnerSignupDto {
   businessName: string;
   phoneNumber?: string;
   smsOptIn?: boolean;
+  referralCode?: string; // Affiliate referral code (e.g. ?ref=JOHN-AB1C2D)
 
   // First venue (required)
   venueName: string;

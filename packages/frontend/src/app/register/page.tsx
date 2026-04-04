@@ -1,13 +1,26 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
 import PhoneInput from '@/components/PhoneInput'
 
+// Separated so useSearchParams is inside a Suspense boundary
+function ReferralCapture({ onCode }: { onCode: (code: string) => void }) {
+  const searchParams = useSearchParams()
+  useEffect(() => {
+    const ref = searchParams.get('ref')
+    if (ref) onCode(ref)
+  }, [searchParams, onCode])
+  return null
+}
+
 export default function RegisterPage() {
   const router = useRouter()
+
+  // Capture affiliate referral code from ?ref= query param (set by <ReferralCapture>)
+  const [referralCode, setReferralCode] = useState<string | null>(null)
 
   // ── Personal info ──────────────────────────────────────────
   const [firstName, setFirstName] = useState('')
@@ -70,6 +83,7 @@ export default function RegisterPage() {
         venueCapacity: venueCapacity ? parseInt(venueCapacity, 10) : undefined,
         venueDescription: venueDescription || undefined,
         smsOptIn,
+        referralCode: referralCode || undefined,
       })
 
       // Store session tokens so the user is immediately logged in
@@ -109,6 +123,10 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      {/* Reads ?ref= param without breaking SSR — must be inside Suspense */}
+      <Suspense fallback={null}>
+        <ReferralCapture onCode={setReferralCode} />
+      </Suspense>
       <div className="max-w-2xl mx-auto">
         <div className="text-center mb-8">
           <Link href="/" className="text-primary-600 hover:text-primary-700 text-sm font-medium">
@@ -124,6 +142,17 @@ export default function RegisterPage() {
           {error && (
             <div className="rounded-md bg-red-50 border border-red-200 p-4">
               <p className="text-sm text-red-800">{error}</p>
+            </div>
+          )}
+
+          {referralCode && (
+            <div className="rounded-md bg-indigo-50 border border-indigo-200 p-3 flex items-center gap-2">
+              <svg className="w-4 h-4 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+              </svg>
+              <p className="text-sm text-indigo-700">
+                You were referred by an affiliate partner. Thank you!
+              </p>
             </div>
           )}
 

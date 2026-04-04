@@ -1,9 +1,10 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { StripeService } from '../stripe/stripe.service';
 import { SmsService } from '../sms/sms.service';
 import { TrialService } from '../trial/trial.service';
 import { TwilioService } from '../messaging/twilio.service.js';
+import { AffiliatesService } from '../affiliates/affiliates.service';
 import { OwnerSignupDto, OwnerLoginDto, VerifyPhoneDto } from './dto/owner-signup.dto';
 import { CreateInviteDto, AcceptInviteDto, ClientSmsOptInDto } from './dto/client-invite.dto';
 import { randomBytes } from 'crypto';
@@ -16,6 +17,8 @@ export class AuthFlowService {
     private readonly smsService: SmsService,
     private readonly trialService: TrialService,
     private readonly twilioService: TwilioService,
+    @Inject(forwardRef(() => AffiliatesService))
+    private readonly affiliatesService: AffiliatesService,
   ) {}
 
   /**
@@ -80,19 +83,43 @@ export class AuthFlowService {
 
     if (userError) throw new BadRequestException(userError.message);
 
+    // Resolve affiliate referral code if provided
+    let referredByAffiliateId: string | null = null;
+    if (dto.referralCode) {
+      referredByAffiliateId = await this.affiliatesService.getAffiliateIdByCode(dto.referralCode);
+    }
+
     // 3. Create owner_account with trial (FK primary_owner_id → users.id)
+    const ownerAccountPayload: Record<string, unknown> = {
+      business_name: dto.businessName,
+      primary_owner_id: userId,
+      subscription_status: 'trial', // Start with free trial
+      intake_slug: await this.generateUniqueSlug(dto.businessName, supabase),
+    };
+    if (referredByAffiliateId) {
+      ownerAccountPayload.referred_by_affiliate_id = referredByAffiliateId;
+    }
+
     const { data: ownerAccount, error: accountError } = await supabase
       .from('owner_accounts')
-      .insert({
-        business_name: dto.businessName,
-        primary_owner_id: userId,
-        subscription_status: 'trial', // Start with free trial
-        intake_slug: await this.generateUniqueSlug(dto.businessName, supabase),
-      })
+      .insert(ownerAccountPayload)
       .select()
       .single();
 
     if (accountError) throw new BadRequestException(accountError.message);
+
+    // Create a referral record in 'pending' state so the affiliate can see the lead
+    if (referredByAffiliateId) {
+      const admin = this.supabaseService.getAdminClient();
+      await admin.from('affiliate_referrals').upsert(
+        {
+          affiliate_id:     referredByAffiliateId,
+          owner_account_id: ownerAccount.id,
+          status:           'pending',
+        },
+        { onConflict: 'affiliate_id,owner_account_id' },
+      );
+    }
 
     // Create trial period (30 days default, or configurable)
     await this.trialService.createTrial(ownerAccount.id);

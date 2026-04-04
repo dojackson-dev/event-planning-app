@@ -128,66 +128,68 @@ export default function InvoiceDetailPage() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      {/* Action Buttons */}
-      <div className="flex justify-between items-center mb-6 print:hidden">
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto">
+      {/* Back link */}
+      <div className="mb-3 print:hidden">
         <button
           onClick={() => router.push('/dashboard/invoices')}
-          className="text-gray-600 hover:text-gray-900"
+          className="text-gray-600 hover:text-gray-900 flex items-center gap-1 text-sm"
         >
           ← Back to Invoices
         </button>
-        <div className="flex gap-2">
-          {invoice.status !== InvoiceStatus.PAID && (
-            <>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex flex-wrap gap-2 mb-6 print:hidden">
+        {invoice.status !== InvoiceStatus.PAID && (
+          <>
+            <button
+              onClick={() => setShowPaymentModal(true)}
+              className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-sm font-medium"
+            >
+              Record Payment
+            </button>
+            <button
+              onClick={handleGeneratePaymentLink}
+              disabled={generatingLink}
+              className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1.5 text-sm font-medium"
+            >
+              {generatingLink ? 'Generating...' : '🔗 Payment Link'}
+            </button>
+            {invoice.status === InvoiceStatus.DRAFT && (
               <button
-                onClick={() => setShowPaymentModal(true)}
-                className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
+                onClick={() => handleStatusUpdate(InvoiceStatus.SENT)}
+                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 text-sm font-medium"
               >
-                Record Payment
+                Send Invoice
               </button>
+            )}
+            {(invoice.status === InvoiceStatus.SENT || invoice.status === InvoiceStatus.PARTIAL || invoice.status === InvoiceStatus.OVERDUE) && (
               <button
-                onClick={handleGeneratePaymentLink}
-                disabled={generatingLink}
-                className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1.5"
+                onClick={() => handleStatusUpdate(invoice.status)}
+                className="bg-blue-100 text-blue-700 px-4 py-2 rounded-md hover:bg-blue-200 text-sm font-medium"
               >
-                {generatingLink ? 'Generating...' : '🔗 Send Payment Link'}
+                Resend Invoice
               </button>
-              {invoice.status === InvoiceStatus.DRAFT && (
-                <button
-                  onClick={() => handleStatusUpdate(InvoiceStatus.SENT)}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-                >
-                  Send Invoice
-                </button>
-              )}
-              {(invoice.status === InvoiceStatus.SENT || invoice.status === InvoiceStatus.PARTIAL || invoice.status === InvoiceStatus.OVERDUE) && (
-                <button
-                  onClick={() => handleStatusUpdate(invoice.status)}
-                  className="bg-blue-100 text-blue-700 px-4 py-2 rounded-md hover:bg-blue-200"
-                >
-                  Resend Invoice
-                </button>
-              )}
-            </>
-          )}
-          <button
-            onClick={handlePrint}
-            className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700"
-          >
-            Print
-          </button>
-          <button
-            onClick={handleDelete}
-            className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
-          >
-            Delete
-          </button>
-        </div>
+            )}
+          </>
+        )}
+        <button
+          onClick={handlePrint}
+          className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 text-sm font-medium"
+        >
+          Print
+        </button>
+        <button
+          onClick={handleDelete}
+          className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 text-sm font-medium"
+        >
+          Delete
+        </button>
       </div>
 
       {/* Invoice Document */}
-      <div className="bg-white shadow-lg rounded-lg p-8">
+      <div className="bg-white shadow-lg rounded-lg p-4 sm:p-8">
         {/* Header */}
         <div className="flex justify-between items-start mb-8">
           <div>
@@ -217,7 +219,7 @@ export default function InvoiceDetailPage() {
         </div>
 
         {/* Bill To & Dates */}
-        <div className="grid grid-cols-2 gap-8 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 mb-8">
           <div>
             <h3 className="font-semibold text-gray-700 mb-2">Bill To:</h3>
             <div className="text-gray-600">
@@ -248,7 +250,8 @@ export default function InvoiceDetailPage() {
         </div>
 
         {/* Line Items — revenue only (billed to client) */}
-        <table className="w-full mb-8">
+        <div className="overflow-x-auto mb-8">
+        <table className="w-full min-w-[480px]">
           <thead className="bg-gray-50">
             <tr>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Description</th>
@@ -272,6 +275,7 @@ export default function InvoiceDetailPage() {
             ))}
           </tbody>
         </table>
+        </div>
 
         {/* Vendor Costs — internal, print-hidden */}
         {invoice.items?.some(i => i.item_type === 'expense') && (() => {

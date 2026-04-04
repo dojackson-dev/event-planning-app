@@ -344,13 +344,10 @@ export default function EventManagementPage() {
     <DashboardLayout>
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{formData.eventName || 'Event Management'}</h1>
-            <p className="text-sm text-gray-500 mt-1">Complete event planning and vendor coordination</p>
-          </div>
-          
-          <div className="flex gap-2">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900 text-center">{formData.eventName || 'Event Management'}</h1>
+          <p className="text-sm text-gray-500 mt-1 text-center">Complete event planning and vendor coordination</p>
+          <div className="flex justify-center gap-2 mt-4">
             {!isEditing ? (
               <>
                 <button

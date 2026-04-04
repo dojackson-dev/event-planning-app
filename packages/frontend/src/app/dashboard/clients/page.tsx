@@ -139,14 +139,35 @@ export default function ClientsPage() {
     }
   }
 
-  const filteredClients = clients.filter(client => {
-    const matchesFilter = filter === 'all' || client.status === filter
-    const matchesSearch = searchTerm === '' || 
-      client.contact_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      client.contact_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (client.contact_phone && client.contact_phone.includes(searchTerm))
-    return matchesFilter && matchesSearch
-  })
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const filteredClients = clients
+    .filter(client => {
+      const matchesFilter = filter === 'all' || client.status === filter
+      const matchesSearch = searchTerm === '' ||
+        client.contact_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        client.contact_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (client.contact_phone && client.contact_phone.includes(searchTerm))
+      return matchesFilter && matchesSearch
+    })
+    .sort((a, b) => {
+      const dateA = new Date(a.event_date)
+      const dateB = new Date(b.event_date)
+      const aExpired = dateA < today
+      const bExpired = dateB < today
+
+      if (!aExpired && !bExpired) {
+        // Both upcoming: closest first (ascending)
+        return dateA.getTime() - dateB.getTime()
+      } else if (aExpired && bExpired) {
+        // Both expired: most recently expired first, longest expired last (descending)
+        return dateB.getTime() - dateA.getTime()
+      } else {
+        // Upcoming before expired
+        return aExpired ? 1 : -1
+      }
+    })
 
   const getStatusColor = (status: string) => {
     switch (status) {

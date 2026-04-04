@@ -211,7 +211,7 @@ export default function ClientsPage() {
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <h1 className="text-xl font-bold text-gray-900 leading-tight">Clients & Leads</h1>
+              <h1 className="text-xl font-bold text-gray-900 leading-tight text-center">Clients & Leads</h1>
               <p className="text-xs text-gray-500">{clients.length} total</p>
             </div>
           </div>

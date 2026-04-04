@@ -569,19 +569,19 @@ export default function DashboardVendorsPage() {
   return (
     <div className="max-w-6xl mx-auto px-4 py-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Store className="w-6 h-6 text-primary-600" /> Vendors
-          </h1>
-          <p className="text-gray-500 text-sm mt-0.5">Find and book event vendors for your venue</p>
+      <div className="mb-6 text-center">
+        <h1 className="text-2xl font-bold text-gray-900 flex items-center justify-center gap-2">
+          <Store className="w-6 h-6 text-primary-600" /> Vendors
+        </h1>
+        <p className="text-gray-500 text-sm mt-0.5 mb-3">Find and book event vendors for your venue</p>
+        <div className="flex justify-center">
+          <Link
+            href="/dashboard/vendors/payments"
+            className="flex items-center gap-2 bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-2 rounded-lg text-sm font-medium hover:bg-indigo-100"
+          >
+            <CreditCard className="w-4 h-4" /> Vendor Payments
+          </Link>
         </div>
-        <Link
-          href="/dashboard/vendors/payments"
-          className="flex items-center gap-2 bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-2 rounded-lg text-sm font-medium hover:bg-indigo-100"
-        >
-          <CreditCard className="w-4 h-4" /> Vendor Payments
-        </Link>
       </div>
 
       {/* Tabs */}

@@ -156,19 +156,21 @@ export default function ItemsPage() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Items & Packages</h1>
-        <button
-          onClick={() => {
-            setEditingItem(null)
-            setFormData({ name: '', description: '', category: ServiceItemCategory.MISC, default_price: '', image_url: '', is_active: true })
-            setShowModal(true)
-          }}
-          className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
-        >
-          <Plus className="h-5 w-5 mr-2" />
-          Add Item
-        </button>
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-900 text-center mb-3">Items & Packages</h1>
+        <div className="flex justify-center">
+          <button
+            onClick={() => {
+              setEditingItem(null)
+              setFormData({ name: '', description: '', category: ServiceItemCategory.MISC, default_price: '', image_url: '', is_active: true })
+              setShowModal(true)
+            }}
+            className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
+          >
+            <Plus className="h-5 w-5 mr-2" />
+            Add Item
+          </button>
+        </div>
       </div>
 
       {/* Filters */}

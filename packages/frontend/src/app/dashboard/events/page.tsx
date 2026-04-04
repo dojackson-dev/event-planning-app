@@ -120,15 +120,17 @@ export default function EventsPage() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Events</h1>
-        <Link
-          href="/dashboard/events/new"
-          className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
-        >
-          <Plus className="h-5 w-5 mr-2" />
-          Create Event
-        </Link>
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-900 text-center mb-3">Events</h1>
+        <div className="flex justify-center">
+          <Link
+            href="/dashboard/events/new"
+            className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
+          >
+            <Plus className="h-5 w-5 mr-2" />
+            Create Event
+          </Link>
+        </div>
       </div>
 
       {/* Search + Filter */}

@@ -98,17 +98,19 @@ export default function InvoicesPage() {
 
   return (
     <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900 text-center mb-3">
           {user?.role === 'owner' ? 'My Invoices' : 'Invoices'}
         </h1>
         {user?.role === 'owner' && (
-          <button
-            onClick={() => router.push('/dashboard/invoices/new')}
-            className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
-          >
-            Create Invoice
-          </button>
+          <div className="flex justify-center">
+            <button
+              onClick={() => router.push('/dashboard/invoices/new')}
+              className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
+            >
+              Create Invoice
+            </button>
+          </div>
         )}
       </div>
 

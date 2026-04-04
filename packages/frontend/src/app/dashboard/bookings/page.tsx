@@ -97,8 +97,8 @@ export default function BookingsPage() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Bookings</h1>
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-900 text-center">Bookings</h1>
       </div>
 
       {/* Search + Filter — Bookings = events with deposit paid or full balance paid */}

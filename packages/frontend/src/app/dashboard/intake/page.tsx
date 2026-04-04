@@ -237,8 +237,8 @@ export default function ClientIntakePage() {
   return (
     <div className="max-w-4xl mx-auto">
       <div className="mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Client Intake Form</h1>
-        <p className="text-sm sm:text-base text-gray-600">Gather comprehensive information for event consultation</p>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 text-center">Client Intake Form</h1>
+        <p className="text-sm sm:text-base text-gray-600 text-center">Gather comprehensive information for event consultation</p>
       </div>
 
       {/* Progress Steps */}

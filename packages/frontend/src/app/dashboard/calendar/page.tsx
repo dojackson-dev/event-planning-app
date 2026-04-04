@@ -411,24 +411,22 @@ export default function CalendarPage() {
     <div>
       <div className="mb-6">
         {/* Title */}
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Calendar</h1>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => openApptModal()}
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm font-medium"
-            >
-              <Clock className="h-4 w-4" />
-              Schedule Appt
-            </button>
-            <button
-              onClick={() => openCreateModal()}
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium"
-            >
-              <Plus className="h-4 w-4" />
-              New Event
-            </button>
-          </div>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3 text-center">Calendar</h1>
+        <div className="flex items-center justify-center gap-2 mb-4">
+          <button
+            onClick={() => openApptModal()}
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 w-40 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm font-medium"
+          >
+            <Clock className="h-4 w-4" />
+            Schedule Appt
+          </button>
+          <button
+            onClick={() => openCreateModal()}
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 w-40 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium"
+          >
+            <Plus className="h-4 w-4" />
+            New Event
+          </button>
         </div>
         
         {/* View Toggle - Centered */}

@@ -139,18 +139,20 @@ export default function ContractsPage() {
 
   return (
     <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900 text-center mb-3">
           {user?.role === 'owner' ? 'My Contracts' : 'Contracts'}
         </h1>
         {user?.role === 'owner' && (
-          <button
-            onClick={() => router.push('/dashboard/contracts/new')}
-            className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
-          >
-            <Plus className="h-5 w-5" />
-            Create Contract
-          </button>
+          <div className="flex justify-center">
+            <button
+              onClick={() => router.push('/dashboard/contracts/new')}
+              className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
+            >
+              <Plus className="h-5 w-5" />
+              Create Contract
+            </button>
+          </div>
         )}
       </div>
 

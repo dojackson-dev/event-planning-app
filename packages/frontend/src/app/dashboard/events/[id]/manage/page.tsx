@@ -165,6 +165,7 @@ export default function EventManagementPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [eventInvoices, setEventInvoices] = useState<any[]>([]);
+  const [guestListId, setGuestListId] = useState<number | null>(null);
   const [formData, setFormData] = useState<EventManagementData>({
     eventId: '',
     eventType: EventType.WEDDING_RECEPTION,
@@ -228,9 +229,21 @@ export default function EventManagementPage() {
         venue: event.venue || '',
       }));
       loadEventInvoices(event.bookingId, event.name);
+      loadGuestList();
     } catch (error) {
       console.error('Error loading event data:', error);
       alert('Unable to load event data. Please try again.');
+    }
+  };
+
+  const loadGuestList = async () => {
+    try {
+      const res = await api.get('/guest-lists');
+      const all: any[] = res.data || [];
+      const match = all.find((gl: any) => String(gl.event_id) === String(eventId));
+      setGuestListId(match ? match.id : null);
+    } catch {
+      // guest list is supplementary
     }
   };
 
@@ -1219,26 +1232,23 @@ export default function EventManagementPage() {
               </h2>
 
               <div className="space-y-3">
-                <p className="text-sm text-gray-600">
-                  Last Updated: {formData.doorListLastUpdated}
-                </p>
-                
-                <a
-                  href={formData.doorListLink}
-                  className="block w-full px-4 py-2 bg-primary-600 text-white text-center rounded-lg hover:bg-primary-700"
-                >
-                  View Door List
-                </a>
-
-                {isEditing && (
-                  <input
-                    type="text"
-                    name="doorListLink"
-                    value={formData.doorListLink}
-                    onChange={handleChange}
-                    placeholder="Door list link"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                  />
+                {guestListId ? (
+                  <button
+                    onClick={() => router.push(`/dashboard/guest-lists/${guestListId}`)}
+                    className="block w-full px-4 py-2 bg-primary-600 text-white text-center rounded-lg hover:bg-primary-700"
+                  >
+                    View Door List
+                  </button>
+                ) : (
+                  <>
+                    <p className="text-sm text-gray-500">No door list created for this event yet.</p>
+                    <button
+                      onClick={() => router.push('/dashboard/guest-lists/new')}
+                      className="block w-full px-4 py-2 bg-gray-100 text-gray-700 text-center rounded-lg hover:bg-gray-200 border border-gray-300"
+                    >
+                      Create Door List
+                    </button>
+                  </>
                 )}
               </div>
             </div>

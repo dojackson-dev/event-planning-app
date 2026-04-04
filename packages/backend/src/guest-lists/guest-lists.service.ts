@@ -196,6 +196,17 @@ export class GuestListsService {
 
   async create(guestListData: any): Promise<any> {
     const supabase = this.supabaseService.getAdminClient();
+
+    // Enforce one guest list per event
+    const { data: existing } = await supabase
+      .from('guest_lists')
+      .select('id')
+      .eq('event_id', guestListData.eventId)
+      .maybeSingle();
+    if (existing) {
+      throw Object.assign(new Error('A guest list already exists for this event.'), { status: 409 });
+    }
+
     const { data, error } = await supabase
       .from('guest_lists')
       .insert({

@@ -17,10 +17,14 @@ export default function NewGuestListPage() {
   const [maxGuestsPerPerson, setMaxGuestsPerPerson] = useState(2)
   const [clients, setClients] = useState<User[]>([])
   const [events, setEvents] = useState<Event[]>([])
+  const [takenEventIds, setTakenEventIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (user) fetchEvents()
+    if (user) {
+      fetchEvents()
+      fetchTakenEvents()
+    }
   }, [user])
 
   const fetchClients = async () => {
@@ -112,10 +116,19 @@ export default function NewGuestListPage() {
   const fetchEvents = async () => {
     try {
       const response = await api.get<Event[]>('/events')
-      console.log('Fetched events:', response.data)
       setEvents(response.data)
     } catch (error) {
       console.error('Failed to fetch events:', error)
+    }
+  }
+
+  const fetchTakenEvents = async () => {
+    try {
+      const response = await api.get('/guest-lists')
+      const ids = new Set<string>((response.data as any[]).map((gl: any) => String(gl.event_id)))
+      setTakenEventIds(ids)
+    } catch {
+      // silently ignore — worst case duplicates are blocked by the backend
     }
   }
 
@@ -184,12 +197,15 @@ export default function NewGuestListPage() {
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
             <option value="">-- Select an event --</option>
-            {events.map((event) => (
+            {events.filter(e => !takenEventIds.has(String(e.id))).map((event) => (
               <option key={event.id} value={event.id}>
                 {event.name} - {parseLocalDate(event.date).toLocaleDateString()}
                 {event.startTime && ` at ${event.startTime}`}
               </option>
             ))}
+            {events.length > 0 && events.every(e => takenEventIds.has(String(e.id))) && (
+              <option disabled value="">All events already have a guest list</option>
+            )}
           </select>
         </div>
 

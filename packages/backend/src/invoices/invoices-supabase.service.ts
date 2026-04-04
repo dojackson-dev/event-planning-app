@@ -601,12 +601,25 @@ export class InvoicesService {
 
     if (error) throw error;
 
+    let result = data;
+
     // Recalculate if tax_rate or discount_amount changed
     if (invoiceData.tax_rate !== undefined || invoiceData.discount_amount !== undefined) {
-      return this.recalculateInvoice(supabase, userId, id);
+      result = await this.recalculateInvoice(supabase, userId, id);
     }
 
-    return data;
+    // Notify client via SMS only when the invoice has already been sent
+    if (result.status === 'sent') {
+      try {
+        const phone = await this.lookupClientPhone(supabase, result);
+        const clientName = (result as any).client_name || 'Valued Client';
+        await this.smsNotifications.invoiceUpdated(phone, clientName, result.invoice_number);
+      } catch {
+        // SMS errors must never break the invoice update
+      }
+    }
+
+    return result;
   }
 
   async updateStatus(supabase: SupabaseClient, userId: string, id: string, status: string): Promise<Invoice> {

@@ -24,6 +24,7 @@ import { AppointmentsModule } from './appointments/appointments.module';
 import { MessagingModule } from './messaging/messaging.module.js';
 import { ClientPortalModule } from './client-portal/client-portal.module';
 import { VendorInvoicesModule } from './vendor-invoices/vendor-invoices.module';
+import { AffiliatesModule } from './affiliates/affiliates.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { VendorInvoicesModule } from './vendor-invoices/vendor-invoices.module';
     MessagingModule,
     ClientPortalModule,
     VendorInvoicesModule,
+    AffiliatesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -209,11 +209,9 @@ export default function ClientsPage() {
       {/* Sticky header */}
       <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3 shadow-sm">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h1 className="text-xl font-bold text-gray-900 leading-tight text-center">Clients & Leads</h1>
-              <p className="text-xs text-gray-500">{clients.length} total</p>
-            </div>
+          <div className="text-center mb-3">
+            <h1 className="text-xl font-bold text-gray-900 leading-tight">Clients & Leads</h1>
+            <p className="text-xs text-gray-500">{clients.length} total</p>
           </div>
           {/* Search */}
           <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2">
@@ -232,7 +230,7 @@ export default function ClientsPage() {
             )}
           </div>
           {/* Filter chips */}
-          <div className="flex gap-2 mt-2 overflow-x-auto pb-1 scrollbar-hide">
+          <div className="flex justify-center gap-2 mt-2 overflow-x-auto pb-1 scrollbar-hide">
             {(['all', 'new', 'contacted', 'converted'] as const).map((f) => {
               const count = f === 'all' ? clients.length : clients.filter(c => c.status === f).length
               return (

@@ -40,6 +40,10 @@ export default function InvoiceDetailPage() {
   const [editNotes, setEditNotes] = useState('')
   const [editTerms, setEditTerms] = useState('')
   const [editItems, setEditItems] = useState<EditItem[]>([])
+  const [editClientName, setEditClientName] = useState('')
+  const [editClientEmail, setEditClientEmail] = useState('')
+  const [editClientPhone, setEditClientPhone] = useState('')
+  const [editClientAddress, setEditClientAddress] = useState('')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -134,6 +138,29 @@ export default function InvoiceDetailPage() {
 
   const openEditModal = () => {
     if (!invoice) return
+    const intakeForm = (invoice as any).intake_form
+    const booking = (invoice as any).booking
+    setEditClientName(
+      invoice.client_name ||
+      intakeForm?.contact_name ||
+      booking?.contact_name ||
+      (booking?.user ? `${booking.user.firstName || ''} ${booking.user.lastName || ''}`.trim() : '') ||
+      ''
+    )
+    setEditClientEmail(
+      invoice.client_email ||
+      intakeForm?.contact_email ||
+      booking?.contact_email ||
+      booking?.user?.email ||
+      ''
+    )
+    setEditClientPhone(
+      invoice.client_phone ||
+      intakeForm?.contact_phone ||
+      booking?.contact_phone ||
+      ''
+    )
+    setEditClientAddress(invoice.client_address || '')
     setEditDueDate(invoice.due_date || '')
     setEditTaxRate(Number(invoice.tax_rate) || 0)
     setEditDiscountAmount(Number(invoice.discount_amount) || 0)
@@ -197,6 +224,10 @@ export default function InvoiceDetailPage() {
       }
 
       await api.put(`/invoices/${invoice.id}`, {
+        client_name: editClientName || null,
+        client_email: editClientEmail || null,
+        client_phone: editClientPhone || null,
+        client_address: editClientAddress || null,
         due_date: editDueDate,
         tax_rate: editTaxRate,
         discount_amount: editDiscountAmount,
@@ -332,14 +363,36 @@ export default function InvoiceDetailPage() {
           <div>
             <h3 className="font-semibold text-gray-700 mb-2">Bill To:</h3>
             <div className="text-gray-600">
-              {invoice.client_name && <p className="font-medium text-gray-800">{invoice.client_name}</p>}
-              {(invoice as any).client_email && <p>{(invoice as any).client_email}</p>}
-              {!invoice.client_name && invoice.booking?.user && (
-                <>
-                  <p>{invoice.booking.user.firstName} {invoice.booking.user.lastName}</p>
-                  <p>{invoice.booking.user.email}</p>
-                </>
-              )}
+              {(() => {
+                const intakeForm = (invoice as any).intake_form
+                const booking = (invoice as any).booking
+                const name = invoice.client_name ||
+                  intakeForm?.contact_name ||
+                  booking?.contact_name ||
+                  (booking?.user ? `${booking.user.firstName || ''} ${booking.user.lastName || ''}`.trim() : '') ||
+                  null
+                const email = invoice.client_email ||
+                  intakeForm?.contact_email ||
+                  booking?.contact_email ||
+                  booking?.user?.email ||
+                  null
+                const phone = invoice.client_phone ||
+                  intakeForm?.contact_phone ||
+                  booking?.contact_phone ||
+                  null
+                const address = invoice.client_address || null
+                return (
+                  <>
+                    {name && <p className="font-medium text-gray-800">{name}</p>}
+                    {address && <p className="text-sm">{address}</p>}
+                    {email && <p className="text-sm">{email}</p>}
+                    {phone && <p className="text-sm">{phone}</p>}
+                    {!name && !email && !phone && (
+                      <p className="text-sm text-gray-400 italic">No client info — use Edit to add</p>
+                    )}
+                  </>
+                )
+              })()}
             </div>
           </div>
           <div className="text-right">
@@ -630,6 +683,53 @@ export default function InvoiceDetailPage() {
           <div className="bg-white rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <h3 className="text-lg font-semibold mb-6">Edit Invoice</h3>
+
+              {/* Client Info */}
+              <div className="mb-6">
+                <h4 className="font-semibold text-gray-700 mb-3">Bill To</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Client Name</label>
+                    <input
+                      type="text"
+                      value={editClientName}
+                      onChange={e => setEditClientName(e.target.value)}
+                      placeholder="Full name"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <input
+                      type="email"
+                      value={editClientEmail}
+                      onChange={e => setEditClientEmail(e.target.value)}
+                      placeholder="client@example.com"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                    <input
+                      type="tel"
+                      value={editClientPhone}
+                      onChange={e => setEditClientPhone(e.target.value)}
+                      placeholder="(555) 000-0000"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Address <span className="text-gray-400 font-normal">(optional)</span></label>
+                    <input
+                      type="text"
+                      value={editClientAddress}
+                      onChange={e => setEditClientAddress(e.target.value)}
+                      placeholder="123 Main St, City, State ZIP"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
 
               {/* Invoice-level fields */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">

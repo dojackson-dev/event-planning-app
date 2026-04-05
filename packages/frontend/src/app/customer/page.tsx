@@ -70,7 +70,7 @@ export default function CustomerDashboardPage() {
       }))
       
       // Filter to upcoming events
-      const upcoming = events.filter(e => new Date(e.event_date) >= new Date())
+      const upcoming = events.filter(e => new Date(e.event_date + 'T12:00:00') >= new Date())
       setUpcomingEvents(upcoming.slice(0, 3))
 
       // Fetch invoices
@@ -113,7 +113,7 @@ export default function CustomerDashboardPage() {
         {
           id: '1',
           event_type: 'Wedding Reception',
-          event_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          event_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
           venue_name: 'DoVenue Event Center',
           status: 'confirmed',
           guest_count: 150,
@@ -165,7 +165,7 @@ export default function CustomerDashboardPage() {
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    return new Date(dateString.length === 10 ? dateString + 'T12:00:00' : dateString).toLocaleDateString('en-US', {
       weekday: 'long',
       month: 'long',
       day: 'numeric',
@@ -174,7 +174,7 @@ export default function CustomerDashboardPage() {
   }
 
   const getDaysUntilEvent = (dateString: string) => {
-    const eventDate = new Date(dateString)
+    const eventDate = new Date(dateString.length === 10 ? dateString + 'T12:00:00' : dateString)
     const today = new Date()
     const diffTime = eventDate.getTime() - today.getTime()
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
@@ -326,10 +326,10 @@ export default function CustomerDashboardPage() {
                       <div className="flex items-start gap-4">
                         <div className="bg-primary-100 rounded-xl p-3 text-center min-w-[60px]">
                           <p className="text-xs text-primary-600 font-medium">
-                            {new Date(event.event_date).toLocaleDateString('en-US', { month: 'short' })}
+                            {new Date(event.event_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short' })}
                           </p>
                           <p className="text-2xl font-bold text-primary-700">
-                            {new Date(event.event_date).getDate()}
+                            {new Date(event.event_date + 'T12:00:00').getDate()}
                           </p>
                         </div>
                         <div>

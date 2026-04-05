@@ -218,10 +218,10 @@ function InvoiceRow({
 
   const eventName  = invoice.vendor_bookings?.event_name ?? '—'
   const eventDate  = invoice.vendor_bookings?.event_date
-    ? new Date(invoice.vendor_bookings.event_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    ? new Date(invoice.vendor_bookings.event_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     : null
-  const dueDate = new Date(invoice.due_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-  const isOverdue = !isPaid && new Date(invoice.due_date) < new Date()
+  const dueDate = new Date(invoice.due_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  const isOverdue = !isPaid && new Date(invoice.due_date + 'T12:00:00') < new Date()
 
   return (
     <Link

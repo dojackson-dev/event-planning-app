@@ -83,8 +83,8 @@ export default function VendorDashboard() {
   }
 
   const upcomingConfirmed = bookings
-    .filter(b => b.status === 'confirmed' && new Date(b.event_date) >= new Date())
-    .sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime())
+    .filter(b => b.status === 'confirmed' && new Date(b.event_date + 'T12:00:00') >= new Date())
+    .sort((a, b) => new Date(a.event_date + 'T12:00:00').getTime() - new Date(b.event_date + 'T12:00:00').getTime())
     .slice(0, 5)
 
   if (loading) {
@@ -251,7 +251,7 @@ export default function VendorDashboard() {
                   </div>
                   <div className="text-right flex-shrink-0 ml-3">
                     <p className="text-sm text-gray-700 font-medium">
-                      {new Date(b.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      {new Date(b.event_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </p>
                     {b.agreed_amount > 0 && <p className="text-xs text-gray-500">${b.agreed_amount.toLocaleString()}</p>}
                   </div>

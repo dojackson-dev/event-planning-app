@@ -289,6 +289,7 @@ export class SmsNotificationsService {
     eventName: string,
     status: string,
     isVendor = false,
+    portalPath?: string,
   ): Promise<void> {
     const statusMessages: Record<string, string> = {
       confirmed: `Your booking for "${eventName}" has been confirmed!`,
@@ -300,7 +301,9 @@ export class SmsNotificationsService {
     const msg =
       statusMessages[status] ??
       `Your booking for "${eventName}" has been updated to: ${status}.`;
-    const portalLink = isVendor
+    const portalLink = portalPath
+      ? this.url(portalPath)
+      : isVendor
       ? this.url('/vendor-portal')
       : this.url('/client-portal');
     await this.trySend(phone, `DoVenue Suite Booking Message\nHi ${recipientName}, ${msg} View details: ${portalLink}`);

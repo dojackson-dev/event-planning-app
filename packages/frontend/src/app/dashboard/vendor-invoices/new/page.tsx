@@ -219,7 +219,7 @@ export default function NewVendorInvoicePage() {
                     {bookings.map(b => (
                       <option key={b.id} value={b.id}>
                         {b.event_name}
-                        {b.event_date ? ` · ${new Date(b.event_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}
+                        {b.event_date ? ` · ${new Date(b.event_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}
                         {b.client_name ? ` — ${b.client_name}` : ''}
                       </option>
                     ))}

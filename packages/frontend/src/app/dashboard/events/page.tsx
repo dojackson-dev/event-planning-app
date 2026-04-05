@@ -1,11 +1,10 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { Event } from '@/types'
-import { Plus, Calendar, MapPin, Users, Settings, Edit2, Trash2, ChevronDown, Search } from 'lucide-react'
+import { Plus, Calendar, MapPin, Users, Trash2, Search } from 'lucide-react'
 import { format } from 'date-fns'
 
 // Parse date string without timezone conversion (YYYY-MM-DD -> Date at midnight local time)
@@ -29,34 +28,16 @@ const formatTime = (timeString: string | undefined): string => {
 }
 
 export default function EventsPage() {
-  const router = useRouter()
   const [events, setEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'past'>('all')
   const [searchTerm, setSearchTerm] = useState('')
-  const [openDropdown, setOpenDropdown] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
-  const dropdownRefs = useRef<{ [key: string]: HTMLDivElement | null }>({})
 
   useEffect(() => {
     fetchEvents()
   }, [])
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        openDropdown &&
-        dropdownRefs.current[openDropdown] &&
-        !dropdownRefs.current[openDropdown]?.contains(event.target as Node)
-      ) {
-        setOpenDropdown(null)
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [openDropdown])
 
   const fetchEvents = async () => {
     try {
@@ -69,9 +50,9 @@ export default function EventsPage() {
     }
   }
 
+  const now = new Date()
   const filteredEvents = events.filter(event => {
     const eventDate = parseLocalDate(event.date)
-    const now = new Date()
     if (filter === 'upcoming' && eventDate < now) return false
     if (filter === 'past' && eventDate >= now) return false
     if (searchTerm) {
@@ -83,6 +64,17 @@ export default function EventsPage() {
       )
     }
     return true
+  }).sort((a, b) => {
+    const dateA = parseLocalDate(a.date).getTime()
+    const dateB = parseLocalDate(b.date).getTime()
+    const nowTime = now.getTime()
+    const aUpcoming = dateA >= nowTime
+    const bUpcoming = dateB >= nowTime
+    // Upcoming events first (ascending — closest first)
+    // Past events after (descending — most recent first)
+    if (aUpcoming && bUpcoming) return dateA - dateB
+    if (!aUpcoming && !bUpcoming) return dateB - dateA
+    return aUpcoming ? -1 : 1
   })
 
   const getStatusColor = (status: string) => {
@@ -104,7 +96,6 @@ export default function EventsPage() {
       await api.delete(`/events/${eventId}`)
       setEvents(events.filter(e => e.id !== eventId))
       setShowDeleteConfirm(null)
-      setOpenDropdown(null)
       alert('Event deleted successfully')
     } catch (error) {
       console.error('Failed to delete event:', error)
@@ -159,10 +150,10 @@ export default function EventsPage() {
       {/* Events Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredEvents.map((event) => (
-          <div
+          <Link
             key={event.id}
-            className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow cursor-pointer"
-            onClick={() => router.push(`/dashboard/events/${event.id}`)}
+            href={`/dashboard/events/${event.id}/manage`}
+            className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow cursor-pointer block"
           >
             <div className="p-6">
               <div className="flex justify-between items-start mb-4">
@@ -192,40 +183,9 @@ export default function EventsPage() {
                 <p className="text-xs text-gray-500">
                   {formatTime(event.startTime)} - {formatTime(event.endTime)}
                 </p>
-                <div className="relative" ref={el => { if (el) dropdownRefs.current[event.id] = el }}>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setOpenDropdown(openDropdown === event.id ? null : event.id) }}
-                    className="inline-flex items-center px-3 py-1 bg-primary-600 text-white text-xs font-medium rounded-lg hover:bg-primary-700 transition-colors"
-                  >
-                    <Settings className="h-3 w-3 mr-1" />
-                    Manage
-                    <ChevronDown className="h-3 w-3 ml-1" />
-                  </button>
-                  
-                  {/* Dropdown Menu */}
-                  {openDropdown === event.id && (
-                    <div className="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
-                      <Link
-                        href={`/dashboard/events/${event.id}/edit`}
-                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors border-b"
-                        onClick={() => setOpenDropdown(null)}
-                      >
-                        <Edit2 className="h-4 w-4 mr-2" />
-                        Edit Event
-                      </Link>
-                      <button
-                        onClick={() => setShowDeleteConfirm(event.id)}
-                        className="w-full flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete Event
-                      </button>
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
-          </div>
+          </Link>
         ))}
 
         {filteredEvents.length === 0 && (

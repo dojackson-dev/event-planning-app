@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
+  ArrowLeft,
   Calendar,
   Users,
   Clock,
@@ -358,8 +359,15 @@ export default function EventManagementPage() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 text-center">{formData.eventName || 'Event Management'}</h1>
-          <p className="text-sm text-gray-500 mt-1 text-center">Complete event planning and vendor coordination</p>
+          <button
+            onClick={() => router.push('/dashboard/events')}
+            className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 mb-4 transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Back to Events
+          </button>
+          <h1 className="text-2xl font-bold text-gray-900 text-center">Manage</h1>
+          <p className="text-sm text-gray-500 mt-1 text-center">{formData.eventName || 'Event Management'}</p>
           <div className="flex justify-center gap-2 mt-4">
             {!isEditing ? (
               <>
@@ -1287,7 +1295,7 @@ export default function EventManagementPage() {
               )}
 
               <button
-                onClick={() => router.push('/dashboard/invoices/new')}
+                onClick={() => router.push(`/dashboard/invoices/new?eventId=${eventId}`)}
                 className="w-full px-4 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 font-medium"
               >
                 + Create Invoice

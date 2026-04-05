@@ -37,6 +37,8 @@ function NewInvoicePageContent() {
   const [invoiceType, setInvoiceType] = useState<'invoice' | 'estimate'>('invoice')
   const [clientEventDate, setClientEventDate] = useState<string | null>(null)
   const [clientEventType, setClientEventType] = useState<string | null>(null)
+  const [lockedEvent, setLockedEvent] = useState<{ id: string; name: string; date: string } | null>(null)
+  const [eventName, setEventName] = useState<string>('')
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([])
   const [expenseItems, setExpenseItems] = useState<InvoiceLineItem[]>([])
   const [vendorBookingBanner, setVendorBookingBanner] = useState<string>('')
@@ -66,6 +68,40 @@ function NewInvoicePageContent() {
       }
     }).catch(() => {})
   }, [])
+
+  // Pre-fill from event manage page workflow (eventId param)
+  useEffect(() => {
+    const eventId = searchParams?.get('eventId')
+    if (!eventId) return
+    setSelectedBooking(eventId)
+    api.get(`/events/${eventId}`).then(res => {
+      const ev = res.data
+      const evName = ev.name || ''
+      setLockedEvent({ id: eventId, name: evName, date: ev.date || '' })
+      setEventName(evName)
+      // ev.bookingId is the intake_form id (booking_id column on the event table)
+      const intakeId = ev.bookingId || ev.booking_id
+      if (intakeId) {
+        setIntakeFormId(intakeId)
+        api.get(`/intake-forms/${intakeId}`).then(r => {
+          const form = r.data
+          if (form?.contact_name) setClientName(form.contact_name)
+          if (form?.contact_phone) setClientPhone(form.contact_phone)
+        }).catch(() => {})
+      } else {
+        // Fallback: scan all intake forms for one matching this event_id
+        api.get('/intake-forms').then(r => {
+          const forms: any[] = r.data || []
+          const match = forms.find((f: any) => String(f.event_id) === String(eventId))
+          if (match) {
+            if (match.contact_name) setClientName(match.contact_name)
+            if (match.contact_phone) setClientPhone(match.contact_phone)
+            if (match.id) setIntakeFormId(match.id)
+          }
+        }).catch(() => {})
+      }
+    }).catch(() => {})
+  }, [searchParams])
 
   // Pre-fill from client detail page workflow (clientId + type=estimate)
   useEffect(() => {
@@ -289,7 +325,9 @@ function NewInvoicePageContent() {
     try {
       const invoiceData = {
         invoice: {
-          booking_id: null,          intake_form_id: intakeFormId || null,          client_name: clientName || null,
+          booking_id: selectedBooking || null,
+          intake_form_id: intakeFormId || null,
+          client_name: clientName || null,
           client_phone: clientPhone || null,
           owner_id: user?.id,
           tax_rate: includeTax ? Number(taxRate) : 0,
@@ -369,29 +407,43 @@ function NewInvoicePageContent() {
       )}
 
       <form onSubmit={handleSubmit} className="bg-white shadow-md rounded-lg p-6">
-        {/* Event Selection — only when not pre-filled from a client */}
+        {/* Event Selection */}
         {!intakeFormId && (
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Link to Event (Optional)
           </label>
-          {events.length === 0 ? (
-            <p className="text-sm text-gray-500 mt-1">
-              No upcoming events found. Invoices can still be created without linking to an event.
-            </p>
-          ) : null}
-          <select
-            value={selectedBooking}
-            onChange={(e) => setSelectedBooking(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-          >
-            <option value="">-- Select an event (optional) --</option>
-            {events.map((ev: any) => (
-              <option key={ev.id} value={ev.id}>
-                {ev.name || 'Event'}{ev.date ? ` (${new Date(ev.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})` : ''}
-              </option>
-            ))}
-          </select>
+          {lockedEvent ? (
+            <div className="flex items-center gap-3 px-3 py-2 bg-teal-50 border border-teal-200 rounded-md">
+              <span className="text-teal-600 font-medium text-sm">{lockedEvent.name}</span>
+              {lockedEvent.date && (
+                <span className="text-xs text-teal-500">
+                  {new Date(lockedEvent.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
+              )}
+              <span className="ml-auto text-xs text-teal-400">Linked from event</span>
+            </div>
+          ) : (
+            <>
+              {events.length === 0 ? (
+                <p className="text-sm text-gray-500 mt-1">
+                  No upcoming events found. Invoices can still be created without linking to an event.
+                </p>
+              ) : null}
+              <select
+                value={selectedBooking}
+                onChange={(e) => setSelectedBooking(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                <option value="">-- Select an event (optional) --</option>
+                {events.map((ev: any) => (
+                  <option key={ev.id} value={ev.id}>
+                    {ev.name || 'Event'}{ev.date ? ` (${new Date(ev.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})` : ''}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
         </div>
         )}
 
@@ -409,8 +461,20 @@ function NewInvoicePageContent() {
           />
         </div>
 
+        {/* Event Name — shown when pre-filled from event */}
+        {eventName && (
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Event Name
+            </label>
+            <div className="w-full px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-gray-800 text-sm">
+              {eventName}
+            </div>
+          </div>
+        )}
+
         {/* Client Phone */}
-        {!intakeFormId && (
+        {(!intakeFormId || lockedEvent) && (
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Client Phone <span className="text-gray-400 font-normal">(for SMS notifications)</span>

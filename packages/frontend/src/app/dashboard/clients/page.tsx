@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import type { Invoice } from '@/types'
-import { User, Calendar, Mail, Phone, Clock, Eye, CheckCircle, Search, MessageSquare, FileText, Clock as ClockIcon, Trash2, Zap } from 'lucide-react'
+import { User, Calendar, Mail, Phone, Clock, Eye, CheckCircle, Search, MessageSquare, FileText, Clock as ClockIcon, Trash2, Zap, PhoneCall } from 'lucide-react'
 
 interface IntakeForm {
   id: string
@@ -444,6 +444,20 @@ export default function ClientsPage() {
                       <ClockIcon className="h-4 w-4" />
                       Schedule Appointment
                     </button>
+                    {client.contact_phone ? (
+                      <a
+                        href={`tel:${client.contact_phone}`}
+                        className="flex items-center justify-center gap-2 h-11 px-3 bg-green-500 hover:bg-green-600 active:bg-green-700 text-white text-sm font-medium rounded-xl col-span-2 transition-colors"
+                      >
+                        <PhoneCall className="h-4 w-4" />
+                        Call {client.contact_phone}
+                      </a>
+                    ) : (
+                      <div className="flex items-center justify-center gap-2 h-11 px-3 bg-gray-50 text-gray-300 text-sm font-medium rounded-xl col-span-2 cursor-not-allowed">
+                        <PhoneCall className="h-4 w-4" />
+                        No phone on file
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

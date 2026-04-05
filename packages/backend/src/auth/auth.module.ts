@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { DevAuthController } from './dev-auth.controller';
@@ -10,9 +10,17 @@ import { StripeModule } from '../stripe/stripe.module';
 import { SmsModule } from '../sms/sms.module';
 import { TrialModule } from '../trial/trial.module';
 import { MessagingModule } from '../messaging/messaging.module';
+import { AffiliatesModule } from '../affiliates/affiliates.module';
 
 @Module({
-  imports: [SupabaseModule, StripeModule, SmsModule, TrialModule, MessagingModule],
+  imports: [
+    SupabaseModule,
+    StripeModule,
+    SmsModule,
+    TrialModule,
+    MessagingModule,
+    forwardRef(() => AffiliatesModule),
+  ],
   controllers: [AuthController, DevAuthController, AuthFlowController],
   providers: [AuthService, AuthFlowService, SubscriptionGuard, RoleGuard],
   exports: [AuthService, AuthFlowService, SubscriptionGuard, RoleGuard],

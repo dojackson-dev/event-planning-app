@@ -76,21 +76,6 @@ export class IntakeFormsController {
     return { businessName: data.business_name, logoUrl: data.logo_url, intakeSlug: data.intake_slug };
   }
 
-  /** Public: submit a client intake form for a specific owner — no auth required.
-   *  Accepts either a UUID or an intake_slug as :ownerId. */
-  @Post('public/:ownerId')
-  async createPublic(@Param('ownerId') ownerId: string, @Body() createDto: any) {
-    try {
-      const admin = this.supabaseService.getAdminClient();
-      const resolvedId = await this.resolveOwnerIdentifier(ownerId);
-      const result = await this.intakeFormsService.create(admin, resolvedId, createDto);
-      return result;
-    } catch (error: any) {
-      console.error('Public intake form error:', error?.message || error);
-      throw error;
-    }
-  }
-
   @Post()
   async create(@Headers('authorization') authorization: string, @Body() createDto: any) {
     try {

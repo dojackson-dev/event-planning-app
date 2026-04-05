@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import api from '@/lib/api'
+import Pagination from '@/components/Pagination'
 import { Item, ItemType, ServiceItemCategory } from '@/types'
 import ImageUpload from '@/components/ImageUpload'
 import { Plus, Edit, Trash2, Package, Music, Lightbulb, Users, Utensils, Sparkles, Building2, Grid3x3, Clock, Percent, Mic, Wine, Shield, DollarSign, Monitor, Calendar } from 'lucide-react'
@@ -67,6 +68,7 @@ export default function ItemsPage() {
   const [editingItem, setEditingItem] = useState<Item | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -150,25 +152,32 @@ export default function ItemsPage() {
 
   const filteredItems = filter === 'all' ? items : items.filter(i => i.category === filter)
 
+  const CARDS_PER_PAGE = 12
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { setCurrentPage(1) }, [filter])
+  const paginatedItems = filteredItems.slice((currentPage - 1) * CARDS_PER_PAGE, currentPage * CARDS_PER_PAGE)
+
   if (loading) {
     return <div>Loading...</div>
   }
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Items & Packages</h1>
-        <button
-          onClick={() => {
-            setEditingItem(null)
-            setFormData({ name: '', description: '', category: ServiceItemCategory.MISC, default_price: '', image_url: '', is_active: true })
-            setShowModal(true)
-          }}
-          className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
-        >
-          <Plus className="h-5 w-5 mr-2" />
-          Add Item
-        </button>
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-900 text-center mb-3">Items & Packages</h1>
+        <div className="flex justify-center">
+          <button
+            onClick={() => {
+              setEditingItem(null)
+              setFormData({ name: '', description: '', category: ServiceItemCategory.MISC, default_price: '', image_url: '', is_active: true })
+              setShowModal(true)
+            }}
+            className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
+          >
+            <Plus className="h-5 w-5 mr-2" />
+            Add Item
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -187,7 +196,7 @@ export default function ItemsPage() {
 
       {/* Items Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredItems.map((item) => {
+        {paginatedItems.map((item) => {
           const CategoryIcon = categoryIcons[item.category] || Package
           const colorClass = categoryColors[item.category] || 'bg-gray-100 text-gray-600'
           
@@ -249,6 +258,7 @@ export default function ItemsPage() {
           </div>
         )}
       </div>
+      <Pagination currentPage={currentPage} totalItems={filteredItems.length} itemsPerPage={CARDS_PER_PAGE} onPageChange={setCurrentPage} />
 
       {/* Modal */}
       {showModal && (

@@ -114,4 +114,9 @@ export class GuestListsController {
   async unmarkArrival(@Param('guestId', ParseIntPipe) guestId: number): Promise<any | null> {
     return this.guestListsService.unmarkArrival(guestId);
   }
+
+  @Post(':id/sms-client')
+  async smsClientInvite(@Param('id', ParseIntPipe) id: number): Promise<{ sent: boolean; to?: string; error?: string }> {
+    return this.guestListsService.smsClientInvite(id);
+  }
 }

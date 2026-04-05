@@ -1,9 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { EventType, EventStatus, Event } from '@/types'
+
+interface IntakeClient {
+  id: string
+  contact_name: string
+  contact_phone: string
+}
 
 const eventTypeLabels: Record<EventType, string> = {
   [EventType.WEDDING_RECEPTION]: 'Wedding Reception',
@@ -33,6 +39,8 @@ export default function NewEventPage() {
   const [error, setError] = useState('')
   const [showConflictWarning, setShowConflictWarning] = useState(false)
   const [conflictingEvents, setConflictingEvents] = useState<Event[]>([])
+  const [clients, setClients] = useState<IntakeClient[]>([])
+  const [clientId, setClientId] = useState('')
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -43,6 +51,16 @@ export default function NewEventPage() {
     maxGuests: '',
     status: EventStatus.DRAFT,
   })
+
+  useEffect(() => {
+    api.get('/intake-forms').then(res => {
+      setClients((res.data || []).map((f: any) => ({
+        id: f.id,
+        contact_name: f.contactName || f.contact_name || 'Unknown',
+        contact_phone: f.contactPhone || f.contact_phone || '',
+      })))
+    }).catch(() => {})
+  }, [])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target
@@ -95,12 +113,13 @@ export default function NewEventPage() {
       const payload = {
         name: formData.name,
         description: formData.description,
-        date: formData.date, // YYYY-MM-DD format from date input
+        date: formData.date,
         startTime: formData.startTime,
         endTime: formData.endTime,
         venue: formData.venue,
         maxGuests: formData.maxGuests ? parseInt(formData.maxGuests) : null,
         status: formData.status,
+        clientId: clientId || undefined,
       }
 
       console.log('Creating event with payload:', payload)
@@ -129,6 +148,25 @@ export default function NewEventPage() {
           <div>
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Client *
+                </label>
+                <select
+                  value={clientId}
+                  onChange={e => setClientId(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                >
+                  <option value="">-- Select a client --</option>
+                  {clients.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.contact_name}{c.contact_phone ? ` · ${c.contact_phone}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Event Name *

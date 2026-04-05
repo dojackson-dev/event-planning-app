@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
+import Pagination from '@/components/Pagination'
 import {
   Search,
   MapPin,
@@ -476,6 +477,8 @@ export default function DashboardVendorsPage() {
   // ── Find tab state ────────────────────────────────────────────
   const [vendors, setVendors] = useState<Vendor[]>([])
   const [venues, setVenues] = useState<Venue[]>([])
+  const [vendorPage, setVendorPage] = useState(1)
+  const [venuePage, setVenuePage] = useState(1)
   const [searching, setSearching] = useState(false)
   const [searched, setSearched] = useState(false)
   const [zipCode, setZipCode] = useState('')
@@ -569,19 +572,19 @@ export default function DashboardVendorsPage() {
   return (
     <div className="max-w-6xl mx-auto px-4 py-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Store className="w-6 h-6 text-primary-600" /> Vendors
-          </h1>
-          <p className="text-gray-500 text-sm mt-0.5">Find and book event vendors for your venue</p>
+      <div className="mb-6 text-center">
+        <h1 className="text-2xl font-bold text-gray-900 flex items-center justify-center gap-2">
+          <Store className="w-6 h-6 text-primary-600" /> Vendors
+        </h1>
+        <p className="text-gray-500 text-sm mt-0.5 mb-3">Find and book event vendors for your venue</p>
+        <div className="flex justify-center">
+          <Link
+            href="/dashboard/vendors/payments"
+            className="flex items-center gap-2 bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-2 rounded-lg text-sm font-medium hover:bg-indigo-100"
+          >
+            <CreditCard className="w-4 h-4" /> Vendor Payments
+          </Link>
         </div>
-        <Link
-          href="/dashboard/vendors/payments"
-          className="flex items-center gap-2 bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-2 rounded-lg text-sm font-medium hover:bg-indigo-100"
-        >
-          <CreditCard className="w-4 h-4" /> Vendor Payments
-        </Link>
       </div>
 
       {/* Tabs */}
@@ -680,17 +683,19 @@ export default function DashboardVendorsPage() {
               {vendors.length > 0 && (
                 <>
                   <p className="text-sm text-gray-500 mb-3">{vendors.length} vendor{vendors.length !== 1 ? 's' : ''} found</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
-                    {vendors.map(v => <VendorCard key={v.id} vendor={v} />)}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-4">
+                    {vendors.slice((vendorPage - 1) * 12, vendorPage * 12).map(v => <VendorCard key={v.id} vendor={v} />)}
                   </div>
+                  <Pagination currentPage={vendorPage} totalItems={vendors.length} itemsPerPage={12} onPageChange={setVendorPage} />
                 </>
               )}
               {venues.length > 0 && (
                 <>
                   <h2 className="text-base font-semibold text-gray-700 mb-3 mt-2">🏛️ Venues ({venues.length})</h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {venues.map(v => <VenueCard key={v.id} venue={v} />)}
+                    {venues.slice((venuePage - 1) * 12, venuePage * 12).map(v => <VenueCard key={v.id} venue={v} />)}
                   </div>
+                  <Pagination currentPage={venuePage} totalItems={venues.length} itemsPerPage={12} onPageChange={setVenuePage} />
                 </>
               )}
             </>

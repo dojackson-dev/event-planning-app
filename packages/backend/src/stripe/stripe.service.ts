@@ -1,8 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { SupabaseService } from '../supabase/supabase.service';
 import { VendorInvoicesService } from '../vendor-invoices/vendor-invoices.service';
+import { AffiliatesService } from '../affiliates/affiliates.service';
 
 @Injectable()
 export class StripeService {
@@ -15,6 +16,8 @@ export class StripeService {
     private readonly configService: ConfigService,
     private readonly supabaseService: SupabaseService,
     private readonly vendorInvoicesService: VendorInvoicesService,
+    @Inject(forwardRef(() => AffiliatesService))
+    private readonly affiliatesService: AffiliatesService,
   ) {
     const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (!secretKey) {
@@ -161,6 +164,9 @@ export class StripeService {
       case 'customer.subscription.deleted':
         await this.handleSubscriptionCanceled(event.data.object as Stripe.Subscription);
         break;
+      case 'invoice.payment_succeeded':
+        await this.handleInvoicePaymentSucceeded(event.data.object as Stripe.Invoice);
+        break;
       case 'invoice.payment_failed':
         await this.handlePaymentFailed(event.data.object as Stripe.Invoice);
         break;
@@ -234,6 +240,20 @@ export class StripeService {
 
     await this.syncSubscriptionToDb(ownerAccountId, subscriptionId, 'active');
     this.logger.log(`Checkout complete — owner ${ownerAccountId} is now active`);
+
+    // ── Affiliate conversion commission ─────────────────────────────────────
+    if (subscriptionId) {
+      const amountDollars = (session.amount_total ?? 0) / 100;
+      try {
+        await this.affiliatesService.processConversionCommission(
+          ownerAccountId,
+          subscriptionId,
+          amountDollars,
+        );
+      } catch (err) {
+        this.logger.error('Failed to process affiliate conversion commission', (err as Error).message);
+      }
+    }
   }
 
   /**
@@ -317,6 +337,58 @@ export class StripeService {
     if (!customerId) return;
     await this.syncByCustomerId(customerId, null, 'past_due', null);
     this.logger.warn(`Payment failed for Stripe customer ${customerId}`);
+  }
+
+  /**
+   * Handle invoice.payment_succeeded — record recurring affiliate commissions (3%).
+   * Skips the very first invoice because that is covered by the conversion commission (50%).
+   */
+  private async handleInvoicePaymentSucceeded(invoice: Stripe.Invoice): Promise<void> {
+    // Use 'any' cast because Stripe SDK v20 restructured Invoice type
+    const inv = invoice as any;
+
+    // Only track subscription invoices
+    const rawSubscription = inv.subscription ?? inv.parent?.subscription_details?.subscription;
+    const subscriptionId = typeof rawSubscription === 'string'
+      ? rawSubscription
+      : rawSubscription?.id ?? null;
+
+    if (!subscriptionId || !invoice.id) return;
+
+    // Resolve owner_account_id via Stripe customer ID
+    const customerId = typeof invoice.customer === 'string'
+      ? invoice.customer
+      : (invoice.customer as Stripe.Customer | null)?.id;
+
+    if (!customerId) return;
+
+    const admin = this.supabaseService.getAdminClient();
+    const { data: ownerAccount } = await admin
+      .from('owner_accounts')
+      .select('id')
+      .eq('stripe_customer_id', customerId)
+      .maybeSingle();
+
+    if (!ownerAccount) return;
+
+    const amountDollars = ((invoice as any).amount_paid ?? 0) / 100;
+    const rawPeriodStart = inv.period_start ?? inv.effective_at ?? null;
+    const rawPeriodEnd   = inv.period_end   ?? null;
+    const periodStart = rawPeriodStart ? new Date(rawPeriodStart * 1000) : new Date();
+    const periodEnd   = rawPeriodEnd   ? new Date(rawPeriodEnd   * 1000) : new Date();
+
+    try {
+      await this.affiliatesService.processRecurringCommission(
+        ownerAccount.id,
+        invoice.id,
+        subscriptionId,
+        amountDollars,
+        periodStart,
+        periodEnd,
+      );
+    } catch (err) {
+      this.logger.error('Failed to process recurring affiliate commission', (err as Error).message);
+    }
   }
 
   // ─── DB Sync Helpers ───────────────────────────────────────────────────────

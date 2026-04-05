@@ -303,7 +303,8 @@ export default function ClientDetailPage() {
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    const normalized = dateString.length === 10 ? dateString + 'T12:00:00' : dateString
+    return new Date(normalized).toLocaleDateString('en-US', {
       month: 'long',
       day: 'numeric',
       year: 'numeric'
@@ -1065,7 +1066,7 @@ export default function ClientDetailPage() {
               <div>
                 <h2 className="text-lg font-bold text-gray-900">Book a Vendor</h2>
                 <p className="text-sm text-gray-500 mt-0.5">
-                  {formatEventType(client.event_type)} &bull; {new Date(client.event_date + 'T00:00:00').toLocaleDateString()}
+                  {formatEventType(client.event_type)} &bull; {new Date(client.event_date + 'T12:00:00').toLocaleDateString()}
                 </p>
               </div>
               <button onClick={() => setShowVendorModal(false)} className="text-gray-400 hover:text-gray-600">
@@ -1153,7 +1154,7 @@ export default function ClientDetailPage() {
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">Date</label>
                     <p className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-700">
-                      {new Date(client.event_date + 'T00:00:00').toLocaleDateString()}
+                      {new Date(client.event_date + 'T12:00:00').toLocaleDateString()}
                     </p>
                   </div>
                 </div>

@@ -279,7 +279,7 @@ function BookingRow({ booking, onCancel, onConfirm }: { booking: VendorBooking; 
           </div>
           <p className="text-sm text-gray-600 truncate">{booking.event_name}</p>
           <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-400">
-            <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {new Date(booking.event_date + 'T00:00:00').toLocaleDateString()}</span>
+            <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {new Date(booking.event_date + 'T12:00:00').toLocaleDateString()}</span>
             {booking.start_time && <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {booking.start_time}{booking.end_time ? ` – ${booking.end_time}` : ''}</span>}
           </div>
         </div>
@@ -334,7 +334,7 @@ function BookingRow({ booking, onCancel, onConfirm }: { booking: VendorBooking; 
                   </div>
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                    <span className="text-gray-700">{new Date(booking.event_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</span>
+                    <span className="text-gray-700">{new Date(booking.event_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</span>
                   </div>
                   {(booking.start_time || booking.end_time) && (
                     <div className="flex items-center gap-2">

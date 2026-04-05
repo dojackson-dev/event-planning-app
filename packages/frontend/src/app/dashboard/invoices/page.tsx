@@ -161,7 +161,7 @@ export default function InvoicesPage() {
               <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-600">
                 <span>${Number(invoice.total_amount).toFixed(2)}</span>
                 <span>·</span>
-                <span>Due {new Date(invoice.due_date).toLocaleDateString()}</span>
+                <span>Due {new Date(invoice.due_date + 'T12:00:00').toLocaleDateString()}</span>
               </div>
               <div className="mt-3 pt-3 border-t flex justify-between items-center" onClick={e => e.stopPropagation()}>
                 <span className="text-xs text-gray-400">Tap to view details →</span>
@@ -226,10 +226,10 @@ export default function InvoicesPage() {
                     {getCustomerName(invoice)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(invoice.issue_date).toLocaleDateString()}
+                    {new Date(invoice.issue_date + 'T12:00:00').toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(invoice.due_date).toLocaleDateString()}
+                    {new Date(invoice.due_date + 'T12:00:00').toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     ${Number(invoice.total_amount).toFixed(2)}

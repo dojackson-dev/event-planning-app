@@ -82,7 +82,7 @@ export default function CustomerEventsPage() {
         {
           id: '1',
           event_type: 'wedding_reception',
-          event_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          event_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
           start_time: '18:00',
           end_time: '23:00',
           venue_name: 'DoVenue Event Center - Grand Ballroom',
@@ -97,7 +97,7 @@ export default function CustomerEventsPage() {
         {
           id: '2',
           event_type: 'birthday_party',
-          event_date: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
+          event_date: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
           start_time: '14:00',
           end_time: '18:00',
           venue_name: 'DoVenue Event Center - Garden Room',
@@ -119,7 +119,7 @@ export default function CustomerEventsPage() {
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    return new Date(dateString.length === 10 ? dateString + 'T12:00:00' : dateString).toLocaleDateString('en-US', {
       weekday: 'long',
       month: 'long',
       day: 'numeric',
@@ -136,7 +136,7 @@ export default function CustomerEventsPage() {
   }
 
   const getDaysUntilEvent = (dateString: string) => {
-    const eventDate = new Date(dateString)
+    const eventDate = new Date(dateString.length === 10 ? dateString + 'T12:00:00' : dateString)
     const today = new Date()
     const diffTime = eventDate.getTime() - today.getTime()
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
@@ -155,7 +155,7 @@ export default function CustomerEventsPage() {
   }
 
   const filteredEvents = events.filter(event => {
-    const eventDate = new Date(event.event_date)
+    const eventDate = new Date(event.event_date + 'T12:00:00')
     const today = new Date()
     
     switch (filter) {
@@ -256,13 +256,13 @@ export default function CustomerEventsPage() {
                     {/* Date Badge */}
                     <div className={`flex-shrink-0 ${isPast ? 'bg-gray-100' : 'bg-primary-100'} rounded-xl p-4 text-center min-w-[80px]`}>
                       <p className={`text-xs font-medium ${isPast ? 'text-gray-600' : 'text-primary-600'}`}>
-                        {new Date(event.event_date).toLocaleDateString('en-US', { month: 'short' })}
+                        {new Date(event.event_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short' })}
                       </p>
                       <p className={`text-3xl font-bold ${isPast ? 'text-gray-700' : 'text-primary-700'}`}>
-                        {new Date(event.event_date).getDate()}
+                        {new Date(event.event_date + 'T12:00:00').getDate()}
                       </p>
                       <p className={`text-xs ${isPast ? 'text-gray-500' : 'text-primary-600'}`}>
-                        {new Date(event.event_date).getFullYear()}
+                        {new Date(event.event_date + 'T12:00:00').getFullYear()}
                       </p>
                     </div>
                     

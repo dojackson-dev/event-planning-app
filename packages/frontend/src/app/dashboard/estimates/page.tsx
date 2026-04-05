@@ -78,7 +78,7 @@ export default function EstimatesPage() {
 
   const isExpiringSoon = (e: Estimate) => {
     if (e.status !== EstimateStatus.SENT && e.status !== EstimateStatus.DRAFT) return false
-    const days = (new Date(e.expiration_date).getTime() - Date.now()) / 86400000
+    const days = (new Date(e.expiration_date + 'T12:00:00').getTime() - Date.now()) / 86400000
     return days >= 0 && days <= 7
   }
 
@@ -154,7 +154,7 @@ export default function EstimatesPage() {
                   <span className="font-semibold text-gray-900">${Number(estimate.total_amount).toFixed(2)}</span>
                   <span>·</span>
                   <span className={isExpiringSoon(estimate) ? 'text-orange-600 font-semibold' : ''}>
-                    Exp: {new Date(estimate.expiration_date).toLocaleDateString()}{isExpiringSoon(estimate) && ' ⚠'}
+                    Exp: {new Date(estimate.expiration_date + 'T12:00:00').toLocaleDateString()}{isExpiringSoon(estimate) && ' ⚠'}
                   </span>
                 </div>
                 <div className="mt-3 pt-3 border-t flex justify-between items-center" onClick={e => e.stopPropagation()}>
@@ -199,11 +199,11 @@ export default function EstimatesPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600">
-                      {new Date(estimate.issue_date).toLocaleDateString()}
+                      {new Date(estimate.issue_date + 'T12:00:00').toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3 text-sm">
                       <span className={isExpiringSoon(estimate) ? 'text-orange-600 font-semibold' : 'text-gray-600'}>
-                        {new Date(estimate.expiration_date).toLocaleDateString()}
+                        {new Date(estimate.expiration_date + 'T12:00:00').toLocaleDateString()}
                         {isExpiringSoon(estimate) && ' ⚠'}
                       </span>
                     </td>

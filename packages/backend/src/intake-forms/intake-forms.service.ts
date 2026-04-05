@@ -171,35 +171,14 @@ export class IntakeFormsService {
   }
 
   async findAll(supabase: SupabaseClient, userId: string) {
-    // Use admin client to bypass RLS so the event join resolves correctly
-    const supabaseAdmin = this.supabaseService.getAdminClient();
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from('intake_forms')
-      .select('*, linked_event:event!event_id(name)')
+      .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.warn('[IntakeFormsService] findAll join failed, falling back:', error.message);
-      const { data: basic, error: basicError } = await supabaseAdmin
-        .from('intake_forms')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
-      if (basicError) throw basicError;
-      return basic;
-    }
-
-    // Flatten linked event name onto each record
-    return (data || []).map(form => {
-      const { linked_event, ...rest } = form as any;
-      const resolvedName = rest.event_name || (linked_event as any)?.name || null;
-      console.log(`[IntakeFormsService] form ${rest.id}: event_id=${rest.event_id}, linked_event=${JSON.stringify(linked_event)}, resolvedName=${resolvedName}`);
-      return {
-        ...rest,
-        event_name: resolvedName,
-      };
-    });
+    if (error) throw error;
+    return data;
   }
 
   async findOne(supabase: SupabaseClient, userId: string, id: string) {

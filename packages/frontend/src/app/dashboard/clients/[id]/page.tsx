@@ -606,7 +606,7 @@ export default function ClientDetailPage() {
                     >
                       <div>
                         <p className="text-sm font-medium text-gray-900">{est.estimate_number}</p>
-                        <p className="text-xs text-gray-500">{new Date(est.issue_date).toLocaleDateString()}</p>
+                        <p className="text-xs text-gray-500">{new Date(est.issue_date + 'T12:00:00').toLocaleDateString()}</p>
                       </div>
                       <div className="flex items-center gap-3">
                         <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${
@@ -650,7 +650,7 @@ export default function ClientDetailPage() {
                     >
                       <div>
                         <p className="text-sm font-medium text-gray-900">{inv.invoice_number}</p>
-                        <p className="text-xs text-gray-500">{new Date(inv.issue_date).toLocaleDateString()}</p>
+                        <p className="text-xs text-gray-500">{new Date(inv.issue_date + 'T12:00:00').toLocaleDateString()}</p>
                       </div>
                       <div className="flex items-center gap-3">
                         <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${

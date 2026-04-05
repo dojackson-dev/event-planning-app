@@ -83,8 +83,8 @@ export default function VendorDashboard() {
   }
 
   const upcomingConfirmed = bookings
-    .filter(b => b.status === 'confirmed' && new Date(b.event_date) >= new Date())
-    .sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime())
+    .filter(b => b.status === 'confirmed' && new Date(b.event_date + 'T12:00:00') >= new Date())
+    .sort((a, b) => new Date(a.event_date + 'T12:00:00').getTime() - new Date(b.event_date + 'T12:00:00').getTime())
     .slice(0, 5)
 
   if (loading) {

@@ -399,13 +399,13 @@ export default function InvoiceDetailPage() {
             <div className="mb-2">
               <span className="text-gray-600">Issue Date: </span>
               <span className="font-semibold">
-                {new Date(invoice.issue_date).toLocaleDateString()}
+                {new Date(invoice.issue_date + 'T12:00:00').toLocaleDateString()}
               </span>
             </div>
             <div>
               <span className="text-gray-600">Due Date: </span>
               <span className="font-semibold">
-                {new Date(invoice.due_date).toLocaleDateString()}
+                {new Date(invoice.due_date + 'T12:00:00').toLocaleDateString()}
               </span>
             </div>
           </div>

@@ -180,8 +180,8 @@ export default function ClientsPage() {
       return matchesFilter && matchesSearch
     })
     .sort((a, b) => {
-      const dateA = new Date(a.event_date)
-      const dateB = new Date(b.event_date)
+      const dateA = new Date(a.event_date + 'T12:00:00')
+      const dateB = new Date(b.event_date + 'T12:00:00')
       const aExpired = dateA < today
       const bExpired = dateB < today
 

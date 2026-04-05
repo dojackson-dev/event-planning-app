@@ -66,6 +66,7 @@ interface IntakeForm {
   created_at: string
   updated_at: string
   event_id?: string | null
+  event_name?: string | null
 }
 
 export default function ClientDetailPage() {
@@ -407,6 +408,11 @@ export default function ClientDetailPage() {
             {/* Event Details */}
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Event Details</h2>
+              {(client.event_name || client.event_type) && (
+                <p className="text-lg font-bold text-primary-600 mb-4">
+                  {client.event_name || formatEventType(client.event_type)}
+                </p>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex items-center gap-3">
                   <Calendar className="h-5 w-5 text-gray-400" />

@@ -150,11 +150,11 @@ export class IntakeFormsService {
     try {
       const { data: ownerUser } = await supabaseAdmin
         .from('users')
-        .select('phone')
+        .select('phone_number')
         .eq('id', userId)
         .maybeSingle();
-      if (ownerUser?.phone) {
-        const ownerPhone = normalizePhone(ownerUser.phone);
+      if (ownerUser?.phone_number) {
+        const ownerPhone = normalizePhone(ownerUser.phone_number);
         await this.smsNotifications.newIntakeFormSubmission(
           ownerPhone,
           data.contact_name || 'Unknown',

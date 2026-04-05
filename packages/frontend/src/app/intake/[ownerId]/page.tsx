@@ -154,7 +154,7 @@ export default function PublicIntakePage({ params }: { params: { ownerId: string
     try {
       const dbData = {
         event_type: mapEventTypeToDb(formData.eventType),
-        event_name: formData.eventName || null,
+        event_name: formData.eventName || eventTypeLabels[formData.eventType] || null,
         event_date: formData.eventDate,
         event_time: formData.startTime || null,
         guest_count: parseInt(formData.estimatedGuests) || null,

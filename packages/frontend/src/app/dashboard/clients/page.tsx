@@ -212,7 +212,17 @@ export default function ClientsPage() {
   }
 
   const formatEventType = (type: string) => {
-    return type.charAt(0).toUpperCase() + type.slice(1).replace('_', ' ')
+    const labels: Record<string, string> = {
+      wedding: 'Wedding',
+      birthday: 'Birthday',
+      party: 'Party',
+      corporate: 'Corporate Event',
+      conference: 'Conference',
+      workshop: 'Workshop',
+      anniversary: 'Anniversary',
+      other: 'Other',
+    }
+    return labels[type] || type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, ' ')
   }
 
   const formatDate = (dateString: string) => {

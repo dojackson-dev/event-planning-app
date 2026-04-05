@@ -164,8 +164,15 @@ export default function EventsPage() {
           >
             <div className="p-6">
               <div className="flex justify-between items-start mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 hover:text-primary-600 flex-1">{event.name}</h3>
-                <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(event.status)}`}>
+                <div className="flex-1 min-w-0">
+                  {event.clientName && (
+                    <p className="text-sm font-semibold text-primary-600 truncate mb-0.5">{event.clientName}</p>
+                  )}
+                  <h3 className="text-lg font-semibold text-gray-900 hover:text-primary-600 leading-snug">
+                    {event.intakeEventName || event.name}
+                  </h3>
+                </div>
+                <span className={`ml-2 flex-shrink-0 px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(event.status)}`}>
                   {event.status}
                 </span>
               </div>

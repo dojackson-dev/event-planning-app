@@ -144,6 +144,8 @@ export interface Tenant {
 export interface Event {
   id: string
   name: string
+  clientName?: string
+  intakeEventName?: string
   description?: string
   date: string
   startTime?: string

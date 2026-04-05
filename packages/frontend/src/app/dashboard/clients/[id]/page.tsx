@@ -181,7 +181,7 @@ export default function ClientDetailPage() {
     try {
       await api.post('/vendors/bookings', {
         vendorAccountId: selectedVendorToBook.id,
-        eventName: formatEventType(client.event_type),
+        eventName: client.event_name || formatEventType(client.event_type),
         eventDate: client.event_date.split('T')[0],
         venueName: client.venue_preference || undefined,
         notes: vbNotes || undefined,
@@ -190,7 +190,7 @@ export default function ClientDetailPage() {
       })
       setShowVendorModal(false)
       setSelectedVendorToBook(null)
-      fetchEventVendors(client.event_date)
+      fetchEventVendors(client.event_date, client.event_id)
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to book vendor')
     } finally {
@@ -308,7 +308,29 @@ export default function ClientDetailPage() {
   }
 
   const formatEventType = (type: string) => {
-    return type.charAt(0).toUpperCase() + type.slice(1).replace('_', ' ')
+    const labels: Record<string, string> = {
+      wedding: 'Wedding',
+      birthday: 'Birthday',
+      birthday_party: 'Birthday Party',
+      party: 'Party',
+      graduation_party: 'Graduation Party',
+      baby_shower: 'Baby Shower',
+      retirement: 'Retirement',
+      holiday_party: 'Holiday Party',
+      engagement_party: 'Engagement Party',
+      prom_formal: 'Prom / Formal',
+      family_reunion: 'Family Reunion',
+      quinceanera: 'Quinceañera',
+      sweet_16: 'Sweet 16',
+      corporate: 'Corporate Event',
+      conference: 'Conference',
+      workshop: 'Workshop',
+      anniversary: 'Anniversary',
+      concert_show: 'Concert / Show',
+      memorial_service: 'Memorial Service',
+      other: 'Other',
+    }
+    return labels[type] || type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, ' ')
   }
 
   const formatDate = (dateString: string) => {
@@ -405,19 +427,17 @@ export default function ClientDetailPage() {
               </div>
             </div>
 
-            {/* Event Details */}
+              {/* Event Details */}
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Event Details</h2>
               <div className="grid grid-cols-2 gap-4">
-                {client.event_name && (
-                  <div className="flex items-center gap-3 col-span-2">
-                    <Info className="h-5 w-5 text-gray-400" />
-                    <div>
-                      <p className="text-sm text-gray-600">Event Name/Title</p>
-                      <p className="font-medium text-primary-600">{client.event_name}</p>
-                    </div>
+                <div className="flex items-center gap-3 col-span-2">
+                  <Info className="h-5 w-5 text-gray-400" />
+                  <div>
+                    <p className="text-sm text-gray-600">Event Name/Title</p>
+                    <p className="font-medium text-primary-600">{client.event_name || <span className="text-gray-400 italic">Not set — use Edit Client Details to add</span>}</p>
                   </div>
-                )}
+                </div>
                 <div className="flex items-center gap-3">
                   <Calendar className="h-5 w-5 text-gray-400" />
                   <div>
@@ -934,6 +954,11 @@ export default function ClientDetailPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
                   <input type="tel" value={editData.contact_phone || ''} onChange={e => setEditData({ ...editData, contact_phone: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Event Name/Title</label>
+                  <input type="text" value={editData.event_name || ''} onChange={e => setEditData({ ...editData, event_name: e.target.value })} placeholder="e.g. Sarah's 30th Birthday Celebration" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
 
                 <div>

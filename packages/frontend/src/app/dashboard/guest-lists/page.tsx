@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { GuestList, Event } from '@/types'
+import Pagination from '@/components/Pagination'
 import { Plus, Search, Users, Lock, Unlock, Share2, ExternalLink } from 'lucide-react'
 import { parseLocalDate } from '@/lib/dateUtils'
 
@@ -16,6 +17,7 @@ export default function GuestListsPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterEvent, setFilterEvent] = useState<string>('')
+  const [currentPage, setCurrentPage] = useState(1)
 
   useEffect(() => {
     fetchGuestLists()
@@ -92,6 +94,11 @@ export default function GuestListsPage() {
     const matchesEvent = !filterEvent || list.eventId?.toString() === filterEvent
     return matchesSearch && matchesEvent
   })
+
+  const CARDS_PER_PAGE = 12
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { setCurrentPage(1) }, [searchTerm, filterEvent])
+  const paginatedLists = filteredLists.slice((currentPage - 1) * CARDS_PER_PAGE, currentPage * CARDS_PER_PAGE)
 
   if (loading) {
     return (
@@ -171,7 +178,7 @@ export default function GuestListsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
-            {filteredLists.map((list) => (
+            {paginatedLists.map((list) => (
               <div
                 key={list.id}
                 onClick={() => router.push(`/dashboard/guest-lists/${list.id}`)}
@@ -249,6 +256,7 @@ export default function GuestListsPage() {
           </div>
         )}
       </div>
+      <Pagination currentPage={currentPage} totalItems={filteredLists.length} itemsPerPage={CARDS_PER_PAGE} onPageChange={setCurrentPage} />
     </div>
   )
 }

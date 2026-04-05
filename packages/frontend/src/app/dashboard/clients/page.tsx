@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import type { Invoice } from '@/types'
+import Pagination from '@/components/Pagination'
 import { User, Calendar, Mail, Phone, Clock, Eye, CheckCircle, Search, MessageSquare, FileText, Clock as ClockIcon, Trash2, Zap, PhoneCall } from 'lucide-react'
 
 interface IntakeForm {
@@ -37,6 +38,7 @@ export default function ClientsPage() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'new' | 'contacted' | 'converted'>('all')
   const [searchTerm, setSearchTerm] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
   const [selectedClient, setSelectedClient] = useState<IntakeForm | null>(null)
   const [showMessageModal, setShowMessageModal] = useState(false)
   const [showInvoiceModal, setShowInvoiceModal] = useState(false)
@@ -193,6 +195,11 @@ export default function ClientsPage() {
       }
     })
 
+  const CARDS_PER_PAGE = 12
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { setCurrentPage(1) }, [searchTerm, filter])
+  const paginatedClients = filteredClients.slice((currentPage - 1) * CARDS_PER_PAGE, currentPage * CARDS_PER_PAGE)
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'new': return 'bg-blue-100 text-blue-800'
@@ -332,7 +339,7 @@ export default function ClientsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-            {filteredClients.map((client) => (
+            {paginatedClients.map((client) => (
               <div
                 key={client.id}
                 className="bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col"
@@ -464,6 +471,7 @@ export default function ClientsPage() {
             ))}
           </div>
         )}
+      <Pagination currentPage={currentPage} totalItems={filteredClients.length} itemsPerPage={CARDS_PER_PAGE} onPageChange={setCurrentPage} />
       </div>
 
       {/* Message Modal — slides up from bottom on mobile */}

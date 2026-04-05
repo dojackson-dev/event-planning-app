@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
 import { Event } from '@/types'
+import Pagination from '@/components/Pagination'
 import { Plus, Calendar, MapPin, Users, Trash2, Search } from 'lucide-react'
 import { format } from 'date-fns'
 
@@ -32,6 +33,7 @@ export default function EventsPage() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'past'>('all')
   const [searchTerm, setSearchTerm] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
@@ -76,6 +78,11 @@ export default function EventsPage() {
     if (!aUpcoming && !bUpcoming) return dateB - dateA
     return aUpcoming ? -1 : 1
   })
+
+  const CARDS_PER_PAGE = 12
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { setCurrentPage(1) }, [searchTerm, filter])
+  const paginatedEvents = filteredEvents.slice((currentPage - 1) * CARDS_PER_PAGE, currentPage * CARDS_PER_PAGE)
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -149,7 +156,7 @@ export default function EventsPage() {
 
       {/* Events Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredEvents.map((event) => (
+        {paginatedEvents.map((event) => (
           <Link
             key={event.id}
             href={`/dashboard/events/${event.id}/manage`}
@@ -194,6 +201,7 @@ export default function EventsPage() {
           </div>
         )}
       </div>
+      <Pagination currentPage={currentPage} totalItems={filteredEvents.length} itemsPerPage={CARDS_PER_PAGE} onPageChange={setCurrentPage} />
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (

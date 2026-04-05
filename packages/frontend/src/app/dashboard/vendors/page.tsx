@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
+import Pagination from '@/components/Pagination'
 import {
   Search,
   MapPin,
@@ -476,6 +477,8 @@ export default function DashboardVendorsPage() {
   // ── Find tab state ────────────────────────────────────────────
   const [vendors, setVendors] = useState<Vendor[]>([])
   const [venues, setVenues] = useState<Venue[]>([])
+  const [vendorPage, setVendorPage] = useState(1)
+  const [venuePage, setVenuePage] = useState(1)
   const [searching, setSearching] = useState(false)
   const [searched, setSearched] = useState(false)
   const [zipCode, setZipCode] = useState('')
@@ -680,17 +683,19 @@ export default function DashboardVendorsPage() {
               {vendors.length > 0 && (
                 <>
                   <p className="text-sm text-gray-500 mb-3">{vendors.length} vendor{vendors.length !== 1 ? 's' : ''} found</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
-                    {vendors.map(v => <VendorCard key={v.id} vendor={v} />)}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-4">
+                    {vendors.slice((vendorPage - 1) * 12, vendorPage * 12).map(v => <VendorCard key={v.id} vendor={v} />)}
                   </div>
+                  <Pagination currentPage={vendorPage} totalItems={vendors.length} itemsPerPage={12} onPageChange={setVendorPage} />
                 </>
               )}
               {venues.length > 0 && (
                 <>
                   <h2 className="text-base font-semibold text-gray-700 mb-3 mt-2">🏛️ Venues ({venues.length})</h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {venues.map(v => <VenueCard key={v.id} venue={v} />)}
+                    {venues.slice((venuePage - 1) * 12, venuePage * 12).map(v => <VenueCard key={v.id} venue={v} />)}
                   </div>
+                  <Pagination currentPage={venuePage} totalItems={venues.length} itemsPerPage={12} onPageChange={setVenuePage} />
                 </>
               )}
             </>

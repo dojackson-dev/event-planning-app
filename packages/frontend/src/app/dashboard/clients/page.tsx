@@ -36,7 +36,7 @@ export default function ClientsPage() {
   const router = useRouter()
   const [clients, setClients] = useState<IntakeForm[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<'all' | 'new' | 'contacted' | 'converted'>('all')
+  const [filter, setFilter] = useState<'all' | 'unactivated' | 'new' | 'contacted' | 'converted'>('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedClient, setSelectedClient] = useState<IntakeForm | null>(null)
@@ -170,7 +170,8 @@ export default function ClientsPage() {
 
   const filteredClients = clients
     .filter(client => {
-      const matchesFilter = filter === 'all' || client.status === filter
+      const matchesFilter = filter === 'all' ||
+        (filter === 'unactivated' ? client.status !== 'converted' : client.status === filter)
       const matchesSearch = searchTerm === '' ||
         client.contact_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         client.contact_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -264,11 +265,15 @@ export default function ClientsPage() {
               onChange={(e) => setFilter(e.target.value as typeof filter)}
               className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              {(['all', 'new', 'contacted', 'converted'] as const).map((f) => {
-                const count = f === 'all' ? clients.length : clients.filter(c => c.status === f).length
+              {(['all', 'unactivated', 'new', 'contacted', 'converted'] as const).map((f) => {
+                const count = f === 'all' ? clients.length
+                  : f === 'unactivated' ? clients.filter(c => c.status !== 'converted').length
+                  : clients.filter(c => c.status === f).length
+                const label = f === 'unactivated' ? 'New Leads'
+                  : f.charAt(0).toUpperCase() + f.slice(1)
                 return (
                   <option key={f} value={f}>
-                    {f.charAt(0).toUpperCase() + f.slice(1)} ({count})
+                    {label} ({count})
                   </option>
                 )
               })}
@@ -293,15 +298,15 @@ export default function ClientsPage() {
             </div>
           </button>
           <button
-            onClick={() => setFilter('new')}
-            className={`bg-white rounded-2xl shadow-sm p-4 flex items-center gap-3 text-left transition-all touch-manipulation hover:shadow-md active:scale-95 ${filter === 'new' ? 'ring-2 ring-blue-500' : ''}`}
+            onClick={() => setFilter('unactivated')}
+            className={`bg-white rounded-2xl shadow-sm p-4 flex items-center gap-3 text-left transition-all touch-manipulation hover:shadow-md active:scale-95 ${filter === 'unactivated' ? 'ring-2 ring-blue-500' : ''}`}
           >
             <div className="bg-blue-50 rounded-xl p-2 flex-shrink-0">
               <Clock className="h-5 w-5 text-blue-500" />
             </div>
             <div>
-              <p className="text-xs text-gray-500">New</p>
-              <p className="text-xl font-bold text-blue-600">{clients.filter(c => c.status === 'new').length}</p>
+              <p className="text-xs text-gray-500">New Leads</p>
+              <p className="text-xl font-bold text-blue-600">{clients.filter(c => c.status !== 'converted').length}</p>
             </div>
           </button>
           <button

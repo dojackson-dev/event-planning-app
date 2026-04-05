@@ -175,7 +175,7 @@ export class IntakeFormsService {
     const supabaseAdmin = this.supabaseService.getAdminClient();
     const { data, error } = await supabaseAdmin
       .from('intake_forms')
-      .select('*, linked_event:event!intake_forms_event_id_fkey(name)')
+      .select('*, linked_event:event!event_id(name)')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
@@ -193,9 +193,11 @@ export class IntakeFormsService {
     // Flatten linked event name onto each record
     return (data || []).map(form => {
       const { linked_event, ...rest } = form as any;
+      const resolvedName = rest.event_name || (linked_event as any)?.name || null;
+      console.log(`[IntakeFormsService] form ${rest.id}: event_id=${rest.event_id}, linked_event=${JSON.stringify(linked_event)}, resolvedName=${resolvedName}`);
       return {
         ...rest,
-        event_name: rest.event_name || (linked_event as any)?.name || null,
+        event_name: resolvedName,
       };
     });
   }

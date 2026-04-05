@@ -283,16 +283,13 @@ export class InvoicesService {
     );
 
     // Insert invoice using snake_case column names
-    const { data, error } = await supabase
-      .from('invoices')
-      .insert({
+    const insertPayload: any = {
         invoice_number: invoiceNumber,
         owner_id: ownerId,
         created_by: userId,
         booking_id: invoiceData.booking_id || null,
         intake_form_id: invoiceData.intake_form_id || null,
         client_name: (invoiceData as any).client_name || null,
-        client_phone: (invoiceData as any).client_phone || null,
         subtotal: subtotal,
         tax_rate: Number(invoiceData.tax_rate) || 0,
         tax_amount: taxAmount,
@@ -308,9 +305,21 @@ export class InvoicesService {
         deposit_percentage: invoiceData.deposit_percentage != null ? Number(invoiceData.deposit_percentage) : null,
         deposit_due_days_before: invoiceData.deposit_due_days_before != null ? Number(invoiceData.deposit_due_days_before) : null,
         final_payment_due_days_before: invoiceData.final_payment_due_days_before != null ? Number(invoiceData.final_payment_due_days_before) : null,
-      })
-      .select()
-      .single();
+    };
+
+    // Only include client_phone if the column exists (migration may not have run yet)
+    const clientPhone = (invoiceData as any).client_phone;
+    if (clientPhone) insertPayload.client_phone = clientPhone;
+
+    let data: any, error: any;
+
+    ({ data, error } = await supabase.from('invoices').insert(insertPayload).select().single());
+
+    // If client_phone column doesn't exist yet, retry without it
+    if (error?.code === 'PGRST204' && insertPayload.client_phone) {
+      delete insertPayload.client_phone;
+      ({ data, error } = await supabase.from('invoices').insert(insertPayload).select().single());
+    }
 
     if (error) throw error;
     if (!data) {

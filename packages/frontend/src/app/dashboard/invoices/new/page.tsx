@@ -339,7 +339,7 @@ function NewInvoicePageContent() {
     try {
       const invoiceData = {
         invoice: {
-          booking_id: selectedBooking || null,
+          booking_id: null,
           intake_form_id: intakeFormId || null,
           client_name: clientName || null,
           client_phone: clientPhone || null,

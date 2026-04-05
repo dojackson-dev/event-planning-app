@@ -214,7 +214,8 @@ export class GuestListsService {
     const { data, error } = await supabase
       .from('guest_lists')
       .insert({
-        client_id: guestListData.clientId,
+        client_id: null,
+        intake_form_id: guestListData.clientId || guestListData.intakeFormId || null,
         event_id: guestListData.eventId,
         max_guests_per_person: guestListData.maxGuestsPerPerson || 0,
         access_code: this.generateAccessCode(),
@@ -405,16 +406,17 @@ export class GuestListsService {
       }
     }
 
-    // Fallback: try guest_list.client_id directly against intake_forms or users
-    if (!phone && guestList.client_id) {
+    // Fallback: try guest_list.intake_form_id or client_id directly against intake_forms or users
+    if (!phone && (guestList.intake_form_id || guestList.client_id)) {
+      const lookupId = guestList.intake_form_id || guestList.client_id;
       const { data: form } = await supabase
         .from('intake_forms')
         .select('contact_phone')
-        .eq('id', guestList.client_id)
+        .eq('id', lookupId)
         .maybeSingle();
       if (form?.contact_phone) phone = form.contact_phone;
 
-      if (!phone) {
+      if (!phone && guestList.client_id) {
         const { data: userRow } = await supabase
           .from('users')
           .select('phone_number')

@@ -3,11 +3,17 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { createClient } from '@/lib/supabase/client'
 import api from '@/lib/api'
-import { Event, User } from '@/types'
+import { Event } from '@/types'
 import { ArrowLeft } from 'lucide-react'
 import { parseLocalDate } from '@/lib/dateUtils'
+
+interface IntakeClient {
+  id: string
+  contact_name: string
+  contact_phone: string
+  contact_email: string
+}
 
 export default function NewGuestListPage() {
   const router = useRouter()
@@ -15,7 +21,7 @@ export default function NewGuestListPage() {
   const [clientId, setClientId] = useState('')
   const [eventId, setEventId] = useState('')
   const [maxGuestsPerPerson, setMaxGuestsPerPerson] = useState(2)
-  const [clients, setClients] = useState<User[]>([])
+  const [intakeClients, setIntakeClients] = useState<IntakeClient[]>([])
   const [events, setEvents] = useState<Event[]>([])
   const [takenEventIds, setTakenEventIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
@@ -24,92 +30,23 @@ export default function NewGuestListPage() {
     if (user) {
       fetchEvents()
       fetchTakenEvents()
+      fetchIntakeClients()
     }
   }, [user])
 
-  const fetchClients = async () => {
+  const fetchIntakeClients = async () => {
     try {
-      const supabase = createClient()
-      
-      // Try both table names since we've seen both used
-      let bookingsData = null
-      let bookingsError = null
-      
-      // Try 'booking' first (singular)
-      const result1 = await supabase
-        .from('booking')
-        .select('user_id')
-        .not('user_id', 'is', null)
-        .limit(10)
-
-      if (!result1.error && result1.data && result1.data.length > 0) {
-        bookingsData = result1.data
-        console.log('Found bookings in "booking" table:', bookingsData)
-      } else {
-        // Try 'bookings' (plural)
-        const result2 = await supabase
-          .from('bookings')
-          .select('user_id')
-          .not('user_id', 'is', null)
-          .limit(10)
-        
-        if (!result2.error && result2.data) {
-          bookingsData = result2.data
-          console.log('Found bookings in "bookings" table:', bookingsData)
-        } else {
-          bookingsError = result2.error
-          console.error('Error fetching from both tables:', result1.error, result2.error)
-        }
-      }
-
-      if (bookingsError || !bookingsData || bookingsData.length === 0) {
-        console.log('No bookings found or error occurred')
-        setClients([])
-        return
-      }
-
-      // Get unique user IDs
-      const uniqueUserIds = [...new Set(bookingsData.map(b => b.user_id).filter(id => id))]
-      console.log('Unique user IDs from bookings:', uniqueUserIds)
-
-      if (uniqueUserIds.length === 0) {
-        console.log('No user IDs found in bookings')
-        setClients([])
-        return
-      }
-
-      // Fetch user details
-      const { data: usersData, error: usersError } = await supabase
-        .from('users')
-        .select('*')
-        .in('id', uniqueUserIds)
-
-      if (usersError) {
-        console.error('Supabase users error:', usersError)
-        throw usersError
-      }
-
-      console.log('Users fetched from database:', usersData)
-      
-      // Transform snake_case to camelCase if needed
-      const transformedData = usersData?.map(user => ({
-        id: user.id,
-        email: user.email,
-        firstName: user.first_name || user.firstName || 'Unknown',
-        lastName: user.last_name || user.lastName || '',
-        role: user.role,
-        phone: user.phone,
-        ownerId: user.owner_id || user.ownerId,
-        tenantId: user.tenant_id || user.tenantId,
-        createdAt: user.created_at || user.createdAt,
-        updatedAt: user.updated_at || user.updatedAt,
-      })) || []
-      
-      console.log('Clients to display:', transformedData)
-      setClients(transformedData)
+      const res = await api.get('/intake-forms')
+      const forms: IntakeClient[] = (res.data || []).map((f: any) => ({
+        id: f.id,
+        contact_name: f.contactName || f.contact_name || 'Unknown',
+        contact_phone: f.contactPhone || f.contact_phone || '',
+        contact_email: f.contactEmail || f.contact_email || '',
+      }))
+      setIntakeClients(forms)
     } catch (error) {
       console.error('Failed to fetch clients:', error)
-      setClients([])
+      setIntakeClients([])
     }
   }
 
@@ -153,9 +90,15 @@ export default function NewGuestListPage() {
 
     setLoading(true)
     try {
+      if (!clientId) {
+        alert('Please select a client')
+        setLoading(false)
+        return
+      }
+
       const guestListData = {
-        clientId: user?.id, // Use current logged-in user as the client
-        eventId: eventId, // Keep as string (UUID)
+        clientId, // intake form UUID — used by SMS and share features to identify the client
+        eventId,
         maxGuestsPerPerson: Number(maxGuestsPerPerson),
       }
 
@@ -186,6 +129,25 @@ export default function NewGuestListPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white shadow-md rounded-lg p-6">
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Select Client *
+          </label>
+          <select
+            value={clientId}
+            onChange={(e) => setClientId(e.target.value)}
+            required
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+          >
+            <option value="">-- Select a client --</option>
+            {intakeClients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.contact_name}{c.contact_phone ? ` · ${c.contact_phone}` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Select Event *

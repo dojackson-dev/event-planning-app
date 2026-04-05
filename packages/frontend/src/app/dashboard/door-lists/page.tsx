@@ -15,7 +15,10 @@ import {
   CheckCircle2,
   XCircle,
   Filter,
-  Download
+  Download,
+  UserPlus,
+  Plus,
+  X
 } from 'lucide-react'
 import { parseLocalDate } from '@/lib/dateUtils'
 
@@ -29,6 +32,11 @@ export default function DoorListsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState<'all' | 'arrived' | 'pending'>('all')
   const [loading, setLoading] = useState(true)
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [addName, setAddName] = useState('')
+  const [addPhone, setAddPhone] = useState('')
+  const [addPlusOnes, setAddPlusOnes] = useState(0)
+  const [addLoading, setAddLoading] = useState(false)
 
   useEffect(() => {
     fetchEvents()
@@ -37,7 +45,9 @@ export default function DoorListsPage() {
 
   useEffect(() => {
     if (selectedEvent && guestLists.length > 0) {
-      const list = guestLists.find(gl => gl.eventId?.toString() === selectedEvent)
+      const list = guestLists.find(gl =>
+        (gl.event_id ?? (gl as any).eventId)?.toString() === selectedEvent
+      )
       setSelectedGuestList(list || null)
     }
   }, [selectedEvent, guestLists])
@@ -45,14 +55,16 @@ export default function DoorListsPage() {
   const fetchEvents = async () => {
     try {
       const response = await api.get<Event[]>('/events')
-      // Filter to upcoming or today's events
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const upcomingEvents = response.data.filter(event => {
+      // Show events from 3 days ago through the future so door lists work
+      // for events happening now, today, or recently completed
+      const cutoff = new Date()
+      cutoff.setDate(cutoff.getDate() - 3)
+      cutoff.setHours(0, 0, 0, 0)
+      const relevantEvents = response.data.filter(event => {
         const eventDate = parseLocalDate(event.date)
-        return eventDate >= today
+        return eventDate >= cutoff
       })
-      setEvents(upcomingEvents)
+      setEvents(relevantEvents)
     } catch (error) {
       console.error('Failed to fetch events:', error)
     }
@@ -61,7 +73,17 @@ export default function DoorListsPage() {
   const fetchGuestLists = async () => {
     try {
       const response = await api.get<GuestList[]>('/guest-lists')
-      setGuestLists(response.data)
+      const lists = response.data.map((gl: any) => ({
+        ...gl,
+        event_id: gl.event_id ?? gl.eventId,
+        guests: (gl.guests || []).map((g: any) => ({
+          ...g,
+          plusOneCount: g.plus_one_count ?? g.plusOneCount ?? 0,
+          hasArrived: !!(g.has_arrived ?? g.hasArrived),
+          arrivedAt: g.arrived_at ?? g.arrivedAt ?? undefined,
+        })),
+      }))
+      setGuestLists(lists)
     } catch (error) {
       console.error('Failed to fetch guest lists:', error)
     } finally {
@@ -89,6 +111,28 @@ export default function DoorListsPage() {
     }
   }
 
+  const handleAddGuest = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedGuestList) return
+    setAddLoading(true)
+    try {
+      await api.post(`/guest-lists/${selectedGuestList.id}/guests`, {
+        name: addName,
+        phone: addPhone || undefined,
+        plusOnes: addPlusOnes,
+      })
+      setAddName('')
+      setAddPhone('')
+      setAddPlusOnes(0)
+      setShowAddForm(false)
+      fetchGuestLists()
+    } catch {
+      alert('Failed to add guest')
+    } finally {
+      setAddLoading(false)
+    }
+  }
+
   const getFilteredGuests = (): Guest[] => {
     if (!selectedGuestList?.guests) return []
     
@@ -98,15 +142,17 @@ export default function DoorListsPage() {
     if (searchTerm) {
       filtered = filtered.filter(guest => 
         guest.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        guest.phone.includes(searchTerm)
+        (guest.phone ?? '').includes(searchTerm)
       )
     }
 
+    const hasArrived = (g: any) => !!(g.has_arrived || g.hasArrived)
+
     // Apply status filter
     if (filterStatus === 'arrived') {
-      filtered = filtered.filter(guest => (guest as any).hasArrived || ((guest as any).has_arrived || guest.hasArrived))
+      filtered = filtered.filter(guest => hasArrived(guest))
     } else if (filterStatus === 'pending') {
-      filtered = filtered.filter(guest => !((guest as any).hasArrived || ((guest as any).has_arrived || guest.hasArrived)))
+      filtered = filtered.filter(guest => !hasArrived(guest))
     }
 
     return filtered
@@ -116,8 +162,8 @@ export default function DoorListsPage() {
     if (!selectedGuestList?.guests) return { total: 0, arrived: 0, pending: 0, totalWithPlus: 0 }
     
     const guests = selectedGuestList.guests
-    const arrived = guests.filter(g => (g as any).hasArrived || g.hasArrived).length
-    const totalWithPlus = guests.reduce((sum, g) => sum + 1 + ((g as any).plusOneCount || g.plusOneCount || 0), 0)
+    const arrived = guests.filter(g => !!(( g as any).has_arrived || (g as any).hasArrived || g.hasArrived)).length
+    const totalWithPlus = guests.reduce((sum, g) => sum + 1 + ((g as any).plus_one_count ?? (g as any).plusOneCount ?? g.plusOneCount ?? 0), 0)
     
     return {
       total: guests.length,
@@ -192,6 +238,13 @@ export default function DoorListsPage() {
             {/* Action Buttons */}
             <div className="mb-6 flex gap-3">
               <button
+                onClick={() => setShowAddForm(v => !v)}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                <UserPlus className="w-4 h-4" />
+                Add Guest
+              </button>
+              <button
                 onClick={() => router.push(`/dashboard/guest-lists/${selectedGuestList.id}`)}
                 className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
               >
@@ -206,6 +259,69 @@ export default function DoorListsPage() {
                 Full Door List View
               </button>
             </div>
+
+            {/* Add Guest Form */}
+            {showAddForm && (
+              <div className="mb-6 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-gray-900">Add Guest</h2>
+                  <button onClick={() => setShowAddForm(false)} className="p-1 hover:bg-gray-100 rounded">
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <form onSubmit={handleAddGuest} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+                    <input
+                      type="text"
+                      value={addName}
+                      onChange={e => setAddName(e.target.value)}
+                      required
+                      autoFocus
+                      placeholder="Guest name"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                    <input
+                      type="tel"
+                      value={addPhone}
+                      onChange={e => setAddPhone(e.target.value)}
+                      placeholder="Optional"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Plus Ones</label>
+                    <input
+                      type="number"
+                      value={addPlusOnes}
+                      onChange={e => setAddPlusOnes(Number(e.target.value))}
+                      min={0}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                  <div className="md:col-span-3 flex justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddForm(false)}
+                      className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={addLoading}
+                      className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
+                    >
+                      <Plus className="h-4 w-4" />
+                      {addLoading ? 'Adding…' : 'Add Guest'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">

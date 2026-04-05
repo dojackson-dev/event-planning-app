@@ -69,7 +69,6 @@ export default function GuestListsPage() {
     const url = type === 'edit' 
       ? `${baseUrl}/guest-list/share/${token}`
       : `${baseUrl}/guest-list/arrival/${token}`
-    
     navigator.clipboard.writeText(url)
     alert(`${type === 'edit' ? 'Edit' : 'Arrival tracking'} link copied to clipboard!`)
   }
@@ -77,6 +76,14 @@ export default function GuestListsPage() {
   const copyAccessCode = (code: string) => {
     navigator.clipboard.writeText(code)
     alert(`Access code ${code} copied to clipboard!`)
+  }
+
+  const copyLinkAndCode = (shareToken: string, accessCode: string) => {
+    const baseUrl = window.location.origin
+    const url = `${baseUrl}/guest-list/share/${shareToken}`
+    const message = `You've been invited to view and edit the guest list!\n\nLink: ${url}\nAccess Code: ${accessCode}\n\nOpen the link and enter the code to get started.`
+    navigator.clipboard.writeText(message)
+    alert('Link & code copied! Paste it into a text or email.')
   }
 
   const filteredLists = guestLists.filter((list) => {
@@ -192,7 +199,11 @@ export default function GuestListsPage() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredLists.map((list) => (
-                  <tr key={list.id} className="hover:bg-gray-50">
+                  <tr
+                    key={list.id}
+                    onClick={() => router.push(`/dashboard/guest-lists/${list.id}`)}
+                    className="hover:bg-gray-50 cursor-pointer"
+                  >
                     <td className="px-6 py-4">
                       <div className="text-sm font-medium text-gray-900">{list.event?.name}</div>
                       <div className="text-xs text-gray-500">
@@ -206,9 +217,9 @@ export default function GuestListsPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <button
-                        onClick={() => copyAccessCode(list.accessCode)}
+                        onClick={(e) => { e.stopPropagation(); copyLinkAndCode(list.shareToken, list.accessCode) }}
                         className="inline-flex items-center gap-2 px-3 py-1 bg-purple-100 text-purple-800 rounded-md hover:bg-purple-200 font-mono text-sm"
-                        title="Click to copy access code"
+                        title="Copy link & code together"
                       >
                         {list.accessCode}
                         <Share2 className="h-3 w-3" />
@@ -236,7 +247,7 @@ export default function GuestListsPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm" onClick={(e) => e.stopPropagation()}>
                       <div className="flex gap-2 flex-wrap">
                         <button
                           onClick={() => router.push(`/dashboard/guest-lists/${list.id}`)}
@@ -245,9 +256,9 @@ export default function GuestListsPage() {
                           View
                         </button>
                         <button
-                          onClick={() => copyShareLink(list.shareToken, 'edit')}
+                          onClick={() => copyLinkAndCode(list.shareToken, list.accessCode)}
                           className="text-blue-600 hover:text-blue-900 flex items-center gap-1"
-                          title="Copy edit link"
+                          title="Copy link & code together"
                         >
                           <Share2 className="h-3 w-3" />
                           Share

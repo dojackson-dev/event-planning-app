@@ -3,6 +3,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { MailService } from '../mail/mail.service';
 import { TwilioService } from '../messaging/twilio.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
+import { EventsService } from '../events/events.service';
 import { SupabaseClient } from '@supabase/supabase-js';
 
 function normalizePhone(phone: string): string {
@@ -19,7 +20,31 @@ export class IntakeFormsService {
     private readonly mailService: MailService,
     private readonly twilioService: TwilioService,
     private readonly smsNotifications: SmsNotificationsService,
+    private readonly eventsService: EventsService,
   ) {}
+
+  private async autoCreateEvent(
+    intakeForm: any,
+    ownerId: string,
+  ): Promise<void> {
+    try {
+      const supabaseAdmin = this.supabaseService.getAdminClient();
+      await supabaseAdmin.from('event').insert([{
+        name: `${intakeForm.event_type || 'Event'} - ${intakeForm.contact_name || 'Client'}`,
+        date: intakeForm.event_date || new Date().toISOString().split('T')[0],
+        start_time: intakeForm.event_time || null,
+        venue: intakeForm.venue_preference || null,
+        guest_count: intakeForm.guest_count || null,
+        description: intakeForm.special_requests || null,
+        status: 'scheduled',
+        owner_id: ownerId,
+        client_id: intakeForm.id,
+      }]);
+      console.log(`[IntakeFormsService] Auto-created event for intake form ${intakeForm.id}`);
+    } catch (err) {
+      console.warn('[IntakeFormsService] Auto-create event failed:', err);
+    }
+  }
 
   async create(supabase: SupabaseClient, userId: string, createDto: any) {
     // Remove columns that don't exist in the intake_forms table
@@ -120,6 +145,9 @@ export class IntakeFormsService {
         console.warn('[IntakeFormsService] SMS invite failed:', smsErr);
       }
     }
+
+    // Auto-create an event for this intake form
+    await this.autoCreateEvent(data, userId);
 
     return data;
   }
@@ -398,6 +426,9 @@ export class IntakeFormsService {
       .single();
 
     if (error) throw new Error(`Public intake form insert failed: ${error.message}`);
+
+    // Auto-create an event for this intake form
+    await this.autoCreateEvent(data, ownerId);
 
     // Notify the owner via SMS
     try {

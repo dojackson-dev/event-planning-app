@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Copy, Check, ExternalLink, Lock } from 'lucide-react'
+import { X, Copy, Check, ExternalLink, Lock, MessageSquare } from 'lucide-react'
 
 interface ShareLinkModalProps {
   isOpen: boolean
@@ -10,6 +10,7 @@ interface ShareLinkModalProps {
   arrivalToken: string
   accessCode: string
   eventName?: string
+  onSmsClient?: () => Promise<void>
 }
 
 export default function ShareLinkModal({
@@ -19,8 +20,12 @@ export default function ShareLinkModal({
   arrivalToken,
   accessCode,
   eventName,
+  onSmsClient,
 }: ShareLinkModalProps) {
   const [copiedItem, setCopiedItem] = useState<string | null>(null)
+  const [smsLoading, setSmsLoading] = useState(false)
+  const [smsSent, setSmsSent] = useState(false)
+  const [smsError, setSmsError] = useState<string | null>(null)
 
   if (!isOpen) return null
 
@@ -55,6 +60,56 @@ export default function ShareLinkModal({
 
         {/* Content */}
         <div className="p-6 space-y-6">
+          {/* Combined Share Button */}
+          <div className="bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg p-5 text-white">
+            <p className="text-sm font-medium mb-1 opacity-90">Quick share — link &amp; code together</p>
+            <p className="text-xs opacity-75 mb-4">Copies a ready-to-send message with the link and access code in one tap</p>
+            <button
+              onClick={() => copyToClipboard(
+                `You've been invited to view and edit the guest list!\n\nLink: ${editLink}\nAccess Code: ${accessCode}\n\nOpen the link and enter the code to get started.`,
+                'combined'
+              )}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-white text-purple-700 font-semibold rounded-lg hover:bg-purple-50 transition-colors"
+            >
+              {copiedItem === 'combined' ? (
+                <><Check className="w-5 h-5" /> Copied! Send it now</>
+              ) : (
+                <><Copy className="w-5 h-5" /> Copy Link &amp; Code Together</>
+              )}
+            </button>
+            {onSmsClient && (
+              <div className="mt-3">
+                <button
+                  onClick={async () => {
+                    setSmsLoading(true)
+                    setSmsError(null)
+                    try {
+                      await onSmsClient()
+                      setSmsSent(true)
+                      setTimeout(() => setSmsSent(false), 4000)
+                    } catch (err: any) {
+                      setSmsError(err?.message || 'Failed to send SMS')
+                    } finally {
+                      setSmsLoading(false)
+                    }
+                  }}
+                  disabled={smsLoading || smsSent}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition-colors disabled:opacity-60"
+                >
+                  {smsSent ? (
+                    <><Check className="w-5 h-5" /> SMS Sent to Client!</>
+                  ) : smsLoading ? (
+                    'Sending SMS...'
+                  ) : (
+                    <><MessageSquare className="w-5 h-5" /> SMS Link &amp; Code to Client</>
+                  )}
+                </button>
+                {smsError && (
+                  <p className="text-xs text-red-200 mt-1 text-center">{smsError}</p>
+                )}
+              </div>
+            )}
+          </div>
           {/* Access Code Section */}
           <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-6 border border-purple-200">
             <div className="flex items-center gap-2 mb-3">
@@ -62,7 +117,7 @@ export default function ShareLinkModal({
               <h3 className="text-lg font-semibold text-gray-900">Access Code</h3>
             </div>
             <p className="text-sm text-gray-600 mb-4">
-              Share this code with guests so they can access the door list
+              Share this code with event coordinators and security so they can access door list
             </p>
             <div className="flex items-center gap-3">
               <div className="flex-1 bg-white px-4 py-3 rounded-md border-2 border-purple-300">
@@ -163,9 +218,9 @@ export default function ShareLinkModal({
           <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
             <h4 className="font-semibold text-gray-900 mb-2">How to Share:</h4>
             <ol className="list-decimal list-inside space-y-2 text-sm text-gray-600">
-              <li>Copy the access code and share it via text/email</li>
-              <li>Copy the appropriate link and send it to your guests or security</li>
-              <li>Recipients will need both the link AND the access code to access the list</li>
+              <li>Tap <strong>Copy Link &amp; Code Together</strong> above and paste into a text or email</li>
+              <li>Or copy the link and code separately using the buttons below</li>
+              <li>Recipients need both the link AND the access code to access the list</li>
               <li>Lock the guest list when you want to prevent further edits</li>
             </ol>
           </div>

@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import * as crypto from 'crypto';
 
 @Injectable()
 export class GuestListsService {
-  constructor(private supabaseService: SupabaseService) {}
+  constructor(
+    private supabaseService: SupabaseService,
+    private smsNotifications: SmsNotificationsService,
+  ) {}
 
   private generateToken(): string {
     return crypto.randomBytes(32).toString('hex');
@@ -359,5 +363,76 @@ export class GuestListsService {
 
     if (error && error.code !== 'PGRST116') throw error;
     return data;
+  }
+
+  async smsClientInvite(id: number): Promise<{ sent: boolean; to?: string; error?: string }> {
+    const supabase = this.supabaseService.getAdminClient();
+
+    // Fetch the guest list
+    const { data: guestList, error } = await supabase
+      .from('guest_lists')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (error || !guestList) throw new Error('Guest list not found');
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const shareUrl = `${frontendUrl}/guest-list/share/${guestList.share_token}`;
+    const message =
+      `You've been invited to view and edit the guest list!\n\n` +
+      `Link: ${shareUrl}\nAccess Code: ${guestList.access_code}\n\n` +
+      `Open the link and enter the code to get started.`;
+
+    // Look up phone via: guest_list.event_id → event.client_id → intake_forms.contact_phone
+    let phone: string | null = null;
+
+    if (guestList.event_id) {
+      // Get the event to find the client_id
+      const { data: event } = await supabase
+        .from('event')
+        .select('client_id')
+        .eq('id', guestList.event_id)
+        .maybeSingle();
+
+      if (event?.client_id) {
+        // client_id on event references intake_forms.id
+        const { data: form } = await supabase
+          .from('intake_forms')
+          .select('contact_phone, contact_name')
+          .eq('id', event.client_id)
+          .maybeSingle();
+        if (form?.contact_phone) phone = form.contact_phone;
+      }
+    }
+
+    // Fallback: try guest_list.client_id directly against intake_forms or users
+    if (!phone && guestList.client_id) {
+      const { data: form } = await supabase
+        .from('intake_forms')
+        .select('contact_phone')
+        .eq('id', guestList.client_id)
+        .maybeSingle();
+      if (form?.contact_phone) phone = form.contact_phone;
+
+      if (!phone) {
+        const { data: userRow } = await supabase
+          .from('users')
+          .select('phone_number')
+          .eq('id', guestList.client_id)
+          .maybeSingle();
+        if (userRow?.phone_number) phone = userRow.phone_number;
+      }
+    }
+
+    if (!phone) {
+      return { sent: false, error: 'No phone number found for this client.' };
+    }
+
+    try {
+      await this.smsNotifications.send(phone, message);
+      return { sent: true, to: phone };
+    } catch (smsErr: any) {
+      return { sent: false, error: smsErr?.message || 'SMS failed' };
+    }
   }
 }

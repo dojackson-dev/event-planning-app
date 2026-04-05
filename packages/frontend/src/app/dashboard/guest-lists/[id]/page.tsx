@@ -136,17 +136,30 @@ export default function GuestListDetailPage() {
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="mb-6">
+<<<<<<< HEAD
         <div className="flex items-center gap-2 mb-1">
+=======
+        <div className="flex items-center gap-4 mb-3">
+>>>>>>> door-list
           <button
             onClick={() => router.push('/dashboard/guest-lists')}
             className="p-1 hover:bg-gray-100 rounded-full"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
+<<<<<<< HEAD
         </div>
         <h1 className="text-2xl font-bold text-center">Guest List Details</h1>
         <p className="text-sm text-gray-600 text-center mt-1">Access Code: {guestList.access_code}</p>
         <div className="flex justify-center gap-3 mt-4">
+=======
+          <div>
+            <h1 className="text-2xl font-bold">Guest List Details</h1>
+            <p className="text-sm text-gray-600">Access Code: <span className="font-mono font-semibold">{guestList.access_code}</span></p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-3">
+>>>>>>> door-list
           <button
             onClick={() => setShowShareModal(true)}
             className="flex items-center gap-2 px-4 py-2 w-40 justify-center bg-purple-600 text-white rounded-md hover:bg-purple-700"
@@ -171,6 +184,10 @@ export default function GuestListDetailPage() {
         shareToken={guestList.share_token}
         arrivalToken={guestList.arrival_token}
         accessCode={guestList.access_code}
+        onSmsClient={async () => {
+          const res = await api.post(`/guest-lists/${params.id}/sms-client`)
+          if (!res.data.sent) throw new Error(res.data.error || 'Failed to send SMS')
+        }}
       />
 
       {/* Add Guest Form */}

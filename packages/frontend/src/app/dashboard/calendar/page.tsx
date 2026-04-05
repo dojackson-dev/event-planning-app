@@ -84,6 +84,8 @@ export default function CalendarPage() {
   const [createEnd, setCreateEnd] = useState('17:00')
   const [createVenue, setCreateVenue] = useState('')
   const [createDescription, setCreateDescription] = useState('')
+  const [createClientId, setCreateClientId] = useState('')
+  const [calendarClients, setCalendarClients] = useState<{ id: string; contact_name: string; contact_phone: string }[]>([])
 
   // Schedule appointment modal (from calendar)
   const [showApptModal, setShowApptModal] = useState(false)
@@ -102,6 +104,16 @@ export default function CalendarPage() {
   useEffect(() => {
     fetchAllEntries()
   }, [currentDate])
+
+  useEffect(() => {
+    api.get('/intake-forms').then(res => {
+      setCalendarClients((res.data || []).map((f: any) => ({
+        id: f.id,
+        contact_name: f.contactName || f.contact_name || 'Unknown',
+        contact_phone: f.contactPhone || f.contact_phone || '',
+      })))
+    }).catch(() => {})
+  }, [])
 
   const fetchAllEntries = async () => {
     try {
@@ -310,6 +322,7 @@ export default function CalendarPage() {
     setCreateDescription('')
     setCreateGuests('')
     setCreateStatus('scheduled')
+    setCreateClientId('')
     setShowCreateModal(true)
   }
 
@@ -323,6 +336,7 @@ export default function CalendarPage() {
         startTime: createStart,
         endTime: createEnd,
         status: createStatus,
+        clientId: createClientId || undefined,
       }
       if (createVenue) payload.venue = createVenue
       if (createDescription) payload.description = createDescription
@@ -701,6 +715,21 @@ export default function CalendarPage() {
               </button>
             </div>
             <form onSubmit={handleCreateEvent} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Client</label>
+                <select
+                  value={createClientId}
+                  onChange={e => setCreateClientId(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  <option value="">-- Select a client --</option>
+                  {calendarClients.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.contact_name}{c.contact_phone ? ` · ${c.contact_phone}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Event Name *</label>
                 <input

@@ -6,6 +6,10 @@ export interface Invoice {
   invoice_number?: string;
   owner_id: string;
   booking_id?: string;
+  intake_form_id?: string;
+  client_name?: string;
+  client_phone?: string;
+  client_email?: string;
   issue_date: string;
   due_date: string;
   status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';

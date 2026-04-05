@@ -167,9 +167,6 @@ export class IntakeFormsService {
       console.warn('[IntakeFormsService] Owner SMS notification failed:', ownerSmsErr);
     }
 
-    // Auto-create an event for this intake form
-    await this.autoCreateEvent(data, userId);
-
     return data;
   }
 

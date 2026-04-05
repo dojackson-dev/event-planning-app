@@ -48,7 +48,8 @@ export class IntakeFormsService {
 
   async create(supabase: SupabaseClient, userId: string, createDto: any) {
     // Remove columns that don't exist in the intake_forms table
-    const { accessibility_requirements, preferred_contact, ...safeDto } = createDto;
+    const { accessibility_requirements, preferred_contact, event_name, ...rest } = createDto;
+    const safeDto = { ...rest, ...(event_name ? { event_name } : {}) };
 
     // Normalize phone to E.164 on the way in
     if (safeDto.contact_phone) {
@@ -69,7 +70,7 @@ export class IntakeFormsService {
     // and can be linked to estimates/invoices immediately without manual conversion.
     try {
       const eventData = {
-        name: `${data.event_type ? data.event_type.charAt(0).toUpperCase() + data.event_type.slice(1).replace(/_/g, ' ') : 'Event'} - ${data.contact_name}`,
+        name: data.event_name || `${data.event_type ? data.event_type.charAt(0).toUpperCase() + data.event_type.slice(1).replace(/_/g, ' ') : 'Event'} - ${data.contact_name}`,
         date: data.event_date,
         start_time: data.event_time || '00:00',
         end_time: '23:59',

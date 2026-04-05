@@ -341,6 +341,7 @@ function NewInvoicePageContent() {
         invoice: {
           booking_id: null,
           intake_form_id: intakeFormId || null,
+          event_id: lockedEvent?.id || null,
           client_name: clientName || null,
           client_phone: clientPhone || null,
           owner_id: user?.id,

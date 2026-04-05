@@ -10,6 +10,7 @@ export interface Invoice {
   owner_id?: string;
   booking_id?: string;
   intake_form_id?: string;
+  event_id?: string;
   created_by?: string;
   subtotal: number;
   tax_amount: number;
@@ -311,13 +312,18 @@ export class InvoicesService {
     const clientPhone = (invoiceData as any).client_phone;
     if (clientPhone) insertPayload.client_phone = clientPhone;
 
+    // Only include event_id if the column exists (migration may not have run yet)
+    const eventId = (invoiceData as any).event_id;
+    if (eventId) insertPayload.event_id = eventId;
+
     let data: any, error: any;
 
     ({ data, error } = await supabase.from('invoices').insert(insertPayload).select().single());
 
-    // If client_phone column doesn't exist yet, retry without it
-    if (error?.code === 'PGRST204' && insertPayload.client_phone) {
+    // If client_phone or event_id column doesn't exist yet, retry without them
+    if (error?.code === 'PGRST204' && (insertPayload.client_phone || insertPayload.event_id)) {
       delete insertPayload.client_phone;
+      delete insertPayload.event_id;
       ({ data, error } = await supabase.from('invoices').insert(insertPayload).select().single());
     }
 

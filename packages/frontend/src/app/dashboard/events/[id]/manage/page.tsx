@@ -252,12 +252,17 @@ export default function EventManagementPage() {
     try {
       const res = await api.get('/invoices');
       const all: any[] = res.data || [];
-      let matched = all;
-      if (bookingId) {
+      let matched: any[] = [];
+      // 1. Match by event_id (most accurate)
+      matched = all.filter((inv) => inv.event_id && inv.event_id === eventId);
+      // 2. Fall back to booking_id
+      if (matched.length === 0 && bookingId) {
         matched = all.filter((inv) => inv.booking_id === bookingId);
-      } else if (clientName) {
+      }
+      // 3. Fall back to client name (event name contains client name)
+      if (matched.length === 0 && clientName) {
         matched = all.filter((inv) =>
-          (inv.client_name || '').toLowerCase().includes(clientName.toLowerCase())
+          inv.client_name && clientName.toLowerCase().includes((inv.client_name || '').toLowerCase())
         );
       }
       setEventInvoices(matched);

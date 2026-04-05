@@ -364,9 +364,9 @@ export default function ClientsPage() {
                   <div className="flex items-start justify-between gap-2 mb-3">
                     <div className="flex-1 min-w-0">
                       <h2 className="text-base font-bold text-gray-900 leading-snug truncate">{client.contact_name}</h2>
-                      {client.event_name && (
-                        <p className="text-xs font-semibold text-primary-600 truncate mt-0.5">{client.event_name}</p>
-                      )}
+                      <p className="text-xs font-semibold text-primary-600 truncate mt-0.5">
+                        {client.event_name || formatEventType(client.event_type)}
+                      </p>
                       <div className="flex items-center gap-1 mt-0.5">
                         <Mail className="h-3 w-3 text-gray-400 flex-shrink-0" />
                         <p className="text-xs text-gray-500 truncate">{client.contact_email}</p>

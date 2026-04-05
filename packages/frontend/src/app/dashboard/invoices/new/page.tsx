@@ -76,37 +76,45 @@ function NewInvoicePageContent() {
     setSelectedBooking(eventId)
     api.get(`/events/${eventId}`).then(res => {
       const ev = res.data
-      console.log('[DEBUG] Event API response:', JSON.stringify(ev, null, 2))
       const evName = ev.name || ''
       setLockedEvent({ id: eventId, name: evName, date: ev.date || '' })
       setEventName(evName)
-      const intakeId = ev.bookingId || ev.booking_id
-      console.log('[DEBUG] intakeId from event:', intakeId)
+
+      // Try direct intake form lookup via intakeFormId/bookingId on the event
+      const intakeId = ev.intakeFormId || ev.bookingId || ev.booking_id || ev.intake_form_id
       if (intakeId) {
         setIntakeFormId(intakeId)
         api.get(`/intake-forms/${intakeId}`).then(r => {
-          console.log('[DEBUG] Intake form by ID response:', JSON.stringify(r.data, null, 2))
           const form = r.data
           if (form?.contact_name) setClientName(form.contact_name)
           if (form?.contact_phone) setClientPhone(form.contact_phone)
-        }).catch((err) => { console.log('[DEBUG] intake-forms/:id error:', err?.message) })
-      } else {
-        // Fallback: scan all intake forms for one matching this event_id
-        api.get('/intake-forms').then(r => {
-          const forms: any[] = r.data || []
-          console.log('[DEBUG] All intake forms count:', forms.length)
-          console.log('[DEBUG] Looking for event_id:', eventId)
-          console.log('[DEBUG] Intake form event_ids:', forms.map((f: any) => f.event_id))
-          const match = forms.find((f: any) => String(f.event_id) === String(eventId))
-          console.log('[DEBUG] Matched intake form:', match ? JSON.stringify(match, null, 2) : 'none')
-          if (match) {
-            if (match.contact_name) setClientName(match.contact_name)
-            if (match.contact_phone) setClientPhone(match.contact_phone)
-            if (match.id) setIntakeFormId(match.id)
-          }
-        }).catch((err) => { console.log('[DEBUG] intake-forms list error:', err?.message) })
+        }).catch(() => {})
+        return
       }
-    }).catch((err) => { console.log('[DEBUG] Event fetch error:', err?.message) })
+
+      // Fallback: scan all intake forms
+      api.get('/intake-forms').then(r => {
+        const forms: any[] = r.data || []
+
+        // Try matching by event_id first
+        let match = forms.find((f: any) => String(f.event_id) === String(eventId))
+
+        // If no event_id match, extract client name from event name (format: "type - Client Name")
+        // and match by contact_name
+        if (!match && evName.includes(' - ')) {
+          const extractedName = evName.split(' - ').slice(1).join(' - ').trim()
+          match = forms.find((f: any) =>
+            (f.contact_name || '').toLowerCase() === extractedName.toLowerCase()
+          )
+        }
+
+        if (match) {
+          if (match.contact_name) setClientName(match.contact_name)
+          if (match.contact_phone) setClientPhone(match.contact_phone)
+          if (match.id) setIntakeFormId(match.id)
+        }
+      }).catch(() => {})
+    }).catch(() => {})
   }, [searchParams])
 
   // Pre-fill from client detail page workflow (clientId + type=estimate)

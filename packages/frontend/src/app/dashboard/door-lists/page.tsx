@@ -60,9 +60,13 @@ export default function DoorListsPage() {
       const cutoff = new Date()
       cutoff.setDate(cutoff.getDate() - 3)
       cutoff.setHours(0, 0, 0, 0)
+      const seen = new Set<string>()
       const relevantEvents = response.data.filter(event => {
         const eventDate = parseLocalDate(event.date)
-        return eventDate >= cutoff
+        if (eventDate < cutoff) return false
+        if (seen.has(event.id)) return false
+        seen.add(event.id)
+        return true
       })
       setEvents(relevantEvents)
     } catch (error) {

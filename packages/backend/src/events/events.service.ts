@@ -59,12 +59,22 @@ export class EventsService {
   }
 
   async findAll(supabase: SupabaseClient): Promise<Event[]> {
+    // Try with intake_form join for client name + event name display
     const { data, error } = await supabase
       .from('event')
       .select('*, intake_form:intake_forms(contact_name, event_name)')
       .order('date', { ascending: true });
 
-    if (error) throw error;
+    if (error) {
+      // Fall back to basic query if join fails (migration not yet run)
+      const { data: basicData, error: basicError } = await supabase
+        .from('event')
+        .select('*')
+        .order('date', { ascending: true });
+      if (basicError) throw basicError;
+      return (basicData || []).map(event => this.snakeToCamelCase(event));
+    }
+
     return (data || []).map(event => {
       const converted = this.snakeToCamelCase(event);
       // Flatten intake form fields onto the event

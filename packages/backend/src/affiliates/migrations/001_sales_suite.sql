@@ -3,6 +3,22 @@
 -- Run this in the Supabase SQL Editor
 -- ============================================================
 
+-- 0. ADD 'affiliate' TO user_role ENUM (required before inserting into users)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_enum e
+    JOIN pg_type t ON e.enumtypid = t.oid
+    WHERE t.typname = 'user_role' AND e.enumlabel = 'affiliate'
+  ) THEN
+    ALTER TYPE user_role ADD VALUE 'affiliate';
+    RAISE NOTICE 'Added affiliate role to user_role enum';
+  ELSE
+    RAISE NOTICE 'Affiliate role already exists in user_role enum';
+  END IF;
+END;
+$$;
+
 -- 1. AFFILIATES TABLE
 -- Stores affiliate/sales-rep accounts
 CREATE TABLE IF NOT EXISTS public.affiliates (

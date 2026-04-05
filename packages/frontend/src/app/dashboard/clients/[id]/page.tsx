@@ -33,6 +33,7 @@ interface VendorForSearch {
 interface EventVendorBooking {
   id: string
   vendor_account_id: string
+  event_id?: string | null
   event_name: string
   event_date: string
   agreed_amount: number
@@ -64,6 +65,7 @@ interface IntakeForm {
   notes: string | null
   created_at: string
   updated_at: string
+  event_id?: string | null
 }
 
 export default function ClientDetailPage() {
@@ -113,7 +115,7 @@ export default function ClientDetailPage() {
       setStatus(response.data.status)
       setNotes(response.data.notes || '')
       setEditData(response.data)
-      fetchEventVendors(response.data.event_date)
+      fetchEventVendors(response.data.event_date, response.data.event_id)
       api.get<Estimate[]>(`/estimates?intakeFormId=${params.id}`).then(r => setClientEstimates(r.data || [])).catch(() => {})
       api.get<Invoice[]>(`/invoices?intakeFormId=${params.id}`).then(r => setClientInvoices(r.data || [])).catch(() => {})
     } catch (error) {
@@ -123,13 +125,19 @@ export default function ClientDetailPage() {
     }
   }
 
-  const fetchEventVendors = async (eventDate: string) => {
+  const fetchEventVendors = async (eventDate: string, eventId?: string | null) => {
     if (!eventDate) return
     try {
       const res = await api.get('/vendors/bookings/owner')
       const all: EventVendorBooking[] = res.data || []
-      const dateStr = eventDate.split('T')[0]
-      setEventVendors(all.filter(b => b.event_date?.split('T')[0] === dateStr))
+      if (eventId) {
+        // Filter by event_id — orphaned bookings (event deleted) have event_id=null and won't appear
+        setEventVendors(all.filter(b => b.event_id === eventId))
+      } else {
+        // Fallback: filter by date if no event_id linked yet
+        const dateStr = eventDate.split('T')[0]
+        setEventVendors(all.filter(b => b.event_date?.split('T')[0] === dateStr && b.event_id != null))
+      }
     } catch {
       // owner may not have vendor bookings yet
     }

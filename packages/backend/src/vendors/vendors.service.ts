@@ -864,11 +864,14 @@ export class VendorsService {
     const vendorPhone = (link.vendor_accounts as any)?.phone;
     if (vendorPhone) {
       try {
+        const formattedDate = dto.eventDate
+          ? new Date(dto.eventDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+          : '';
         await this.smsNotifications.vendorBookingCreated(
           vendorPhone,
           (link.vendor_accounts as any)?.business_name ?? 'Vendor',
           dto.eventName ?? 'New Event',
-          dto.eventDate ?? '',
+          formattedDate,
         );
       } catch (err) {
         this.logger.warn('Failed to send SMS for booking request', (err as Error).message);

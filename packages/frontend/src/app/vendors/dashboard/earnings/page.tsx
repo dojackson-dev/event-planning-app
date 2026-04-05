@@ -49,7 +49,7 @@ export default function EarningsPage() {
 
   const byMonth: Record<string, number> = {}
   paid.forEach(b => {
-    const month = new Date(b.event_date).toLocaleString('default', { month: 'short', year: 'numeric' })
+    const month = new Date(b.event_date + 'T12:00:00').toLocaleString('default', { month: 'short', year: 'numeric' })
     byMonth[month] = (byMonth[month] || 0) + (b.agreed_amount || 0)
   })
   const months = Object.entries(byMonth).sort(
@@ -130,7 +130,7 @@ export default function EarningsPage() {
                     {paid.map(b => (
                       <tr key={b.id}>
                         <td className="py-2 pr-4 font-medium text-gray-800">{b.event_name}</td>
-                        <td className="py-2 pr-4 text-gray-500">{new Date(b.event_date).toLocaleDateString()}</td>
+                        <td className="py-2 pr-4 text-gray-500">{new Date(b.event_date + 'T12:00:00').toLocaleDateString()}</td>
                         <td className="py-2 text-right font-semibold text-green-700">${(b.agreed_amount || 0).toLocaleString()}</td>
                       </tr>
                     ))}

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { GuestList, Event } from '@/types'
+import Pagination from '@/components/Pagination'
 import { Plus, Search, Users, Lock, Unlock, Share2, ExternalLink } from 'lucide-react'
 import { parseLocalDate } from '@/lib/dateUtils'
 
@@ -16,6 +17,7 @@ export default function GuestListsPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterEvent, setFilterEvent] = useState<string>('')
+  const [currentPage, setCurrentPage] = useState(1)
 
   useEffect(() => {
     fetchGuestLists()
@@ -69,7 +71,6 @@ export default function GuestListsPage() {
     const url = type === 'edit' 
       ? `${baseUrl}/guest-list/share/${token}`
       : `${baseUrl}/guest-list/arrival/${token}`
-    
     navigator.clipboard.writeText(url)
     alert(`${type === 'edit' ? 'Edit' : 'Arrival tracking'} link copied to clipboard!`)
   }
@@ -79,12 +80,25 @@ export default function GuestListsPage() {
     alert(`Access code ${code} copied to clipboard!`)
   }
 
+  const copyLinkAndCode = (shareToken: string, accessCode: string) => {
+    const baseUrl = window.location.origin
+    const url = `${baseUrl}/guest-list/share/${shareToken}`
+    const message = `You've been invited to view and edit the guest list!\n\nLink: ${url}\nAccess Code: ${accessCode}\n\nOpen the link and enter the code to get started.`
+    navigator.clipboard.writeText(message)
+    alert('Link & code copied! Paste it into a text or email.')
+  }
+
   const filteredLists = guestLists.filter((list) => {
     const matchesSearch = list.event?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          list.client?.firstName.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesEvent = !filterEvent || list.eventId?.toString() === filterEvent
     return matchesSearch && matchesEvent
   })
+
+  const CARDS_PER_PAGE = 12
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { setCurrentPage(1) }, [searchTerm, filterEvent])
+  const paginatedLists = filteredLists.slice((currentPage - 1) * CARDS_PER_PAGE, currentPage * CARDS_PER_PAGE)
 
   if (loading) {
     return (
@@ -108,18 +122,18 @@ export default function GuestListsPage() {
   return (
     <div className="p-6">
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Guest Lists</h1>
-          <p className="text-gray-600 mt-1">Manage door lists and track guest arrivals</p>
+      <div className="mb-6 text-center">
+        <h1 className="text-2xl font-bold text-gray-900">Guest Lists</h1>
+        <p className="text-gray-600 mt-1 mb-3">Manage door lists and track guest arrivals</p>
+        <div className="flex justify-center">
+          <button
+            onClick={() => router.push('/dashboard/guest-lists/new')}
+            className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
+          >
+            <Plus className="h-5 w-5" />
+            Create Guest List
+          </button>
         </div>
-        <button
-          onClick={() => router.push('/dashboard/guest-lists/new')}
-          className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
-        >
-          <Plus className="h-5 w-5" />
-          Create Guest List
-        </button>
       </div>
 
       {/* Filters */}
@@ -151,7 +165,7 @@ export default function GuestListsPage() {
       </div>
 
       {/* Guest Lists */}
-      <div className="bg-white shadow-md rounded-lg overflow-hidden">
+      <div className="bg-white shadow-md rounded-lg">
         {filteredLists.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-500">No guest lists found</p>
@@ -163,124 +177,86 @@ export default function GuestListsPage() {
             </button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Event
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Client
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Access Code
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Guests
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Max +1s
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredLists.map((list) => (
-                  <tr key={list.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-gray-900">{list.event?.name}</div>
-                      <div className="text-xs text-gray-500">
-                        {list.event && parseLocalDate(list.event.date).toLocaleDateString()}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {list.client?.firstName} {list.client?.lastName}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <button
-                        onClick={() => copyAccessCode(list.accessCode)}
-                        className="inline-flex items-center gap-2 px-3 py-1 bg-purple-100 text-purple-800 rounded-md hover:bg-purple-200 font-mono text-sm"
-                        title="Click to copy access code"
-                      >
-                        {list.accessCode}
-                        <Share2 className="h-3 w-3" />
-                      </button>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4 text-gray-400" />
-                        <span className="text-sm text-gray-900">{list.guests?.length || 0}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm text-gray-900">{list.maxGuestsPerPerson}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {list.isLocked ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">
-                          <Lock className="h-3 w-3" />
-                          Locked
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
-                          <Unlock className="h-3 w-3" />
-                          Open
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <div className="flex gap-2 flex-wrap">
-                        <button
-                          onClick={() => router.push(`/dashboard/guest-lists/${list.id}`)}
-                          className="text-primary-600 hover:text-primary-900"
-                        >
-                          View
-                        </button>
-                        <button
-                          onClick={() => copyShareLink(list.shareToken, 'edit')}
-                          className="text-blue-600 hover:text-blue-900 flex items-center gap-1"
-                          title="Copy edit link"
-                        >
-                          <Share2 className="h-3 w-3" />
-                          Share
-                        </button>
-                        <button
-                          onClick={() => copyShareLink(list.arrivalToken, 'arrival')}
-                          className="text-green-600 hover:text-green-900 flex items-center gap-1"
-                          title="Copy arrival tracking link"
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                          Door
-                        </button>
-                        <button
-                          onClick={() => handleToggleLock(list.id, list.isLocked)}
-                          className={list.isLocked ? 'text-green-600 hover:text-green-900' : 'text-orange-600 hover:text-orange-900'}
-                        >
-                          {list.isLocked ? 'Unlock' : 'Lock'}
-                        </button>
-                        <button
-                          onClick={() => handleDelete(list.id)}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
+            {paginatedLists.map((list) => (
+              <div
+                key={list.id}
+                onClick={() => router.push(`/dashboard/guest-lists/${list.id}`)}
+                className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md cursor-pointer transition-shadow flex flex-col"
+              >
+                {/* Card top info */}
+                <div className="p-4 flex-1">
+                  <div className="mb-3">
+                    <p className="text-base font-semibold text-gray-900 leading-tight">
+                      {list.event?.name || '—'}
+                    </p>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {list.client ? `${list.client.firstName} ${list.client.lastName}` : '—'}
+                    </p>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {list.event ? parseLocalDate(list.event.date).toLocaleDateString() : '—'}
+                    </p>
+                  </div>
+
+                  {/* Status + guest count row */}
+                  <div className="flex items-center justify-between mt-3">
+                    {list.isLocked ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">
+                        <Lock className="h-3 w-3" /> Locked
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+                        <Unlock className="h-3 w-3" /> Open
+                      </span>
+                    )}
+                    <div className="flex items-center gap-1 text-sm text-gray-500">
+                      <Users className="h-4 w-4" />
+                      <span>{list.guests?.length || 0} guests</span>
+                    </div>
+                  </div>
+
+                  {/* Secondary actions */}
+                  <div className="flex gap-3 mt-3 text-xs" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => copyShareLink(list.arrivalToken, 'arrival')}
+                      className="text-green-600 hover:text-green-800 flex items-center gap-1"
+                    >
+                      <ExternalLink className="h-3 w-3" /> Door Link
+                    </button>
+                    <button
+                      onClick={() => handleToggleLock(list.id, list.isLocked)}
+                      className={list.isLocked ? 'text-green-600 hover:text-green-800' : 'text-orange-600 hover:text-orange-800'}
+                    >
+                      {list.isLocked ? 'Unlock' : 'Lock'}
+                    </button>
+                    <button
+                      onClick={() => handleDelete(list.id)}
+                      className="text-red-600 hover:text-red-800"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+
+                {/* Share section at bottom */}
+                <div className="border-t border-gray-100 px-4 py-3 flex flex-col items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                  <span className="font-mono text-sm font-semibold text-purple-700 tracking-widest">
+                    {list.accessCode}
+                  </span>
+                  <button
+                    onClick={() => copyLinkAndCode(list.shareToken, list.accessCode)}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700"
+                  >
+                    <Share2 className="h-4 w-4" />
+                    Share
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
+      <Pagination currentPage={currentPage} totalItems={filteredLists.length} itemsPerPage={CARDS_PER_PAGE} onPageChange={setCurrentPage} />
     </div>
   )
 }

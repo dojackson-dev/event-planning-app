@@ -142,7 +142,7 @@ export default function BookingsPage() {
                           </span>
                         </div>
                         <p className="text-sm text-gray-500">
-                          📅 {new Date(booking.event_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                          📅 {new Date(booking.event_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
                           {booking.start_time && ` · ${booking.start_time}`}
                           {booking.end_time && ` – ${booking.end_time}`}
                         </p>

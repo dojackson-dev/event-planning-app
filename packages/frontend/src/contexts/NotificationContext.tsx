@@ -142,7 +142,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         
         // Overdue invoices
         const overdueInvoices = invoices.filter(invoice => {
-          const dueDate = new Date(invoice.due_date)
+          const dueDate = new Date(invoice.due_date + 'T12:00:00')
           return invoice.status === InvoiceStatus.OVERDUE || 
             (invoice.status === InvoiceStatus.SENT && dueDate < today)
         })

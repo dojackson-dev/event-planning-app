@@ -18,6 +18,8 @@ export class EventsService {
       startTime: 'start_time',
       endTime: 'end_time',
       specialRequirements: 'special_requirements',
+      clientId: 'client_id',
+      ownerId: 'owner_id',
     };
     
     const result = {};
@@ -40,6 +42,8 @@ export class EventsService {
       start_time: 'startTime',
       end_time: 'endTime',
       special_requirements: 'specialRequirements',
+      client_id: 'clientId',
+      owner_id: 'ownerId',
     };
     
     const result = {};

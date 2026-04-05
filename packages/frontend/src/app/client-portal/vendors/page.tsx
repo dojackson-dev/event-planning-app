@@ -275,7 +275,7 @@ function ClientVendorsPageContent() {
                       {(vb.event_name || vb.event_date) && (
                         <div className="mt-3 flex items-center gap-1.5 text-xs text-gray-500">
                           <Calendar className="h-3.5 w-3.5" />
-                          {vb.event_name}{vb.event_date ? ` · ${new Date(vb.event_date + 'T00:00:00').toLocaleDateString()}` : ''}
+                          {vb.event_name}{vb.event_date ? ` · ${new Date(vb.event_date + 'T12:00:00').toLocaleDateString()}` : ''}
                         </div>
                       )}
 

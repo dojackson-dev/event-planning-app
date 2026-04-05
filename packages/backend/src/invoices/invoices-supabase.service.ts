@@ -10,6 +10,7 @@ export interface Invoice {
   owner_id?: string;
   booking_id?: string;
   intake_form_id?: string;
+  event_id?: string;
   created_by?: string;
   subtotal: number;
   tax_amount: number;
@@ -283,16 +284,13 @@ export class InvoicesService {
     );
 
     // Insert invoice using snake_case column names
-    const { data, error } = await supabase
-      .from('invoices')
-      .insert({
+    const insertPayload: any = {
         invoice_number: invoiceNumber,
         owner_id: ownerId,
         created_by: userId,
         booking_id: invoiceData.booking_id || null,
         intake_form_id: invoiceData.intake_form_id || null,
         client_name: (invoiceData as any).client_name || null,
-        client_phone: (invoiceData as any).client_phone || null,
         subtotal: subtotal,
         tax_rate: Number(invoiceData.tax_rate) || 0,
         tax_amount: taxAmount,
@@ -308,9 +306,26 @@ export class InvoicesService {
         deposit_percentage: invoiceData.deposit_percentage != null ? Number(invoiceData.deposit_percentage) : null,
         deposit_due_days_before: invoiceData.deposit_due_days_before != null ? Number(invoiceData.deposit_due_days_before) : null,
         final_payment_due_days_before: invoiceData.final_payment_due_days_before != null ? Number(invoiceData.final_payment_due_days_before) : null,
-      })
-      .select()
-      .single();
+    };
+
+    // Only include client_phone if the column exists (migration may not have run yet)
+    const clientPhone = (invoiceData as any).client_phone;
+    if (clientPhone) insertPayload.client_phone = clientPhone;
+
+    // Only include event_id if the column exists (migration may not have run yet)
+    const eventId = (invoiceData as any).event_id;
+    if (eventId) insertPayload.event_id = eventId;
+
+    let data: any, error: any;
+
+    ({ data, error } = await supabase.from('invoices').insert(insertPayload).select().single());
+
+    // If client_phone or event_id column doesn't exist yet, retry without them
+    if (error?.code === 'PGRST204' && (insertPayload.client_phone || insertPayload.event_id)) {
+      delete insertPayload.client_phone;
+      delete insertPayload.event_id;
+      ({ data, error } = await supabase.from('invoices').insert(insertPayload).select().single());
+    }
 
     if (error) throw error;
     if (!data) {
@@ -601,12 +616,25 @@ export class InvoicesService {
 
     if (error) throw error;
 
+    let result = data;
+
     // Recalculate if tax_rate or discount_amount changed
     if (invoiceData.tax_rate !== undefined || invoiceData.discount_amount !== undefined) {
-      return this.recalculateInvoice(supabase, userId, id);
+      result = await this.recalculateInvoice(supabase, userId, id);
     }
 
-    return data;
+    // Notify client via SMS only when the invoice has already been sent
+    if (result.status === 'sent') {
+      try {
+        const phone = await this.lookupClientPhone(supabase, result);
+        const clientName = (result as any).client_name || 'Valued Client';
+        await this.smsNotifications.invoiceUpdated(phone, clientName, result.invoice_number);
+      } catch {
+        // SMS errors must never break the invoice update
+      }
+    }
+
+    return result;
   }
 
   async updateStatus(supabase: SupabaseClient, userId: string, id: string, status: string): Promise<Invoice> {

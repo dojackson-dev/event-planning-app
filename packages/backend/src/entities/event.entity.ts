@@ -46,6 +46,9 @@ export class Event {
   @Column({ name: 'owner_id' })
   ownerId: string;
 
+  @Column({ name: 'client_id', nullable: true })
+  clientId: string;
+
   @Column({ nullable: true })
   budget: number;
 

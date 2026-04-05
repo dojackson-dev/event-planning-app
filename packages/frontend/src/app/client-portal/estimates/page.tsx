@@ -17,7 +17,7 @@ function isExpiringSoon(estimate: any): boolean {
   if (!estimate.expiration_date) return false
   const status = estimate.status
   if (status !== 'sent' && status !== 'draft') return false
-  const days = (new Date(estimate.expiration_date).getTime() - Date.now()) / 86_400_000
+  const days = (new Date(estimate.expiration_date + 'T12:00:00').getTime() - Date.now()) / 86_400_000
   return days >= 0 && days <= 7
 }
 
@@ -102,7 +102,7 @@ export default function ClientEstimatesPage() {
                         <Calendar className="h-3.5 w-3.5" />
                         {estimate.event.name}
                         {estimate.event.date &&
-                          ` · ${new Date(estimate.event.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                          ` · ${new Date(estimate.event.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
                         }
                       </p>
                     )}
@@ -147,7 +147,7 @@ export default function ClientEstimatesPage() {
                       {estimate.expiration_date && (
                         <span className={`flex items-center gap-1 ${expiring ? 'text-orange-600 font-medium' : ''}`}>
                           <AlertCircle className="h-3 w-3" />
-                          Expires {new Date(estimate.expiration_date).toLocaleDateString()}
+                          Expires {new Date(estimate.expiration_date + 'T12:00:00').toLocaleDateString()}
                         </span>
                       )}
                     </div>

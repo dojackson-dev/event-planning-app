@@ -549,11 +549,22 @@ export class VendorsService {
         const vendor = (data.vendor_accounts as any);
         const eventLabel = data.event_name ?? 'your event';
         if (isVendor) {
-          // Vendor changed the status — notify the owner/booker via client_phone if present
-          const clientPhone: string | null = data.client_phone ?? null;
-          const clientName: string = data.client_name ?? 'Client';
+          // Vendor changed the status — look up the owner's phone from users table
+          let ownerPhone: string | null = null;
+          let ownerName = 'Owner';
+          if (data.booked_by_user_id) {
+            const { data: ownerUser } = await admin
+              .from('users')
+              .select('phone_number, first_name, last_name')
+              .eq('id', data.booked_by_user_id)
+              .maybeSingle();
+            if (ownerUser?.phone_number) {
+              ownerPhone = ownerUser.phone_number;
+              ownerName = [ownerUser.first_name, ownerUser.last_name].filter(Boolean).join(' ') || 'Owner';
+            }
+          }
           await this.smsNotifications.vendorBookingStatusChanged(
-            clientPhone, clientName, eventLabel, dto.status, false,
+            ownerPhone, ownerName, eventLabel, dto.status, false, '/dashboard',
           );
         } else {
           // Owner changed the status — notify the vendor

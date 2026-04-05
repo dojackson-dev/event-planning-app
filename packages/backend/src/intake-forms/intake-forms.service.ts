@@ -171,15 +171,17 @@ export class IntakeFormsService {
   }
 
   async findAll(supabase: SupabaseClient, userId: string) {
-    const { data, error } = await supabase
+    // Use admin client to bypass RLS so the event join resolves correctly
+    const supabaseAdmin = this.supabaseService.getAdminClient();
+    const { data, error } = await supabaseAdmin
       .from('intake_forms')
-      .select('*, linked_event:event(name)')
+      .select('*, linked_event:event!intake_forms_event_id_fkey(name)')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
     if (error) {
-      // Fallback if event_id column not yet available
-      const { data: basic, error: basicError } = await supabase
+      console.warn('[IntakeFormsService] findAll join failed, falling back:', error.message);
+      const { data: basic, error: basicError } = await supabaseAdmin
         .from('intake_forms')
         .select('*')
         .eq('user_id', userId)
@@ -193,7 +195,7 @@ export class IntakeFormsService {
       const { linked_event, ...rest } = form as any;
       return {
         ...rest,
-        event_name: rest.event_name || linked_event?.name || null,
+        event_name: rest.event_name || (linked_event as any)?.name || null,
       };
     });
   }

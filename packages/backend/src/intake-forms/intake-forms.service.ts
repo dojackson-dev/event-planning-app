@@ -146,6 +146,26 @@ export class IntakeFormsService {
       }
     }
 
+    // Notify the owner via SMS that a new intake form was submitted
+    try {
+      const { data: ownerUser } = await supabaseAdmin
+        .from('users')
+        .select('phone')
+        .eq('id', userId)
+        .maybeSingle();
+      if (ownerUser?.phone) {
+        const ownerPhone = normalizePhone(ownerUser.phone);
+        await this.smsNotifications.newIntakeFormSubmission(
+          ownerPhone,
+          data.contact_name || 'Unknown',
+          data.event_type || 'Event',
+          data.event_date || 'TBD',
+        );
+      }
+    } catch (ownerSmsErr) {
+      console.warn('[IntakeFormsService] Owner SMS notification failed:', ownerSmsErr);
+    }
+
     // Auto-create an event for this intake form
     await this.autoCreateEvent(data, userId);
 

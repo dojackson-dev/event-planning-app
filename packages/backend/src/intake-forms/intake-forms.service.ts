@@ -173,12 +173,29 @@ export class IntakeFormsService {
   async findAll(supabase: SupabaseClient, userId: string) {
     const { data, error } = await supabase
       .from('intake_forms')
-      .select('*')
+      .select('*, linked_event:event(name)')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
-    if (error) throw error;
-    return data;
+    if (error) {
+      // Fallback if event_id column not yet available
+      const { data: basic, error: basicError } = await supabase
+        .from('intake_forms')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+      if (basicError) throw basicError;
+      return basic;
+    }
+
+    // Flatten linked event name onto each record
+    return (data || []).map(form => {
+      const { linked_event, ...rest } = form as any;
+      return {
+        ...rest,
+        event_name: rest.event_name || linked_event?.name || null,
+      };
+    });
   }
 
   async findOne(supabase: SupabaseClient, userId: string, id: string) {

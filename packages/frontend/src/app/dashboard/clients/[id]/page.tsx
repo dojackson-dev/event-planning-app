@@ -408,12 +408,16 @@ export default function ClientDetailPage() {
             {/* Event Details */}
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Event Details</h2>
-              {(client.event_name || client.event_type) && (
-                <p className="text-lg font-bold text-primary-600 mb-4">
-                  {client.event_name || formatEventType(client.event_type)}
-                </p>
-              )}
               <div className="grid grid-cols-2 gap-4">
+                {client.event_name && (
+                  <div className="flex items-center gap-3 col-span-2">
+                    <Info className="h-5 w-5 text-gray-400" />
+                    <div>
+                      <p className="text-sm text-gray-600">Event Name/Title</p>
+                      <p className="font-medium text-primary-600">{client.event_name}</p>
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center gap-3">
                   <Calendar className="h-5 w-5 text-gray-400" />
                   <div>

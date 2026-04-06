@@ -178,7 +178,7 @@ export default function EstimateDetailPage() {
   }
 
   const isExpired = estimate
-    ? new Date(estimate.expiration_date) < new Date() && estimate.status === EstimateStatus.SENT
+    ? new Date(estimate.expiration_date + 'T12:00:00') < new Date() && estimate.status === EstimateStatus.SENT
     : false
 
   if (loading) {
@@ -255,7 +255,7 @@ export default function EstimateDetailPage() {
       {/* Expired warning */}
       {isExpired && (
         <div className="mb-4 bg-yellow-50 border border-yellow-300 rounded-md p-3 text-yellow-800 text-sm print:hidden">
-          ⚠ This estimate expired on {new Date(estimate.expiration_date).toLocaleDateString()}.
+          ⚠ This estimate expired on {new Date(estimate.expiration_date + 'T12:00:00').toLocaleDateString()}.
           You may mark it Expired if the client did not respond.
           <button onClick={() => updateStatus(EstimateStatus.EXPIRED)}
             className="ml-3 underline hover:no-underline">Mark as Expired</button>
@@ -430,16 +430,16 @@ export default function EstimateDetailPage() {
           <div className="text-right text-sm">
             <div className="mb-1">
               <span className="text-gray-500">Issue Date: </span>
-              <span className="font-semibold">{new Date(estimate.issue_date).toLocaleDateString()}</span>
+              <span className="font-semibold">{new Date(estimate.issue_date + 'T12:00:00').toLocaleDateString()}</span>
             </div>
-            <div className={new Date(estimate.expiration_date) < new Date() ? 'text-red-600' : ''}>
+            <div className={new Date(estimate.expiration_date + 'T12:00:00') < new Date() ? 'text-red-600' : ''}>
               <span className="text-gray-500">Expires: </span>
-              <span className="font-semibold">{new Date(estimate.expiration_date).toLocaleDateString()}</span>
+              <span className="font-semibold">{new Date(estimate.expiration_date + 'T12:00:00').toLocaleDateString()}</span>
             </div>
             {estimate.approved_date && (
               <div className="mt-1 text-green-600">
                 <span>Approved: </span>
-                <span className="font-semibold">{new Date(estimate.approved_date).toLocaleDateString()}</span>
+                <span className="font-semibold">{new Date(estimate.approved_date + 'T12:00:00').toLocaleDateString()}</span>
               </div>
             )}
           </div>

@@ -72,7 +72,8 @@ export default function PaymentsPage() {
       }
 
       // This month
-      const issueDate = new Date((invoice as any).issueDate || (invoice as any).issue_date)
+      const issueDateStr = (invoice as any).issueDate || (invoice as any).issue_date || ''
+      const issueDate = new Date(issueDateStr.length === 10 ? issueDateStr + 'T12:00:00' : issueDateStr)
       if (issueDate.getMonth() === currentMonth && issueDate.getFullYear() === currentYear) {
         acc.thisMonth += amountPaid
       }
@@ -113,7 +114,7 @@ export default function PaymentsPage() {
 
   return (
     <div className="p-6">
-      <div className="mb-6">
+      <div className="mb-6 text-center">
         <h1 className="text-2xl font-bold text-gray-900">Payments</h1>
         <p className="text-gray-600 mt-1">Track and manage all payment transactions</p>
       </div>
@@ -213,14 +214,21 @@ export default function PaymentsPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {invoices.length === 0 ? (
+              {invoices.filter(invoice => Number((invoice as any).amountPaid || (invoice as any).amount_paid || 0) > 0).length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
-                    No payment records found
+                    No payments recorded yet
                   </td>
                 </tr>
               ) : (
-                invoices.map((invoice) => (
+                invoices
+                  .filter(invoice => Number((invoice as any).amountPaid || (invoice as any).amount_paid || 0) > 0)
+                  .sort((a, b) => {
+                    const dateA = (a as any).issueDate || (a as any).issue_date || ''
+                    const dateB = (b as any).issueDate || (b as any).issue_date || ''
+                    return new Date(dateB).getTime() - new Date(dateA).getTime()
+                  })
+                  .map((invoice) => (
                   <tr key={invoice.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {(invoice as any).invoiceNumber || (invoice as any).invoice_number}
@@ -231,7 +239,7 @@ export default function PaymentsPage() {
                         : 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date((invoice as any).issueDate || (invoice as any).issue_date).toLocaleDateString()}
+                      {(() => { const s = (invoice as any).issueDate || (invoice as any).issue_date || ''; return new Date(s.length === 10 ? s + 'T12:00:00' : s).toLocaleDateString() })()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
                       ${Number((invoice as any).totalAmount || (invoice as any).total_amount).toFixed(2)}
@@ -314,7 +322,7 @@ export default function PaymentsPage() {
     const rows = invoices.map(inv => [
       (inv as any).invoiceNumber || (inv as any).invoice_number,
       inv.booking?.user ? `${inv.booking.user.firstName} ${inv.booking.user.lastName}` : 'N/A',
-      new Date((inv as any).issueDate || (inv as any).issue_date).toLocaleDateString(),
+      (() => { const s = (inv as any).issueDate || (inv as any).issue_date || ''; return new Date(s.length === 10 ? s + 'T12:00:00' : s).toLocaleDateString() })(),
       Number((inv as any).totalAmount || (inv as any).total_amount).toFixed(2),
       Number((inv as any).amountPaid || (inv as any).amount_paid || 0).toFixed(2),
       Number((inv as any).amountDue || (inv as any).amount_due || 0).toFixed(2),

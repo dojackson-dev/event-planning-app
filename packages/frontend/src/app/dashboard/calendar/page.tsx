@@ -84,6 +84,8 @@ export default function CalendarPage() {
   const [createEnd, setCreateEnd] = useState('17:00')
   const [createVenue, setCreateVenue] = useState('')
   const [createDescription, setCreateDescription] = useState('')
+  const [createClientId, setCreateClientId] = useState('')
+  const [calendarClients, setCalendarClients] = useState<{ id: string; contact_name: string; contact_phone: string }[]>([])
 
   // Schedule appointment modal (from calendar)
   const [showApptModal, setShowApptModal] = useState(false)
@@ -102,6 +104,16 @@ export default function CalendarPage() {
   useEffect(() => {
     fetchAllEntries()
   }, [currentDate])
+
+  useEffect(() => {
+    api.get('/intake-forms').then(res => {
+      setCalendarClients((res.data || []).map((f: any) => ({
+        id: f.id,
+        contact_name: f.contactName || f.contact_name || 'Unknown',
+        contact_phone: f.contactPhone || f.contact_phone || '',
+      })))
+    }).catch(() => {})
+  }, [])
 
   const fetchAllEntries = async () => {
     try {
@@ -310,6 +322,7 @@ export default function CalendarPage() {
     setCreateDescription('')
     setCreateGuests('')
     setCreateStatus('scheduled')
+    setCreateClientId('')
     setShowCreateModal(true)
   }
 
@@ -323,6 +336,7 @@ export default function CalendarPage() {
         startTime: createStart,
         endTime: createEnd,
         status: createStatus,
+        clientId: createClientId || undefined,
       }
       if (createVenue) payload.venue = createVenue
       if (createDescription) payload.description = createDescription
@@ -411,24 +425,22 @@ export default function CalendarPage() {
     <div>
       <div className="mb-6">
         {/* Title */}
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Calendar</h1>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => openApptModal()}
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm font-medium"
-            >
-              <Clock className="h-4 w-4" />
-              Schedule Appt
-            </button>
-            <button
-              onClick={() => openCreateModal()}
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium"
-            >
-              <Plus className="h-4 w-4" />
-              New Event
-            </button>
-          </div>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3 text-center">Calendar</h1>
+        <div className="flex items-center justify-center gap-2 mb-4">
+          <button
+            onClick={() => openApptModal()}
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 w-40 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm font-medium"
+          >
+            <Clock className="h-4 w-4" />
+            Schedule Appt
+          </button>
+          <button
+            onClick={() => openCreateModal()}
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 w-40 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium"
+          >
+            <Plus className="h-4 w-4" />
+            New Event
+          </button>
         </div>
         
         {/* View Toggle - Centered */}
@@ -585,7 +597,7 @@ export default function CalendarPage() {
 
       {/* Schedule Appointment Modal */}
       {showApptModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 overflow-y-auto p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center p-6 border-b">
               <h2 className="text-xl font-bold text-gray-900">Schedule Appointment</h2>
@@ -694,7 +706,7 @@ export default function CalendarPage() {
 
       {/* Create Event Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 overflow-y-auto p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center p-6 border-b">
               <h2 className="text-xl font-bold text-gray-900">New Event</h2>
@@ -703,6 +715,21 @@ export default function CalendarPage() {
               </button>
             </div>
             <form onSubmit={handleCreateEvent} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Client</label>
+                <select
+                  value={createClientId}
+                  onChange={e => setCreateClientId(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  <option value="">-- Select a client --</option>
+                  {calendarClients.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.contact_name}{c.contact_phone ? ` · ${c.contact_phone}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Event Name *</label>
                 <input
@@ -808,7 +835,7 @@ export default function CalendarPage() {
 
       {/* Entry Details Modal */}
       {selectedEntry && !showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 overflow-y-auto p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-start p-6 border-b sticky top-0 bg-white">
               <div>
@@ -1028,7 +1055,7 @@ export default function CalendarPage() {
 
       {/* Delete Confirmation Modal */}
       {selectedEntry && showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 overflow-y-auto p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-sm w-full">
             <div className="p-6">
               <h2 className="text-lg font-bold text-gray-900 mb-4">Delete Event?</h2>

@@ -1,12 +1,14 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, Headers, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, Headers } from '@nestjs/common';
 import { InvoicesService, Invoice, InvoiceItem } from './invoices.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 
 @Controller('invoices')
 export class InvoicesController {
   constructor(
     private readonly invoicesService: InvoicesService,
     private readonly supabaseService: SupabaseService,
+    private readonly smsService: SmsNotificationsService,
   ) {}
 
   /** Resolve an authenticated Supabase client from the Bearer token, falling back to anon. */
@@ -48,6 +50,22 @@ export class InvoicesController {
     return this.invoicesService.create(supabase, invoice);
   }
 
+  @Put(':id/status')
+  async updateStatus(
+    @Headers('authorization') auth: string,
+    @Param('id') id: string,
+    @Body('status') status: string,
+  ): Promise<Invoice | null> {
+    const supabase = this.getSupabase(auth);
+    const updated = await this.invoicesService.update(supabase, id, { status: status as Invoice['status'] });
+    if (status === 'sent' && updated) {
+      const phone = updated.client_phone;
+      const name = updated.client_name || 'Valued Client';
+      await this.smsService.invoiceSent(phone, name, updated.invoice_number!, updated.total_amount);
+    }
+    return updated;
+  }
+
   @Put(':id')
   async update(
     @Headers('authorization') auth: string,
@@ -55,7 +73,16 @@ export class InvoicesController {
     @Body() invoice: Partial<Invoice>,
   ): Promise<Invoice | null> {
     const supabase = this.getSupabase(auth);
-    return this.invoicesService.update(supabase, id, invoice);
+    // Fetch current invoice so we know if it's already sent before we save edits
+    const existing = await this.invoicesService.findOne(supabase, id);
+    const updated = await this.invoicesService.update(supabase, id, invoice);
+    // Notify client when an already-sent invoice is edited
+    if (existing?.status === 'sent' && updated) {
+      const phone = updated.client_phone || existing.client_phone;
+      const name = updated.client_name || existing.client_name || 'Valued Client';
+      await this.smsService.invoiceUpdated(phone, name, updated.invoice_number!);
+    }
+    return updated;
   }
 
   @Post(':id/payment')

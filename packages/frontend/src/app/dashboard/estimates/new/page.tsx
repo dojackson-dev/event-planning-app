@@ -47,10 +47,14 @@ function NewEstimatePageInner() {
     new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   )
   const [loading, setLoading] = useState(false)
+  const [allBookings, setAllBookings] = useState<any[]>([])
+  const [bookingId, setBookingId] = useState<string | null>(null)
+  const [autofilledFromBooking, setAutofilledFromBooking] = useState(false)
 
   useEffect(() => {
     fetchEvents()
     fetchServiceItems()
+    api.get('/bookings').then(res => setAllBookings(res.data || [])).catch(() => {})
     api.get('/vendors/bookings/owner').then(res => {
       const confirmed = (res.data || []).filter((b: any) => b.status === 'confirmed' || b.status === 'completed')
       setVendorBookings(confirmed)
@@ -94,6 +98,45 @@ function NewEstimatePageInner() {
       setVendorBookingBanner(`Vendor cost pre-filled: ${vendor?.business_name || 'Vendor'} for "${vb.event_name}" — $${amount.toLocaleString()}`)
     }).catch(() => {})
   }, [searchParams])
+
+  // When an event is selected, autofill client info:
+  // 1. Try linked booking (deposit_paid / completed)
+  // 2. Fall back to the event's linked intake form
+  useEffect(() => {
+    if (!selectedEvent) {
+      setBookingId(null)
+      setAutofilledFromBooking(false)
+      setIntakeFormId(null)
+      setClientName('')
+      setClientPhone('')
+      return
+    }
+    const booking = allBookings.find((b: any) => b.event_id === selectedEvent)
+    if (booking) {
+      setBookingId(booking.id)
+      setClientName(booking.contact_name || '')
+      setClientPhone(booking.contact_phone || '')
+      setAutofilledFromBooking(true)
+      return
+    }
+    // No paid booking — look up the event's linked intake form
+    setBookingId(null)
+    setAutofilledFromBooking(false)
+    const ev = events.find((e: any) => e.id === selectedEvent)
+    const formId = ev?.intakeFormId || ev?.intake_form_id
+    if (formId) {
+      setIntakeFormId(formId)
+      api.get(`/intake-forms/${formId}`).then(res => {
+        setClientName(res.data.contact_name || '')
+        setClientPhone(res.data.contact_phone || '')
+        setAutofilledFromBooking(true)
+      }).catch(() => {})
+    } else {
+      setIntakeFormId(null)
+      setClientName('')
+      setClientPhone('')
+    }
+  }, [selectedEvent, allBookings, events])
 
   const fetchEvents = async () => {
     try {
@@ -191,12 +234,14 @@ function NewEstimatePageInner() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!selectedEvent) { alert('Please select an event'); return }
     if (lineItems.length === 0) { alert('Please add at least one line item'); return }
     setLoading(true)
     try {
       const body = {
         estimate: {
           owner_id: user?.id,
+          booking_id: bookingId || null,
           intake_form_id: intakeFormId || null,
           client_name: clientName || null,
           client_phone: clientPhone || null,
@@ -261,12 +306,37 @@ function NewEstimatePageInner() {
           </div>
         )}
 
+        {/* Event (Required) */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">Event <span className="text-red-500">*</span></label>
+          {events.length === 0 ? (
+            <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+              No upcoming events found. <a href="/dashboard/events/new" className="underline font-medium">Create an event</a> first.
+            </p>
+          ) : (
+            <select
+              required
+              value={selectedEvent}
+              onChange={e => setSelectedEvent(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              <option value="">-- Select an event --</option>
+              {events.map((ev: any) => (
+                <option key={ev.id} value={ev.id}>
+                  {ev.name || 'Event'}{ev.date ? ` (${new Date(ev.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})` : ''}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+
         {/* Client Name */}
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">Client Name</label>
-          {intakeFormId ? (
-            <div className="px-3 py-2 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-800 font-medium">
-              {clientName || 'Loading…'}
+          {(intakeFormId || autofilledFromBooking) ? (
+            <div className="px-3 py-2 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-800 font-medium flex items-center justify-between">
+              <span>{clientName || 'Loading…'}</span>
+              {autofilledFromBooking && <span className="text-xs text-blue-500">Auto-filled from booking</span>}
             </div>
           ) : (
             <input
@@ -280,43 +350,25 @@ function NewEstimatePageInner() {
         </div>
 
         {/* Client Phone */}
-        {!intakeFormId && (
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Client Phone <span className="text-gray-400 font-normal">(for SMS notifications)</span>
           </label>
-          <input
-            type="tel"
-            value={clientPhone}
-            onChange={e => setClientPhone(e.target.value)}
-            placeholder="e.g. 555-867-5309"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-          />
-        </div>
-        )}
-
-        {/* Event link — only shown when NOT pre-filled from a client */}
-        {!intakeFormId && (
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Link to Event (Optional)</label>
-          {events.length === 0 ? (
-            <p className="text-xs text-gray-400 mt-1">No upcoming events found. Estimates can be created without linking to an event.</p>
+          {autofilledFromBooking ? (
+            <div className="px-3 py-2 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-800 font-medium flex items-center justify-between">
+              <span>{clientPhone || 'Not on file'}</span>
+              <span className="text-xs text-blue-500">Auto-filled from booking</span>
+            </div>
           ) : (
-            <select
-              value={selectedEvent}
-              onChange={e => setSelectedEvent(e.target.value)}
+            <input
+              type="tel"
+              value={clientPhone}
+              onChange={e => setClientPhone(e.target.value)}
+              placeholder="e.g. 555-867-5309"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-            >
-              <option value="">-- No event --</option>
-              {events.map((ev: any) => (
-                <option key={ev.id} value={ev.id}>
-                  {ev.name || 'Event'}{ev.date ? ` (${new Date(ev.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})` : ''}
-                </option>
-              ))}
-            </select>
+            />
           )}
         </div>
-        )}
 
         {/* Dates */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">

@@ -78,7 +78,7 @@ export default function EstimatesPage() {
 
   const isExpiringSoon = (e: Estimate) => {
     if (e.status !== EstimateStatus.SENT && e.status !== EstimateStatus.DRAFT) return false
-    const days = (new Date(e.expiration_date).getTime() - Date.now()) / 86400000
+    const days = (new Date(e.expiration_date + 'T12:00:00').getTime() - Date.now()) / 86400000
     return days >= 0 && days <= 7
   }
 
@@ -88,14 +88,16 @@ export default function EstimatesPage() {
 
   return (
     <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Estimates</h1>
-        <button
-          onClick={() => router.push('/dashboard/estimates/new')}
-          className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
-        >
-          + New Estimate
-        </button>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900 text-center mb-3">Estimates</h1>
+        <div className="flex justify-center">
+          <button
+            onClick={() => router.push('/dashboard/estimates/new')}
+            className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
+          >
+            + New Estimate
+          </button>
+        </div>
       </div>
 
       {/* Search + Filter */}
@@ -136,9 +138,18 @@ export default function EstimatesPage() {
             {filtered.map(estimate => (
               <div
                 key={estimate.id}
-                className="bg-white rounded-lg shadow p-4 cursor-pointer active:bg-gray-50 hover:shadow-md transition-shadow"
+                className="bg-white rounded-lg shadow overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
                 onClick={() => router.push(`/dashboard/estimates/${estimate.id}`)}
               >
+                {/* Status stripe */}
+                <div className={`h-1 w-full ${
+                  estimate.status === 'accepted' ? 'bg-green-400' :
+                  estimate.status === 'sent' ? 'bg-fuchsia-500' :
+                  estimate.status === 'expired' ? 'bg-fuchsia-700' :
+                  estimate.status === 'rejected' ? 'bg-gray-400' :
+                  'bg-fuchsia-300'
+                }`} />
+                <div className="p-4 active:bg-gray-50">
                 <div className="flex justify-between items-start">
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-gray-900">{estimate.estimate_number}</p>
@@ -152,7 +163,7 @@ export default function EstimatesPage() {
                   <span className="font-semibold text-gray-900">${Number(estimate.total_amount).toFixed(2)}</span>
                   <span>·</span>
                   <span className={isExpiringSoon(estimate) ? 'text-orange-600 font-semibold' : ''}>
-                    Exp: {new Date(estimate.expiration_date).toLocaleDateString()}{isExpiringSoon(estimate) && ' ⚠'}
+                    Exp: {new Date(estimate.expiration_date + 'T12:00:00').toLocaleDateString()}{isExpiringSoon(estimate) && ' ⚠'}
                   </span>
                 </div>
                 <div className="mt-3 pt-3 border-t flex justify-between items-center" onClick={e => e.stopPropagation()}>
@@ -163,6 +174,7 @@ export default function EstimatesPage() {
                   >
                     Delete
                   </button>
+                </div>
                 </div>
               </div>
             ))}
@@ -186,7 +198,13 @@ export default function EstimatesPage() {
                 {filtered.map(estimate => (
                   <tr
                     key={estimate.id}
-                    className="hover:bg-gray-50 cursor-pointer"
+                    className={`hover:bg-gray-50 cursor-pointer border-l-4 ${
+                      estimate.status === 'accepted' ? 'border-green-400' :
+                      estimate.status === 'sent' ? 'border-fuchsia-500' :
+                      estimate.status === 'expired' ? 'border-fuchsia-700' :
+                      estimate.status === 'rejected' ? 'border-gray-400' :
+                      'border-fuchsia-300'
+                    }`}
                     onClick={() => router.push(`/dashboard/estimates/${estimate.id}`)}
                   >
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">{estimate.estimate_number}</td>
@@ -197,11 +215,11 @@ export default function EstimatesPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600">
-                      {new Date(estimate.issue_date).toLocaleDateString()}
+                      {new Date(estimate.issue_date + 'T12:00:00').toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3 text-sm">
                       <span className={isExpiringSoon(estimate) ? 'text-orange-600 font-semibold' : 'text-gray-600'}>
-                        {new Date(estimate.expiration_date).toLocaleDateString()}
+                        {new Date(estimate.expiration_date + 'T12:00:00').toLocaleDateString()}
                         {isExpiringSoon(estimate) && ' ⚠'}
                       </span>
                     </td>

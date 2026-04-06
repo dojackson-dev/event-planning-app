@@ -252,4 +252,25 @@ export class ClientPortalController {
     const session = this.requireSession(clientToken);
     return this.clientPortalService.declineInvite(inviteToken, session.phone);
   }
+
+  // ── Vendor Reviews ───────────────────────────────────────────────────────
+
+  @Post('vendors/review')
+  async leaveVendorReview(
+    @Headers('x-client-token') token: string,
+    @Body() body: { vendorAccountId: string; rating: number; reviewText?: string },
+  ) {
+    const session = this.requireSession(token);
+    if (!body?.vendorAccountId || !body?.rating) {
+      throw new BadRequestException('vendorAccountId and rating are required');
+    }
+    const reviewerName = [session.firstName, session.lastName].filter(Boolean).join(' ') || 'Client';
+    return this.clientPortalService.leaveVendorReview(
+      session.clientId,
+      reviewerName,
+      body.vendorAccountId,
+      body.rating,
+      body.reviewText,
+    );
+  }
 }

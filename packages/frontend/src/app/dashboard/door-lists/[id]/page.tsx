@@ -20,7 +20,9 @@ import {
   RefreshCw,
   UserPlus,
   Trash2,
-  Edit
+  Edit,
+  Plus,
+  X
 } from 'lucide-react'
 import { parseLocalDate } from '@/lib/dateUtils'
 
@@ -33,6 +35,11 @@ export default function DoorListDetailPage() {
   const [filterStatus, setFilterStatus] = useState<'all' | 'arrived' | 'pending'>('all')
   const [loading, setLoading] = useState(true)
   const [autoRefresh, setAutoRefresh] = useState(false)
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [addName, setAddName] = useState('')
+  const [addPhone, setAddPhone] = useState('')
+  const [addPlusOnes, setAddPlusOnes] = useState(0)
+  const [addLoading, setAddLoading] = useState(false)
 
   useEffect(() => {
     fetchGuestList()
@@ -48,10 +55,23 @@ export default function DoorListDetailPage() {
     }
   }, [autoRefresh])
 
+  const normalizeGuest = (g: any): Guest => ({
+    id: g.id,
+    name: g.name,
+    phone: g.phone ?? '',
+    plusOneCount: g.plus_one_count ?? g.plusOneCount ?? 0,
+    hasArrived: !!(g.has_arrived ?? g.hasArrived),
+    arrivedAt: g.arrived_at ?? g.arrivedAt ?? undefined,
+  })
+
   const fetchGuestList = async () => {
     try {
       const response = await api.get<GuestList>(`/guest-lists/${params.id}`)
-      setGuestList(response.data)
+      const data = response.data
+      if (data && Array.isArray((data as any).guests)) {
+        (data as any).guests = (data as any).guests.map(normalizeGuest)
+      }
+      setGuestList(data)
     } catch (error) {
       console.error('Failed to fetch guest list:', error)
     } finally {
@@ -79,6 +99,29 @@ export default function DoorListDetailPage() {
     }
   }
 
+  const handleAddGuest = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!guestList) return
+    setAddLoading(true)
+    try {
+      await api.post(`/guest-lists/${guestList.id}/guests`, {
+        name: addName,
+        phone: addPhone || undefined,
+        plusOnes: addPlusOnes,
+      })
+      setAddName('')
+      setAddPhone('')
+      setAddPlusOnes(0)
+      setShowAddForm(false)
+      fetchGuestList()
+    } catch (error) {
+      console.error('Failed to add guest:', error)
+      alert('Failed to add guest')
+    } finally {
+      setAddLoading(false)
+    }
+  }
+
   const copyArrivalLink = () => {
     const baseUrl = window.location.origin
     const url = `${baseUrl}/guest-list/arrival/${guestList?.arrivalToken}`
@@ -90,13 +133,18 @@ export default function DoorListDetailPage() {
     if (!guestList?.guests) return
 
     const headers = ['Name', 'Phone', 'Plus Ones', 'Status', 'Arrival Time']
-    const rows = guestList.guests.map(guest => [
-      guest.name,
-      guest.phone,
-      guest.plusOneCount.toString(),
-      guest.hasArrived ? 'Arrived' : 'Pending',
-      guest.arrivedAt ? new Date(guest.arrivedAt).toLocaleString() : '-'
-    ])
+    const rows = guestList.guests.map(guest => {
+      const arrived = !!((guest as any).has_arrived || guest.hasArrived)
+      const plusOnes = (guest as any).plus_one_count ?? guest.plusOneCount ?? 0
+      const arrivedAt = (guest as any).arrived_at || guest.arrivedAt
+      return [
+        guest.name,
+        guest.phone ?? '',
+        plusOnes.toString(),
+        arrived ? 'Arrived' : 'Pending',
+        arrivedAt ? new Date(arrivedAt).toLocaleString() : '-'
+      ]
+    })
 
     const csvContent = [
       headers.join(','),
@@ -116,25 +164,29 @@ export default function DoorListDetailPage() {
     
     let filtered = guestList.guests
 
+    const hasArrived = (g: any) => !!(g.has_arrived || g.hasArrived)
+
     if (searchTerm) {
       filtered = filtered.filter(guest => 
         guest.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        guest.phone.includes(searchTerm)
+        (guest.phone ?? '').includes(searchTerm)
       )
     }
 
     if (filterStatus === 'arrived') {
-      filtered = filtered.filter(guest => guest.hasArrived)
+      filtered = filtered.filter(guest => hasArrived(guest))
     } else if (filterStatus === 'pending') {
-      filtered = filtered.filter(guest => !guest.hasArrived)
+      filtered = filtered.filter(guest => !hasArrived(guest))
     }
 
     // Sort: pending first, then by name
     return filtered.sort((a, b) => {
-      if (a.hasArrived === b.hasArrived) {
+      const aArrived = hasArrived(a)
+      const bArrived = hasArrived(b)
+      if (aArrived === bArrived) {
         return a.name.localeCompare(b.name)
       }
-      return a.hasArrived ? 1 : -1
+      return aArrived ? 1 : -1
     })
   }
 
@@ -142,10 +194,12 @@ export default function DoorListDetailPage() {
     if (!guestList?.guests) return { total: 0, arrived: 0, pending: 0, totalWithPlus: 0, arrivedWithPlus: 0 }
     
     const guests = guestList.guests
-    const arrivedGuests = guests.filter(g => g.hasArrived)
+    const hasArrived = (g: any) => !!(g.has_arrived || g.hasArrived)
+    const arrivedGuests = guests.filter(g => hasArrived(g))
     const arrived = arrivedGuests.length
-    const totalWithPlus = guests.reduce((sum, g) => sum + 1 + g.plusOneCount, 0)
-    const arrivedWithPlus = arrivedGuests.reduce((sum, g) => sum + 1 + g.plusOneCount, 0)
+    const plusCount = (g: any) => (g as any).plus_one_count ?? g.plusOneCount ?? 0
+    const totalWithPlus = guests.reduce((sum, g) => sum + 1 + plusCount(g), 0)
+    const arrivedWithPlus = arrivedGuests.reduce((sum, g) => sum + 1 + plusCount(g), 0)
     
     return {
       total: guests.length,
@@ -219,7 +273,7 @@ export default function DoorListDetailPage() {
                 })}
               </p>
               <p className="text-sm text-gray-500 mt-1">
-                Access Code: <span className="font-mono font-semibold">{guestList.accessCode}</span>
+                Access Code: <span className="font-mono font-semibold">{(guestList as any).access_code ?? (guestList as any).accessCode}</span>
               </p>
             </div>
 
@@ -234,6 +288,14 @@ export default function DoorListDetailPage() {
               >
                 <RefreshCw className={`h-4 w-4 ${autoRefresh ? 'animate-spin' : ''}`} />
                 Auto-Refresh {autoRefresh ? 'On' : 'Off'}
+              </button>
+
+              <button
+                onClick={() => setShowAddForm(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+              >
+                <UserPlus className="h-4 w-4" />
+                Add Guest
               </button>
 
               <button
@@ -254,6 +316,70 @@ export default function DoorListDetailPage() {
             </div>
           </div>
         </div>
+
+        {/* Add Guest Form */}
+        {showAddForm && (
+          <div className="mb-6 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Add Guest</h2>
+              <button onClick={() => setShowAddForm(false)} className="p-1 hover:bg-gray-100 rounded">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form onSubmit={handleAddGuest} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+                <input
+                  type="text"
+                  value={addName}
+                  onChange={e => setAddName(e.target.value)}
+                  required
+                  autoFocus
+                  placeholder="Guest name"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                <input
+                  type="tel"
+                  value={addPhone}
+                  onChange={e => setAddPhone(e.target.value)}
+                  placeholder="Optional"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Plus Ones</label>
+                <input
+                  type="number"
+                  value={addPlusOnes}
+                  onChange={e => setAddPlusOnes(Number(e.target.value))}
+                  min={0}
+                  max={(guestList as any).max_guests_per_person ?? 10}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+              <div className="md:col-span-3 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAddForm(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={addLoading}
+                  className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 flex items-center gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  {addLoading ? 'Adding…' : 'Add Guest'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">

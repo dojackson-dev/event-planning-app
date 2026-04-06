@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { EventType } from '@/types'
 import { Calendar, Users, Clock, DollarSign, FileText, ArrowLeft, ArrowRight } from 'lucide-react'
+import { useOwnerBrand } from '@/contexts/OwnerBrandContext'
 
 const eventTypeLabels: Record<EventType, string> = {
   [EventType.WEDDING_RECEPTION]: 'Wedding Reception',
@@ -30,6 +31,7 @@ const eventTypeLabels: Record<EventType, string> = {
 
 export default function ClientIntakePage() {
   const router = useRouter()
+  const { logoUrl, businessName } = useOwnerBrand()
   const [currentStep, setCurrentStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -165,6 +167,7 @@ export default function ClientIntakePage() {
       // Transform frontend data to match database schema
       const dbData = {
         event_type: mapEventTypeToDb(formData.eventType),
+        event_name: formData.eventName || eventTypeLabels[formData.eventType] || null,
         event_date: formData.eventDate,
         event_time: formData.startTime || null,
         guest_count: parseInt(formData.estimatedGuests) || null,
@@ -236,9 +239,21 @@ export default function ClientIntakePage() {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Client Intake Form</h1>
-        <p className="text-sm sm:text-base text-gray-600">Gather comprehensive information for event consultation</p>
+      <div className="mb-6 sm:mb-8 text-center">
+        {/* Logo or initials placeholder */}
+        <div className="flex justify-center mb-4">
+          {logoUrl ? (
+            <img src={logoUrl} alt={businessName || 'Logo'} className="h-16 object-contain" />
+          ) : (
+            <div className="w-16 h-16 rounded-2xl bg-primary-600 flex items-center justify-center text-white font-bold text-2xl shadow">
+              {businessName
+                ? businessName.split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase()
+                : 'DV'}
+            </div>
+          )}
+        </div>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 text-center">Client Intake Form</h1>
+        <p className="text-sm sm:text-base text-gray-600 text-center">Gather comprehensive information for event consultation</p>
       </div>
 
       {/* Progress Steps */}

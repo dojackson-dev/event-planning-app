@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { ArrowLeft, Calendar, Mail, Phone, Users, Clock, MapPin, Utensils, Wrench, Heart, Accessibility, DollarSign, Info, CheckCircle, MessageSquare, FileText, Clock as ClockIcon, Pencil, Store, X, ChevronRight } from 'lucide-react'
+import { ArrowLeft, Calendar, Mail, Phone, Users, Clock, MapPin, Utensils, Wrench, Heart, Accessibility, DollarSign, Info, CheckCircle, MessageSquare, FileText, Clock as ClockIcon, Pencil, Store, X, ChevronRight, PlusCircle } from 'lucide-react'
+import { Invoice, Estimate, EstimateStatus, InvoiceStatus } from '@/types'
 
 const VENDOR_CATEGORIES = [
   { value: '', label: 'All Categories' },
@@ -32,6 +33,7 @@ interface VendorForSearch {
 interface EventVendorBooking {
   id: string
   vendor_account_id: string
+  event_id?: string | null
   event_name: string
   event_date: string
   agreed_amount: number
@@ -63,6 +65,8 @@ interface IntakeForm {
   notes: string | null
   created_at: string
   updated_at: string
+  event_id?: string | null
+  event_name?: string | null
 }
 
 export default function ClientDetailPage() {
@@ -95,6 +99,10 @@ export default function ClientDetailPage() {
   const [vbNotes, setVbNotes] = useState('')
   const [vbSubmitting, setVbSubmitting] = useState(false)
 
+  // ── Estimates & Invoices ──────────────────────────────────────
+  const [clientEstimates, setClientEstimates] = useState<Estimate[]>([])
+  const [clientInvoices, setClientInvoices] = useState<Invoice[]>([])
+
   useEffect(() => {
     if (params.id) {
       fetchClient()
@@ -108,7 +116,9 @@ export default function ClientDetailPage() {
       setStatus(response.data.status)
       setNotes(response.data.notes || '')
       setEditData(response.data)
-      fetchEventVendors(response.data.event_date)
+      fetchEventVendors(response.data.event_date, response.data.event_id)
+      api.get<Estimate[]>(`/estimates?intakeFormId=${params.id}`).then(r => setClientEstimates(r.data || [])).catch(() => {})
+      api.get<Invoice[]>(`/invoices?intakeFormId=${params.id}`).then(r => setClientInvoices(r.data || [])).catch(() => {})
     } catch (error) {
       console.error('Error fetching client:', error)
     } finally {
@@ -116,13 +126,19 @@ export default function ClientDetailPage() {
     }
   }
 
-  const fetchEventVendors = async (eventDate: string) => {
+  const fetchEventVendors = async (eventDate: string, eventId?: string | null) => {
     if (!eventDate) return
     try {
       const res = await api.get('/vendors/bookings/owner')
       const all: EventVendorBooking[] = res.data || []
-      const dateStr = eventDate.split('T')[0]
-      setEventVendors(all.filter(b => b.event_date?.split('T')[0] === dateStr))
+      if (eventId) {
+        // Filter by event_id — orphaned bookings (event deleted) have event_id=null and won't appear
+        setEventVendors(all.filter(b => b.event_id === eventId))
+      } else {
+        // Fallback: filter by date if no event_id linked yet
+        const dateStr = eventDate.split('T')[0]
+        setEventVendors(all.filter(b => b.event_date?.split('T')[0] === dateStr && b.event_id != null))
+      }
     } catch {
       // owner may not have vendor bookings yet
     }
@@ -165,7 +181,7 @@ export default function ClientDetailPage() {
     try {
       await api.post('/vendors/bookings', {
         vendorAccountId: selectedVendorToBook.id,
-        eventName: formatEventType(client.event_type),
+        eventName: client.event_name || formatEventType(client.event_type),
         eventDate: client.event_date.split('T')[0],
         venueName: client.venue_preference || undefined,
         notes: vbNotes || undefined,
@@ -174,7 +190,7 @@ export default function ClientDetailPage() {
       })
       setShowVendorModal(false)
       setSelectedVendorToBook(null)
-      fetchEventVendors(client.event_date)
+      fetchEventVendors(client.event_date, client.event_id)
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to book vendor')
     } finally {
@@ -292,11 +308,34 @@ export default function ClientDetailPage() {
   }
 
   const formatEventType = (type: string) => {
-    return type.charAt(0).toUpperCase() + type.slice(1).replace('_', ' ')
+    const labels: Record<string, string> = {
+      wedding: 'Wedding',
+      birthday: 'Birthday',
+      birthday_party: 'Birthday Party',
+      party: 'Party',
+      graduation_party: 'Graduation Party',
+      baby_shower: 'Baby Shower',
+      retirement: 'Retirement',
+      holiday_party: 'Holiday Party',
+      engagement_party: 'Engagement Party',
+      prom_formal: 'Prom / Formal',
+      family_reunion: 'Family Reunion',
+      quinceanera: 'Quinceañera',
+      sweet_16: 'Sweet 16',
+      corporate: 'Corporate Event',
+      conference: 'Conference',
+      workshop: 'Workshop',
+      anniversary: 'Anniversary',
+      concert_show: 'Concert / Show',
+      memorial_service: 'Memorial Service',
+      other: 'Other',
+    }
+    return labels[type] || type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, ' ')
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    const normalized = dateString.length === 10 ? dateString + 'T12:00:00' : dateString
+    return new Date(normalized).toLocaleDateString('en-US', {
       month: 'long',
       day: 'numeric',
       year: 'numeric'
@@ -388,10 +427,17 @@ export default function ClientDetailPage() {
               </div>
             </div>
 
-            {/* Event Details */}
+              {/* Event Details */}
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Event Details</h2>
               <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center gap-3 col-span-2">
+                  <Info className="h-5 w-5 text-gray-400" />
+                  <div>
+                    <p className="text-sm text-gray-600">Event Name/Title</p>
+                    <p className="font-medium text-primary-600">{client.event_name || <span className="text-gray-400 italic">Not set — use Edit Client Details to add</span>}</p>
+                  </div>
+                </div>
                 <div className="flex items-center gap-3">
                   <Calendar className="h-5 w-5 text-gray-400" />
                   <div>
@@ -573,6 +619,94 @@ export default function ClientDetailPage() {
                 )}
               </div>
             </div>
+
+            {/* Estimates */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">Estimates</h2>
+                <button
+                  onClick={() => router.push(`/dashboard/estimates/new?clientId=${client.id}`)}
+                  className="flex items-center gap-1 text-sm bg-teal-600 text-white px-3 py-1.5 rounded-lg hover:bg-teal-700"
+                >
+                  <PlusCircle className="h-4 w-4" />
+                  New Estimate
+                </button>
+              </div>
+              {clientEstimates.length === 0 ? (
+                <p className="text-sm text-gray-500">No estimates yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {clientEstimates.map(est => (
+                    <a
+                      key={est.id}
+                      href={`/dashboard/estimates/${est.id}`}
+                      className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{est.estimate_number}</p>
+                        <p className="text-xs text-gray-500">{new Date(est.issue_date + 'T12:00:00').toLocaleDateString()}</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${
+                          est.status === EstimateStatus.APPROVED ? 'bg-green-100 text-green-700' :
+                          est.status === EstimateStatus.SENT ? 'bg-blue-100 text-blue-700' :
+                          est.status === EstimateStatus.REJECTED ? 'bg-red-100 text-red-700' :
+                          est.status === EstimateStatus.CONVERTED ? 'bg-purple-100 text-purple-700' :
+                          est.status === EstimateStatus.EXPIRED ? 'bg-yellow-100 text-yellow-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>{est.status}</span>
+                        <span className="text-sm font-semibold text-gray-900">${est.total_amount.toFixed(2)}</span>
+                        <ChevronRight className="h-4 w-4 text-gray-400" />
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Invoices */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">Invoices</h2>
+                <button
+                  onClick={() => router.push(`/dashboard/invoices/new?clientId=${client.id}`)}
+                  className="flex items-center gap-1 text-sm bg-purple-600 text-white px-3 py-1.5 rounded-lg hover:bg-purple-700"
+                >
+                  <PlusCircle className="h-4 w-4" />
+                  New Invoice
+                </button>
+              </div>
+              {clientInvoices.length === 0 ? (
+                <p className="text-sm text-gray-500">No invoices yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {clientInvoices.map(inv => (
+                    <a
+                      key={inv.id}
+                      href={`/dashboard/invoices/${inv.id}`}
+                      className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{inv.invoice_number}</p>
+                        <p className="text-xs text-gray-500">{new Date(inv.issue_date + 'T12:00:00').toLocaleDateString()}</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${
+                          inv.status === InvoiceStatus.PAID ? 'bg-green-100 text-green-700' :
+                          inv.status === InvoiceStatus.SENT ? 'bg-blue-100 text-blue-700' :
+                          inv.status === InvoiceStatus.OVERDUE ? 'bg-red-100 text-red-700' :
+                          inv.status === InvoiceStatus.PARTIAL ? 'bg-yellow-100 text-yellow-700' :
+                          inv.status === InvoiceStatus.CANCELLED ? 'bg-gray-100 text-gray-500' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>{inv.status}</span>
+                        <span className="text-sm font-semibold text-gray-900">${inv.total_amount.toFixed(2)}</span>
+                        <ChevronRight className="h-4 w-4 text-gray-400" />
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Sidebar */}
@@ -638,10 +772,10 @@ export default function ClientDetailPage() {
                 >
                   <CheckCircle className="h-4 w-4" />
                   {client.status === 'converted' 
-                    ? 'Already Converted' 
+                    ? 'Already Activated' 
                     : updating 
-                    ? 'Converting...' 
-                    : 'Convert to Booking'}
+                    ? 'Activating...' 
+                    : 'Activate Client'}
                 </button>
 
                 <button
@@ -650,14 +784,6 @@ export default function ClientDetailPage() {
                 >
                   <MessageSquare className="h-4 w-4" />
                   Send Message
-                </button>
-
-                <button
-                  onClick={() => setShowInvoiceModal(true)}
-                  className="w-full bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center justify-center gap-2"
-                >
-                  <FileText className="h-4 w-4" />
-                  Send Invoice
                 </button>
 
                 <button
@@ -717,7 +843,7 @@ export default function ClientDetailPage() {
 
         {/* Message Modal */}
         {showMessageModal && client && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 overflow-y-auto p-4">
             <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
               <h2 className="text-xl font-bold mb-4">Send SMS to {client.contact_name}</h2>
               <div className="space-y-4">
@@ -767,7 +893,7 @@ export default function ClientDetailPage() {
 
         {/* Invoice Modal */}
         {showInvoiceModal && client && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 overflow-y-auto p-4">
             <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
               <h2 className="text-xl font-bold mb-4">Send Invoice to {client.contact_name}</h2>
               <div className="space-y-4">
@@ -810,7 +936,7 @@ export default function ClientDetailPage() {
 
         {/* Edit Client Modal */}
         {showEditModal && client && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 overflow-y-auto p-4">
             <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
               <h2 className="text-xl font-bold mb-6">Edit Client Details</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -828,6 +954,11 @@ export default function ClientDetailPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
                   <input type="tel" value={editData.contact_phone || ''} onChange={e => setEditData({ ...editData, contact_phone: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Event Name/Title</label>
+                  <input type="text" value={editData.event_name || ''} onChange={e => setEditData({ ...editData, event_name: e.target.value })} placeholder="e.g. Sarah's 30th Birthday Celebration" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
 
                 <div>
@@ -908,7 +1039,7 @@ export default function ClientDetailPage() {
 
         {/* Appointment Modal */}
         {showAppointmentModal && client && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 overflow-y-auto p-4">
             <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
               <h2 className="text-xl font-bold mb-4">Schedule Appointment with {client.contact_name}</h2>
               <div className="space-y-4">
@@ -971,14 +1102,14 @@ export default function ClientDetailPage() {
 
       {/* ─── Vendor Booking Modal ─────────────────────────────── */}
       {showVendorModal && client && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 overflow-y-auto p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
             {/* Modal header */}
             <div className="flex items-center justify-between px-6 py-4 border-b">
               <div>
                 <h2 className="text-lg font-bold text-gray-900">Book a Vendor</h2>
                 <p className="text-sm text-gray-500 mt-0.5">
-                  {formatEventType(client.event_type)} &bull; {new Date(client.event_date + 'T00:00:00').toLocaleDateString()}
+                  {formatEventType(client.event_type)} &bull; {new Date(client.event_date + 'T12:00:00').toLocaleDateString()}
                 </p>
               </div>
               <button onClick={() => setShowVendorModal(false)} className="text-gray-400 hover:text-gray-600">
@@ -1066,7 +1197,7 @@ export default function ClientDetailPage() {
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">Date</label>
                     <p className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-700">
-                      {new Date(client.event_date + 'T00:00:00').toLocaleDateString()}
+                      {new Date(client.event_date + 'T12:00:00').toLocaleDateString()}
                     </p>
                   </div>
                 </div>

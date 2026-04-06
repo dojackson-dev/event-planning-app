@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
+  ArrowLeft,
   Calendar,
   Users,
   Clock,
@@ -33,6 +34,14 @@ import {
 import DashboardLayout from '@/components/DashboardLayout';
 import api from '@/lib/api';
 import { Event, EventType, ClientStatus, ContractStatus, InsuranceStatus } from '@/types';
+
+const invoiceStatusColors: Record<string, string> = {
+  draft:     'bg-gray-100 text-gray-700',
+  sent:      'bg-blue-100 text-blue-800',
+  paid:      'bg-green-100 text-green-800',
+  overdue:   'bg-red-100 text-red-800',
+  cancelled: 'bg-gray-100 text-gray-500',
+};
 
 interface VendorContact {
   id?: string;
@@ -156,6 +165,8 @@ export default function EventManagementPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [eventInvoices, setEventInvoices] = useState<any[]>([]);
+  const [guestListId, setGuestListId] = useState<number | null>(null);
   const [formData, setFormData] = useState<EventManagementData>({
     eventId: '',
     eventType: EventType.WEDDING_RECEPTION,
@@ -206,29 +217,57 @@ export default function EventManagementPage() {
 
   const loadEventData = async () => {
     try {
-      // Load event and associated management data
-      const response = await api.get(`/events/${eventId}/management`);
-      setFormData(response.data);
+      const eventResponse = await api.get(`/events/${eventId}`);
+      const event = eventResponse.data;
+      setFormData(prev => ({
+        ...prev,
+        eventId: eventId,
+        eventName: event.intakeEventName || event.name || '',
+        eventType: event.eventType || EventType.WEDDING_RECEPTION,
+        eventDate: event.date || '',
+        startTime: event.startTime || '',
+        endTime: event.endTime || '',
+        venue: event.venue || '',
+      }));
+      loadEventInvoices(event.bookingId, event.clientName);
+      loadGuestList();
     } catch (error) {
-      console.error('Error loading event management data:', error);
-      // Initialize with basic event data from the events API as fallback
-      try {
-        const eventResponse = await api.get(`/events/${eventId}`);
-        const event = eventResponse.data;
-        setFormData(prev => ({
-          ...prev,
-          eventId: eventId,
-          eventName: event.name || '',
-          eventType: event.eventType || EventType.WEDDING_RECEPTION,
-          eventDate: event.date || '',
-          startTime: event.startTime || '',
-          endTime: event.endTime || '',
-          venue: event.venue || '',
-        }));
-      } catch (fallbackError) {
-        console.error('Error loading event data:', fallbackError);
-        alert('Unable to load event data. Please try again.');
+      console.error('Error loading event data:', error);
+      alert('Unable to load event data. Please try again.');
+    }
+  };
+
+  const loadGuestList = async () => {
+    try {
+      const res = await api.get('/guest-lists');
+      const all: any[] = res.data || [];
+      const match = all.find((gl: any) => String(gl.event_id) === String(eventId));
+      setGuestListId(match ? match.id : null);
+    } catch {
+      // guest list is supplementary
+    }
+  };
+
+  const loadEventInvoices = async (bookingId?: string, clientName?: string) => {
+    try {
+      const res = await api.get('/invoices');
+      const all: any[] = res.data || [];
+      let matched: any[] = [];
+      // 1. Match by event_id (most accurate)
+      matched = all.filter((inv) => inv.event_id && inv.event_id === eventId);
+      // 2. Fall back to booking_id
+      if (matched.length === 0 && bookingId) {
+        matched = all.filter((inv) => inv.booking_id === bookingId);
       }
+      // 3. Fall back to client name (event name contains client name)
+      if (matched.length === 0 && clientName) {
+        matched = all.filter((inv) =>
+          inv.client_name && clientName.toLowerCase().includes((inv.client_name || '').toLowerCase())
+        );
+      }
+      setEventInvoices(matched);
+    } catch {
+      // ignore — invoice status is supplementary
     }
   };
 
@@ -324,13 +363,17 @@ export default function EventManagementPage() {
     <DashboardLayout>
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{formData.eventName || 'Event Management'}</h1>
-            <p className="text-sm text-gray-500 mt-1">Complete event planning and vendor coordination</p>
-          </div>
-          
-          <div className="flex gap-2">
+        <div className="mb-6">
+          <button
+            onClick={() => router.push('/dashboard/events')}
+            className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 mb-4 transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Back to Events
+          </button>
+          <h1 className="text-2xl font-bold text-gray-900 text-center">Manage</h1>
+          <p className="text-sm text-gray-500 mt-1 text-center">{formData.eventName || 'Event Management'}</p>
+          <div className="flex justify-center gap-2 mt-4">
             {!isEditing ? (
               <>
                 <button
@@ -371,7 +414,7 @@ export default function EventManagementPage() {
         </div>
 
         {/* Status Overview Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
           <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
             <div className="flex items-center justify-between">
               <div>
@@ -414,6 +457,25 @@ export default function EventManagementPage() {
                 <p className="text-xs text-gray-500">Due: {formData.balanceDueDate}</p>
               </div>
               <DollarSign className="h-8 w-8 text-yellow-600" />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">Invoice</p>
+                {eventInvoices.length > 0 ? (
+                  <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium mt-1 capitalize ${invoiceStatusColors[eventInvoices[0].status] || 'bg-gray-100 text-gray-700'}`}>
+                    {eventInvoices[0].status}
+                  </span>
+                ) : (
+                  <p className="text-sm text-gray-400 mt-1">None</p>
+                )}
+                {eventInvoices.length > 1 && (
+                  <p className="text-xs text-gray-400">{eventInvoices.length} invoices</p>
+                )}
+              </div>
+              <FileText className="h-8 w-8 text-teal-600" />
             </div>
           </div>
         </div>
@@ -1183,28 +1245,66 @@ export default function EventManagementPage() {
               </h2>
 
               <div className="space-y-3">
-                <p className="text-sm text-gray-600">
-                  Last Updated: {formData.doorListLastUpdated}
-                </p>
-                
-                <a
-                  href={formData.doorListLink}
-                  className="block w-full px-4 py-2 bg-primary-600 text-white text-center rounded-lg hover:bg-primary-700"
-                >
-                  View Door List
-                </a>
-
-                {isEditing && (
-                  <input
-                    type="text"
-                    name="doorListLink"
-                    value={formData.doorListLink}
-                    onChange={handleChange}
-                    placeholder="Door list link"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                  />
+                {guestListId ? (
+                  <button
+                    onClick={() => router.push(`/dashboard/guest-lists/${guestListId}`)}
+                    className="block w-full px-4 py-2 bg-primary-600 text-white text-center rounded-lg hover:bg-primary-700"
+                  >
+                    View Door List
+                  </button>
+                ) : (
+                  <>
+                    <p className="text-sm text-gray-500">No door list created for this event yet.</p>
+                    <button
+                      onClick={() => router.push('/dashboard/guest-lists/new')}
+                      className="block w-full px-4 py-2 bg-gray-100 text-gray-700 text-center rounded-lg hover:bg-gray-200 border border-gray-300"
+                    >
+                      Create Door List
+                    </button>
+                  </>
                 )}
               </div>
+            </div>
+
+            {/* Invoices */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
+                <FileText className="h-5 w-5 mr-2 text-primary-600" />
+                Invoices
+              </h2>
+
+              {eventInvoices.length > 0 ? (
+                <div className="space-y-2 mb-3">
+                  {eventInvoices.map((inv) => (
+                    <div key={inv.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{inv.invoice_number}</p>
+                        <p className="text-xs text-gray-500">${Number(inv.total_amount || 0).toFixed(2)}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${invoiceStatusColors[inv.status] || 'bg-gray-100 text-gray-700'}`}>
+                          {inv.status}
+                        </span>
+                        <button
+                          onClick={() => router.push(`/dashboard/invoices/${inv.id}`)}
+                          className="text-primary-600 hover:text-primary-700 text-xs font-medium"
+                        >
+                          View
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500 mb-3">No invoices found for this event.</p>
+              )}
+
+              <button
+                onClick={() => router.push(`/dashboard/invoices/new?eventId=${eventId}`)}
+                className="w-full px-4 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 font-medium"
+              >
+                + Create Invoice
+              </button>
             </div>
 
             {/* Quick Actions */}

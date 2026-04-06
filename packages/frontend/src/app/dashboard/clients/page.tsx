@@ -4,12 +4,14 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import type { Invoice } from '@/types'
-import { User, Calendar, Mail, Phone, Clock, Eye, CheckCircle, Search, MessageSquare, FileText, Clock as ClockIcon, Trash2 } from 'lucide-react'
+import Pagination from '@/components/Pagination'
+import { User, Calendar, Mail, Phone, Clock, Eye, CheckCircle, Search, MessageSquare, FileText, Clock as ClockIcon, Trash2, Zap, PhoneCall } from 'lucide-react'
 
 interface IntakeForm {
   id: string
   user_id: string
   event_type: string
+  event_name: string | null
   event_date: string
   event_time: string
   guest_count: number
@@ -35,8 +37,9 @@ export default function ClientsPage() {
   const router = useRouter()
   const [clients, setClients] = useState<IntakeForm[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<'all' | 'new' | 'contacted' | 'converted'>('all')
+  const [filter, setFilter] = useState<'all' | 'unactivated' | 'new' | 'contacted' | 'converted'>('all')
   const [searchTerm, setSearchTerm] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
   const [selectedClient, setSelectedClient] = useState<IntakeForm | null>(null)
   const [showMessageModal, setShowMessageModal] = useState(false)
   const [showInvoiceModal, setShowInvoiceModal] = useState(false)
@@ -46,6 +49,7 @@ export default function ClientsPage() {
   const [clientInvoices, setClientInvoices] = useState<Invoice[]>([])
   const [selectedInvoiceId, setSelectedInvoiceId] = useState('')
   const [loadingInvoices, setLoadingInvoices] = useState(false)
+  const [activatingId, setActivatingId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchClients()
@@ -138,6 +142,19 @@ export default function ClientsPage() {
     }
   }
 
+  const handleActivateLead = async (client: IntakeForm) => {
+    if (!confirm(`Activate "${client.contact_name}" as a booking?`)) return
+    setActivatingId(client.id)
+    try {
+      await api.post(`/intake-forms/${client.id}/convert-to-booking`, {})
+      setClients(prev => prev.map(c => c.id === client.id ? { ...c, status: 'converted' } : c))
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Failed to activate lead')
+    } finally {
+      setActivatingId(null)
+    }
+  }
+
   const handleDeleteClient = async (client: IntakeForm) => {
     if (!confirm(`Delete "${client.contact_name}"? This cannot be undone.`)) return
     try {
@@ -149,14 +166,41 @@ export default function ClientsPage() {
     }
   }
 
-  const filteredClients = clients.filter(client => {
-    const matchesFilter = filter === 'all' || client.status === filter
-    const matchesSearch = searchTerm === '' || 
-      client.contact_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      client.contact_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (client.contact_phone && client.contact_phone.includes(searchTerm))
-    return matchesFilter && matchesSearch
-  })
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const filteredClients = clients
+    .filter(client => {
+      const matchesFilter = filter === 'all' ||
+        (filter === 'unactivated' ? client.status !== 'converted' : client.status === filter)
+      const matchesSearch = searchTerm === '' ||
+        client.contact_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        client.contact_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (client.contact_phone && client.contact_phone.includes(searchTerm))
+      return matchesFilter && matchesSearch
+    })
+    .sort((a, b) => {
+      const dateA = new Date(a.event_date + 'T12:00:00')
+      const dateB = new Date(b.event_date + 'T12:00:00')
+      const aExpired = dateA < today
+      const bExpired = dateB < today
+
+      if (!aExpired && !bExpired) {
+        // Both upcoming: closest first (ascending)
+        return dateA.getTime() - dateB.getTime()
+      } else if (aExpired && bExpired) {
+        // Both expired: most recently expired first, longest expired last (descending)
+        return dateB.getTime() - dateA.getTime()
+      } else {
+        // Upcoming before expired
+        return aExpired ? 1 : -1
+      }
+    })
+
+  const CARDS_PER_PAGE = 12
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { setCurrentPage(1) }, [searchTerm, filter])
+  const paginatedClients = filteredClients.slice((currentPage - 1) * CARDS_PER_PAGE, currentPage * CARDS_PER_PAGE)
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -168,11 +212,22 @@ export default function ClientsPage() {
   }
 
   const formatEventType = (type: string) => {
-    return type.charAt(0).toUpperCase() + type.slice(1).replace('_', ' ')
+    const labels: Record<string, string> = {
+      wedding: 'Wedding',
+      birthday: 'Birthday',
+      party: 'Party',
+      corporate: 'Corporate Event',
+      conference: 'Conference',
+      workshop: 'Workshop',
+      anniversary: 'Anniversary',
+      other: 'Other',
+    }
+    return labels[type] || type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, ' ')
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString + 'T12:00:00').toLocaleDateString('en-US', {
+    const d = dateString?.includes('T') ? new Date(dateString) : new Date((dateString ?? '') + 'T12:00:00')
+    return d.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
       year: 'numeric'
@@ -195,11 +250,9 @@ export default function ClientsPage() {
       {/* Sticky header */}
       <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3 shadow-sm">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h1 className="text-xl font-bold text-gray-900 leading-tight">Clients & Leads</h1>
-              <p className="text-xs text-gray-500">{clients.length} total</p>
-            </div>
+          <div className="text-center mb-3">
+            <h1 className="text-xl font-bold text-gray-900 leading-tight">Clients & Leads</h1>
+            <p className="text-xs text-gray-500">{clients.length} total</p>
           </div>
           {/* Search */}
           <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2">
@@ -217,24 +270,26 @@ export default function ClientsPage() {
               </button>
             )}
           </div>
-          {/* Filter chips */}
-          <div className="flex gap-2 mt-2 overflow-x-auto pb-1 scrollbar-hide">
-            {(['all', 'new', 'contacted', 'converted'] as const).map((f) => {
-              const count = f === 'all' ? clients.length : clients.filter(c => c.status === f).length
-              return (
-                <button
-                  key={f}
-                  onClick={() => setFilter(f)}
-                  className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-                    filter === f
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  {f.charAt(0).toUpperCase() + f.slice(1)} ({count})
-                </button>
-              )
-            })}
+          {/* Filter dropdown */}
+          <div className="flex justify-center mt-2">
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value as typeof filter)}
+              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {(['all', 'unactivated', 'new', 'contacted', 'converted'] as const).map((f) => {
+                const count = f === 'all' ? clients.length
+                  : f === 'unactivated' ? clients.filter(c => c.status !== 'converted').length
+                  : clients.filter(c => c.status === f).length
+                const label = f === 'unactivated' ? 'New Leads'
+                  : f.charAt(0).toUpperCase() + f.slice(1)
+                return (
+                  <option key={f} value={f}>
+                    {label} ({count})
+                  </option>
+                )
+              })}
+            </select>
           </div>
         </div>
       </div>
@@ -255,15 +310,15 @@ export default function ClientsPage() {
             </div>
           </button>
           <button
-            onClick={() => setFilter('new')}
-            className={`bg-white rounded-2xl shadow-sm p-4 flex items-center gap-3 text-left transition-all touch-manipulation hover:shadow-md active:scale-95 ${filter === 'new' ? 'ring-2 ring-blue-500' : ''}`}
+            onClick={() => setFilter('unactivated')}
+            className={`bg-white rounded-2xl shadow-sm p-4 flex items-center gap-3 text-left transition-all touch-manipulation hover:shadow-md active:scale-95 ${filter === 'unactivated' ? 'ring-2 ring-blue-500' : ''}`}
           >
             <div className="bg-blue-50 rounded-xl p-2 flex-shrink-0">
               <Clock className="h-5 w-5 text-blue-500" />
             </div>
             <div>
-              <p className="text-xs text-gray-500">New</p>
-              <p className="text-xl font-bold text-blue-600">{clients.filter(c => c.status === 'new').length}</p>
+              <p className="text-xs text-gray-500">New Leads</p>
+              <p className="text-xl font-bold text-blue-600">{clients.filter(c => c.status !== 'converted').length}</p>
             </div>
           </button>
           <button
@@ -301,7 +356,7 @@ export default function ClientsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-            {filteredClients.map((client) => (
+            {paginatedClients.map((client) => (
               <div
                 key={client.id}
                 className="bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col"
@@ -320,6 +375,9 @@ export default function ClientsPage() {
                   <div className="flex items-start justify-between gap-2 mb-3">
                     <div className="flex-1 min-w-0">
                       <h2 className="text-base font-bold text-gray-900 leading-snug truncate">{client.contact_name}</h2>
+                      <p className="text-xs font-semibold text-primary-600 truncate mt-0.5">
+                        {client.event_name || formatEventType(client.event_type)}
+                      </p>
                       <div className="flex items-center gap-1 mt-0.5">
                         <Mail className="h-3 w-3 text-gray-400 flex-shrink-0" />
                         <p className="text-xs text-gray-500 truncate">{client.contact_email}</p>
@@ -351,6 +409,7 @@ export default function ClientsPage() {
                       <span className="text-gray-400">🎉</span>
                       <span className="font-medium text-gray-800">{formatEventType(client.event_type)}</span>
                     </div>
+
                     <div className="flex items-center gap-2 text-sm text-gray-600">
                       <Calendar className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
                       <span>{formatDate(client.event_date)}</span>
@@ -382,6 +441,16 @@ export default function ClientsPage() {
                       <Eye className="h-4 w-4" />
                       View Details
                     </button>
+                    {client.status !== 'converted' && (
+                      <button
+                        onClick={() => handleActivateLead(client)}
+                        disabled={activatingId === client.id}
+                        className="flex items-center justify-center gap-2 h-11 px-3 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white text-sm font-semibold rounded-xl transition-colors col-span-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Zap className="h-4 w-4" />
+                        {activatingId === client.id ? 'Activating...' : 'Activate Lead'}
+                      </button>
+                    )}
                     <button
                       onClick={() => { setSelectedClient(client); setShowMessageModal(true) }}
                       className="flex items-center justify-center gap-2 h-11 px-3 bg-gray-100 hover:bg-blue-50 active:bg-blue-100 text-gray-700 hover:text-blue-700 text-sm font-medium rounded-xl transition-colors"
@@ -403,12 +472,27 @@ export default function ClientsPage() {
                       <ClockIcon className="h-4 w-4" />
                       Schedule Appointment
                     </button>
+                    {client.contact_phone ? (
+                      <a
+                        href={`tel:${client.contact_phone}`}
+                        className="flex items-center justify-center gap-2 h-11 px-3 bg-green-500 hover:bg-green-600 active:bg-green-700 text-white text-sm font-medium rounded-xl col-span-2 transition-colors"
+                      >
+                        <PhoneCall className="h-4 w-4" />
+                        Call {client.contact_phone}
+                      </a>
+                    ) : (
+                      <div className="flex items-center justify-center gap-2 h-11 px-3 bg-gray-50 text-gray-300 text-sm font-medium rounded-xl col-span-2 cursor-not-allowed">
+                        <PhoneCall className="h-4 w-4" />
+                        No phone on file
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
             ))}
           </div>
         )}
+      <Pagination currentPage={currentPage} totalItems={filteredClients.length} itemsPerPage={CARDS_PER_PAGE} onPageChange={setCurrentPage} />
       </div>
 
       {/* Message Modal — slides up from bottom on mobile */}

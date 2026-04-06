@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Message, Event } from '@/types'
-import { Plus, Search, MessageSquare, CheckCircle, XCircle, Clock, Filter } from 'lucide-react'
+import { Plus, Search, MessageSquare, CheckCircle, XCircle, Clock, Filter, X } from 'lucide-react'
 
 export default function MessagesPage() {
   const router = useRouter()
@@ -18,6 +18,7 @@ export default function MessagesPage() {
   const [filterStatus, setFilterStatus] = useState<string>('')
   const [filterType, setFilterType] = useState<string>('')
   const [filterEvent, setFilterEvent] = useState<string>('')
+  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null)
 
   useEffect(() => {
     fetchMessages()
@@ -140,18 +141,18 @@ export default function MessagesPage() {
   return (
     <div className="p-6">
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Messages</h1>
-          <p className="text-gray-600 mt-1">Send SMS reminders and updates via Twilio</p>
+      <div className="mb-6 text-center">
+        <h1 className="text-2xl font-bold text-gray-900">Messages</h1>
+        <p className="text-gray-600 mt-1 mb-3">Send SMS reminders and updates via Twilio</p>
+        <div className="flex justify-center">
+          <button
+            onClick={() => router.push('/dashboard/messages/send')}
+            className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
+          >
+            <Plus className="h-5 w-5" />
+            Send Message
+          </button>
         </div>
-        <button
-          onClick={() => router.push('/dashboard/messages/send')}
-          className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
-        >
-          <Plus className="h-5 w-5" />
-          Send Message
-        </button>
       </div>
 
       {/* Stats */}
@@ -293,7 +294,7 @@ export default function MessagesPage() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredMessages.map((message) => (
-                  <tr key={message.id} className="hover:bg-gray-50">
+                  <tr key={message.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => setSelectedMessage(message)}>
                     <td className="px-6 py-4">
                       <div className="text-sm font-medium text-gray-900">{message.recipientName}</div>
                       <div className="text-xs text-gray-500">{message.recipientPhone}</div>
@@ -322,7 +323,7 @@ export default function MessagesPage() {
                       <div className="flex gap-2">
                         {message.twilioSid && (
                           <button
-                            onClick={() => handleRefreshStatus(message.id)}
+                            onClick={(e) => { e.stopPropagation(); handleRefreshStatus(message.id) }}
                             className="text-blue-600 hover:text-blue-900"
                             title="Refresh status from Twilio"
                           >
@@ -330,7 +331,7 @@ export default function MessagesPage() {
                           </button>
                         )}
                         <button
-                          onClick={() => handleDelete(message.id)}
+                          onClick={(e) => { e.stopPropagation(); handleDelete(message.id) }}
                           className="text-red-600 hover:text-red-900"
                         >
                           Delete
@@ -344,6 +345,78 @@ export default function MessagesPage() {
           </div>
         )}
       </div>
+      {/* Message Detail Modal */}
+      {selectedMessage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setSelectedMessage(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900">Message Details</h2>
+              <button onClick={() => setSelectedMessage(null)} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div className="flex items-center gap-3">
+                <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-full capitalize ${getStatusClass(selectedMessage.status)}`}>
+                  {getStatusIcon(selectedMessage.status)}
+                  {selectedMessage.status}
+                </span>
+                <span className="inline-flex px-2.5 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded-full capitalize">
+                  {selectedMessage.messageType}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-xs text-gray-500 mb-0.5">Recipient</p>
+                  <p className="font-medium text-gray-900">{selectedMessage.recipientName || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-0.5">Phone</p>
+                  <p className="font-medium text-gray-900">{selectedMessage.recipientPhone || '—'}</p>
+                </div>
+                {selectedMessage.event && (
+                  <div className="col-span-2">
+                    <p className="text-xs text-gray-500 mb-0.5">Event</p>
+                    <p className="font-medium text-blue-600">{selectedMessage.event.name}</p>
+                  </div>
+                )}
+                <div className="col-span-2">
+                  <p className="text-xs text-gray-500 mb-0.5">Sent At</p>
+                  <p className="font-medium text-gray-900">{selectedMessage.sentAt ? new Date(selectedMessage.sentAt).toLocaleString() : '—'}</p>
+                </div>
+                {selectedMessage.twilioSid && (
+                  <div className="col-span-2">
+                    <p className="text-xs text-gray-500 mb-0.5">Twilio SID</p>
+                    <p className="font-mono text-xs text-gray-600 break-all">{selectedMessage.twilioSid}</p>
+                  </div>
+                )}
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Message Content</p>
+                <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
+                  {(selectedMessage as any).content ?? (selectedMessage as any).message ?? '—'}
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+              {selectedMessage.twilioSid && (
+                <button
+                  onClick={() => { handleRefreshStatus(selectedMessage.id); setSelectedMessage(null) }}
+                  className="px-4 py-2 text-sm text-blue-600 border border-blue-300 rounded-lg hover:bg-blue-50"
+                >
+                  Refresh Status
+                </button>
+              )}
+              <button
+                onClick={() => setSelectedMessage(null)}
+                className="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

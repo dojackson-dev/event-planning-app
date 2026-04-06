@@ -289,6 +289,7 @@ export class SmsNotificationsService {
     eventName: string,
     status: string,
     isVendor = false,
+    portalPath?: string,
   ): Promise<void> {
     const statusMessages: Record<string, string> = {
       confirmed: `Your booking for "${eventName}" has been confirmed!`,
@@ -300,7 +301,9 @@ export class SmsNotificationsService {
     const msg =
       statusMessages[status] ??
       `Your booking for "${eventName}" has been updated to: ${status}.`;
-    const portalLink = isVendor
+    const portalLink = portalPath
+      ? this.url(portalPath)
+      : isVendor
       ? this.url('/vendor-portal')
       : this.url('/client-portal');
     await this.trySend(phone, `DoVenue Suite Booking Message\nHi ${recipientName}, ${msg} View details: ${portalLink}`);
@@ -448,6 +451,21 @@ export class SmsNotificationsService {
     await this.trySend(
       phone,
       `DoVenue Suite Client Message\nNew intake form submitted by ${clientName} for a ${eventType} event on ${eventDate}. Log in to review: ${this.url('/dashboard/clients')}`,
+    );
+  }
+
+  // ─── VENDOR REVIEWS ──────────────────────────────────────────────────────
+
+  async vendorReviewReceived(
+    phone: string | null | undefined,
+    vendorName: string,
+    rating: number,
+    vendorAccountId: string,
+  ): Promise<void> {
+    const stars = '⭐'.repeat(Math.min(5, Math.max(1, rating)));
+    await this.trySend(
+      phone,
+      `DoVenue Suite Review Message\nHi ${vendorName}, you just received a new ${stars} review! See it here: ${this.url(`/vendors/${vendorAccountId}`)}`,
     );
   }
 

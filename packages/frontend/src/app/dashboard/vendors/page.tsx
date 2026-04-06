@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
+import Pagination from '@/components/Pagination'
 import {
   Search,
   MapPin,
@@ -278,7 +279,7 @@ function BookingRow({ booking, onCancel, onConfirm }: { booking: VendorBooking; 
           </div>
           <p className="text-sm text-gray-600 truncate">{booking.event_name}</p>
           <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-400">
-            <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {new Date(booking.event_date + 'T00:00:00').toLocaleDateString()}</span>
+            <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {new Date(booking.event_date + 'T12:00:00').toLocaleDateString()}</span>
             {booking.start_time && <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {booking.start_time}{booking.end_time ? ` – ${booking.end_time}` : ''}</span>}
           </div>
         </div>
@@ -333,7 +334,7 @@ function BookingRow({ booking, onCancel, onConfirm }: { booking: VendorBooking; 
                   </div>
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                    <span className="text-gray-700">{new Date(booking.event_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</span>
+                    <span className="text-gray-700">{new Date(booking.event_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</span>
                   </div>
                   {(booking.start_time || booking.end_time) && (
                     <div className="flex items-center gap-2">
@@ -476,6 +477,8 @@ export default function DashboardVendorsPage() {
   // ── Find tab state ────────────────────────────────────────────
   const [vendors, setVendors] = useState<Vendor[]>([])
   const [venues, setVenues] = useState<Venue[]>([])
+  const [vendorPage, setVendorPage] = useState(1)
+  const [venuePage, setVenuePage] = useState(1)
   const [searching, setSearching] = useState(false)
   const [searched, setSearched] = useState(false)
   const [zipCode, setZipCode] = useState('')
@@ -487,6 +490,7 @@ export default function DashboardVendorsPage() {
   const [bookings, setBookings] = useState<VendorBooking[]>([])
   const [bookingsLoading, setBookingsLoading] = useState(false)
   const [bookingFilter, setBookingFilter] = useState<string>('')
+  const [bookingSearch, setBookingSearch] = useState('')
 
   const loadBookings = useCallback(async () => {
     setBookingsLoading(true)
@@ -557,9 +561,29 @@ export default function DashboardVendorsPage() {
     }
   }
 
-  const filteredBookings = bookingFilter
-    ? bookings.filter(b => b.status === bookingFilter)
-    : bookings
+  const now = new Date()
+  const filteredBookings = bookings
+    .filter(b => !bookingFilter || b.status === bookingFilter)
+    .filter(b => {
+      if (!bookingSearch) return true
+      const q = bookingSearch.toLowerCase()
+      return (
+        (b.vendor_accounts?.business_name || '').toLowerCase().includes(q) ||
+        (b.event_name || '').toLowerCase().includes(q) ||
+        (b.client_name || '').toLowerCase().includes(q)
+      )
+    })
+    .slice().sort((a, b) => {
+    const dateA = new Date(a.event_date + 'T12:00:00').getTime()
+    const dateB = new Date(b.event_date + 'T12:00:00').getTime()
+    const nowTime = now.getTime()
+    const aUpcoming = dateA >= nowTime
+    const bUpcoming = dateB >= nowTime
+    // Upcoming: soonest first; Past: most recent first (but after all upcoming)
+    if (aUpcoming && bUpcoming) return dateA - dateB
+    if (!aUpcoming && !bUpcoming) return dateB - dateA
+    return aUpcoming ? -1 : 1
+  })
 
   const bookingCounts = bookings.reduce((acc, b) => {
     acc[b.status] = (acc[b.status] || 0) + 1
@@ -569,19 +593,19 @@ export default function DashboardVendorsPage() {
   return (
     <div className="max-w-6xl mx-auto px-4 py-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Store className="w-6 h-6 text-primary-600" /> Vendors
-          </h1>
-          <p className="text-gray-500 text-sm mt-0.5">Find and book event vendors for your venue</p>
+      <div className="mb-6 text-center">
+        <h1 className="text-2xl font-bold text-gray-900 flex items-center justify-center gap-2">
+          <Store className="w-6 h-6 text-primary-600" /> Vendors
+        </h1>
+        <p className="text-gray-500 text-sm mt-0.5 mb-3">Find and book event vendors for your venue</p>
+        <div className="flex justify-center">
+          <Link
+            href="/dashboard/vendors/payments"
+            className="flex items-center gap-2 bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-2 rounded-lg text-sm font-medium hover:bg-indigo-100"
+          >
+            <CreditCard className="w-4 h-4" /> Vendor Payments
+          </Link>
         </div>
-        <Link
-          href="/dashboard/vendors/payments"
-          className="flex items-center gap-2 bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-2 rounded-lg text-sm font-medium hover:bg-indigo-100"
-        >
-          <CreditCard className="w-4 h-4" /> Vendor Payments
-        </Link>
       </div>
 
       {/* Tabs */}
@@ -680,17 +704,19 @@ export default function DashboardVendorsPage() {
               {vendors.length > 0 && (
                 <>
                   <p className="text-sm text-gray-500 mb-3">{vendors.length} vendor{vendors.length !== 1 ? 's' : ''} found</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
-                    {vendors.map(v => <VendorCard key={v.id} vendor={v} />)}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-4">
+                    {vendors.slice((vendorPage - 1) * 12, vendorPage * 12).map(v => <VendorCard key={v.id} vendor={v} />)}
                   </div>
+                  <Pagination currentPage={vendorPage} totalItems={vendors.length} itemsPerPage={12} onPageChange={setVendorPage} />
                 </>
               )}
               {venues.length > 0 && (
                 <>
                   <h2 className="text-base font-semibold text-gray-700 mb-3 mt-2">🏛️ Venues ({venues.length})</h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {venues.map(v => <VenueCard key={v.id} venue={v} />)}
+                    {venues.slice((venuePage - 1) * 12, venuePage * 12).map(v => <VenueCard key={v.id} venue={v} />)}
                   </div>
+                  <Pagination currentPage={venuePage} totalItems={venues.length} itemsPerPage={12} onPageChange={setVenuePage} />
                 </>
               )}
             </>
@@ -701,28 +727,31 @@ export default function DashboardVendorsPage() {
       {/* ── BOOKINGS TAB ─────────────────────────────────────── */}
       {activeTab === 'bookings' && (
         <>
-          {/* Status filter pills */}
-          <div className="flex gap-2 flex-wrap mb-4">
-            {[
-              { value: '', label: `All (${bookings.length})` },
-              { value: 'pending', label: `Pending (${bookingCounts.pending || 0})` },
-              { value: 'confirmed', label: `Confirmed (${bookingCounts.confirmed || 0})` },
-              { value: 'paid', label: `Paid (${bookingCounts.paid || 0})` },
-              { value: 'completed', label: `Completed (${bookingCounts.completed || 0})` },
-              { value: 'cancelled', label: `Cancelled (${bookingCounts.cancelled || 0})` },
-            ].map(f => (
-              <button
-                key={f.value}
-                onClick={() => setBookingFilter(f.value)}
-                className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-all ${
-                  bookingFilter === f.value
-                    ? 'bg-primary-600 text-white border-primary-600'
-                    : 'bg-white text-gray-600 border-gray-300 hover:border-primary-300'
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
+          {/* Search + Status filter */}
+          <div className="flex flex-col sm:flex-row gap-3 mb-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input
+                type="text"
+                value={bookingSearch}
+                onChange={e => setBookingSearch(e.target.value)}
+                placeholder="Search by vendor, event, or client..."
+                className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+            <select
+              value={bookingFilter}
+              onChange={e => setBookingFilter(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              <option value="">All Statuses ({bookings.length})</option>
+              <option value="pending">Pending ({bookingCounts.pending || 0})</option>
+              <option value="confirmed">Confirmed ({bookingCounts.confirmed || 0})</option>
+              <option value="paid">Paid ({bookingCounts.paid || 0})</option>
+              <option value="completed">Completed ({bookingCounts.completed || 0})</option>
+              <option value="declined">Declined ({bookingCounts.declined || 0})</option>
+              <option value="cancelled">Cancelled ({bookingCounts.cancelled || 0})</option>
+            </select>
           </div>
 
           {bookingsLoading ? (

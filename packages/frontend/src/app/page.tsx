@@ -11,7 +11,6 @@ export default function Home() {
   const { isAuthenticated, loading } = useAuth()
   const router = useRouter()
   const [showFeatures, setShowFeatures] = useState(false)
-  const [showVendors, setShowVendors] = useState(false)
 
   useEffect(() => {
     if (!loading && isAuthenticated) {
@@ -234,33 +233,20 @@ export default function Home() {
               style={{ maxHeight: '300px' }}
             />
           </div>
-          <div className="mt-6 flex justify-center">
-            <button
-              onClick={() => setShowVendors(prev => !prev)}
-              className="inline-flex items-center gap-2 px-6 py-2 rounded-full border-2 border-white text-white font-semibold text-sm hover:bg-white hover:text-primary-700 transition-all duration-200"
+          <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
+            <Link
+              href="/vendors"
+              className="inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-xl text-white bg-primary-600 hover:bg-primary-700"
             >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-              </svg>
-              {showVendors ? 'Hide Options ▲' : 'Connect To Venues & Vendors ▼'}
-            </button>
+              Browse Directory
+            </Link>
+            <Link
+              href="/signup"
+              className="inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-xl text-white bg-primary-600 hover:bg-primary-700"
+            >
+              List Your Business
+            </Link>
           </div>
-          {showVendors && (
-            <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
-              <Link
-                href="/vendors"
-                className="inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-xl text-white bg-primary-600 hover:bg-primary-700"
-              >
-                Browse Directory
-              </Link>
-              <Link
-                href="/signup"
-                className="inline-flex items-center justify-center px-8 py-3 border-2 border-primary-600 text-base font-medium rounded-xl text-primary-600 hover:bg-primary-50"
-              >
-                List Your Business
-              </Link>
-            </div>
-          )}
         </div>
       </div>
 

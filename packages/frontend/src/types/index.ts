@@ -144,6 +144,8 @@ export interface Tenant {
 export interface Event {
   id: string
   name: string
+  clientName?: string
+  intakeEventName?: string
   description?: string
   date: string
   startTime?: string
@@ -241,6 +243,8 @@ export interface Invoice {
   intake_form?: any // Optional populated intake form data
   client_name?: string
   client_email?: string
+  client_phone?: string
+  client_address?: string
   subtotal: number
   tax_amount: number
   tax_rate: number

@@ -5,6 +5,19 @@ import { useParams, useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { Invoice, InvoiceStatus } from '@/types'
 
+interface EditItem {
+  id?: string
+  description: string
+  quantity: number
+  unit_price: number
+  item_type: 'revenue' | 'expense'
+  _originalDescription: string
+  _originalQty: number
+  _originalUnitPrice: number
+  _deleted: boolean
+  _isNew: boolean
+}
+
 export default function InvoiceDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -20,6 +33,18 @@ export default function InvoiceDetailPage() {
     businessName: string
     venue: { name?: string; address?: string; city?: string; state?: string; zip_code?: string; phone?: string; email?: string } | null
   } | null>(null)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editDueDate, setEditDueDate] = useState('')
+  const [editTaxRate, setEditTaxRate] = useState(0)
+  const [editDiscountAmount, setEditDiscountAmount] = useState(0)
+  const [editNotes, setEditNotes] = useState('')
+  const [editTerms, setEditTerms] = useState('')
+  const [editItems, setEditItems] = useState<EditItem[]>([])
+  const [editClientName, setEditClientName] = useState('')
+  const [editClientEmail, setEditClientEmail] = useState('')
+  const [editClientPhone, setEditClientPhone] = useState('')
+  const [editClientAddress, setEditClientAddress] = useState('')
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (params.id) {
@@ -111,6 +136,115 @@ export default function InvoiceDetailPage() {
     setTimeout(() => setLinkCopied(false), 2000)
   }
 
+  const openEditModal = () => {
+    if (!invoice) return
+    const intakeForm = (invoice as any).intake_form
+    const booking = (invoice as any).booking
+    setEditClientName(
+      invoice.client_name ||
+      intakeForm?.contact_name ||
+      booking?.contact_name ||
+      (booking?.user ? `${booking.user.firstName || ''} ${booking.user.lastName || ''}`.trim() : '') ||
+      ''
+    )
+    setEditClientEmail(
+      invoice.client_email ||
+      intakeForm?.contact_email ||
+      booking?.contact_email ||
+      booking?.user?.email ||
+      ''
+    )
+    setEditClientPhone(
+      invoice.client_phone ||
+      intakeForm?.contact_phone ||
+      booking?.contact_phone ||
+      ''
+    )
+    setEditClientAddress(invoice.client_address || '')
+    setEditDueDate(invoice.due_date || '')
+    setEditTaxRate(Number(invoice.tax_rate) || 0)
+    setEditDiscountAmount(Number(invoice.discount_amount) || 0)
+    setEditNotes(invoice.notes || '')
+    setEditTerms(invoice.terms || '')
+    setEditItems(
+      (invoice.items || [])
+        .filter(i => !i.item_type || i.item_type === 'revenue')
+        .map(item => ({
+          id: item.id,
+          description: item.description,
+          quantity: Number(item.quantity),
+          unit_price: Number(item.unit_price),
+          item_type: (item.item_type || 'revenue') as 'revenue' | 'expense',
+          _originalDescription: item.description,
+          _originalQty: Number(item.quantity),
+          _originalUnitPrice: Number(item.unit_price),
+          _deleted: false,
+          _isNew: false,
+        }))
+    )
+    setShowEditModal(true)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!invoice) return
+    setSaving(true)
+    try {
+      const newItems: Array<{ description: string; quantity: number; unit_price: number; item_type: string }> = []
+
+      for (const item of editItems) {
+        if (item._isNew && !item._deleted) {
+          newItems.push({
+            description: item.description,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            item_type: item.item_type,
+          })
+        } else if (!item._isNew && item._deleted && item.id) {
+          await api.delete(`/invoices/items/${item.id}`)
+        } else if (!item._isNew && !item._deleted && item.id) {
+          const descChanged = item.description !== item._originalDescription
+          const qtyChanged = item.quantity !== item._originalQty
+          const priceChanged = item.unit_price !== item._originalUnitPrice
+          if (descChanged || qtyChanged || priceChanged) {
+            let desc = item.description
+            if (descChanged && !desc.startsWith('Updated: ')) {
+              desc = `Updated: ${desc}`
+            }
+            await api.put(`/invoices/items/${item.id}`, {
+              description: desc,
+              quantity: item.quantity,
+              unit_price: item.unit_price,
+            })
+          }
+        }
+      }
+
+      if (newItems.length > 0) {
+        await api.post(`/invoices/${invoice.id}/items`, newItems)
+      }
+
+      await api.put(`/invoices/${invoice.id}`, {
+        client_name: editClientName || null,
+        client_email: editClientEmail || null,
+        client_phone: editClientPhone || null,
+        client_address: editClientAddress || null,
+        due_date: editDueDate,
+        tax_rate: editTaxRate,
+        discount_amount: editDiscountAmount,
+        notes: editNotes || null,
+        terms: editTerms || null,
+      })
+
+      setShowEditModal(false)
+      await fetchInvoice()
+    } catch (error) {
+      console.error('Failed to save invoice:', error)
+      alert('Failed to save changes. Please try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -128,66 +262,74 @@ export default function InvoiceDetailPage() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      {/* Action Buttons */}
-      <div className="flex justify-between items-center mb-6 print:hidden">
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto">
+      {/* Back link */}
+      <div className="mb-3 print:hidden">
         <button
           onClick={() => router.push('/dashboard/invoices')}
-          className="text-gray-600 hover:text-gray-900"
+          className="text-gray-600 hover:text-gray-900 flex items-center gap-1 text-sm"
         >
           ← Back to Invoices
         </button>
-        <div className="flex gap-2">
-          {invoice.status !== InvoiceStatus.PAID && (
-            <>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex flex-wrap gap-2 mb-6 print:hidden">
+        {invoice.status !== InvoiceStatus.PAID && (
+          <>
+            <button
+              onClick={() => setShowPaymentModal(true)}
+              className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-sm font-medium"
+            >
+              Record Payment
+            </button>
+            <button
+              onClick={handleGeneratePaymentLink}
+              disabled={generatingLink}
+              className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1.5 text-sm font-medium"
+            >
+              {generatingLink ? 'Generating...' : '🔗 Payment Link'}
+            </button>
+            {invoice.status === InvoiceStatus.DRAFT && (
               <button
-                onClick={() => setShowPaymentModal(true)}
-                className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
+                onClick={() => handleStatusUpdate(InvoiceStatus.SENT)}
+                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 text-sm font-medium"
               >
-                Record Payment
+                Send Invoice
               </button>
+            )}
+            {(invoice.status === InvoiceStatus.SENT || invoice.status === InvoiceStatus.PARTIAL || invoice.status === InvoiceStatus.OVERDUE) && (
               <button
-                onClick={handleGeneratePaymentLink}
-                disabled={generatingLink}
-                className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1.5"
+                onClick={() => handleStatusUpdate(invoice.status)}
+                className="bg-blue-100 text-blue-700 px-4 py-2 rounded-md hover:bg-blue-200 text-sm font-medium"
               >
-                {generatingLink ? 'Generating...' : '🔗 Send Payment Link'}
+                Resend Invoice
               </button>
-              {invoice.status === InvoiceStatus.DRAFT && (
-                <button
-                  onClick={() => handleStatusUpdate(InvoiceStatus.SENT)}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-                >
-                  Send Invoice
-                </button>
-              )}
-              {(invoice.status === InvoiceStatus.SENT || invoice.status === InvoiceStatus.PARTIAL || invoice.status === InvoiceStatus.OVERDUE) && (
-                <button
-                  onClick={() => handleStatusUpdate(invoice.status)}
-                  className="bg-blue-100 text-blue-700 px-4 py-2 rounded-md hover:bg-blue-200"
-                >
-                  Resend Invoice
-                </button>
-              )}
-            </>
-          )}
-          <button
-            onClick={handlePrint}
-            className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700"
-          >
-            Print
-          </button>
-          <button
-            onClick={handleDelete}
-            className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
-          >
-            Delete
-          </button>
-        </div>
+            )}
+          </>
+        )}
+        <button
+          onClick={handlePrint}
+          className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 text-sm font-medium"
+        >
+          Print
+        </button>
+        <button
+          onClick={openEditModal}
+          className="bg-yellow-600 text-white px-4 py-2 rounded-md hover:bg-yellow-700 text-sm font-medium"
+        >
+          Edit
+        </button>
+        <button
+          onClick={handleDelete}
+          className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 text-sm font-medium"
+        >
+          Delete
+        </button>
       </div>
 
       {/* Invoice Document */}
-      <div className="bg-white shadow-lg rounded-lg p-8">
+      <div className="bg-white shadow-lg rounded-lg p-4 sm:p-8">
         {/* Header */}
         <div className="flex justify-between items-start mb-8">
           <div>
@@ -217,38 +359,61 @@ export default function InvoiceDetailPage() {
         </div>
 
         {/* Bill To & Dates */}
-        <div className="grid grid-cols-2 gap-8 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 mb-8">
           <div>
             <h3 className="font-semibold text-gray-700 mb-2">Bill To:</h3>
             <div className="text-gray-600">
-              {invoice.client_name && <p className="font-medium text-gray-800">{invoice.client_name}</p>}
-              {(invoice as any).client_email && <p>{(invoice as any).client_email}</p>}
-              {!invoice.client_name && invoice.booking?.user && (
-                <>
-                  <p>{invoice.booking.user.firstName} {invoice.booking.user.lastName}</p>
-                  <p>{invoice.booking.user.email}</p>
-                </>
-              )}
+              {(() => {
+                const intakeForm = (invoice as any).intake_form
+                const booking = (invoice as any).booking
+                const name = invoice.client_name ||
+                  intakeForm?.contact_name ||
+                  booking?.contact_name ||
+                  (booking?.user ? `${booking.user.firstName || ''} ${booking.user.lastName || ''}`.trim() : '') ||
+                  null
+                const email = invoice.client_email ||
+                  intakeForm?.contact_email ||
+                  booking?.contact_email ||
+                  booking?.user?.email ||
+                  null
+                const phone = invoice.client_phone ||
+                  intakeForm?.contact_phone ||
+                  booking?.contact_phone ||
+                  null
+                const address = invoice.client_address || null
+                return (
+                  <>
+                    {name && <p className="font-medium text-gray-800">{name}</p>}
+                    {address && <p className="text-sm">{address}</p>}
+                    {email && <p className="text-sm">{email}</p>}
+                    {phone && <p className="text-sm">{phone}</p>}
+                    {!name && !email && !phone && (
+                      <p className="text-sm text-gray-400 italic">No client info — use Edit to add</p>
+                    )}
+                  </>
+                )
+              })()}
             </div>
           </div>
           <div className="text-right">
             <div className="mb-2">
               <span className="text-gray-600">Issue Date: </span>
               <span className="font-semibold">
-                {new Date(invoice.issue_date).toLocaleDateString()}
+                {new Date(invoice.issue_date + 'T12:00:00').toLocaleDateString()}
               </span>
             </div>
             <div>
               <span className="text-gray-600">Due Date: </span>
               <span className="font-semibold">
-                {new Date(invoice.due_date).toLocaleDateString()}
+                {new Date(invoice.due_date + 'T12:00:00').toLocaleDateString()}
               </span>
             </div>
           </div>
         </div>
 
         {/* Line Items — revenue only (billed to client) */}
-        <table className="w-full mb-8">
+        <div className="overflow-x-auto mb-8">
+        <table className="w-full min-w-[480px]">
           <thead className="bg-gray-50">
             <tr>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Description</th>
@@ -272,6 +437,7 @@ export default function InvoiceDetailPage() {
             ))}
           </tbody>
         </table>
+        </div>
 
         {/* Vendor Costs — internal, print-hidden */}
         {invoice.items?.some(i => i.item_type === 'expense') && (() => {
@@ -432,8 +598,8 @@ export default function InvoiceDetailPage() {
 
       {/* Payment Modal */}
       {showPaymentModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-96">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 overflow-y-auto p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-sm">
             <h3 className="text-lg font-semibold mb-4">Record Payment</h3>
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -473,7 +639,7 @@ export default function InvoiceDetailPage() {
       )}
       {/* Payment Link Modal */}
       {showLinkModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 overflow-y-auto p-4">
           <div className="bg-white rounded-lg p-6 w-full max-w-lg">
             <h3 className="text-lg font-semibold mb-2">🔗 Payment Link</h3>
             <p className="text-sm text-gray-500 mb-4">
@@ -508,6 +674,229 @@ export default function InvoiceDetailPage() {
             >
               Close
             </button>
+          </div>
+        </div>
+      )}
+      {/* Edit Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold mb-6">Edit Invoice</h3>
+
+              {/* Client Info */}
+              <div className="mb-6">
+                <h4 className="font-semibold text-gray-700 mb-3">Bill To</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Client Name</label>
+                    <input
+                      type="text"
+                      value={editClientName}
+                      onChange={e => setEditClientName(e.target.value)}
+                      placeholder="Full name"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <input
+                      type="email"
+                      value={editClientEmail}
+                      onChange={e => setEditClientEmail(e.target.value)}
+                      placeholder="client@example.com"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                    <input
+                      type="tel"
+                      value={editClientPhone}
+                      onChange={e => setEditClientPhone(e.target.value)}
+                      placeholder="(555) 000-0000"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Address <span className="text-gray-400 font-normal">(optional)</span></label>
+                    <input
+                      type="text"
+                      value={editClientAddress}
+                      onChange={e => setEditClientAddress(e.target.value)}
+                      placeholder="123 Main St, City, State ZIP"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Invoice-level fields */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+                  <input
+                    type="date"
+                    value={editDueDate}
+                    onChange={e => setEditDueDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tax Rate (%)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={editTaxRate}
+                    onChange={e => setEditTaxRate(Number(e.target.value))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Discount ($)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={editDiscountAmount}
+                    onChange={e => setEditDiscountAmount(Number(e.target.value))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Line Items */}
+              <div className="mb-6">
+                <div className="flex justify-between items-center mb-3">
+                  <h4 className="font-semibold text-gray-700">Line Items</h4>
+                  <button
+                    onClick={() => setEditItems(prev => [...prev, {
+                      description: '',
+                      quantity: 1,
+                      unit_price: 0,
+                      item_type: 'revenue',
+                      _originalDescription: '',
+                      _originalQty: 1,
+                      _originalUnitPrice: 0,
+                      _deleted: false,
+                      _isNew: true,
+                    }])}
+                    className="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded"
+                  >
+                    + Add Item
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  <div className="grid grid-cols-12 gap-2 text-xs font-medium text-gray-500 px-1">
+                    <div className="col-span-6">Description</div>
+                    <div className="col-span-2 text-center">Qty</div>
+                    <div className="col-span-3 text-center">Unit Price</div>
+                    <div className="col-span-1" />
+                  </div>
+                  {editItems.map((item, idx) => item._deleted ? null : (
+                    <div key={idx} className="grid grid-cols-12 gap-2 items-center">
+                      <div className="col-span-6">
+                        <input
+                          type="text"
+                          value={item.description}
+                          onChange={e => {
+                            const updated = [...editItems]
+                            updated[idx] = { ...updated[idx], description: e.target.value }
+                            setEditItems(updated)
+                          }}
+                          placeholder="Description"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <input
+                          type="number"
+                          min="1"
+                          value={item.quantity}
+                          onChange={e => {
+                            const updated = [...editItems]
+                            updated[idx] = { ...updated[idx], quantity: Number(e.target.value) }
+                            setEditItems(updated)
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-center"
+                        />
+                      </div>
+                      <div className="col-span-3">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={item.unit_price}
+                          onChange={e => {
+                            const updated = [...editItems]
+                            updated[idx] = { ...updated[idx], unit_price: Number(e.target.value) }
+                            setEditItems(updated)
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-center"
+                        />
+                      </div>
+                      <div className="col-span-1 flex justify-center">
+                        <button
+                          onClick={() => {
+                            const updated = [...editItems]
+                            if (updated[idx]._isNew) {
+                              updated.splice(idx, 1)
+                            } else {
+                              updated[idx] = { ...updated[idx], _deleted: true }
+                            }
+                            setEditItems(updated)
+                          }}
+                          className="text-red-500 hover:text-red-700 text-xl leading-none"
+                          title="Remove item"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Notes & Terms */}
+              <div className="grid grid-cols-1 gap-4 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                  <textarea
+                    value={editNotes}
+                    onChange={e => setEditNotes(e.target.value)}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Terms</label>
+                  <textarea
+                    value={editTerms}
+                    onChange={e => setEditTerms(e.target.value)}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={handleSaveEdit}
+                  disabled={saving}
+                  className="flex-1 bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 disabled:opacity-50"
+                >
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </button>
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  disabled={saving}
+                  className="flex-1 bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

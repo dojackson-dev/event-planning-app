@@ -115,6 +115,7 @@ export class StripeController {
   ): Promise<{
     status: string;
     planId: string | null;
+    planName: string | null;
     stripeCustomerId: string | null;
     stripeSubscriptionId: string | null;
   }> {

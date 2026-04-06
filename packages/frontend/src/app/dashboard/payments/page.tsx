@@ -214,14 +214,21 @@ export default function PaymentsPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {invoices.length === 0 ? (
+              {invoices.filter(invoice => Number((invoice as any).amountPaid || (invoice as any).amount_paid || 0) > 0).length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
-                    No payment records found
+                    No payments recorded yet
                   </td>
                 </tr>
               ) : (
-                invoices.map((invoice) => (
+                invoices
+                  .filter(invoice => Number((invoice as any).amountPaid || (invoice as any).amount_paid || 0) > 0)
+                  .sort((a, b) => {
+                    const dateA = (a as any).issueDate || (a as any).issue_date || ''
+                    const dateB = (b as any).issueDate || (b as any).issue_date || ''
+                    return new Date(dateB).getTime() - new Date(dateA).getTime()
+                  })
+                  .map((invoice) => (
                   <tr key={invoice.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {(invoice as any).invoiceNumber || (invoice as any).invoice_number}

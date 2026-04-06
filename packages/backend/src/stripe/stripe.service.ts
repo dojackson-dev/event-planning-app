@@ -483,32 +483,62 @@ export class StripeService {
 
   /**
    * Get the Connect account status for an owner.
+   * If status is pending, does a live Stripe check so we don't need webhooks in dev.
    */
   async getOwnerConnectStatus(userId: string): Promise<{ status: string; connectId: string | null }> {
     const admin = this.supabaseService.getAdminClient();
     const owner = await this.getOwnerAccountByUserId(userId, admin);
 
-    return {
-      status: owner?.stripe_connect_status ?? 'not_connected',
-      connectId: owner?.stripe_connect_id ?? null,
-    };
+    let status = owner?.stripe_connect_status ?? 'not_connected';
+    const connectId = owner?.stripe_connect_id ?? null;
+
+    if (status === 'pending' && connectId) {
+      try {
+        const account = await this.stripe.accounts.retrieve(connectId);
+        const isActive = account.details_submitted && account.charges_enabled && account.payouts_enabled;
+        if (isActive) {
+          status = 'active';
+          await admin.from('owner_accounts').update({ stripe_connect_status: 'active' }).eq('id', owner!.id);
+          this.logger.log(`Owner Connect ${connectId} auto-upgraded to active via live check`);
+        }
+      } catch (err) {
+        this.logger.warn(`Live Stripe check failed for owner ${connectId}: ${(err as Error).message}`);
+      }
+    }
+
+    return { status, connectId };
   }
 
   /**
    * Get the Connect account status for a vendor.
+   * If status is pending, does a live Stripe check so we don't need webhooks in dev.
    */
   async getVendorConnectStatus(userId: string): Promise<{ status: string; connectId: string | null }> {
     const admin = this.supabaseService.getAdminClient();
     const { data } = await admin
       .from('vendor_accounts')
-      .select('stripe_account_id, stripe_connect_status')
+      .select('id, stripe_account_id, stripe_connect_status')
       .eq('user_id', userId)
       .maybeSingle();
 
-    return {
-      status: data?.stripe_connect_status ?? 'not_connected',
-      connectId: data?.stripe_account_id ?? null,
-    };
+    let status = data?.stripe_connect_status ?? 'not_connected';
+    const connectId = data?.stripe_account_id ?? null;
+
+    if (status === 'pending' && connectId) {
+      try {
+        const account = await this.stripe.accounts.retrieve(connectId);
+        const isActive = account.details_submitted && account.charges_enabled && account.payouts_enabled;
+        if (isActive) {
+          status = 'active';
+          await admin.from('vendor_accounts').update({ stripe_connect_status: 'active' }).eq('id', data!.id);
+          this.logger.log(`Vendor Connect ${connectId} auto-upgraded to active via live check`);
+        }
+      } catch (err) {
+        this.logger.warn(`Live Stripe check failed for vendor ${connectId}: ${(err as Error).message}`);
+      }
+    }
+
+    return { status, connectId };
   }
 
   /**

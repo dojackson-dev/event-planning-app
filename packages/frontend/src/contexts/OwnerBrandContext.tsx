@@ -9,6 +9,7 @@ interface OwnerBrand {
   businessName: string
   loading: boolean
   updateLogo: (url: string | null) => Promise<void>
+  updateBusinessName: (name: string) => Promise<void>
   refetch: () => void
 }
 
@@ -17,6 +18,7 @@ const OwnerBrandContext = createContext<OwnerBrand>({
   businessName: '',
   loading: true,
   updateLogo: async () => {},
+  updateBusinessName: async () => {},
   refetch: () => {},
 })
 
@@ -51,8 +53,13 @@ export function OwnerBrandProvider({ children }: { children: ReactNode }) {
     setLogoUrl(url)
   }
 
+  const updateBusinessName = async (name: string) => {
+    await api.put('/owner/profile', { businessName: name })
+    setBusinessName(name)
+  }
+
   return (
-    <OwnerBrandContext.Provider value={{ logoUrl, businessName, loading, updateLogo, refetch: fetchProfile }}>
+    <OwnerBrandContext.Provider value={{ logoUrl, businessName, loading, updateLogo, updateBusinessName, refetch: fetchProfile }}>
       {children}
     </OwnerBrandContext.Provider>
   )

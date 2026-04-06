@@ -160,8 +160,16 @@ export default function EventsPage() {
           <Link
             key={event.id}
             href={`/dashboard/events/${event.id}/manage`}
-            className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow cursor-pointer block"
+            className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow cursor-pointer block overflow-hidden"
           >
+            {/* Status stripe */}
+            <div className={`h-1 w-full ${
+              event.status === 'scheduled' ? 'bg-purple-400' :
+              event.status === 'confirmed' ? 'bg-purple-600' :
+              event.status === 'completed' ? 'bg-gray-400' :
+              event.status === 'cancelled' ? 'bg-red-400' :
+              'bg-purple-300'
+            }`} />
             <div className="p-6">
               <div className="flex justify-between items-start mb-4">
                 <div className="flex-1 min-w-0">

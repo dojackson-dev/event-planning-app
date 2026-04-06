@@ -218,6 +218,7 @@ export class VendorInvoicesService {
         invoice_number: invoiceNumber,
         client_name: ownerName,
         client_email: user.email,
+        client_phone: user.phone ?? user.user_metadata?.phone ?? null,
         issue_date: issueDate,
         due_date: dueDate,
         subtotal: amount,
@@ -692,7 +693,7 @@ export class VendorInvoicesService {
     const admin = this.supabaseService.getAdminClient();
     const { data: invoice } = await admin
       .from('vendor_invoices')
-      .select('id, status, total_amount, stripe_checkout_session_id, vendor_booking_id')
+      .select('id, status, total_amount, stripe_checkout_session_id, vendor_booking_id, client_name, client_phone, vendor_accounts(business_name, phone)')
       .eq('public_token', token)
       .maybeSingle();
 
@@ -732,6 +733,27 @@ export class VendorInvoicesService {
     }
 
     this.logger.log(`Vendor invoice ${invoice.id} verified and marked paid (webhook fallback)`);
+
+    // Send SMS notifications (same as webhook path)
+    try {
+      const vendorPhone: string | null = (invoice.vendor_accounts as any)?.phone ?? null;
+      const vendorName: string = (invoice.vendor_accounts as any)?.business_name ?? 'Vendor';
+      await this.smsNotifications.vendorInvoicePaid(
+        vendorPhone,
+        vendorName,
+        invoice.client_name ?? 'Client',
+        invoice.total_amount,
+      );
+      await this.smsNotifications.paymentReceived(
+        invoice.client_phone ?? null,
+        invoice.client_name ?? 'Valued Client',
+        invoice.total_amount,
+        `your invoice from ${vendorName}`,
+      );
+    } catch {
+      // SMS errors must never break payment processing
+    }
+
     return { status: 'paid', paid: true };
   }
 }

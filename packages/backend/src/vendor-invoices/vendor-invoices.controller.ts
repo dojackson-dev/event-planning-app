@@ -115,14 +115,24 @@ export class VendorInvoicesController {
     return this.vendorInvoicesService.getInvoiceAsOwner(ownerAccountId, id);
   }
 
-  /** GET /vendor-invoices/:id — Get single invoice */
+  /** GET /vendor-invoices/:id — Get single invoice (vendor or owner fallback) */
   @Get(':id')
   async getInvoice(
     @Headers('authorization') auth: string,
     @Param('id') id: string,
   ) {
     const userId = await this.getUserId(auth);
-    return this.vendorInvoicesService.getInvoice(userId, id);
+    try {
+      return await this.vendorInvoicesService.getInvoice(userId, id);
+    } catch (e: any) {
+      // Not a vendor — try owner route so owners can view any vendor invoice
+      if (e?.status === 403 || e?.constructor?.name === 'ForbiddenException') {
+        const ownerAccountId = await this.getOwnerAccountId(userId);
+        if (!ownerAccountId) throw e;
+        return this.vendorInvoicesService.getInvoiceAsOwner(ownerAccountId, id);
+      }
+      throw e;
+    }
   }
 
   /** PUT /vendor-invoices/:id — Update invoice metadata */

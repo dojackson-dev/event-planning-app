@@ -69,30 +69,40 @@ export class IntakeFormsService {
     // Auto-create an event from the intake form so it appears on the owner's calendar
     // and can be linked to estimates/invoices immediately without manual conversion.
     try {
-      const eventData = {
-        name: data.event_name || `${data.event_type ? data.event_type.charAt(0).toUpperCase() + data.event_type.slice(1).replace(/_/g, ' ') : 'Event'} - ${data.contact_name}`,
-        date: data.event_date,
-        start_time: data.event_time || '00:00',
-        end_time: '23:59',
-        description: data.special_requests || '',
-        status: 'scheduled',
-        guest_count: data.guest_count || null,
-        venue: 'TBD',
-        owner_id: userId,
-        intake_form_id: data.id,
-      };
-      const { data: createdEvent } = await supabaseAdmin
+      // Guard: skip if an event already exists for this intake form (prevents duplicates on re-submit)
+      const { data: existingEvent } = await supabaseAdmin
         .from('event')
-        .insert([eventData])
         .select('id')
-        .single();
-      if (createdEvent) {
-        // Store the event_id back on the intake form for easy cross-reference
-        await supabaseAdmin
-          .from('intake_forms')
-          .update({ event_id: createdEvent.id })
-          .eq('id', data.id);
-        data.event_id = createdEvent.id;
+        .eq('intake_form_id', data.id)
+        .maybeSingle();
+      if (existingEvent) {
+        data.event_id = existingEvent.id;
+      } else {
+        const eventData = {
+          name: data.event_name || `${data.event_type ? data.event_type.charAt(0).toUpperCase() + data.event_type.slice(1).replace(/_/g, ' ') : 'Event'} - ${data.contact_name}`,
+          date: data.event_date,
+          start_time: data.event_time || '00:00',
+          end_time: '23:59',
+          description: data.special_requests || '',
+          status: 'scheduled',
+          guest_count: data.guest_count || null,
+          venue: 'TBD',
+          owner_id: userId,
+          intake_form_id: data.id,
+        };
+        const { data: createdEvent } = await supabaseAdmin
+          .from('event')
+          .insert([eventData])
+          .select('id')
+          .single();
+        if (createdEvent) {
+          // Store the event_id back on the intake form for easy cross-reference
+          await supabaseAdmin
+            .from('intake_forms')
+            .update({ event_id: createdEvent.id })
+            .eq('id', data.id);
+          data.event_id = createdEvent.id;
+        }
       }
     } catch (eventErr) {
       // Non-fatal — intake form was saved, event creation failed silently
@@ -166,9 +176,6 @@ export class IntakeFormsService {
     } catch (ownerSmsErr) {
       console.warn('[IntakeFormsService] Owner SMS notification failed:', ownerSmsErr);
     }
-
-    // Auto-create an event for this intake form
-    await this.autoCreateEvent(data, userId);
 
     return data;
   }

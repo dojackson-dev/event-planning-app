@@ -114,9 +114,9 @@ export default function VendorInvoiceDetailPage() {
   const vendor = invoice.vendor_accounts
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="min-w-0 w-full max-w-4xl mx-auto">
       {/* Toolbar */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <button onClick={() => router.push('/dashboard/vendor-invoices')} className="text-sm text-gray-500 hover:text-gray-800">
           ← Back to Invoices
         </button>
@@ -160,25 +160,27 @@ export default function VendorInvoiceDetailPage() {
       {(invoice.status === 'sent' || invoice.status === 'viewed') && payLink && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 mb-6">
           <p className="text-xs font-semibold text-blue-600 uppercase mb-2">Client Payment Link</p>
-          <div className="flex gap-2">
-            <input readOnly value={payLink} className="flex-1 border border-blue-200 rounded-lg px-3 py-1.5 text-sm bg-white truncate" />
-            <button
-              onClick={copyLink}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${copied ? 'bg-green-600 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
-            >
-              {copied ? '✓ Copied' : <><Copy className="w-4 h-4 inline mr-1" />Copy</>}
-            </button>
-            <a href={payLink} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 border border-blue-300 rounded-lg text-sm text-blue-700 hover:bg-blue-100 flex items-center gap-1">
-              <ExternalLink className="w-3.5 h-3.5" /> Open
-            </a>
+          <div className="flex flex-wrap gap-2">
+            <input readOnly value={payLink} className="flex-1 min-w-0 border border-blue-200 rounded-lg px-3 py-1.5 text-sm bg-white truncate" />
+            <div className="flex gap-2 flex-shrink-0">
+              <button
+                onClick={copyLink}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${copied ? 'bg-green-600 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+              >
+                {copied ? '✓ Copied' : <><Copy className="w-4 h-4 inline mr-1" />Copy</>}
+              </button>
+              <a href={payLink} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 border border-blue-300 rounded-lg text-sm text-blue-700 hover:bg-blue-100 flex items-center gap-1">
+                <ExternalLink className="w-3.5 h-3.5" /> Open
+              </a>
+            </div>
           </div>
         </div>
       )}
 
       {/* Invoice document */}
-      <div className="bg-white shadow-sm border border-gray-200 rounded-xl p-8">
+      <div className="bg-white shadow-sm border border-gray-200 rounded-xl p-4 sm:p-8 overflow-hidden">
         {/* Header */}
-        <div className="flex justify-between items-start mb-8">
+        <div className="flex flex-wrap justify-between items-start gap-4 mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">INVOICE</h1>
             <p className="text-gray-500 mt-1">{invoice.invoice_number}</p>
@@ -197,7 +199,7 @@ export default function VendorInvoiceDetailPage() {
         </div>
 
         {/* Bill to & dates */}
-        <div className="grid grid-cols-2 gap-8 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8 mb-8">
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase mb-2">Bill To</p>
             <p className="font-medium text-gray-800">{invoice.client_name}</p>
@@ -217,7 +219,8 @@ export default function VendorInvoiceDetailPage() {
         </div>
 
         {/* Line items */}
-        <table className="w-full mb-8 text-sm">
+        <div className="overflow-x-auto -mx-4 sm:mx-0 mb-8">
+        <table className="w-full text-sm min-w-[400px] px-4 sm:px-0">
           <thead className="bg-gray-50">
             <tr>
               <th className="text-left px-3 py-2 text-gray-600 font-semibold rounded-l">Description</th>
@@ -237,10 +240,11 @@ export default function VendorInvoiceDetailPage() {
             ))}
           </tbody>
         </table>
+        </div>
 
         {/* Totals */}
         <div className="flex justify-end mb-6">
-          <div className="w-60 text-sm space-y-1.5">
+          <div className="w-full sm:w-60 text-sm space-y-1.5">
             <div className="flex justify-between text-gray-600">
               <span>Subtotal</span><span>${Number(invoice.subtotal).toFixed(2)}</span>
             </div>

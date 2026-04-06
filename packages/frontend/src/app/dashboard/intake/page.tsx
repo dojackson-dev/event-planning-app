@@ -167,6 +167,7 @@ export default function ClientIntakePage() {
       // Transform frontend data to match database schema
       const dbData = {
         event_type: mapEventTypeToDb(formData.eventType),
+        event_name: formData.eventName || eventTypeLabels[formData.eventType] || null,
         event_date: formData.eventDate,
         event_time: formData.startTime || null,
         guest_count: parseInt(formData.estimatedGuests) || null,

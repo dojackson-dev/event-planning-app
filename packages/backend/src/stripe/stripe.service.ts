@@ -186,6 +186,7 @@ export class StripeService {
   async getSubscriptionStatus(ownerAccountId: string): Promise<{
     status: string;
     planId: string | null;
+    planName: string | null;
     stripeCustomerId: string | null;
     stripeSubscriptionId: string | null;
   }> {
@@ -197,12 +198,25 @@ export class StripeService {
       .single();
 
     if (error || !owner) {
-      return { status: 'none', planId: null, stripeCustomerId: null, stripeSubscriptionId: null };
+      return { status: 'none', planId: null, planName: null, stripeCustomerId: null, stripeSubscriptionId: null };
+    }
+
+    // Look up the plan name from Stripe using the price ID
+    let planName: string | null = null;
+    if (owner.plan_id) {
+      try {
+        const price = await this.stripe.prices.retrieve(owner.plan_id, { expand: ['product'] });
+        const product = price.product as Stripe.Product;
+        planName = product?.name ?? null;
+      } catch {
+        // Non-fatal — just leave planName null
+      }
     }
 
     return {
       status: owner.subscription_status ?? 'inactive',
       planId: owner.plan_id ?? null,
+      planName,
       stripeCustomerId: owner.stripe_customer_id ?? null,
       stripeSubscriptionId: owner.stripe_subscription_id ?? null,
     };

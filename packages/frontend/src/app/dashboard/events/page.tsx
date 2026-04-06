@@ -61,6 +61,8 @@ export default function EventsPage() {
       const q = searchTerm.toLowerCase()
       return (
         event.name.toLowerCase().includes(q) ||
+        (event.intakeEventName || '').toLowerCase().includes(q) ||
+        (event.clientName || '').toLowerCase().includes(q) ||
         (event.venue || '').toLowerCase().includes(q) ||
         (event.location || '').toLowerCase().includes(q)
       )
@@ -137,7 +139,7 @@ export default function EventsPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
           <input
             type="text"
-            placeholder="Search by name, venue, or location..."
+            placeholder="Search by client name, event name, venue, or location..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -160,12 +162,27 @@ export default function EventsPage() {
           <Link
             key={event.id}
             href={`/dashboard/events/${event.id}/manage`}
-            className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow cursor-pointer block"
+            className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow cursor-pointer block overflow-hidden"
           >
+            {/* Status stripe */}
+            <div className={`h-1 w-full ${
+              event.status === 'scheduled' ? 'bg-purple-400' :
+              event.status === 'confirmed' ? 'bg-purple-600' :
+              event.status === 'completed' ? 'bg-gray-400' :
+              event.status === 'cancelled' ? 'bg-red-400' :
+              'bg-purple-300'
+            }`} />
             <div className="p-6">
               <div className="flex justify-between items-start mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 hover:text-primary-600 flex-1">{event.name}</h3>
-                <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(event.status)}`}>
+                <div className="flex-1 min-w-0">
+                  {event.clientName && (
+                    <p className="text-sm font-semibold text-primary-600 truncate mb-0.5">{event.clientName}</p>
+                  )}
+                  <h3 className="text-lg font-semibold text-gray-900 hover:text-primary-600 leading-snug">
+                    {event.intakeEventName || event.name}
+                  </h3>
+                </div>
+                <span className={`ml-2 flex-shrink-0 px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(event.status)}`}>
                   {event.status}
                 </span>
               </div>

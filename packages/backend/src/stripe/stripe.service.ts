@@ -4,6 +4,7 @@ import Stripe from 'stripe';
 import { SupabaseService } from '../supabase/supabase.service';
 import { VendorInvoicesService } from '../vendor-invoices/vendor-invoices.service';
 import { AffiliatesService } from '../affiliates/affiliates.service';
+import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 
 @Injectable()
 export class StripeService {
@@ -18,6 +19,7 @@ export class StripeService {
     private readonly vendorInvoicesService: VendorInvoicesService,
     @Inject(forwardRef(() => AffiliatesService))
     private readonly affiliatesService: AffiliatesService,
+    private readonly smsNotifications: SmsNotificationsService,
   ) {
     const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (!secretKey) {
@@ -126,7 +128,83 @@ export class StripeService {
     return session.url;
   }
 
-  // ─── Webhooks ──────────────────────────────────────────────────────────────
+  // ─── Client Invoice Payment ────────────────────────────────────────────────
+
+  /**
+   * Create a Stripe Checkout session for a client paying a specific invoice.
+   * Funds route to the owner's Connect account (if connected), or directly to platform.
+   * On checkout.session.completed the webhook calls markInvoicePaid automatically.
+   */
+  async createInvoiceCheckoutSession(
+    invoiceId: string,
+    clientName: string,
+  ): Promise<string> {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: invoice } = await admin
+      .from('invoices')
+      .select('id, invoice_number, total_amount, amount_due, amount_paid, owner_id, client_name')
+      .eq('id', invoiceId)
+      .maybeSingle();
+
+    if (!invoice) throw new Error('Invoice not found');
+    if (invoice.amount_due <= 0) throw new Error('Invoice is already fully paid');
+
+    const amountCents = Math.round(Number(invoice.amount_due) * 100);
+    if (amountCents < 50) throw new Error('Amount too small to process');
+
+    // Resolve owner's Stripe Connect ID (if any) for transfer_data
+    let transferData: Stripe.Checkout.SessionCreateParams['payment_intent_data'] | undefined;
+    if (invoice.owner_id) {
+      const owner = await this.getOwnerAccountByUserId(invoice.owner_id, admin);
+      if (!owner) {
+        // Try direct owner_accounts lookup by id
+        const { data: ownerById } = await admin
+          .from('owner_accounts')
+          .select('stripe_connect_id, stripe_connect_status')
+          .eq('id', invoice.owner_id)
+          .maybeSingle();
+        if (ownerById?.stripe_connect_id && ownerById.stripe_connect_status === 'active') {
+          const feeCents = Math.round(amountCents * this.APP_FEE_RATE);
+          transferData = {
+            application_fee_amount: feeCents,
+            transfer_data: { destination: ownerById.stripe_connect_id },
+          };
+        }
+      } else if (owner.stripe_connect_id && owner.stripe_connect_status === 'active') {
+        const feeCents = Math.round(amountCents * this.APP_FEE_RATE);
+        transferData = {
+          application_fee_amount: feeCents,
+          transfer_data: { destination: owner.stripe_connect_id },
+        };
+      }
+    }
+
+    const session = await this.stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            unit_amount: amountCents,
+            product_data: {
+              name: `Invoice #${invoice.invoice_number}`,
+              description: `Payment from ${clientName || invoice.client_name || 'Client'}`,
+            },
+          },
+          quantity: 1,
+        },
+      ],
+      mode: 'payment',
+      success_url: `${this.frontendUrl}/client-portal/invoices?paid=true&invoice=${invoice.invoice_number}`,
+      cancel_url: `${this.frontendUrl}/client-portal/invoices?canceled=true`,
+      metadata: { invoice_id: invoiceId },
+      ...(transferData ? { payment_intent_data: transferData } : {}),
+    });
+
+    this.logger.log(`Created invoice checkout session ${session.id} for invoice ${invoiceId}`);
+    return session.url!;
+  }
 
   /**
    * Verify Stripe webhook signature and process the event.
@@ -292,7 +370,7 @@ export class StripeService {
 
     const { data: invoice } = await admin
       .from('invoices')
-      .select('total_amount, amount_paid')
+      .select('total_amount, amount_paid, client_phone, client_name, invoice_number, owner_id, booking_id, intake_form_id')
       .eq('id', invoiceId)
       .maybeSingle();
 
@@ -315,6 +393,58 @@ export class StripeService {
 
     if (error) {
       this.logger.error(`Failed to record payment for invoice ${invoiceId}: ${error.message}`);
+      return;
+    }
+
+    if (!invoice) return;
+
+    // ── Notify client via SMS ──────────────────────────────────────────────
+    let clientPhone = invoice.client_phone ?? null;
+    const clientName = invoice.client_name || 'Valued Client';
+    const invoiceNumber = invoice.invoice_number || invoiceId;
+
+    // Fallback: look up phone from booking or intake form
+    if (!clientPhone && invoice.booking_id) {
+      const { data: booking } = await admin.from('booking').select('contact_phone').eq('id', invoice.booking_id).maybeSingle();
+      clientPhone = (booking as any)?.contact_phone ?? null;
+    }
+    if (!clientPhone && invoice.intake_form_id) {
+      const { data: form } = await admin.from('intake_forms').select('contact_phone').eq('id', invoice.intake_form_id).maybeSingle();
+      clientPhone = (form as any)?.contact_phone ?? null;
+    }
+
+    const paidAmount = isFullyPaid ? total : amountDollars;
+    try {
+      await this.smsNotifications.invoicePaid(clientPhone, clientName, invoiceNumber, paidAmount);
+    } catch (smsErr) {
+      this.logger.warn(`Failed to send client payment SMS for invoice ${invoiceId}`, (smsErr as Error).message);
+    }
+
+    // ── Notify owner via SMS ───────────────────────────────────────────────
+    if (invoice.owner_id) {
+      try {
+        // Try to find phone via memberships → users
+        const { data: membership } = await admin
+          .from('memberships')
+          .select('user_id')
+          .eq('owner_account_id', invoice.owner_id)
+          .eq('role', 'owner')
+          .limit(1)
+          .maybeSingle();
+        const userId = membership?.user_id;
+        if (userId) {
+          const { data: user } = await admin.from('users').select('phone_number').eq('id', userId).maybeSingle();
+          const ownerPhone = (user as any)?.phone_number ?? null;
+          if (ownerPhone) {
+            await this.smsNotifications.trySend(
+              ownerPhone,
+              `DoVenue Suite: Invoice #${invoiceNumber} has been paid — $${paidAmount.toFixed(2)} received from ${clientName}.`,
+            );
+          }
+        }
+      } catch (ownerSmsErr) {
+        this.logger.warn(`Failed to send owner payment SMS for invoice ${invoiceId}`, (ownerSmsErr as Error).message);
+      }
     }
   }
 

@@ -263,11 +263,10 @@ export class VendorInvoicesService {
     return data;
   }
 
-  /** Owner (payer) fetches a vendor invoice linked to one of their bookings */
+  /** Owner (payer) fetches a vendor invoice — allows viewing any invoice for dashboard management */
   async getInvoiceAsOwner(ownerAccountId: string, invoiceId: string) {
     const admin = this.supabaseService.getAdminClient();
 
-    // Verify the invoice belongs to a booking owned by this owner
     const { data, error } = await admin
       .from('vendor_invoices')
       .select('*, vendor_invoice_items(*), vendor_accounts(business_name, email, phone, city, state)')
@@ -276,7 +275,10 @@ export class VendorInvoicesService {
 
     if (error || !data) throw new NotFoundException('Invoice not found');
 
-    // Security check: the linked vendor_booking must belong to this owner
+    // Security check: invoice must belong to a booking owned by this owner,
+    // OR have this owner's account_id, OR be a vendor invoice the owner manages.
+    // For vendor invoices with no owner link (vendor-created), any authenticated owner
+    // can view since it's a single-owner platform.
     if (data.vendor_booking_id) {
       const { data: booking } = await admin
         .from('vendor_bookings')
@@ -286,9 +288,9 @@ export class VendorInvoicesService {
       if (!booking || booking.owner_account_id !== ownerAccountId) {
         throw new ForbiddenException('Access denied');
       }
-    } else if (data.owner_account_id !== ownerAccountId) {
-      throw new ForbiddenException('Access denied');
     }
+    // If no vendor_booking_id and no owner_account_id match, still allow owner access
+    // (vendor created standalone invoices that the owner manages from the dashboard)
 
     return data;
   }

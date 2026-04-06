@@ -57,11 +57,14 @@ export default function DoorListDetailPage() {
 
   const normalizeGuest = (g: any): Guest => ({
     id: g.id,
+    guestListId: g.guest_list_id ?? g.guestListId ?? 0,
     name: g.name,
     phone: g.phone ?? '',
     plusOneCount: g.plus_one_count ?? g.plusOneCount ?? 0,
     hasArrived: !!(g.has_arrived ?? g.hasArrived),
     arrivedAt: g.arrived_at ?? g.arrivedAt ?? undefined,
+    createdAt: g.created_at ?? g.createdAt ?? '',
+    updatedAt: g.updated_at ?? g.updatedAt ?? '',
   })
 
   const fetchGuestList = async () => {

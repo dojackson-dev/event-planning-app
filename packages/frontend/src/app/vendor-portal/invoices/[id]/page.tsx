@@ -6,7 +6,7 @@ import Link from 'next/link'
 import api from '@/lib/api'
 import {
   FileText, Send, Trash2, Loader2, CheckCircle2, Clock, Eye,
-  AlertCircle, XCircle, Copy, ExternalLink, DollarSign,
+  AlertCircle, XCircle, Copy, ExternalLink, DollarSign, Pencil,
 } from 'lucide-react'
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
@@ -106,6 +106,7 @@ export default function VendorInvoiceDetailPage() {
   const cfg = STATUS_CONFIG[invoice.status] ?? STATUS_CONFIG.draft
   const canSend = ['draft', 'sent', 'viewed', 'overdue'].includes(invoice.status)
   const isPaid = invoice.status === 'paid'
+  const canEdit = !['paid', 'cancelled'].includes(invoice.status)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -163,6 +164,15 @@ export default function VendorInvoiceDetailPage() {
                   {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                   {sending ? 'Sending…' : 'Send to Client'}
                 </button>
+              )}
+
+              {canEdit && (
+                <Link
+                  href={`/vendor-portal/invoices/${id}/edit`}
+                  className="inline-flex items-center gap-2 px-4 py-2 border border-gray-200 text-sm font-medium rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
+                >
+                  <Pencil className="w-4 h-4" /> Edit
+                </Link>
               )}
 
               {/* Copy payment link */}

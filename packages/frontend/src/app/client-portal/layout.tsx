@@ -11,7 +11,7 @@ import {
   Store,
   FileText,
   MessageSquare,
-  Package,
+  Receipt,
   Bell,
   LogOut,
   Menu,
@@ -21,14 +21,14 @@ import {
 import { ClientAuthProvider } from '@/contexts/ClientAuthContext'
 
 const navItems = [
-  { name: 'Overview',        href: '/client-portal',           icon: LayoutDashboard },
-  { name: 'My Events',       href: '/client-portal/events',    icon: Calendar },
-  { name: 'Vendors',         href: '/client-portal/vendors',   icon: Store },
-  { name: 'Items & Packages',href: '/client-portal/items',     icon: Package },
-  { name: 'Estimates',       href: '/client-portal/estimates', icon: FileText },
-  { name: 'Contracts',       href: '/client-portal/contracts', icon: FileText },
-  { name: 'Messages',        href: '/client-portal/messages',  icon: MessageSquare },
-  { name: 'Notifications',   href: '/client-portal/notifications', icon: Bell },
+  { name: 'Overview',      href: '/client-portal',               icon: LayoutDashboard },
+  { name: 'Invoices',      href: '/client-portal/invoices',      icon: Receipt },
+  { name: 'My Events',     href: '/client-portal/events',        icon: Calendar },
+  { name: 'Contracts',     href: '/client-portal/contracts',     icon: FileText },
+  { name: 'Estimates',     href: '/client-portal/estimates',     icon: FileText },
+  { name: 'Vendors',       href: '/client-portal/vendors',       icon: Store },
+  { name: 'Messages',      href: '/client-portal/messages',      icon: MessageSquare },
+  { name: 'Notifications', href: '/client-portal/notifications', icon: Bell },
 ]
 
 function ClientPortalLayoutInner({ children }: { children: React.ReactNode }) {

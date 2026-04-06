@@ -165,6 +165,14 @@ export class ClientPortalController {
     return this.clientPortalService.getEstimates(session.clientId, session.phone);
   }
 
+  // ── Invoices ──────────────────────────────────────────────────────────────
+
+  @Get('invoices')
+  async getInvoices(@Headers('x-client-token') token: string) {
+    const session = this.requireSession(token);
+    return this.clientPortalService.getInvoices(session.clientId, session.phone);
+  }
+
   // ── Items & Packages ──────────────────────────────────────────────────────
 
   @Get('items')

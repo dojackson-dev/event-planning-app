@@ -41,8 +41,8 @@ export default function CustomerSettingsPage() {
   const [showPassword, setShowPassword] = useState(false)
   
   const [profile, setProfile] = useState({
-    firstName: user?.full_name?.split(' ')[0] || '',
-    lastName: user?.full_name?.split(' ').slice(1).join(' ') || '',
+    firstName: user?.firstName || '',
+    lastName: user?.lastName || '',
     email: user?.email || '',
     phone: '(555) 123-4567',
     company: '',

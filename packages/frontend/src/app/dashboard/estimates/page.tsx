@@ -143,7 +143,7 @@ export default function EstimatesPage() {
               >
                 {/* Status stripe */}
                 <div className={`h-1 w-full ${
-                  estimate.status === 'accepted' ? 'bg-green-400' :
+                  estimate.status === 'approved' ? 'bg-green-400' :
                   estimate.status === 'sent' ? 'bg-fuchsia-500' :
                   estimate.status === 'expired' ? 'bg-fuchsia-700' :
                   estimate.status === 'rejected' ? 'bg-gray-400' :
@@ -199,7 +199,7 @@ export default function EstimatesPage() {
                   <tr
                     key={estimate.id}
                     className={`hover:bg-gray-50 cursor-pointer border-l-4 ${
-                      estimate.status === 'accepted' ? 'border-green-400' :
+                      estimate.status === 'approved' ? 'border-green-400' :
                       estimate.status === 'sent' ? 'border-fuchsia-500' :
                       estimate.status === 'expired' ? 'border-fuchsia-700' :
                       estimate.status === 'rejected' ? 'border-gray-400' :

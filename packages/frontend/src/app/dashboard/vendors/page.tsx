@@ -490,6 +490,7 @@ export default function DashboardVendorsPage() {
   const [bookings, setBookings] = useState<VendorBooking[]>([])
   const [bookingsLoading, setBookingsLoading] = useState(false)
   const [bookingFilter, setBookingFilter] = useState<string>('')
+  const [bookingSearch, setBookingSearch] = useState('')
 
   const loadBookings = useCallback(async () => {
     setBookingsLoading(true)
@@ -561,10 +562,18 @@ export default function DashboardVendorsPage() {
   }
 
   const now = new Date()
-  const filteredBookings = (bookingFilter
-    ? bookings.filter(b => b.status === bookingFilter)
-    : bookings
-  ).slice().sort((a, b) => {
+  const filteredBookings = bookings
+    .filter(b => !bookingFilter || b.status === bookingFilter)
+    .filter(b => {
+      if (!bookingSearch) return true
+      const q = bookingSearch.toLowerCase()
+      return (
+        (b.vendor_accounts?.business_name || '').toLowerCase().includes(q) ||
+        (b.event_name || '').toLowerCase().includes(q) ||
+        (b.client_name || '').toLowerCase().includes(q)
+      )
+    })
+    .slice().sort((a, b) => {
     const dateA = new Date(a.event_date + 'T12:00:00').getTime()
     const dateB = new Date(b.event_date + 'T12:00:00').getTime()
     const nowTime = now.getTime()
@@ -718,28 +727,31 @@ export default function DashboardVendorsPage() {
       {/* ── BOOKINGS TAB ─────────────────────────────────────── */}
       {activeTab === 'bookings' && (
         <>
-          {/* Status filter pills */}
-          <div className="flex gap-2 flex-wrap mb-4">
-            {[
-              { value: '', label: `All (${bookings.length})` },
-              { value: 'pending', label: `Pending (${bookingCounts.pending || 0})` },
-              { value: 'confirmed', label: `Confirmed (${bookingCounts.confirmed || 0})` },
-              { value: 'paid', label: `Paid (${bookingCounts.paid || 0})` },
-              { value: 'completed', label: `Completed (${bookingCounts.completed || 0})` },
-              { value: 'cancelled', label: `Cancelled (${bookingCounts.cancelled || 0})` },
-            ].map(f => (
-              <button
-                key={f.value}
-                onClick={() => setBookingFilter(f.value)}
-                className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-all ${
-                  bookingFilter === f.value
-                    ? 'bg-primary-600 text-white border-primary-600'
-                    : 'bg-white text-gray-600 border-gray-300 hover:border-primary-300'
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
+          {/* Search + Status filter */}
+          <div className="flex flex-col sm:flex-row gap-3 mb-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input
+                type="text"
+                value={bookingSearch}
+                onChange={e => setBookingSearch(e.target.value)}
+                placeholder="Search by vendor, event, or client..."
+                className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+            <select
+              value={bookingFilter}
+              onChange={e => setBookingFilter(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              <option value="">All Statuses ({bookings.length})</option>
+              <option value="pending">Pending ({bookingCounts.pending || 0})</option>
+              <option value="confirmed">Confirmed ({bookingCounts.confirmed || 0})</option>
+              <option value="paid">Paid ({bookingCounts.paid || 0})</option>
+              <option value="completed">Completed ({bookingCounts.completed || 0})</option>
+              <option value="declined">Declined ({bookingCounts.declined || 0})</option>
+              <option value="cancelled">Cancelled ({bookingCounts.cancelled || 0})</option>
+            </select>
           </div>
 
           {bookingsLoading ? (

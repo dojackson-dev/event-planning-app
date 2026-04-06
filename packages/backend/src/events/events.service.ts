@@ -58,11 +58,37 @@ export class EventsService {
     return result;
   }
 
+  private formatEventType(type: string): string {
+    const labels: Record<string, string> = {
+      wedding: 'Wedding',
+      birthday: 'Birthday',
+      birthday_party: 'Birthday Party',
+      party: 'Party',
+      graduation_party: 'Graduation Party',
+      baby_shower: 'Baby Shower',
+      retirement: 'Retirement',
+      holiday_party: 'Holiday Party',
+      engagement_party: 'Engagement Party',
+      prom_formal: 'Prom / Formal',
+      family_reunion: 'Family Reunion',
+      quinceanera: 'Quincea\u00f1era',
+      sweet_16: 'Sweet 16',
+      corporate: 'Corporate Event',
+      conference: 'Conference',
+      workshop: 'Workshop',
+      anniversary: 'Anniversary',
+      concert_show: 'Concert / Show',
+      memorial_service: 'Memorial Service',
+      other: 'Other',
+    };
+    return labels[type] || type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, ' ');
+  }
+
   async findAll(supabase: SupabaseClient): Promise<Event[]> {
     // Try with intake_form join for client name + event name display
     const { data, error } = await supabase
       .from('event')
-      .select('*, intake_form:intake_forms(contact_name, event_name)')
+      .select('*, intake_form:intake_forms(contact_name, event_name, event_type)')
       .order('date', { ascending: true });
 
     if (error) {
@@ -81,6 +107,10 @@ export class EventsService {
       if (event.intake_form) {
         converted.clientName = event.intake_form.contact_name || null;
         converted.intakeEventName = event.intake_form.event_name || null;
+        // If no explicit event_name, derive a readable title from event_type
+        if (!converted.intakeEventName && event.intake_form.event_type) {
+          converted.intakeEventName = this.formatEventType(event.intake_form.event_type);
+        }
       }
       delete converted.intakeForm;
       return converted;

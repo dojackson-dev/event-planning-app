@@ -70,6 +70,7 @@ export class OwnerController {
     const admin = this.supabaseService.getAdminClient();
 
     const ownerAccountId = await this.getOwnerAccountId(userId, admin);
+    console.log(`[owner/profile GET] userId=${userId} ownerAccountId=${ownerAccountId}`);
     if (!ownerAccountId) return { businessName: '', logoUrl: null };
 
     const { data, error } = await admin

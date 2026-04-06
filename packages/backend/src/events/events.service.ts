@@ -118,13 +118,24 @@ export class EventsService {
   }
 
   async findOne(supabase: SupabaseClient, id: string): Promise<Event | null> {
-    const { data, error } = await supabase
+    // Try with intake_form join for client name + event name display
+    const adminClient = this.supabaseService.getAdminClient();
+    const { data, error } = await adminClient
       .from('event')
       .select('*, intake_form:intake_forms(contact_name, event_name, event_type)')
       .eq('id', id)
       .single();
 
-    if (error) throw error;
+    if (error) {
+      // Fall back to basic query without join
+      const { data: basicData, error: basicError } = await supabase
+        .from('event')
+        .select('*')
+        .eq('id', id)
+        .single();
+      if (basicError) throw basicError;
+      return basicData ? this.snakeToCamelCase(basicData) : null;
+    }
     if (!data) return null;
 
     const converted = this.snakeToCamelCase(data);

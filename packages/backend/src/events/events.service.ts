@@ -89,7 +89,7 @@ export class EventsService {
     const adminClient = this.supabaseService.getAdminClient();
     const { data, error } = await adminClient
       .from('event')
-      .select('*, intake_form:intake_forms(contact_name, event_name, event_type)')
+      .select('*, intake_form:intake_forms!intake_form_id(contact_name, event_name, event_type)')
       .order('date', { ascending: true });
 
     if (error) {
@@ -123,7 +123,7 @@ export class EventsService {
     const adminClient = this.supabaseService.getAdminClient();
     const { data, error } = await adminClient
       .from('event')
-      .select('*, intake_form:intake_forms(contact_name, event_name, event_type)')
+      .select('*, intake_form:intake_forms!intake_form_id(contact_name, event_name, event_type)')
       .eq('id', id)
       .single();
 

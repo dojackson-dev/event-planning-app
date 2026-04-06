@@ -18,6 +18,7 @@ export default function VendorEditProfileTab({ profile, onUpdate }: Props) {
   const [logoUrl, setLogoUrl] = useState(profile.profile_image_url || '')
   const [coverUrl, setCoverUrl] = useState(profile.cover_image_url || '')
 
+  const [businessName, setBusinessName] = useState(profile.business_name || '')
   const [bio, setBio] = useState(profile.bio || '')
   const [address, setAddress] = useState(profile.address || '')
   const [city, setCity] = useState(profile.city || '')
@@ -37,6 +38,7 @@ export default function VendorEditProfileTab({ profile, onUpdate }: Props) {
     setError('')
     try {
       const res = await api.put('/vendors/account/me', {
+        businessName: businessName || undefined,
         bio, address, city, state, zipCode,
         hourlyRate: hourlyRate ? parseFloat(hourlyRate) : undefined,
         flatRate: flatRate ? parseFloat(flatRate) : undefined,
@@ -82,6 +84,18 @@ export default function VendorEditProfileTab({ profile, onUpdate }: Props) {
               onUpload={(url) => setCoverUrl(url)}
             />
           </div>
+        </div>
+
+        {/* Business Name */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Business / Company Name</label>
+          <input
+            type="text"
+            value={businessName}
+            onChange={e => setBusinessName(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            placeholder="e.g. DJ Jay Entertainment"
+          />
         </div>
 
         {/* Bio */}

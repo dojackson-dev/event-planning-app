@@ -417,6 +417,7 @@ export class StripeService {
         type: 'express',
         email,
         capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+        business_profile: { url: this.frontendUrl },
         metadata: { owner_account_id: String(owner.id) },
       });
       connectId = account.id;
@@ -459,6 +460,7 @@ export class StripeService {
         type: 'express',
         email,
         capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+        business_profile: { url: this.frontendUrl },
         metadata: { vendor_account_id: vendor.id },
       });
       connectId = account.id;

@@ -173,6 +173,20 @@ export class ClientPortalController {
     return this.clientPortalService.getInvoices(session.clientId, session.phone);
   }
 
+  @Post('invoices/:id/checkout')
+  async createInvoiceCheckout(
+    @Headers('x-client-token') token: string,
+    @Param('id') id: string,
+  ) {
+    const session = this.requireSession(token);
+    return this.clientPortalService.createInvoiceCheckout(
+      id,
+      session.clientId,
+      session.phone,
+      `${session.firstName} ${session.lastName}`.trim() || 'Client',
+    );
+  }
+
   // ── Items & Packages ──────────────────────────────────────────────────────
 
   @Get('items')

@@ -1,5 +1,6 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { StripeService } from '../stripe/stripe.service';
 
 /** Returns all likely phone formats for a given phone string so we can query any format stored in the DB. */
 function buildPhoneVariants(phone: string): string[] {
@@ -18,7 +19,10 @@ function buildPhoneVariants(phone: string): string[] {
 export class ClientPortalService {
   private readonly logger = new Logger(ClientPortalService.name);
 
-  constructor(private readonly supabaseService: SupabaseService) {}
+  constructor(
+    private readonly supabaseService: SupabaseService,
+    private readonly stripeService: StripeService,
+  ) {}
 
   /** Helper: returns intake form IDs linked to any of the client's phone variants */
   private async getIntakeFormIds(supabase: any, phoneVariants: string[]): Promise<string[]> {
@@ -524,6 +528,50 @@ export class ClientPortalService {
         return true;
       })
       .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }
+
+  /** Create a Stripe Checkout session for the client to pay an invoice */
+  async createInvoiceCheckout(
+    invoiceId: string,
+    clientId: string,
+    clientPhone: string,
+    clientName: string,
+  ): Promise<{ url: string }> {
+    const supabase = this.supabaseService.getAdminClient();
+    const phoneVariants = buildPhoneVariants(clientPhone);
+
+    // Verify the invoice belongs to this client before creating a checkout
+    const invoiceSelect = 'id, client_phone, amount_due, status, booking_id, intake_form_id';
+    const queries: any[] = phoneVariants.map(p =>
+      supabase.from('invoices').select(invoiceSelect).eq('id', invoiceId).eq('client_phone', p).maybeSingle(),
+    );
+
+    let invoice: any = null;
+    for (const q of await Promise.all(queries)) {
+      if (q.data) { invoice = q.data; break; }
+    }
+
+    // If not found by phone, check via booking IDs (for bookings tied to this client)
+    if (!invoice) {
+      const [byUserId, ...byPhones] = await Promise.all([
+        supabase.from('booking').select('id').eq('user_id', clientId),
+        ...phoneVariants.map(p => supabase.from('booking').select('id').eq('contact_phone', p)),
+      ]);
+      const bookingIds = [...new Set(
+        [...(byUserId.data || []), ...byPhones.flatMap((r: any) => r.data || [])].map((b: any) => b.id),
+      )];
+      if (bookingIds.length) {
+        const { data } = await supabase.from('invoices').select(invoiceSelect).eq('id', invoiceId).in('booking_id', bookingIds).maybeSingle();
+        invoice = data ?? null;
+      }
+    }
+
+    if (!invoice) throw new NotFoundException('Invoice not found');
+    if (invoice.status === 'paid') throw new BadRequestException('Invoice is already paid');
+    if (Number(invoice.amount_due) <= 0) throw new BadRequestException('Invoice has no outstanding balance');
+
+    const url = await this.stripeService.createInvoiceCheckoutSession(invoiceId, clientName);
+    return { url };
   }
 
   /** Messages between this client and their owner/vendors */

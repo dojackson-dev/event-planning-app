@@ -33,7 +33,7 @@ export class SmsNotificationsService {
 
   // ─── Internal helper ──────────────────────────────────────────────────────
 
-  private async trySend(to: string | null | undefined, body: string): Promise<void> {
+  async trySend(to: string | null | undefined, body: string): Promise<void> {
     if (!to) return;
     try {
       await this.twilioService.sendSMS(to, body);

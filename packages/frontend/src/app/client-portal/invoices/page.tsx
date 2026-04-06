@@ -1,18 +1,18 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import clientApi from '@/lib/clientApi'
 import {
   Receipt,
   Calendar,
   Clock,
   CheckCircle2,
-  XCircle,
   AlertCircle,
   DollarSign,
   ChevronDown,
   ChevronUp,
-  ExternalLink,
+  CreditCard,
 } from 'lucide-react'
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string }> = {
@@ -37,10 +37,15 @@ function isDueSoon(invoice: any): boolean {
 }
 
 export default function ClientInvoicesPage() {
+  const searchParams = useSearchParams()
   const [invoices, setInvoices] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [paying, setPaying] = useState<string | null>(null)
+
+  const paid = searchParams.get('paid')
+  const canceled = searchParams.get('canceled')
 
   useEffect(() => {
     clientApi.get('/invoices')
@@ -55,6 +60,18 @@ export default function ClientInvoicesPage() {
       next.has(id) ? next.delete(id) : next.add(id)
       return next
     })
+  }
+
+  const handlePayNow = async (invoiceId: string) => {
+    try {
+      setPaying(invoiceId)
+      const res = await clientApi.post(`/invoices/${invoiceId}/checkout`)
+      window.location.href = res.data.url
+    } catch (err: any) {
+      console.error('Failed to create checkout session', err)
+      alert(err?.response?.data?.message ?? 'Unable to start payment. Please try again.')
+      setPaying(null)
+    }
   }
 
   const unpaidInvoices = invoices.filter((i: any) => i.status !== 'paid' && i.status !== 'cancelled')
@@ -73,6 +90,25 @@ export default function ClientInvoicesPage() {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
+      {/* Payment result banners */}
+      {paid && (
+        <div className="flex items-start gap-3 bg-green-50 border border-green-300 rounded-xl px-4 py-3 text-green-800 text-sm">
+          <CheckCircle2 className="h-5 w-5 flex-shrink-0 mt-0.5 text-green-600" />
+          <div>
+            <p className="font-semibold">Payment successful!</p>
+            <p className="text-green-600 mt-0.5">
+              Invoice {searchParams.get('invoice') ? `#${searchParams.get('invoice')} ` : ''}has been paid. You'll receive a confirmation shortly.
+            </p>
+          </div>
+        </div>
+      )}
+      {canceled && (
+        <div className="flex items-start gap-3 bg-yellow-50 border border-yellow-300 rounded-xl px-4 py-3 text-yellow-800 text-sm">
+          <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5 text-yellow-600" />
+          <p>Payment was cancelled. Your invoice remains unpaid — you can try again whenever you're ready.</p>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
@@ -303,10 +339,21 @@ export default function ClientInvoicesPage() {
 
                   {/* CTA: Pay now */}
                   {invoice.status !== 'paid' && invoice.status !== 'cancelled' && (
-                    <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between gap-4">
-                      <p className="text-sm text-gray-500">
-                        To pay this invoice, contact your event coordinator or use the payment link they sent you.
-                      </p>
+                    <div className="mt-4 pt-4 border-t border-gray-100">
+                      <button
+                        onClick={() => handlePayNow(invoice.id)}
+                        disabled={paying === invoice.id}
+                        className={`w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm ${
+                          paying === invoice.id
+                            ? 'bg-emerald-400 text-white cursor-not-allowed'
+                            : overdue
+                            ? 'bg-red-600 hover:bg-red-700 text-white'
+                            : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                        }`}
+                      >
+                        <CreditCard className="h-4 w-4" />
+                        {paying === invoice.id ? 'Redirecting to payment…' : `Pay $${Number(invoice.amount_due ?? invoice.total_amount ?? 0).toFixed(2)} Now`}
+                      </button>
                     </div>
                   )}
                 </div>

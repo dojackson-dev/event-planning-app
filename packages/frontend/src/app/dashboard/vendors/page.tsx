@@ -560,9 +560,21 @@ export default function DashboardVendorsPage() {
     }
   }
 
-  const filteredBookings = bookingFilter
+  const now = new Date()
+  const filteredBookings = (bookingFilter
     ? bookings.filter(b => b.status === bookingFilter)
     : bookings
+  ).slice().sort((a, b) => {
+    const dateA = new Date(a.event_date + 'T12:00:00').getTime()
+    const dateB = new Date(b.event_date + 'T12:00:00').getTime()
+    const nowTime = now.getTime()
+    const aUpcoming = dateA >= nowTime
+    const bUpcoming = dateB >= nowTime
+    // Upcoming: soonest first; Past: most recent first (but after all upcoming)
+    if (aUpcoming && bUpcoming) return dateA - dateB
+    if (!aUpcoming && !bUpcoming) return dateB - dateA
+    return aUpcoming ? -1 : 1
+  })
 
   const bookingCounts = bookings.reduce((acc, b) => {
     acc[b.status] = (acc[b.status] || 0) + 1

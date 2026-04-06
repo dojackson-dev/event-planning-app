@@ -5,6 +5,14 @@ module.exports = {
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
+  safelist: [
+    'ring-2',
+    'ring-blue-400',
+    'hover:ring-blue-600',
+    'border-2',
+    'border-blue-400',
+    'hover:border-blue-600',
+  ],
   theme: {
     extend: {
       colors: {

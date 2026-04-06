@@ -222,14 +222,14 @@ export default function EventManagementPage() {
       setFormData(prev => ({
         ...prev,
         eventId: eventId,
-        eventName: event.name || '',
+        eventName: event.intakeEventName || event.name || '',
         eventType: event.eventType || EventType.WEDDING_RECEPTION,
         eventDate: event.date || '',
         startTime: event.startTime || '',
         endTime: event.endTime || '',
         venue: event.venue || '',
       }));
-      loadEventInvoices(event.bookingId, event.name);
+      loadEventInvoices(event.bookingId, event.clientName);
       loadGuestList();
     } catch (error) {
       console.error('Error loading event data:', error);

@@ -120,12 +120,23 @@ export class EventsService {
   async findOne(supabase: SupabaseClient, id: string): Promise<Event | null> {
     const { data, error } = await supabase
       .from('event')
-      .select('*')
+      .select('*, intake_form:intake_forms(contact_name, event_name, event_type)')
       .eq('id', id)
       .single();
 
     if (error) throw error;
-    return data ? this.snakeToCamelCase(data) : null;
+    if (!data) return null;
+
+    const converted = this.snakeToCamelCase(data);
+    if (data.intake_form) {
+      converted.clientName = data.intake_form.contact_name || null;
+      converted.intakeEventName = data.intake_form.event_name || null;
+      if (!converted.intakeEventName && data.intake_form.event_type) {
+        converted.intakeEventName = this.formatEventType(data.intake_form.event_type);
+      }
+    }
+    delete converted.intakeForm;
+    return converted;
   }
 
   async create(supabase: SupabaseClient, event: Partial<Event>): Promise<Event> {

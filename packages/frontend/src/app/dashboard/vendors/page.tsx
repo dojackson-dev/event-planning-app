@@ -241,9 +241,10 @@ function BookingRow({ booking, onCancel }: { booking: VendorBooking; onCancel: (
   const isPast = new Date(booking.event_date) < today
 
   return (
-    <div className={`flex items-center gap-4 p-4 bg-white rounded-xl border transition-colors ${
-      isPast ? 'border-gray-200 opacity-80' : 'border-blue-200 hover:border-blue-400'
-    }`}>
+    <div className={isPast
+      ? 'flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-200 opacity-75 transition-colors'
+      : 'flex items-center gap-4 p-4 bg-white rounded-xl border-2 border-blue-400 hover:border-blue-600 hover:shadow-md transition-all'
+    }>
       {/* Avatar */}
       <div className="w-10 h-10 rounded-full bg-primary-50 flex items-center justify-center flex-shrink-0 overflow-hidden">
         {vendor?.profile_image_url ? (

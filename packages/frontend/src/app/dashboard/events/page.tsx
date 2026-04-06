@@ -61,6 +61,8 @@ export default function EventsPage() {
       const q = searchTerm.toLowerCase()
       return (
         event.name.toLowerCase().includes(q) ||
+        (event.intakeEventName || '').toLowerCase().includes(q) ||
+        (event.clientName || '').toLowerCase().includes(q) ||
         (event.venue || '').toLowerCase().includes(q) ||
         (event.location || '').toLowerCase().includes(q)
       )
@@ -137,7 +139,7 @@ export default function EventsPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
           <input
             type="text"
-            placeholder="Search by name, venue, or location..."
+            placeholder="Search by client name, event name, venue, or location..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"

@@ -85,8 +85,9 @@ export class EventsService {
   }
 
   async findAll(supabase: SupabaseClient): Promise<Event[]> {
-    // Try with intake_form join for client name + event name display
-    const { data, error } = await supabase
+    // Use admin client so the intake_forms join isn't blocked by RLS
+    const adminClient = this.supabaseService.getAdminClient();
+    const { data, error } = await adminClient
       .from('event')
       .select('*, intake_form:intake_forms(contact_name, event_name, event_type)')
       .order('date', { ascending: true });

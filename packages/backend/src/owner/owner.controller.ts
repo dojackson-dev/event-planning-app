@@ -25,7 +25,7 @@ export class OwnerController {
   /**
    * Resolves the owner_account id for a given user.
    * Primary: looks up via memberships table (user_id → owner_account_id).
-   * Fallback: direct user_id column on owner_accounts (legacy/migration path).
+   * Fallback: primary_owner_id column on owner_accounts (auth UUID stored there).
    */
   private async getOwnerAccountId(userId: string, admin: any): Promise<number | null> {
     // Primary path: membership record links user → owner account
@@ -38,11 +38,11 @@ export class OwnerController {
 
     if (membership?.owner_account_id) return membership.owner_account_id;
 
-    // Fallback: direct user_id on owner_accounts
+    // Fallback: primary_owner_id on owner_accounts (the auth UUID stored as primary_owner_id)
     const { data: ownerAccount } = await admin
       .from('owner_accounts')
       .select('id')
-      .eq('user_id', userId)
+      .eq('primary_owner_id', userId)
       .maybeSingle();
 
     return ownerAccount?.id ?? null;

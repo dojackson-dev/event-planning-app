@@ -241,9 +241,10 @@ function BookingRow({ booking, onCancel }: { booking: VendorBooking; onCancel: (
   const isPast = new Date(booking.event_date) < today
 
   return (
-    <div className={`flex items-center gap-4 p-4 bg-white rounded-xl border transition-colors ${
-      isPast ? 'border-gray-200 opacity-80' : 'border-blue-200 hover:border-blue-400'
-    }`}>
+    <div
+      style={{ outline: '2px solid #60a5fa', outlineOffset: '-2px', opacity: isPast ? 0.65 : 1 }}
+      className="flex items-center gap-4 p-4 bg-white rounded-xl transition-all hover:shadow-md"
+    >
       {/* Avatar */}
       <div className="w-10 h-10 rounded-full bg-primary-50 flex items-center justify-center flex-shrink-0 overflow-hidden">
         {vendor?.profile_image_url ? (
@@ -255,13 +256,13 @@ function BookingRow({ booking, onCancel }: { booking: VendorBooking; onCancel: (
 
       {/* Main info */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <p className="font-medium text-gray-900 truncate">{vendor?.business_name || 'Unknown Vendor'}</p>
-          <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${status.color}`}>
+        <div className="flex items-center gap-2 mb-0.5">
+          <p className="font-semibold text-gray-900 truncate">{vendor?.business_name || 'Unknown Vendor'}</p>
+          <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${status.color}`}>
             {status.icon} {status.label}
           </span>
         </div>
-        <p className="text-sm text-gray-600 truncate">{booking.event_name}</p>
+        <p className="text-xs text-gray-500 truncate"><span className="font-medium text-gray-400">Event:</span> {booking.event_name}</p>
         <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-400">
           <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {new Date(booking.event_date + 'T00:00:00').toLocaleDateString()}</span>
           {booking.start_time && <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {booking.start_time}{booking.end_time ? ` – ${booking.end_time}` : ''}</span>}

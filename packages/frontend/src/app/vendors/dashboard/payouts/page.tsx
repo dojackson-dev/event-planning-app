@@ -51,11 +51,22 @@ export default function PayoutsPage() {
           <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-6">
             <h4 className="text-sm font-semibold text-blue-800 mb-2">💰 How vendor payouts work</h4>
             <ul className="text-sm text-blue-700 space-y-1">
-              <li>• Event owners pay you directly through DoVenueSuite</li>
-              <li>• DoVenueSuite collects a <strong>5% platform fee</strong> per payout</li>
               <li>• Funds arrive in your bank within 2 business days</li>
               <li>• Stripe handles all payment compliance and security</li>
             </ul>
+            <div className="mt-3 space-y-2">
+              <div className="bg-white border border-blue-200 rounded-lg px-3 py-2 text-sm text-blue-800">
+                <span className="font-semibold">Owner-paid bookings:</span> DoVenueSuite collects a <strong>1.5% platform fee</strong> when an event owner pays you through the platform.
+              </div>
+              <div className="bg-white border border-blue-200 rounded-lg px-3 py-2 text-sm text-blue-800">
+                <span className="font-semibold">Direct/general bookings:</span> DoVenueSuite collects a <strong>2.5% platform fee</strong> on payments from clients who book you directly.
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 text-sm text-amber-800">
+            <p className="font-semibold mb-1">📄 Tax & Reporting Notice</p>
+            <p>All payments in this system are processed through <strong>Stripe</strong>. Stripe may collect your EIN or SSN as required for payment processing and tax compliance. If you earn $600 or more in a calendar year, a <strong>1099 form will be issued by Stripe</strong> and made available directly in your Stripe account. DoVenueSuite does not issue 1099s.</p>
           </div>
 
           {profile && (

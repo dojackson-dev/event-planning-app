@@ -95,7 +95,7 @@ export class OwnerController {
   @Put('profile')
   async updateProfile(
     @Headers('authorization') authorization: string,
-    @Body() body: { logoUrl?: string | null },
+    @Body() body: { logoUrl?: string | null; businessName?: string },
   ) {
     const userId = await this.getUserId(authorization);
     const admin = this.supabaseService.getAdminClient();
@@ -103,12 +103,15 @@ export class OwnerController {
     const ownerAccountId = await this.getOwnerAccountId(userId, admin);
     if (!ownerAccountId) throw new BadRequestException('Owner account not found');
 
+    const updates: Record<string, any> = { updated_at: new Date().toISOString() };
+    if (body.logoUrl !== undefined) updates.logo_url = body.logoUrl;
+    if (body.businessName !== undefined && body.businessName.trim()) {
+      updates.business_name = body.businessName.trim();
+    }
+
     const { error } = await admin
       .from('owner_accounts')
-      .update({
-        logo_url: body.logoUrl ?? null,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updates)
       .eq('id', ownerAccountId);
 
     if (error) {

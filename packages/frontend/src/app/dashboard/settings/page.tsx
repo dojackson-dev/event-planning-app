@@ -869,10 +869,32 @@ function getInitials(name: string): string {
 }
 
 function BrandingTab() {
-  const { logoUrl, businessName, updateLogo, loading } = useOwnerBrand()
+  const { logoUrl, businessName, updateLogo, updateBusinessName, loading } = useOwnerBrand()
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+  const [nameInput, setNameInput] = useState('')
+  const [nameSaved, setNameSaved] = useState(false)
+
+  // Sync input with loaded businessName
+  useEffect(() => {
+    setNameInput(businessName)
+  }, [businessName])
+
+  const handleSaveBusinessName = async () => {
+    if (!nameInput.trim() || nameInput.trim() === businessName) return
+    setSaving(true)
+    setError('')
+    try {
+      await updateBusinessName(nameInput.trim())
+      setNameSaved(true)
+      setTimeout(() => setNameSaved(false), 3000)
+    } catch {
+      setError('Failed to update business name. Please try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const handleLogoUpload = async (url: string) => {
     setSaving(true)
@@ -992,14 +1014,28 @@ function BrandingTab() {
       )}
 
       <div className="border-t pt-4">
-        <div className="flex items-center gap-2 mb-1">
+        <div className="flex items-center gap-2 mb-2">
           <Building2 className="h-4 w-4 text-gray-400" />
           <span className="text-sm font-medium text-gray-700">Business Name</span>
         </div>
-        <p className="text-sm text-gray-900 bg-gray-50 px-3 py-2 rounded-lg border border-gray-100">
-          {businessName || '—'}
-        </p>
-        <p className="text-xs text-gray-400 mt-1">Contact support to update your business name.</p>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={nameInput}
+            onChange={e => setNameInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSaveBusinessName()}
+            className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            placeholder="Your business name"
+            disabled={saving}
+          />
+          <button
+            onClick={handleSaveBusinessName}
+            disabled={saving || !nameInput.trim() || nameInput.trim() === businessName}
+            className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {nameSaved ? 'Saved!' : 'Save'}
+          </button>
+        </div>
       </div>
     </div>
   )

@@ -167,9 +167,8 @@ export default function EventsPage() {
             {/* Status stripe */}
             <div className={`h-1 w-full ${
               event.status === 'scheduled' ? 'bg-purple-400' :
-              event.status === 'confirmed' ? 'bg-purple-600' :
               event.status === 'completed' ? 'bg-gray-400' :
-              event.status === 'cancelled' ? 'bg-red-400' :
+              event.status === 'draft' ? 'bg-purple-300' :
               'bg-purple-300'
             }`} />
             <div className="p-6">

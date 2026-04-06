@@ -57,11 +57,14 @@ export default function DoorListDetailPage() {
 
   const normalizeGuest = (g: any): Guest => ({
     id: g.id,
+    guestListId: g.guest_list_id ?? g.guestListId ?? 0,
     name: g.name,
     phone: g.phone ?? '',
     plusOneCount: g.plus_one_count ?? g.plusOneCount ?? 0,
     hasArrived: !!(g.has_arrived ?? g.hasArrived),
     arrivedAt: g.arrived_at ?? g.arrivedAt ?? undefined,
+    createdAt: g.created_at ?? g.createdAt ?? '',
+    updatedAt: g.updated_at ?? g.updatedAt ?? '',
   })
 
   const fetchGuestList = async () => {
@@ -261,59 +264,58 @@ export default function DoorListDetailPage() {
             Back to Door Lists
           </button>
           
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">{guestList.event?.name}</h1>
-              <p className="text-gray-600 mt-1">
-                {guestList.event && parseLocalDate(guestList.event.date).toLocaleDateString('en-US', {
-                  weekday: 'long',
-                  month: 'long',
-                  day: 'numeric',
-                  year: 'numeric'
-                })}
-              </p>
-              <p className="text-sm text-gray-500 mt-1">
-                Access Code: <span className="font-mono font-semibold">{(guestList as any).access_code ?? (guestList as any).accessCode}</span>
-              </p>
-            </div>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">{guestList.event?.name}</h1>
+            <p className="text-gray-600 mt-1">
+              {guestList.event && parseLocalDate(guestList.event.date).toLocaleDateString('en-US', {
+                weekday: 'long',
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric'
+              })}
+            </p>
+            <p className="text-sm text-gray-500 mt-1">
+              Access Code: <span className="font-mono font-semibold">{(guestList as any).access_code ?? (guestList as any).accessCode}</span>
+            </p>
+          </div>
 
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setAutoRefresh(!autoRefresh)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                  autoRefresh
-                    ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                <RefreshCw className={`h-4 w-4 ${autoRefresh ? 'animate-spin' : ''}`} />
-                Auto-Refresh {autoRefresh ? 'On' : 'Off'}
-              </button>
+          {/* Action Buttons */}
+          <div className="mt-5 flex flex-wrap gap-3">
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+            >
+              <UserPlus className="h-4 w-4" />
+              Add Guest
+            </button>
 
-              <button
-                onClick={() => setShowAddForm(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-              >
-                <UserPlus className="h-4 w-4" />
-                Add Guest
-              </button>
+            <button
+              onClick={copyArrivalLink}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Share2 className="h-4 w-4" />
+              Share Link
+            </button>
 
-              <button
-                onClick={copyArrivalLink}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <Share2 className="h-4 w-4" />
-                Share Link
-              </button>
+            <button
+              onClick={exportToCSV}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            >
+              <Download className="h-4 w-4" />
+              Export CSV
+            </button>
 
-              <button
-                onClick={exportToCSV}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-              >
-                <Download className="h-4 w-4" />
-                Export CSV
-              </button>
-            </div>
+            <button
+              onClick={() => setAutoRefresh(!autoRefresh)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                autoRefresh
+                  ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <RefreshCw className={`h-4 w-4 ${autoRefresh ? 'animate-spin' : ''}`} />
+              Auto-Refresh {autoRefresh ? 'On' : 'Off'}
+            </button>
           </div>
         </div>
 

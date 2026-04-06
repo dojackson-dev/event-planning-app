@@ -476,11 +476,11 @@ export class StripeService {
       return owner ?? null;
     }
 
-    // Fallback: direct user_id column (legacy)
+    // Fallback: primary_owner_id on owner_accounts (auth UUID stored there)
     const { data: owner } = await admin
       .from('owner_accounts')
       .select('*')
-      .eq('user_id', userId)
+      .eq('primary_owner_id', userId)
       .maybeSingle();
 
     return owner ?? null;

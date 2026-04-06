@@ -58,9 +58,21 @@ export default function BookingsPage() {
     }
   }
 
-  const filteredBookings = statusFilter === 'all'
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const filteredBookings = (statusFilter === 'all'
     ? bookings
     : bookings.filter(b => b.status === statusFilter)
+  ).slice().sort((a, b) => {
+    const aDate = new Date(a.event_date)
+    const bDate = new Date(b.event_date)
+    const aFuture = aDate >= today
+    const bFuture = bDate >= today
+    if (aFuture && bFuture) return aDate.getTime() - bDate.getTime()   // nearest upcoming first
+    if (!aFuture && !bFuture) return bDate.getTime() - aDate.getTime() // most-recently-expired first, oldest last
+    return aFuture ? -1 : 1                                             // upcoming before past
+  })
 
   const counts = bookings.reduce((acc, b) => {
     acc[b.status] = (acc[b.status] || 0) + 1
@@ -131,8 +143,18 @@ export default function BookingsPage() {
             <div className="space-y-4">
               {filteredBookings.map(booking => {
                 const statusCfg = STATUS_CONFIG[booking.status] || STATUS_CONFIG.pending
+                const isPast = new Date(booking.event_date) < today
                 return (
-                  <div key={booking.id} className="border border-gray-100 rounded-xl p-4">
+                  <div
+                    key={booking.id}
+                    className="rounded-xl p-4 transition-all hover:shadow-md"
+                    style={{
+                      outline: isPast ? '1.5px solid #d1d5db' : '2px solid #60a5fa',
+                      outlineOffset: '-1px',
+                      background: isPast ? '#f9fafb' : '#ffffff',
+                      opacity: isPast ? 0.75 : 1,
+                    }}
+                  >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1 flex-wrap">

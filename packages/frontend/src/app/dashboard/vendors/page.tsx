@@ -237,9 +237,13 @@ function BookingRow({ booking, onCancel }: { booking: VendorBooking; onCancel: (
   const status = STATUS_CONFIG[booking.status] || STATUS_CONFIG.pending
   const vendor = booking.vendor_accounts
   const icon = vendor ? (CATEGORY_ICON[vendor.category] || '⭐') : '⭐'
+  const today = new Date(); today.setHours(0,0,0,0)
+  const isPast = new Date(booking.event_date) < today
 
   return (
-    <div className="flex items-center gap-4 p-4 bg-white border border-gray-200 rounded-xl hover:border-primary-200 transition-colors">
+    <div className={`flex items-center gap-4 p-4 bg-white rounded-xl border transition-colors ${
+      isPast ? 'border-gray-200 opacity-80' : 'border-blue-200 hover:border-blue-400'
+    }`}>
       {/* Avatar */}
       <div className="w-10 h-10 rounded-full bg-primary-50 flex items-center justify-center flex-shrink-0 overflow-hidden">
         {vendor?.profile_image_url ? (
@@ -328,6 +332,9 @@ export default function DashboardVendorsPage() {
   const [bookings, setBookings] = useState<VendorBooking[]>([])
   const [bookingsLoading, setBookingsLoading] = useState(false)
   const [bookingFilter, setBookingFilter] = useState<string>('')
+  const [bookingPage, setBookingPage] = useState(0)
+
+  const BOOKINGS_PER_PAGE = 6
 
   const loadBookings = useCallback(async () => {
     setBookingsLoading(true)
@@ -391,6 +398,22 @@ export default function DashboardVendorsPage() {
   const filteredBookings = bookingFilter
     ? bookings.filter(b => b.status === bookingFilter)
     : bookings
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const sortedBookings = [...filteredBookings].sort((a, b) => {
+    const aDate = new Date(a.event_date)
+    const bDate = new Date(b.event_date)
+    const aFuture = aDate >= today
+    const bFuture = bDate >= today
+    if (aFuture && bFuture) return aDate.getTime() - bDate.getTime()
+    if (!aFuture && !bFuture) return bDate.getTime() - aDate.getTime()
+    return aFuture ? -1 : 1
+  })
+
+  const totalPages = Math.ceil(sortedBookings.length / BOOKINGS_PER_PAGE)
+  const pagedBookings = sortedBookings.slice(bookingPage * BOOKINGS_PER_PAGE, (bookingPage + 1) * BOOKINGS_PER_PAGE)
 
   const bookingCounts = bookings.reduce((acc, b) => {
     acc[b.status] = (acc[b.status] || 0) + 1
@@ -543,7 +566,7 @@ export default function DashboardVendorsPage() {
             ].map(f => (
               <button
                 key={f.value}
-                onClick={() => setBookingFilter(f.value)}
+                onClick={() => { setBookingFilter(f.value); setBookingPage(0) }}
                 className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-all ${
                   bookingFilter === f.value
                     ? 'bg-primary-600 text-white border-primary-600'
@@ -573,11 +596,36 @@ export default function DashboardVendorsPage() {
               </button>
             </div>
           ) : (
-            <div className="space-y-3">
-              {filteredBookings.map(b => (
-                <BookingRow key={b.id} booking={b} onCancel={handleCancelBooking} />
-              ))}
-            </div>
+            <>
+              <div className="space-y-3">
+                {pagedBookings.map(b => (
+                  <BookingRow key={b.id} booking={b} onCancel={handleCancelBooking} />
+                ))}
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-100">
+                  <button
+                    onClick={() => setBookingPage(p => Math.max(0, p - 1))}
+                    disabled={bookingPage === 0}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    ← Previous
+                  </button>
+                  <span className="text-sm text-gray-500">
+                    Page {bookingPage + 1} of {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setBookingPage(p => Math.min(totalPages - 1, p + 1))}
+                    disabled={bookingPage === totalPages - 1}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Next →
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </>
       )}

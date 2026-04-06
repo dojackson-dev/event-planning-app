@@ -84,12 +84,13 @@ export class EventsService {
     return labels[type] || type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, ' ');
   }
 
-  async findAll(supabase: SupabaseClient): Promise<Event[]> {
+  async findAll(supabase: SupabaseClient, userId: string): Promise<Event[]> {
     // Use admin client so the intake_forms join isn't blocked by RLS
     const adminClient = this.supabaseService.getAdminClient();
     const { data, error } = await adminClient
       .from('event')
       .select('*, intake_form:intake_forms!intake_form_id(contact_name, event_name, event_type)')
+      .eq('owner_id', userId)
       .order('date', { ascending: true });
 
     if (error) {
@@ -97,6 +98,7 @@ export class EventsService {
       const { data: basicData, error: basicError } = await supabase
         .from('event')
         .select('*')
+        .eq('owner_id', userId)
         .order('date', { ascending: true });
       if (basicError) throw basicError;
       return (basicData || []).map(event => this.snakeToCamelCase(event));
@@ -118,13 +120,14 @@ export class EventsService {
     });
   }
 
-  async findOne(supabase: SupabaseClient, id: string): Promise<Event | null> {
+  async findOne(supabase: SupabaseClient, id: string, userId: string): Promise<Event | null> {
     // Try with intake_form join for client name + event name display
     const adminClient = this.supabaseService.getAdminClient();
     const { data, error } = await adminClient
       .from('event')
       .select('*, intake_form:intake_forms!intake_form_id(contact_name, event_name, event_type)')
       .eq('id', id)
+      .eq('owner_id', userId)
       .single();
 
     if (error) {
@@ -133,6 +136,7 @@ export class EventsService {
         .from('event')
         .select('*')
         .eq('id', id)
+        .eq('owner_id', userId)
         .single();
       if (basicError) throw basicError;
       return basicData ? this.snakeToCamelCase(basicData) : null;
@@ -168,12 +172,13 @@ export class EventsService {
     return this.snakeToCamelCase(data);
   }
 
-  async update(supabase: SupabaseClient, id: string, event: Partial<Event>): Promise<Event | null> {
+  async update(supabase: SupabaseClient, id: string, event: Partial<Event>, userId: string): Promise<Event | null> {
     const convertedEvent = this.camelToSnakeCase(event);
     const { data, error } = await supabase
       .from('event')
       .update(convertedEvent)
       .eq('id', id)
+      .eq('owner_id', userId)
       .select()
       .single();
 
@@ -181,11 +186,12 @@ export class EventsService {
     return data ? this.snakeToCamelCase(data) : null;
   }
 
-  async remove(supabase: SupabaseClient, id: string): Promise<void> {
+  async remove(supabase: SupabaseClient, id: string, userId: string): Promise<void> {
     const { error } = await supabase
       .from('event')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('owner_id', userId);
 
     if (error) throw error;
   }

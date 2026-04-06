@@ -242,11 +242,8 @@ function BookingRow({ booking, onCancel }: { booking: VendorBooking; onCancel: (
 
   return (
     <div
-      style={!isPast ? { outline: '2px solid #60a5fa', outlineOffset: '-2px' } : undefined}
-      className={isPast
-        ? 'flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-200 opacity-75 transition-colors'
-        : 'flex items-center gap-4 p-4 bg-white rounded-xl border border-blue-400 hover:border-blue-600 hover:shadow-md transition-all'
-      }
+      style={{ outline: '2px solid #60a5fa', outlineOffset: '-2px', opacity: isPast ? 0.65 : 1 }}
+      className="flex items-center gap-4 p-4 bg-white rounded-xl transition-all hover:shadow-md"
     >
       {/* Avatar */}
       <div className="w-10 h-10 rounded-full bg-primary-50 flex items-center justify-center flex-shrink-0 overflow-hidden">

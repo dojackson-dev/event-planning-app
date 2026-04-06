@@ -146,9 +146,19 @@ export default function InvoicesPage() {
           filteredInvoices.map((invoice) => (
             <div
               key={invoice.id}
-              className="bg-white rounded-lg shadow p-4 cursor-pointer active:bg-gray-50 hover:shadow-md transition-shadow"
+              className="bg-white rounded-lg shadow overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
               onClick={() => router.push(`/dashboard/invoices/${invoice.id}`)}
             >
+              {/* Status stripe */}
+              <div className={`h-1 w-full ${
+                invoice.status === 'paid' ? 'bg-green-400' :
+                invoice.status === 'overdue' ? 'bg-red-600' :
+                invoice.status === 'sent' ? 'bg-red-400' :
+                invoice.status === 'partial' ? 'bg-amber-400' :
+                invoice.status === 'cancelled' ? 'bg-gray-300' :
+                'bg-red-200'
+              }`} />
+              <div className="p-4 active:bg-gray-50">
               <div className="flex justify-between items-start">
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-gray-900">{invoice.invoice_number}</p>
@@ -171,6 +181,7 @@ export default function InvoicesPage() {
                 >
                   Delete
                 </button>
+              </div>
               </div>
             </div>
           ))
@@ -216,7 +227,14 @@ export default function InvoicesPage() {
               filteredInvoices.map((invoice) => (
                 <tr
                   key={invoice.id}
-                  className="hover:bg-gray-50 cursor-pointer"
+                  className={`hover:bg-gray-50 cursor-pointer border-l-4 ${
+                    invoice.status === 'paid' ? 'border-green-400' :
+                    invoice.status === 'overdue' ? 'border-red-600' :
+                    invoice.status === 'sent' ? 'border-red-400' :
+                    invoice.status === 'partial' ? 'border-amber-400' :
+                    invoice.status === 'cancelled' ? 'border-gray-300' :
+                    'border-red-200'
+                  }`}
                   onClick={() => router.push(`/dashboard/invoices/${invoice.id}`)}
                 >
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">

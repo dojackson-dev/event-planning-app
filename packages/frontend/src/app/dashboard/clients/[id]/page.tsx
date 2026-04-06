@@ -33,6 +33,7 @@ interface VendorForSearch {
 interface EventVendorBooking {
   id: string
   vendor_account_id: string
+  event_id?: string | null
   event_name: string
   event_date: string
   agreed_amount: number
@@ -64,6 +65,8 @@ interface IntakeForm {
   notes: string | null
   created_at: string
   updated_at: string
+  event_id?: string | null
+  event_name?: string | null
 }
 
 export default function ClientDetailPage() {
@@ -113,7 +116,7 @@ export default function ClientDetailPage() {
       setStatus(response.data.status)
       setNotes(response.data.notes || '')
       setEditData(response.data)
-      fetchEventVendors(response.data.event_date)
+      fetchEventVendors(response.data.event_date, response.data.event_id)
       api.get<Estimate[]>(`/estimates?intakeFormId=${params.id}`).then(r => setClientEstimates(r.data || [])).catch(() => {})
       api.get<Invoice[]>(`/invoices?intakeFormId=${params.id}`).then(r => setClientInvoices(r.data || [])).catch(() => {})
     } catch (error) {
@@ -123,13 +126,19 @@ export default function ClientDetailPage() {
     }
   }
 
-  const fetchEventVendors = async (eventDate: string) => {
+  const fetchEventVendors = async (eventDate: string, eventId?: string | null) => {
     if (!eventDate) return
     try {
       const res = await api.get('/vendors/bookings/owner')
       const all: EventVendorBooking[] = res.data || []
-      const dateStr = eventDate.split('T')[0]
-      setEventVendors(all.filter(b => b.event_date?.split('T')[0] === dateStr))
+      if (eventId) {
+        // Filter by event_id — orphaned bookings (event deleted) have event_id=null and won't appear
+        setEventVendors(all.filter(b => b.event_id === eventId))
+      } else {
+        // Fallback: filter by date if no event_id linked yet
+        const dateStr = eventDate.split('T')[0]
+        setEventVendors(all.filter(b => b.event_date?.split('T')[0] === dateStr && b.event_id != null))
+      }
     } catch {
       // owner may not have vendor bookings yet
     }
@@ -172,7 +181,7 @@ export default function ClientDetailPage() {
     try {
       await api.post('/vendors/bookings', {
         vendorAccountId: selectedVendorToBook.id,
-        eventName: formatEventType(client.event_type),
+        eventName: client.event_name || formatEventType(client.event_type),
         eventDate: client.event_date.split('T')[0],
         venueName: client.venue_preference || undefined,
         notes: vbNotes || undefined,
@@ -181,7 +190,7 @@ export default function ClientDetailPage() {
       })
       setShowVendorModal(false)
       setSelectedVendorToBook(null)
-      fetchEventVendors(client.event_date)
+      fetchEventVendors(client.event_date, client.event_id)
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to book vendor')
     } finally {
@@ -299,7 +308,29 @@ export default function ClientDetailPage() {
   }
 
   const formatEventType = (type: string) => {
-    return type.charAt(0).toUpperCase() + type.slice(1).replace('_', ' ')
+    const labels: Record<string, string> = {
+      wedding: 'Wedding',
+      birthday: 'Birthday',
+      birthday_party: 'Birthday Party',
+      party: 'Party',
+      graduation_party: 'Graduation Party',
+      baby_shower: 'Baby Shower',
+      retirement: 'Retirement',
+      holiday_party: 'Holiday Party',
+      engagement_party: 'Engagement Party',
+      prom_formal: 'Prom / Formal',
+      family_reunion: 'Family Reunion',
+      quinceanera: 'Quinceañera',
+      sweet_16: 'Sweet 16',
+      corporate: 'Corporate Event',
+      conference: 'Conference',
+      workshop: 'Workshop',
+      anniversary: 'Anniversary',
+      concert_show: 'Concert / Show',
+      memorial_service: 'Memorial Service',
+      other: 'Other',
+    }
+    return labels[type] || type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, ' ')
   }
 
   const formatDate = (dateString: string) => {
@@ -396,10 +427,17 @@ export default function ClientDetailPage() {
               </div>
             </div>
 
-            {/* Event Details */}
+              {/* Event Details */}
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Event Details</h2>
               <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center gap-3 col-span-2">
+                  <Info className="h-5 w-5 text-gray-400" />
+                  <div>
+                    <p className="text-sm text-gray-600">Event Name/Title</p>
+                    <p className="font-medium text-primary-600">{client.event_name || <span className="text-gray-400 italic">Not set — use Edit Client Details to add</span>}</p>
+                  </div>
+                </div>
                 <div className="flex items-center gap-3">
                   <Calendar className="h-5 w-5 text-gray-400" />
                   <div>
@@ -916,6 +954,11 @@ export default function ClientDetailPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
                   <input type="tel" value={editData.contact_phone || ''} onChange={e => setEditData({ ...editData, contact_phone: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Event Name/Title</label>
+                  <input type="text" value={editData.event_name || ''} onChange={e => setEditData({ ...editData, event_name: e.target.value })} placeholder="e.g. Sarah's 30th Birthday Celebration" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
 
                 <div>

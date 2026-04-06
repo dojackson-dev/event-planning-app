@@ -247,7 +247,7 @@ export default function BillingPage() {
             <p className="text-sm text-gray-500 mb-1">Current Plan</p>
             <div className="flex items-center gap-3">
               <p className="text-xl font-bold text-gray-900">
-                {subscription?.planId ? subscription.planId : 'Free Trial'}
+                {subscription?.planId ? ((subscription as any).planName || 'MasterSuite') : 'Free Trial'}
               </p>
               {subscription ? statusBadge(subscription.status) : statusBadge('trial')}
             </div>

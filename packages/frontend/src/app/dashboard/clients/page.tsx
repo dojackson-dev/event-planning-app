@@ -212,11 +212,22 @@ export default function ClientsPage() {
   }
 
   const formatEventType = (type: string) => {
-    return type.charAt(0).toUpperCase() + type.slice(1).replace('_', ' ')
+    const labels: Record<string, string> = {
+      wedding: 'Wedding',
+      birthday: 'Birthday',
+      party: 'Party',
+      corporate: 'Corporate Event',
+      conference: 'Conference',
+      workshop: 'Workshop',
+      anniversary: 'Anniversary',
+      other: 'Other',
+    }
+    return labels[type] || type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, ' ')
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString + 'T12:00:00').toLocaleDateString('en-US', {
+    const d = dateString?.includes('T') ? new Date(dateString) : new Date((dateString ?? '') + 'T12:00:00')
+    return d.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
       year: 'numeric'
@@ -364,6 +375,9 @@ export default function ClientsPage() {
                   <div className="flex items-start justify-between gap-2 mb-3">
                     <div className="flex-1 min-w-0">
                       <h2 className="text-base font-bold text-gray-900 leading-snug truncate">{client.contact_name}</h2>
+                      <p className="text-xs font-semibold text-primary-600 truncate mt-0.5">
+                        {client.event_name || formatEventType(client.event_type)}
+                      </p>
                       <div className="flex items-center gap-1 mt-0.5">
                         <Mail className="h-3 w-3 text-gray-400 flex-shrink-0" />
                         <p className="text-xs text-gray-500 truncate">{client.contact_email}</p>
@@ -395,9 +409,7 @@ export default function ClientsPage() {
                       <span className="text-gray-400">🎉</span>
                       <span className="font-medium text-gray-800">{formatEventType(client.event_type)}</span>
                     </div>
-                    {client.event_name && (
-                      <div className="text-sm text-gray-700 font-medium truncate pl-5">{client.event_name}</div>
-                    )}
+
                     <div className="flex items-center gap-2 text-sm text-gray-600">
                       <Calendar className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
                       <span>{formatDate(client.event_date)}</span>

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { Invoice, InvoiceStatus } from '@/types'
+import { Send, Trash2, Pencil, Printer, Link2, DollarSign, Loader2 } from 'lucide-react'
 
 interface EditItem {
   id?: string
@@ -279,30 +280,34 @@ export default function InvoiceDetailPage() {
           <>
             <button
               onClick={() => setShowPaymentModal(true)}
-              className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-sm font-medium"
+              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium"
             >
+              <DollarSign className="w-4 h-4" />
               Record Payment
             </button>
             <button
               onClick={handleGeneratePaymentLink}
               disabled={generatingLink}
-              className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1.5 text-sm font-medium"
+              className="flex items-center gap-2 border border-indigo-300 text-indigo-600 px-4 py-2 rounded-lg hover:bg-indigo-50 disabled:opacity-50 text-sm font-medium"
             >
-              {generatingLink ? 'Generating...' : '🔗 Payment Link'}
+              {generatingLink ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
+              {generatingLink ? 'Generating...' : 'Payment Link'}
             </button>
             {invoice.status === InvoiceStatus.DRAFT && (
               <button
                 onClick={() => handleStatusUpdate(InvoiceStatus.SENT)}
-                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 text-sm font-medium"
+                className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium"
               >
+                <Send className="w-4 h-4" />
                 Send Invoice
               </button>
             )}
             {(invoice.status === InvoiceStatus.SENT || invoice.status === InvoiceStatus.PARTIAL || invoice.status === InvoiceStatus.OVERDUE) && (
               <button
                 onClick={() => handleStatusUpdate(invoice.status)}
-                className="bg-blue-100 text-blue-700 px-4 py-2 rounded-md hover:bg-blue-200 text-sm font-medium"
+                className="flex items-center gap-2 border border-indigo-300 text-indigo-600 px-4 py-2 rounded-lg hover:bg-indigo-50 text-sm font-medium"
               >
+                <Send className="w-4 h-4" />
                 Resend Invoice
               </button>
             )}
@@ -310,20 +315,23 @@ export default function InvoiceDetailPage() {
         )}
         <button
           onClick={handlePrint}
-          className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 text-sm font-medium"
+          className="flex items-center gap-2 border border-gray-300 text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium"
         >
+          <Printer className="w-4 h-4" />
           Print
         </button>
         <button
           onClick={openEditModal}
-          className="bg-yellow-600 text-white px-4 py-2 rounded-md hover:bg-yellow-700 text-sm font-medium"
+          className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium"
         >
+          <Pencil className="w-4 h-4" />
           Edit
         </button>
         <button
           onClick={handleDelete}
-          className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 text-sm font-medium"
+          className="flex items-center gap-2 border border-red-300 text-red-600 px-4 py-2 rounded-lg hover:bg-red-50 text-sm font-medium"
         >
+          <Trash2 className="w-4 h-4" />
           Delete
         </button>
       </div>

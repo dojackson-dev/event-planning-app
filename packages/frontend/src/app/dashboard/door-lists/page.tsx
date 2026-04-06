@@ -46,7 +46,7 @@ export default function DoorListsPage() {
   useEffect(() => {
     if (selectedEvent && guestLists.length > 0) {
       const list = guestLists.find(gl =>
-        (gl.event_id ?? (gl as any).eventId)?.toString() === selectedEvent
+        ((gl as any).event_id ?? gl.eventId)?.toString() === selectedEvent
       )
       setSelectedGuestList(list || null)
     }
@@ -60,9 +60,17 @@ export default function DoorListsPage() {
       const cutoff = new Date()
       cutoff.setDate(cutoff.getDate() - 3)
       cutoff.setHours(0, 0, 0, 0)
+      const seenIds = new Set<string>()
+      const seenKeys = new Set<string>()
       const relevantEvents = response.data.filter(event => {
         const eventDate = parseLocalDate(event.date)
-        return eventDate >= cutoff
+        if (eventDate < cutoff) return false
+        if (seenIds.has(event.id)) return false
+        const nameKey = `${(event.name || '').toLowerCase().trim()}|${event.date}`
+        if (seenKeys.has(nameKey)) return false
+        seenIds.add(event.id)
+        seenKeys.add(nameKey)
+        return true
       })
       setEvents(relevantEvents)
     } catch (error) {

@@ -58,25 +58,97 @@ export class EventsService {
     return result;
   }
 
+  private formatEventType(type: string): string {
+    const labels: Record<string, string> = {
+      wedding: 'Wedding',
+      birthday: 'Birthday',
+      birthday_party: 'Birthday Party',
+      party: 'Party',
+      graduation_party: 'Graduation Party',
+      baby_shower: 'Baby Shower',
+      retirement: 'Retirement',
+      holiday_party: 'Holiday Party',
+      engagement_party: 'Engagement Party',
+      prom_formal: 'Prom / Formal',
+      family_reunion: 'Family Reunion',
+      quinceanera: 'Quincea\u00f1era',
+      sweet_16: 'Sweet 16',
+      corporate: 'Corporate Event',
+      conference: 'Conference',
+      workshop: 'Workshop',
+      anniversary: 'Anniversary',
+      concert_show: 'Concert / Show',
+      memorial_service: 'Memorial Service',
+      other: 'Other',
+    };
+    return labels[type] || type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, ' ');
+  }
+
   async findAll(supabase: SupabaseClient): Promise<Event[]> {
-    const { data, error } = await supabase
+    // Use admin client so the intake_forms join isn't blocked by RLS
+    const adminClient = this.supabaseService.getAdminClient();
+    const { data, error } = await adminClient
       .from('event')
-      .select('*')
+      .select('*, intake_form:intake_forms!intake_form_id(contact_name, event_name, event_type)')
       .order('date', { ascending: true });
 
-    if (error) throw error;
-    return (data || []).map(event => this.snakeToCamelCase(event));
+    if (error) {
+      // Fall back to basic query if join fails (migration not yet run)
+      const { data: basicData, error: basicError } = await supabase
+        .from('event')
+        .select('*')
+        .order('date', { ascending: true });
+      if (basicError) throw basicError;
+      return (basicData || []).map(event => this.snakeToCamelCase(event));
+    }
+
+    return (data || []).map(event => {
+      const converted = this.snakeToCamelCase(event);
+      // Flatten intake form fields onto the event
+      if (event.intake_form) {
+        converted.clientName = event.intake_form.contact_name || null;
+        converted.intakeEventName = event.intake_form.event_name || null;
+        // If no explicit event_name, derive a readable title from event_type
+        if (!converted.intakeEventName && event.intake_form.event_type) {
+          converted.intakeEventName = this.formatEventType(event.intake_form.event_type);
+        }
+      }
+      delete converted.intakeForm;
+      return converted;
+    });
   }
 
   async findOne(supabase: SupabaseClient, id: string): Promise<Event | null> {
-    const { data, error } = await supabase
+    // Try with intake_form join for client name + event name display
+    const adminClient = this.supabaseService.getAdminClient();
+    const { data, error } = await adminClient
       .from('event')
-      .select('*')
+      .select('*, intake_form:intake_forms!intake_form_id(contact_name, event_name, event_type)')
       .eq('id', id)
       .single();
 
-    if (error) throw error;
-    return data ? this.snakeToCamelCase(data) : null;
+    if (error) {
+      // Fall back to basic query without join
+      const { data: basicData, error: basicError } = await supabase
+        .from('event')
+        .select('*')
+        .eq('id', id)
+        .single();
+      if (basicError) throw basicError;
+      return basicData ? this.snakeToCamelCase(basicData) : null;
+    }
+    if (!data) return null;
+
+    const converted = this.snakeToCamelCase(data);
+    if (data.intake_form) {
+      converted.clientName = data.intake_form.contact_name || null;
+      converted.intakeEventName = data.intake_form.event_name || null;
+      if (!converted.intakeEventName && data.intake_form.event_type) {
+        converted.intakeEventName = this.formatEventType(data.intake_form.event_type);
+      }
+    }
+    delete converted.intakeForm;
+    return converted;
   }
 
   async create(supabase: SupabaseClient, event: Partial<Event>): Promise<Event> {

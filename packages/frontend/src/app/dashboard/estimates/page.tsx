@@ -138,9 +138,18 @@ export default function EstimatesPage() {
             {filtered.map(estimate => (
               <div
                 key={estimate.id}
-                className="bg-white rounded-lg shadow p-4 cursor-pointer active:bg-gray-50 hover:shadow-md transition-shadow"
+                className="bg-white rounded-lg shadow overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
                 onClick={() => router.push(`/dashboard/estimates/${estimate.id}`)}
               >
+                {/* Status stripe */}
+                <div className={`h-1 w-full ${
+                  estimate.status === 'approved' ? 'bg-green-400' :
+                  estimate.status === 'sent' ? 'bg-fuchsia-500' :
+                  estimate.status === 'expired' ? 'bg-fuchsia-700' :
+                  estimate.status === 'rejected' ? 'bg-gray-400' :
+                  'bg-fuchsia-300'
+                }`} />
+                <div className="p-4 active:bg-gray-50">
                 <div className="flex justify-between items-start">
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-gray-900">{estimate.estimate_number}</p>
@@ -166,6 +175,7 @@ export default function EstimatesPage() {
                     Delete
                   </button>
                 </div>
+                </div>
               </div>
             ))}
           </div>
@@ -188,7 +198,13 @@ export default function EstimatesPage() {
                 {filtered.map(estimate => (
                   <tr
                     key={estimate.id}
-                    className="hover:bg-gray-50 cursor-pointer"
+                    className={`hover:bg-gray-50 cursor-pointer border-l-4 ${
+                      estimate.status === 'approved' ? 'border-green-400' :
+                      estimate.status === 'sent' ? 'border-fuchsia-500' :
+                      estimate.status === 'expired' ? 'border-fuchsia-700' :
+                      estimate.status === 'rejected' ? 'border-gray-400' :
+                      'border-fuchsia-300'
+                    }`}
                     onClick={() => router.push(`/dashboard/estimates/${estimate.id}`)}
                   >
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">{estimate.estimate_number}</td>

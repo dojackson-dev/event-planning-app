@@ -15,6 +15,7 @@ export default function ConnectBankButton({ role, email }: ConnectBankButtonProp
   const [status, setStatus] = useState<ConnectStatus>(null)
   const [loading, setLoading] = useState(true)
   const [connecting, setConnecting] = useState(false)
+  const [resetting, setResetting] = useState(false)
   const [error, setError] = useState('')
   const [successBanner, setSuccessBanner] = useState(false)
 
@@ -53,6 +54,20 @@ export default function ConnectBankButton({ role, email }: ConnectBankButtonProp
           'Failed to start bank connection. Please try again.',
       )
       setConnecting(false)
+    }
+  }
+
+  const handleReset = async () => {
+    if (!confirm('This will disconnect your current Stripe account so you can start fresh. Continue?')) return
+    setResetting(true)
+    setError('')
+    try {
+      await api.delete(`/stripe/connect/${role}/reset`)
+      setStatus('not_connected')
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to reset. Please try again.')
+    } finally {
+      setResetting(false)
     }
   }
 
@@ -124,6 +139,13 @@ export default function ConnectBankButton({ role, email }: ConnectBankButtonProp
               <ExternalLink className="h-4 w-4" />
             )}
             {connecting ? 'Redirecting…' : 'Continue Setup on Stripe'}
+          </button>
+          <button
+            onClick={handleReset}
+            disabled={resetting}
+            className="text-xs text-gray-400 hover:text-red-500 underline transition-colors disabled:opacity-50"
+          >
+            {resetting ? 'Resetting…' : 'Start fresh with a new Stripe account'}
           </button>
         </div>
       )}

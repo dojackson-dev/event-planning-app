@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
   Body,
   Headers,
   RawBody,
@@ -189,6 +190,28 @@ export class StripeController {
   ): Promise<{ status: string; connectId: string | null }> {
     const userId = await this.getUserIdFromAuth(authorization);
     return this.stripeService.getVendorConnectStatus(userId);
+  }
+
+  /**
+   * DELETE /stripe/connect/owner/reset — Clear stuck Connect account so a fresh one is created
+   */
+  @Delete('connect/owner/reset')
+  async resetOwnerConnect(
+    @Headers('authorization') authorization: string,
+  ): Promise<{ success: boolean }> {
+    const userId = await this.getUserIdFromAuth(authorization);
+    return this.stripeService.resetOwnerConnect(userId);
+  }
+
+  /**
+   * DELETE /stripe/connect/vendor/reset — Clear stuck Connect account so a fresh one is created
+   */
+  @Delete('connect/vendor/reset')
+  async resetVendorConnect(
+    @Headers('authorization') authorization: string,
+  ): Promise<{ success: boolean }> {
+    const userId = await this.getUserIdFromAuth(authorization);
+    return this.stripeService.resetVendorConnect(userId);
   }
 
   // ─── Payments ─────────────────────────────────────────────────────────────

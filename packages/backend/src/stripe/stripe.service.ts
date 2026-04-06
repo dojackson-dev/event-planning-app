@@ -510,6 +510,38 @@ export class StripeService {
   }
 
   /**
+   * Reset owner Stripe Connect — clears stored ID so a fresh account is created on next attempt.
+   */
+  async resetOwnerConnect(userId: string): Promise<{ success: boolean }> {
+    const admin = this.supabaseService.getAdminClient();
+    const owner = await this.getOwnerAccountByUserId(userId, admin);
+    if (!owner) throw new Error('Owner account not found');
+    await admin
+      .from('owner_accounts')
+      .update({ stripe_connect_id: null, stripe_connect_status: 'not_connected' })
+      .eq('id', owner.id);
+    return { success: true };
+  }
+
+  /**
+   * Reset vendor Stripe Connect — clears stored ID so a fresh account is created on next attempt.
+   */
+  async resetVendorConnect(userId: string): Promise<{ success: boolean }> {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: vendor } = await admin
+      .from('vendor_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (!vendor) throw new Error('Vendor account not found');
+    await admin
+      .from('vendor_accounts')
+      .update({ stripe_account_id: null, stripe_connect_status: 'not_connected' })
+      .eq('id', vendor.id);
+    return { success: true };
+  }
+
+  /**
    * Charge a client and route funds to an owner's Connect account.
    * DoVenueSuite takes 5% as application_fee_amount.
    *

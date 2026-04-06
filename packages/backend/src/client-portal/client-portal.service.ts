@@ -97,7 +97,31 @@ export class ClientPortalService {
       .flatMap((r: any) => r.data || [])
       .filter((e: any) => { if (estimateSeen.has(e.id)) return false; estimateSeen.add(e.id); return true; });
 
-    return { bookings, contracts, estimates };
+    // ── Invoices: by client_phone, booking_id, or intake_form_id ─────────────
+    const invoiceSelect = 'id, invoice_number, status, total_amount, amount_due, amount_paid, due_date, issue_date, created_at, client_name';
+    const invoiceQueries: any[] = [
+      ...phoneVariants.map(p =>
+        supabase.from('invoices').select(invoiceSelect).eq('client_phone', p).neq('status', 'draft').order('created_at', { ascending: false }),
+      ),
+    ];
+    if (bookingIds.length) {
+      invoiceQueries.push(
+        supabase.from('invoices').select(invoiceSelect).in('booking_id', bookingIds).neq('status', 'draft').order('created_at', { ascending: false }),
+      );
+    }
+    if (intakeFormIds.length) {
+      invoiceQueries.push(
+        supabase.from('invoices').select(invoiceSelect).in('intake_form_id', intakeFormIds).neq('status', 'draft').order('created_at', { ascending: false }),
+      );
+    }
+
+    const invoiceResults = await Promise.all(invoiceQueries);
+    const invoiceSeen = new Set<string>();
+    const invoices = invoiceResults
+      .flatMap((r: any) => r.data || [])
+      .filter((i: any) => { if (invoiceSeen.has(i.id)) return false; invoiceSeen.add(i.id); return true; });
+
+    return { bookings, contracts, estimates, invoices };
   }
 
   /** All bookings for the client including event + vendor info */
@@ -445,6 +469,58 @@ export class ClientPortalService {
       .filter((e: any) => {
         if (seen.has(e.id)) return false;
         seen.add(e.id);
+        return true;
+      })
+      .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }
+
+  /** Invoices for this client (by client_phone, booking_id, or intake_form_id) */
+  async getInvoices(clientId: string, clientPhone: string) {
+    const supabase = this.supabaseService.getAdminClient();
+    const phoneVariants = buildPhoneVariants(clientPhone);
+
+    // Get booking IDs and intake form IDs for cross-reference
+    const [bookingByUserId, ...bookingByPhones] = await Promise.all([
+      supabase.from('booking').select('id').eq('user_id', clientId),
+      ...phoneVariants.map(p => supabase.from('booking').select('id').eq('contact_phone', p)),
+    ]);
+    const bookingIds = [...new Set(
+      [...(bookingByUserId.data || []), ...bookingByPhones.flatMap((r: any) => r.data || [])].map((b: any) => b.id),
+    )];
+    const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
+
+    const invoiceSelect = `
+      id, invoice_number, status, total_amount, amount_due, amount_paid,
+      due_date, issue_date, paid_date, created_at, client_name, notes,
+      items:invoice_items(id, description, quantity, unit_price, amount, item_type)
+    `;
+
+    const queries: any[] = [
+      ...phoneVariants.map(p =>
+        supabase.from('invoices').select(invoiceSelect).eq('client_phone', p).neq('status', 'draft').order('created_at', { ascending: false }),
+      ),
+    ];
+    if (bookingIds.length) {
+      queries.push(
+        supabase.from('invoices').select(invoiceSelect).in('booking_id', bookingIds).neq('status', 'draft').order('created_at', { ascending: false }),
+      );
+    }
+    if (intakeFormIds.length) {
+      queries.push(
+        supabase.from('invoices').select(invoiceSelect).in('intake_form_id', intakeFormIds).neq('status', 'draft').order('created_at', { ascending: false }),
+      );
+    }
+
+    const results = await Promise.all(queries);
+    const seen = new Set<string>();
+    return results
+      .flatMap((r: any) => {
+        if (r.error) this.logger.error('getInvoices error', r.error);
+        return r.data || [];
+      })
+      .filter((i: any) => {
+        if (seen.has(i.id)) return false;
+        seen.add(i.id);
         return true;
       })
       .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());

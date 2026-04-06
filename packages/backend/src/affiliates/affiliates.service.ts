@@ -33,11 +33,11 @@ export class AffiliatesService {
       throw new BadRequestException('An account with this email already exists');
     }
 
-    // Create Supabase auth user
+    // Create Supabase auth user — auto-confirm email so affiliates can login immediately
     const { data: authData, error: authError } = await admin.auth.admin.createUser({
       email: dto.email,
       password: dto.password,
-      email_confirm: false,
+      email_confirm: true,
       user_metadata: {
         first_name: dto.firstName,
         last_name: dto.lastName,

@@ -423,7 +423,8 @@ export class StripeService {
     // ── Notify owner via SMS ───────────────────────────────────────────────
     if (invoice.owner_id) {
       try {
-        // Try to find phone via memberships → users
+        // Path 1: memberships table → user_id → phone_number
+        let ownerPhone: string | null = null;
         const { data: membership } = await admin
           .from('memberships')
           .select('user_id')
@@ -431,16 +432,31 @@ export class StripeService {
           .eq('role', 'owner')
           .limit(1)
           .maybeSingle();
-        const userId = membership?.user_id;
-        if (userId) {
-          const { data: user } = await admin.from('users').select('phone_number').eq('id', userId).maybeSingle();
-          const ownerPhone = (user as any)?.phone_number ?? null;
-          if (ownerPhone) {
-            await this.smsNotifications.trySend(
-              ownerPhone,
-              `DoVenue Suite: Invoice #${invoiceNumber} has been paid — $${paidAmount.toFixed(2)} received from ${clientName}.`,
-            );
+        if (membership?.user_id) {
+          const { data: user } = await admin.from('users').select('phone_number').eq('id', membership.user_id).maybeSingle();
+          ownerPhone = (user as any)?.phone_number ?? null;
+        }
+
+        // Path 2: fallback via owner_accounts.primary_owner_id → users
+        if (!ownerPhone) {
+          const { data: ownerAccount } = await admin
+            .from('owner_accounts')
+            .select('primary_owner_id')
+            .eq('id', invoice.owner_id)
+            .maybeSingle();
+          if (ownerAccount?.primary_owner_id) {
+            const { data: user } = await admin.from('users').select('phone_number').eq('id', ownerAccount.primary_owner_id).maybeSingle();
+            ownerPhone = (user as any)?.phone_number ?? null;
           }
+        }
+
+        if (ownerPhone) {
+          await this.smsNotifications.trySend(
+            ownerPhone,
+            `DoVenue Suite: Invoice #${invoiceNumber} has been paid — $${paidAmount.toFixed(2)} received from ${clientName}.`,
+          );
+        } else {
+          this.logger.warn(`No phone found for owner ${invoice.owner_id}, skipping owner SMS for invoice ${invoiceId}`);
         }
       } catch (ownerSmsErr) {
         this.logger.warn(`Failed to send owner payment SMS for invoice ${invoiceId}`, (ownerSmsErr as Error).message);

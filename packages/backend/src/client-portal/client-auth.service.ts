@@ -1,7 +1,7 @@
 import { Injectable, UnauthorizedException, BadRequestException, Logger } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { TwilioService } from '../messaging/twilio.service';
-import { randomBytes, createHash } from 'crypto';
+import { randomBytes, createHash, createHmac } from 'crypto';
 
 interface OtpRecord {
   code: string;
@@ -24,9 +24,13 @@ export interface ClientSession {
 export class ClientAuthService {
   private readonly logger = new Logger(ClientAuthService.name);
 
-  // In-memory stores – swap for Redis in production
+  // In-memory OTP store (short-lived, in-memory is fine)
   private readonly otpStore = new Map<string, OtpRecord>();
-  private readonly sessionStore = new Map<string, ClientSession>();
+
+  // Session secret — self-validating HMAC tokens survive backend restarts
+  private readonly sessionSecret =
+    process.env.CLIENT_SESSION_SECRET ||
+    createHash('sha256').update('dovenue-client-sessions-devkey').digest('hex');
 
   constructor(
     private readonly supabaseService: SupabaseService,
@@ -267,42 +271,55 @@ export class ClientAuthService {
     }
 
     // Issue a session token – 30-day expiry for persistent login
-    const token = randomBytes(32).toString('hex');
-    const session: ClientSession = {
+    const sessionData = {
       clientId,
       phone: normalized,
       firstName,
       lastName,
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
     };
-    this.sessionStore.set(token, session);
+    const payload = Buffer.from(JSON.stringify(sessionData)).toString('base64url');
+    const sig = createHmac('sha256', this.sessionSecret).update(payload).digest('base64url');
+    const token = `${payload}.${sig}`;
 
     this.logger.log(`Client session created for ${normalized}`);
 
-    const { expiresAt, ...clientInfo } = session;
-    return { token, client: clientInfo };
+    const { expiresAt, ...clientInfo } = sessionData as any;
+    return { token, client: { ...clientInfo } };
   }
 
   /**
    * Validate a session token and return the client session.
    */
   validateSession(token: string): ClientSession {
-    const session = this.sessionStore.get(token);
-    if (!session) {
-      throw new UnauthorizedException('Invalid or expired session.');
+    const dotIndex = token.lastIndexOf('.');
+    if (dotIndex === -1) throw new UnauthorizedException('Invalid session token.');
+
+    const payload = token.substring(0, dotIndex);
+    const sig = token.substring(dotIndex + 1);
+    const expectedSig = createHmac('sha256', this.sessionSecret).update(payload).digest('base64url');
+
+    if (sig !== expectedSig) throw new UnauthorizedException('Invalid session token.');
+
+    let session: ClientSession;
+    try {
+      session = JSON.parse(Buffer.from(payload, 'base64url').toString());
+    } catch {
+      throw new UnauthorizedException('Invalid session token.');
     }
-    if (new Date() > session.expiresAt) {
-      this.sessionStore.delete(token);
+
+    if (new Date() > new Date(session.expiresAt)) {
       throw new UnauthorizedException('Session expired. Please log in again.');
     }
     return session;
   }
 
   /**
-   * Invalidate a session token (logout).
+   * Logout is handled client-side by clearing localStorage.
+   * HMAC tokens cannot be individually revoked without a denylist.
    */
-  revokeSession(token: string): void {
-    this.sessionStore.delete(token);
+  revokeSession(_token: string): void {
+    // No-op: token expiry is enforced via the embedded expiresAt claim
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

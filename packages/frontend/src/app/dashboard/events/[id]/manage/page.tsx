@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft,
@@ -165,6 +165,8 @@ export default function EventManagementPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [eventInvoices, setEventInvoices] = useState<any[]>([]);
+  const [eventEstimates, setEventEstimates] = useState<any[]>([]);
+  const [intakeFormId, setIntakeFormId] = useState<string | null>(null);
   const [guestListId, setGuestListId] = useState<number | null>(null);
   const [formData, setFormData] = useState<EventManagementData>({
     eventId: '',
@@ -228,7 +230,9 @@ export default function EventManagementPage() {
         endTime: event.endTime || '',
         venue: event.venue || '',
       }));
+      setIntakeFormId(event.intakeFormId || null);
       loadEventInvoices(event.bookingId, event.clientName);
+      loadEventEstimates(event.intakeFormId);
       loadGuestList();
     } catch (error) {
       console.error('Error loading event data:', error);
@@ -244,6 +248,16 @@ export default function EventManagementPage() {
       setGuestListId(match ? match.id : null);
     } catch {
       // guest list is supplementary
+    }
+  };
+
+  const loadEventEstimates = async (intakeFormId?: string) => {
+    if (!intakeFormId) return;
+    try {
+      const res = await api.get('/estimates', { params: { intakeFormId } });
+      setEventEstimates(res.data || []);
+    } catch {
+      // estimates are supplementary
     }
   };
 
@@ -410,6 +424,94 @@ export default function EventManagementPage() {
             )}
           </div>
         </div>
+
+        {/* Booking Progress Bar */}
+        {(() => {
+          const estimateAccepted = eventEstimates.some(e => ['approved', 'converted'].includes(e.status));
+          const contractSigned = formData.contractStatus === ContractStatus.SIGNED;
+          const invoiceSent = eventInvoices.some(inv => ['sent', 'partial', 'paid', 'overdue'].includes(inv.status));
+          const booked = formData.depositPaid ||
+            [ClientStatus.BOOKED, ClientStatus.DEPOSIT_PAID, ClientStatus.COMPLETED].includes(formData.clientStatus);
+
+          const steps = [
+            { label: 'Activate',  done: true },
+            { label: 'Estimate',  done: estimateAccepted },
+            { label: 'Contract',  done: contractSigned },
+            { label: 'Invoice',   done: invoiceSent },
+            { label: 'Booked',    done: booked },
+          ];
+
+          const currentStepIndex = steps.findIndex(s => !s.done);
+
+          const handleProgressAction = () => {
+            if (!estimateAccepted) {
+              router.push(`/dashboard/estimates/new${intakeFormId ? `?clientId=${intakeFormId}` : ''}`);
+            } else if (!contractSigned) {
+              router.push('/dashboard/contracts/new');
+            } else if (!invoiceSent) {
+              router.push(`/dashboard/invoices/new?eventId=${eventId}`);
+            }
+          };
+
+          const actionLabels = ['', 'Send Estimate', 'Send Contract', 'Send Invoice', ''];
+          const actionLabel = currentStepIndex > 0 && currentStepIndex < 4 ? actionLabels[currentStepIndex] : null;
+
+          return (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-6">
+              <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-4">Booking Progress</h2>
+              <div className="flex items-center w-full">
+                {steps.map((step, i) => {
+                  const isLast = i === steps.length - 1;
+                  const isCurrent = i === currentStepIndex;
+                  return (
+                    <React.Fragment key={step.label}>
+                      <div className="flex flex-col items-center min-w-0">
+                        <div className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0
+                          ${step.done ? 'bg-green-500 text-white' : isCurrent ? 'bg-primary-600 text-white ring-4 ring-primary-100' : 'bg-gray-200 text-gray-400'}`}>
+                          {step.done
+                            ? <CheckCircle className="h-4 w-4" />
+                            : <span className="text-xs font-bold">{i + 1}</span>}
+                        </div>
+                        <span className={`text-xs mt-1.5 font-medium text-center leading-tight
+                          ${step.done ? 'text-green-600' : isCurrent ? 'text-primary-600' : 'text-gray-400'}`}>
+                          {step.label}
+                        </span>
+                      </div>
+                      {!isLast && (
+                        <div className={`flex-1 h-1 mx-1 rounded-full mb-4
+                          ${step.done ? 'bg-green-400' : 'bg-gray-200'}`} />
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+              {actionLabel && (
+                <div className="mt-4 flex justify-center">
+                  <button
+                    onClick={handleProgressAction}
+                    className="inline-flex items-center px-5 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium text-sm shadow-sm"
+                  >
+                    {actionLabel} →
+                  </button>
+                </div>
+              )}
+              {currentStepIndex === 4 && !booked && (
+                <div className="mt-4 flex justify-center">
+                  <span className="inline-flex items-center px-4 py-1.5 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800">
+                    <Clock className="h-3.5 w-3.5 mr-1.5" /> Awaiting Deposit Payment
+                  </span>
+                </div>
+              )}
+              {booked && (
+                <div className="mt-4 flex justify-center">
+                  <span className="inline-flex items-center px-4 py-1.5 rounded-full text-sm font-medium bg-green-100 text-green-700">
+                    <CheckCircle className="h-3.5 w-3.5 mr-1.5" /> Booked!
+                  </span>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Status Overview Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">

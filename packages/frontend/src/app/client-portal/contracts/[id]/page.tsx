@@ -228,8 +228,8 @@ export default function ClientContractDetailPage() {
                 </div>
                 <div
                   className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 overflow-hidden"
-                  onPointerUp={() => { if (sigRef.current && !sigRef.current.isEmpty()) setHasSigned(true) }}
-                  onTouchEnd={() => { if (sigRef.current && !sigRef.current.isEmpty()) setHasSigned(true) }}
+                  onPointerUp={() => { if (sigRef.current) setHasSigned(true) }}
+                  onTouchEnd={() => { if (sigRef.current) setHasSigned(true) }}
                 >
                   <SignatureCanvas
                     ref={sigRef}

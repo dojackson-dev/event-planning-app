@@ -312,4 +312,13 @@ export class StripeController {
   async verifyPublicInvoicePayment(@Param('token') token: string) {
     return this.stripeService.verifyPublicInvoicePayment(token);
   }
+
+  /**
+   * POST /stripe/invoice-verify/:invoiceId
+   * Webhook fallback for the client portal. Verifies payment with Stripe by invoice ID.
+   */
+  @Post('invoice-verify/:invoiceId')
+  async verifyInvoicePaymentById(@Param('invoiceId') invoiceId: string) {
+    return this.stripeService.verifyInvoicePaymentById(invoiceId);
+  }
 }

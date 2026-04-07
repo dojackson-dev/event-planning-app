@@ -46,6 +46,7 @@ export default function ClientInvoicesPage() {
 
   const paid = searchParams.get('paid')
   const canceled = searchParams.get('canceled')
+  const iid = searchParams.get('iid') // invoice ID passed after Stripe redirect
 
   useEffect(() => {
     clientApi.get('/invoices')
@@ -54,25 +55,29 @@ export default function ClientInvoicesPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  // After a successful payment redirect, poll until the paid invoice reflects the updated status
+  // After a successful payment redirect, call verify endpoint (webhook fallback) then reload
   useEffect(() => {
     if (!paid) return
-    const invoiceNumber = searchParams.get('invoice')
-    let attempts = 0
-    const interval = setInterval(() => {
-      attempts++
-      clientApi.get('/invoices')
-        .then(res => {
-          setInvoices(res.data)
-          const stillUnpaid = invoiceNumber
-            ? res.data.some((i: any) => i.invoice_number === invoiceNumber && i.status !== 'paid')
-            : false
-          if (!stillUnpaid || attempts >= 5) clearInterval(interval)
-        })
-        .catch(() => clearInterval(interval))
-    }, 2000)
-    return () => clearInterval(interval)
-  }, [paid])
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+    const runVerify = async () => {
+      if (iid) {
+        // Call verify endpoint — this marks invoice paid in DB if Stripe webhook hasn't fired yet
+        try {
+          await fetch(`${API_URL}/stripe/invoice-verify/${iid}`, { method: 'POST' })
+        } catch {
+          // ignore — we still reload invoices below
+        }
+      }
+      // Reload invoice list so status is current
+      try {
+        const res = await clientApi.get('/invoices')
+        setInvoices(res.data)
+      } catch {
+        // ignore
+      }
+    }
+    runVerify()
+  }, [paid, iid])
 
   const toggleExpand = (id: string) => {
     setExpanded(prev => {

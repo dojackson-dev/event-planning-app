@@ -196,8 +196,9 @@ export class StripeService {
         },
       ],
       mode: 'payment',
-      success_url: `${this.frontendUrl}/client-portal/invoices?paid=true&invoice=${invoice.invoice_number}`,
+      success_url: `${this.frontendUrl}/client-portal/invoices?paid=true&invoice=${invoice.invoice_number}&iid=${invoiceId}`,
       cancel_url: `${this.frontendUrl}/client-portal/invoices?canceled=true`,
+      client_reference_id: invoiceId,
       metadata: { invoice_id: invoiceId },
       ...(transferData ? { payment_intent_data: transferData } : {}),
     });
@@ -957,6 +958,37 @@ export class StripeService {
     // Mark the invoice paid now as a webhook fallback
     await this.markInvoicePaid(invoice.id, paidSession.amount_total ?? 0);
     this.logger.log(`Invoice ${invoice.id} verified and marked paid via session ${paidSession.id} (webhook fallback)`);
+
+    return { status: 'paid', paid: true };
+  }
+
+  /**
+   * Webhook fallback for the authenticated client portal.
+   * Called after Stripe redirects back with ?paid=true&iid=<invoiceId>.
+   * Queries Stripe directly by client_reference_id and marks the invoice paid if confirmed.
+   */
+  async verifyInvoicePaymentById(invoiceId: string): Promise<{ status: string; paid: boolean }> {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: invoice } = await admin
+      .from('invoices')
+      .select('id, status')
+      .eq('id', invoiceId)
+      .maybeSingle();
+
+    if (!invoice) throw new Error('Invoice not found');
+    if (invoice.status === 'paid') return { status: 'paid', paid: true };
+
+    const sessions = await this.stripe.checkout.sessions.list({
+      client_reference_id: invoiceId,
+      limit: 10,
+    });
+
+    const paidSession = sessions.data.find(s => s.payment_status === 'paid');
+    if (!paidSession) return { status: invoice.status, paid: false };
+
+    await this.markInvoicePaid(invoiceId, paidSession.amount_total ?? 0);
+    this.logger.log(`Client portal invoice ${invoiceId} verified and marked paid via session ${paidSession.id} (webhook fallback)`);
 
     return { status: 'paid', paid: true };
   }

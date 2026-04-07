@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import clientApi from '@/lib/clientApi'
-import { FileText, Calendar, CheckCircle2, Clock, XCircle, Send } from 'lucide-react'
+import { FileText, Calendar, CheckCircle2, Clock, XCircle, Send, PenLine } from 'lucide-react'
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   draft:     { label: 'Draft',     color: 'bg-gray-100 text-gray-600 border-gray-200',       icon: <FileText className="h-4 w-4" /> },
@@ -12,6 +13,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
 }
 
 export default function ClientContractsPage() {
+  const router = useRouter()
   const [contracts, setContracts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<string>('all')
@@ -65,8 +67,13 @@ export default function ClientContractsPage() {
         <div className="space-y-4">
           {filtered.map((contract: any) => {
             const cfg = STATUS_CONFIG[contract.status] ?? STATUS_CONFIG.draft
+            const needsSignature = contract.status === 'sent'
             return (
-              <div key={contract.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+              <div
+                key={contract.id}
+                onClick={() => router.push(`/client-portal/contracts/${contract.id}`)}
+                className={`bg-white rounded-xl border shadow-sm p-6 cursor-pointer transition-all hover:shadow-md hover:border-primary-300 ${needsSignature ? 'border-blue-300 ring-1 ring-blue-200' : 'border-gray-200'}`}
+              >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 flex-wrap">
@@ -86,8 +93,8 @@ export default function ClientContractsPage() {
                       </p>
                     )}
 
-                    {contract.content && (
-                      <p className="mt-2 text-sm text-gray-600 line-clamp-3">{contract.content}</p>
+                    {contract.description && (
+                      <p className="mt-2 text-sm text-gray-600 line-clamp-2">{contract.description}</p>
                     )}
 
                     <div className="mt-3 flex items-center gap-4 text-xs text-gray-400 flex-wrap">
@@ -97,16 +104,16 @@ export default function ClientContractsPage() {
                           Created {new Date(contract.created_at).toLocaleDateString()}
                         </span>
                       )}
-                      {contract.signed_at && (
+                      {(contract.signed_date ?? contract.signed_at) && (
                         <span className="flex items-center gap-1 text-green-600">
                           <CheckCircle2 className="h-3 w-3" />
-                          Signed {new Date(contract.signed_at).toLocaleDateString()}
+                          Signed {new Date(contract.signed_date ?? contract.signed_at).toLocaleDateString()}
                         </span>
                       )}
-                      {contract.sent_at && !contract.signed_at && (
+                      {(contract.sent_date ?? contract.sent_at) && !(contract.signed_date ?? contract.signed_at) && (
                         <span className="flex items-center gap-1 text-blue-500">
                           <Send className="h-3 w-3" />
-                          Sent {new Date(contract.sent_at).toLocaleDateString()}
+                          Sent {new Date(contract.sent_date ?? contract.sent_at).toLocaleDateString()}
                         </span>
                       )}
                     </div>
@@ -118,16 +125,14 @@ export default function ClientContractsPage() {
                       {cfg.label}
                     </span>
 
-                    {contract.file_url && (
-                      <a
-                        href={contract.file_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-primary-600 hover:underline"
-                      >
-                        View Document →
-                      </a>
-                    )}
+                    {needsSignature ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-full">
+                        <PenLine className="h-3 w-3" />
+                        Sign Now
+                      </span>
+                    ) : contract.file_url ? (
+                      <span className="text-xs text-primary-600">View →</span>
+                    ) : null}
                   </div>
                 </div>
               </div>

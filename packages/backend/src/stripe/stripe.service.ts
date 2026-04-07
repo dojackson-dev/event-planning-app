@@ -196,15 +196,14 @@ export class StripeService {
         },
       ],
       mode: 'payment',
-      success_url: `${this.frontendUrl}/client-portal/invoices?paid=true&invoice=${invoice.invoice_number}&iid=${invoiceId}`,
+      success_url: `${this.frontendUrl}/client-portal/invoices?paid=true&invoice=${invoice.invoice_number}&iid=${invoiceId}&sid={CHECKOUT_SESSION_ID}`,
       cancel_url: `${this.frontendUrl}/client-portal/invoices?canceled=true`,
-      client_reference_id: invoiceId,
       metadata: { invoice_id: invoiceId },
       ...(transferData ? { payment_intent_data: transferData } : {}),
     });
 
     this.logger.log(`Created invoice checkout session ${session.id} for invoice ${invoiceId}`);
-    return session.url!;
+    return session.url!
   }
 
   /**
@@ -934,7 +933,7 @@ export class StripeService {
    * Called after Stripe redirects back with ?paid=true — verifies payment
    * status directly with Stripe and marks the invoice paid if confirmed.
    */
-  async verifyPublicInvoicePayment(token: string): Promise<{ status: string; paid: boolean }> {
+  async verifyPublicInvoicePayment(token: string, sessionId: string): Promise<{ status: string; paid: boolean }> {
     const admin = this.supabaseService.getAdminClient();
 
     const { data: invoice } = await admin
@@ -946,18 +945,14 @@ export class StripeService {
     if (!invoice) throw new Error('Invoice not found');
     if (invoice.status === 'paid') return { status: 'paid', paid: true };
 
-    // Query Stripe for any paid checkout sessions linked to this invoice
-    const sessions = await this.stripe.checkout.sessions.list({
-      client_reference_id: invoice.id,
-      limit: 10,
-    } as any);
+    // Retrieve the specific Stripe session directly — no listing needed
+    const session = await this.stripe.checkout.sessions.retrieve(sessionId);
+    if (!session || session.payment_status !== 'paid') return { status: invoice.status, paid: false };
+    // Confirm the session actually belongs to this invoice
+    if ((session.metadata as any)?.invoice_id !== invoice.id) return { status: invoice.status, paid: false };
 
-    const paidSession = sessions.data.find((s: any) => s.payment_status === 'paid');
-    if (!paidSession) return { status: invoice.status, paid: false };
-
-    // Mark the invoice paid now as a webhook fallback
-    await this.markInvoicePaid(invoice.id, paidSession.amount_total ?? 0);
-    this.logger.log(`Invoice ${invoice.id} verified and marked paid via session ${paidSession.id} (webhook fallback)`);
+    await this.markInvoicePaid(invoice.id, session.amount_total ?? 0);
+    this.logger.log(`Invoice ${invoice.id} verified and marked paid via session ${session.id} (webhook fallback)`);
 
     return { status: 'paid', paid: true };
   }
@@ -967,7 +962,7 @@ export class StripeService {
    * Called after Stripe redirects back with ?paid=true&iid=<invoiceId>.
    * Queries Stripe directly by client_reference_id and marks the invoice paid if confirmed.
    */
-  async verifyInvoicePaymentById(invoiceId: string): Promise<{ status: string; paid: boolean }> {
+  async verifyInvoicePaymentById(invoiceId: string, sessionId: string): Promise<{ status: string; paid: boolean }> {
     const admin = this.supabaseService.getAdminClient();
 
     const { data: invoice } = await admin
@@ -979,16 +974,14 @@ export class StripeService {
     if (!invoice) throw new Error('Invoice not found');
     if (invoice.status === 'paid') return { status: 'paid', paid: true };
 
-    const sessions = await this.stripe.checkout.sessions.list({
-      client_reference_id: invoiceId,
-      limit: 10,
-    } as any);
+    // Retrieve the specific Stripe session directly — no listing needed
+    const session = await this.stripe.checkout.sessions.retrieve(sessionId);
+    if (!session || session.payment_status !== 'paid') return { status: invoice.status, paid: false };
+    // Confirm the session actually belongs to this invoice
+    if ((session.metadata as any)?.invoice_id !== invoiceId) return { status: invoice.status, paid: false };
 
-    const paidSession = sessions.data.find((s: any) => s.payment_status === 'paid');
-    if (!paidSession) return { status: invoice.status, paid: false };
-
-    await this.markInvoicePaid(invoiceId, paidSession.amount_total ?? 0);
-    this.logger.log(`Client portal invoice ${invoiceId} verified and marked paid via session ${paidSession.id} (webhook fallback)`);
+    await this.markInvoicePaid(invoiceId, session.amount_total ?? 0);
+    this.logger.log(`Client portal invoice ${invoiceId} verified and marked paid via session ${session.id} (webhook fallback)`);
 
     return { status: 'paid', paid: true };
   }
@@ -1056,9 +1049,8 @@ export class StripeService {
         },
         quantity: 1,
       }],
-      success_url: `${this.frontendUrl}/pay/invoice/${token}?paid=true`,
+      success_url: `${this.frontendUrl}/pay/invoice/${token}?paid=true&sid={CHECKOUT_SESSION_ID}`,
       cancel_url: `${this.frontendUrl}/pay/invoice/${token}?canceled=true`,
-      client_reference_id: inv.id,
       metadata: { invoice_id: inv.id },
     };
 

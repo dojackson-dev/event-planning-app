@@ -51,10 +51,11 @@ export default function OwnerInvoicePayPage() {
 
   const justPaid = searchParams.get('paid') === 'true'
   const wasCanceled = searchParams.get('canceled') === 'true'
+  const sid = searchParams.get('sid') // Stripe session ID
 
   useEffect(() => {
-    if (justPaid) {
-      fetch(`${API_URL}/stripe/invoice-pay/${token}/verify-payment`, { method: 'POST' })
+    if (justPaid && sid) {
+      fetch(`${API_URL}/stripe/invoice-pay/${token}/verify-payment?sid=${encodeURIComponent(sid)}`, { method: 'POST' })
         .then(r => r.json())
         .then(d => {
           if (d.paid) {

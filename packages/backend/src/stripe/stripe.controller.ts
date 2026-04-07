@@ -305,20 +305,28 @@ export class StripeController {
   }
 
   /**
-   * POST /stripe/invoice-pay/:token/verify-payment
+   * POST /stripe/invoice-pay/:token/verify-payment?sid=<stripeSessionId>
    * Public endpoint — webhook fallback. Confirms payment with Stripe and marks invoice paid.
    */
   @Post('invoice-pay/:token/verify-payment')
-  async verifyPublicInvoicePayment(@Param('token') token: string) {
-    return this.stripeService.verifyPublicInvoicePayment(token);
+  async verifyPublicInvoicePayment(
+    @Param('token') token: string,
+    @Query('sid') sid: string,
+  ) {
+    if (!sid) throw new BadRequestException('sid is required');
+    return this.stripeService.verifyPublicInvoicePayment(token, sid);
   }
 
   /**
-   * POST /stripe/invoice-verify/:invoiceId
-   * Webhook fallback for the client portal. Verifies payment with Stripe by invoice ID.
+   * POST /stripe/invoice-verify/:invoiceId?sid=<stripeSessionId>
+   * Webhook fallback for the client portal. Verifies payment with Stripe by session ID.
    */
   @Post('invoice-verify/:invoiceId')
-  async verifyInvoicePaymentById(@Param('invoiceId') invoiceId: string) {
-    return this.stripeService.verifyInvoicePaymentById(invoiceId);
+  async verifyInvoicePaymentById(
+    @Param('invoiceId') invoiceId: string,
+    @Query('sid') sid: string,
+  ) {
+    if (!sid) throw new BadRequestException('sid is required');
+    return this.stripeService.verifyInvoicePaymentById(invoiceId, sid);
   }
 }

@@ -31,7 +31,6 @@ import {
   Briefcase,
   Trash2
 } from 'lucide-react';
-import DashboardLayout from '@/components/DashboardLayout';
 import api from '@/lib/api';
 import { Event, EventType, ClientStatus, ContractStatus, InsuranceStatus } from '@/types';
 
@@ -360,8 +359,7 @@ export default function EventManagementPage() {
   };
 
   return (
-    <DashboardLayout>
-      <div className="max-w-7xl mx-auto">
+    <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
           <button
@@ -1328,7 +1326,6 @@ export default function EventManagementPage() {
             </div>
           </div>
         </div>
-      </div>
-    </DashboardLayout>
+    </div>
   );
 }

@@ -22,6 +22,7 @@ export default function ClientContractDetailPage() {
   const [showSignModal, setShowSignModal] = useState(false)
   const [signerName, setSignerName] = useState('')
   const [signing, setSigning] = useState(false)
+  const [hasSigned, setHasSigned] = useState(false)
   const sigRef = useRef<any>(null)
 
   // Pre-fill signer name from session
@@ -48,7 +49,7 @@ export default function ClientContractDetailPage() {
       alert('Please enter your full name.')
       return
     }
-    if (!sigRef.current || sigRef.current.isEmpty()) {
+    if (!hasSigned) {
       alert('Please draw your signature.')
       return
     }
@@ -218,7 +219,7 @@ export default function ClientContractDetailPage() {
                   <label className="text-sm font-medium text-gray-700">Your Signature *</label>
                   <button
                     type="button"
-                    onClick={() => sigRef.current?.clear()}
+                    onClick={() => { sigRef.current?.clear(); setHasSigned(false) }}
                     className="text-xs text-gray-400 hover:text-gray-600 underline"
                   >
                     Clear
@@ -228,6 +229,7 @@ export default function ClientContractDetailPage() {
                   <SignatureCanvas
                     ref={sigRef}
                     penColor="#1e293b"
+                    onEnd={() => setHasSigned(true)}
                     canvasProps={{
                       className: 'w-full',
                       style: { height: '160px' },
@@ -255,8 +257,8 @@ export default function ClientContractDetailPage() {
               </button>
               <button
                 onClick={handleSign}
-                disabled={signing}
-                className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
+                disabled={signing || !hasSigned || !signerName.trim()}
+                className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {signing ? (
                   <><Loader2 className="h-4 w-4 animate-spin" /> Signing...</>

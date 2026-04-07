@@ -487,8 +487,8 @@ export class ClientPortalService {
       const contractNumber: string = data.contract_number ?? contractId;
       if (data.owner_id) {
         const { data: ownerUser } = await supabase
-          .from('users').select('phone').eq('id', data.owner_id).single();
-        await this.smsNotifications.contractSigned(ownerUser?.phone ?? null, signerName, contractNumber);
+          .from('users').select('phone_number').eq('id', data.owner_id).single();
+        await this.smsNotifications.contractSigned((ownerUser as any)?.phone_number ?? null, signerName, contractNumber);
       }
       await this.smsNotifications.contractSignedConfirmToClient(
         data.client_phone ?? data.contact_phone ?? null,

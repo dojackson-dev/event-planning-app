@@ -157,7 +157,35 @@ export class ClientPortalController {
     return this.clientPortalService.getContracts(session.clientId, session.phone);
   }
 
-  // ── Estimates ─────────────────────────────────────────────────────────────
+  @Get('contracts/:id')
+  async getContractById(
+    @Headers('x-client-token') token: string,
+    @Param('id') id: string,
+  ) {
+    const session = this.requireSession(token);
+    return this.clientPortalService.getContractById(id, session.clientId, session.phone);
+  }
+
+  @Post('contracts/:id/sign')
+  async signContract(
+    @Headers('x-client-token') token: string,
+    @Param('id') id: string,
+    @Body() body: { signatureData: string; signerName: string },
+  ) {
+    const session = this.requireSession(token);
+    if (!body?.signatureData || !body?.signerName) {
+      throw new BadRequestException('signatureData and signerName are required');
+    }
+    return this.clientPortalService.signClientContract(
+      id,
+      session.clientId,
+      session.phone,
+      body.signatureData,
+      body.signerName,
+    );
+  }
+
+
 
   @Get('estimates')
   async getEstimates(@Headers('x-client-token') token: string) {

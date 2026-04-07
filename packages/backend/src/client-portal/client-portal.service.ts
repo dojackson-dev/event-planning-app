@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { StripeService } from '../stripe/stripe.service';
+import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 
 /** Returns all likely phone formats for a given phone string so we can query any format stored in the DB. */
 function buildPhoneVariants(phone: string): string[] {
@@ -22,6 +23,7 @@ export class ClientPortalService {
   constructor(
     private readonly supabaseService: SupabaseService,
     private readonly stripeService: StripeService,
+    private readonly smsNotifications: SmsNotificationsService,
   ) {}
 
   /** Helper: returns intake form IDs linked to any of the client's phone variants */
@@ -427,6 +429,77 @@ export class ClientPortalService {
         return true;
       })
       .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }
+
+  /** Fetch a single contract verifying it belongs to this client */
+  async getContractById(contractId: string, clientId: string, clientPhone: string) {
+    const supabase = this.supabaseService.getAdminClient();
+    const { data, error } = await supabase
+      .from('contracts')
+      .select('*')
+      .eq('id', contractId)
+      .single();
+    if (error || !data) throw new NotFoundException('Contract not found');
+
+    // Verify this client owns the contract
+    const phoneVariants = buildPhoneVariants(clientPhone);
+    const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
+    const isOwner =
+      data.client_id === clientId ||
+      phoneVariants.includes(data.client_phone ?? '') ||
+      (data.intake_form_id && intakeFormIds.includes(data.intake_form_id));
+    if (!isOwner) throw new NotFoundException('Contract not found');
+
+    return data;
+  }
+
+  /** Client signs a contract */
+  async signClientContract(
+    contractId: string,
+    clientId: string,
+    clientPhone: string,
+    signatureData: string,
+    signerName: string,
+    ipAddress?: string,
+  ) {
+    const contract = await this.getContractById(contractId, clientId, clientPhone);
+    if (contract.status !== 'sent') {
+      throw new BadRequestException('Contract must be in "sent" status to sign');
+    }
+
+    const supabase = this.supabaseService.getAdminClient();
+    const { data, error } = await supabase
+      .from('contracts')
+      .update({
+        signature_data: signatureData,
+        signer_name: signerName.trim(),
+        signer_ip_address: ipAddress ?? null,
+        signed_date: new Date().toISOString(),
+        status: 'signed',
+      })
+      .eq('id', contractId)
+      .select()
+      .single();
+    if (error) throw error;
+
+    // Notify owner + confirm to client via SMS
+    try {
+      const contractNumber: string = data.contract_number ?? contractId;
+      if (data.owner_id) {
+        const { data: ownerUser } = await supabase
+          .from('users').select('phone').eq('id', data.owner_id).single();
+        await this.smsNotifications.contractSigned(ownerUser?.phone ?? null, signerName, contractNumber);
+      }
+      await this.smsNotifications.contractSignedConfirmToClient(
+        data.client_phone ?? data.contact_phone ?? null,
+        signerName,
+        contractNumber,
+      );
+    } catch {
+      // SMS errors never break signing
+    }
+
+    return data;
   }
 
   /** Estimates for this client (by client_id, booking phone, or intake_form phone) */

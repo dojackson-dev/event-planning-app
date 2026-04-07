@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 
 // Dynamically import SignatureCanvas to avoid SSR issues
-const SignatureCanvas = dynamic(() => import('react-signature-canvas'), { ssr: false })
+const SignatureCanvas = dynamic(() => import('react-signature-canvas'), { ssr: false }) as any
 
 export default function ClientContractDetailPage() {
   const params = useParams()

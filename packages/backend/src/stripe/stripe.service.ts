@@ -950,9 +950,9 @@ export class StripeService {
     const sessions = await this.stripe.checkout.sessions.list({
       client_reference_id: invoice.id,
       limit: 10,
-    });
+    } as any);
 
-    const paidSession = sessions.data.find(s => s.payment_status === 'paid');
+    const paidSession = sessions.data.find((s: any) => s.payment_status === 'paid');
     if (!paidSession) return { status: invoice.status, paid: false };
 
     // Mark the invoice paid now as a webhook fallback
@@ -982,9 +982,9 @@ export class StripeService {
     const sessions = await this.stripe.checkout.sessions.list({
       client_reference_id: invoiceId,
       limit: 10,
-    });
+    } as any);
 
-    const paidSession = sessions.data.find(s => s.payment_status === 'paid');
+    const paidSession = sessions.data.find((s: any) => s.payment_status === 'paid');
     if (!paidSession) return { status: invoice.status, paid: false };
 
     await this.markInvoicePaid(invoiceId, paidSession.amount_total ?? 0);

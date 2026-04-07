@@ -1,16 +1,12 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import dynamic from 'next/dynamic'
 import clientApi from '@/lib/clientApi'
 import {
   ArrowLeft, FileText, Download, CheckCircle2, Clock, Send,
   PenLine, X, Loader2,
 } from 'lucide-react'
-
-// Dynamically import SignatureCanvas to avoid SSR issues
-const SignatureCanvas = dynamic(() => import('react-signature-canvas'), { ssr: false }) as any
 
 export default function ClientContractDetailPage() {
   const params = useParams()
@@ -23,7 +19,58 @@ export default function ClientContractDetailPage() {
   const [signerName, setSignerName] = useState('')
   const [signing, setSigning] = useState(false)
   const [hasSigned, setHasSigned] = useState(false)
-  const sigRef = useRef<any>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const drawing = useRef(false)
+  const lastPos = useRef<{ x: number; y: number } | null>(null)
+
+  const getPos = (e: React.MouseEvent | React.TouchEvent, canvas: HTMLCanvasElement) => {
+    const rect = canvas.getBoundingClientRect()
+    if ('touches' in e) {
+      return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top }
+    }
+    return { x: (e as React.MouseEvent).clientX - rect.left, y: (e as React.MouseEvent).clientY - rect.top }
+  }
+
+  const startDraw = (e: React.MouseEvent | React.TouchEvent) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    drawing.current = true
+    lastPos.current = getPos(e, canvas)
+  }
+
+  const draw = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!drawing.current) return
+    const canvas = canvasRef.current
+    if (!canvas) return
+    e.preventDefault()
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    const pos = getPos(e, canvas)
+    ctx.beginPath()
+    ctx.strokeStyle = '#1e293b'
+    ctx.lineWidth = 2
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    ctx.moveTo(lastPos.current?.x ?? pos.x, lastPos.current?.y ?? pos.y)
+    ctx.lineTo(pos.x, pos.y)
+    ctx.stroke()
+    lastPos.current = pos
+  }
+
+  const endDraw = () => {
+    drawing.current = false
+    lastPos.current = null
+    setHasSigned(true)
+  }
+
+  const clearSignature = () => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    setHasSigned(false)
+  }
 
   // Pre-fill signer name from session
   useEffect(() => {
@@ -49,13 +96,13 @@ export default function ClientContractDetailPage() {
       alert('Please enter your full name.')
       return
     }
-    if (!hasSigned || !sigRef.current) {
+    if (!hasSigned || !canvasRef.current) {
       alert('Please draw your signature.')
       return
     }
     setSigning(true)
     try {
-      const signatureData = sigRef.current.toDataURL('image/png')
+      const signatureData = canvasRef.current.toDataURL('image/png')
       const res = await clientApi.post(`/contracts/${contractId}/sign`, {
         signatureData,
         signerName: signerName.trim(),
@@ -220,24 +267,25 @@ export default function ClientContractDetailPage() {
                   <label className="text-sm font-medium text-gray-700">Your Signature *</label>
                   <button
                     type="button"
-                    onClick={() => { sigRef.current?.clear(); setHasSigned(false) }}
+                    onClick={clearSignature}
                     className="text-xs text-gray-400 hover:text-gray-600 underline"
                   >
                     Clear
                   </button>
                 </div>
-                <div
-                  className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 overflow-hidden"
-                  onPointerUp={() => { if (sigRef.current) setHasSigned(true) }}
-                  onTouchEnd={() => { if (sigRef.current) setHasSigned(true) }}
-                >
-                  <SignatureCanvas
-                    ref={sigRef}
-                    penColor="#1e293b"
-                    canvasProps={{
-                      className: 'w-full',
-                      style: { height: '160px' },
-                    }}
+                <div className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 overflow-hidden">
+                  <canvas
+                    ref={canvasRef}
+                    width={640}
+                    height={160}
+                    style={{ width: '100%', height: '160px', touchAction: 'none', cursor: 'crosshair' }}
+                    onMouseDown={startDraw}
+                    onMouseMove={draw}
+                    onMouseUp={endDraw}
+                    onMouseLeave={endDraw}
+                    onTouchStart={startDraw}
+                    onTouchMove={draw}
+                    onTouchEnd={endDraw}
                   />
                 </div>
                 <p className="text-xs text-gray-400 mt-1">Draw your signature above using your mouse or finger.</p>

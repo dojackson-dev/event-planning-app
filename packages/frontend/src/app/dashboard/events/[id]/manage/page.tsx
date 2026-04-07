@@ -452,7 +452,7 @@ export default function EventManagementPage() {
 
           const handleProgressAction = () => {
             if (!estimateAccepted) {
-              router.push(`/dashboard/estimates/new${intakeFormId ? `?clientId=${intakeFormId}` : ''}`);
+              router.push(`/dashboard/estimates/new?eventId=${eventId}${intakeFormId ? `&clientId=${intakeFormId}` : ''}`);
             } else if (!contractSigned) {
               router.push(`/dashboard/contracts/new${intakeFormId ? `?intakeFormId=${intakeFormId}` : ''}`);
             } else if (!invoiceSent) {

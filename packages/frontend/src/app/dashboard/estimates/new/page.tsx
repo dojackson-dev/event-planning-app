@@ -61,9 +61,13 @@ function NewEstimatePageInner() {
     }).catch(() => {})
   }, [])
 
-  // Pre-fill from client workflow (clientId URL param)
+  // Pre-fill from client workflow (clientId + optional eventId URL params)
   useEffect(() => {
     const clientId = searchParams?.get('clientId')
+    const eventIdParam = searchParams?.get('eventId')
+    if (eventIdParam) {
+      setSelectedEvent(eventIdParam)
+    }
     if (!clientId) return
     setIntakeFormId(clientId)
     api.get(`/intake-forms/${clientId}`).then(res => {

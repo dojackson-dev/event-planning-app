@@ -454,7 +454,7 @@ export default function EventManagementPage() {
             if (!estimateAccepted) {
               router.push(`/dashboard/estimates/new${intakeFormId ? `?clientId=${intakeFormId}` : ''}`);
             } else if (!contractSigned) {
-              router.push('/dashboard/contracts/new');
+              router.push(`/dashboard/contracts/new${intakeFormId ? `?intakeFormId=${intakeFormId}` : ''}`);
             } else if (!invoiceSent) {
               router.push(`/dashboard/invoices/new?eventId=${eventId}`);
             }

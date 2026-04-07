@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Upload, X, Calendar, Clock, Mail, Phone, Users } from 'lucide-react'
@@ -21,6 +21,7 @@ interface IntakeFormClient {
 
 export default function NewContractPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user } = useAuth()
   const [clients, setClients] = useState<IntakeFormClient[]>([])
   const [selectedClient, setSelectedClient] = useState<string>('')
@@ -62,6 +63,12 @@ export default function NewContractPage() {
         return new Date(y, m - 1, d) >= today
       })
       setClients(upcoming)
+      // Auto-select client if intakeFormId param is present
+      const intakeFormId = searchParams.get('intakeFormId')
+      if (intakeFormId) {
+        const match = upcoming.find(c => c.id === intakeFormId)
+        if (match) setSelectedClient(match.id)
+      }
     } catch (error) {
       console.error('Failed to fetch clients:', error)
     }

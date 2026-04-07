@@ -226,11 +226,14 @@ export default function ClientContractDetailPage() {
                     Clear
                   </button>
                 </div>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 overflow-hidden">
+                <div
+                  className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 overflow-hidden"
+                  onPointerUp={() => { if (sigRef.current && !sigRef.current.isEmpty()) setHasSigned(true) }}
+                  onTouchEnd={() => { if (sigRef.current && !sigRef.current.isEmpty()) setHasSigned(true) }}
+                >
                   <SignatureCanvas
                     ref={sigRef}
                     penColor="#1e293b"
-                    onEnd={() => setHasSigned(true)}
                     canvasProps={{
                       className: 'w-full',
                       style: { height: '160px' },

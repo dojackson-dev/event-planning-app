@@ -49,7 +49,7 @@ export default function ClientContractDetailPage() {
       alert('Please enter your full name.')
       return
     }
-    if (!hasSigned) {
+    if (!hasSigned || !sigRef.current) {
       alert('Please draw your signature.')
       return
     }
@@ -62,6 +62,7 @@ export default function ClientContractDetailPage() {
       })
       setContract(res.data)
       setShowSignModal(false)
+      setHasSigned(false)
       alert('Contract signed successfully! Your coordinator has been notified.')
     } catch (err: any) {
       alert(err?.response?.data?.message || 'Failed to sign contract. Please try again.')
@@ -171,7 +172,7 @@ export default function ClientContractDetailPage() {
                 Please review the document above, then sign below to confirm your agreement.
               </p>
               <button
-                onClick={() => setShowSignModal(true)}
+                onClick={() => { setShowSignModal(true); setHasSigned(false) }}
                 className="mt-3 inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 shadow-sm"
               >
                 <PenLine className="h-4 w-4" />
@@ -190,7 +191,7 @@ export default function ClientContractDetailPage() {
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <h2 className="text-lg font-bold text-gray-900">Sign Contract</h2>
               <button
-                onClick={() => setShowSignModal(false)}
+                onClick={() => { setShowSignModal(false); setHasSigned(false) }}
                 disabled={signing}
                 className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600"
               >
@@ -249,7 +250,7 @@ export default function ClientContractDetailPage() {
             {/* Modal footer */}
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100">
               <button
-                onClick={() => setShowSignModal(false)}
+                onClick={() => { setShowSignModal(false); setHasSigned(false) }}
                 disabled={signing}
                 className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
               >

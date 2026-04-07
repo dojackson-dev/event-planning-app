@@ -223,6 +223,7 @@ export default function EventManagementPage() {
         ...prev,
         eventId: eventId,
         eventName: event.intakeEventName || event.name || '',
+        clientName: event.clientName || prev.clientName || '',
         eventType: event.eventType || EventType.WEDDING_RECEPTION,
         eventDate: event.date || '',
         startTime: event.startTime || '',
@@ -371,8 +372,14 @@ export default function EventManagementPage() {
             <ArrowLeft className="h-4 w-4 mr-1" />
             Back to Events
           </button>
-          <h1 className="text-2xl font-bold text-gray-900 text-center">Manage</h1>
-          <p className="text-sm text-gray-500 mt-1 text-center">{formData.eventName || 'Event Management'}</p>
+          {formData.clientName && (
+            <>
+              <p className="text-xs font-medium text-gray-400 uppercase tracking-widest text-center">Client</p>
+              <p className="text-lg font-semibold text-primary-700 text-center">{formData.clientName}</p>
+            </>
+          )}
+          <p className="text-xs font-medium text-gray-400 uppercase tracking-widest text-center mt-1">Event</p>
+          <h1 className="text-2xl font-bold text-gray-900 text-center">{formData.eventName || 'Event Management'}</h1>
           <div className="flex justify-center gap-2 mt-4">
             {!isEditing ? (
               <>
@@ -412,6 +419,60 @@ export default function EventManagementPage() {
             )}
           </div>
         </div>
+
+        {/* Booking Pipeline */}
+        {(() => {
+          const hasSentEstimate = eventInvoices.some(inv =>
+            inv.document_type === 'estimate' || inv.status === 'sent'
+          );
+          const hasPaidInvoice = eventInvoices.some(inv => inv.status === 'paid');
+          const contractSigned = formData.contractStatus === ContractStatus.SIGNED;
+          const clientBooked = [ClientStatus.BOOKED, ClientStatus.DEPOSIT_PAID, ClientStatus.COMPLETED].includes(formData.clientStatus);
+
+          const steps = [
+            { label: 'Activate', done: true, href: null as string | null, anchor: null as string | null },
+            { label: 'Estimate', done: hasSentEstimate || clientBooked, href: `/dashboard/invoices/new?eventId=${eventId}&type=estimate`, anchor: null as string | null },
+            { label: 'Invoice', done: hasPaidInvoice, href: eventInvoices.length > 0 ? `/dashboard/invoices/${eventInvoices[0].id}` : `/dashboard/invoices/new?eventId=${eventId}`, anchor: null as string | null },
+            { label: 'Contract', done: contractSigned, href: null as string | null, anchor: 'contract-section' },
+            { label: 'Booking', done: contractSigned || [ClientStatus.DEPOSIT_PAID, ClientStatus.COMPLETED].includes(formData.clientStatus), href: null as string | null, anchor: 'contract-section' },
+          ];
+
+          return (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
+              <div className="flex items-start justify-between">
+                {steps.map((step, i) => (
+                  <div key={step.label} className="flex items-center flex-1">
+                    <div className="flex flex-col items-center flex-1">
+                      <button
+                        onClick={() => {
+                          if (step.done) return;
+                          if (step.anchor) {
+                            document.getElementById(step.anchor)?.scrollIntoView({ behavior: 'smooth' });
+                          } else if (step.href) {
+                            router.push(step.href);
+                          }
+                        }}
+                        className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${
+                          step.done
+                            ? 'bg-green-500 text-white cursor-default'
+                            : 'bg-gray-200 text-gray-500 hover:bg-primary-100 cursor-pointer'
+                        }`}
+                      >
+                        {step.done ? '✓' : i + 1}
+                      </button>
+                      <span className={`text-xs mt-1 text-center leading-tight ${step.done ? 'text-green-600 font-medium' : 'text-gray-400'}`}>
+                        {step.label}
+                      </span>
+                    </div>
+                    {i < steps.length - 1 && (
+                      <div className={`h-0.5 flex-1 mx-1 mb-4 ${step.done ? 'bg-green-400' : 'bg-gray-200'}`} />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Status Overview Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
@@ -679,7 +740,7 @@ export default function EventManagementPage() {
             </div>
 
             {/* Contract & Payment */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div id="contract-section" className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
               <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
                 <FileText className="h-5 w-5 mr-2 text-primary-600" />
                 Contract & Payment

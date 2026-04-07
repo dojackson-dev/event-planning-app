@@ -103,7 +103,7 @@ export class InvoicesService {
         invoiceData.status = InvoiceStatus.PAID;
         invoiceData.paidDate = new Date();
       } else if (Number(invoiceData.amountPaid) > 0) {
-        invoiceData.status = InvoiceStatus.SENT;
+        invoiceData.status = InvoiceStatus.PARTIAL;
       }
     }
 

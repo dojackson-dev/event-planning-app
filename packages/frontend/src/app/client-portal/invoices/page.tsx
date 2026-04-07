@@ -54,6 +54,26 @@ export default function ClientInvoicesPage() {
       .finally(() => setLoading(false))
   }, [])
 
+  // After a successful payment redirect, poll until the paid invoice reflects the updated status
+  useEffect(() => {
+    if (!paid) return
+    const invoiceNumber = searchParams.get('invoice')
+    let attempts = 0
+    const interval = setInterval(() => {
+      attempts++
+      clientApi.get('/invoices')
+        .then(res => {
+          setInvoices(res.data)
+          const stillUnpaid = invoiceNumber
+            ? res.data.some((i: any) => i.invoice_number === invoiceNumber && i.status !== 'paid')
+            : false
+          if (!stillUnpaid || attempts >= 5) clearInterval(interval)
+        })
+        .catch(() => clearInterval(interval))
+    }, 2000)
+    return () => clearInterval(interval)
+  }, [paid])
+
   const toggleExpand = (id: string) => {
     setExpanded(prev => {
       const next = new Set(prev)

@@ -53,6 +53,16 @@ export default function OwnerInvoicePayPage() {
   const wasCanceled = searchParams.get('canceled') === 'true'
 
   useEffect(() => {
+    if (justPaid) {
+      fetch(`${API_URL}/stripe/invoice-pay/${token}/verify-payment`, { method: 'POST' })
+        .then(r => r.json())
+        .then(d => {
+          if (d.paid) {
+            setInvoice(prev => prev ? { ...prev, status: 'paid', amount_due: 0 } : prev)
+          }
+        })
+        .catch(() => {})
+    }
     fetchInvoice()
   }, [token])
 

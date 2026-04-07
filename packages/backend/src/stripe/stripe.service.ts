@@ -929,6 +929,39 @@ export class StripeService {
   }
 
   /**
+   * Webhook fallback for the public invoice pay page.
+   * Called after Stripe redirects back with ?paid=true — verifies payment
+   * status directly with Stripe and marks the invoice paid if confirmed.
+   */
+  async verifyPublicInvoicePayment(token: string): Promise<{ status: string; paid: boolean }> {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: invoice } = await admin
+      .from('invoices')
+      .select('id, status, total_amount, amount_paid')
+      .eq('public_token', token)
+      .maybeSingle();
+
+    if (!invoice) throw new Error('Invoice not found');
+    if (invoice.status === 'paid') return { status: 'paid', paid: true };
+
+    // Query Stripe for any paid checkout sessions linked to this invoice
+    const sessions = await this.stripe.checkout.sessions.list({
+      client_reference_id: invoice.id,
+      limit: 10,
+    });
+
+    const paidSession = sessions.data.find(s => s.payment_status === 'paid');
+    if (!paidSession) return { status: invoice.status, paid: false };
+
+    // Mark the invoice paid now as a webhook fallback
+    await this.markInvoicePaid(invoice.id, paidSession.amount_total ?? 0);
+    this.logger.log(`Invoice ${invoice.id} verified and marked paid via session ${paidSession.id} (webhook fallback)`);
+
+    return { status: 'paid', paid: true };
+  }
+
+  /**
    * Public: fetch a safe subset of invoice data for the client payment page.
    */
   async getPublicInvoice(token: string) {

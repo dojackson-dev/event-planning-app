@@ -303,4 +303,13 @@ export class StripeController {
     const url = await this.stripeService.createPublicInvoiceCheckout(token, amountCents);
     return { url };
   }
+
+  /**
+   * POST /stripe/invoice-pay/:token/verify-payment
+   * Public endpoint — webhook fallback. Confirms payment with Stripe and marks invoice paid.
+   */
+  @Post('invoice-pay/:token/verify-payment')
+  async verifyPublicInvoicePayment(@Param('token') token: string) {
+    return this.stripeService.verifyPublicInvoicePayment(token);
+  }
 }

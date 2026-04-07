@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
   Body,
   Headers,
   RawBody,
@@ -192,6 +193,28 @@ export class StripeController {
     return this.stripeService.getVendorConnectStatus(userId);
   }
 
+  /**
+   * DELETE /stripe/connect/owner/reset — Clear stuck Connect account so a fresh one is created
+   */
+  @Delete('connect/owner/reset')
+  async resetOwnerConnect(
+    @Headers('authorization') authorization: string,
+  ): Promise<{ success: boolean }> {
+    const userId = await this.getUserIdFromAuth(authorization);
+    return this.stripeService.resetOwnerConnect(userId);
+  }
+
+  /**
+   * DELETE /stripe/connect/vendor/reset — Clear stuck Connect account so a fresh one is created
+   */
+  @Delete('connect/vendor/reset')
+  async resetVendorConnect(
+    @Headers('authorization') authorization: string,
+  ): Promise<{ success: boolean }> {
+    const userId = await this.getUserIdFromAuth(authorization);
+    return this.stripeService.resetVendorConnect(userId);
+  }
+
   // ─── Payments ─────────────────────────────────────────────────────────────
 
   /**
@@ -279,5 +302,31 @@ export class StripeController {
     }
     const url = await this.stripeService.createPublicInvoiceCheckout(token, amountCents);
     return { url };
+  }
+
+  /**
+   * POST /stripe/invoice-pay/:token/verify-payment?sid=<stripeSessionId>
+   * Public endpoint — webhook fallback. Confirms payment with Stripe and marks invoice paid.
+   */
+  @Post('invoice-pay/:token/verify-payment')
+  async verifyPublicInvoicePayment(
+    @Param('token') token: string,
+    @Query('sid') sid: string,
+  ) {
+    if (!sid) throw new BadRequestException('sid is required');
+    return this.stripeService.verifyPublicInvoicePayment(token, sid);
+  }
+
+  /**
+   * POST /stripe/invoice-verify/:invoiceId?sid=<stripeSessionId>
+   * Webhook fallback for the client portal. Verifies payment with Stripe by session ID.
+   */
+  @Post('invoice-verify/:invoiceId')
+  async verifyInvoicePaymentById(
+    @Param('invoiceId') invoiceId: string,
+    @Query('sid') sid: string,
+  ) {
+    if (!sid) throw new BadRequestException('sid is required');
+    return this.stripeService.verifyInvoicePaymentById(invoiceId, sid);
   }
 }

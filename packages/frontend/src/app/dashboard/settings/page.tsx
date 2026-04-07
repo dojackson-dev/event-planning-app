@@ -743,6 +743,11 @@ function SettingsPageContent() {
                 </ul>
               </div>
 
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
+                <p className="font-semibold mb-1">📄 Tax & Reporting Notice</p>
+                <p>All payments in this system are processed through <strong>Stripe</strong>. Stripe may collect your EIN or SSN as required for payment processing and tax compliance. If you earn $600 or more in a calendar year, a <strong>1099 form will be issued by Stripe</strong> and made available directly in your Stripe account. DoVenueSuite does not issue 1099s.</p>
+              </div>
+
               {user && (
                 <ConnectBankButton role="owner" email={user.email || ''} />
               )}

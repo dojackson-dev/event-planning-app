@@ -196,14 +196,14 @@ export class StripeService {
         },
       ],
       mode: 'payment',
-      success_url: `${this.frontendUrl}/client-portal/invoices?paid=true&invoice=${invoice.invoice_number}`,
+      success_url: `${this.frontendUrl}/client-portal/invoices?paid=true&invoice=${invoice.invoice_number}&iid=${invoiceId}&sid={CHECKOUT_SESSION_ID}`,
       cancel_url: `${this.frontendUrl}/client-portal/invoices?canceled=true`,
       metadata: { invoice_id: invoiceId },
       ...(transferData ? { payment_intent_data: transferData } : {}),
     });
 
     this.logger.log(`Created invoice checkout session ${session.id} for invoice ${invoiceId}`);
-    return session.url!;
+    return session.url!
   }
 
   /**
@@ -423,7 +423,8 @@ export class StripeService {
     // ── Notify owner via SMS ───────────────────────────────────────────────
     if (invoice.owner_id) {
       try {
-        // Try to find phone via memberships → users
+        // Path 1: memberships table → user_id → phone_number
+        let ownerPhone: string | null = null;
         const { data: membership } = await admin
           .from('memberships')
           .select('user_id')
@@ -431,16 +432,31 @@ export class StripeService {
           .eq('role', 'owner')
           .limit(1)
           .maybeSingle();
-        const userId = membership?.user_id;
-        if (userId) {
-          const { data: user } = await admin.from('users').select('phone_number').eq('id', userId).maybeSingle();
-          const ownerPhone = (user as any)?.phone_number ?? null;
-          if (ownerPhone) {
-            await this.smsNotifications.trySend(
-              ownerPhone,
-              `DoVenue Suite: Invoice #${invoiceNumber} has been paid — $${paidAmount.toFixed(2)} received from ${clientName}.`,
-            );
+        if (membership?.user_id) {
+          const { data: user } = await admin.from('users').select('phone_number').eq('id', membership.user_id).maybeSingle();
+          ownerPhone = (user as any)?.phone_number ?? null;
+        }
+
+        // Path 2: fallback via owner_accounts.primary_owner_id → users
+        if (!ownerPhone) {
+          const { data: ownerAccount } = await admin
+            .from('owner_accounts')
+            .select('primary_owner_id')
+            .eq('id', invoice.owner_id)
+            .maybeSingle();
+          if (ownerAccount?.primary_owner_id) {
+            const { data: user } = await admin.from('users').select('phone_number').eq('id', ownerAccount.primary_owner_id).maybeSingle();
+            ownerPhone = (user as any)?.phone_number ?? null;
           }
+        }
+
+        if (ownerPhone) {
+          await this.smsNotifications.trySend(
+            ownerPhone,
+            `DoVenue Suite: Invoice #${invoiceNumber} has been paid — $${paidAmount.toFixed(2)} received from ${clientName}.`,
+          );
+        } else {
+          this.logger.warn(`No phone found for owner ${invoice.owner_id}, skipping owner SMS for invoice ${invoiceId}`);
         }
       } catch (ownerSmsErr) {
         this.logger.warn(`Failed to send owner payment SMS for invoice ${invoiceId}`, (ownerSmsErr as Error).message);
@@ -633,6 +649,7 @@ export class StripeService {
         type: 'express',
         email,
         capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+        business_profile: { url: this.frontendUrl },
         metadata: { owner_account_id: String(owner.id) },
       });
       connectId = account.id;
@@ -675,6 +692,7 @@ export class StripeService {
         type: 'express',
         email,
         capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+        business_profile: { url: this.frontendUrl },
         metadata: { vendor_account_id: vendor.id },
       });
       connectId = account.id;
@@ -697,32 +715,94 @@ export class StripeService {
 
   /**
    * Get the Connect account status for an owner.
+   * If status is pending, does a live Stripe check so we don't need webhooks in dev.
    */
   async getOwnerConnectStatus(userId: string): Promise<{ status: string; connectId: string | null }> {
     const admin = this.supabaseService.getAdminClient();
     const owner = await this.getOwnerAccountByUserId(userId, admin);
 
-    return {
-      status: owner?.stripe_connect_status ?? 'not_connected',
-      connectId: owner?.stripe_connect_id ?? null,
-    };
+    let status = owner?.stripe_connect_status ?? 'not_connected';
+    const connectId = owner?.stripe_connect_id ?? null;
+
+    if (status === 'pending' && connectId) {
+      try {
+        const account = await this.stripe.accounts.retrieve(connectId);
+        const isActive = account.details_submitted && account.charges_enabled && account.payouts_enabled;
+        if (isActive) {
+          status = 'active';
+          await admin.from('owner_accounts').update({ stripe_connect_status: 'active' }).eq('id', owner!.id);
+          this.logger.log(`Owner Connect ${connectId} auto-upgraded to active via live check`);
+        }
+      } catch (err) {
+        this.logger.warn(`Live Stripe check failed for owner ${connectId}: ${(err as Error).message}`);
+      }
+    }
+
+    return { status, connectId };
   }
 
   /**
    * Get the Connect account status for a vendor.
+   * If status is pending, does a live Stripe check so we don't need webhooks in dev.
    */
   async getVendorConnectStatus(userId: string): Promise<{ status: string; connectId: string | null }> {
     const admin = this.supabaseService.getAdminClient();
     const { data } = await admin
       .from('vendor_accounts')
-      .select('stripe_account_id, stripe_connect_status')
+      .select('id, stripe_account_id, stripe_connect_status')
       .eq('user_id', userId)
       .maybeSingle();
 
-    return {
-      status: data?.stripe_connect_status ?? 'not_connected',
-      connectId: data?.stripe_account_id ?? null,
-    };
+    let status = data?.stripe_connect_status ?? 'not_connected';
+    const connectId = data?.stripe_account_id ?? null;
+
+    if (status === 'pending' && connectId) {
+      try {
+        const account = await this.stripe.accounts.retrieve(connectId);
+        const isActive = account.details_submitted && account.charges_enabled && account.payouts_enabled;
+        if (isActive) {
+          status = 'active';
+          await admin.from('vendor_accounts').update({ stripe_connect_status: 'active' }).eq('id', data!.id);
+          this.logger.log(`Vendor Connect ${connectId} auto-upgraded to active via live check`);
+        }
+      } catch (err) {
+        this.logger.warn(`Live Stripe check failed for vendor ${connectId}: ${(err as Error).message}`);
+      }
+    }
+
+    return { status, connectId };
+  }
+
+  /**
+   * Reset owner Stripe Connect — clears stored ID so a fresh account is created on next attempt.
+   */
+  async resetOwnerConnect(userId: string): Promise<{ success: boolean }> {
+    const admin = this.supabaseService.getAdminClient();
+    const owner = await this.getOwnerAccountByUserId(userId, admin);
+    if (!owner) throw new Error('Owner account not found');
+    await admin
+      .from('owner_accounts')
+      .update({ stripe_connect_id: null, stripe_connect_status: 'not_connected' })
+      .eq('id', owner.id);
+    return { success: true };
+  }
+
+  /**
+   * Reset vendor Stripe Connect — clears stored ID so a fresh account is created on next attempt.
+   */
+  async resetVendorConnect(userId: string): Promise<{ success: boolean }> {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: vendor } = await admin
+      .from('vendor_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (!vendor) throw new Error('Vendor account not found');
+    await admin
+      .from('vendor_accounts')
+      .update({ stripe_account_id: null, stripe_connect_status: 'not_connected' })
+      .eq('id', vendor.id);
+    return { success: true };
   }
 
   /**
@@ -865,6 +945,64 @@ export class StripeService {
   }
 
   /**
+   * Webhook fallback for the public invoice pay page.
+   * Called after Stripe redirects back with ?paid=true — verifies payment
+   * status directly with Stripe and marks the invoice paid if confirmed.
+   */
+  async verifyPublicInvoicePayment(token: string, sessionId: string): Promise<{ status: string; paid: boolean }> {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: invoice } = await admin
+      .from('invoices')
+      .select('id, status, total_amount, amount_paid')
+      .eq('public_token', token)
+      .maybeSingle();
+
+    if (!invoice) throw new Error('Invoice not found');
+    if (invoice.status === 'paid') return { status: 'paid', paid: true };
+
+    // Retrieve the specific Stripe session directly — no listing needed
+    const session = await this.stripe.checkout.sessions.retrieve(sessionId);
+    if (!session || session.payment_status !== 'paid') return { status: invoice.status, paid: false };
+    // Confirm the session actually belongs to this invoice
+    if ((session.metadata as any)?.invoice_id !== invoice.id) return { status: invoice.status, paid: false };
+
+    await this.markInvoicePaid(invoice.id, session.amount_total ?? 0);
+    this.logger.log(`Invoice ${invoice.id} verified and marked paid via session ${session.id} (webhook fallback)`);
+
+    return { status: 'paid', paid: true };
+  }
+
+  /**
+   * Webhook fallback for the authenticated client portal.
+   * Called after Stripe redirects back with ?paid=true&iid=<invoiceId>.
+   * Queries Stripe directly by client_reference_id and marks the invoice paid if confirmed.
+   */
+  async verifyInvoicePaymentById(invoiceId: string, sessionId: string): Promise<{ status: string; paid: boolean }> {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: invoice } = await admin
+      .from('invoices')
+      .select('id, status')
+      .eq('id', invoiceId)
+      .maybeSingle();
+
+    if (!invoice) throw new Error('Invoice not found');
+    if (invoice.status === 'paid') return { status: 'paid', paid: true };
+
+    // Retrieve the specific Stripe session directly — no listing needed
+    const session = await this.stripe.checkout.sessions.retrieve(sessionId);
+    if (!session || session.payment_status !== 'paid') return { status: invoice.status, paid: false };
+    // Confirm the session actually belongs to this invoice
+    if ((session.metadata as any)?.invoice_id !== invoiceId) return { status: invoice.status, paid: false };
+
+    await this.markInvoicePaid(invoiceId, session.amount_total ?? 0);
+    this.logger.log(`Client portal invoice ${invoiceId} verified and marked paid via session ${session.id} (webhook fallback)`);
+
+    return { status: 'paid', paid: true };
+  }
+
+  /**
    * Public: fetch a safe subset of invoice data for the client payment page.
    */
   async getPublicInvoice(token: string) {
@@ -927,9 +1065,8 @@ export class StripeService {
         },
         quantity: 1,
       }],
-      success_url: `${this.frontendUrl}/pay/invoice/${token}?paid=true`,
+      success_url: `${this.frontendUrl}/pay/invoice/${token}?paid=true&sid={CHECKOUT_SESSION_ID}`,
       cancel_url: `${this.frontendUrl}/pay/invoice/${token}?canceled=true`,
-      client_reference_id: inv.id,
       metadata: { invoice_id: inv.id },
     };
 

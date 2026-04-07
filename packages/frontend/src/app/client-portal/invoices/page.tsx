@@ -46,6 +46,8 @@ export default function ClientInvoicesPage() {
 
   const paid = searchParams.get('paid')
   const canceled = searchParams.get('canceled')
+  const iid = searchParams.get('iid') // invoice ID passed after Stripe redirect
+  const sid = searchParams.get('sid') // Stripe session ID passed after Stripe redirect
 
   useEffect(() => {
     clientApi.get('/invoices')
@@ -53,6 +55,30 @@ export default function ClientInvoicesPage() {
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [])
+
+  // After a successful payment redirect, call verify endpoint (webhook fallback) then reload
+  useEffect(() => {
+    if (!paid) return
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+    const runVerify = async () => {
+      if (iid && sid) {
+        // Call verify endpoint — this marks invoice paid in DB if Stripe webhook hasn't fired yet
+        try {
+          await fetch(`${API_URL}/stripe/invoice-verify/${iid}?sid=${encodeURIComponent(sid)}`, { method: 'POST' })
+        } catch {
+          // ignore — we still reload invoices below
+        }
+      }
+      // Reload invoice list so status is current
+      try {
+        const res = await clientApi.get('/invoices')
+        setInvoices(res.data)
+      } catch {
+        // ignore
+      }
+    }
+    runVerify()
+  }, [paid, iid, sid])
 
   const toggleExpand = (id: string) => {
     setExpanded(prev => {

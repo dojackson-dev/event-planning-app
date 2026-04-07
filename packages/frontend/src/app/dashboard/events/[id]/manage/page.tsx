@@ -224,6 +224,7 @@ export default function EventManagementPage() {
         ...prev,
         eventId: eventId,
         eventName: event.intakeEventName || event.name || '',
+        clientName: event.clientName || prev.clientName || '',
         eventType: event.eventType || EventType.WEDDING_RECEPTION,
         eventDate: event.date || '',
         startTime: event.startTime || '',
@@ -383,8 +384,14 @@ export default function EventManagementPage() {
             <ArrowLeft className="h-4 w-4 mr-1" />
             Back to Events
           </button>
-          <h1 className="text-2xl font-bold text-gray-900 text-center">Manage</h1>
-          <p className="text-sm text-gray-500 mt-1 text-center">{formData.eventName || 'Event Management'}</p>
+          {formData.clientName && (
+            <>
+              <p className="text-xs font-medium text-gray-400 uppercase tracking-widest text-center">Client</p>
+              <p className="text-lg font-semibold text-primary-700 text-center">{formData.clientName}</p>
+            </>
+          )}
+          <p className="text-xs font-medium text-gray-400 uppercase tracking-widest text-center mt-1">Event</p>
+          <h1 className="text-2xl font-bold text-gray-900 text-center">{formData.eventName || 'Event Management'}</h1>
           <div className="flex justify-center gap-2 mt-4">
             {!isEditing ? (
               <>
@@ -779,7 +786,7 @@ export default function EventManagementPage() {
             </div>
 
             {/* Contract & Payment */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div id="contract-section" className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
               <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
                 <FileText className="h-5 w-5 mr-2 text-primary-600" />
                 Contract & Payment

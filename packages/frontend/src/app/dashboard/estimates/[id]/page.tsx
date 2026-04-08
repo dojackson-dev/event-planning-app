@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { Estimate, EstimateStatus, DiscountType } from '@/types'
+import { Eye } from 'lucide-react'
 
 type EditItem = {
   id: string
@@ -440,6 +441,12 @@ export default function EstimateDetailPage() {
               <div className="mt-1 text-green-600">
                 <span>Approved: </span>
                 <span className="font-semibold">{new Date(estimate.approved_date + 'T12:00:00').toLocaleDateString()}</span>
+              </div>
+            )}
+            {(estimate as any).viewed_at && (
+              <div className="mt-1 text-emerald-700 flex items-center justify-end gap-1 print:hidden">
+                <Eye className="h-3.5 w-3.5" />
+                <span className="text-xs">Viewed {new Date((estimate as any).viewed_at).toLocaleString()}</span>
               </div>
             )}
           </div>

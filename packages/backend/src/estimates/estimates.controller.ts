@@ -124,6 +124,17 @@ export class EstimatesController {
     return this.estimatesService.convertToInvoice(supabaseAdmin, userId, id);
   }
 
+  // Public endpoint — no auth required. Marks an estimate as viewed by the client (first open only).
+  @Post(':id/viewed')
+  async markViewed(@Param('id') id: string): Promise<void> {
+    const admin = this.supabaseService.getAdminClient();
+    await admin
+      .from('estimates')
+      .update({ viewed_at: new Date().toISOString() })
+      .eq('id', id)
+      .is('viewed_at', null);
+  }
+
   @Delete(':id')
   async delete(
     @Headers('authorization') authorization: string,

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Estimate, EstimateStatus } from '@/types'
-import { Search } from 'lucide-react'
+import { Search, Eye } from 'lucide-react'
 
 function getClientName(estimate: Estimate): string {
   const booking = (estimate.booking as any)
@@ -155,9 +155,16 @@ export default function EstimatesPage() {
                     <p className="font-semibold text-gray-900">{estimate.estimate_number}</p>
                     <p className="text-sm text-gray-600 truncate">{getClientName(estimate)}</p>
                   </div>
-                  <span className={`ml-2 px-2 py-1 text-xs font-medium rounded-full flex-shrink-0 capitalize ${statusColors[estimate.status]}`}>
-                    {estimate.status}
-                  </span>
+                  <div className="ml-2 flex flex-col items-end gap-1.5 flex-shrink-0">
+                    <span className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${statusColors[estimate.status]}`}>
+                      {estimate.status}
+                    </span>
+                    {(estimate as any).viewed_at && (
+                      <span className="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                        <Eye className="h-3 w-3" /> Viewed
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-600">
                   <span className="font-semibold text-gray-900">${Number(estimate.total_amount).toFixed(2)}</span>
@@ -210,9 +217,16 @@ export default function EstimatesPage() {
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">{estimate.estimate_number}</td>
                     <td className="px-4 py-3 text-sm text-gray-900">{getClientName(estimate)}</td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${statusColors[estimate.status]}`}>
-                        {estimate.status}
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${statusColors[estimate.status]}`}>
+                          {estimate.status}
+                        </span>
+                        {(estimate as any).viewed_at && (
+                          <span className="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full w-fit">
+                            <Eye className="h-3 w-3" /> Viewed
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600">
                       {new Date(estimate.issue_date + 'T12:00:00').toLocaleDateString()}

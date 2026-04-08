@@ -91,6 +91,12 @@ export default function ClientContractDetailPage() {
       .finally(() => setLoading(false))
   }, [contractId])
 
+  // Fire viewed beacon once — lets the owner know the client opened the link
+  useEffect(() => {
+    if (!contractId) return
+    clientApi.post(`/contracts/${contractId}/viewed`).catch(() => {})
+  }, [contractId])
+
   const handleSign = async () => {
     if (!signerName.trim()) {
       alert('Please enter your full name.')

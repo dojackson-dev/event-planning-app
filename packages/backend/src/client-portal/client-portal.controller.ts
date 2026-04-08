@@ -193,6 +193,33 @@ export class ClientPortalController {
     return this.clientPortalService.getEstimates(session.clientId, session.phone);
   }
 
+  @Get('estimates/:id')
+  async getEstimateById(
+    @Headers('x-client-token') token: string,
+    @Param('id') id: string,
+  ) {
+    const session = this.requireSession(token);
+    return this.clientPortalService.getEstimateById(id, session.clientId, session.phone);
+  }
+
+  @Post('estimates/:id/viewed')
+  async markEstimateViewed(
+    @Headers('x-client-token') token: string,
+    @Param('id') id: string,
+  ) {
+    this.requireSession(token);
+    return this.clientPortalService.markViewed('estimates', id);
+  }
+
+  @Post('contracts/:id/viewed')
+  async markContractViewed(
+    @Headers('x-client-token') token: string,
+    @Param('id') id: string,
+  ) {
+    this.requireSession(token);
+    return this.clientPortalService.markViewed('contracts', id);
+  }
+
   // ── Invoices ──────────────────────────────────────────────────────────────
 
   @Get('invoices')

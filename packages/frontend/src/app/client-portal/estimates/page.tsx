@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import clientApi from '@/lib/clientApi'
-import { FileText, Calendar, Clock, CheckCircle2, XCircle, AlertCircle, DollarSign, ChevronRight } from 'lucide-react'
+import { FileText, Calendar, Clock, CheckCircle2, XCircle, AlertCircle, DollarSign, ChevronRight, Search } from 'lucide-react'
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   draft:     { label: 'Draft',     color: 'bg-gray-100 text-gray-600 border-gray-200',         icon: <FileText className="h-4 w-4" /> },
@@ -27,6 +27,7 @@ export default function ClientEstimatesPage() {
   const [estimates, setEstimates] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
     clientApi.get('/estimates')
@@ -35,7 +36,17 @@ export default function ClientEstimatesPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  const filtered = filter === 'all' ? estimates : estimates.filter((e: any) => e.status === filter)
+  const filtered = estimates.filter((e: any) => {
+    if (filter !== 'all' && e.status !== filter) return false
+    if (search) {
+      const q = search.toLowerCase()
+      return (
+        (e.event_name ?? '').toLowerCase().includes(q) ||
+        (e.title ?? '').toLowerCase().includes(q)
+      )
+    }
+    return true
+  })
 
   if (loading) {
     return <div className="flex items-center justify-center h-64 text-gray-500">Loading estimates...</div>
@@ -51,21 +62,31 @@ export default function ClientEstimatesPage() {
         <span className="text-sm text-gray-500">{estimates.length} estimate{estimates.length !== 1 ? 's' : ''}</span>
       </div>
 
-      {/* Filter */}
-      <div className="flex gap-2 flex-wrap">
-        {['all', 'draft', 'sent', 'approved', 'rejected', 'expired', 'converted'].map((s) => (
-          <button
-            key={s}
-            onClick={() => setFilter(s)}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
-              filter === s
-                ? 'bg-primary-600 text-white border-primary-600'
-                : 'bg-white text-gray-600 border-gray-300 hover:border-primary-400'
-            }`}
-          >
-            {s === 'all' ? 'All' : STATUS_CONFIG[s]?.label ?? s}
-          </button>
-        ))}
+      {/* Search + status filter */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search estimates…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300"
+          />
+        </div>
+        <select
+          value={filter}
+          onChange={e => setFilter(e.target.value)}
+          className="min-w-[180px] px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-300"
+        >
+          <option value="all">All Statuses ({estimates.length})</option>
+          <option value="draft">Draft</option>
+          <option value="sent">Sent</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+          <option value="expired">Expired</option>
+          <option value="converted">Converted</option>
+        </select>
       </div>
 
       {filtered.length === 0 ? (

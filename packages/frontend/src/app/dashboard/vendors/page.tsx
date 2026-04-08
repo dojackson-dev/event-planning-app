@@ -333,6 +333,7 @@ export default function DashboardVendorsPage() {
   const [bookings, setBookings] = useState<VendorBooking[]>([])
   const [bookingsLoading, setBookingsLoading] = useState(false)
   const [bookingFilter, setBookingFilter] = useState<string>('')
+  const [bookingSearch, setBookingSearch] = useState<string>('')
   const [bookingPage, setBookingPage] = useState(0)
 
   const BOOKINGS_PER_PAGE = 6
@@ -396,9 +397,17 @@ export default function DashboardVendorsPage() {
     }
   }
 
-  const filteredBookings = bookingFilter
-    ? bookings.filter(b => b.status === bookingFilter)
-    : bookings
+  const filteredBookings = bookings.filter(b => {
+    if (bookingFilter && b.status !== bookingFilter) return false
+    if (bookingSearch) {
+      const q = bookingSearch.toLowerCase()
+      return (
+        (b.vendor_accounts?.business_name ?? '').toLowerCase().includes(q) ||
+        b.event_name.toLowerCase().includes(q)
+      )
+    }
+    return true
+  })
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -556,27 +565,29 @@ export default function DashboardVendorsPage() {
       {/* ── BOOKINGS TAB ─────────────────────────────────────── */}
       {activeTab === 'bookings' && (
         <>
-          {/* Status filter pills */}
-          <div className="flex gap-2 flex-wrap mb-4">
-            {[
-              { value: '', label: `All (${bookings.length})` },
-              { value: 'pending', label: `Pending (${bookingCounts.pending || 0})` },
-              { value: 'confirmed', label: `Confirmed (${bookingCounts.confirmed || 0})` },
-              { value: 'completed', label: `Completed (${bookingCounts.completed || 0})` },
-              { value: 'cancelled', label: `Cancelled (${bookingCounts.cancelled || 0})` },
-            ].map(f => (
-              <button
-                key={f.value}
-                onClick={() => { setBookingFilter(f.value); setBookingPage(0) }}
-                className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-all ${
-                  bookingFilter === f.value
-                    ? 'bg-primary-600 text-white border-primary-600'
-                    : 'bg-white text-gray-600 border-gray-300 hover:border-primary-300'
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
+          {/* Search + status filter */}
+          <div className="flex flex-col sm:flex-row gap-3 mb-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search by vendor or event…"
+                value={bookingSearch}
+                onChange={e => { setBookingSearch(e.target.value); setBookingPage(0) }}
+                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300"
+              />
+            </div>
+            <select
+              value={bookingFilter}
+              onChange={e => { setBookingFilter(e.target.value); setBookingPage(0) }}
+              className="min-w-[180px] px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-300"
+            >
+              <option value="">All Statuses ({bookings.length})</option>
+              <option value="pending">Pending ({bookingCounts.pending || 0})</option>
+              <option value="confirmed">Confirmed ({bookingCounts.confirmed || 0})</option>
+              <option value="completed">Completed ({bookingCounts.completed || 0})</option>
+              <option value="cancelled">Cancelled ({bookingCounts.cancelled || 0})</option>
+            </select>
           </div>
 
           {bookingsLoading ? (

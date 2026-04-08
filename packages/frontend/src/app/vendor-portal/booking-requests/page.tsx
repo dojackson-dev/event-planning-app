@@ -5,7 +5,7 @@ import Link from 'next/link'
 import api from '@/lib/api'
 import {
   Calendar, User, Mail, Phone, MapPin, Clock,
-  CheckCircle2, XCircle, AlertCircle, Loader2, ChevronDown, DollarSign, FileText, MessageSquare,
+  CheckCircle2, XCircle, AlertCircle, Loader2, ChevronDown, DollarSign, FileText, MessageSquare, Search,
 } from 'lucide-react'
 
 interface BookingRequest {
@@ -40,6 +40,7 @@ export default function BookingRequestsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [quotedAmounts, setQuotedAmounts] = useState<Record<string, string>>({})
   const [filter, setFilter] = useState('')
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
     fetchRequests()
@@ -69,7 +70,18 @@ export default function BookingRequestsPage() {
     }
   }
 
-  const filtered = filter ? requests.filter(r => r.status === filter) : requests
+  const filtered = requests.filter(r => {
+    if (filter && r.status !== filter) return false
+    if (search) {
+      const q = search.toLowerCase()
+      return (
+        r.client_name.toLowerCase().includes(q) ||
+        r.client_email.toLowerCase().includes(q) ||
+        (r.event_name ?? '').toLowerCase().includes(q)
+      )
+    }
+    return true
+  })
   const counts = requests.reduce((acc, r) => { acc[r.status] = (acc[r.status] || 0) + 1; return acc }, {} as Record<string, number>)
 
   return (
@@ -98,26 +110,28 @@ export default function BookingRequestsPage() {
           ))}
         </div>
 
-        {/* Filter */}
-        <div className="flex gap-2 flex-wrap mb-4">
-          {[
-            { value: '', label: `All (${requests.length})` },
-            { value: 'pending',   label: `Pending (${counts['pending'] || 0})` },
-            { value: 'confirmed', label: `Confirmed (${counts['confirmed'] || 0})` },
-            { value: 'declined',  label: `Declined (${counts['declined'] || 0})` },
-          ].map(f => (
-            <button
-              key={f.value}
-              onClick={() => setFilter(f.value)}
-              className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-all ${
-                filter === f.value
-                  ? 'bg-primary-600 text-white border-primary-600'
-                  : 'bg-white text-gray-600 border-gray-300 hover:border-primary-300'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
+        {/* Search + status filter */}
+        <div className="flex flex-col sm:flex-row gap-3 mb-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search by client or event…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300"
+            />
+          </div>
+          <select
+            value={filter}
+            onChange={e => setFilter(e.target.value)}
+            className="min-w-[180px] px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-300"
+          >
+            <option value="">All Statuses ({requests.length})</option>
+            <option value="pending">Pending ({counts['pending'] || 0})</option>
+            <option value="confirmed">Confirmed ({counts['confirmed'] || 0})</option>
+            <option value="declined">Declined ({counts['declined'] || 0})</option>
+          </select>
         </div>
 
         {loading ? (

@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import clientApi from '@/lib/clientApi'
-import { FileText, Calendar, Clock, CheckCircle2, XCircle, AlertCircle, DollarSign } from 'lucide-react'
+import { FileText, Calendar, Clock, CheckCircle2, XCircle, AlertCircle, DollarSign, ChevronRight } from 'lucide-react'
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   draft:     { label: 'Draft',     color: 'bg-gray-100 text-gray-600 border-gray-200',         icon: <FileText className="h-4 w-4" /> },
@@ -22,6 +23,7 @@ function isExpiringSoon(estimate: any): boolean {
 }
 
 export default function ClientEstimatesPage() {
+  const router = useRouter()
   const [estimates, setEstimates] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
@@ -79,7 +81,8 @@ export default function ClientEstimatesPage() {
             return (
               <div
                 key={estimate.id}
-                className={`bg-white rounded-xl border shadow-sm p-6 ${expiring ? 'border-orange-300' : 'border-gray-200'}`}
+                onClick={() => router.push(`/client-portal/estimates/${estimate.id}`)}
+                className={`bg-white rounded-xl border shadow-sm p-6 cursor-pointer hover:shadow-md transition-shadow ${expiring ? 'border-orange-300' : 'border-gray-200'}`}
               >
                 {expiring && (
                   <div className="mb-3 flex items-center gap-2 text-sm text-orange-700 bg-orange-50 rounded-lg px-3 py-2 border border-orange-200">

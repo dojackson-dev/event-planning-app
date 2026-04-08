@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Contract, ContractStatus } from '@/types'
 import SignatureCanvas from 'react-signature-canvas'
-import { Download, Send, FileText, Check, X as XIcon } from 'lucide-react'
+import { Download, Send, FileText, Check, X as XIcon, Eye } from 'lucide-react'
 
 export default function ContractDetailPage() {
   const params = useParams()
@@ -217,6 +217,17 @@ export default function ContractDetailPage() {
             <div>
               <h3 className="text-sm font-medium text-gray-500">Signed By</h3>
               <p className="mt-1 text-gray-900">{c.signer_name ?? contract.signerName}</p>
+            </div>
+          )}
+
+          {c.viewed_at && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                <Eye className="h-3.5 w-3.5" /> Client Viewed
+              </h3>
+              <p className="mt-1 text-emerald-700 font-medium">
+                {new Date(c.viewed_at).toLocaleString()}
+              </p>
             </div>
           )}
         </div>

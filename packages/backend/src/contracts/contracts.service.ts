@@ -152,10 +152,10 @@ export class ContractsService {
       if (data.owner_id) {
         const { data: ownerUser } = await supabase
           .from('users')
-          .select('phone')
+          .select('phone_number')
           .eq('id', data.owner_id)
           .single();
-        const ownerPhone: string | null = (ownerUser as any)?.phone ?? null;
+        const ownerPhone: string | null = (ownerUser as any)?.phone_number ?? null;
         await this.smsNotifications.contractSigned(ownerPhone, signerName, contractNumber);
       }
 

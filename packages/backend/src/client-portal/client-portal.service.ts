@@ -487,8 +487,8 @@ export class ClientPortalService {
       const contractNumber: string = data.contract_number ?? contractId;
       if (data.owner_id) {
         const { data: ownerUser } = await supabase
-          .from('users').select('phone').eq('id', data.owner_id).single();
-        await this.smsNotifications.contractSigned(ownerUser?.phone ?? null, signerName, contractNumber);
+          .from('users').select('phone_number').eq('id', data.owner_id).single();
+        await this.smsNotifications.contractSigned((ownerUser as any)?.phone_number ?? null, signerName, contractNumber);
       }
       await this.smsNotifications.contractSignedConfirmToClient(
         data.client_phone ?? data.contact_phone ?? null,
@@ -549,6 +549,39 @@ export class ClientPortalService {
         return true;
       })
       .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }
+
+  /** Single estimate — verifies the client has access */
+  async getEstimateById(estimateId: string, clientId: string, clientPhone: string) {
+    const supabase = this.supabaseService.getAdminClient();
+    const { data, error } = await supabase
+      .from('estimates')
+      .select('*, items:estimate_items(*)')
+      .eq('id', estimateId)
+      .single();
+    if (error || !data) throw new NotFoundException('Estimate not found');
+
+    const phoneVariants = buildPhoneVariants(clientPhone);
+    const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
+    const bookingResult = await supabase.from('booking').select('id').eq('user_id', clientId);
+    const bookingIds = (bookingResult.data || []).map((b: any) => b.id);
+
+    const hasAccess =
+      phoneVariants.includes(data.client_phone ?? '') ||
+      (data.booking_id && bookingIds.includes(data.booking_id)) ||
+      (data.intake_form_id && intakeFormIds.includes(data.intake_form_id));
+    if (!hasAccess) throw new NotFoundException('Estimate not found');
+    return data;
+  }
+
+  /** Mark a contract or estimate as viewed (first open only — does not overwrite existing viewed_at) */
+  async markViewed(table: 'contracts' | 'estimates', id: string) {
+    const supabase = this.supabaseService.getAdminClient();
+    await supabase
+      .from(table)
+      .update({ viewed_at: new Date().toISOString() })
+      .eq('id', id)
+      .is('viewed_at', null);
   }
 
   /** Invoices for this client (by client_phone, booking_id, or intake_form_id) */

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
@@ -436,6 +436,20 @@ export class VendorInvoicesService {
   // ─── Send invoice email ──────────────────────────────────────────────────────
 
   async sendInvoice(userId: string, invoiceId: string): Promise<{ success: boolean }> {
+    // Guard: vendor must have an active Stripe Connect account to receive payments
+    const admin = this.supabaseService.getAdminClient();
+    const vendorAccountId = await this.getVendorAccountId(userId);
+    const { data: vendorAccount } = await admin
+      .from('vendor_accounts')
+      .select('stripe_account_id, stripe_connect_status')
+      .eq('id', vendorAccountId)
+      .single();
+    if (!vendorAccount?.stripe_account_id || vendorAccount.stripe_connect_status !== 'active') {
+      throw new BadRequestException(
+        'You must connect a Stripe account before sending invoices. Go to Settings → Payouts to get started.',
+      );
+    }
+
     const invoice = await this.getInvoice(userId, invoiceId);
     const payUrl = `${this.frontendUrl}/pay/${invoice.public_token}`;
     const vendorName = invoice.vendor_accounts?.business_name ?? 'Your Vendor';
@@ -608,15 +622,18 @@ export class VendorInvoicesService {
       client_reference_id: invoice.id,
     };
 
-    let feeCents = 0;
-    if (hasConnect) {
-      const feeRate = invoice.invoice_type === 'owner_booking' ? OWNER_BOOKING_FEE_RATE : APP_FEE_RATE;
-      feeCents = Math.round(amountCents * feeRate);
-      sessionParams.payment_intent_data = {
-        application_fee_amount: feeCents,
-        transfer_data: { destination: vendor.stripe_account_id },
-      };
+    if (!hasConnect) {
+      throw new BadRequestException(
+        'This vendor has not connected a Stripe account. Payment cannot be processed until the vendor completes Stripe onboarding.',
+      );
     }
+
+    const feeRate = invoice.invoice_type === 'owner_booking' ? OWNER_BOOKING_FEE_RATE : APP_FEE_RATE;
+    const feeCents = Math.round(amountCents * feeRate);
+    sessionParams.payment_intent_data = {
+      application_fee_amount: feeCents,
+      transfer_data: { destination: vendor.stripe_account_id },
+    };
 
     const session = await this.stripe.checkout.sessions.create(sessionParams);
 

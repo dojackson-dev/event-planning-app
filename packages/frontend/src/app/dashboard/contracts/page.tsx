@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Contract, ContractStatus } from '@/types'
-import { FileText, Plus, Search, ChevronDown } from 'lucide-react'
+import { FileText, Plus, Search, ChevronDown, Eye } from 'lucide-react'
 
 export default function ContractsPage() {
   const [contracts, setContracts] = useState<Contract[]>([])
@@ -204,8 +204,13 @@ export default function ContractsPage() {
                   <p className="font-semibold text-gray-900 truncate">{contract.title}</p>
                   <p className="text-sm text-gray-500">{contract.contractNumber}</p>
                 </div>
-                <div className="flex-shrink-0">
+                <div className="flex-shrink-0 flex flex-col items-end gap-1.5">
                   <StatusSelector contract={contract} />
+                  {(contract as any).viewed_at && (
+                    <span className="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                      <Eye className="h-3 w-3" /> Viewed
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-600">
@@ -282,7 +287,14 @@ export default function ContractsPage() {
                     {new Date(contract.createdAt).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <StatusSelector contract={contract} />
+                    <div className="flex flex-col gap-1">
+                      <StatusSelector contract={contract} />
+                      {(contract as any).viewed_at && (
+                        <span className="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full w-fit">
+                          <Eye className="h-3 w-3" /> Viewed
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium" onClick={e => e.stopPropagation()}>
                     <button

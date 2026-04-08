@@ -1,16 +1,12 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import dynamic from 'next/dynamic'
 import clientApi from '@/lib/clientApi'
 import {
   ArrowLeft, FileText, Download, CheckCircle2, Clock, Send,
   PenLine, X, Loader2,
 } from 'lucide-react'
-
-// Dynamically import SignatureCanvas to avoid SSR issues
-const SignatureCanvas = dynamic(() => import('react-signature-canvas'), { ssr: false })
 
 export default function ClientContractDetailPage() {
   const params = useParams()
@@ -22,7 +18,59 @@ export default function ClientContractDetailPage() {
   const [showSignModal, setShowSignModal] = useState(false)
   const [signerName, setSignerName] = useState('')
   const [signing, setSigning] = useState(false)
-  const sigRef = useRef<any>(null)
+  const [hasSigned, setHasSigned] = useState(false)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const drawing = useRef(false)
+  const lastPos = useRef<{ x: number; y: number } | null>(null)
+
+  const getPos = (e: React.MouseEvent | React.TouchEvent, canvas: HTMLCanvasElement) => {
+    const rect = canvas.getBoundingClientRect()
+    if ('touches' in e) {
+      return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top }
+    }
+    return { x: (e as React.MouseEvent).clientX - rect.left, y: (e as React.MouseEvent).clientY - rect.top }
+  }
+
+  const startDraw = (e: React.MouseEvent | React.TouchEvent) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    drawing.current = true
+    lastPos.current = getPos(e, canvas)
+  }
+
+  const draw = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!drawing.current) return
+    const canvas = canvasRef.current
+    if (!canvas) return
+    e.preventDefault()
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    const pos = getPos(e, canvas)
+    ctx.beginPath()
+    ctx.strokeStyle = '#1e293b'
+    ctx.lineWidth = 2
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    ctx.moveTo(lastPos.current?.x ?? pos.x, lastPos.current?.y ?? pos.y)
+    ctx.lineTo(pos.x, pos.y)
+    ctx.stroke()
+    lastPos.current = pos
+  }
+
+  const endDraw = () => {
+    drawing.current = false
+    lastPos.current = null
+    setHasSigned(true)
+  }
+
+  const clearSignature = () => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    setHasSigned(false)
+  }
 
   // Pre-fill signer name from session
   useEffect(() => {
@@ -43,24 +91,31 @@ export default function ClientContractDetailPage() {
       .finally(() => setLoading(false))
   }, [contractId])
 
+  // Fire viewed beacon once — lets the owner know the client opened the link
+  useEffect(() => {
+    if (!contractId) return
+    clientApi.post(`/contracts/${contractId}/viewed`).catch(() => {})
+  }, [contractId])
+
   const handleSign = async () => {
     if (!signerName.trim()) {
       alert('Please enter your full name.')
       return
     }
-    if (!sigRef.current || sigRef.current.isEmpty()) {
+    if (!hasSigned || !canvasRef.current) {
       alert('Please draw your signature.')
       return
     }
     setSigning(true)
     try {
-      const signatureData = sigRef.current.toDataURL('image/png')
+      const signatureData = canvasRef.current.toDataURL('image/png')
       const res = await clientApi.post(`/contracts/${contractId}/sign`, {
         signatureData,
         signerName: signerName.trim(),
       })
       setContract(res.data)
       setShowSignModal(false)
+      setHasSigned(false)
       alert('Contract signed successfully! Your coordinator has been notified.')
     } catch (err: any) {
       alert(err?.response?.data?.message || 'Failed to sign contract. Please try again.')
@@ -170,7 +225,7 @@ export default function ClientContractDetailPage() {
                 Please review the document above, then sign below to confirm your agreement.
               </p>
               <button
-                onClick={() => setShowSignModal(true)}
+                onClick={() => { setShowSignModal(true); setHasSigned(false) }}
                 className="mt-3 inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 shadow-sm"
               >
                 <PenLine className="h-4 w-4" />
@@ -189,7 +244,7 @@ export default function ClientContractDetailPage() {
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <h2 className="text-lg font-bold text-gray-900">Sign Contract</h2>
               <button
-                onClick={() => setShowSignModal(false)}
+                onClick={() => { setShowSignModal(false); setHasSigned(false) }}
                 disabled={signing}
                 className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600"
               >
@@ -218,20 +273,25 @@ export default function ClientContractDetailPage() {
                   <label className="text-sm font-medium text-gray-700">Your Signature *</label>
                   <button
                     type="button"
-                    onClick={() => sigRef.current?.clear()}
+                    onClick={clearSignature}
                     className="text-xs text-gray-400 hover:text-gray-600 underline"
                   >
                     Clear
                   </button>
                 </div>
                 <div className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 overflow-hidden">
-                  <SignatureCanvas
-                    ref={sigRef}
-                    penColor="#1e293b"
-                    canvasProps={{
-                      className: 'w-full',
-                      style: { height: '160px' },
-                    }}
+                  <canvas
+                    ref={canvasRef}
+                    width={640}
+                    height={160}
+                    style={{ width: '100%', height: '160px', touchAction: 'none', cursor: 'crosshair' }}
+                    onMouseDown={startDraw}
+                    onMouseMove={draw}
+                    onMouseUp={endDraw}
+                    onMouseLeave={endDraw}
+                    onTouchStart={startDraw}
+                    onTouchMove={draw}
+                    onTouchEnd={endDraw}
                   />
                 </div>
                 <p className="text-xs text-gray-400 mt-1">Draw your signature above using your mouse or finger.</p>
@@ -247,7 +307,7 @@ export default function ClientContractDetailPage() {
             {/* Modal footer */}
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100">
               <button
-                onClick={() => setShowSignModal(false)}
+                onClick={() => { setShowSignModal(false); setHasSigned(false) }}
                 disabled={signing}
                 className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
               >
@@ -255,8 +315,8 @@ export default function ClientContractDetailPage() {
               </button>
               <button
                 onClick={handleSign}
-                disabled={signing}
-                className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
+                disabled={signing || !hasSigned || !signerName.trim()}
+                className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {signing ? (
                   <><Loader2 className="h-4 w-4 animate-spin" /> Signing...</>

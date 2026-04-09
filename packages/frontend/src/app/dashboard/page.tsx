@@ -71,10 +71,14 @@ export default function DashboardPage() {
       )
       const unpaidAmount = unpaidInvoices.reduce((sum, inv) => sum + Number(inv.amount_due ?? 0), 0)
 
-      // Fetch bookings
+      // Fetch bookings (backend already filters: client_status IN deposit_paid | completed)
       const bookingsRes = await api.get<Booking[]>('/bookings')
       const bookings = bookingsRes.data
-      const pendingBookings = bookings.filter(b => b.status === 'pending')
+      // Count events where a deposit amount > 0 was charged (confirmed bookings)
+      const paidDepositBookings = bookings.filter(b =>
+        Number((b as any).deposit_amount ?? b.deposit ?? 0) > 0
+      )
+      const completedBookings = bookings.filter(b => (b as any).client_status === 'completed')
       
       // Calculate revenue from invoices (captures paid standalone invoices, not just booking payments)
       const totalRevenue = invoices.reduce((sum, inv) => {
@@ -93,8 +97,8 @@ export default function DashboardPage() {
       setStats({
         unpaidInvoices: unpaidInvoices.length,
         unpaidAmount,
-        totalBookings: bookings.length,
-        pendingBookings: pendingBookings.length,
+        totalBookings: paidDepositBookings.length,
+        pendingBookings: completedBookings.length,
         totalRevenue,
         pendingPayments,
         totalClients: clients.length,
@@ -178,7 +182,7 @@ export default function DashboardPage() {
             <div className="flex-1">
               <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">Total Bookings</p>
               <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.totalBookings}</p>
-              <p className="text-xs text-gray-500 mt-1">{stats.pendingBookings} pending</p>
+              <p className="text-xs text-gray-500 mt-1">{stats.pendingBookings} completed</p>
             </div>
             <div className="bg-green-50 p-3 rounded-lg">
               <Users className="h-8 w-8 sm:h-10 sm:w-10 text-green-600" />

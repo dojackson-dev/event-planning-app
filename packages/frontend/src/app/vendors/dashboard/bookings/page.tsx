@@ -177,7 +177,7 @@ export default function BookingsPage() {
                             {booking.deposit_amount > 0 && (
                               <span className="text-xs text-gray-400 font-normal"> (${booking.deposit_amount} deposit)</span>
                             )}
-                            {booking.payment_status && (
+                            {booking.payment_status && booking.status !== 'paid' && booking.status !== 'completed' && (
                               <span className="text-xs text-gray-400 font-normal"> · {booking.payment_status.replace('_', ' ')}</span>
                             )}
                           </p>

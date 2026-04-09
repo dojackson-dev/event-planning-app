@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+export const dynamic = 'force-dynamic'
+
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Event } from '@/types'
@@ -15,8 +17,9 @@ interface IntakeClient {
   contact_email: string
 }
 
-export default function NewGuestListPage() {
+function NewGuestListPageInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user } = useAuth()
   const [clientId, setClientId] = useState('')
   const [eventId, setEventId] = useState('')
@@ -25,6 +28,14 @@ export default function NewGuestListPage() {
   const [events, setEvents] = useState<Event[]>([])
   const [takenEventIds, setTakenEventIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
+
+  // pre-populate from query params (e.g. navigating from event manage page)
+  useEffect(() => {
+    const qEventId = searchParams.get('eventId')
+    const qIntakeFormId = searchParams.get('intakeFormId')
+    if (qEventId) setEventId(qEventId)
+    if (qIntakeFormId) setClientId(qIntakeFormId)
+  }, [searchParams])
 
   useEffect(() => {
     if (user) {
@@ -159,7 +170,7 @@ export default function NewGuestListPage() {
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
             <option value="">-- Select an event --</option>
-            {events.filter(e => !takenEventIds.has(String(e.id))).map((event) => (
+            {events.filter(e => !takenEventIds.has(String(e.id)) || String(e.id) === eventId).map((event) => (
               <option key={event.id} value={event.id}>
                 {event.name} - {parseLocalDate(event.date).toLocaleDateString()}
                 {event.startTime && ` at ${event.startTime}`}
@@ -208,5 +219,13 @@ export default function NewGuestListPage() {
         </div>
       </form>
     </div>
+  )
+}
+
+export default function NewGuestListPage() {
+  return (
+    <Suspense fallback={<div className="p-6">Loading...</div>}>
+      <NewGuestListPageInner />
+    </Suspense>
   )
 }

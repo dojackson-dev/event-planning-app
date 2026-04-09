@@ -1363,7 +1363,7 @@ export default function EventManagementPage() {
                   <>
                     <p className="text-sm text-gray-500">No door list created for this event yet.</p>
                     <button
-                      onClick={() => router.push('/dashboard/guest-lists/new')}
+                      onClick={() => router.push(`/dashboard/guest-lists/new?eventId=${eventId}${intakeFormId ? `&intakeFormId=${intakeFormId}` : ''}`)}
                       className="block w-full px-4 py-2 bg-gray-100 text-gray-700 text-center rounded-lg hover:bg-gray-200 border border-gray-300"
                     >
                       Create Door List

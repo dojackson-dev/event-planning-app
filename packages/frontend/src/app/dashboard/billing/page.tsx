@@ -298,6 +298,41 @@ export default function BillingPage() {
         </div>
       </div>
 
+      {/* ── Convert Demo Account Hero (trial users only) ── */}
+      {!isSubscribed && (
+        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-6 mb-8 text-white">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="flex-1">
+              <h2 className="text-lg font-bold mb-1">Convert Your Demo Account</h2>
+              <p className="text-sm text-indigo-100">
+                You&apos;re exploring DoVenueSuite on a free trial. All your data, clients, and settings carry over
+                automatically when you subscribe — nothing is lost.
+              </p>
+              <ul className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-1">
+                {[
+                  'All data preserved',
+                  'Clients pay online instantly',
+                  'Unlimited events & bookings',
+                  'E-signature contracts',
+                  'Vendor management',
+                  'Cancel anytime',
+                ].map(f => (
+                  <li key={f} className="flex items-center gap-2 text-xs text-indigo-100">
+                    <CheckCircle className="h-3.5 w-3.5 text-indigo-300 flex-shrink-0" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="flex-shrink-0 text-center">
+              <p className="text-xs text-indigo-200 mb-2">Starting from</p>
+              <p className="text-4xl font-extrabold">$49<span className="text-lg font-normal">/mo</span></p>
+              <p className="text-xs text-indigo-200 mt-1">Pick a plan below ↓</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Plans Grid ── */}
       {!isSubscribed && (
         <div className="mb-10">

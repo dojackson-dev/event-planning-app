@@ -300,5 +300,39 @@ export class OwnerController {
 
     return { success: true };
   }
+
+  // ─────────────────────────────────────────────
+  // GET /owner/trial-status
+  // Returns current subscription status and trial info
+  // ─────────────────────────────────────────────
+  @Get('trial-status')
+  async getTrialStatus(@Headers('authorization') authorization: string) {
+    const userId = await this.getUserId(authorization);
+    const admin = this.supabaseService.getAdminClient();
+
+    const ownerAccountId = await this.getOwnerAccountId(userId, admin);
+    if (!ownerAccountId) return { isTrial: false, subscriptionStatus: 'unknown', daysRemaining: 0, trialEndsAt: null };
+
+    const { data } = await admin
+      .from('owner_accounts')
+      .select('subscription_status, trial_ends_at')
+      .eq('id', ownerAccountId)
+      .maybeSingle();
+
+    const isTrial = data?.subscription_status === 'trial';
+    let daysRemaining = 0;
+
+    if (isTrial && data?.trial_ends_at) {
+      const msRemaining = new Date(data.trial_ends_at).getTime() - Date.now();
+      daysRemaining = Math.max(0, Math.ceil(msRemaining / (1000 * 60 * 60 * 24)));
+    }
+
+    return {
+      isTrial,
+      subscriptionStatus: data?.subscription_status ?? 'unknown',
+      daysRemaining,
+      trialEndsAt: data?.trial_ends_at ?? null,
+    };
+  }
 }
 

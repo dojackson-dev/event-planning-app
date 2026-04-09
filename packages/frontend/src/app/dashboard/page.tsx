@@ -8,6 +8,8 @@ import { Event, Booking, ClientStatus, Invoice, InvoiceStatus } from '@/types'
 import { Calendar, Users, DollarSign, CheckCircle, Clock, ArrowRight, UserPlus, Mail, Phone, AlertCircle } from 'lucide-react'
 import { parseLocalDate } from '@/lib/dateUtils'
 import SetupChecklist from '@/components/SetupChecklist'
+import TrialBanner from '@/components/TrialBanner'
+import DemoTour from '@/components/DemoTour'
 
 interface IntakeForm {
   id: string
@@ -155,9 +157,22 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6 sm:mb-8">
-        Welcome back, {user?.firstName}!
-      </h1>
+      <DemoTour />
+
+      <div className="flex items-center justify-between mb-6 sm:mb-8 gap-4">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+          Welcome back, {user?.firstName}!
+        </h1>
+        <button
+          onClick={() => (window as any).__openDemoTour?.()}
+          className="flex-shrink-0 text-xs font-medium text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors"
+        >
+          Take a tour
+        </button>
+      </div>
+
+      {/* Trial conversion banner */}
+      <TrialBanner />
 
       {/* Setup checklist — hidden once all steps are complete */}
       <SetupChecklist />

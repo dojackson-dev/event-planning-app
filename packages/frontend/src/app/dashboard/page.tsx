@@ -76,12 +76,14 @@ export default function DashboardPage() {
       const bookings = bookingsRes.data
       const pendingBookings = bookings.filter(b => b.status === 'pending')
       
-      // Calculate revenue
-      const totalRevenue = bookings.reduce((sum, b) => sum + (b.totalAmountPaid || 0), 0)
-      const pendingPayments = bookings.reduce((sum, b) => {
-        const remaining = b.totalPrice - (b.totalAmountPaid || 0)
-        return sum + (remaining > 0 ? remaining : 0)
+      // Calculate revenue from invoices (captures paid standalone invoices, not just booking payments)
+      const totalRevenue = invoices.reduce((sum, inv) => {
+        return sum + Number((inv as any).amount_paid ?? (inv as any).amountPaid ?? 0)
       }, 0)
+      // Pending payments = all unpaid/outstanding invoice amounts
+      const pendingPayments = invoices
+        .filter(inv => inv.status !== InvoiceStatus.PAID && inv.status !== InvoiceStatus.CANCELLED)
+        .reduce((sum, inv) => sum + Number((inv as any).amount_due ?? (inv as any).amountDue ?? 0), 0)
 
       // Fetch intake forms (clients)
       const clientsRes = await api.get<IntakeForm[]>('/intake-forms')

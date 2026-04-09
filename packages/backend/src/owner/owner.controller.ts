@@ -319,7 +319,10 @@ export class OwnerController {
       .eq('id', ownerAccountId)
       .maybeSingle();
 
-    const isTrial = data?.subscription_status === 'trial';
+    // Only treat as a trial if trial_ends_at is explicitly set.
+    // Accounts created before the trial system have subscription_status='trial'
+    // but no trial_ends_at — they should not show the trial banner.
+    const isTrial = data?.subscription_status === 'trial' && !!data?.trial_ends_at;
     let daysRemaining = 0;
 
     if (isTrial && data?.trial_ends_at) {

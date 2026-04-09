@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
@@ -19,7 +19,7 @@ interface IntakeFormClient {
   status: string
 }
 
-export default function NewContractPage() {
+function NewContractForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user } = useAuth()
@@ -349,5 +349,13 @@ export default function NewContractPage() {
         </div>
       </form>
     </div>
+  )
+}
+
+export default function NewContractPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-gray-500">Loading...</div>}>
+      <NewContractForm />
+    </Suspense>
   )
 }

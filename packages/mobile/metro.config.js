@@ -8,13 +8,22 @@ const monorepoRoot = path.resolve(projectRoot, '../..');
 /** @type {import('expo/metro-config').MetroConfig} */
 const config = getDefaultConfig(projectRoot);
 
-// Watch the monorepo root so Metro can resolve packages from there
+// Watch the monorepo root
 config.watchFolders = [monorepoRoot];
 
-// Prioritize local node_modules (react 19.x) over root node_modules (react 18.x from frontend)
+// Resolver order: local first, then root
 config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
   path.resolve(monorepoRoot, 'node_modules'),
 ];
+
+// Explicitly pin these packages to the local node_modules so that
+// react@19.1.0 wins over the root's react@18.x (used by Next.js frontend)
+config.resolver.extraNodeModules = {
+  'react': path.resolve(projectRoot, 'node_modules/react'),
+  'react-dom': path.resolve(projectRoot, 'node_modules/react-dom'),
+  'react-native-screens': path.resolve(projectRoot, 'node_modules/react-native-screens'),
+  'scheduler': path.resolve(projectRoot, 'node_modules/scheduler'),
+};
 
 module.exports = config;

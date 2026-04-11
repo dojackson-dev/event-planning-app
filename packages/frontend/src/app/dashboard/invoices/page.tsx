@@ -172,6 +172,12 @@ export default function InvoicesPage() {
                   <span className="font-medium">${Number(invoice.total_amount).toFixed(2)}</span>
                   <span className="text-gray-400">·</span>
                   <span>Due {new Date(invoice.due_date + 'T12:00:00').toLocaleDateString()}</span>
+                  {(invoice as any).booking?.event?.date && (
+                    <>
+                      <span className="text-gray-400">·</span>
+                      <span>Event {new Date((invoice as any).booking.event.date + 'T12:00:00').toLocaleDateString()}</span>
+                    </>
+                  )}
                 </div>
                 <div className="mt-3 pt-3 border-t flex justify-between items-center" onClick={e => e.stopPropagation()}>
                   <span className="text-xs text-gray-400">Tap to view details →</span>
@@ -206,6 +212,9 @@ export default function InvoicesPage() {
                 Due Date
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Event Date
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Amount
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -219,7 +228,7 @@ export default function InvoicesPage() {
           <tbody className="bg-white divide-y divide-gray-200">
             {filteredInvoices.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
+                <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
                   No invoices found
                 </td>
               </tr>
@@ -248,6 +257,11 @@ export default function InvoicesPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(invoice.due_date + 'T12:00:00').toLocaleDateString()}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {(invoice as any).booking?.event?.date
+                      ? new Date((invoice as any).booking.event.date + 'T12:00:00').toLocaleDateString()
+                      : '—'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     ${Number(invoice.total_amount).toFixed(2)}

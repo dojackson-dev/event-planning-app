@@ -20,9 +20,13 @@ export default function EventsScreen() {
 
   const fetchEvents = async () => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
       const { data, error } = await supabase
         .from('events')
         .select('*')
+        .eq('owner_id', user.id)
         .order('date', { ascending: true });
 
       if (error) throw error;

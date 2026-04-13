@@ -24,6 +24,8 @@ config.resolver.extraNodeModules = {
   'react-dom': path.resolve(projectRoot, 'node_modules/react-dom'),
   'react-native-screens': path.resolve(projectRoot, 'node_modules/react-native-screens'),
   'scheduler': path.resolve(projectRoot, 'node_modules/scheduler'),
+  'expo': path.resolve(projectRoot, 'node_modules/expo'),
+  // expo-router lives in root node_modules only — do not override
 };
 
 module.exports = config;

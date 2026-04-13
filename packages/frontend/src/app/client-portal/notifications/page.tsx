@@ -101,33 +101,3 @@ export default function ClientNotificationsPage() {
     </div>
   )
 }
-
-                    </p>
-                  )}
-                  <p className={`text-sm ${notif.read ? 'text-gray-500' : 'text-gray-700'}`}>
-                    {notif.message ?? notif.body ?? notif.content}
-                  </p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    {new Date(notif.created_at).toLocaleString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </p>
-                </div>
-
-                {notif.read ? (
-                  <CheckCircle2 className="h-4 w-4 text-gray-300 flex-shrink-0 mt-1" />
-                ) : (
-                  <span className="h-2.5 w-2.5 rounded-full bg-primary-500 flex-shrink-0 mt-1.5" />
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}

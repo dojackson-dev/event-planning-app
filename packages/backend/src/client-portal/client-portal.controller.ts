@@ -281,7 +281,7 @@ export class ClientPortalController {
   @Get('notifications')
   async getNotifications(@Headers('x-client-token') token: string) {
     const session = this.requireSession(token);
-    return this.clientPortalService.getNotifications(session.clientId);
+    return this.clientPortalService.getNotifications(session.clientId, session.phone);
   }
 
   @Put('notifications/:id/read')

@@ -315,14 +315,18 @@ export class OwnerController {
 
     const { data } = await admin
       .from('owner_accounts')
-      .select('subscription_status, trial_ends_at')
+      .select('subscription_status, trial_ends_at, referred_by_affiliate_id')
       .eq('id', ownerAccountId)
       .maybeSingle();
 
-    // Only treat as a trial if trial_ends_at is explicitly set.
-    // Accounts created before the trial system have subscription_status='trial'
-    // but no trial_ends_at — they should not show the trial banner.
-    const isTrial = data?.subscription_status === 'trial' && !!data?.trial_ends_at;
+    // Only show trial UI for accounts that:
+    // 1. Have an explicit trial_ends_at (created via the trial system), AND
+    // 2. Were referred by an affiliate (came through a sales link)
+    // This prevents pre-existing accounts or direct signups from seeing the trial banner.
+    const isTrial =
+      data?.subscription_status === 'trial' &&
+      !!data?.trial_ends_at &&
+      !!data?.referred_by_affiliate_id;
     let daysRemaining = 0;
 
     if (isTrial && data?.trial_ends_at) {

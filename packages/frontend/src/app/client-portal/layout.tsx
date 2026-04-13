@@ -19,6 +19,8 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { ClientAuthProvider } from '@/contexts/ClientAuthContext'
+import ClientPortalTour from '@/components/ClientPortalTour'
+import { ClientNotificationProvider, useClientNotifications } from '@/contexts/ClientNotificationContext'
 
 const navItems = [
   { name: 'Overview',      href: '/client-portal',               icon: LayoutDashboard },
@@ -36,6 +38,7 @@ function ClientPortalLayoutInner({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const { client, isClientAuthenticated, loading, clientLogout } = useClientAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const { unreadCount } = useClientNotifications()
 
   useEffect(() => {
     if (!loading && !isClientAuthenticated) {
@@ -111,6 +114,7 @@ function ClientPortalLayoutInner({ children }: { children: React.ReactNode }) {
           {navItems.map((item) => {
             const isActive = pathname === item.href
             const Icon = item.icon
+            const isNotifications = item.href === '/client-portal/notifications'
             return (
               <Link
                 key={item.name}
@@ -124,7 +128,13 @@ function ClientPortalLayoutInner({ children }: { children: React.ReactNode }) {
               >
                 <Icon className={`h-5 w-5 flex-shrink-0 ${isActive ? 'text-primary-600' : 'text-gray-400'}`} />
                 {item.name}
-                {isActive && <ChevronRight className="ml-auto h-4 w-4 text-primary-400" />}
+                {isNotifications && unreadCount > 0 && (
+                  <span className="ml-auto inline-flex items-center justify-center h-5 w-5 rounded-full bg-red-500 text-white text-xs font-bold">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+                {isActive && !isNotifications && <ChevronRight className="ml-auto h-4 w-4 text-primary-400" />}
+                {isActive && isNotifications && unreadCount === 0 && <ChevronRight className="ml-auto h-4 w-4 text-primary-400" />}
               </Link>
             )
           })}
@@ -146,6 +156,9 @@ function ClientPortalLayoutInner({ children }: { children: React.ReactNode }) {
       <div className="lg:pl-64 pt-16 lg:pt-0 min-h-screen">
         <main className="p-6">{children}</main>
       </div>
+
+      {/* Client Portal Tour */}
+      <ClientPortalTour />
     </div>
   )
 }
@@ -153,7 +166,9 @@ function ClientPortalLayoutInner({ children }: { children: React.ReactNode }) {
 export default function ClientPortalLayout({ children }: { children: React.ReactNode }) {
   return (
     <ClientAuthProvider>
-      <ClientPortalLayoutInner>{children}</ClientPortalLayoutInner>
+      <ClientNotificationProvider>
+        <ClientPortalLayoutInner>{children}</ClientPortalLayoutInner>
+      </ClientNotificationProvider>
     </ClientAuthProvider>
   )
 }

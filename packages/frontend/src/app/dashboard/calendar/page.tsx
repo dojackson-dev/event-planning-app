@@ -18,6 +18,7 @@ import {
   subWeeks
 } from 'date-fns'
 import { ChevronLeft, ChevronRight, CalendarDays, CalendarRange, X, Edit2, Trash2, Clock, MapPin, Users, DollarSign, FileText, AlertCircle, Plus } from 'lucide-react'
+import { useVenue } from '@/contexts/VenueContext'
 
 type ViewType = 'month' | 'week'
 
@@ -68,6 +69,7 @@ const formatTime = (timeString: string | undefined): string => {
 
 export default function CalendarPage() {
   const router = useRouter()
+  const { activeVenue } = useVenue()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [viewType, setViewType] = useState<ViewType>('month')
   const [entries, setEntries] = useState<CalendarEntry[]>([])
@@ -103,7 +105,7 @@ export default function CalendarPage() {
 
   useEffect(() => {
     fetchAllEntries()
-  }, [currentDate])
+  }, [currentDate, activeVenue])
 
   useEffect(() => {
     api.get('/intake-forms').then(res => {
@@ -117,8 +119,9 @@ export default function CalendarPage() {
 
   const fetchAllEntries = async () => {
     try {
+      const venueParams = activeVenue ? { venueId: activeVenue.id } : {}
       const [eventsRes, bookingsRes, intakeRes, apptRes] = await Promise.allSettled([
-        api.get<Event[]>('/events'),
+        api.get<Event[]>('/events', { params: venueParams }),
         api.get<Booking[]>('/bookings'),
         api.get<any[]>('/intake-forms'),
         api.get<any[]>('/appointments'),

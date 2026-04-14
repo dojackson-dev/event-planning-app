@@ -7,6 +7,7 @@ import { Event } from '@/types'
 import Pagination from '@/components/Pagination'
 import { Plus, Calendar, MapPin, Users, Trash2, Search } from 'lucide-react'
 import { format } from 'date-fns'
+import { useVenue } from '@/contexts/VenueContext'
 
 // Parse date string without timezone conversion (YYYY-MM-DD -> Date at midnight local time)
 const parseLocalDate = (dateString: string): Date => {
@@ -29,6 +30,7 @@ const formatTime = (timeString: string | undefined): string => {
 }
 
 export default function EventsPage() {
+  const { activeVenue } = useVenue()
   const [events, setEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'past'>('all')
@@ -39,11 +41,12 @@ export default function EventsPage() {
 
   useEffect(() => {
     fetchEvents()
-  }, [])
+  }, [activeVenue])
 
   const fetchEvents = async () => {
     try {
-      const response = await api.get<Event[]>('/events')
+      const params = activeVenue ? { venueId: activeVenue.id } : {}
+      const response = await api.get<Event[]>('/events', { params })
       setEvents(response.data)
     } catch (error) {
       console.error('Failed to fetch events:', error)

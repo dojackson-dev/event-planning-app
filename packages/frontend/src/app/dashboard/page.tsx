@@ -5,11 +5,12 @@ import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Event, Booking, ClientStatus, Invoice, InvoiceStatus } from '@/types'
-import { Calendar, Users, DollarSign, CheckCircle, Clock, ArrowRight, UserPlus, Mail, Phone, AlertCircle } from 'lucide-react'
+import { Calendar, Users, DollarSign, CheckCircle, Clock, ArrowRight, UserPlus, Mail, Phone, AlertCircle, Building2 } from 'lucide-react'
 import { parseLocalDate } from '@/lib/dateUtils'
 import SetupChecklist from '@/components/SetupChecklist'
 import TrialBanner from '@/components/TrialBanner'
 import DemoTour from '@/components/DemoTour'
+import { useVenue } from '@/contexts/VenueContext'
 
 interface IntakeForm {
   id: string
@@ -25,6 +26,7 @@ interface IntakeForm {
 
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth()
+  const { venues, activeVenue, setActiveVenue, venuesLoaded } = useVenue()
   const [stats, setStats] = useState({
     unpaidInvoices: 0,
     unpaidAmount: 0,
@@ -45,7 +47,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (authLoading || !user) return
     fetchDashboardData()
-  }, [authLoading, user])
+  }, [authLoading, user, activeVenue])
 
   useEffect(() => {
     if (!user?.id) return
@@ -58,7 +60,8 @@ export default function DashboardPage() {
   const fetchDashboardData = async () => {
     try {
       // Fetch events (still needed for upcoming bookings)
-      const eventsRes = await api.get<Event[]>('/events')
+      const venueParams = activeVenue ? { venueId: activeVenue.id } : {}
+      const eventsRes = await api.get<Event[]>('/events', { params: venueParams })
       const events = eventsRes.data
 
       // Fetch invoices for unpaid count
@@ -153,6 +156,45 @@ export default function DashboardPage() {
 
   if (loading) {
     return <div>Loading...</div>
+  }
+
+  // Show venue picker for owners with multiple venues and no active venue
+  if (venuesLoaded && venues.length > 1 && !activeVenue) {
+    return (
+      <div>
+        <DemoTour />
+        <div className="mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">Welcome back, {user?.firstName}!</h1>
+          <p className="text-gray-500">Select a venue to view its dashboard.</p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {venues.map(v => (
+            <button
+              key={v.id}
+              onClick={() => setActiveVenue(v)}
+              className="text-left p-6 bg-white border-2 border-gray-200 rounded-2xl hover:border-primary-500 hover:shadow-md transition-all group"
+            >
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0 w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center group-hover:bg-primary-600 transition-colors">
+                  <Building2 className="h-6 w-6 text-primary-600 group-hover:text-white transition-colors" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-900 text-lg truncate">{v.name}</p>
+                  {(v.address || v.city) && (
+                    <p className="text-sm text-gray-500 mt-0.5 truncate">
+                      {[v.address, v.city, v.state].filter(Boolean).join(', ')}
+                    </p>
+                  )}
+                  {v.capacity && (
+                    <p className="text-xs text-gray-400 mt-1">Capacity: {v.capacity} guests</p>
+                  )}
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    )
   }
 
   return (

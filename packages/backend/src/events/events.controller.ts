@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Headers, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Patch, Param, Delete, Headers, UnauthorizedException } from '@nestjs/common';
 import { EventsService } from './events.service';
 import { Event } from '../entities/event.entity';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -89,5 +89,24 @@ export class EventsController {
     const token = this.extractToken(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
     return this.eventsService.remove(supabaseWithAuth, id, userId);
+  }
+
+  @Get(':id/management')
+  async getManagement(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+  ): Promise<any> {
+    const userId = await this.getUserId(authorization);
+    return this.eventsService.getManagementData(userId, id);
+  }
+
+  @Put(':id/management')
+  async updateManagement(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+    @Body() body: any,
+  ): Promise<any> {
+    const userId = await this.getUserId(authorization);
+    return this.eventsService.saveManagementData(userId, id, body);
   }
 }

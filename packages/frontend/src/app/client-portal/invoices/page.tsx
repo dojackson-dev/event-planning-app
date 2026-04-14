@@ -250,7 +250,7 @@ export default function ClientInvoicesPage() {
                 <div className="p-5">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
-                      {/* Invoice number & client name */}
+                      {/* Invoice number & status */}
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="font-bold text-gray-900 text-base">
                           Invoice #{invoice.invoice_number}
@@ -260,6 +260,11 @@ export default function ClientInvoicesPage() {
                           {cfg.label}
                         </span>
                       </div>
+
+                      {/* From venue name */}
+                      {invoice.from_name && (
+                        <p className="text-xs text-gray-400 mt-0.5">From: <span className="font-medium text-gray-600">{invoice.from_name}</span></p>
+                      )}
 
                       {invoice.client_name && (
                         <p className="text-sm text-gray-500 mt-0.5">{invoice.client_name}</p>

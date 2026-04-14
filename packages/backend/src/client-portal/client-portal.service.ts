@@ -601,7 +601,7 @@ export class ClientPortalService {
 
     const invoiceSelect = `
       id, invoice_number, status, total_amount, amount_due, amount_paid,
-      due_date, issue_date, paid_date, created_at, client_name, notes,
+      due_date, issue_date, paid_date, created_at, client_name, notes, owner_id,
       items:invoice_items(id, description, quantity, unit_price, amount, item_type)
     `;
 
@@ -623,7 +623,7 @@ export class ClientPortalService {
 
     const results = await Promise.all(queries);
     const seen = new Set<string>();
-    return results
+    const invoices = results
       .flatMap((r: any) => {
         if (r.error) this.logger.error('getInvoices error', r.error);
         return r.data || [];
@@ -634,6 +634,26 @@ export class ClientPortalService {
         return true;
       })
       .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    // Enrich with owner/venue name so the client sees who the invoice is from
+    const ownerIds = [...new Set(invoices.map((i: any) => i.owner_id).filter(Boolean))];
+    let fromNameById: Record<string, string> = {};
+    if (ownerIds.length) {
+      const { data: ownerAccounts } = await supabase
+        .from('owner_accounts')
+        .select('primary_owner_id, business_name')
+        .in('primary_owner_id', ownerIds);
+      for (const oa of ownerAccounts || []) {
+        if (oa.primary_owner_id && oa.business_name) {
+          fromNameById[oa.primary_owner_id] = oa.business_name;
+        }
+      }
+    }
+
+    return invoices.map((i: any) => ({
+      ...i,
+      from_name: i.owner_id ? (fromNameById[i.owner_id] ?? null) : null,
+    }));
   }
 
   /** Create a Stripe Checkout session for the client to pay an invoice */
@@ -767,11 +787,12 @@ export class ClientPortalService {
     return data;
   }
 
-  /** Notifications for this client */
-  async getNotifications(clientId: string) {
+  /** Notifications for this client — combines stored DB rows with dynamically generated alerts */
+  async getNotifications(clientId: string, clientPhone?: string) {
     const supabase = this.supabaseService.getAdminClient();
 
-    const { data, error } = await supabase
+    // 1. Fetch stored notifications from DB
+    const { data: stored, error } = await supabase
       .from('notifications')
       .select('*')
       .eq('user_id', clientId)
@@ -780,9 +801,178 @@ export class ClientPortalService {
 
     if (error) {
       this.logger.error('getNotifications error', error);
-      return [];
     }
-    return data || [];
+
+    const storedNotifs: any[] = stored || [];
+
+    // 2. Generate dynamic notifications from live data (upcoming events, due invoices, new estimates)
+    const dynamic: any[] = [];
+    if (clientPhone) {
+      try {
+        const phoneVariants = buildPhoneVariants(clientPhone);
+        const now = new Date();
+        const sevenDays = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+        // Get booking IDs and intake form IDs
+        const [bookingByUser, ...bookingByPhones] = await Promise.all([
+          supabase.from('booking').select('id, event_id').eq('user_id', clientId).not('status', 'eq', 'cancelled'),
+          ...phoneVariants.map(p => supabase.from('booking').select('id, event_id').eq('contact_phone', p).not('status', 'eq', 'cancelled')),
+        ]);
+        const allBookings = [...(bookingByUser.data || []), ...bookingByPhones.flatMap((r: any) => r.data || [])];
+        const bookingIds = [...new Set(allBookings.map((b: any) => b.id))];
+        const eventIds = [...new Set(allBookings.map((b: any) => b.event_id).filter(Boolean))];
+        const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
+
+        // ── Upcoming event notifications ──────────────────────────────────────
+        if (eventIds.length) {
+          const { data: upcomingEvents } = await supabase
+            .from('event')
+            .select('id, name, date, start_time')
+            .in('id', eventIds)
+            .gte('date', now.toISOString().split('T')[0])
+            .lte('date', sevenDays.toISOString().split('T')[0])
+            .order('date', { ascending: true });
+
+          for (const ev of upcomingEvents || []) {
+            const daysUntil = Math.ceil((new Date(ev.date + 'T12:00:00').getTime() - now.getTime()) / 86_400_000);
+            const dayLabel = daysUntil === 0 ? 'today' : daysUntil === 1 ? 'tomorrow' : `in ${daysUntil} days`;
+            dynamic.push({
+              id: `dynamic-event-${ev.id}`,
+              user_id: clientId,
+              type: 'booking',
+              title: daysUntil === 0 ? `Your event is TODAY!` : `Upcoming event ${dayLabel}`,
+              message: `${ev.name} is scheduled for ${new Date(ev.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}${ev.start_time ? ` at ${ev.start_time}` : ''}.`,
+              read: false,
+              created_at: new Date().toISOString(),
+              is_dynamic: true,
+            });
+          }
+        }
+
+        // ── Invoice due / overdue notifications ───────────────────────────────
+        const invoiceSelect = 'id, invoice_number, status, amount_due, due_date';
+        const invoiceQueries: any[] = [
+          ...phoneVariants.map(p =>
+            supabase.from('invoices').select(invoiceSelect).eq('client_phone', p).not('status', 'in', '("draft","paid","cancelled")'),
+          ),
+        ];
+        if (bookingIds.length) {
+          invoiceQueries.push(supabase.from('invoices').select(invoiceSelect).in('booking_id', bookingIds).not('status', 'in', '("draft","paid","cancelled")'));
+        }
+        if (intakeFormIds.length) {
+          invoiceQueries.push(supabase.from('invoices').select(invoiceSelect).in('intake_form_id', intakeFormIds).not('status', 'in', '("draft","paid","cancelled")'));
+        }
+        const invoiceResults = await Promise.all(invoiceQueries);
+        const invoiceSeen = new Set<string>();
+        const unpaidInvoices = invoiceResults
+          .flatMap((r: any) => r.data || [])
+          .filter((i: any) => { if (invoiceSeen.has(i.id)) return false; invoiceSeen.add(i.id); return true; });
+
+        for (const inv of unpaidInvoices) {
+          if (!inv.due_date) continue;
+          const dueDate = new Date(inv.due_date + 'T23:59:59');
+          const isOverdue = dueDate < now;
+          const daysUntilDue = Math.ceil((dueDate.getTime() - now.getTime()) / 86_400_000);
+          const isDueSoon = !isOverdue && daysUntilDue <= 7;
+          if (isOverdue) {
+            dynamic.push({
+              id: `dynamic-invoice-overdue-${inv.id}`,
+              user_id: clientId,
+              type: 'alert',
+              title: `Invoice #${inv.invoice_number} is OVERDUE`,
+              message: `Your invoice of $${Number(inv.amount_due).toFixed(2)} was due on ${new Date(inv.due_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}. Please pay as soon as possible.`,
+              read: false,
+              created_at: new Date().toISOString(),
+              is_dynamic: true,
+            });
+          } else if (isDueSoon) {
+            dynamic.push({
+              id: `dynamic-invoice-due-${inv.id}`,
+              user_id: clientId,
+              type: 'alert',
+              title: `Invoice #${inv.invoice_number} due ${daysUntilDue === 0 ? 'today' : daysUntilDue === 1 ? 'tomorrow' : `in ${daysUntilDue} days`}`,
+              message: `Payment of $${Number(inv.amount_due).toFixed(2)} is due on ${new Date(inv.due_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.`,
+              read: false,
+              created_at: new Date().toISOString(),
+              is_dynamic: true,
+            });
+          }
+        }
+
+        // ── New estimate notifications (sent in last 30 days, not yet viewed) ─
+        const estimateQueries: any[] = [
+          ...phoneVariants.map(p =>
+            supabase.from('estimates').select('id, status, total_amount, created_at, viewed_at').eq('client_phone', p).eq('status', 'sent').is('viewed_at', null),
+          ),
+        ];
+        if (bookingIds.length) {
+          estimateQueries.push(
+            supabase.from('estimates').select('id, status, total_amount, created_at, viewed_at').in('booking_id', bookingIds).eq('status', 'sent').is('viewed_at', null),
+          );
+        }
+        if (intakeFormIds.length) {
+          estimateQueries.push(
+            supabase.from('estimates').select('id, status, total_amount, created_at, viewed_at').in('intake_form_id', intakeFormIds).eq('status', 'sent').is('viewed_at', null),
+          );
+        }
+        const estimateResults = await Promise.all(estimateQueries);
+        const estimateSeen = new Set<string>();
+        const newEstimates = estimateResults
+          .flatMap((r: any) => r.data || [])
+          .filter((e: any) => { if (estimateSeen.has(e.id)) return false; estimateSeen.add(e.id); return true; });
+
+        for (const est of newEstimates) {
+          dynamic.push({
+            id: `dynamic-estimate-${est.id}`,
+            user_id: clientId,
+            type: 'estimate',
+            title: 'New estimate received',
+            message: `You have a new estimate for $${Number(est.total_amount).toFixed(2)} waiting for your review.`,
+            read: false,
+            created_at: est.created_at,
+            is_dynamic: true,
+          });
+        }
+
+        // ── New contract notifications (sent, not yet viewed) ─────────────────
+        const contractQueries: any[] = [
+          supabase.from('contracts').select('id, contract_number, status, created_at, viewed_at').eq('client_id', clientId).eq('status', 'sent').is('viewed_at', null),
+          ...phoneVariants.map(p =>
+            supabase.from('contracts').select('id, contract_number, status, created_at, viewed_at').eq('client_phone', p).eq('status', 'sent').is('viewed_at', null),
+          ),
+        ];
+        if (intakeFormIds.length) {
+          contractQueries.push(
+            supabase.from('contracts').select('id, contract_number, status, created_at, viewed_at').in('intake_form_id', intakeFormIds).eq('status', 'sent').is('viewed_at', null),
+          );
+        }
+        const contractResults = await Promise.all(contractQueries);
+        const contractSeen = new Set<string>();
+        const newContracts = contractResults
+          .flatMap((r: any) => r.data || [])
+          .filter((c: any) => { if (contractSeen.has(c.id)) return false; contractSeen.add(c.id); return true; });
+
+        for (const con of newContracts) {
+          dynamic.push({
+            id: `dynamic-contract-${con.id}`,
+            user_id: clientId,
+            type: 'contract',
+            title: 'Contract ready to sign',
+            message: `A contract${con.contract_number ? ` #${con.contract_number}` : ''} has been sent to you and is ready for your e-signature.`,
+            read: false,
+            created_at: con.created_at,
+            is_dynamic: true,
+          });
+        }
+      } catch (dynErr) {
+        this.logger.warn('[getNotifications] dynamic generation failed:', (dynErr as any)?.message);
+      }
+    }
+
+    // Merge stored + dynamic; deduplicate by id; sort newest first
+    const storedIds = new Set(storedNotifs.map((n: any) => n.id));
+    const merged = [...storedNotifs, ...dynamic.filter(d => !storedIds.has(d.id))];
+    return merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }
 
   /** Mark a notification as read */

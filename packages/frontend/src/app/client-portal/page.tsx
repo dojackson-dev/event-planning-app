@@ -15,6 +15,7 @@ import {
   Clock,
   Receipt,
   AlertCircle,
+  MapPin,
 } from 'lucide-react'
 
 interface OverviewData {
@@ -62,13 +63,22 @@ export default function ClientPortalPage() {
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       {/* Welcome Banner */}
-      <div className="rounded-2xl bg-primary-600 text-white px-8 py-6">
-        <h1 className="text-2xl font-bold">
-          Welcome back, {client?.firstName}!
-        </h1>
-        <p className="mt-1 text-primary-100 text-sm">
-          Here's everything you need to know about your upcoming events.
-        </p>
+      <div className="rounded-2xl bg-primary-600 text-white px-8 py-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">
+            Welcome back, {client?.firstName}!
+          </h1>
+          <p className="mt-1 text-primary-100 text-sm">
+            Here's everything you need to know about your upcoming events.
+          </p>
+        </div>
+        <button
+          onClick={() => (window as any).__openClientPortalTour?.()}
+          className="flex-shrink-0 flex items-center gap-1.5 bg-white/15 hover:bg-white/25 transition-colors text-white text-xs font-semibold px-3 py-2 rounded-xl"
+        >
+          <MapPin className="h-3.5 w-3.5" />
+          Take a Tour
+        </button>
       </div>
 
       {loading ? (

@@ -195,4 +195,34 @@ export class EventsService {
 
     if (error) throw error;
   }
+
+  async getManagementData(userId: string, eventId: string): Promise<any> {
+    const admin = this.supabaseService.getAdminClient();
+    const { data, error } = await admin
+      .from('event')
+      .select('management_data')
+      .eq('id', eventId)
+      .eq('owner_id', userId)
+      .single();
+
+    if (error) {
+      // Column may not exist yet — return empty object gracefully
+      return {};
+    }
+    return (data as any)?.management_data || {};
+  }
+
+  async saveManagementData(userId: string, eventId: string, payload: any): Promise<any> {
+    const admin = this.supabaseService.getAdminClient();
+    const { data, error } = await admin
+      .from('event')
+      .update({ management_data: payload })
+      .eq('id', eventId)
+      .eq('owner_id', userId)
+      .select('management_data')
+      .single();
+
+    if (error) throw error;
+    return (data as any)?.management_data || {};
+  }
 }

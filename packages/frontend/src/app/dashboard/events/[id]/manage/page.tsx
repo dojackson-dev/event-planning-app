@@ -222,8 +222,12 @@ export default function EventManagementPage() {
 
   const loadEventData = async () => {
     try {
-      const eventResponse = await api.get(`/events/${eventId}`);
+      const [eventResponse, managementResponse] = await Promise.all([
+        api.get(`/events/${eventId}`),
+        api.get(`/events/${eventId}/management`).catch(() => ({ data: {} })),
+      ]);
       const event = eventResponse.data;
+      const mgmt = managementResponse.data || {};
       setFormData(prev => ({
         ...prev,
         eventId: eventId,
@@ -234,6 +238,41 @@ export default function EventManagementPage() {
         startTime: event.startTime || '',
         endTime: event.endTime || '',
         venue: event.venue || '',
+        // Restore saved management fields
+        vendors: mgmt.vendors || [],
+        clientEmail: mgmt.clientEmail || '',
+        clientPhone: mgmt.clientPhone || '',
+        clientStatus: mgmt.clientStatus || ClientStatus.CONTACTED_BY_PHONE,
+        estimatedGuests: mgmt.estimatedGuests || 0,
+        confirmedGuests: mgmt.confirmedGuests || 0,
+        contractStatus: mgmt.contractStatus || ContractStatus.DRAFT,
+        contractSignedDate: mgmt.contractSignedDate || '',
+        contractAmount: mgmt.contractAmount || '',
+        depositAmount: mgmt.depositAmount || '',
+        depositPaid: mgmt.depositPaid || false,
+        depositPaidDate: mgmt.depositPaidDate || '',
+        balanceDue: mgmt.balanceDue || '',
+        balanceDueDate: mgmt.balanceDueDate || '',
+        insuranceStatus: mgmt.insuranceStatus || InsuranceStatus.NOT_REQUIRED,
+        insuranceProvider: mgmt.insuranceProvider || '',
+        insurancePolicyNumber: mgmt.insurancePolicyNumber || '',
+        insuranceExpiryDate: mgmt.insuranceExpiryDate || '',
+        certificateReceived: mgmt.certificateReceived || false,
+        securityRequired: mgmt.securityRequired || false,
+        securityCompany: mgmt.securityCompany || '',
+        securityContactName: mgmt.securityContactName || '',
+        securityContactPhone: mgmt.securityContactPhone || '',
+        numberOfSecurityStaff: mgmt.numberOfSecurityStaff || 0,
+        doorListLink: mgmt.doorListLink || '',
+        doorListLastUpdated: mgmt.doorListLastUpdated || '',
+        venueSetup: mgmt.venueSetup || '',
+        setupTime: mgmt.setupTime || '',
+        breakdownTime: mgmt.breakdownTime || '',
+        indoorOutdoor: mgmt.indoorOutdoor || '',
+        specialRequests: mgmt.specialRequests || '',
+        allergies: mgmt.allergies || '',
+        accessibility: mgmt.accessibility || '',
+        internalNotes: mgmt.internalNotes || '',
       }));
       setIntakeFormId(event.intakeFormId || null);
       loadEventInvoices(event.bookingId, event.clientName);

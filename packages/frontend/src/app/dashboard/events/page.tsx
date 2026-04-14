@@ -5,8 +5,9 @@ import Link from 'next/link'
 import api from '@/lib/api'
 import { Event } from '@/types'
 import Pagination from '@/components/Pagination'
-import { Plus, Calendar, MapPin, Users, Trash2, Search } from 'lucide-react'
+import { Plus, Calendar, MapPin, Users, Trash2, Search, Building2 } from 'lucide-react'
 import { format } from 'date-fns'
+import { useVenue } from '@/contexts/VenueContext'
 
 // Parse date string without timezone conversion (YYYY-MM-DD -> Date at midnight local time)
 const parseLocalDate = (dateString: string): Date => {
@@ -29,6 +30,7 @@ const formatTime = (timeString: string | undefined): string => {
 }
 
 export default function EventsPage() {
+  const { venues, activeVenue, setActiveVenue } = useVenue()
   const [events, setEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'past'>('all')
@@ -39,11 +41,14 @@ export default function EventsPage() {
 
   useEffect(() => {
     fetchEvents()
-  }, [])
+  }, [activeVenue])
 
   const fetchEvents = async () => {
+    setLoading(true)
+    setEvents([])
     try {
-      const response = await api.get<Event[]>('/events')
+      const params = activeVenue ? { venueId: activeVenue.id } : {}
+      const response = await api.get<Event[]>('/events', { params })
       setEvents(response.data)
     } catch (error) {
       console.error('Failed to fetch events:', error)
@@ -132,6 +137,32 @@ export default function EventsPage() {
           </Link>
         </div>
       </div>
+
+      {/* Venue filter tabs — only shown when owner has multiple venues */}
+      {venues.length > 1 && (
+        <div className="mb-4 flex items-center gap-2 flex-wrap">
+          <Building2 className="h-4 w-4 text-gray-400 flex-shrink-0" />
+          <button
+            onClick={() => setActiveVenue(null)}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              !activeVenue ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            All Venues
+          </button>
+          {venues.map(v => (
+            <button
+              key={v.id}
+              onClick={() => setActiveVenue(v)}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                activeVenue?.id === v.id ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {v.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Search + Filter */}
       <div className="mb-6 flex flex-col sm:flex-row gap-3">

@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Estimate, EstimateStatus } from '@/types'
 import { Search, Eye } from 'lucide-react'
+import { useVenue } from '@/contexts/VenueContext'
 
 function getClientName(estimate: Estimate): string {
   const booking = (estimate.booking as any)
@@ -37,14 +38,18 @@ export default function EstimatesPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const router = useRouter()
   const { user } = useAuth()
+  const { activeVenue } = useVenue()
 
   useEffect(() => {
     fetchEstimates()
-  }, [])
+  }, [activeVenue])
 
   const fetchEstimates = async () => {
+    setLoading(true)
+    setEstimates([])
     try {
-      const params = user?.role === 'owner' ? { ownerId: user.id } : {}
+      const params: any = user?.role === 'owner' ? { ownerId: user.id } : {}
+      if (activeVenue) params.venueId = activeVenue.id
       const res = await api.get<Estimate[]>('/estimates', { params })
       setEstimates(res.data)
     } catch (err) {

@@ -5,11 +5,12 @@ import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Event, Booking, ClientStatus, Invoice, InvoiceStatus } from '@/types'
-import { Calendar, Users, DollarSign, CheckCircle, Clock, ArrowRight, UserPlus, Mail, Phone, AlertCircle } from 'lucide-react'
+import { Calendar, Users, DollarSign, CheckCircle, Clock, ArrowRight, UserPlus, Mail, Phone, AlertCircle, Building2 } from 'lucide-react'
 import { parseLocalDate } from '@/lib/dateUtils'
 import SetupChecklist from '@/components/SetupChecklist'
 import TrialBanner from '@/components/TrialBanner'
 import DemoTour from '@/components/DemoTour'
+import { useVenue } from '@/contexts/VenueContext'
 
 interface IntakeForm {
   id: string
@@ -25,6 +26,7 @@ interface IntakeForm {
 
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth()
+  const { venues, activeVenue } = useVenue()
   const [stats, setStats] = useState({
     unpaidInvoices: 0,
     unpaidAmount: 0,
@@ -45,7 +47,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (authLoading || !user) return
     fetchDashboardData()
-  }, [authLoading, user])
+  }, [authLoading, user, activeVenue])
 
   useEffect(() => {
     if (!user?.id) return
@@ -58,7 +60,8 @@ export default function DashboardPage() {
   const fetchDashboardData = async () => {
     try {
       // Fetch events (still needed for upcoming bookings)
-      const eventsRes = await api.get<Event[]>('/events')
+      const venueParams = activeVenue ? { venueId: activeVenue.id } : {}
+      const eventsRes = await api.get<Event[]>('/events', { params: venueParams })
       const events = eventsRes.data
 
       // Fetch invoices for unpaid count
@@ -160,9 +163,17 @@ export default function DashboardPage() {
       <DemoTour />
 
       <div className="flex items-center justify-between mb-6 sm:mb-8 gap-4">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-          Welcome back, {user?.firstName}!
-        </h1>
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+            Welcome back, {user?.firstName}!
+          </h1>
+          {venues.length > 1 && (
+            <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1.5">
+              <Building2 className="h-3.5 w-3.5" />
+              {activeVenue ? activeVenue.name : 'All Venues'}
+            </p>
+          )}
+        </div>
         <button
           onClick={() => (window as any).__openDemoTour?.()}
           className="flex-shrink-0 text-xs font-medium text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors"

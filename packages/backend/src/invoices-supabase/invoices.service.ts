@@ -50,13 +50,24 @@ export class InvoicesService {
     return data || [];
   }
 
-  async findByOwner(supabase: any, ownerId: string): Promise<Invoice[]> {
-    const { data, error } = await supabase
+  async findByOwner(supabase: any, ownerId: string, venueId?: string): Promise<Invoice[]> {
+    let query = supabase
       .from('invoices')
       .select('*')
       .eq('owner_id', ownerId)
       .order('created_at', { ascending: false });
 
+    if (venueId) {
+      const { data: venueEvents } = await supabase.from('event').select('id').eq('venue_id', venueId);
+      const eventIds = (venueEvents || []).map((e: any) => e.id);
+      if (eventIds.length === 0) return [];
+      const { data: eventBookings } = await supabase.from('booking').select('id').in('event_id', eventIds);
+      const bookingIds = (eventBookings || []).map((b: any) => b.id);
+      if (bookingIds.length === 0) return [];
+      query = query.in('booking_id', bookingIds);
+    }
+
+    const { data, error } = await query;
     if (error) throw error;
     return data || [];
   }

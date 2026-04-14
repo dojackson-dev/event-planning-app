@@ -20,6 +20,7 @@ export class EventsService {
       specialRequirements: 'special_requirements',
       clientId: 'client_id',
       ownerId: 'owner_id',
+      venueId: 'venue_id',
     };
     
     const result = {};
@@ -44,6 +45,7 @@ export class EventsService {
       special_requirements: 'specialRequirements',
       client_id: 'clientId',
       owner_id: 'ownerId',
+      venue_id: 'venueId',
     };
     
     const result = {};
@@ -84,23 +86,35 @@ export class EventsService {
     return labels[type] || type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, ' ');
   }
 
-  async findAll(supabase: SupabaseClient, userId: string): Promise<Event[]> {
+  async findAll(supabase: SupabaseClient, userId: string, venueId?: string): Promise<Event[]> {
     // Use admin client so the intake_forms join isn't blocked by RLS
     const adminClient = this.supabaseService.getAdminClient();
-    const { data, error } = await adminClient
+    let query = adminClient
       .from('event')
       .select('*, intake_form:intake_forms!intake_form_id(contact_name, event_name, event_type)')
       .eq('owner_id', userId)
       .order('date', { ascending: true });
+    if (venueId) query = query.eq('venue_id', venueId);
+    const { data, error } = await query;
 
     if (error) {
-      // Fall back to basic query if join fails (migration not yet run)
-      const { data: basicData, error: basicError } = await supabase
+      // Fall back to basic query if join fails (e.g. migration not yet run)
+      let basicQuery = supabase
         .from('event')
         .select('*')
         .eq('owner_id', userId)
         .order('date', { ascending: true });
-      if (basicError) throw basicError;
+      if (venueId) basicQuery = basicQuery.eq('venue_id', venueId);
+      const { data: basicData, error: basicError } = await basicQuery;
+      if (basicError) {
+        // venue_id column may not exist yet — return unfiltered results
+        const { data: fallbackData } = await supabase
+          .from('event')
+          .select('*')
+          .eq('owner_id', userId)
+          .order('date', { ascending: true });
+        return (fallbackData || []).map(event => this.snakeToCamelCase(event));
+      }
       return (basicData || []).map(event => this.snakeToCamelCase(event));
     }
 

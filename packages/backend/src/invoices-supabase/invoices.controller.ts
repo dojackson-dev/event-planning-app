@@ -24,10 +24,11 @@ export class InvoicesController {
   async findAll(
     @Headers('authorization') auth: string,
     @Query('ownerId') ownerId?: string,
+    @Query('venueId') venueId?: string,
   ): Promise<Invoice[]> {
     const supabase = this.getSupabase(auth);
     if (ownerId) {
-      return this.invoicesService.findByOwner(supabase, ownerId);
+      return this.invoicesService.findByOwner(supabase, ownerId, venueId);
     }
     return this.invoicesService.findAll(supabase);
   }

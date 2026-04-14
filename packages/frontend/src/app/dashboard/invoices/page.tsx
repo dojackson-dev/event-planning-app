@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Invoice, InvoiceStatus } from '@/types'
 import { Search } from 'lucide-react'
+import { useVenue } from '@/contexts/VenueContext'
 
 function getCustomerName(invoice: any): string {
   if (invoice.client_name) return invoice.client_name
@@ -25,15 +26,18 @@ export default function InvoicesPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const router = useRouter()
   const { user } = useAuth()
+  const { activeVenue } = useVenue()
 
   useEffect(() => {
     fetchInvoices()
-  }, [])
+  }, [activeVenue])
 
   const fetchInvoices = async () => {
+    setLoading(true)
+    setInvoices([])
     try {
-      // If user is an owner, filter by their ownerId
-      const params = user?.role === 'owner' ? { ownerId: user.id } : {}
+      const params: any = user?.role === 'owner' ? { ownerId: user.id } : {}
+      if (activeVenue) params.venueId = activeVenue.id
       const response = await api.get<Invoice[]>('/invoices', { params })
       setInvoices(response.data)
     } catch (error) {

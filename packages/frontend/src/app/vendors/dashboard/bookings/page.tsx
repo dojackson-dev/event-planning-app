@@ -14,7 +14,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
   paid:      { label: 'Paid',      color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: <DollarSign className="w-4 h-4" /> },
   declined:  { label: 'Declined',  color: 'bg-red-100 text-red-700 border-red-200',          icon: <XCircle className="w-4 h-4" /> },
   cancelled: { label: 'Cancelled', color: 'bg-gray-100 text-gray-600 border-gray-200',       icon: <XCircle className="w-4 h-4" /> },
-  completed: { label: 'Completed', color: 'bg-blue-100 text-blue-700 border-blue-200',       icon: <CheckCircle2 className="w-4 h-4" /> },
+  completed: { label: 'Paid',      color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: <DollarSign className="w-4 h-4" /> },
 }
 
 export default function BookingsPage() {
@@ -63,7 +63,9 @@ export default function BookingsPage() {
 
   const filteredBookings = (statusFilter === 'all'
     ? bookings
-    : bookings.filter(b => b.status === statusFilter)
+    : statusFilter === 'paid'
+      ? bookings.filter(b => b.status === 'paid' || b.status === 'completed')
+      : bookings.filter(b => b.status === statusFilter)
   ).slice().sort((a, b) => {
     const aDate = new Date(a.event_date)
     const bDate = new Date(b.event_date)
@@ -112,7 +114,6 @@ export default function BookingsPage() {
               <option value="pending">Pending</option>
               <option value="confirmed">Confirmed</option>
               <option value="declined">Declined</option>
-              <option value="completed">Completed</option>
               <option value="paid">Paid</option>
               <option value="cancelled">Cancelled</option>
             </select>
@@ -123,7 +124,7 @@ export default function BookingsPage() {
             {[
               { label: 'Pending',   value: String(counts['pending']   || 0), color: 'text-yellow-600' },
               { label: 'Confirmed', value: String(counts['confirmed'] || 0), color: 'text-green-600'  },
-              { label: 'Completed', value: String((counts['completed'] || 0) + (counts['paid'] || 0)), color: 'text-blue-600' },
+              { label: 'Paid', value: String((counts['completed'] || 0) + (counts['paid'] || 0)), color: 'text-emerald-600' },
               { label: 'Revenue',   value: `$${revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: 'text-emerald-600' },
             ].map(s => (
               <div key={s.label} className="bg-gray-50 rounded-xl border border-gray-100 p-4 text-center">
@@ -207,11 +208,11 @@ export default function BookingsPage() {
                         )}
                         {booking.status === 'confirmed' && (
                           <button
-                            onClick={() => updateBookingStatus(booking.id, 'completed')}
+                            onClick={() => updateBookingStatus(booking.id, 'paid')}
                             disabled={updating === booking.id}
-                            className="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                            className="bg-emerald-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
                           >
-                            Mark Complete
+                            Mark Paid
                           </button>
                         )}
                       </div>

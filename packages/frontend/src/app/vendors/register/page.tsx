@@ -35,7 +35,7 @@ export default function VendorRegisterPage() {
   const [smsOptIn, setSmsOptIn] = useState(false)
 
   // Category step
-  const [selectedCategory, setSelectedCategory] = useState('')
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
 
   // Profile step
   const [businessName, setBusinessName] = useState('')
@@ -81,7 +81,13 @@ export default function VendorRegisterPage() {
   }
 
   const handleCategorySelect = (cat: string) => {
-    setSelectedCategory(cat)
+    setSelectedCategories(prev =>
+      prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
+    )
+  }
+
+  const handleCategoryContinue = () => {
+    if (selectedCategories.length === 0) return
     setStep('profile')
   }
 
@@ -92,7 +98,8 @@ export default function VendorRegisterPage() {
     try {
       await api.post('/vendors/account', {
         businessName,
-        category: selectedCategory,
+        categories: selectedCategories,
+        category: selectedCategories[0] || undefined,
         bio,
         address,
         city,
@@ -211,21 +218,37 @@ export default function VendorRegisterPage() {
         {/* STEP 2: Category */}
         {step === 'category' && (
           <div className="bg-white rounded-xl shadow-sm p-8">
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">What's your specialty?</h1>
-            <p className="text-gray-500 text-sm mb-6">Choose the category that best describes your business.</p>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">What do you offer?</h1>
+            <p className="text-gray-500 text-sm mb-6">Select all services that apply to your business.</p>
             <div className="grid grid-cols-2 gap-3">
-              {CATEGORIES.map(cat => (
-                <button
-                  key={cat.value}
-                  onClick={() => handleCategorySelect(cat.value)}
-                  className="flex flex-col items-start p-4 border-2 border-gray-200 rounded-xl hover:border-primary-500 hover:bg-primary-50 transition-all text-left group"
-                >
-                  <span className="text-3xl mb-2">{cat.icon}</span>
-                  <span className="font-semibold text-gray-900 group-hover:text-primary-600">{cat.label}</span>
-                  <span className="text-xs text-gray-500 mt-0.5">{cat.desc}</span>
-                </button>
-              ))}
+              {CATEGORIES.map(cat => {
+                const checked = selectedCategories.includes(cat.value)
+                return (
+                  <button
+                    key={cat.value}
+                    type="button"
+                    onClick={() => handleCategorySelect(cat.value)}
+                    className={`flex flex-col items-start p-4 border-2 rounded-xl transition-all text-left ${
+                      checked
+                        ? 'border-primary-500 bg-primary-50'
+                        : 'border-gray-200 hover:border-primary-400 hover:bg-primary-50'
+                    }`}
+                  >
+                    <span className="text-3xl mb-2">{cat.icon}</span>
+                    <span className={`font-semibold ${checked ? 'text-primary-600' : 'text-gray-900'}`}>{cat.label}</span>
+                    <span className="text-xs text-gray-500 mt-0.5">{cat.desc}</span>
+                    {checked && <span className="text-xs text-primary-600 font-medium mt-1">✓ Selected</span>}
+                  </button>
+                )
+              })}
             </div>
+            <button
+              onClick={handleCategoryContinue}
+              disabled={selectedCategories.length === 0}
+              className="mt-6 w-full bg-primary-600 text-white py-3 rounded-lg font-semibold hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Continue ({selectedCategories.length} selected) →
+            </button>
           </div>
         )}
 

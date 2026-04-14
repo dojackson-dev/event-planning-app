@@ -24,6 +24,7 @@ interface VendorProfile {
   user_id: string
   business_name: string
   category: string
+  categories?: string[]
   bio: string
   city: string
   state: string
@@ -232,10 +233,16 @@ export default function VendorPublicProfile({ params }: { params: { id: string }
                     <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-medium">✓ Verified</span>
                   )}
                 </div>
-                <p className="text-gray-500 text-sm mt-0.5">
-                  {CATEGORY_LABELS[vendor.category] || vendor.category}
-                  {(vendor.city || vendor.state) && ` · ${[vendor.city, vendor.state].filter(Boolean).join(', ')}`}
-                </p>
+                <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                  {(vendor.categories?.length ? vendor.categories : [vendor.category]).map(cat => (
+                    <span key={cat} className="bg-primary-100 text-primary-700 text-xs px-2 py-0.5 rounded-full font-medium">
+                      {CATEGORY_LABELS[cat] || cat}
+                    </span>
+                  ))}
+                  {(vendor.city || vendor.state) && (
+                    <span className="text-gray-400 text-xs ml-1">· {[vendor.city, vendor.state].filter(Boolean).join(', ')}</span>
+                  )}
+                </div>
               </div>
             </div>
 

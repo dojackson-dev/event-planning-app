@@ -54,7 +54,8 @@ export class VendorsService {
       .insert({
         user_id: userId,
         business_name: dto.businessName,
-        category: dto.category,
+        category: dto.categories?.length ? dto.categories[0] : (dto.category ?? null),
+        categories: dto.categories ?? (dto.category ? [dto.category] : []),
         bio: dto.bio,
         website: dto.website,
         instagram: dto.instagram,
@@ -125,7 +126,12 @@ export class VendorsService {
 
     const updatePayload: Record<string, any> = {};
     if (dto.businessName !== undefined) updatePayload.business_name = dto.businessName;
-    if (dto.category !== undefined) updatePayload.category = dto.category;
+    if (dto.categories !== undefined) {
+      updatePayload.categories = dto.categories;
+      updatePayload.category = dto.categories.length ? dto.categories[0] : null;
+    } else if (dto.category !== undefined) {
+      updatePayload.category = dto.category;
+    }
     if (dto.bio !== undefined) updatePayload.bio = dto.bio;
     if (dto.website !== undefined) updatePayload.website = dto.website;
     if (dto.instagram !== undefined) updatePayload.instagram = dto.instagram;

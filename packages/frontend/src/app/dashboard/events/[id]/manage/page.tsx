@@ -164,6 +164,10 @@ export default function EventManagementPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showVendorPicker, setShowVendorPicker] = useState(false);
+  const [vendorPickerList, setVendorPickerList] = useState<any[]>([]);
+  const [vendorPickerSearch, setVendorPickerSearch] = useState('');
+  const [vendorPickerLoading, setVendorPickerLoading] = useState(false);
   const [eventInvoices, setEventInvoices] = useState<any[]>([]);
   const [eventEstimates, setEventEstimates] = useState<any[]>([]);
   const [intakeFormId, setIntakeFormId] = useState<string | null>(null);
@@ -330,6 +334,47 @@ export default function EventManagementPage() {
     }));
   };
 
+  const openVendorPicker = async () => {
+    setShowVendorPicker(true);
+    setVendorPickerSearch('');
+    setVendorPickerLoading(true);
+    try {
+      const res = await api.get('/vendors/search?limit=100');
+      setVendorPickerList(res.data?.vendors || res.data || []);
+    } catch {
+      setVendorPickerList([]);
+    } finally {
+      setVendorPickerLoading(false);
+    }
+  };
+
+  const addVendorFromDirectory = (v: any) => {
+    const categoryMap: Record<string, VendorContact['category']> = {
+      catering: 'catering', decoration: 'decoration', decor: 'decoration',
+      music: 'music', dj: 'music', photography: 'photography', photo: 'photography',
+      videography: 'videography', video: 'videography', security: 'security',
+      valet: 'valet',
+    };
+    const cat = categoryMap[(v.category || '').toLowerCase()] || 'other';
+    setFormData(prev => ({
+      ...prev,
+      vendors: [
+        ...prev.vendors,
+        {
+          category: cat,
+          companyName: v.business_name || '',
+          contactPerson: v.contact_name || '',
+          phone: v.phone || '',
+          email: v.email || '',
+          contractStatus: 'pending',
+          estimatedCost: '',
+          notes: '',
+        },
+      ],
+    }));
+    setShowVendorPicker(false);
+  };
+
   const handleSave = async () => {
     setIsSaving(true);
     try {
@@ -373,8 +418,53 @@ export default function EventManagementPage() {
     }
   };
 
+  const filteredPickerVendors = vendorPickerList.filter(v =>
+    !vendorPickerSearch ||
+    (v.business_name || '').toLowerCase().includes(vendorPickerSearch.toLowerCase()) ||
+    (v.category || '').toLowerCase().includes(vendorPickerSearch.toLowerCase())
+  );
+
   return (
     <div className="max-w-7xl mx-auto">
+      {/* Vendor Directory Picker Modal */}
+      {showVendorPicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 flex flex-col max-h-[80vh]">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="font-bold text-gray-900 text-lg">Pick from Vendor Directory</h3>
+              <button onClick={() => setShowVendorPicker(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+            </div>
+            <div className="p-4 border-b">
+              <input
+                type="text"
+                placeholder="Search by name or category..."
+                value={vendorPickerSearch}
+                onChange={e => setVendorPickerSearch(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                autoFocus
+              />
+            </div>
+            <div className="overflow-y-auto flex-1 p-2">
+              {vendorPickerLoading ? (
+                <div className="text-center py-8 text-gray-400">Loading vendors...</div>
+              ) : filteredPickerVendors.length === 0 ? (
+                <div className="text-center py-8 text-gray-400">No vendors found</div>
+              ) : (
+                filteredPickerVendors.map(v => (
+                  <button
+                    key={v.id}
+                    onClick={() => addVendorFromDirectory(v)}
+                    className="w-full text-left px-4 py-3 rounded-lg hover:bg-primary-50 border border-transparent hover:border-primary-200 transition-colors mb-1"
+                  >
+                    <p className="font-semibold text-gray-900 text-sm">{v.business_name}</p>
+                    <p className="text-xs text-gray-500 capitalize">{v.category}{v.phone ? ` · ${v.phone}` : ''}{v.email ? ` · ${v.email}` : ''}</p>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
         {/* Header */}
         <div className="mb-6">
           <button
@@ -1011,12 +1101,20 @@ export default function EventManagementPage() {
                   Vendor Contacts
                 </h2>
                 {isEditing && (
-                  <button
-                    onClick={addVendor}
-                    className="px-3 py-1 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700"
-                  >
-                    + Add Vendor
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={openVendorPicker}
+                      className="px-3 py-1 bg-white border border-primary-600 text-primary-600 text-sm rounded-lg hover:bg-primary-50"
+                    >
+                      From Directory
+                    </button>
+                    <button
+                      onClick={addVendor}
+                      className="px-3 py-1 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700"
+                    >
+                      + Add Manual
+                    </button>
+                  </div>
                 )}
               </div>
 

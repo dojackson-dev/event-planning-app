@@ -11,10 +11,19 @@ export class BookingsService {
     private readonly smsNotifications: SmsNotificationsService,
   ) {}
 
-  async findAll(supabase: SupabaseClient): Promise<Booking[]> {
+  async findAll(supabase: SupabaseClient, venueId?: string): Promise<Booking[]> {
     console.log('Fetching bookings...');
+
+    let eventIds: string[] | null = null;
+    if (venueId) {
+      const admin = this.supabaseService.getAdminClient();
+      const { data: venueEvents } = await admin.from('event').select('id').eq('venue_id', venueId);
+      eventIds = (venueEvents || []).map((e: any) => e.id);
+      if (eventIds.length === 0) return [];
+    }
+
     // A booking is defined as an event with deposit paid or complete balance paid
-    const { data, error } = await supabase
+    let query = supabase
       .from('booking')
       .select(`
         *,
@@ -23,6 +32,9 @@ export class BookingsService {
       .in('client_status', ['deposit_paid', 'completed'])
       .order('created_at', { ascending: false });
 
+    if (eventIds) query = query.in('event_id', eventIds);
+
+    const { data, error } = await query;
     if (error) {
       console.error('Error fetching bookings:', error);
       throw error;

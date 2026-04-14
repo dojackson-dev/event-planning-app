@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Contract, ContractStatus } from '@/types'
 import { FileText, Plus, Search, ChevronDown, Eye } from 'lucide-react'
+import { useVenue } from '@/contexts/VenueContext'
 
 export default function ContractsPage() {
   const [contracts, setContracts] = useState<Contract[]>([])
@@ -16,14 +17,18 @@ export default function ContractsPage() {
   const [recentlyChanged, setRecentlyChanged] = useState<Set<string>>(new Set())
   const router = useRouter()
   const { user } = useAuth()
+  const { activeVenue } = useVenue()
 
   useEffect(() => {
     fetchContracts()
-  }, [])
+  }, [activeVenue])
 
   const fetchContracts = async () => {
+    setLoading(true)
+    setContracts([])
     try {
-      const params = user?.role === 'owner' ? { ownerId: user.id } : user?.role === 'customer' ? { clientId: user.id } : {}
+      const params: any = user?.role === 'owner' ? { ownerId: user.id } : user?.role === 'customer' ? { clientId: user.id } : {}
+      if (activeVenue) params.venueId = activeVenue.id
       const response = await api.get<Contract[]>('/contracts', { params })
       setContracts(response.data)
     } catch (error) {

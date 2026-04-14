@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Invoice, InvoiceStatus } from '@/types'
 import { DollarSign, TrendingUp, TrendingDown, Clock, CreditCard, FileText } from 'lucide-react'
+import { useVenue } from '@/contexts/VenueContext'
 
 interface PaymentStats {
   totalReceived: number
@@ -25,14 +26,18 @@ export default function PaymentsPage() {
   })
   const router = useRouter()
   const { user } = useAuth()
+  const { activeVenue } = useVenue()
 
   useEffect(() => {
     fetchPayments()
-  }, [])
+  }, [activeVenue])
 
   const fetchPayments = async () => {
+    setLoading(true)
+    setInvoices([])
     try {
-      const params = user?.role === 'owner' ? { ownerId: user.id } : {}
+      const params: any = user?.role === 'owner' ? { ownerId: user.id } : {}
+      if (activeVenue) params.venueId = activeVenue.id
       const response = await api.get<Invoice[]>('/invoices', { params })
       const invoiceData = response.data
 

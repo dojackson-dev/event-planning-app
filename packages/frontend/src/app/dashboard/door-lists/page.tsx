@@ -21,10 +21,12 @@ import {
   X
 } from 'lucide-react'
 import { parseLocalDate } from '@/lib/dateUtils'
+import { useVenue } from '@/contexts/VenueContext'
 
 export default function DoorListsPage() {
   const router = useRouter()
   const { user } = useAuth()
+  const { activeVenue } = useVenue()
   const [events, setEvents] = useState<Event[]>([])
   const [guestLists, setGuestLists] = useState<GuestList[]>([])
   const [selectedEvent, setSelectedEvent] = useState<string>('')
@@ -41,7 +43,7 @@ export default function DoorListsPage() {
   useEffect(() => {
     fetchEvents()
     fetchGuestLists()
-  }, [])
+  }, [activeVenue])
 
   useEffect(() => {
     if (selectedEvent && guestLists.length > 0) {
@@ -54,7 +56,9 @@ export default function DoorListsPage() {
 
   const fetchEvents = async () => {
     try {
-      const response = await api.get<Event[]>('/events')
+      const params: any = {}
+      if (activeVenue) params.venueId = activeVenue.id
+      const response = await api.get<Event[]>('/events', { params })
       // Show events from 3 days ago through the future so door lists work
       // for events happening now, today, or recently completed
       const cutoff = new Date()

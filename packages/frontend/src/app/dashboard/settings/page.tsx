@@ -19,12 +19,74 @@ import {
   Building2,
   Banknote,
   Receipt,
+  Plus,
+  Pencil,
+  X,
 } from 'lucide-react'
 import { useOwnerBrand } from '@/contexts/OwnerBrandContext'
 import ImageUpload from '@/components/ImageUpload'
 import ConnectBankButton from '@/components/ConnectBankButton'
 import AddRoleCard from '@/components/AddRoleCard'
 import Link from 'next/link'
+
+function VenueFormFields({ form, onChange }: { form: any; onChange: (field: string, value: string) => void }) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Venue Name *</label>
+        <input required type="text" value={form.name} onChange={e => onChange('name', e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
+          placeholder="e.g. Grand Ballroom Downtown" />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Street Address</label>
+        <input type="text" value={form.address} onChange={e => onChange('address', e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
+          placeholder="123 Main Street" />
+      </div>
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <label className="block text-xs text-gray-600 mb-1">City</label>
+          <input type="text" value={form.city} onChange={e => onChange('city', e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" placeholder="Dallas" />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-600 mb-1">State</label>
+          <input type="text" value={form.state} onChange={e => onChange('state', e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" placeholder="TX" maxLength={2} />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-600 mb-1">Zip Code</label>
+          <input type="text" value={form.zip_code} onChange={e => onChange('zip_code', e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" placeholder="75001" />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs text-gray-600 mb-1">Phone</label>
+          <input type="tel" value={form.phone} onChange={e => onChange('phone', e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" placeholder="(555) 987-6543" />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-600 mb-1">Website</label>
+          <input type="url" value={form.website} onChange={e => onChange('website', e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" placeholder="https://myvenue.com" />
+        </div>
+      </div>
+      <div>
+        <label className="block text-xs text-gray-600 mb-1">Capacity (guests)</label>
+        <input type="number" value={form.capacity} onChange={e => onChange('capacity', e.target.value)} min="1"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" placeholder="250" />
+      </div>
+      <div>
+        <label className="block text-xs text-gray-600 mb-1">Description</label>
+        <textarea value={form.description} onChange={e => onChange('description', e.target.value)} rows={3}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 resize-none"
+          placeholder="Describe your venue…" />
+      </div>
+    </div>
+  )
+}
 
 function SettingsPageContent() {
   const { user, logout } = useAuth()
@@ -37,17 +99,25 @@ function SettingsPageContent() {
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
 
-  // Venue form state
-  const [venueName, setVenueName] = useState('')
-  const [venueAddress, setVenueAddress] = useState('')
-  const [venueCity, setVenueCity] = useState('')
-  const [venueState, setVenueState] = useState('')
-  const [venueZipCode, setVenueZipCode] = useState('')
-  const [venuePhone, setVenuePhone] = useState('')
-  const [venueWebsite, setVenueWebsite] = useState('')
-  const [venueCapacity, setVenueCapacity] = useState('')
-  const [venueDescription, setVenueDescription] = useState('')
+  // Venues state
+  interface VenueData {
+    id?: number
+    name: string
+    address: string
+    city: string
+    state: string
+    zip_code: string
+    phone: string
+    website: string
+    capacity: string
+    description: string
+  }
+  const emptyVenue = (): VenueData => ({ name: '', address: '', city: '', state: '', zip_code: '', phone: '', website: '', capacity: '', description: '' })
+  const [venues, setVenues] = useState<VenueData[]>([])
   const [venueLoaded, setVenueLoaded] = useState(false)
+  const [editingVenueId, setEditingVenueId] = useState<number | 'new' | null>(null)
+  const [venueForm, setVenueForm] = useState<VenueData>(emptyVenue())
+  const [venueSaving, setVenueSaving] = useState(false)
 
   // Payment schedule (billing) form state
   const [scheduleEnabled, setScheduleEnabled] = useState(false)
@@ -89,22 +159,85 @@ function SettingsPageContent() {
   // Load venue data on mount
   useEffect(() => {
     if (venueLoaded) return
-    api.get('/owner/venue').then(res => {
-      const v = res.data.venue
-      if (v) {
-        setVenueName(v.name || '')
-        setVenueAddress(v.address || '')
-        setVenueCity(v.city || '')
-        setVenueState(v.state || '')
-        setVenueZipCode(v.zip_code || '')
-        setVenuePhone(v.phone || '')
-        setVenueWebsite(v.website || '')
-        setVenueCapacity(v.capacity ? String(v.capacity) : '')
-        setVenueDescription(v.description || '')
-      }
+    api.get('/owner/venues').then(res => {
+      const rows = res.data.venues || []
+      setVenues(rows.map((v: any) => ({
+        id: v.id,
+        name: v.name || '',
+        address: v.address || '',
+        city: v.city || '',
+        state: v.state || '',
+        zip_code: v.zip_code || '',
+        phone: v.phone || '',
+        website: v.website || '',
+        capacity: v.capacity ? String(v.capacity) : '',
+        description: v.description || '',
+      })))
       setVenueLoaded(true)
     }).catch(() => setVenueLoaded(true))
   }, [venueLoaded])
+
+  const handleVenueFormChange = (field: string, value: string) => {
+    setVenueForm(prev => ({ ...prev, [field]: value }))
+  }
+
+  const startEditVenue = (venue: VenueData) => {
+    setVenueForm({ ...venue })
+    setEditingVenueId(venue.id!)
+  }
+
+  const startAddVenue = () => {
+    setVenueForm(emptyVenue())
+    setEditingVenueId('new')
+  }
+
+  const cancelVenueEdit = () => {
+    setEditingVenueId(null)
+    setVenueForm(emptyVenue())
+  }
+
+  const handleSaveVenueForm = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setVenueSaving(true)
+    setMessage(null)
+    try {
+      const payload = {
+        name: venueForm.name,
+        address: venueForm.address,
+        city: venueForm.city,
+        state: venueForm.state,
+        zipCode: venueForm.zip_code,
+        phone: venueForm.phone,
+        website: venueForm.website,
+        capacity: venueForm.capacity ? parseInt(venueForm.capacity, 10) : undefined,
+        description: venueForm.description,
+      }
+      if (editingVenueId === 'new') {
+        const res = await api.post('/owner/venues', payload)
+        setVenues(prev => [...prev, { ...venueForm, id: res.data.venue.id }])
+      } else {
+        await api.put(`/owner/venues/${editingVenueId}`, payload)
+        setVenues(prev => prev.map(v => v.id === editingVenueId ? { ...venueForm, id: editingVenueId } : v))
+      }
+      setMessage({ type: 'success', text: editingVenueId === 'new' ? 'Venue added!' : 'Venue saved!' })
+      cancelVenueEdit()
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.response?.data?.message || 'Failed to save venue' })
+    } finally {
+      setVenueSaving(false)
+    }
+  }
+
+  const handleDeleteVenue = async (id: number) => {
+    if (!window.confirm('Delete this venue? This cannot be undone.')) return
+    try {
+      await api.delete(`/owner/venues/${id}`)
+      setVenues(prev => prev.filter(v => v.id !== id))
+      setMessage({ type: 'success', text: 'Venue deleted.' })
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.response?.data?.message || 'Failed to delete venue' })
+    }
+  }
   
   // Clear message after 5 seconds
   useEffect(() => {
@@ -184,33 +317,6 @@ function SettingsPageContent() {
     }
   }
 
-  const handleSaveVenue = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSaving(true)
-    setMessage(null)
-    try {
-      await api.put('/owner/venue', {
-        name: venueName,
-        address: venueAddress,
-        city: venueCity,
-        state: venueState,
-        zipCode: venueZipCode,
-        phone: venuePhone,
-        website: venueWebsite,
-        capacity: venueCapacity ? parseInt(venueCapacity, 10) : undefined,
-        description: venueDescription,
-      })
-      setMessage({ type: 'success', text: 'Venue information saved!' })
-    } catch (error: any) {
-      setMessage({
-        type: 'error',
-        text: error.response?.data?.message || 'Failed to update venue',
-      })
-    } finally {
-      setSaving(false)
-    }
-  }
-  
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault()
     
@@ -460,103 +566,92 @@ function SettingsPageContent() {
 
           {/* Venue Tab */}
           {activeTab === 'venue' && (
-            <form onSubmit={handleSaveVenue} className="space-y-6">
-              <p className="text-sm text-gray-500">
-                Keep your venue information up to date so clients and vendors have accurate details.
-              </p>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Venue Name *</label>
-                <input
-                  type="text" required value={venueName} onChange={e => setVenueName(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  placeholder="e.g. Grand Ballroom Downtown"
-                />
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-gray-500">Manage all venues under your account.</p>
+                {editingVenueId === null && (
+                  <button
+                    type="button"
+                    onClick={startAddVenue}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700"
+                  >
+                    <Plus className="h-4 w-4" /> Add Venue
+                  </button>
+                )}
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Street Address</label>
-                <input
-                  type="text" value={venueAddress} onChange={e => setVenueAddress(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  placeholder="123 Main Street"
-                />
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div className="col-span-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">City</label>
-                  <input
-                    type="text" value={venueCity} onChange={e => setVenueCity(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                    placeholder="Dallas"
-                  />
+              {/* Venue cards */}
+              {!venueLoaded ? (
+                <p className="text-sm text-gray-400">Loading venues…</p>
+              ) : venues.length === 0 && editingVenueId !== 'new' ? (
+                <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl">
+                  <Building2 className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+                  <p className="text-gray-500 text-sm">No venues yet. Add your first venue.</p>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">State</label>
-                  <input
-                    type="text" value={venueState} onChange={e => setVenueState(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                    placeholder="TX" maxLength={2}
-                  />
+              ) : (
+                <div className="space-y-3">
+                  {venues.map(v => (
+                    <div key={v.id}>
+                      {editingVenueId === v.id ? (
+                        /* ── Inline edit form ── */
+                        <form onSubmit={handleSaveVenueForm} className="border border-primary-300 rounded-xl p-5 space-y-4 bg-primary-50/30">
+                          <div className="flex items-center justify-between mb-1">
+                            <h3 className="font-semibold text-gray-800">Edit Venue</h3>
+                            <button type="button" onClick={cancelVenueEdit} className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
+                          </div>
+                          <VenueFormFields form={venueForm} onChange={handleVenueFormChange} />
+                          <div className="flex gap-3 pt-2 border-t">
+                            <button type="submit" disabled={venueSaving} className="inline-flex items-center gap-1.5 px-5 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 disabled:opacity-50">
+                              <Save className="h-4 w-4" />{venueSaving ? 'Saving…' : 'Save'}
+                            </button>
+                            <button type="button" onClick={cancelVenueEdit} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
+                          </div>
+                        </form>
+                      ) : (
+                        /* ── Venue summary card ── */
+                        <div className="flex items-start justify-between border border-gray-200 rounded-xl p-4 bg-white">
+                          <div>
+                            <p className="font-semibold text-gray-900">{v.name}</p>
+                            <p className="text-sm text-gray-500 mt-0.5">
+                              {[v.address, v.city, v.state, v.zip_code].filter(Boolean).join(', ') || 'No address set'}
+                              {v.capacity ? ` · Capacity: ${v.capacity}` : ''}
+                            </p>
+                            {(v.phone || v.website) && (
+                              <p className="text-xs text-gray-400 mt-0.5">{[v.phone, v.website].filter(Boolean).join(' · ')}</p>
+                            )}
+                          </div>
+                          <div className="flex gap-2 ml-4 flex-shrink-0">
+                            <button type="button" onClick={() => startEditVenue(v)} className="p-1.5 text-gray-400 hover:text-primary-600 rounded">
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button type="button" onClick={() => handleDeleteVenue(v.id!)} className="p-1.5 text-gray-400 hover:text-red-600 rounded">
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Zip Code</label>
-                  <input
-                    type="text" value={venueZipCode} onChange={e => setVenueZipCode(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                    placeholder="75001"
-                  />
-                </div>
-              </div>
+              )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Venue Phone</label>
-                  <input
-                    type="tel" value={venuePhone} onChange={e => setVenuePhone(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                    placeholder="(555) 987-6543"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Venue Website</label>
-                  <input
-                    type="url" value={venueWebsite} onChange={e => setVenueWebsite(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                    placeholder="https://myvenue.com"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Capacity (guests)</label>
-                <input
-                  type="number" value={venueCapacity} onChange={e => setVenueCapacity(e.target.value)} min="1"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  placeholder="e.g. 250"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Venue Description</label>
-                <textarea
-                  value={venueDescription} onChange={e => setVenueDescription(e.target.value)} rows={4}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-none"
-                  placeholder="Describe your venue — amenities, atmosphere, ideal event types, parking, AV equipment…"
-                />
-              </div>
-
-              <div className="flex justify-end pt-4 border-t">
-                <button
-                  type="submit" disabled={saving}
-                  className="inline-flex items-center px-6 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <Save className="h-4 w-4 mr-2" />
-                  {saving ? 'Saving...' : 'Save Venue'}
-                </button>
-              </div>
-            </form>
+              {/* Add new venue form */}
+              {editingVenueId === 'new' && (
+                <form onSubmit={handleSaveVenueForm} className="border border-primary-300 rounded-xl p-5 space-y-4 bg-primary-50/30">
+                  <div className="flex items-center justify-between mb-1">
+                    <h3 className="font-semibold text-gray-800">New Venue</h3>
+                    <button type="button" onClick={cancelVenueEdit} className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
+                  </div>
+                  <VenueFormFields form={venueForm} onChange={handleVenueFormChange} />
+                  <div className="flex gap-3 pt-2 border-t">
+                    <button type="submit" disabled={venueSaving} className="inline-flex items-center gap-1.5 px-5 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 disabled:opacity-50">
+                      <Plus className="h-4 w-4" />{venueSaving ? 'Saving…' : 'Add Venue'}
+                    </button>
+                    <button type="button" onClick={cancelVenueEdit} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
+                  </div>
+                </form>
+              )}
+            </div>
           )}
           
           {/* Password Tab */}

@@ -20,7 +20,7 @@ export interface VenueData {
 interface VenueContextType {
   venues: VenueData[]
   activeVenue: VenueData | null
-  setActiveVenue: (v: VenueData) => void
+  setActiveVenue: (v: VenueData | null) => void
   venuesLoaded: boolean
 }
 
@@ -56,13 +56,18 @@ export function VenueProvider({ children }: { children: React.ReactNode }) {
         setActiveVenueState(rows[0])
         localStorage.setItem('activeVenueId', String(rows[0].id))
       }
+      // If multiple venues and no saved preference, default to All (null)
       setVenuesLoaded(true)
     }).catch(() => setVenuesLoaded(true))
   }, [user])
 
-  const setActiveVenue = (v: VenueData) => {
+  const setActiveVenue = (v: VenueData | null) => {
     setActiveVenueState(v)
-    localStorage.setItem('activeVenueId', String(v.id))
+    if (v) {
+      localStorage.setItem('activeVenueId', String(v.id))
+    } else {
+      localStorage.removeItem('activeVenueId')
+    }
   }
 
   return (

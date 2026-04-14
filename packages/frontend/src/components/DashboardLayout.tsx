@@ -30,6 +30,8 @@ import {
   CreditCard,
   Building2,
   Check,
+  Megaphone,
+  Music,
 } from 'lucide-react'
 
 function getInitials(name: string): string {
@@ -222,6 +224,8 @@ const navigation = [
   { name: 'Messages', href: '/dashboard/messages', icon: MessageSquare },
   { name: 'Vendors', href: '/dashboard/vendors', icon: Store },
   { name: 'Vendor Invoices', href: '/dashboard/vendor-invoices', icon: Receipt },
+  { name: 'Promoter', href: '/dashboard/promoter', icon: Megaphone },
+  { name: 'Artists', href: '/dashboard/artists', icon: Music },
 ]
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

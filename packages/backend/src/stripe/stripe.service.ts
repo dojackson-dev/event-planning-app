@@ -805,6 +805,102 @@ export class StripeService {
     return { success: true };
   }
 
+  // ─── Promoter Stripe Connect ───────────────────────────────────────────────
+
+  /**
+   * Create (or retrieve) a Stripe Connect Express account for a promoter,
+   * then return a one-time onboarding URL.
+   */
+  async createPromoterConnectOnboarding(userId: string, email: string): Promise<string> {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: promoter } = await admin
+      .from('promoter_accounts')
+      .select('id, stripe_account_id, stripe_connect_status')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!promoter) throw new Error('Promoter account not found');
+
+    let connectId = promoter.stripe_account_id;
+
+    if (!connectId) {
+      const account = await this.stripe.accounts.create({
+        type: 'express',
+        email,
+        capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+        business_profile: { url: this.frontendUrl },
+        metadata: { promoter_account_id: promoter.id },
+      });
+      connectId = account.id;
+
+      await admin
+        .from('promoter_accounts')
+        .update({ stripe_account_id: connectId, stripe_connect_status: 'pending' })
+        .eq('id', promoter.id);
+    }
+
+    const accountLink = await this.stripe.accountLinks.create({
+      account: connectId,
+      refresh_url: `${this.frontendUrl}/dashboard/promoter?connect=refresh`,
+      return_url: `${this.frontendUrl}/dashboard/promoter?connect=success`,
+      type: 'account_onboarding',
+    });
+
+    return accountLink.url;
+  }
+
+  /**
+   * Get the Connect account status for a promoter.
+   * If status is pending, does a live Stripe check.
+   */
+  async getPromoterConnectStatus(userId: string): Promise<{ status: string; connectId: string | null }> {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data } = await admin
+      .from('promoter_accounts')
+      .select('id, stripe_account_id, stripe_connect_status')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    let status = data?.stripe_connect_status ?? 'not_connected';
+    const connectId = data?.stripe_account_id ?? null;
+
+    if (status === 'pending' && connectId) {
+      try {
+        const account = await this.stripe.accounts.retrieve(connectId);
+        const isActive = account.details_submitted && account.charges_enabled && account.payouts_enabled;
+        if (isActive) {
+          status = 'active';
+          await admin.from('promoter_accounts').update({ stripe_connect_status: 'active' }).eq('id', data!.id);
+          this.logger.log(`Promoter Connect ${connectId} auto-upgraded to active via live check`);
+        }
+      } catch (err) {
+        this.logger.warn(`Live Stripe check failed for promoter ${connectId}: ${(err as Error).message}`);
+      }
+    }
+
+    return { status, connectId };
+  }
+
+  /**
+   * Reset promoter Stripe Connect — clears stored ID so a fresh account is created on next attempt.
+   */
+  async resetPromoterConnect(userId: string): Promise<{ success: boolean }> {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: promoter } = await admin
+      .from('promoter_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (!promoter) throw new Error('Promoter account not found');
+    await admin
+      .from('promoter_accounts')
+      .update({ stripe_account_id: null, stripe_connect_status: 'not_connected' })
+      .eq('id', promoter.id);
+    return { success: true };
+  }
+
   /**
    * Charge a client and route funds to an owner's Connect account.
    * DoVenueSuite takes 5% as application_fee_amount.
@@ -1115,6 +1211,16 @@ export class StripeService {
       return;
     }
 
+    // Check promoter_accounts
+    if (account.metadata?.promoter_account_id) {
+      await admin
+        .from('promoter_accounts')
+        .update({ stripe_connect_status: newStatus })
+        .eq('id', account.metadata.promoter_account_id);
+      this.logger.log(`Promoter Connect ${account.id} → ${newStatus}`);
+      return;
+    }
+
     // Fallback: match by stripe_account_id / stripe_connect_id
     await admin
       .from('owner_accounts')
@@ -1123,6 +1229,11 @@ export class StripeService {
 
     await admin
       .from('vendor_accounts')
+      .update({ stripe_connect_status: newStatus })
+      .eq('stripe_account_id', account.id);
+
+    await admin
+      .from('promoter_accounts')
       .update({ stripe_connect_status: newStatus })
       .eq('stripe_account_id', account.id);
   }

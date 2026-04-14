@@ -25,6 +25,8 @@ import { MessagingModule } from './messaging/messaging.module.js';
 import { ClientPortalModule } from './client-portal/client-portal.module';
 import { VendorInvoicesModule } from './vendor-invoices/vendor-invoices.module';
 import { AffiliatesModule } from './affiliates/affiliates.module';
+import { PromoterModule } from './promoter/promoter.module';
+import { ArtistsModule } from './artists/artists.module';
 
 @Module({
   imports: [
@@ -54,6 +56,8 @@ import { AffiliatesModule } from './affiliates/affiliates.module';
     ClientPortalModule,
     VendorInvoicesModule,
     AffiliatesModule,
+    PromoterModule,
+    ArtistsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

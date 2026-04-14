@@ -215,6 +215,45 @@ export class StripeController {
     return this.stripeService.resetVendorConnect(userId);
   }
 
+  // ─── Promoter Connect ─────────────────────────────────────────────────────
+
+  /**
+   * POST /stripe/connect/promoter
+   * Starts Connect Express onboarding for a promoter.
+   */
+  @Post('connect/promoter')
+  async promoterConnectOnboarding(
+    @Headers('authorization') authorization: string,
+    @Body() body: { email: string },
+  ): Promise<{ url: string }> {
+    if (!body.email) throw new BadRequestException('email is required');
+    const userId = await this.getUserIdFromAuth(authorization);
+    const url = await this.stripeService.createPromoterConnectOnboarding(userId, body.email);
+    return { url };
+  }
+
+  /**
+   * GET /stripe/connect/promoter/status
+   */
+  @Get('connect/promoter/status')
+  async promoterConnectStatus(
+    @Headers('authorization') authorization: string,
+  ): Promise<{ status: string; connectId: string | null }> {
+    const userId = await this.getUserIdFromAuth(authorization);
+    return this.stripeService.getPromoterConnectStatus(userId);
+  }
+
+  /**
+   * DELETE /stripe/connect/promoter/reset — Clear stuck Connect account
+   */
+  @Delete('connect/promoter/reset')
+  async resetPromoterConnect(
+    @Headers('authorization') authorization: string,
+  ): Promise<{ success: boolean }> {
+    const userId = await this.getUserIdFromAuth(authorization);
+    return this.stripeService.resetPromoterConnect(userId);
+  }
+
   // ─── Payments ─────────────────────────────────────────────────────────────
 
   /**

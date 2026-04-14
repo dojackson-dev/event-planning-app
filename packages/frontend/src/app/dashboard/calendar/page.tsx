@@ -124,7 +124,7 @@ export default function CalendarPage() {
       const venueParams = activeVenue ? { venueId: activeVenue.id } : {}
       const [eventsRes, bookingsRes, intakeRes, apptRes] = await Promise.allSettled([
         api.get<Event[]>('/events', { params: venueParams }),
-        api.get<Booking[]>('/bookings'),
+        api.get<Booking[]>('/bookings', { params: venueParams }),
         api.get<any[]>('/intake-forms'),
         api.get<any[]>('/appointments'),
       ])

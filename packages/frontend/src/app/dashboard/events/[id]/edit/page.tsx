@@ -48,7 +48,7 @@ export default function EditEventPage() {
     notes: '',
     specialRequirements: '',
     status: EventStatus.DRAFT,
-    venueId: null as number | null,
+    venueId: null as string | null,
   })
 
   useEffect(() => {
@@ -283,7 +283,7 @@ export default function EditEventPage() {
                   </label>
                   <select
                     value={formData.venueId ?? ''}
-                    onChange={e => setFormData(prev => ({ ...prev, venueId: e.target.value ? parseInt(e.target.value) : null }))}
+                    onChange={e => setFormData(prev => ({ ...prev, venueId: e.target.value || null }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
                   >
                     <option value="">No venue assigned</option>

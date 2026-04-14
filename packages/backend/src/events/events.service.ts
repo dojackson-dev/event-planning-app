@@ -86,7 +86,7 @@ export class EventsService {
     return labels[type] || type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, ' ');
   }
 
-  async findAll(supabase: SupabaseClient, userId: string, venueId?: number): Promise<Event[]> {
+  async findAll(supabase: SupabaseClient, userId: string, venueId?: string): Promise<Event[]> {
     // Use admin client so the intake_forms join isn't blocked by RLS
     const adminClient = this.supabaseService.getAdminClient();
     let query = adminClient

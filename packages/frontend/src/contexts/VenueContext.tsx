@@ -5,7 +5,7 @@ import { useAuth } from './AuthContext'
 import api from '@/lib/api'
 
 export interface VenueData {
-  id: number
+  id: string
   name: string
   address?: string
   city?: string

@@ -44,6 +44,8 @@ export default function EventsPage() {
   }, [activeVenue])
 
   const fetchEvents = async () => {
+    setLoading(true)
+    setEvents([])
     try {
       const params = activeVenue ? { venueId: activeVenue.id } : {}
       const response = await api.get<Event[]>('/events', { params })

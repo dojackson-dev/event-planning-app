@@ -98,7 +98,7 @@ export class EventsService {
     const { data, error } = await query;
 
     if (error) {
-      // Fall back to basic query if join fails (migration not yet run)
+      // Fall back to basic query if join fails (e.g. migration not yet run)
       let basicQuery = supabase
         .from('event')
         .select('*')
@@ -106,7 +106,15 @@ export class EventsService {
         .order('date', { ascending: true });
       if (venueId) basicQuery = basicQuery.eq('venue_id', venueId);
       const { data: basicData, error: basicError } = await basicQuery;
-      if (basicError) throw basicError;
+      if (basicError) {
+        // venue_id column may not exist yet — return unfiltered results
+        const { data: fallbackData } = await supabase
+          .from('event')
+          .select('*')
+          .eq('owner_id', userId)
+          .order('date', { ascending: true });
+        return (fallbackData || []).map(event => this.snakeToCamelCase(event));
+      }
       return (basicData || []).map(event => this.snakeToCamelCase(event));
     }
 

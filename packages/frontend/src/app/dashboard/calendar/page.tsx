@@ -118,6 +118,8 @@ export default function CalendarPage() {
   }, [])
 
   const fetchAllEntries = async () => {
+    setLoading(true)
+    setEntries([])
     try {
       const venueParams = activeVenue ? { venueId: activeVenue.id } : {}
       const [eventsRes, bookingsRes, intakeRes, apptRes] = await Promise.allSettled([

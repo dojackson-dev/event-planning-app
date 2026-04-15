@@ -1126,28 +1126,78 @@ export class ClientPortalService {
       );
     }
 
-    // 3. Create the event
-    const eventData = {
-      name: `${form.event_type || 'Event'} - ${form.contact_name}`,
-      date: form.event_date,
-      start_time: form.event_time || '00:00',
-      end_time: '23:59',
-      description: form.special_requests || '',
-      status: 'scheduled' as const,
-      guest_count: form.guest_count,
-      venue: form.venue_preference || 'TBD',
-      owner_id: form.user_id,
-    };
-
-    const { data: event, error: eventErr } = await supabase
+    // 3. Reuse the event already linked to this intake form (auto-created on form save).
+    // Only create a new event if none exists, preventing duplicates.
+    let event: any;
+    const { data: existingEvent } = await supabase
       .from('event')
-      .insert([eventData])
-      .select()
-      .single();
+      .select('*')
+      .eq('intake_form_id', form.id)
+      .maybeSingle();
 
-    if (eventErr) throw new BadRequestException(`Failed to create event: ${eventErr.message}`);
+    if (existingEvent) {
+      // Sync status and keep guest/venue data up to date
+      const { data: updatedEvent } = await supabase
+        .from('event')
+        .update({
+          status: 'scheduled',
+          guest_count: form.guest_count || existingEvent.guest_count,
+          venue: form.venue_preference || existingEvent.venue || 'TBD',
+        })
+        .eq('id', existingEvent.id)
+        .select()
+        .single();
+      event = updatedEvent || existingEvent;
+    } else {
+      // No event exists yet — create one and link it to the intake form
+      const eventData = {
+        name: `${form.event_type || 'Event'} - ${form.contact_name}`,
+        date: form.event_date,
+        start_time: form.event_time || '00:00',
+        end_time: '23:59',
+        description: form.special_requests || '',
+        status: 'scheduled' as const,
+        guest_count: form.guest_count,
+        venue: form.venue_preference || 'TBD',
+        owner_id: form.user_id,
+        intake_form_id: form.id,
+      };
 
-    // 4. Create the booking – mark confirmed immediately
+      const { data: createdEvent, error: eventErr } = await supabase
+        .from('event')
+        .insert([eventData])
+        .select()
+        .single();
+
+      if (eventErr) throw new BadRequestException(`Failed to create event: ${eventErr.message}`);
+      event = createdEvent;
+    }
+
+    // 4. Create the booking – mark confirmed immediately.
+    // Guard against duplicate bookings if this event was already booked.
+    const { data: existingBooking } = await supabase
+      .from('booking')
+      .select('id')
+      .eq('event_id', event.id)
+      .maybeSingle();
+
+    if (existingBooking) {
+      // A booking already exists (e.g. owner already converted the lead).
+      // Just mark it as confirmed and update the intake form status.
+      await supabase
+        .from('booking')
+        .update({ client_confirmation_status: 'confirmed' })
+        .eq('id', existingBooking.id);
+
+      await supabase
+        .from('intake_forms')
+        .update({ invite_status: 'confirmed', status: 'confirmed' })
+        .eq('id', form.id);
+
+      this.logger.log(`Client ${clientPhone} confirmed invite ${token} → existing booking ${existingBooking.id}`);
+      return { success: true, event, booking: existingBooking };
+    }
+
     const normalizedPhone = clientPhone; // already normalized by auth service
     const bookingData = {
       user_id: form.user_id,
@@ -1169,8 +1219,10 @@ export class ClientPortalService {
       .single();
 
     if (bookingErr) {
-      // Roll back event
-      await supabase.from('event').delete().eq('id', event.id);
+      // Only delete the event if we just created it (not reused)
+      if (!existingEvent) {
+        await supabase.from('event').delete().eq('id', event.id);
+      }
       throw new BadRequestException(`Failed to create booking: ${bookingErr.message}`);
     }
 

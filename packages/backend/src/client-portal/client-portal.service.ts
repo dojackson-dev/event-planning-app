@@ -159,43 +159,46 @@ export class ClientPortalService {
     return merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }
 
-  /** All events linked to this client (via bookings by user_id or contact_phone) */
+  /** All events linked to this client — via intake forms (primary) or bookings (fallback) */
   async getEvents(clientId: string, clientPhone: string) {
     const supabase = this.supabaseService.getAdminClient();
-
     const phoneVariants = buildPhoneVariants(clientPhone);
 
-    // Return events from all non-cancelled/rejected bookings linked to this client.
-    // We intentionally do NOT filter by client_confirmation_status so that bookings
-    // created by the owner (which default to 'pending') still surface to the client.
+    // 1. Find intake form IDs linked to this client's phone
+    const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
+
+    // 2. Find event IDs from intake forms directly (events auto-created when form was saved)
+    let intakeEventIds: string[] = [];
+    if (intakeFormIds.length) {
+      const { data: intakeEvents } = await supabase
+        .from('event')
+        .select('id')
+        .in('intake_form_id', intakeFormIds)
+        .not('status', 'eq', 'cancelled');
+      intakeEventIds = (intakeEvents || []).map((e: any) => e.id);
+    }
+
+    // 3. Also find event IDs from bookings (backward compat for events without an intake form link)
     const [byUserId, ...byPhones] = await Promise.all([
-      supabase
-        .from('booking')
-        .select('event_id')
-        .eq('user_id', clientId)
-        .not('status', 'eq', 'cancelled'),
+      supabase.from('booking').select('event_id').eq('user_id', clientId).not('status', 'eq', 'cancelled'),
       ...phoneVariants.map(p =>
-        supabase
-          .from('booking')
-          .select('event_id')
-          .eq('contact_phone', p)
-          .not('status', 'eq', 'cancelled'),
+        supabase.from('booking').select('event_id').eq('contact_phone', p).not('status', 'eq', 'cancelled'),
       ),
     ]);
-
-    const allBookings = [
+    const bookingEventIds = [
       ...(byUserId.data || []),
-      ...byPhones.flatMap(r => r.data || []),
-    ];
+      ...byPhones.flatMap((r: any) => r.data || []),
+    ].map((b: any) => b.event_id).filter(Boolean);
 
-    if (!allBookings.length) return [];
+    // 4. Merge all event IDs, deduplicate
+    const allEventIds = [...new Set([...intakeEventIds, ...bookingEventIds])];
+    if (!allEventIds.length) return [];
 
-    const eventIds = [...new Set(allBookings.map((b: any) => b.event_id))];
-
+    // 5. Fetch full event rows
     const { data: events, error: eErr } = await supabase
       .from('event')
       .select('*')
-      .in('id', eventIds)
+      .in('id', allEventIds)
       .order('date', { ascending: true });
 
     if (eErr) {
@@ -204,7 +207,19 @@ export class ClientPortalService {
     }
     if (!events?.length) return [];
 
-    // Fetch owner info separately so a missing FK never breaks event display
+    // 6. Fetch bookings for these events and embed the first non-cancelled one on each event
+    const { data: bookings } = await supabase
+      .from('booking')
+      .select('id, event_id, status, client_confirmation_status, total_amount, deposit_amount, payment_status, notes, client_status')
+      .in('event_id', allEventIds)
+      .not('status', 'eq', 'cancelled');
+
+    const bookingByEventId: Record<string, any> = {};
+    for (const b of bookings || []) {
+      if (!bookingByEventId[b.event_id]) bookingByEventId[b.event_id] = b;
+    }
+
+    // 7. Fetch owner info separately so a missing FK never breaks event display
     const ownerIds = [...new Set(events.map((e: any) => e.owner_id).filter(Boolean))];
     let ownersById: Record<string, any> = {};
     if (ownerIds.length) {
@@ -215,7 +230,11 @@ export class ClientPortalService {
       for (const o of owners || []) ownersById[o.id] = o;
     }
 
-    return events.map((e: any) => ({ ...e, owner: ownersById[e.owner_id] || null }));
+    return events.map((e: any) => ({
+      ...e,
+      owner: ownersById[e.owner_id] || null,
+      booking: bookingByEventId[e.id] || null,
+    }));
   }
 
   /** Vendors booked for this client's events, plus any vendors the client booked directly */
@@ -1079,7 +1098,7 @@ export class ClientPortalService {
     const supabase = this.supabaseService.getAdminClient();
     const { data, error } = await supabase
       .from('intake_forms')
-      .select('id, contact_name, contact_email, contact_phone, event_type, event_date, event_time, guest_count, venue_preference, special_requests, invite_status, invite_token')
+      .select('id, contact_name, contact_email, contact_phone, event_type, event_name, event_date, event_time, event_end_time, guest_count, venue_preference, special_requests, invite_status, invite_token')
       .eq('invite_token', token)
       .maybeSingle();
 

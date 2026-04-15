@@ -46,6 +46,38 @@ export class IntakeFormsService {
     }
   }
 
+  /** Looks up the primary venue_id for an owner (used when auto-creating events). */
+  private async resolveOwnerVenueId(userId: string, admin: any): Promise<string | null> {
+    try {
+      const { data: membership } = await admin
+        .from('memberships')
+        .select('owner_account_id')
+        .eq('user_id', userId)
+        .limit(1)
+        .maybeSingle();
+      let ownerAccountId: number | null = membership?.owner_account_id ?? null;
+      if (!ownerAccountId) {
+        const { data: ownerAcct } = await admin
+          .from('owner_accounts')
+          .select('id')
+          .eq('primary_owner_id', userId)
+          .maybeSingle();
+        ownerAccountId = ownerAcct?.id ?? null;
+      }
+      if (!ownerAccountId) return null;
+      const { data: venue } = await admin
+        .from('venues')
+        .select('id')
+        .eq('owner_account_id', ownerAccountId)
+        .order('id', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      return venue?.id ? String(venue.id) : null;
+    } catch {
+      return null;
+    }
+  }
+
   async create(supabase: SupabaseClient, userId: string, createDto: any) {
     // Remove columns that don't exist in the intake_forms table
     const { accessibility_requirements, preferred_contact, event_name, ...rest } = createDto;
@@ -78,6 +110,10 @@ export class IntakeFormsService {
       if (existingEvent) {
         data.event_id = existingEvent.id;
       } else {
+        // Look up the owner's primary venue so the event is linked and always
+        // visible even when the events page filters by venue.
+        const ownerVenueId = await this.resolveOwnerVenueId(userId, supabaseAdmin);
+
         const eventData = {
           name: data.event_name || `${data.event_type ? data.event_type.charAt(0).toUpperCase() + data.event_type.slice(1).replace(/_/g, ' ') : 'Event'} - ${data.contact_name}`,
           date: data.event_date,
@@ -89,6 +125,7 @@ export class IntakeFormsService {
           venue: 'TBD',
           owner_id: userId,
           intake_form_id: data.id,
+          ...(ownerVenueId ? { venue_id: ownerVenueId } : {}),
         };
         const { data: createdEvent } = await supabaseAdmin
           .from('event')
@@ -147,10 +184,11 @@ export class IntakeFormsService {
       try {
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
         const inviteUrl = `${frontendUrl}/invite?token=${data.invite_token}`;
-        const clientName = data.contact_name || 'Valued Client';
+        const clientName = data.contact_name || 'there';
+        const eventLabel = data.event_name || data.event_type || 'your event';
         await this.twilioService.sendSMS(
           data.contact_phone,
-          `Hi ${clientName}, you've been invited to confirm your event details. Tap here to review and confirm: ${inviteUrl}`,
+          `Hi ${clientName}! Your event (${eventLabel}) has been scheduled. Tap the link to access your client portal and review your event details: ${inviteUrl}`,
         );
       } catch (smsErr) {
         console.warn('[IntakeFormsService] SMS invite failed:', smsErr);
@@ -279,9 +317,11 @@ export class IntakeFormsService {
       try {
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
         const inviteUrl = `${frontendUrl}/invite?token=${form.invite_token}`;
+        const clientName = form.contact_name || 'there';
+        const eventLabel = form.event_name || form.event_type || 'your event';
         await this.twilioService.sendSMS(
           form.contact_phone,
-          `Hi ${form.contact_name || 'Valued Client'}, you've been invited to confirm your event details. Tap here to review and confirm: ${inviteUrl}`,
+          `Hi ${clientName}! Your event (${eventLabel}) has been scheduled. Tap the link to access your client portal and review your event details: ${inviteUrl}`,
         );
       } catch (smsErr) {
         console.warn('[IntakeFormsService] SMS resend failed:', smsErr);
@@ -329,6 +369,7 @@ export class IntakeFormsService {
       event = updatedEvent || existingEvent;
     } else {
       // No event exists yet — create one and link it to the intake form
+      const ownerVenueId = await this.resolveOwnerVenueId(userId, supabaseAdmin);
       const eventData = {
         name: `${intakeForm.event_type} Event - ${intakeForm.contact_name}`,
         date: intakeForm.event_date,
@@ -340,6 +381,7 @@ export class IntakeFormsService {
         venue: 'TBD',
         owner_id: userId,
         intake_form_id: intakeFormId,
+        ...(ownerVenueId ? { venue_id: ownerVenueId } : {}),
       };
 
       const { data: createdEvent, error: eventError } = await supabaseAdmin
@@ -350,6 +392,28 @@ export class IntakeFormsService {
 
       if (eventError) throw eventError;
       event = createdEvent;
+    }
+
+    // Guard: reuse existing booking if one already exists for this event (e.g. client already confirmed via invite).
+    const { data: existingBooking } = await supabaseAdmin
+      .from('booking')
+      .select('*, event(*)')
+      .eq('event_id', event.id)
+      .maybeSingle();
+
+    if (existingBooking) {
+      // A booking already exists — just mark the intake form as converted and return.
+      await supabase
+        .from('intake_forms')
+        .update({ status: 'converted' })
+        .eq('id', intakeFormId)
+        .eq('user_id', userId);
+
+      return {
+        booking: existingBooking,
+        event,
+        message: 'Successfully linked to existing booking',
+      };
     }
 
     // Create the booking

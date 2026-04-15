@@ -170,6 +170,7 @@ export default function ClientIntakePage() {
         event_name: formData.eventName || eventTypeLabels[formData.eventType] || null,
         event_date: formData.eventDate,
         event_time: formData.startTime || null,
+        event_end_time: formData.endTime || null,
         guest_count: parseInt(formData.estimatedGuests) || null,
         venue_preference: formData.preferredVenue || null,
         contact_name: `${formData.firstName} ${formData.lastName}`.trim() || 'Unknown',

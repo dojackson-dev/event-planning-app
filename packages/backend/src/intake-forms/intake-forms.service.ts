@@ -80,22 +80,42 @@ export class IntakeFormsService {
 
   async create(supabase: SupabaseClient, userId: string, createDto: any) {
     // Remove columns that don't exist in the intake_forms table
-    const { accessibility_requirements, preferred_contact, event_name, ...rest } = createDto;
-    const safeDto = { ...rest, ...(event_name ? { event_name } : {}) };
+    const { accessibility_requirements, preferred_contact, event_name, event_end_time, ...rest } = createDto;
 
     // Normalize phone to E.164 on the way in
-    if (safeDto.contact_phone) {
-      safeDto.contact_phone = normalizePhone(safeDto.contact_phone);
+    if (rest.contact_phone) {
+      rest.contact_phone = normalizePhone(rest.contact_phone);
     }
 
     // Use admin client to bypass RLS for the insert (owner creating a client intake form)
     const supabaseAdmin = this.supabaseService.getAdminClient();
-    const { data, error } = await supabaseAdmin
+
+    // Try insert with the newer optional columns first; if the migration hasn't been
+    // run yet those columns won't exist — fall back to the base column set.
+    const fullPayload = {
+      ...rest,
+      user_id: userId,
+      ...(event_name ? { event_name } : {}),
+      ...(event_end_time ? { event_end_time } : {}),
+    };
+
+    let insertResult = await supabaseAdmin
       .from('intake_forms')
-      .insert([{ ...safeDto, user_id: userId }])
+      .insert([fullPayload])
       .select()
       .single();
 
+    // Retry without the migration-gated columns if they don't exist yet
+    if (insertResult.error && (insertResult.error.message.includes('column') || insertResult.error.code === '42703')) {
+      const basePayload = { ...rest, user_id: userId };
+      insertResult = await supabaseAdmin
+        .from('intake_forms')
+        .insert([basePayload])
+        .select()
+        .single();
+    }
+
+    const { data, error } = insertResult;
     if (error) throw new Error(`Intake form insert failed: ${error.message} (code: ${error.code})`);
 
     // Auto-create an event from the intake form so it appears on the owner's calendar

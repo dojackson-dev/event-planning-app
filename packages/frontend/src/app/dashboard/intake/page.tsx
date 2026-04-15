@@ -226,7 +226,7 @@ export default function ClientIntakePage() {
 
       // Show success message
       alert('Client intake form submitted successfully!')
-      router.push('/dashboard/bookings')
+      router.push('/dashboard/events')
     } catch (err: any) {
       console.error('Intake form submission error:', err.response?.data || err.message)
       setError(err.response?.data?.message || err.message || 'Failed to submit intake form')

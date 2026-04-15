@@ -711,6 +711,15 @@ export class ClientPortalService {
       }
     }
 
+    // If still not found, check via intake_form_id (invoices linked to intake forms before booking conversion)
+    if (!invoice) {
+      const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
+      if (intakeFormIds.length) {
+        const { data } = await supabase.from('invoices').select(invoiceSelect).eq('id', invoiceId).in('intake_form_id', intakeFormIds).maybeSingle();
+        invoice = data ?? null;
+      }
+    }
+
     if (!invoice) throw new NotFoundException('Invoice not found');
     if (invoice.status === 'paid') throw new BadRequestException('Invoice is already paid');
     if (Number(invoice.amount_due) <= 0) throw new BadRequestException('Invoice has no outstanding balance');

@@ -306,26 +306,51 @@ export class IntakeFormsService {
     if (intakeError) throw intakeError;
     if (!intakeForm) throw new Error('Intake form not found');
 
-    // Create an event first
-    const eventData = {
-      name: `${intakeForm.event_type} Event - ${intakeForm.contact_name}`,
-      date: intakeForm.event_date,
-      start_time: intakeForm.event_time || '00:00',
-      end_time: '23:59', // Default end time
-      description: intakeForm.special_requests || '',
-      status: 'scheduled' as const,
-      guest_count: intakeForm.guest_count,
-      venue: 'TBD', // Default venue value
-      owner_id: userId, // Required field
-    };
-
-    const { data: event, error: eventError } = await supabaseAdmin
+    // Reuse the event auto-created when the intake form was saved (linked via intake_form_id).
+    // Only create a new event if one doesn't already exist for this intake form, to prevent duplicates.
+    let event: any;
+    const { data: existingEvent } = await supabaseAdmin
       .from('event')
-      .insert([eventData])
-      .select()
-      .single();
+      .select('*')
+      .eq('intake_form_id', intakeFormId)
+      .maybeSingle();
 
-    if (eventError) throw eventError;
+    if (existingEvent) {
+      // Update the existing event to ensure it's in scheduled state with latest guest count
+      const { data: updatedEvent } = await supabaseAdmin
+        .from('event')
+        .update({
+          status: 'scheduled',
+          guest_count: intakeForm.guest_count || existingEvent.guest_count,
+        })
+        .eq('id', existingEvent.id)
+        .select()
+        .single();
+      event = updatedEvent || existingEvent;
+    } else {
+      // No event exists yet — create one and link it to the intake form
+      const eventData = {
+        name: `${intakeForm.event_type} Event - ${intakeForm.contact_name}`,
+        date: intakeForm.event_date,
+        start_time: intakeForm.event_time || '00:00',
+        end_time: '23:59',
+        description: intakeForm.special_requests || '',
+        status: 'scheduled' as const,
+        guest_count: intakeForm.guest_count,
+        venue: 'TBD',
+        owner_id: userId,
+        intake_form_id: intakeFormId,
+      };
+
+      const { data: createdEvent, error: eventError } = await supabaseAdmin
+        .from('event')
+        .insert([eventData])
+        .select()
+        .single();
+
+      if (eventError) throw eventError;
+      event = createdEvent;
+    }
 
     // Create the booking
     const bookingData = {

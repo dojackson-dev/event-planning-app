@@ -34,6 +34,15 @@ import {
 import api from '@/lib/api';
 import { Event, EventType, ClientStatus, ContractStatus, InsuranceStatus } from '@/types';
 
+const formatTime = (timeString: string | undefined): string => {
+  if (!timeString) return 'Not set'
+  const [hours, minutes] = timeString.split(':')
+  const hour = parseInt(hours, 10)
+  const ampm = hour >= 12 ? 'PM' : 'AM'
+  const displayHour = hour % 12 || 12
+  return `${displayHour}:${minutes} ${ampm}`
+}
+
 const invoiceStatusColors: Record<string, string> = {
   draft:     'bg-gray-100 text-gray-700',
   sent:      'bg-blue-100 text-blue-800',
@@ -782,7 +791,7 @@ export default function EventManagementPage() {
                       />
                     </div>
                   ) : (
-                    <p className="text-gray-900">{formData.startTime} - {formData.endTime}</p>
+                    <p className="text-gray-900">{formatTime(formData.startTime)} - {formatTime(formData.endTime)}</p>
                   )}
                 </div>
 

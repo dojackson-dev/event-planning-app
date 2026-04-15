@@ -9,6 +9,15 @@ import { Calendar, Clock, MapPin, Users, ArrowLeft, Edit, Trash2 } from 'lucide-
 import { format } from 'date-fns'
 import { parseLocalDate } from '@/lib/dateUtils'
 
+const formatTime = (timeString: string | undefined): string => {
+  if (!timeString) return 'Not set'
+  const [hours, minutes] = timeString.split(':')
+  const hour = parseInt(hours, 10)
+  const ampm = hour >= 12 ? 'PM' : 'AM'
+  const displayHour = hour % 12 || 12
+  return `${displayHour}:${minutes} ${ampm}`
+}
+
 export default function EventDetailsPage() {
   const params = useParams()
   const router = useRouter()
@@ -139,7 +148,7 @@ export default function EventDetailsPage() {
               <h3 className="text-sm font-semibold text-gray-600">Time</h3>
             </div>
             <p className="text-lg text-gray-900">
-              {event.startTime} - {event.endTime}
+              {formatTime(event.startTime)} - {formatTime(event.endTime)}
             </p>
           </div>
 

@@ -47,7 +47,7 @@ export function VenueProvider({ children }: { children: React.ReactNode }) {
       setVenues(rows)
 
       const savedId = localStorage.getItem('activeVenueId')
-      const saved = savedId ? rows.find(v => v.id === Number(savedId)) : null
+      const saved = savedId ? rows.find(v => v.id === savedId) : null
 
       if (saved) {
         setActiveVenueState(saved)

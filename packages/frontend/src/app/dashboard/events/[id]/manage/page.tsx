@@ -289,7 +289,7 @@ export default function EventManagementPage() {
       // Activate step is done when the intake form has been converted (lead activated),
       // or if this event has no linked intake form (created directly)
       setIntakeFormActivated(!event.intakeFormId || event.intakeFormStatus === 'converted');
-      loadEventInvoices(event.bookingId, event.clientName);
+      loadEventInvoices(event.bookingId, event.clientName, event.intakeFormId);
       loadEventEstimates(event.intakeFormId);
       loadEventContracts(event.intakeFormId);
       loadGuestList();
@@ -333,18 +333,22 @@ export default function EventManagementPage() {
     }
   };
 
-  const loadEventInvoices = async (bookingId?: string, clientName?: string) => {
+  const loadEventInvoices = async (bookingId?: string, clientName?: string, intakeFormId?: string) => {
     try {
       const res = await api.get('/invoices');
       const all: any[] = res.data || [];
       let matched: any[] = [];
       // 1. Match by event_id (most accurate)
       matched = all.filter((inv) => inv.event_id && inv.event_id === eventId);
-      // 2. Fall back to booking_id
+      // 2. Match by intake_form_id
+      if (matched.length === 0 && intakeFormId) {
+        matched = all.filter((inv) => inv.intake_form_id === intakeFormId);
+      }
+      // 3. Fall back to booking_id
       if (matched.length === 0 && bookingId) {
         matched = all.filter((inv) => inv.booking_id === bookingId);
       }
-      // 3. Fall back to client name (event name contains client name)
+      // 4. Fall back to client name (event name contains client name)
       if (matched.length === 0 && clientName) {
         matched = all.filter((inv) =>
           inv.client_name && clientName.toLowerCase().includes((inv.client_name || '').toLowerCase())

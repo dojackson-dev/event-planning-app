@@ -22,14 +22,13 @@ export class BookingsService {
       if (eventIds.length === 0) return [];
     }
 
-    // A booking is defined as an event with deposit paid or complete balance paid
+    // Show all bookings (payment/status filtering is handled in the frontend)
     let query = supabase
       .from('booking')
       .select(`
         *,
         event:event(id, name, date, start_time, end_time, venue, location, status)
       `)
-      .in('client_status', ['deposit_paid', 'completed'])
       .order('created_at', { ascending: false });
 
     if (eventIds) query = query.in('event_id', eventIds);

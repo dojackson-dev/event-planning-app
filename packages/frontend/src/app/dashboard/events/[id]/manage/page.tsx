@@ -179,6 +179,8 @@ export default function EventManagementPage() {
   const [vendorPickerLoading, setVendorPickerLoading] = useState(false);
   const [eventInvoices, setEventInvoices] = useState<any[]>([]);
   const [eventEstimates, setEventEstimates] = useState<any[]>([]);
+  const [eventContracts, setEventContracts] = useState<any[]>([]);
+  const [intakeFormActivated, setIntakeFormActivated] = useState(false);
   const [intakeFormId, setIntakeFormId] = useState<string | null>(null);
   const [guestListId, setGuestListId] = useState<number | null>(null);
   const [formData, setFormData] = useState<EventManagementData>({
@@ -284,8 +286,12 @@ export default function EventManagementPage() {
         internalNotes: mgmt.internalNotes || '',
       }));
       setIntakeFormId(event.intakeFormId || null);
+      // Activate step is done when the intake form has been converted (lead activated),
+      // or if this event has no linked intake form (created directly)
+      setIntakeFormActivated(!event.intakeFormId || event.intakeFormStatus === 'converted');
       loadEventInvoices(event.bookingId, event.clientName);
       loadEventEstimates(event.intakeFormId);
+      loadEventContracts(event.intakeFormId);
       loadGuestList();
     } catch (error) {
       console.error('Error loading event data:', error);
@@ -311,6 +317,19 @@ export default function EventManagementPage() {
       setEventEstimates(res.data || []);
     } catch {
       // estimates are supplementary
+    }
+  };
+
+  const loadEventContracts = async (intakeFormId?: string) => {
+    try {
+      const res = await api.get('/contracts');
+      const all: any[] = res.data || [];
+      const matched = all.filter((c: any) =>
+        c.event_id === eventId || (intakeFormId && c.intake_form_id === intakeFormId)
+      );
+      setEventContracts(matched);
+    } catch {
+      // ignore — contract status is supplementary
     }
   };
 
@@ -573,13 +592,17 @@ export default function EventManagementPage() {
         {/* Booking Progress Bar */}
         {(() => {
           const estimateAccepted = eventEstimates.some(e => ['approved', 'converted'].includes(e.status));
-          const contractSigned = formData.contractStatus === ContractStatus.SIGNED;
+          const contractSigned =
+            formData.contractStatus === ContractStatus.SIGNED ||
+            eventContracts.some((c: any) => c.status === 'signed');
           const invoiceSent = eventInvoices.some(inv => ['sent', 'partial', 'paid', 'overdue'].includes(inv.status));
+          const invoicePaid = eventInvoices.some(inv => inv.status === 'paid');
           const booked = formData.depositPaid ||
+            invoicePaid ||
             [ClientStatus.BOOKED, ClientStatus.DEPOSIT_PAID, ClientStatus.COMPLETED].includes(formData.clientStatus);
 
           const steps = [
-            { label: 'Activate',  done: true },
+            { label: 'Activate',  done: intakeFormActivated },
             { label: 'Estimate',  done: estimateAccepted },
             { label: 'Contract',  done: contractSigned },
             { label: 'Invoice',   done: invoiceSent },

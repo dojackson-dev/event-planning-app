@@ -91,7 +91,7 @@ export class EventsService {
     const adminClient = this.supabaseService.getAdminClient();
     let query = adminClient
       .from('event')
-      .select('*, intake_form:intake_forms!intake_form_id(contact_name, event_name, event_type)')
+      .select('*, intake_form:intake_forms!intake_form_id(contact_name, event_name, event_type, status)')
       .eq('owner_id', userId)
       .order('date', { ascending: true });
     // When filtering by venue, also include events with no venue_id assigned yet
@@ -126,6 +126,7 @@ export class EventsService {
       if (event.intake_form) {
         converted.clientName = event.intake_form.contact_name || null;
         converted.intakeEventName = event.intake_form.event_name || null;
+        converted.intakeFormStatus = event.intake_form.status || null;
         // If no explicit event_name, derive a readable title from event_type
         if (!converted.intakeEventName && event.intake_form.event_type) {
           converted.intakeEventName = this.formatEventType(event.intake_form.event_type);
@@ -141,7 +142,7 @@ export class EventsService {
     const adminClient = this.supabaseService.getAdminClient();
     const { data, error } = await adminClient
       .from('event')
-      .select('*, intake_form:intake_forms!intake_form_id(contact_name, event_name, event_type)')
+      .select('*, intake_form:intake_forms!intake_form_id(contact_name, event_name, event_type, status)')
       .eq('id', id)
       .eq('owner_id', userId)
       .single();
@@ -163,6 +164,7 @@ export class EventsService {
     if (data.intake_form) {
       converted.clientName = data.intake_form.contact_name || null;
       converted.intakeEventName = data.intake_form.event_name || null;
+      converted.intakeFormStatus = data.intake_form.status || null;
       if (!converted.intakeEventName && data.intake_form.event_type) {
         converted.intakeEventName = this.formatEventType(data.intake_form.event_type);
       }

@@ -167,53 +167,8 @@ export class IntakeFormsService {
     }
 
     // Send invitation email to client if contact_email is present
-    if (data?.contact_email && data?.invite_token) {
-      // Optionally look up the owner's name for a personal touch in the email
-      let ownerName: string | undefined;
-      try {
-        const { data: owner } = await supabaseAdmin
-          .from('users')
-          .select('first_name, last_name')
-          .eq('id', userId)
-          .maybeSingle();
-        if (owner) ownerName = [owner.first_name, owner.last_name].filter(Boolean).join(' ');
-      } catch { /* ignore */ }
-
-      await this.mailService.sendClientInvitation({
-        clientName: data.contact_name || 'Valued Client',
-        clientEmail: data.contact_email,
-        inviteToken: data.invite_token,
-        eventType: data.event_type || 'Event',
-        eventDate: data.event_date,
-        eventTime: data.event_time ?? null,
-        guestCount: data.guest_count ?? null,
-        ownerName,
-      });
-
-      // Mark invite_sent_at
-      await supabaseAdmin
-        .from('intake_forms')
-        .update({ invite_sent_at: new Date().toISOString(), invite_status: 'sent' })
-        .eq('id', data.id);
-      data.invite_sent_at = new Date().toISOString();
-      data.invite_status = 'sent';
-    }
-
-    // Send SMS invitation if contact_phone is present (independent of email)
-    if (data?.contact_phone && data?.invite_token) {
-      try {
-        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-        const inviteUrl = `${frontendUrl}/invite?token=${data.invite_token}`;
-        const clientName = data.contact_name || 'there';
-        const eventLabel = data.event_name || data.event_type || 'your event';
-        await this.twilioService.sendSMS(
-          data.contact_phone,
-          `Hi ${clientName}! Your event (${eventLabel}) has been scheduled. Tap the link to access your client portal and review your event details: ${inviteUrl}`,
-        );
-      } catch (smsErr) {
-        console.warn('[IntakeFormsService] SMS invite failed:', smsErr);
-      }
-    }
+    // NOTE: Email/SMS invitations are intentionally NOT sent here.
+    // They are sent when the owner activates the lead via convertToBooking().
 
     // Notify the owner via SMS that a new intake form was submitted
     try {
@@ -469,6 +424,53 @@ export class IntakeFormsService {
       .update({ status: 'converted' })
       .eq('id', intakeFormId)
       .eq('user_id', userId);
+
+    // Send invitation email + SMS now that the lead has been activated
+    let ownerName: string | undefined;
+    try {
+      const { data: owner } = await supabaseAdmin
+        .from('users')
+        .select('first_name, last_name')
+        .eq('id', userId)
+        .maybeSingle();
+      if (owner) ownerName = [owner.first_name, owner.last_name].filter(Boolean).join(' ');
+    } catch { /* ignore */ }
+
+    if (intakeForm.contact_email && intakeForm.invite_token) {
+      try {
+        await this.mailService.sendClientInvitation({
+          clientName: intakeForm.contact_name || 'Valued Client',
+          clientEmail: intakeForm.contact_email,
+          inviteToken: intakeForm.invite_token,
+          eventType: intakeForm.event_type || 'Event',
+          eventDate: intakeForm.event_date,
+          eventTime: intakeForm.event_time ?? null,
+          guestCount: intakeForm.guest_count ?? null,
+          ownerName,
+        });
+        await supabaseAdmin
+          .from('intake_forms')
+          .update({ invite_sent_at: new Date().toISOString(), invite_status: 'sent' })
+          .eq('id', intakeFormId);
+      } catch (emailErr) {
+        console.warn('[convertToBooking] Email invitation failed:', emailErr);
+      }
+    }
+
+    if (intakeForm.contact_phone && intakeForm.invite_token) {
+      try {
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        const inviteUrl = `${frontendUrl}/invite?token=${intakeForm.invite_token}`;
+        const clientName = intakeForm.contact_name || 'there';
+        const eventLabel = intakeForm.event_name || intakeForm.event_type || 'your event';
+        await this.twilioService.sendSMS(
+          normalizePhone(intakeForm.contact_phone),
+          `Hi ${clientName}! Your event (${eventLabel}) has been confirmed. Tap the link to access your client portal: ${inviteUrl}`,
+        );
+      } catch (smsErr) {
+        console.warn('[convertToBooking] SMS invite failed:', smsErr);
+      }
+    }
 
     // Always mark the booking as pending client confirmation when there's a contact phone.
     // This allows ANY phone-only client (even without a users table entry) to see the

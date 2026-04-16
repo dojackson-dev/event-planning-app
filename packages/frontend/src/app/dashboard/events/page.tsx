@@ -47,12 +47,21 @@ function computeProgress(event: any, allEstimates: any[], allInvoices: any[], al
     (i.event_id === eId || (ifId && i.intake_form_id === ifId))
   )
 
+  // Activate step: done when intake form status is 'converted', or if there's no intake form (event created directly)
+  const activated = !event.intakeFormId || (event as any).intakeFormStatus === 'converted'
+
+  const invoicePaid = allInvoices.some(i =>
+    i.status === 'paid' &&
+    (i.event_id === eId || (ifId && i.intake_form_id === ifId))
+  )
+
   const booked =
     !!mgmt.depositPaid ||
+    invoicePaid ||
     ['booked', 'deposit_paid', 'completed'].includes(mgmt.clientStatus ?? '')
 
   return [
-    { label: 'Form',     done: true },
+    { label: 'Activate', done: activated },
     { label: 'Estimate', done: estimateAccepted },
     { label: 'Contract', done: contractSigned },
     { label: 'Invoice',  done: invoiceSent },

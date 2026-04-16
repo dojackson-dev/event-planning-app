@@ -24,7 +24,7 @@ const formatTime = (timeString: string | undefined): string => {
 }
 
 /** Compute the 5-step booking progress for an event */
-function computeProgress(event: any, allEstimates: any[], allInvoices: any[]) {
+function computeProgress(event: any, allEstimates: any[], allInvoices: any[], allContracts: any[]) {
   const mgmt: any = event.managementData ?? {}
   const eId: string = event.id
   const ifId: string | undefined = event.intakeFormId
@@ -34,7 +34,13 @@ function computeProgress(event: any, allEstimates: any[], allInvoices: any[]) {
     (e.booking?.event_id === eId || (ifId && e.intake_form_id === ifId))
   )
 
-  const contractSigned = mgmt.contractStatus === 'signed'
+  // Check actual contracts data — management_data.contractStatus is only set manually
+  const contractSigned =
+    mgmt.contractStatus === 'signed' ||
+    allContracts.some(c =>
+      c.status === 'signed' &&
+      (c.intake_form_id === ifId || c.event_id === eId)
+    )
 
   const invoiceSent = allInvoices.some(i =>
     ['sent', 'partial', 'paid', 'overdue'].includes(i.status) &&
@@ -117,6 +123,7 @@ export default function EventsPage() {
   const [events, setEvents] = useState<Event[]>([])
   const [allEstimates, setAllEstimates] = useState<any[]>([])
   const [allInvoices, setAllInvoices] = useState<any[]>([])
+  const [allContracts, setAllContracts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'past'>('all')
   const [searchTerm, setSearchTerm] = useState('')
@@ -131,14 +138,16 @@ export default function EventsPage() {
     setEvents([])
     try {
       const params = activeVenue ? { venueId: activeVenue.id } : {}
-      const [evRes, estRes, invRes] = await Promise.all([
+      const [evRes, estRes, invRes, conRes] = await Promise.all([
         api.get<Event[]>('/events', { params }),
         api.get('/estimates').catch(() => ({ data: [] })),
         api.get('/invoices').catch(() => ({ data: [] })),
+        api.get('/contracts').catch(() => ({ data: [] })),
       ])
       setEvents(evRes.data)
       setAllEstimates(estRes.data || [])
       setAllInvoices(invRes.data || [])
+      setAllContracts(conRes.data || [])
     } catch (error) {
       console.error('Failed to fetch events:', error)
     } finally {
@@ -243,7 +252,7 @@ export default function EventsPage() {
       {/* Events Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {paginatedEvents.map((event) => {
-          const steps = computeProgress(event, allEstimates, allInvoices)
+          const steps = computeProgress(event, allEstimates, allInvoices, allContracts)
           const isComplete = steps.every(s => s.done)
           const currentIdx = steps.findIndex(s => !s.done)
 

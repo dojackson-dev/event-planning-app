@@ -153,27 +153,44 @@ export class EstimatesService {
   }
 
   async findByOwner(supabase: SupabaseClient, ownerId: string, venueId?: string): Promise<Estimate[]> {
+    // Use admin client to bypass RLS — estimates linked via intake_form_id (not booking_id)
+    // are invisible to the owner through RLS since the old policies were booking-centric.
+    const admin = this.supabaseService.getAdminClient();
     try {
-      let query = supabase
+      let query = admin
         .from('estimates')
-        .select('*, booking:booking(id, contact_name, contact_email, contact_phone, event_id, total_amount), intake_form:intake_forms(*), items:estimate_items(*)')
+        .select('*, booking:booking(id, contact_name, contact_email, contact_phone, event_id, total_amount), intake_form:intake_forms(id, contact_name, event_name, event_type, event_date), items:estimate_items(*)')
         .eq('owner_id', ownerId)
         .order('created_at', { ascending: false });
 
       if (venueId) {
-        const { data: venueEvents } = await supabase.from('event').select('id').eq('venue_id', venueId);
+        // Fetch events for the venue, then filter estimates by booking_id OR intake_form_id
+        const { data: venueEvents } = await admin.from('event').select('id, intake_form_id').eq('venue_id', venueId);
         const eventIds = (venueEvents || []).map((e: any) => e.id);
-        if (eventIds.length === 0) return [];
-        const { data: eventBookings } = await supabase.from('booking').select('id').in('event_id', eventIds);
+        const intakeFormIds = (venueEvents || []).map((e: any) => e.intake_form_id).filter(Boolean);
+        if (eventIds.length === 0 && intakeFormIds.length === 0) return [];
+        // Fetch booking IDs for these events
+        const { data: eventBookings } = await admin.from('booking').select('id').in('event_id', eventIds);
         const bookingIds = (eventBookings || []).map((b: any) => b.id);
-        if (bookingIds.length === 0) return [];
-        query = query.in('booking_id', bookingIds);
+        // Filter: booking_id matches OR intake_form_id matches
+        const { data, error } = await admin
+          .from('estimates')
+          .select('*, booking:booking(id, contact_name, contact_email, contact_phone, event_id, total_amount), intake_form:intake_forms(id, contact_name, event_name, event_type, event_date), items:estimate_items(*)')
+          .eq('owner_id', ownerId)
+          .or([
+            bookingIds.length > 0 ? `booking_id.in.(${bookingIds.join(',')})` : null,
+            intakeFormIds.length > 0 ? `intake_form_id.in.(${intakeFormIds.join(',')})` : null,
+          ].filter(Boolean).join(','))
+          .order('created_at', { ascending: false });
+        if (error) { console.error('[EstimatesService] findByOwner venue filter error:', error.message); return []; }
+        return data || [];
       }
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) { console.error('[EstimatesService] findByOwner error:', error.message); return []; }
       return data || [];
-    } catch {
+    } catch (err) {
+      console.error('[EstimatesService] findByOwner exception:', err);
       return [];
     }
   }

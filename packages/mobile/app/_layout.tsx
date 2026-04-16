@@ -20,7 +20,7 @@ export default function RootLayout() {
       if (!session && !inAuthGroup) {
         routerRef.current.replace('/(auth)/login');
       } else if (session && (inAuthGroup || onIndex)) {
-        routerRef.current.replace('/(tabs)/events');
+        routerRef.current.replace('/(tabs)/');
       }
     });
     return () => subscription.unsubscribe();

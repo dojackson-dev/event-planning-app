@@ -28,4 +28,26 @@ config.resolver.extraNodeModules = {
   // expo-router lives in root node_modules only — do not override
 };
 
+// Hard-pin react and react-dom via resolveRequest so that packages loaded
+// from root node_modules (e.g. expo-router) also get mobile's React 19,
+// not the root's React 18 that Next.js uses.
+const PINNED_TO_LOCAL = new Set([
+  'react',
+  'react-dom',
+  'react/jsx-runtime',
+  'react/jsx-dev-runtime',
+  'scheduler',
+]);
+
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (PINNED_TO_LOCAL.has(moduleName)) {
+    const localPath = path.resolve(projectRoot, 'node_modules', moduleName);
+    return {
+      type: 'sourceFile',
+      filePath: require.resolve(localPath),
+    };
+  }
+  return context.resolveRequest(context, moduleName, platform);
+};
+
 module.exports = config;

@@ -43,6 +43,8 @@ export default function ClientsPage() {
   const [selectedClient, setSelectedClient] = useState<IntakeForm | null>(null)
   const [showMessageModal, setShowMessageModal] = useState(false)
   const [showAppointmentModal, setShowAppointmentModal] = useState(false)
+  const [messageContent, setMessageContent] = useState('')
+  const [appointmentData, setAppointmentData] = useState({ date: '', time: '', duration: '60', notes: '' })
   const [activatingId, setActivatingId] = useState<string | null>(null)
 
   useEffect(() => {

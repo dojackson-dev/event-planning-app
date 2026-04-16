@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
+import { SupabaseService } from '../supabase/supabase.service';
 
 export interface Estimate {
   id?: string;
@@ -48,7 +49,10 @@ export interface EstimateItem {
 
 @Injectable()
 export class EstimatesService {
-  constructor(private readonly smsNotifications: SmsNotificationsService) {}
+  constructor(
+    private readonly smsNotifications: SmsNotificationsService,
+    private readonly supabaseService: SupabaseService,
+  ) {}
 
   /**
    * Look up the client phone + email from an estimate's linked booking or intake form.

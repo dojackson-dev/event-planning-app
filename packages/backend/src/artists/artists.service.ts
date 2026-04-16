@@ -171,6 +171,79 @@ export class ArtistsService {
     return data ?? [];
   }
 
+  // ─────────────────────────────────────────────
+  // ARTIST RIDER
+  // ─────────────────────────────────────────────
+
+  async getRider(userId: string) {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: artist } = await admin
+      .from('artist_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!artist) throw new NotFoundException('Artist account not found');
+
+    const { data } = await admin
+      .from('artist_riders')
+      .select('*')
+      .eq('artist_account_id', artist.id)
+      .maybeSingle();
+
+    return data ?? null;
+  }
+
+  async upsertRider(userId: string, dto: any) {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: artist } = await admin
+      .from('artist_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!artist) throw new NotFoundException('Artist account not found');
+
+    const { data: existing } = await admin
+      .from('artist_riders')
+      .select('id')
+      .eq('artist_account_id', artist.id)
+      .maybeSingle();
+
+    const payload = { ...dto, artist_account_id: artist.id, updated_at: new Date().toISOString() };
+
+    if (existing) {
+      const { data, error } = await admin
+        .from('artist_riders')
+        .update(payload)
+        .eq('id', existing.id)
+        .select()
+        .single();
+      if (error) throw new BadRequestException(error.message);
+      return data;
+    } else {
+      const { data, error } = await admin
+        .from('artist_riders')
+        .insert(payload)
+        .select()
+        .single();
+      if (error) throw new BadRequestException(error.message);
+      return data;
+    }
+  }
+
+  async getPublicRider(artistId: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const { data } = await admin
+      .from('artist_riders')
+      .select('*')
+      .eq('artist_account_id', artistId)
+      .maybeSingle();
+    return data ?? null;
+  }
+
   async getArtistTypes() {
     return [
       { value: 'musician', label: 'Musician / Band', icon: '🎵' },

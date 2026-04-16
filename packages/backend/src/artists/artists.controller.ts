@@ -114,4 +114,31 @@ export class ArtistsController {
     const userId = await this.getUserId(authorization);
     return this.artistsService.updateArtistProfile(userId, dto);
   }
+
+  // ─────────────────────────────────────────────
+  // RIDER
+  // ─────────────────────────────────────────────
+
+  /** GET /artists/me/rider */
+  @Get('me/rider')
+  async getMyRider(@Headers('authorization') authorization: string) {
+    const userId = await this.getUserId(authorization);
+    return this.artistsService.getRider(userId);
+  }
+
+  /** PUT /artists/me/rider */
+  @Put('me/rider')
+  async upsertMyRider(
+    @Headers('authorization') authorization: string,
+    @Body() dto: any,
+  ) {
+    const userId = await this.getUserId(authorization);
+    return this.artistsService.upsertRider(userId, dto);
+  }
+
+  /** GET /artists/:id/rider — public rider view */
+  @Get(':id/rider')
+  async getPublicRider(@Param('id') id: string) {
+    return this.artistsService.getPublicRider(id);
+  }
 }

@@ -168,7 +168,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
           {upcomingEvents.map(event => (
-            <View key={event.id} style={styles.eventRow}>
+            <TouchableOpacity key={event.id} style={styles.eventRow} onPress={() => router.push(`/(tabs)/events/${event.id}` as any)} activeOpacity={0.7}>
               <View style={styles.eventDateBadge}>
                 <Text style={styles.eventDateDay}>
                   {new Date(event.date + 'T00:00:00').toLocaleDateString('en-US', { day: 'numeric' })}
@@ -186,41 +186,45 @@ export default function HomeScreen() {
                 )}
               </View>
               <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
       )}
 
-      {/* Quick Actions */}
+      {/* My Workspace — all tabs as nav cards */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
-        <View style={styles.actionsGrid}>
-          {[
-            { icon: 'calendar-outline', label: 'Events', route: '/(tabs)/events' },
-            { icon: 'checkmark-circle-outline', label: 'Booked', route: '/(tabs)/bookings' },
-            { icon: 'people-outline', label: 'Clients', route: '/(tabs)/clients' },
-            { icon: 'receipt-outline', label: 'Invoices', route: '/(tabs)/invoices' },
-          ].map(action => (
+        <Text style={styles.sectionTitle}>My Workspace</Text>
+        <View style={styles.navGrid}>
+          {([
+            { icon: 'calendar',                 color: Colors.primary,  light: Colors.primaryLight,  label: 'Events',    desc: 'View & manage events',    route: '/(tabs)/events'    },
+            { icon: 'checkmark-circle',         color: Colors.success,  light: Colors.successLight,  label: 'Booked',    desc: 'Confirmed bookings',      route: '/(tabs)/bookings'  },
+            { icon: 'people',                   color: Colors.purple,   light: Colors.purpleLight,   label: 'Clients',   desc: 'Intake & client leads',   route: '/(tabs)/clients'   },
+            { icon: 'calendar-outline',         color: '#0EA5E9',       light: '#E0F2FE',            label: 'Calendar',  desc: 'Month view',              route: '/(tabs)/calendar'  },
+            { icon: 'document-text-outline',    color: '#F59E0B',       light: '#FEF3C7',            label: 'Estimates', desc: 'Quotes & proposals',      route: '/(tabs)/estimates' },
+            { icon: 'receipt-outline',          color: Colors.warning,  light: Colors.warningLight,  label: 'Invoices',  desc: 'Invoices & payments',     route: '/(tabs)/invoices'  },
+            { icon: 'chatbubble-ellipses-outline', color: '#10B981',    light: '#D1FAE5',            label: 'Messages',  desc: 'SMS clients',             route: '/(tabs)/messages'  },
+            { icon: 'settings-outline',         color: '#6B7280',       light: '#F3F4F6',            label: 'Settings',  desc: 'Profile & billing',       route: '/(tabs)/settings'  },
+            { icon: 'person',                   color: Colors.info,     light: Colors.infoLight,     label: 'Profile',   desc: 'Account & settings',      route: '/(tabs)/profile'   },
+          ] as const).map(item => (
             <TouchableOpacity
-              key={action.label}
-              style={styles.actionItem}
-              onPress={() => router.push(action.route as any)}
+              key={item.label}
+              style={styles.navCard}
+              onPress={() => router.push(item.route as any)}
+              activeOpacity={0.75}
             >
-              <View style={styles.actionIcon}>
-                <Ionicons name={action.icon as any} size={22} color={Colors.primary} />
+              <View style={[styles.navIcon, { backgroundColor: item.light }]}>
+                <Ionicons name={item.icon as any} size={24} color={item.color} />
               </View>
-              <Text style={styles.actionLabel}>{action.label}</Text>
+              <View style={styles.navCardText}>
+                <Text style={styles.navCardLabel}>{item.label}</Text>
+                <Text style={styles.navCardDesc} numberOfLines={1}>{item.desc}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
             </TouchableOpacity>
           ))}
         </View>
       </View>
 
-      {/* Profile link */}
-      <TouchableOpacity style={styles.profileLink} onPress={() => router.push('/(tabs)/profile')}>
-        <Ionicons name="person-circle-outline" size={20} color={Colors.textSecondary} />
-        <Text style={styles.profileLinkText}>Account & Settings</Text>
-        <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
-      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -278,17 +282,13 @@ const styles = StyleSheet.create({
   eventName: { fontSize: 14, fontWeight: '600', color: Colors.textPrimary },
   eventVenue: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
 
-  actionsGrid: { flexDirection: 'row', gap: 12 },
-  actionItem: { flex: 1, alignItems: 'center', gap: 8 },
-  actionIcon: {
-    width: 52, height: 52, backgroundColor: Colors.primaryLight,
-    borderRadius: Radius.lg, justifyContent: 'center', alignItems: 'center',
+  navGrid: { gap: 8 },
+  navCard: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface,
+    borderRadius: Radius.lg, padding: 14, gap: 12, ...Shadow.sm,
   },
-  actionLabel: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500' },
-
-  profileLink: {
-    flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: Colors.surface,
-    borderRadius: Radius.md, padding: 14, ...Shadow.sm,
-  },
-  profileLinkText: { flex: 1, fontSize: 14, color: Colors.textSecondary, fontWeight: '500' },
+  navIcon: { width: 44, height: 44, borderRadius: Radius.md, justifyContent: 'center', alignItems: 'center' },
+  navCardText: { flex: 1 },
+  navCardLabel: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary },
+  navCardDesc: { fontSize: 12, color: Colors.textMuted, marginTop: 1 },
 });

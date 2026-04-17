@@ -68,11 +68,18 @@ export default function TabsLayout() {
           ),
         }}
       />
+      <Tabs.Screen name="invoices" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="estimates" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="messages" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="calendar" options={{ href: null }} />
       <Tabs.Screen
-        name="invoices"
+        name="settings"
         options={{
-          title: 'Invoices',
           href: null,
+          title: 'Settings',
+          headerStyle: { backgroundColor: Colors.surface },
+          headerTintColor: Colors.textPrimary,
+          headerShadowVisible: false,
         }}
       />
       <Tabs.Screen

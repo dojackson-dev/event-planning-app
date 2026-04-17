@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, InternalServerErrorException, Logger } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import { MailService } from '../mail/mail.service';
+import { randomUUID } from 'crypto';
 
 export interface Invoice {
   id?: string;
@@ -58,6 +59,8 @@ export interface InvoiceItem {
 
 @Injectable()
 export class InvoicesService {
+  private readonly logger = new Logger(InvoicesService.name);
+
   constructor(
     private readonly supabaseService: SupabaseService,
     private readonly smsNotifications: SmsNotificationsService,
@@ -284,13 +287,13 @@ export class InvoicesService {
       }
     }
 
-    // Generate unique invoice number with timestamp to avoid duplicates
-    const { data: maxInvoice } = await supabase
+    // Generate unique invoice number — use maybeSingle so zero-rows case is handled gracefully
+    const { data: maxInvoice } = await adminClient
       .from('invoices')
       .select('invoice_number')
       .order('created_at', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
     
     let nextNumber = 1;
     if (maxInvoice?.invoice_number) {
@@ -312,6 +315,7 @@ export class InvoicesService {
     // Insert invoice using snake_case column names
     const insertPayload: any = {
         invoice_number: invoiceNumber,
+        public_token: randomUUID(),
         owner_id: ownerId,
         created_by: userId,
         booking_id: invoiceData.booking_id || null,
@@ -353,9 +357,12 @@ export class InvoicesService {
       ({ data, error } = await supabase.from('invoices').insert(insertPayload).select().single());
     }
 
-    if (error) throw error;
+    if (error) {
+      this.logger.error('Invoice insert failed', { code: error.code, message: error.message, details: error.details, hint: error.hint });
+      throw new InternalServerErrorException(`Failed to create invoice: ${error.message}`);
+    }
     if (!data) {
-      throw new Error('Failed to create invoice');
+      throw new InternalServerErrorException('Failed to create invoice: no data returned');
     }
     
     const invoice = data as Invoice;

@@ -348,13 +348,20 @@ export class InvoicesService {
 
     let data: any, error: any;
 
-    ({ data, error } = await supabase.from('invoices').insert(insertPayload).select().single());
+    ({ data, error } = await adminClient.from('invoices').insert(insertPayload).select().single());
 
-    // If client_phone or event_id column doesn't exist yet, retry without them
+    // Column not found (schema cache) — retry without optional columns
     if (error?.code === 'PGRST204' && (insertPayload.client_phone || insertPayload.event_id)) {
       delete insertPayload.client_phone;
       delete insertPayload.event_id;
-      ({ data, error } = await supabase.from('invoices').insert(insertPayload).select().single());
+      ({ data, error } = await adminClient.from('invoices').insert(insertPayload).select().single());
+    }
+
+    // FK violation on event_id (event row not in referenced table) — retry without it
+    if (error?.code === '23503' && insertPayload.event_id) {
+      this.logger.warn(`event_id ${insertPayload.event_id} failed FK check — inserting invoice without event_id`);
+      delete insertPayload.event_id;
+      ({ data, error } = await adminClient.from('invoices').insert(insertPayload).select().single());
     }
 
     if (error) {

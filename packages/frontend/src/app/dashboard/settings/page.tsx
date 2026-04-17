@@ -1082,9 +1082,10 @@ function PromoterModeTab() {
 }
 
 function BrandingTab() {
-  const { logoUrl, businessName, updateLogo, updateBusinessName, loading } = useOwnerBrand()
+  const { logoUrl, coverImageUrl, businessName, updateLogo, updateCover, updateBusinessName, loading } = useOwnerBrand()
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [coverSaved, setCoverSaved] = useState(false)
   const [error, setError] = useState('')
   const [nameInput, setNameInput] = useState('')
   const [nameSaved, setNameSaved] = useState(false)
@@ -1132,6 +1133,34 @@ function BrandingTab() {
       setTimeout(() => setSaved(false), 3000)
     } catch {
       setError('Failed to remove logo.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleCoverUpload = async (url: string) => {
+    setSaving(true)
+    setError('')
+    try {
+      await updateCover(url)
+      setCoverSaved(true)
+      setTimeout(() => setCoverSaved(false), 3000)
+    } catch {
+      setError('Failed to save cover image.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleRemoveCover = async () => {
+    setSaving(true)
+    setError('')
+    try {
+      await updateCover(null)
+      setCoverSaved(true)
+      setTimeout(() => setCoverSaved(false), 3000)
+    } catch {
+      setError('Failed to remove cover image.')
     } finally {
       setSaving(false)
     }
@@ -1225,6 +1254,47 @@ function BrandingTab() {
           </div>
         </div>
       )}
+
+      {/* Cover / Banner */}
+      <div className="border-t pt-6">
+        <div className="mb-3">
+          <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+            <ImageIcon className="h-5 w-5 text-primary-600" />
+            Banner / Cover Photo
+          </h3>
+          <p className="text-sm text-gray-500 mt-1">
+            Displayed at the top of your public profile. Recommended: 1200 × 400 px.
+          </p>
+        </div>
+        {coverSaved && <div className="bg-green-50 text-green-700 rounded-lg px-4 py-3 text-sm mb-3">✓ Cover updated!</div>}
+        {coverImageUrl && (
+          <div className="mb-3">
+            <img src={coverImageUrl} alt="Cover" className="w-full h-28 object-cover rounded-xl border border-gray-200" />
+          </div>
+        )}
+        <ImageUpload
+          currentUrl={coverImageUrl || null}
+          uploadType="owner-cover"
+          shape="landscape"
+          onUpload={handleCoverUpload}
+          placeholder={
+            <div className="flex flex-col items-center gap-2 text-gray-400">
+              <ImageIcon className="h-8 w-8" />
+              <span className="text-xs">Upload a cover / banner image</span>
+            </div>
+          }
+        />
+        {coverImageUrl && (
+          <button
+            onClick={handleRemoveCover}
+            disabled={saving}
+            className="mt-2 flex items-center gap-1.5 text-sm text-red-600 hover:text-red-700 disabled:opacity-50"
+          >
+            <Trash2 className="h-4 w-4" />
+            Remove cover image
+          </button>
+        )}
+      </div>
 
       <div className="border-t pt-4">
         <div className="flex items-center gap-2 mb-2">

@@ -28,6 +28,14 @@ const ARTIST_TYPES = [
   { value: 'other', label: 'Other', icon: '⭐' },
 ]
 
+const TRAVEL_SCOPES = [
+  { value: '', label: 'Any Range', icon: '📍' },
+  { value: 'Local', label: 'Local', icon: '🏠' },
+  { value: 'Regional', label: 'Regional+', icon: '🗺️' },
+  { value: 'National', label: 'National+', icon: '✈️' },
+  { value: 'International', label: 'International', icon: '🌍' },
+]
+
 interface Artist {
   id: string
   artist_name: string
@@ -49,6 +57,7 @@ export default function ArtistDirectoryPage() {
   const [loading, setLoading] = useState(true)
   const [searchLocation, setSearchLocation] = useState('')
   const [selectedType, setSelectedType] = useState('')
+  const [travelScope, setTravelScope] = useState('')
   const [availableOnly, setAvailableOnly] = useState(false)
 
   const fetchArtists = useCallback(async () => {
@@ -58,6 +67,7 @@ export default function ArtistDirectoryPage() {
       if (selectedType) params.artistType = selectedType
       if (searchLocation) params.location = searchLocation
       if (availableOnly) params.availableForBooking = 'true'
+      if (travelScope) params.travelAvailability = travelScope
 
       const res = await api.get('/artists/search', { params })
       setArtists(res.data)
@@ -66,7 +76,7 @@ export default function ArtistDirectoryPage() {
     } finally {
       setLoading(false)
     }
-  }, [selectedType, searchLocation, availableOnly])
+  }, [selectedType, searchLocation, availableOnly, travelScope])
 
   useEffect(() => {
     fetchArtists()
@@ -135,6 +145,25 @@ export default function ArtistDirectoryPage() {
             >
               <span>{type.icon}</span>
               {type.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Travel scope filter */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-medium text-gray-500 mr-1">Travel range:</span>
+          {TRAVEL_SCOPES.map((scope) => (
+            <button
+              key={scope.value}
+              onClick={() => setTravelScope(scope.value)}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                travelScope === scope.value
+                  ? 'bg-green-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <span>{scope.icon}</span>
+              {scope.label}
             </button>
           ))}
         </div>
@@ -228,9 +257,18 @@ export default function ArtistDirectoryPage() {
                     </div>
                   )}
                   {artist.travel_availability && (
-                    <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                      <Music className="h-3.5 w-3.5" />
-                      Travel: {artist.travel_availability}
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <span className={`px-2 py-0.5 rounded-full font-medium ${
+                        artist.travel_availability === 'Local only'
+                          ? 'bg-gray-100 text-gray-600'
+                          : artist.travel_availability === 'Regional (within 200 miles)'
+                          ? 'bg-blue-50 text-blue-700'
+                          : artist.travel_availability === 'National'
+                          ? 'bg-purple-50 text-purple-700'
+                          : 'bg-green-50 text-green-700'
+                      }`}>
+                        {artist.travel_availability === 'Regional (within 200 miles)' ? 'Regional' : artist.travel_availability}
+                      </span>
                     </div>
                   )}
                 </div>

@@ -164,6 +164,18 @@ export class ArtistsService {
     if (dto.genre) {
       query = query.contains('genres', [dto.genre]);
     }
+    if (dto.travelAvailability) {
+      // 'National' and 'International' should also match when filtering for national/intl
+      if (dto.travelAvailability === 'Local') {
+        query = query.eq('travel_availability', 'Local only');
+      } else if (dto.travelAvailability === 'Regional') {
+        query = query.in('travel_availability', ['Regional (within 200 miles)', 'National', 'International']);
+      } else if (dto.travelAvailability === 'National') {
+        query = query.in('travel_availability', ['National', 'International']);
+      } else if (dto.travelAvailability === 'International') {
+        query = query.eq('travel_availability', 'International');
+      }
+    }
 
     const { data, error } = await query.order('created_at', { ascending: false }).limit(100);
 

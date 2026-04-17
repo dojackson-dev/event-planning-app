@@ -58,4 +58,5 @@ export class ArtistSearchDto {
   genre?: string;
   location?: string;
   availableForBooking?: boolean;
+  travelAvailability?: string;
 }

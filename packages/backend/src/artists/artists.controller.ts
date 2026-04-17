@@ -61,12 +61,14 @@ export class ArtistsController {
     @Query('genre') genre: string,
     @Query('location') location: string,
     @Query('availableForBooking') availableForBooking: string,
+    @Query('travelAvailability') travelAvailability: string,
   ) {
     return this.artistsService.searchArtists({
       artistType: artistType || undefined,
       genre: genre || undefined,
       location: location || undefined,
       availableForBooking: availableForBooking !== undefined ? availableForBooking === 'true' : undefined,
+      travelAvailability: travelAvailability || undefined,
     });
   }
 

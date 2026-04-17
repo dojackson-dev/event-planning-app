@@ -27,6 +27,11 @@ import { VendorInvoicesModule } from './vendor-invoices/vendor-invoices.module';
 import { AffiliatesModule } from './affiliates/affiliates.module';
 import { PromoterModule } from './promoter/promoter.module';
 import { ArtistsModule } from './artists/artists.module';
+import { ArtistInvoicesModule } from './artist-invoices/artist-invoices.module';
+import { ArtistBookingsModule } from './artist-bookings/artist-bookings.module';
+import { PromoterInvoicesModule } from './promoter-invoices/promoter-invoices.module';
+import { PromoterBookingsModule } from './promoter-bookings/promoter-bookings.module';
+import { PromoterEventsModule } from './promoter-events/promoter-events.module';
 
 @Module({
   imports: [
@@ -58,6 +63,11 @@ import { ArtistsModule } from './artists/artists.module';
     AffiliatesModule,
     PromoterModule,
     ArtistsModule,
+    ArtistInvoicesModule,
+    ArtistBookingsModule,
+    PromoterInvoicesModule,
+    PromoterBookingsModule,
+    PromoterEventsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

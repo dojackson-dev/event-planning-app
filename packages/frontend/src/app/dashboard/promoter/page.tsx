@@ -15,6 +15,7 @@ import {
   ArrowRight,
   User,
   ExternalLink,
+  Plus,
 } from 'lucide-react'
 
 interface DashboardStats {
@@ -232,6 +233,50 @@ export default function PromoterDashboard() {
               <span className="text-sm font-medium text-gray-700">Browse Artists</span>
             </div>
             <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-gray-600" />
+          </Link>
+
+          <Link
+            href="/dashboard/promoter/invoices"
+            className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 group"
+          >
+            <div className="flex items-center gap-3">
+              <DollarSign className="h-5 w-5 text-green-500" />
+              <span className="text-sm font-medium text-gray-700">Invoices</span>
+            </div>
+            <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-gray-600" />
+          </Link>
+
+          <Link
+            href="/dashboard/promoter/bookings"
+            className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 group"
+          >
+            <div className="flex items-center gap-3">
+              <Calendar className="h-5 w-5 text-blue-500" />
+              <span className="text-sm font-medium text-gray-700">Bookings</span>
+            </div>
+            <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-gray-600" />
+          </Link>
+
+          <Link
+            href="/dashboard/promoter/events"
+            className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 group"
+          >
+            <div className="flex items-center gap-3">
+              <Ticket className="h-5 w-5 text-purple-500" />
+              <span className="text-sm font-medium text-gray-700">My Events</span>
+            </div>
+            <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-gray-600" />
+          </Link>
+
+          <Link
+            href="/dashboard/promoter/events/new"
+            className="flex items-center justify-between p-3 border border-purple-200 bg-purple-50 rounded-lg hover:bg-purple-100 group"
+          >
+            <div className="flex items-center gap-3">
+              <Plus className="h-5 w-5 text-purple-500" />
+              <span className="text-sm font-medium text-purple-700">Create Event</span>
+            </div>
+            <ArrowRight className="h-4 w-4 text-purple-400 group-hover:text-purple-600" />
           </Link>
 
           {connectStatus !== 'active' && (

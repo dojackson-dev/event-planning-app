@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
+import ImageUpload from '@/components/ImageUpload'
 import { ArrowLeft, Save, CheckCircle } from 'lucide-react'
 
 const ARTIST_TYPES = [
@@ -30,6 +31,8 @@ export default function ArtistProfilePage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+  const [profileImageUrl, setProfileImageUrl] = useState('')
+  const [coverImageUrl, setCoverImageUrl] = useState('')
 
   const [form, setForm] = useState({
     artistName: '',
@@ -64,6 +67,8 @@ export default function ArtistProfilePage() {
     api.get('/artists/me/profile').then(res => {
       const p = res.data
       if (!p) { router.replace('/artist/register'); return }
+      setProfileImageUrl(p.profile_image_url || '')
+      setCoverImageUrl(p.cover_image_url || '')
       setForm({
         artistName: p.artist_name || '',
         stageName: p.stage_name || '',
@@ -124,6 +129,8 @@ export default function ArtistProfilePage() {
         spotify: form.spotify || undefined,
         epkUrl: form.epkUrl || undefined,
         availableForBooking: form.availableForBooking,
+        profileImageUrl: profileImageUrl || undefined,
+        coverImageUrl: coverImageUrl || undefined,
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
@@ -187,6 +194,27 @@ export default function ArtistProfilePage() {
         )}
 
         <Section title="Artist Identity">
+          {/* Images */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-2">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Profile Photo</label>
+              <ImageUpload
+                currentUrl={profileImageUrl || null}
+                uploadType="artist-logo"
+                shape="square"
+                onUpload={(url) => setProfileImageUrl(url)}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Cover / Banner</label>
+              <ImageUpload
+                currentUrl={coverImageUrl || null}
+                uploadType="artist-cover"
+                shape="landscape"
+                onUpload={(url) => setCoverImageUrl(url)}
+              />
+            </div>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Artist / Band Name" required>{input('artistName', { required: true })}</Field>
             <Field label="Stage Name">{input('stageName', { placeholder: 'If different from above' })}</Field>

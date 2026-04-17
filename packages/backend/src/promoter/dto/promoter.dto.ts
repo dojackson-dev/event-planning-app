@@ -18,4 +18,6 @@ export class UpdatePromoterDto {
   bio?: string;
   website?: string;
   instagram?: string;
+  profileImageUrl?: string;
+  coverImageUrl?: string;
 }

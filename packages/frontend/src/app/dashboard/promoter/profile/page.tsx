@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
+import ImageUpload from '@/components/ImageUpload'
 import {
   Save,
   ArrowLeft,
@@ -36,6 +37,8 @@ export default function PromoterProfilePage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [profileImageUrl, setProfileImageUrl] = useState('')
+  const [coverImageUrl, setCoverImageUrl] = useState('')
   const [form, setForm] = useState({
     companyName: '',
     contactName: '',
@@ -53,6 +56,8 @@ export default function PromoterProfilePage() {
       const p = res.data
       setProfile(p)
       if (p) {
+        setProfileImageUrl(p.profile_image_url || '')
+        setCoverImageUrl(p.cover_image_url || '')
         setForm({
           companyName: p.company_name ?? '',
           contactName: p.contact_name ?? '',
@@ -88,6 +93,8 @@ export default function PromoterProfilePage() {
         bio: form.bio || undefined,
         website: form.website || undefined,
         instagram: form.instagram || undefined,
+        profileImageUrl: profileImageUrl || undefined,
+        coverImageUrl: coverImageUrl || undefined,
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
@@ -140,6 +147,31 @@ export default function PromoterProfilePage() {
 
       {/* Form */}
       <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-5">
+        {/* Images */}
+        <div>
+          <h2 className="text-base font-semibold text-gray-900 mb-4">Profile Images</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Profile Photo / Logo</label>
+              <ImageUpload
+                currentUrl={profileImageUrl || null}
+                uploadType="promoter-logo"
+                shape="square"
+                onUpload={(url) => setProfileImageUrl(url)}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Cover / Banner</label>
+              <ImageUpload
+                currentUrl={coverImageUrl || null}
+                uploadType="promoter-cover"
+                shape="landscape"
+                onUpload={(url) => setCoverImageUrl(url)}
+              />
+            </div>
+          </div>
+        </div>
+
         <h2 className="text-base font-semibold text-gray-900">Contact Information</h2>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

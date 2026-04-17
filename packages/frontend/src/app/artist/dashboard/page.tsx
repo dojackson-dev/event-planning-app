@@ -16,7 +16,10 @@ import {
   Globe,
   CheckCircle,
   AlertCircle,
+  Calendar,
+  Receipt,
 } from 'lucide-react'
+import ConnectBankButton from '@/components/ConnectBankButton'
 
 interface ArtistProfile {
   id: string
@@ -231,6 +234,39 @@ export default function ArtistDashboard() {
             </ul>
           </div>
         )}
+
+        {/* Invoices & Bookings */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Link href="/artist/dashboard/invoices"
+            className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-green-50 rounded-lg"><Receipt className="h-5 w-5 text-green-600" /></div>
+              <div>
+                <p className="font-semibold text-gray-900">Invoices</p>
+                <p className="text-xs text-gray-500">Create &amp; send invoices</p>
+              </div>
+            </div>
+            <ChevronRight className="h-5 w-5 text-gray-400" />
+          </Link>
+          <Link href="/artist/dashboard/bookings"
+            className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-orange-50 rounded-lg"><Calendar className="h-5 w-5 text-orange-600" /></div>
+              <div>
+                <p className="font-semibold text-gray-900">Bookings</p>
+                <p className="text-xs text-gray-500">Track your events</p>
+              </div>
+            </div>
+            <ChevronRight className="h-5 w-5 text-gray-400" />
+          </Link>
+        </div>
+
+        {/* Payouts */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <p className="font-semibold text-gray-900 mb-1">Payouts</p>
+          <p className="text-xs text-gray-500 mb-4">Connect your bank account to accept payments via Stripe.</p>
+          <ConnectBankButton role="artist" />
+        </div>
 
         {/* Social links */}
         {(profile?.instagram || profile?.website) && (

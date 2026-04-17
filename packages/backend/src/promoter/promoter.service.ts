@@ -83,6 +83,8 @@ export class PromoterService {
         ...(dto.bio !== undefined && { bio: dto.bio }),
         ...(dto.website !== undefined && { website: dto.website }),
         ...(dto.instagram !== undefined && { instagram: dto.instagram }),
+        ...(dto.profileImageUrl !== undefined && { profile_image_url: dto.profileImageUrl }),
+        ...(dto.coverImageUrl !== undefined && { cover_image_url: dto.coverImageUrl }),
         updated_at: new Date().toISOString(),
       })
       .eq('id', promoter.id)

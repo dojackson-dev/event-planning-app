@@ -220,42 +220,38 @@ export class InvoicesService {
     return data || [];
   }
 
-  async create(supabase: SupabaseClient, userId: string, invoiceData: Partial<Invoice>, items?: Partial<InvoiceItem>[]): Promise<Invoice> {
-    // Determine the owner_id to use
-    const ownerId = invoiceData.owner_id || userId;
-
-    // Guard: owner must have an active Stripe Connect account to receive payments
+  /** Check whether the owner (by userId) has an active Stripe Connect account */
+  private async isStripeConnected(ownerId: string): Promise<boolean> {
     const adminClient = this.supabaseService.getAdminClient();
-    let stripeConnected = false;
     const { data: directOwner } = await adminClient
       .from('owner_accounts')
       .select('stripe_connect_id, stripe_connect_status')
       .eq('primary_owner_id', ownerId)
       .maybeSingle();
     if (directOwner) {
-      stripeConnected = !!(directOwner.stripe_connect_id && directOwner.stripe_connect_status === 'active');
-    } else {
-      const { data: membership } = await adminClient
-        .from('memberships')
-        .select('owner_account_id')
-        .eq('user_id', ownerId)
-        .eq('role', 'owner')
+      return !!(directOwner.stripe_connect_id && directOwner.stripe_connect_status === 'active');
+    }
+    const { data: membership } = await adminClient
+      .from('memberships')
+      .select('owner_account_id')
+      .eq('user_id', ownerId)
+      .eq('role', 'owner')
+      .maybeSingle();
+    if (membership?.owner_account_id) {
+      const { data: ownerById } = await adminClient
+        .from('owner_accounts')
+        .select('stripe_connect_id, stripe_connect_status')
+        .eq('id', membership.owner_account_id)
         .maybeSingle();
-      if (membership?.owner_account_id) {
-        const { data: ownerById } = await adminClient
-          .from('owner_accounts')
-          .select('stripe_connect_id, stripe_connect_status')
-          .eq('id', membership.owner_account_id)
-          .maybeSingle();
-        stripeConnected = !!(ownerById?.stripe_connect_id && ownerById.stripe_connect_status === 'active');
-      }
+      return !!(ownerById?.stripe_connect_id && ownerById.stripe_connect_status === 'active');
     }
-    if (!stripeConnected) {
-      throw new BadRequestException(
-        'You must connect a Stripe account before sending invoices. Go to Settings → Payouts to get started.',
-      );
-    }
-    
+    return false;
+  }
+
+  async create(supabase: SupabaseClient, userId: string, invoiceData: Partial<Invoice>, items?: Partial<InvoiceItem>[]): Promise<Invoice> {
+    // Determine the owner_id to use
+    const ownerId = invoiceData.owner_id || userId;
+
     // Check if the owner exists in the users table (required by foreign key constraint)
     const { data: ownerUser, error: userError } = await supabase
       .from('users')
@@ -670,6 +666,16 @@ export class InvoicesService {
   }
 
   async updateStatus(supabase: SupabaseClient, userId: string, id: string, status: string): Promise<Invoice> {
+    // Guard: owner must have Stripe Connect active before the invoice can be sent for payment
+    if (status === 'sent') {
+      const connected = await this.isStripeConnected(userId);
+      if (!connected) {
+        throw new BadRequestException(
+          'You must connect a Stripe account before sending invoices. Go to Settings → Payouts to get started.',
+        );
+      }
+    }
+
     const updateData: any = { status };
     
     if (status === 'sent' && !updateData.issue_date) {

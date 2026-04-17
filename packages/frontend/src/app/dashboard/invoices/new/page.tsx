@@ -384,9 +384,10 @@ function NewInvoicePageContent() {
 
       const response = await api.post('/invoices', invoiceData)
       router.push(`/dashboard/invoices/${response.data.id}`)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to create invoice:', error)
-      alert('Failed to create invoice')
+      const msg = error?.response?.data?.message || 'Failed to create invoice. Please try again.'
+      alert(msg)
     } finally {
       setLoading(false)
     }

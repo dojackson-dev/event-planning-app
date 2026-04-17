@@ -420,7 +420,8 @@ export class InvoicesService {
    */
   private async sendInvoiceNotifications(supabase: SupabaseClient, invoice: Invoice): Promise<void> {
     const frontendUrl = process.env.FRONTEND_URL || 'https://dovenuesuite.com';
-    const invoiceUrl = `${frontendUrl}/client-portal/invoices/${invoice.id}`;
+    // Link to the invoices list — no individual invoice detail page exists in the client portal
+    const invoiceUrl = `${frontendUrl}/client-portal/invoices`;
 
     // Resolve client details
     let clientName = (invoice as any).client_name || 'Valued Client';
@@ -678,16 +679,6 @@ export class InvoicesService {
   }
 
   async updateStatus(supabase: SupabaseClient, userId: string, id: string, status: string): Promise<Invoice> {
-    // Guard: owner must have Stripe Connect active before the invoice can be sent for payment
-    if (status === 'sent') {
-      const connected = await this.isStripeConnected(userId);
-      if (!connected) {
-        throw new BadRequestException(
-          'You must connect a Stripe account before sending invoices. Go to Settings → Payouts to get started.',
-        );
-      }
-    }
-
     const updateData: any = { status };
     
     if (status === 'sent' && !updateData.issue_date) {

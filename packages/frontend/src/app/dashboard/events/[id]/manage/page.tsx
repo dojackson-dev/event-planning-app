@@ -1585,32 +1585,6 @@ export default function EventManagementPage() {
                 <p className="text-sm text-gray-500 mb-3">No invoices found for this event.</p>
               )}
 
-              <button
-                onClick={() => router.push(`/dashboard/invoices/new?eventId=${eventId}`)}
-                className="w-full px-4 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 font-medium"
-              >
-                + Create Invoice
-              </button>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <h2 className="text-lg font-bold text-gray-900 mb-4">Quick Actions</h2>
-              
-              <div className="space-y-2">
-                <button className="w-full px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 text-sm font-medium">
-                  Send Contract
-                </button>
-                <button className="w-full px-4 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 text-sm font-medium">
-                  Request Insurance
-                </button>
-                <button className="w-full px-4 py-2 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 text-sm font-medium">
-                  Send Payment Reminder
-                </button>
-                <button className="w-full px-4 py-2 bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 text-sm font-medium">
-                  Email Client
-                </button>
-              </div>
             </div>
           </div>
         </div>

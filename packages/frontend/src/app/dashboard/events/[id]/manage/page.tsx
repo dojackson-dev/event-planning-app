@@ -311,10 +311,16 @@ export default function EventManagementPage() {
   };
 
   const loadEventEstimates = async (intakeFormId?: string) => {
-    if (!intakeFormId) return;
     try {
-      const res = await api.get('/estimates', { params: { intakeFormId } });
-      setEventEstimates(res.data || []);
+      if (intakeFormId) {
+        const res = await api.get('/estimates', { params: { intakeFormId } });
+        setEventEstimates(res.data || []);
+      } else {
+        // No intake form — fetch all estimates and filter by booking.event_id
+        const res = await api.get('/estimates');
+        const all: any[] = res.data || [];
+        setEventEstimates(all.filter((e: any) => e.booking?.event_id === eventId));
+      }
     } catch {
       // estimates are supplementary
     }

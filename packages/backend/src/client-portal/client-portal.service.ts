@@ -603,6 +603,57 @@ export class ClientPortalService {
       .is('viewed_at', null);
   }
 
+  /** Client approves or rejects a sent estimate */
+  async respondToEstimate(
+    estimateId: string,
+    clientId: string,
+    clientPhone: string,
+    action: 'approved' | 'rejected',
+  ) {
+    const estimate = await this.getEstimateById(estimateId, clientId, clientPhone);
+
+    if (estimate.status !== 'sent') {
+      throw new BadRequestException('Only estimates in "sent" status can be responded to');
+    }
+
+    const supabase = this.supabaseService.getAdminClient();
+    const today = new Date().toISOString().split('T')[0];
+    const updateData: any = { status: action };
+    if (action === 'approved') updateData.approved_date = today;
+    if (action === 'rejected') updateData.rejected_date = today;
+
+    const { data, error } = await supabase
+      .from('estimates')
+      .update(updateData)
+      .eq('id', estimateId)
+      .select()
+      .single();
+    if (error) throw error;
+
+    // Notify the owner via SMS when a client approves
+    try {
+      if (action === 'approved' && data.owner_id) {
+        const { data: ownerUser } = await supabase
+          .from('users')
+          .select('phone_number')
+          .eq('id', data.owner_id)
+          .single();
+        const clientName = [
+          (estimate as any).booking?.contact_name,
+        ].filter(Boolean)[0] ?? 'A client';
+        await this.smsNotifications.estimateApproved(
+          (ownerUser as any)?.phone_number ?? null,
+          clientName,
+          data.estimate_number,
+        );
+      }
+    } catch {
+      // SMS errors never break the status update
+    }
+
+    return data;
+  }
+
   /** Invoices for this client (by client_phone, booking_id, or intake_form_id) */
   async getInvoices(clientId: string, clientPhone: string) {
     const supabase = this.supabaseService.getAdminClient();

@@ -190,7 +190,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
       // Fetch recent paid invoices for payment notifications
       try {
-        const invoicesRes = await api.get('/invoices-supabase')
+        const invoicesRes = await api.get('/invoices')
         const invoices: any[] = invoicesRes.data || []
 
         // Recent events (last 48 hours)

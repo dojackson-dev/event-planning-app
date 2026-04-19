@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
 import api from '@/lib/api'
-import { Event, Booking, Notification, NotificationType, InvoiceStatus, ContractStatus } from '@/types'
+import { Event, Notification, NotificationType, InvoiceStatus, ContractStatus } from '@/types'
 import { parseLocalDate } from '@/lib/dateUtils'
 
 interface IntakeForm {
@@ -21,7 +21,6 @@ interface Invoice {
   status: InvoiceStatus
   due_date: string
   total_amount: number
-  booking?: Booking
   intake_form?: IntakeForm
 }
 
@@ -189,51 +188,30 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         console.error('Failed to fetch contracts for notifications:', error)
       }
 
-      // Fetch bookings for recent payments
+      // Fetch recent paid invoices for payment notifications
       try {
-        const bookingsRes = await api.get<Booking[]>('/bookings')
-        const bookings = bookingsRes.data
-        
-        // Recent bookings (last 48 hours)
-        const recentBookings = bookings.filter(booking => {
-          const createdAt = new Date(booking.createdAt)
-          return (now.getTime() - createdAt.getTime()) < 48 * 60 * 60 * 1000
-        })
-        
-        recentBookings.forEach(booking => {
-          generatedNotifications.push({
-            id: `new-booking-${booking.id}`,
-            type: NotificationType.NEW_BOOKING,
-            title: 'New Booking',
-            message: `New booking created${booking.event?.name ? ` for "${booking.event.name}"` : ''} - $${booking.totalPrice.toFixed(2)}`,
-            read: false,
-            link: `/dashboard/bookings/${booking.id}`,
-            bookingId: booking.id,
-            booking: booking,
-            createdAt: booking.createdAt,
-          })
-        })
+        const invoicesRes = await api.get('/invoices-supabase')
+        const invoices: any[] = invoicesRes.data || []
 
-        // Payment received (bookings with recent payments)
-        const paidBookings = bookings.filter(booking => {
-          return booking.totalAmountPaid > 0 && booking.paymentStatus === 'paid'
-        })
-        
-        paidBookings.slice(0, 3).forEach(booking => {
+        // Recent events (last 48 hours)
+        const recentEvents = (invoicesRes as any)?.events ?? []
+        void recentEvents
+
+        // Payment received (recently paid invoices)
+        const paidInvoices = invoices.filter((inv: any) => inv.status === 'paid')
+        paidInvoices.slice(0, 3).forEach((inv: any) => {
           generatedNotifications.push({
-            id: `payment-received-${booking.id}`,
+            id: `payment-received-${inv.id}`,
             type: NotificationType.PAYMENT_RECEIVED,
             title: 'Payment Received',
-            message: `Payment of $${booking.totalAmountPaid.toFixed(2)} received${booking.event?.name ? ` for "${booking.event.name}"` : ''}`,
+            message: `Payment of $${(inv.total_amount || 0).toFixed(2)} received${inv.client_name ? ` from ${inv.client_name}` : ''}`,
             read: false,
-            link: `/dashboard/bookings/${booking.id}`,
-            bookingId: booking.id,
-            booking: booking,
-            createdAt: booking.updatedAt,
+            link: `/dashboard/invoices/${inv.id}`,
+            createdAt: inv.paid_date || inv.created_at,
           })
         })
       } catch (error) {
-        console.error('Failed to fetch bookings for notifications:', error)
+        console.error('Failed to fetch invoices for notifications:', error)
       }
 
       // Sort notifications by date (newest first)

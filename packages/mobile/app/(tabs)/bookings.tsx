@@ -5,9 +5,12 @@ import { supabase } from '@/lib/supabase';
 interface Booking {
   id: string;
   status: string;
-  total_price: number;
+  client_status?: string;
+  payment_status?: string;
+  total_amount?: number;
   created_at: string;
-  event_id: string;
+  name?: string;
+  date?: string;
 }
 
 export default function BookingsScreen() {
@@ -24,9 +27,10 @@ export default function BookingsScreen() {
       if (!user) return;
 
       const { data, error } = await supabase
-        .from('bookings')
-        .select('*')
-        .eq('user_id', user.id)
+        .from('event')
+        .select('id, name, date, status, client_status, payment_status, total_amount, created_at')
+        .eq('owner_id', user.id)
+        .not('intake_form_id', 'is', null)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -54,11 +58,11 @@ export default function BookingsScreen() {
         renderItem={({ item }) => (
           <View style={styles.bookingCard}>
             <View style={styles.bookingHeader}>
-              <Text style={styles.bookingStatus}>{item.status.toUpperCase()}</Text>
-              <Text style={styles.bookingPrice}>${item.total_price}</Text>
+              <Text style={styles.bookingStatus}>{(item.client_status || item.status || '').toUpperCase()}</Text>
+              <Text style={styles.bookingPrice}>${item.total_amount || 0}</Text>
             </View>
             <Text style={styles.bookingDate}>
-              {new Date(item.created_at).toLocaleDateString()}
+              {item.name ? `${item.name} — ` : ''}{new Date(item.created_at).toLocaleDateString()}
             </Text>
           </View>
         )}

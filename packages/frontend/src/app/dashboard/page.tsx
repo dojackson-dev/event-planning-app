@@ -67,9 +67,8 @@ export default function DashboardPage() {
       // Fetch invoices for unpaid count
       const invoicesRes = await api.get<Invoice[]>('/invoices')
       const invoices = invoicesRes.data
-      // Count invoices linked to a booking where money is still owed (any status except paid/cancelled)
+      // Count all invoices where money is still owed (any status except paid/cancelled)
       const unpaidInvoices = invoices.filter(inv =>
-        !!inv.booking_id &&
         inv.status !== InvoiceStatus.PAID &&
         inv.status !== InvoiceStatus.CANCELLED &&
         Number(inv.amount_due ?? 0) > 0

@@ -1,7 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
-import { SupabaseService } from '../supabase/supabase.service';
 
 export interface Estimate {
   id?: string;
@@ -49,10 +48,7 @@ export interface EstimateItem {
 
 @Injectable()
 export class EstimatesService {
-  constructor(
-    private readonly smsNotifications: SmsNotificationsService,
-    private readonly supabaseService: SupabaseService,
-  ) {}
+  constructor(private readonly smsNotifications: SmsNotificationsService) {}
 
   /**
    * Look up the client phone + email from an estimate's linked booking or intake form.
@@ -69,16 +65,6 @@ export class EstimatesService {
 
     let phone: string | null = null;
     let email: string | null = null;
-
-    if ((estimate as any).booking_id) {
-      const { data: booking } = await supabase
-        .from('booking')
-        .select('contact_phone, contact_email')
-        .eq('id', (estimate as any).booking_id)
-        .single();
-      phone = (booking as any)?.contact_phone ?? null;
-      email = (booking as any)?.contact_email ?? null;
-    }
 
     if (!phone && (estimate as any).intake_form_id) {
       const { data: form } = await supabase
@@ -147,7 +133,7 @@ export class EstimatesService {
     try {
       const { data, error } = await supabase
         .from('estimates')
-        .select('*, booking:booking(id, contact_name, contact_email, contact_phone, event_id, total_amount), intake_form:intake_forms(*), items:estimate_items(*)')
+        .select('*, intake_form:intake_forms(*), items:estimate_items(*)')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
@@ -157,44 +143,29 @@ export class EstimatesService {
   }
 
   async findByOwner(supabase: SupabaseClient, ownerId: string, venueId?: string): Promise<Estimate[]> {
-    // Use admin client to bypass RLS — estimates linked via intake_form_id (not booking_id)
-    // are invisible to the owner through RLS since the old policies were booking-centric.
-    const admin = this.supabaseService.getAdminClient();
     try {
-      let query = admin
+      let query = supabase
         .from('estimates')
-        .select('*, booking:booking(id, contact_name, contact_email, contact_phone, event_id, total_amount), intake_form:intake_forms(id, contact_name, event_name, event_type, event_date), items:estimate_items(*)')
+        .select('*, intake_form:intake_forms(*), items:estimate_items(*)')
         .eq('owner_id', ownerId)
         .order('created_at', { ascending: false });
 
       if (venueId) {
-        // Fetch events for the venue, then filter estimates by booking_id OR intake_form_id
-        const { data: venueEvents } = await admin.from('event').select('id, intake_form_id').eq('venue_id', venueId);
-        const eventIds = (venueEvents || []).map((e: any) => e.id);
-        const intakeFormIds = (venueEvents || []).map((e: any) => e.intake_form_id).filter(Boolean);
-        if (eventIds.length === 0 && intakeFormIds.length === 0) return [];
-        // Fetch booking IDs for these events
-        const { data: eventBookings } = await admin.from('booking').select('id').in('event_id', eventIds);
-        const bookingIds = (eventBookings || []).map((b: any) => b.id);
-        // Filter: booking_id matches OR intake_form_id matches
-        const { data, error } = await admin
-          .from('estimates')
-          .select('*, booking:booking(id, contact_name, contact_email, contact_phone, event_id, total_amount), intake_form:intake_forms(id, contact_name, event_name, event_type, event_date), items:estimate_items(*)')
-          .eq('owner_id', ownerId)
-          .or([
-            bookingIds.length > 0 ? `booking_id.in.(${bookingIds.join(',')})` : null,
-            intakeFormIds.length > 0 ? `intake_form_id.in.(${intakeFormIds.join(',')})` : null,
-          ].filter(Boolean).join(','))
-          .order('created_at', { ascending: false });
-        if (error) { console.error('[EstimatesService] findByOwner venue filter error:', error.message); return []; }
-        return data || [];
+        const { data: venueEvents } = await supabase.from('event').select('id, intake_form_id').eq('venue_id', venueId);
+        if (!venueEvents || venueEvents.length === 0) return [];
+        const intakeIds = venueEvents.map((e: any) => e.intake_form_id).filter(Boolean);
+        const eventIds = venueEvents.map((e: any) => e.id);
+        if (intakeIds.length > 0) {
+          query = query.in('intake_form_id', intakeIds);
+        } else {
+          query = query.in('event_id', eventIds);
+        }
       }
 
       const { data, error } = await query;
-      if (error) { console.error('[EstimatesService] findByOwner error:', error.message); return []; }
+      if (error) throw error;
       return data || [];
-    } catch (err) {
-      console.error('[EstimatesService] findByOwner exception:', err);
+    } catch {
       return [];
     }
   }
@@ -216,7 +187,7 @@ export class EstimatesService {
   async findOne(supabase: SupabaseClient, id: string): Promise<Estimate> {
     const { data, error } = await supabase
       .from('estimates')
-      .select('*, booking:booking(id, contact_name, contact_email, contact_phone, event_id, total_amount), intake_form:intake_forms(*), items:estimate_items(*)')
+      .select('*, intake_form:intake_forms(*), items:estimate_items(*)')
       .eq('id', id)
       .single();
     if (error) throw new NotFoundException('Estimate not found');
@@ -254,14 +225,9 @@ export class EstimatesService {
       Number(estimateData.discount_amount) || 0,
     );
 
-    // Resolve client contact info from booking or intake form
+    // Resolve client contact info from intake form or event
     let clientPhone: string | null = estimateData.client_phone || null;
     let clientEmail: string | null = estimateData.client_email || null;
-    if (!clientPhone && estimateData.booking_id) {
-      const { data: bk } = await supabase.from('booking').select('contact_phone, contact_email').eq('id', estimateData.booking_id).single();
-      clientPhone = (bk as any)?.contact_phone ?? null;
-      clientEmail = (bk as any)?.contact_email ?? null;
-    }
     if (!clientPhone && estimateData.intake_form_id) {
       const { data: fm } = await supabase.from('intake_forms').select('contact_phone, contact_email').eq('id', estimateData.intake_form_id).single();
       clientPhone = (fm as any)?.contact_phone ?? null;
@@ -274,7 +240,6 @@ export class EstimatesService {
         estimate_number: estimateNumber,
         owner_id: ownerId,
         created_by: userId,
-        booking_id: estimateData.booking_id || null,
         intake_form_id: estimateData.intake_form_id || null,
         client_phone: clientPhone,
         client_email: clientEmail,
@@ -306,7 +271,7 @@ export class EstimatesService {
         .from('estimates')
         .update({ subtotal: totals.subtotal, tax_amount: totals.taxAmount, total_amount: totals.totalAmount })
         .eq('id', estimate.id)
-        .select('*, booking:booking(id, contact_name, contact_email, contact_phone, event_id, total_amount), intake_form:intake_forms(*), items:estimate_items(*)')
+        .select('*, intake_form:intake_forms(*), items:estimate_items(*)')
         .single();
       if (upErr) throw upErr;
       return updated;
@@ -372,7 +337,7 @@ export class EstimatesService {
     try {
       const { phone } = await this.lookupAndPersistClientContact(supabase, updated);
       const clientName =
-        (updated as any).booking?.contact_name || 'Valued Client';
+        (updated as any).intake_form?.contact_name || 'Valued Client';
       if (status === 'sent') {
         await this.smsNotifications.estimateSent(
           phone,
@@ -482,7 +447,6 @@ export class EstimatesService {
         invoice_number: invoiceNumber,
         owner_id: estimate.owner_id,
         created_by: userId,
-        booking_id: estimate.booking_id || null,
         intake_form_id: estimate.intake_form_id || null,
         subtotal: estimate.subtotal,
         tax_rate: estimate.tax_rate,

@@ -79,7 +79,7 @@ export class OwnerController {
 
     const { data, error } = await admin
       .from('owner_accounts')
-      .select('business_name, logo_url')
+      .select('business_name, logo_url, cover_image_url')
       .eq('id', ownerAccountId)
       .maybeSingle();
 
@@ -90,6 +90,7 @@ export class OwnerController {
     return {
       businessName: data?.business_name || '',
       logoUrl: data?.logo_url || null,
+      coverImageUrl: data?.cover_image_url || null,
     };
   }
 
@@ -100,7 +101,7 @@ export class OwnerController {
   @Put('profile')
   async updateProfile(
     @Headers('authorization') authorization: string,
-    @Body() body: { logoUrl?: string | null; businessName?: string },
+    @Body() body: { logoUrl?: string | null; coverImageUrl?: string | null; businessName?: string },
   ) {
     const userId = await this.getUserId(authorization);
     const admin = this.supabaseService.getAdminClient();
@@ -110,6 +111,7 @@ export class OwnerController {
 
     const updates: Record<string, any> = { updated_at: new Date().toISOString() };
     if (body.logoUrl !== undefined) updates.logo_url = body.logoUrl;
+    if (body.coverImageUrl !== undefined) updates.cover_image_url = body.coverImageUrl;
     if (body.businessName !== undefined && body.businessName.trim()) {
       updates.business_name = body.businessName.trim();
     }

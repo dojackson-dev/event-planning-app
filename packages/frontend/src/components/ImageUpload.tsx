@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react'
 import api from '@/lib/api'
 
-type UploadType = 'vendor-logo' | 'vendor-cover' | 'service-item' | 'owner-logo'
+type UploadType = 'vendor-logo' | 'vendor-cover' | 'service-item' | 'owner-logo' | 'owner-cover' | 'artist-logo' | 'artist-cover' | 'promoter-logo' | 'promoter-cover'
 
 interface ImageUploadProps {
   currentUrl?: string | null
@@ -43,6 +43,41 @@ const SPECS: Record<UploadType, { label: string; size: string; dims: string; max
     size: 'Max 3 MB',
     dims: 'Any size — landscape logos work best',
     maxMB: 3,
+    accept: 'image/jpeg,image/png,image/webp',
+  },
+  'owner-cover': {
+    label: 'Banner / Cover Photo',
+    size: 'Max 5 MB',
+    dims: '1200 × 400 px recommended (3:1 landscape)',
+    maxMB: 5,
+    accept: 'image/jpeg,image/png,image/webp',
+  },
+  'artist-logo': {
+    label: 'Profile Photo',
+    size: 'Max 2 MB',
+    dims: '400 × 400 px recommended',
+    maxMB: 2,
+    accept: 'image/jpeg,image/png,image/webp',
+  },
+  'artist-cover': {
+    label: 'Cover / Banner',
+    size: 'Max 5 MB',
+    dims: '1200 × 400 px recommended (3:1 landscape)',
+    maxMB: 5,
+    accept: 'image/jpeg,image/png,image/webp',
+  },
+  'promoter-logo': {
+    label: 'Profile Photo / Logo',
+    size: 'Max 2 MB',
+    dims: '400 × 400 px recommended',
+    maxMB: 2,
+    accept: 'image/jpeg,image/png,image/webp',
+  },
+  'promoter-cover': {
+    label: 'Cover / Banner',
+    size: 'Max 5 MB',
+    dims: '1200 × 400 px recommended (3:1 landscape)',
+    maxMB: 5,
     accept: 'image/jpeg,image/png,image/webp',
   },
 }

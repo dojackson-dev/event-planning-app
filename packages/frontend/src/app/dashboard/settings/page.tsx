@@ -22,6 +22,8 @@ import {
   Plus,
   Pencil,
   X,
+  Megaphone,
+  ExternalLink,
 } from 'lucide-react'
 import { useOwnerBrand } from '@/contexts/OwnerBrandContext'
 import ImageUpload from '@/components/ImageUpload'
@@ -139,7 +141,7 @@ function SettingsPageContent() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   
   // UI state
-  const validTabs = ['profile', 'venue', 'password', 'delete', 'branding', 'payouts', 'billing'] as const
+  const validTabs = ['profile', 'venue', 'password', 'delete', 'branding', 'payouts', 'billing', 'promoter'] as const
   type TabType = typeof validTabs[number]
   const initialTab = (searchParams?.get('tab') || 'profile') as TabType
   const [activeTab, setActiveTab] = useState<TabType>(validTabs.includes(initialTab) ? initialTab : 'profile')
@@ -408,8 +410,8 @@ function SettingsPageContent() {
       
       {/* Tabs */}
       <div className="bg-white rounded-lg shadow">
-        <div className="border-b border-gray-200">
-          <nav className="flex -mb-px">
+        <div className="border-b border-gray-200 overflow-x-auto">
+          <nav className="flex -mb-px whitespace-nowrap min-w-max">
             <button
               onClick={() => setActiveTab('profile')}
               className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
@@ -475,6 +477,17 @@ function SettingsPageContent() {
             >
               <Receipt className="h-4 w-4 inline-block mr-2" />
               Billing
+            </button>
+            <button
+              onClick={() => setActiveTab('promoter')}
+              className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'promoter'
+                  ? 'border-primary-600 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <Megaphone className="h-4 w-4 inline-block mr-2" />
+              Promoter Mode
             </button>
             <button
               onClick={() => setActiveTab('delete')}
@@ -947,6 +960,9 @@ function SettingsPageContent() {
           {/* Branding Tab */}
           {activeTab === 'branding' && <BrandingTab />}
 
+          {/* Promoter Mode Tab */}
+          {activeTab === 'promoter' && <PromoterModeTab />}
+
           {/* Multi-Role: Add Vendor Role card (shown on every tab) */}
           <div className="mt-8 pt-6 border-t border-gray-100">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Multi-Role Access</p>
@@ -968,10 +984,108 @@ function getInitials(name: string): string {
     .join('')
 }
 
+function PromoterModeTab() {
+  const { user } = useAuth()
+  const [status, setStatus] = useState<'loading' | 'enabled' | 'not_enabled'>('loading')
+  const [enabling, setEnabling] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    api.get('/promoter/profile')
+      .then(() => setStatus('enabled'))
+      .catch(() => setStatus('not_enabled'))
+  }, [])
+
+  const handleEnable = async () => {
+    setEnabling(true)
+    setError('')
+    try {
+      await api.post('/promoter/enable')
+      setStatus('enabled')
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to enable promoter mode')
+    } finally {
+      setEnabling(false)
+    }
+  }
+
+  if (status === 'loading') {
+    return (
+      <div className="py-12 flex justify-center">
+        <div className="h-6 w-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="max-w-lg space-y-6">
+      <div>
+        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <Megaphone className="h-5 w-5 text-blue-600" />
+          Promoter Mode
+        </h3>
+        <p className="text-sm text-gray-500 mt-1">
+          Enable promoter mode to create and manage public events, sell tickets, and discover artists — all from a single account.
+        </p>
+      </div>
+
+      {status === 'enabled' ? (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-start gap-3">
+          <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-green-800">Promoter Mode is Active</p>
+            <p className="text-sm text-green-700 mt-0.5">
+              Your promoter account is set up and ready.
+            </p>
+            <a
+              href="/dashboard/promoter"
+              className="inline-flex items-center gap-1.5 mt-3 text-sm font-medium text-green-700 underline hover:text-green-900"
+            >
+              Go to Promoter Dashboard <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
+          <ul className="space-y-2 text-sm text-gray-600">
+            <li className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-blue-500 flex-shrink-0" />
+              Create and publish public events with ticketing
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-blue-500 flex-shrink-0" />
+              Browse and book artists from the artist directory
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-blue-500 flex-shrink-0" />
+              Receive ticket payouts via Stripe Connect
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-blue-500 flex-shrink-0" />
+              Platform fee of 3-5% per ticket sold
+            </li>
+          </ul>
+          {error && (
+            <p className="text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">{error}</p>
+          )}
+          <button
+            onClick={handleEnable}
+            disabled={enabling}
+            className="w-full px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          >
+            {enabling ? 'Enabling...' : 'Enable Promoter Mode'}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function BrandingTab() {
-  const { logoUrl, businessName, updateLogo, updateBusinessName, loading } = useOwnerBrand()
+  const { logoUrl, coverImageUrl, businessName, updateLogo, updateCover, updateBusinessName, loading } = useOwnerBrand()
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [coverSaved, setCoverSaved] = useState(false)
   const [error, setError] = useState('')
   const [nameInput, setNameInput] = useState('')
   const [nameSaved, setNameSaved] = useState(false)
@@ -1019,6 +1133,34 @@ function BrandingTab() {
       setTimeout(() => setSaved(false), 3000)
     } catch {
       setError('Failed to remove logo.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleCoverUpload = async (url: string) => {
+    setSaving(true)
+    setError('')
+    try {
+      await updateCover(url)
+      setCoverSaved(true)
+      setTimeout(() => setCoverSaved(false), 3000)
+    } catch {
+      setError('Failed to save cover image.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleRemoveCover = async () => {
+    setSaving(true)
+    setError('')
+    try {
+      await updateCover(null)
+      setCoverSaved(true)
+      setTimeout(() => setCoverSaved(false), 3000)
+    } catch {
+      setError('Failed to remove cover image.')
     } finally {
       setSaving(false)
     }
@@ -1112,6 +1254,47 @@ function BrandingTab() {
           </div>
         </div>
       )}
+
+      {/* Cover / Banner */}
+      <div className="border-t pt-6">
+        <div className="mb-3">
+          <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+            <ImageIcon className="h-5 w-5 text-primary-600" />
+            Banner / Cover Photo
+          </h3>
+          <p className="text-sm text-gray-500 mt-1">
+            Displayed at the top of your public profile. Recommended: 1200 × 400 px.
+          </p>
+        </div>
+        {coverSaved && <div className="bg-green-50 text-green-700 rounded-lg px-4 py-3 text-sm mb-3">✓ Cover updated!</div>}
+        {coverImageUrl && (
+          <div className="mb-3">
+            <img src={coverImageUrl} alt="Cover" className="w-full h-28 object-cover rounded-xl border border-gray-200" />
+          </div>
+        )}
+        <ImageUpload
+          currentUrl={coverImageUrl || null}
+          uploadType="owner-cover"
+          shape="landscape"
+          onUpload={handleCoverUpload}
+          placeholder={
+            <div className="flex flex-col items-center gap-2 text-gray-400">
+              <ImageIcon className="h-8 w-8" />
+              <span className="text-xs">Upload a cover / banner image</span>
+            </div>
+          }
+        />
+        {coverImageUrl && (
+          <button
+            onClick={handleRemoveCover}
+            disabled={saving}
+            className="mt-2 flex items-center gap-1.5 text-sm text-red-600 hover:text-red-700 disabled:opacity-50"
+          >
+            <Trash2 className="h-4 w-4" />
+            Remove cover image
+          </button>
+        )}
+      </div>
 
       <div className="border-t pt-4">
         <div className="flex items-center gap-2 mb-2">

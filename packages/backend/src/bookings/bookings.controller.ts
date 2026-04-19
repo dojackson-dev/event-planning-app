@@ -1,6 +1,5 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, Headers, Query, UnauthorizedException } from '@nestjs/common';
 import { BookingsService } from './bookings.service';
-import { Booking } from '../entities/booking.entity';
 import { SupabaseService } from '../supabase/supabase.service';
 
 @Controller('bookings')

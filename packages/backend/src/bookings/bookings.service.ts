@@ -2,7 +2,6 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { SupabaseClient } from '@supabase/supabase-js';
 import { SupabaseService } from '../supabase/supabase.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
-import { Booking } from '../entities/booking.entity';
 
 /**
  * BookingsService — booking table removed.
@@ -52,7 +51,7 @@ export class BookingsService {
     return data;
   }
 
-  async create(supabase: SupabaseClient, booking: Partial<Booking>): Promise<any> {
+  async create(supabase: SupabaseClient, booking: Record<string, any>): Promise<any> {
     const { data, error } = await supabase
       .from('event')
       .insert([booking])

@@ -147,6 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email:      dbUser.email || '',
         firstName:  dbUser.first_name  || dbUser.user_metadata?.first_name  || '',
         lastName:   dbUser.last_name   || dbUser.user_metadata?.last_name   || '',
+        phone:      dbUser.phone_number || dbUser.user_metadata?.phone || '',
         role:       activeR,
         roles:      resolvedRoles,
         createdAt:  dbUser.created_at  || new Date().toISOString(),

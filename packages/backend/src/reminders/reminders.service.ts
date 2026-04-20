@@ -12,9 +12,9 @@ export class RemindersService {
     private readonly mailService: MailService,
   ) {}
 
-  // ─── Event-day reminders — runs at 8 AM daily ─────────────────────────────
+  // ─── Event-day reminders — runs at 8 AM CDT (13:00 UTC) daily ─────────────
   // Sends an email to the client for any event happening TODAY
-  @Cron('0 8 * * *')
+  @Cron('0 13 * * *')
   async sendEventDayReminders(): Promise<void> {
     const admin = this.supabaseService.getAdminClient();
     const todayStart = new Date();
@@ -53,9 +53,9 @@ export class RemindersService {
     }
   }
 
-  // ─── 3-day advance reminder — runs at 9 AM daily ──────────────────────────
+  // ─── 3-day advance reminder — runs at 9 AM CDT (14:00 UTC) daily ──────────
   // Sends a reminder 3 days before the event
-  @Cron('0 9 * * *')
+  @Cron('0 14 * * *')
   async sendThreeDayReminders(): Promise<void> {
     const admin = this.supabaseService.getAdminClient();
     const targetStart = new Date();
@@ -95,9 +95,9 @@ export class RemindersService {
     }
   }
 
-  // ─── Overdue invoice reminders — runs at 10 AM daily ─────────────────────
+  // ─── Overdue invoice reminders — runs at 10 AM CDT (15:00 UTC) daily ──────
   // Sends a reminder for any invoice that is past its due date and still unpaid
-  @Cron('0 10 * * *')
+  @Cron('0 15 * * *')
   async sendOverdueInvoiceReminders(): Promise<void> {
     const admin = this.supabaseService.getAdminClient();
     const now = new Date().toISOString();
@@ -135,9 +135,9 @@ export class RemindersService {
     }
   }
 
-  // ─── Deposit due reminders — runs at 11 AM daily ─────────────────────────
+  // ─── Deposit due reminders — runs at 11 AM CDT (16:00 UTC) daily ──────────
   // Warns clients whose deposit is not confirmed and event is within 7 days
-  @Cron('0 11 * * *')
+  @Cron('0 16 * * *')
   async sendDepositDueReminders(): Promise<void> {
     const admin = this.supabaseService.getAdminClient();
     const sevenDaysOut = new Date();

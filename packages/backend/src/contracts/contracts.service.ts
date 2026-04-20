@@ -22,37 +22,28 @@ export class ContractsService {
   }
 
   async findByOwner(supabase: SupabaseClient, ownerId: string, venueId?: string): Promise<any[]> {
-    // Use admin client to bypass RLS — contracts linked via intake_form_id (no booking_id)
-    // are not visible through the old booking-centric RLS policies.
-    const admin = this.supabaseService.getAdminClient();
-
-    if (venueId) {
-      const { data: venueEvents } = await admin.from('event').select('id, intake_form_id').eq('venue_id', venueId);
-      const eventIds = (venueEvents || []).map((e: any) => e.id);
-      const intakeFormIds = (venueEvents || []).map((e: any) => e.intake_form_id).filter(Boolean);
-      if (eventIds.length === 0 && intakeFormIds.length === 0) return [];
-      const { data: eventBookings } = await admin.from('booking').select('id').in('event_id', eventIds);
-      const bookingIds = (eventBookings || []).map((b: any) => b.id);
-      const orParts = [
-        bookingIds.length > 0 ? `booking_id.in.(${bookingIds.join(',')})` : null,
-        intakeFormIds.length > 0 ? `intake_form_id.in.(${intakeFormIds.join(',')})` : null,
-      ].filter(Boolean).join(',');
-      const { data, error } = await admin
-        .from('contracts')
-        .select('*')
-        .eq('owner_id', ownerId)
-        .or(orParts)
-        .order('created_at', { ascending: false });
-      if (error) { console.error('[ContractsService] findByOwner venue filter error:', error.message); return []; }
-      return data || [];
-    }
-
-    const { data, error } = await admin
+    let query = supabase
       .from('contracts')
       .select('*')
       .eq('owner_id', ownerId)
       .order('created_at', { ascending: false });
-    if (error) { console.error('[ContractsService] findByOwner error:', error.message); return []; }
+
+    if (venueId) {
+      const admin = this.supabaseService.getAdminClient();
+      const { data: venueEvents } = await admin.from('event').select('id, intake_form_id').eq('venue_id', venueId);
+      if (!venueEvents || venueEvents.length === 0) return [];
+      const eventIds = venueEvents.map((e: any) => e.id);
+      const intakeIds = venueEvents.map((e: any) => e.intake_form_id).filter(Boolean);
+      // Filter by event_id or intake_form_id
+      if (intakeIds.length > 0) {
+        query = query.in('intake_form_id', intakeIds);
+      } else {
+        query = query.in('event_id', eventIds);
+      }
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
     return data || [];
   }
 

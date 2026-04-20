@@ -5,7 +5,7 @@ import api from '@/lib/api'
 import { ExternalLink, CheckCircle, AlertCircle, Loader2, Building2 } from 'lucide-react'
 
 interface ConnectBankButtonProps {
-  role: 'owner' | 'vendor'
+  role: 'owner' | 'vendor' | 'artist'
   email: string
 }
 

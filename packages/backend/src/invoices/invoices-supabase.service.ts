@@ -78,7 +78,7 @@ export class InvoicesService {
     if (invoice.client_phone) return invoice.client_phone;
     if (invoice.booking_id) {
       const { data: booking } = await supabase
-        .from('booking')
+        .from('event')
         .select('contact_phone')
         .eq('id', invoice.booking_id)
         .single();
@@ -447,10 +447,10 @@ export class InvoicesService {
       }
     }
 
-    // Fall back to booking
+    // Fall back to event (bookings are now events with deposit paid)
     if (!clientPhone && invoice.booking_id) {
       const { data: booking } = await supabase
-        .from('booking')
+        .from('event')
         .select('contact_name, contact_phone, contact_email')
         .eq('id', invoice.booking_id)
         .single();

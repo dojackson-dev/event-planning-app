@@ -3,6 +3,9 @@ import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { SupabaseService } from '../supabase/supabase.service';
 import { VendorInvoicesService } from '../vendor-invoices/vendor-invoices.service';
+import { ArtistInvoicesService } from '../artist-invoices/artist-invoices.service';
+import { PromoterInvoicesService } from '../promoter-invoices/promoter-invoices.service';
+import { PromoterEventsService } from '../promoter-events/promoter-events.service';
 import { AffiliatesService } from '../affiliates/affiliates.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 
@@ -17,6 +20,9 @@ export class StripeService {
     private readonly configService: ConfigService,
     private readonly supabaseService: SupabaseService,
     private readonly vendorInvoicesService: VendorInvoicesService,
+    private readonly artistInvoicesService: ArtistInvoicesService,
+    private readonly promoterInvoicesService: PromoterInvoicesService,
+    private readonly promoterEventsService: PromoterEventsService,
     @Inject(forwardRef(() => AffiliatesService))
     private readonly affiliatesService: AffiliatesService,
     private readonly smsNotifications: SmsNotificationsService,
@@ -322,6 +328,33 @@ export class StripeService {
       return;
     }
 
+    // ── Artist invoice payment ────────────────────────────────────────────────
+    if (session.metadata?.artist_invoice_id) {
+      const paymentIntentId = typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : (session.payment_intent as Stripe.PaymentIntent | null)?.id ?? null;
+      await this.artistInvoicesService.markInvoicePaidBySession(session.id, paymentIntentId);
+      this.logger.log(`Artist invoice checkout complete — session ${session.id}`);
+      return;
+    }
+
+    // ── Ticket purchase (public event) ─────────────────────────────────────
+    if (session.metadata?.public_event_id) {
+      await this.promoterEventsService.markTicketsSoldBySession(session.id);
+      this.logger.log(`Ticket purchase complete — session ${session.id}`);
+      return;
+    }
+
+    // ── Promoter invoice payment ──────────────────────────────────────────────
+    if (session.metadata?.promoter_invoice_id) {
+      const paymentIntentId = typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : (session.payment_intent as Stripe.PaymentIntent | null)?.id ?? null;
+      await this.promoterInvoicesService.markInvoicePaidBySession(session.id, paymentIntentId);
+      this.logger.log(`Promoter invoice checkout complete — session ${session.id}`);
+      return;
+    }
+
     // ── Owner subscription checkout ──────────────────────────────────────────
     const ownerAccountId = session.client_reference_id;
     if (!ownerAccountId) return;
@@ -403,11 +436,7 @@ export class StripeService {
     const clientName = invoice.client_name || 'Valued Client';
     const invoiceNumber = invoice.invoice_number || invoiceId;
 
-    // Fallback: look up phone from booking or intake form
-    if (!clientPhone && invoice.booking_id) {
-      const { data: booking } = await admin.from('booking').select('contact_phone').eq('id', invoice.booking_id).maybeSingle();
-      clientPhone = (booking as any)?.contact_phone ?? null;
-    }
+    // Fallback: look up phone from intake form
     if (!clientPhone && invoice.intake_form_id) {
       const { data: form } = await admin.from('intake_forms').select('contact_phone').eq('id', invoice.intake_form_id).maybeSingle();
       clientPhone = (form as any)?.contact_phone ?? null;
@@ -805,6 +834,198 @@ export class StripeService {
     return { success: true };
   }
 
+  // ─── Promoter Stripe Connect ───────────────────────────────────────────────
+
+  /**
+   * Create (or retrieve) a Stripe Connect Express account for a promoter,
+   * then return a one-time onboarding URL.
+   */
+  async createPromoterConnectOnboarding(userId: string, email: string): Promise<string> {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: promoter } = await admin
+      .from('promoter_accounts')
+      .select('id, stripe_account_id, stripe_connect_status')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!promoter) throw new Error('Promoter account not found');
+
+    let connectId = promoter.stripe_account_id;
+
+    if (!connectId) {
+      const account = await this.stripe.accounts.create({
+        type: 'express',
+        email,
+        capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+        business_profile: { url: this.frontendUrl },
+        metadata: { promoter_account_id: promoter.id },
+      });
+      connectId = account.id;
+
+      await admin
+        .from('promoter_accounts')
+        .update({ stripe_account_id: connectId, stripe_connect_status: 'pending' })
+        .eq('id', promoter.id);
+    }
+
+    const accountLink = await this.stripe.accountLinks.create({
+      account: connectId,
+      refresh_url: `${this.frontendUrl}/dashboard/promoter?connect=refresh`,
+      return_url: `${this.frontendUrl}/dashboard/promoter?connect=success`,
+      type: 'account_onboarding',
+    });
+
+    return accountLink.url;
+  }
+
+  /**
+   * Get the Connect account status for a promoter.
+   * If status is pending, does a live Stripe check.
+   */
+  async getPromoterConnectStatus(userId: string): Promise<{ status: string; connectId: string | null }> {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data } = await admin
+      .from('promoter_accounts')
+      .select('id, stripe_account_id, stripe_connect_status')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    let status = data?.stripe_connect_status ?? 'not_connected';
+    const connectId = data?.stripe_account_id ?? null;
+
+    if (status === 'pending' && connectId) {
+      try {
+        const account = await this.stripe.accounts.retrieve(connectId);
+        const isActive = account.details_submitted && account.charges_enabled && account.payouts_enabled;
+        if (isActive) {
+          status = 'active';
+          await admin.from('promoter_accounts').update({ stripe_connect_status: 'active' }).eq('id', data!.id);
+          this.logger.log(`Promoter Connect ${connectId} auto-upgraded to active via live check`);
+        }
+      } catch (err) {
+        this.logger.warn(`Live Stripe check failed for promoter ${connectId}: ${(err as Error).message}`);
+      }
+    }
+
+    return { status, connectId };
+  }
+
+  /**
+   * Reset promoter Stripe Connect — clears stored ID so a fresh account is created on next attempt.
+   */
+  async resetPromoterConnect(userId: string): Promise<{ success: boolean }> {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: promoter } = await admin
+      .from('promoter_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (!promoter) throw new Error('Promoter account not found');
+    await admin
+      .from('promoter_accounts')
+      .update({ stripe_account_id: null, stripe_connect_status: 'not_connected' })
+      .eq('id', promoter.id);
+    return { success: true };
+  }
+
+  // ─── Artist Stripe Connect ─────────────────────────────────────────────────
+
+  /**
+   * Create (or retrieve) a Stripe Connect Express account for an artist,
+   * then return a one-time onboarding URL.
+   */
+  async createArtistConnectOnboarding(userId: string, email: string): Promise<string> {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: artist } = await admin
+      .from('artist_accounts')
+      .select('id, stripe_account_id, stripe_connect_status')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!artist) throw new Error('Artist account not found');
+
+    let connectId = artist.stripe_account_id;
+
+    if (!connectId) {
+      const account = await this.stripe.accounts.create({
+        type: 'express',
+        email,
+        capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+        business_profile: { url: this.frontendUrl },
+        metadata: { artist_account_id: artist.id },
+      });
+      connectId = account.id;
+
+      await admin
+        .from('artist_accounts')
+        .update({ stripe_account_id: connectId, stripe_connect_status: 'pending' })
+        .eq('id', artist.id);
+    }
+
+    const accountLink = await this.stripe.accountLinks.create({
+      account: connectId,
+      refresh_url: `${this.frontendUrl}/artist/dashboard?connect=refresh`,
+      return_url: `${this.frontendUrl}/artist/dashboard?connect=success`,
+      type: 'account_onboarding',
+    });
+
+    return accountLink.url;
+  }
+
+  /**
+   * Get the Connect account status for an artist.
+   * If status is pending, does a live Stripe check so we don't need webhooks in dev.
+   */
+  async getArtistConnectStatus(userId: string): Promise<{ status: string; connectId: string | null }> {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data } = await admin
+      .from('artist_accounts')
+      .select('id, stripe_account_id, stripe_connect_status')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    let status = data?.stripe_connect_status ?? 'not_connected';
+    const connectId = data?.stripe_account_id ?? null;
+
+    if (status === 'pending' && connectId) {
+      try {
+        const account = await this.stripe.accounts.retrieve(connectId);
+        const isActive = account.details_submitted && account.charges_enabled && account.payouts_enabled;
+        if (isActive) {
+          status = 'active';
+          await admin.from('artist_accounts').update({ stripe_connect_status: 'active' }).eq('id', data!.id);
+          this.logger.log(`Artist Connect ${connectId} auto-upgraded to active via live check`);
+        }
+      } catch (err) {
+        this.logger.warn(`Live Stripe check failed for artist ${connectId}: ${(err as Error).message}`);
+      }
+    }
+
+    return { status, connectId };
+  }
+
+  /**
+   * Reset artist Stripe Connect — clears stored ID so a fresh account is created on next attempt.
+   */
+  async resetArtistConnect(userId: string): Promise<{ success: boolean }> {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: artist } = await admin
+      .from('artist_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (!artist) throw new Error('Artist account not found');
+    await admin
+      .from('artist_accounts')
+      .update({ stripe_account_id: null, stripe_connect_status: 'not_connected' })
+      .eq('id', artist.id);
+    return { success: true };
+  }
+
   /**
    * Charge a client and route funds to an owner's Connect account.
    * DoVenueSuite takes 5% as application_fee_amount.
@@ -1015,7 +1236,7 @@ export class StripeService {
         total_amount, amount_paid, amount_due, status,
         issue_date, due_date, notes, terms,
         deposit_percentage, deposit_due_days_before, final_payment_due_days_before,
-        booking:booking(event:event(id, name, date)),
+        event:event!event_id(id, name, date),
         items:invoice_items(id, description, quantity, unit_price, amount, item_type)
       `)
       .eq('public_token', token)
@@ -1115,6 +1336,26 @@ export class StripeService {
       return;
     }
 
+    // Check promoter_accounts
+    if (account.metadata?.promoter_account_id) {
+      await admin
+        .from('promoter_accounts')
+        .update({ stripe_connect_status: newStatus })
+        .eq('id', account.metadata.promoter_account_id);
+      this.logger.log(`Promoter Connect ${account.id} → ${newStatus}`);
+      return;
+    }
+
+    // Check artist_accounts
+    if (account.metadata?.artist_account_id) {
+      await admin
+        .from('artist_accounts')
+        .update({ stripe_connect_status: newStatus })
+        .eq('id', account.metadata.artist_account_id);
+      this.logger.log(`Artist Connect ${account.id} → ${newStatus}`);
+      return;
+    }
+
     // Fallback: match by stripe_account_id / stripe_connect_id
     await admin
       .from('owner_accounts')
@@ -1123,6 +1364,16 @@ export class StripeService {
 
     await admin
       .from('vendor_accounts')
+      .update({ stripe_connect_status: newStatus })
+      .eq('stripe_account_id', account.id);
+
+    await admin
+      .from('promoter_accounts')
+      .update({ stripe_connect_status: newStatus })
+      .eq('stripe_account_id', account.id);
+
+    await admin
+      .from('artist_accounts')
       .update({ stripe_connect_status: newStatus })
       .eq('stripe_account_id', account.id);
   }

@@ -369,15 +369,8 @@ export class IntakeFormsService {
       event = createdEvent;
     }
 
-    // Guard: reuse existing booking if one already exists for this event (e.g. client already confirmed via invite).
-    const { data: existingBooking } = await supabaseAdmin
-      .from('booking')
-      .select('*, event(*)')
-      .eq('event_id', event.id)
-      .maybeSingle();
-
-    if (existingBooking) {
-      // A booking already exists — just mark the intake form as converted and return.
+    // Guard: event is already a booking (deposit paid) — just mark intake form converted.
+    if (event.client_status === 'deposit_paid' || event.client_status === 'completed' || Number(event.deposit_amount ?? 0) > 0) {
       await supabase
         .from('intake_forms')
         .update({ status: 'converted' })
@@ -385,35 +378,32 @@ export class IntakeFormsService {
         .eq('user_id', userId);
 
       return {
-        booking: existingBooking,
+        booking: event,
         event,
         message: 'Successfully linked to existing booking',
       };
     }
 
-    // Create the booking
-    const bookingData = {
-      user_id: userId,
-      event_id: event.id,
-      booking_date: new Date().toISOString().split('T')[0],
-      status: 'pending',
-      contact_name: intakeForm.contact_name,
-      contact_email: intakeForm.contact_email,
-      contact_phone: intakeForm.contact_phone ? normalizePhone(intakeForm.contact_phone) : null,
-      special_requests: [
-        intakeForm.special_requests,
-        intakeForm.catering_requirements ? `Catering: ${intakeForm.catering_requirements}` : null,
-        intakeForm.equipment_needs ? `Equipment: ${intakeForm.equipment_needs}` : null,
-        intakeForm.dietary_restrictions ? `Dietary: ${intakeForm.dietary_restrictions}` : null,
-        intakeForm.accessibility_requirements ? `Accessibility: ${intakeForm.accessibility_requirements}` : null,
-      ].filter(Boolean).join('\n'),
-      notes: `Converted from intake form. Budget range: ${intakeForm.budget_range || 'Not specified'}`,
-    };
-
+    // "Convert" = update the event with client contact info and mark as pending confirmation
     const { data: booking, error: bookingError } = await supabaseAdmin
-      .from('booking')
-      .insert([bookingData])
-      .select('*, event(*)')
+      .from('event')
+      .update({
+        contact_name: intakeForm.contact_name,
+        contact_email: intakeForm.contact_email,
+        contact_phone: intakeForm.contact_phone ? normalizePhone(intakeForm.contact_phone) : null,
+        special_requests: [
+          intakeForm.special_requests,
+          intakeForm.catering_requirements ? `Catering: ${intakeForm.catering_requirements}` : null,
+          intakeForm.equipment_needs ? `Equipment: ${intakeForm.equipment_needs}` : null,
+          intakeForm.dietary_restrictions ? `Dietary: ${intakeForm.dietary_restrictions}` : null,
+          intakeForm.accessibility_requirements ? `Accessibility: ${intakeForm.accessibility_requirements}` : null,
+        ].filter(Boolean).join('\n'),
+        notes: `Converted from intake form. Budget range: ${intakeForm.budget_range || 'Not specified'}`,
+        client_status: 'pending',
+        client_confirmation_status: intakeForm.contact_phone ? 'pending' : null,
+      })
+      .eq('id', event.id)
+      .select('*')
       .single();
 
     if (bookingError) throw bookingError;
@@ -469,22 +459,6 @@ export class IntakeFormsService {
         );
       } catch (smsErr) {
         console.warn('[convertToBooking] SMS invite failed:', smsErr);
-      }
-    }
-
-    // Always mark the booking as pending client confirmation when there's a contact phone.
-    // This allows ANY phone-only client (even without a users table entry) to see the
-    // confirmation card when they log into the client portal.
-    if (intakeForm.contact_phone) {
-      try {
-        await supabaseAdmin
-          .from('booking')
-          .update({ client_confirmation_status: 'pending' })
-          .eq('id', booking.id);
-        booking.client_confirmation_status = 'pending';
-      } catch {
-        // Column may not exist yet if migration hasn't been run — safe to ignore
-        console.warn('[convertToBooking] client_confirmation_status column missing — run add-client-confirmation-to-booking.sql migration');
       }
     }
 

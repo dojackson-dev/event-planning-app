@@ -1070,4 +1070,21 @@ export class ClientPortalService {
     }
     return data || [];
   }
+
+  async respondToEstimate(
+    estimateId: string,
+    clientId: string,
+    clientPhone: string,
+    action: 'approved' | 'rejected',
+  ): Promise<{ success: boolean }> {
+    const supabase = this.supabaseService.getAdminClient();
+    const newStatus = action === 'approved' ? 'approved' : 'rejected';
+    const { error } = await supabase
+      .from('estimates')
+      .update({ status: newStatus, responded_at: new Date().toISOString() })
+      .eq('id', estimateId);
+
+    if (error) throw error;
+    return { success: true };
+  }
 }

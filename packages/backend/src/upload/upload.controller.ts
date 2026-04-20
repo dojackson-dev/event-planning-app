@@ -390,4 +390,62 @@ export class UploadController {
     const { data: { publicUrl } } = admin.storage.from('promoter-images').getPublicUrl(path);
     return { url: publicUrl };
   }
+
+  // ─────────────────────────────────────────────
+  // POST /upload/attachment
+  // General file attachment for events, contracts, invoices
+  // Accepts: PDF, Word, Excel, images — up to 20 MB
+  // Returns: { url, fileName, mimeType, sizeBytes }
+  // ─────────────────────────────────────────────
+  @Post('attachment')
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
+  async uploadAttachment(
+    @UploadedFile() file: MulterFile,
+    @Headers('authorization') authorization: string,
+  ) {
+    const userId = await this.getUserId(authorization);
+
+    if (!file) throw new BadRequestException('No file provided');
+
+    const MAX_BYTES = 20 * 1024 * 1024; // 20 MB
+    const ALLOWED_ATTACHMENT_TYPES = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
+      'text/plain',
+      'text/csv',
+    ];
+
+    if (!ALLOWED_ATTACHMENT_TYPES.includes(file.mimetype)) {
+      throw new BadRequestException('Unsupported file type. Allowed: PDF, Word, Excel, images, CSV, TXT');
+    }
+    if (file.size > MAX_BYTES) {
+      throw new BadRequestException('File must be under 20 MB');
+    }
+
+    const admin = this.supabaseService.getAdminClient();
+    await this.ensureBucket(admin, 'attachments');
+
+    // Sanitize filename — strip special chars, keep extension
+    const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const path = `${userId}/${Date.now()}-${safeName}`;
+
+    const { error: uploadError } = await admin.storage
+      .from('attachments')
+      .upload(path, file.buffer, { contentType: file.mimetype, upsert: false });
+
+    if (uploadError) throw new BadRequestException('Upload failed: ' + uploadError.message);
+
+    const { data: { publicUrl } } = admin.storage.from('attachments').getPublicUrl(path);
+
+    return {
+      url:       publicUrl,
+      fileName:  safeName,
+      mimeType:  file.mimetype,
+      sizeBytes: file.size,
+    };
+  }
 }

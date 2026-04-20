@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { SupabaseModule } from './supabase/supabase.module';
@@ -33,12 +34,15 @@ import { PromoterInvoicesModule } from './promoter-invoices/promoter-invoices.mo
 import { PromoterBookingsModule } from './promoter-bookings/promoter-bookings.module';
 import { PromoterEventsModule } from './promoter-events/promoter-events.module';
 import { TeamModule } from './team/team.module';
+import { RemindersModule } from './reminders/reminders.module';
+import { AuditModule } from './audit/audit.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    ScheduleModule.forRoot(),
     SupabaseModule,
     AuthModule,
     ServiceItemsModule,
@@ -70,6 +74,8 @@ import { TeamModule } from './team/team.module';
     PromoterBookingsModule,
     PromoterEventsModule,
     TeamModule,
+    RemindersModule,
+    AuditModule,
   ],
   controllers: [AppController],
   providers: [AppService],

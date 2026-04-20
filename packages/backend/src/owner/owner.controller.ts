@@ -7,6 +7,7 @@ import {
   Body,
   Param,
   Headers,
+  Query,
   BadRequestException,
   UnauthorizedException,
   NotFoundException,
@@ -496,6 +497,200 @@ export class OwnerController {
 
     const { error } = await admin
       .from('venues')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw new BadRequestException(error.message);
+    return { success: true };
+  }
+
+  // ─────────────────────────────────────────────
+  // GET /owner/analytics/revenue?months=6
+  // Owner revenue summary: monthly revenue, top event types, paid invoice totals
+  // ─────────────────────────────────────────────
+  @Get('analytics/revenue')
+  async getRevenueAnalytics(
+    @Headers('authorization') authorization: string,
+    @Query('months') monthsParam?: string,
+  ) {
+    const userId = await this.getUserId(authorization);
+    const admin = this.supabaseService.getAdminClient();
+    const ownerAccountId = await this.getOwnerAccountId(userId, admin);
+    if (!ownerAccountId) throw new BadRequestException('Owner account not found');
+
+    const months = Math.min(parseInt(monthsParam ?? '6', 10) || 6, 24);
+    const since = new Date();
+    since.setMonth(since.getMonth() - months);
+
+    // ── Total revenue from paid invoices ─────────────────────────────────────
+    const { data: paidInvoices } = await admin
+      .from('invoices')
+      .select('total_amount, paid_amount, created_at, status')
+      .eq('owner_account_id', ownerAccountId)
+      .in('status', ['paid', 'partial'])
+      .gte('created_at', since.toISOString());
+
+    const totalRevenue = (paidInvoices ?? []).reduce((sum, inv) => {
+      const paid = inv.status === 'paid' ? (inv.total_amount ?? 0) : (inv.paid_amount ?? 0);
+      return sum + paid;
+    }, 0);
+
+    // ── Monthly breakdown ─────────────────────────────────────────────────────
+    const monthlyMap: Record<string, number> = {};
+    for (const inv of paidInvoices ?? []) {
+      const month = inv.created_at.slice(0, 7); // 'YYYY-MM'
+      const paid = inv.status === 'paid' ? (inv.total_amount ?? 0) : (inv.paid_amount ?? 0);
+      monthlyMap[month] = (monthlyMap[month] ?? 0) + paid;
+    }
+    const monthly = Object.entries(monthlyMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, revenue]) => ({ month, revenue }));
+
+    // ── Pending (unpaid invoices) ─────────────────────────────────────────────
+    const { data: pendingInvoices } = await admin
+      .from('invoices')
+      .select('total_amount')
+      .eq('owner_account_id', ownerAccountId)
+      .in('status', ['sent', 'draft']);
+
+    const pendingRevenue = (pendingInvoices ?? []).reduce(
+      (sum, inv) => sum + (inv.total_amount ?? 0),
+      0,
+    );
+
+    // ── Event count by type ───────────────────────────────────────────────────
+    const { data: events } = await admin
+      .from('event')
+      .select('event_type')
+      .eq('owner_account_id', ownerAccountId)
+      .gte('created_at', since.toISOString());
+
+    const eventTypeMap: Record<string, number> = {};
+    for (const ev of events ?? []) {
+      const t = ev.event_type ?? 'other';
+      eventTypeMap[t] = (eventTypeMap[t] ?? 0) + 1;
+    }
+    const topEventTypes = Object.entries(eventTypeMap)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5)
+      .map(([type, count]) => ({ type, count }));
+
+    // ── Total events this period ──────────────────────────────────────────────
+    const totalEvents = events?.length ?? 0;
+
+    return {
+      periodMonths: months,
+      totalRevenue: Math.round(totalRevenue * 100) / 100,
+      pendingRevenue: Math.round(pendingRevenue * 100) / 100,
+      totalEvents,
+      monthly,
+      topEventTypes,
+    };
+  }
+
+  // ─────────────────────────────────────────────
+  // GET /owner/venues/:venueId/blackouts
+  // Lists all blackout date ranges for a venue
+  // ─────────────────────────────────────────────
+  @Get('venues/:venueId/blackouts')
+  async getBlackouts(
+    @Headers('authorization') authorization: string,
+    @Param('venueId') venueId: string,
+  ) {
+    const userId = await this.getUserId(authorization);
+    const admin = this.supabaseService.getAdminClient();
+    const ownerAccountId = await this.getOwnerAccountId(userId, admin);
+    if (!ownerAccountId) throw new BadRequestException('Owner account not found');
+
+    // Verify ownership
+    const { data: venue } = await admin
+      .from('venues')
+      .select('id')
+      .eq('id', venueId)
+      .eq('owner_account_id', ownerAccountId)
+      .maybeSingle();
+    if (!venue) throw new NotFoundException('Venue not found');
+
+    const { data, error } = await admin
+      .from('venue_blackout_dates')
+      .select('id, start_date, end_date, reason, created_at')
+      .eq('venue_id', venueId)
+      .order('start_date', { ascending: true });
+
+    if (error) throw new BadRequestException(error.message);
+    return data ?? [];
+  }
+
+  // ─────────────────────────────────────────────
+  // POST /owner/venues/:venueId/blackouts
+  // Creates a blackout date range for a venue
+  // ─────────────────────────────────────────────
+  @Post('venues/:venueId/blackouts')
+  async createBlackout(
+    @Headers('authorization') authorization: string,
+    @Param('venueId') venueId: string,
+    @Body() body: { startDate: string; endDate: string; reason?: string },
+  ) {
+    if (!body.startDate || !body.endDate) {
+      throw new BadRequestException('startDate and endDate are required');
+    }
+    const userId = await this.getUserId(authorization);
+    const admin = this.supabaseService.getAdminClient();
+    const ownerAccountId = await this.getOwnerAccountId(userId, admin);
+    if (!ownerAccountId) throw new BadRequestException('Owner account not found');
+
+    const { data: venue } = await admin
+      .from('venues')
+      .select('id')
+      .eq('id', venueId)
+      .eq('owner_account_id', ownerAccountId)
+      .maybeSingle();
+    if (!venue) throw new NotFoundException('Venue not found');
+
+    const { data, error } = await admin
+      .from('venue_blackout_dates')
+      .insert({
+        venue_id:   venueId,
+        start_date: body.startDate,
+        end_date:   body.endDate,
+        reason:     body.reason ?? null,
+      })
+      .select('id, start_date, end_date, reason, created_at')
+      .single();
+
+    if (error) throw new BadRequestException(error.message);
+    return data;
+  }
+
+  // ─────────────────────────────────────────────
+  // DELETE /owner/venues/:venueId/blackouts/:id
+  // Removes a blackout date range
+  // ─────────────────────────────────────────────
+  @Delete('venues/:venueId/blackouts/:id')
+  async deleteBlackout(
+    @Headers('authorization') authorization: string,
+    @Param('venueId') venueId: string,
+    @Param('id') id: string,
+  ) {
+    const userId = await this.getUserId(authorization);
+    const admin = this.supabaseService.getAdminClient();
+    const ownerAccountId = await this.getOwnerAccountId(userId, admin);
+    if (!ownerAccountId) throw new BadRequestException('Owner account not found');
+
+    // Verify the blackout belongs to a venue owned by this user
+    const { data: existing } = await admin
+      .from('venue_blackout_dates')
+      .select('id, venue_id, venues!inner(owner_account_id)')
+      .eq('id', id)
+      .eq('venue_id', venueId)
+      .maybeSingle();
+
+    if (!existing || (existing.venues as any)?.owner_account_id !== ownerAccountId) {
+      throw new NotFoundException('Blackout date not found');
+    }
+
+    const { error } = await admin
+      .from('venue_blackout_dates')
       .delete()
       .eq('id', id);
 

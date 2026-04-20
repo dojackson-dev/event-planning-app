@@ -444,4 +444,32 @@ export class MailService {
       // Non-fatal
     }
   }
+
+  async sendReminderEmail(params: {
+    toEmail: string;
+    toName: string;
+    subject: string;
+    body: string;
+  }): Promise<void> {
+    const htmlBody = params.body.replace(/\n/g, '<br>');
+    const mailOptions = {
+      from: `"DoVenueSuite" <${process.env.SMTP_FROM || 'noreply@dovenue.com'}>`,
+      to: params.toEmail,
+      subject: params.subject,
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1f2937;">
+          <p>Hi ${params.toName},</p>
+          <p>${htmlBody}</p>
+          <p style="margin-top:32px;color:#6b7280;font-size:13px;">— The DoVenueSuite Team</p>
+        </div>
+      `,
+    };
+    try {
+      await this.transporter.sendMail(mailOptions);
+      console.log('[MailService] Reminder sent to', params.toEmail, '—', params.subject);
+    } catch (error) {
+      console.error('[MailService] Reminder email failed:', error);
+      // Non-fatal — cron jobs should not crash on email failure
+    }
+  }
 }

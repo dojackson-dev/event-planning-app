@@ -59,13 +59,13 @@ export default function DashboardPage() {
 
   const fetchDashboardData = async () => {
     try {
-      // Fetch events (still needed for upcoming bookings)
+      // Fetch events
       const venueParams = activeVenue ? { venueId: activeVenue.id } : {}
-      const eventsRes = await api.get<Event[]>('/events', { params: venueParams })
+      const eventsRes = await api.get<Event[]>('/events', { params: venueParams }).catch(() => ({ data: [] as Event[] }))
       const events = eventsRes.data
 
       // Fetch invoices for unpaid count
-      const invoicesRes = await api.get<Invoice[]>('/invoices')
+      const invoicesRes = await api.get<Invoice[]>('/invoices').catch(() => ({ data: [] as Invoice[] }))
       const invoices = invoicesRes.data
       // Count all invoices where money is still owed (any status except paid/cancelled)
       const unpaidInvoices = invoices.filter(inv =>
@@ -75,8 +75,8 @@ export default function DashboardPage() {
       )
       const unpaidAmount = unpaidInvoices.reduce((sum, inv) => sum + Number(inv.amount_due ?? 0), 0)
 
-      // Fetch bookings (backend already filters: client_status IN deposit_paid | completed)
-      const bookingsRes = await api.get<Booking[]>('/bookings')
+      // Fetch bookings (gracefully handle missing table)
+      const bookingsRes = await api.get<Booking[]>('/bookings').catch(() => ({ data: [] as Booking[] }))
       const bookings = bookingsRes.data
       // Count events where a deposit amount > 0 was charged (confirmed bookings)
       const paidDepositBookings = bookings.filter(b =>

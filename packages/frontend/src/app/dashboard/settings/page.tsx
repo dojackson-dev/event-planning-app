@@ -91,9 +91,14 @@ function VenueFormFields({ form, onChange }: { form: any; onChange: (field: stri
 }
 
 function SettingsPageContent() {
-  const { user, logout } = useAuth()
+  const { user, logout, activeRole } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
+
+  // Associates cannot access account settings
+  useEffect(() => {
+    if (activeRole === 'associate') router.replace('/dashboard')
+  }, [activeRole, router])
   
   // Profile form state
   const [firstName, setFirstName] = useState('')

@@ -32,6 +32,7 @@ import { ArtistBookingsModule } from './artist-bookings/artist-bookings.module';
 import { PromoterInvoicesModule } from './promoter-invoices/promoter-invoices.module';
 import { PromoterBookingsModule } from './promoter-bookings/promoter-bookings.module';
 import { PromoterEventsModule } from './promoter-events/promoter-events.module';
+import { TeamModule } from './team/team.module';
 
 @Module({
   imports: [
@@ -68,6 +69,7 @@ import { PromoterEventsModule } from './promoter-events/promoter-events.module';
     PromoterInvoicesModule,
     PromoterBookingsModule,
     PromoterEventsModule,
+    TeamModule,
   ],
   controllers: [AppController],
   providers: [AppService],

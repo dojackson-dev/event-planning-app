@@ -407,4 +407,41 @@ export class MailService {
       // Non-fatal — SMS is already sent; don't break the contract send flow
     }
   }
+
+  /** Send a team associate invitation email */
+  async sendTeamInvitation(params: {
+    toEmail: string;
+    inviteUrl: string;
+    ownerName: string;
+    businessName: string;
+  }): Promise<void> {
+    try {
+      const mailOptions = {
+        from: `"DoVenueSuite" <${process.env.SMTP_FROM || 'noreply@dovenue.com'}>`,
+        to: params.toEmail,
+        subject: `You've been invited to join ${params.businessName} on DoVenueSuite`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #333;">You're Invited!</h2>
+            <p>${params.ownerName} has invited you to join <strong>${params.businessName}</strong> as an associate on DoVenueSuite.</p>
+            <p>As an associate, you'll be able to view events, clients, calendars, and more.</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${params.inviteUrl}"
+                 style="background-color: #6366f1; color: white; padding: 14px 32px; text-decoration: none; border-radius: 6px; display: inline-block; font-size: 16px;">
+                Accept Invitation
+              </a>
+            </div>
+            <p style="color: #666; font-size: 14px;">This invitation expires in 7 days. If you didn't expect this email, you can safely ignore it.</p>
+            <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
+            <p style="color: #999; font-size: 12px; text-align: center;">DoVenueSuite – Venue Management Made Simple</p>
+          </div>
+        `,
+      };
+      await this.transporter.sendMail(mailOptions);
+      console.log('[MailService] Team invite sent to', params.toEmail);
+    } catch (error) {
+      console.error('[MailService] Team invite email failed:', error);
+      // Non-fatal
+    }
+  }
 }

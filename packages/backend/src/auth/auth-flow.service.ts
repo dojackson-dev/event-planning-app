@@ -661,6 +661,20 @@ export class AuthFlowService {
       ownerAccountId = membership?.owner_account_id ?? null;
     }
 
+    // Associates: load the owner_account they belong to
+    if (this.userHasRole(user, 'associate')) {
+      const { data: membership } = await adminClient
+        .from('memberships')
+        .select('owner_account_id, owner_accounts(subscription_status)')
+        .eq('user_id', user.id)
+        .eq('role', 'associate')
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+      ownerAccountId = membership?.owner_account_id ?? null;
+      subscriptionStatus = (membership?.owner_accounts as any)?.subscription_status ?? null;
+    }
+
     // Fetch vendor account if user is a vendor
     let vendorAccount: any = null;
     if (this.userHasRole(user, 'vendor')) {

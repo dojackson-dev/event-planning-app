@@ -24,8 +24,9 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 // ---------- helpers ----------
 
 function getRoleDashboard(role: UserRole): string {
-  if (role === UserRole.ADMIN)  return '/admin'
-  if (role === UserRole.VENDOR) return '/vendors/dashboard'
+  if (role === UserRole.ADMIN)     return '/admin'
+  if (role === UserRole.VENDOR)    return '/vendors/dashboard'
+  if (role === UserRole.ASSOCIATE) return '/dashboard'
   return '/dashboard'
 }
 
@@ -130,7 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Use the unified login endpoint — handles all role types and returns roles[]
       const response = await api.post('/auth/flow/unified/login', credentials)
-      const { session, user: dbUser, roles: backendRoles } = response.data
+      const { session, user: dbUser, roles: backendRoles, ownerAccountId: backendOwnerAccountId } = response.data
 
       console.log('✅ [LOGIN] Got response:', dbUser?.email, 'roles:', backendRoles)
 
@@ -163,6 +164,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('user_role',    activeR)   // legacy key
       if (session.refresh_token) {
         localStorage.setItem('refresh_token', session.refresh_token)
+      }
+      if (backendOwnerAccountId) {
+        localStorage.setItem('owner_account_id', backendOwnerAccountId)
       }
 
       setUser(newUser)

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import {
   CreditCard,
@@ -134,7 +135,8 @@ function connectBadge(status: string) {
 }
 
 export default function BillingPage() {
-  const { user } = useAuth()
+  const { user, activeRole } = useAuth()
+  const router = useRouter()
   const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null)
   const [connectStatus, setConnectStatus] = useState<ConnectStatus | null>(null)
   const [loading, setLoading] = useState(true)
@@ -142,6 +144,10 @@ export default function BillingPage() {
   const [portalLoading, setPortalLoading] = useState(false)
   const [connectLoading, setConnectLoading] = useState(false)
   const [ownerAccountId, setOwnerAccountId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (activeRole === 'associate') router.replace('/dashboard')
+  }, [activeRole, router])
 
   const fetchBillingData = useCallback(async () => {
     if (!user) return

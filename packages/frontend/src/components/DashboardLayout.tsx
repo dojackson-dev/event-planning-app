@@ -206,30 +206,33 @@ function VenueSelectorTopBar() {
   )
 }
 
-const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Calendar', href: '/dashboard/calendar', icon: Calendar },
-  { name: 'Events', href: '/dashboard/events', icon: Calendar },
-  { name: 'Clients', href: '/dashboard/clients', icon: Users },
-  { name: 'Client Intake', href: '/dashboard/intake', icon: ClipboardList },
-  { name: 'Items & Packages', href: '/dashboard/items', icon: Package },
-  { name: 'Invoices', href: '/dashboard/invoices', icon: Receipt },
-  { name: 'Estimates', href: '/dashboard/estimates', icon: FileText },
-  { name: 'Contracts', href: '/dashboard/contracts', icon: FileText },
-  { name: 'Door Lists', href: '/dashboard/door-lists', icon: ListChecks },
-  { name: 'Security', href: '/dashboard/security', icon: Shield },
-  { name: 'Payments', href: '/dashboard/payments', icon: DollarSign },
-  { name: 'Billing', href: '/dashboard/billing', icon: CreditCard },
-  { name: 'Messages', href: '/dashboard/messages', icon: MessageSquare },
-  { name: 'Vendors', href: '/dashboard/vendors', icon: Store },
-  { name: 'Vendor Invoices', href: '/dashboard/vendor-invoices', icon: Receipt },
-  { name: 'Promoter', href: '/dashboard/promoter', icon: Megaphone },
-  { name: 'Artists', href: '/dashboard/artists', icon: Music },
+const ALL_NAV = [
+  { name: 'Dashboard',      href: '/dashboard',              icon: LayoutDashboard, ownerOnly: false },
+  { name: 'Calendar',       href: '/dashboard/calendar',     icon: Calendar,        ownerOnly: false },
+  { name: 'Events',         href: '/dashboard/events',       icon: Calendar,        ownerOnly: false },
+  { name: 'Clients',        href: '/dashboard/clients',      icon: Users,           ownerOnly: false },
+  { name: 'Client Intake',  href: '/dashboard/intake',       icon: ClipboardList,   ownerOnly: false },
+  { name: 'Items & Packages', href: '/dashboard/items',      icon: Package,         ownerOnly: false },
+  { name: 'Invoices',       href: '/dashboard/invoices',     icon: Receipt,         ownerOnly: false },
+  { name: 'Estimates',      href: '/dashboard/estimates',    icon: FileText,        ownerOnly: false },
+  { name: 'Contracts',      href: '/dashboard/contracts',    icon: FileText,        ownerOnly: false },
+  { name: 'Door Lists',     href: '/dashboard/door-lists',   icon: ListChecks,      ownerOnly: false },
+  { name: 'Security',       href: '/dashboard/security',     icon: Shield,          ownerOnly: false },
+  { name: 'Payments',       href: '/dashboard/payments',     icon: DollarSign,      ownerOnly: false },
+  { name: 'Billing',        href: '/dashboard/billing',      icon: CreditCard,      ownerOnly: true  },
+  { name: 'Messages',       href: '/dashboard/messages',     icon: MessageSquare,   ownerOnly: false },
+  { name: 'Vendors',        href: '/dashboard/vendors',      icon: Store,           ownerOnly: false },
+  { name: 'Vendor Invoices', href: '/dashboard/vendor-invoices', icon: Receipt,     ownerOnly: false },
+  { name: 'Promoter',       href: '/dashboard/promoter',     icon: Megaphone,       ownerOnly: false },
+  { name: 'Artists',        href: '/dashboard/artists',      icon: Music,           ownerOnly: false },
+  { name: 'Team',           href: '/dashboard/team',         icon: Users,           ownerOnly: true  },
 ]
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const { user, logout } = useAuth()
+  const { user, logout, activeRole } = useAuth()
+  const isAssociate = activeRole === 'associate'
+  const navigation = ALL_NAV.filter(item => !item.ownerOnly || !isAssociate)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)

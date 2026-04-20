@@ -143,15 +143,25 @@ export default function ContractDetailPage() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
+      {/* Back navigation */}
+      <div className="mb-4 flex flex-col gap-1">
+        <button
+          onClick={() => router.push('/dashboard/events')}
+          className="text-gray-600 hover:text-gray-900 text-sm self-start"
+        >
+          ← Back to Events
+        </button>
+        <button
+          onClick={() => router.push('/dashboard/contracts')}
+          className="text-xs text-gray-400 hover:text-gray-600 self-start"
+        >
+          View All Contracts →
+        </button>
+      </div>
+
       {/* Header */}
       <div className="flex justify-between items-start mb-6">
         <div>
-          <button
-            onClick={() => router.push('/dashboard/contracts')}
-            className="text-gray-600 hover:text-gray-900 mb-2"
-          >
-            ← Back to Contracts
-          </button>
           <h1 className="text-2xl font-bold text-gray-900">{contract.title}</h1>
           <p className="text-gray-600 mt-1">Contract #{c.contract_number ?? contract.contractNumber}</p>
         </div>

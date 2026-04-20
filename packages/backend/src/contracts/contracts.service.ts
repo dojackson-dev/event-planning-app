@@ -30,13 +30,16 @@ export class ContractsService {
 
     if (venueId) {
       const admin = this.supabaseService.getAdminClient();
-      const { data: venueEvents } = await admin.from('event').select('id').eq('venue_id', venueId);
-      const eventIds = (venueEvents || []).map((e: any) => e.id);
-      if (eventIds.length === 0) return [];
-      const { data: eventBookings } = await admin.from('booking').select('id').in('event_id', eventIds);
-      const bookingIds = (eventBookings || []).map((b: any) => b.id);
-      if (bookingIds.length === 0) return [];
-      query = query.in('booking_id', bookingIds);
+      const { data: venueEvents } = await admin.from('event').select('id, intake_form_id').eq('venue_id', venueId);
+      if (!venueEvents || venueEvents.length === 0) return [];
+      const eventIds = venueEvents.map((e: any) => e.id);
+      const intakeIds = venueEvents.map((e: any) => e.intake_form_id).filter(Boolean);
+      // Filter by event_id or intake_form_id
+      if (intakeIds.length > 0) {
+        query = query.in('intake_form_id', intakeIds);
+      } else {
+        query = query.in('event_id', eventIds);
+      }
     }
 
     const { data, error } = await query;

@@ -436,11 +436,7 @@ export class StripeService {
     const clientName = invoice.client_name || 'Valued Client';
     const invoiceNumber = invoice.invoice_number || invoiceId;
 
-    // Fallback: look up phone from booking or intake form
-    if (!clientPhone && invoice.booking_id) {
-      const { data: booking } = await admin.from('booking').select('contact_phone').eq('id', invoice.booking_id).maybeSingle();
-      clientPhone = (booking as any)?.contact_phone ?? null;
-    }
+    // Fallback: look up phone from intake form
     if (!clientPhone && invoice.intake_form_id) {
       const { data: form } = await admin.from('intake_forms').select('contact_phone').eq('id', invoice.intake_form_id).maybeSingle();
       clientPhone = (form as any)?.contact_phone ?? null;
@@ -1240,7 +1236,7 @@ export class StripeService {
         total_amount, amount_paid, amount_due, status,
         issue_date, due_date, notes, terms,
         deposit_percentage, deposit_due_days_before, final_payment_due_days_before,
-        booking:booking(event:event(id, name, date)),
+        event:event!event_id(id, name, date),
         items:invoice_items(id, description, quantity, unit_price, amount, item_type)
       `)
       .eq('public_token', token)

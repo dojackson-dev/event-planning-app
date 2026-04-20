@@ -294,11 +294,11 @@ export default function PaymentsPage() {
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <button
-            onClick={() => router.push('/dashboard/invoices/new')}
+            onClick={() => router.push('/dashboard/events')}
             className="flex items-center justify-center gap-2 bg-primary-600 text-white px-4 py-3 rounded-md hover:bg-primary-700"
           >
             <FileText className="h-5 w-5" />
-            Create New Invoice
+            Go to Events
           </button>
           <button
             onClick={() => router.push('/dashboard/invoices')}

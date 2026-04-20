@@ -34,6 +34,15 @@ import {
 import api from '@/lib/api';
 import { Event, EventType, ClientStatus, ContractStatus, InsuranceStatus } from '@/types';
 
+const formatTime = (timeString: string | undefined): string => {
+  if (!timeString) return 'Not set'
+  const [hours, minutes] = timeString.split(':')
+  const hour = parseInt(hours, 10)
+  const ampm = hour >= 12 ? 'PM' : 'AM'
+  const displayHour = hour % 12 || 12
+  return `${displayHour}:${minutes} ${ampm}`
+}
+
 const invoiceStatusColors: Record<string, string> = {
   draft:     'bg-gray-100 text-gray-700',
   sent:      'bg-blue-100 text-blue-800',
@@ -170,6 +179,8 @@ export default function EventManagementPage() {
   const [vendorPickerLoading, setVendorPickerLoading] = useState(false);
   const [eventInvoices, setEventInvoices] = useState<any[]>([]);
   const [eventEstimates, setEventEstimates] = useState<any[]>([]);
+  const [eventContracts, setEventContracts] = useState<any[]>([]);
+  const [intakeFormActivated, setIntakeFormActivated] = useState(false);
   const [intakeFormId, setIntakeFormId] = useState<string | null>(null);
   const [guestListId, setGuestListId] = useState<number | null>(null);
   const [formData, setFormData] = useState<EventManagementData>({
@@ -275,8 +286,12 @@ export default function EventManagementPage() {
         internalNotes: mgmt.internalNotes || '',
       }));
       setIntakeFormId(event.intakeFormId || null);
-      loadEventInvoices(event.bookingId, event.clientName);
+      // Activate step is done when the intake form has been converted (lead activated),
+      // or if this event has no linked intake form (created directly)
+      setIntakeFormActivated(!event.intakeFormId || event.intakeFormStatus === 'converted');
+      loadEventInvoices(event.bookingId, event.clientName, event.intakeFormId);
       loadEventEstimates(event.intakeFormId);
+      loadEventContracts(event.intakeFormId);
       loadGuestList();
     } catch (error) {
       console.error('Error loading event data:', error);
@@ -296,27 +311,50 @@ export default function EventManagementPage() {
   };
 
   const loadEventEstimates = async (intakeFormId?: string) => {
-    if (!intakeFormId) return;
     try {
-      const res = await api.get('/estimates', { params: { intakeFormId } });
-      setEventEstimates(res.data || []);
+      // Always fetch all estimates and filter client-side using the same dual-condition
+      // logic as the events list card — checking both booking.event_id AND intake_form_id
+      // so we never miss estimates regardless of which field was set on creation.
+      const res = await api.get('/estimates');
+      const all: any[] = res.data || [];
+      setEventEstimates(all.filter((e: any) =>
+        e.booking?.event_id === eventId ||
+        (intakeFormId && e.intake_form_id === intakeFormId)
+      ));
     } catch {
       // estimates are supplementary
     }
   };
 
-  const loadEventInvoices = async (bookingId?: string, clientName?: string) => {
+  const loadEventContracts = async (intakeFormId?: string) => {
+    try {
+      const res = await api.get('/contracts');
+      const all: any[] = res.data || [];
+      const matched = all.filter((c: any) =>
+        c.event_id === eventId || (intakeFormId && c.intake_form_id === intakeFormId)
+      );
+      setEventContracts(matched);
+    } catch {
+      // ignore — contract status is supplementary
+    }
+  };
+
+  const loadEventInvoices = async (bookingId?: string, clientName?: string, intakeFormId?: string) => {
     try {
       const res = await api.get('/invoices');
       const all: any[] = res.data || [];
       let matched: any[] = [];
       // 1. Match by event_id (most accurate)
       matched = all.filter((inv) => inv.event_id && inv.event_id === eventId);
-      // 2. Fall back to booking_id
+      // 2. Match by intake_form_id
+      if (matched.length === 0 && intakeFormId) {
+        matched = all.filter((inv) => inv.intake_form_id === intakeFormId);
+      }
+      // 3. Fall back to booking_id
       if (matched.length === 0 && bookingId) {
         matched = all.filter((inv) => inv.booking_id === bookingId);
       }
-      // 3. Fall back to client name (event name contains client name)
+      // 4. Fall back to client name (event name contains client name)
       if (matched.length === 0 && clientName) {
         matched = all.filter((inv) =>
           inv.client_name && clientName.toLowerCase().includes((inv.client_name || '').toLowerCase())
@@ -564,13 +602,17 @@ export default function EventManagementPage() {
         {/* Booking Progress Bar */}
         {(() => {
           const estimateAccepted = eventEstimates.some(e => ['approved', 'converted'].includes(e.status));
-          const contractSigned = formData.contractStatus === ContractStatus.SIGNED;
+          const contractSigned =
+            formData.contractStatus === ContractStatus.SIGNED ||
+            eventContracts.some((c: any) => c.status === 'signed');
           const invoiceSent = eventInvoices.some(inv => ['sent', 'partial', 'paid', 'overdue'].includes(inv.status));
+          const invoicePaid = eventInvoices.some(inv => inv.status === 'paid');
           const booked = formData.depositPaid ||
+            invoicePaid ||
             [ClientStatus.BOOKED, ClientStatus.DEPOSIT_PAID, ClientStatus.COMPLETED].includes(formData.clientStatus);
 
           const steps = [
-            { label: 'Activate',  done: true },
+            { label: 'Activate',  done: intakeFormActivated },
             { label: 'Estimate',  done: estimateAccepted },
             { label: 'Contract',  done: contractSigned },
             { label: 'Invoice',   done: invoiceSent },
@@ -782,7 +824,7 @@ export default function EventManagementPage() {
                       />
                     </div>
                   ) : (
-                    <p className="text-gray-900">{formData.startTime} - {formData.endTime}</p>
+                    <p className="text-gray-900">{formatTime(formData.startTime)} - {formatTime(formData.endTime)}</p>
                   )}
                 </div>
 
@@ -1543,32 +1585,6 @@ export default function EventManagementPage() {
                 <p className="text-sm text-gray-500 mb-3">No invoices found for this event.</p>
               )}
 
-              <button
-                onClick={() => router.push(`/dashboard/invoices/new?eventId=${eventId}`)}
-                className="w-full px-4 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 font-medium"
-              >
-                + Create Invoice
-              </button>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <h2 className="text-lg font-bold text-gray-900 mb-4">Quick Actions</h2>
-              
-              <div className="space-y-2">
-                <button className="w-full px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 text-sm font-medium">
-                  Send Contract
-                </button>
-                <button className="w-full px-4 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 text-sm font-medium">
-                  Request Insurance
-                </button>
-                <button className="w-full px-4 py-2 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 text-sm font-medium">
-                  Send Payment Reminder
-                </button>
-                <button className="w-full px-4 py-2 bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 text-sm font-medium">
-                  Email Client
-                </button>
-              </div>
             </div>
           </div>
         </div>

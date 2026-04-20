@@ -107,14 +107,9 @@ export default function InvoicesPage() {
           {user?.role === 'owner' ? 'My Invoices' : 'Invoices'}
         </h1>
         {user?.role === 'owner' && (
-          <div className="flex justify-center">
-            <button
-              onClick={() => router.push('/dashboard/invoices/new')}
-              className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
-            >
-              Create Invoice
-            </button>
-          </div>
+          <p className="text-center text-sm text-gray-500">
+            Invoices are created through the <a href="/dashboard/events" className="text-primary-600 hover:underline font-medium">Events</a> tab.
+          </p>
         )}
       </div>
 

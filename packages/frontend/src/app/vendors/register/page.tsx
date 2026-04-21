@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
@@ -53,6 +53,23 @@ export default function VendorRegisterPage() {
 
   // Saved session after signup
   const [session, setSession] = useState<any>(null)
+
+  // If already logged in, skip account creation step
+  useEffect(() => {
+    const token = localStorage.getItem('access_token')
+    if (token) {
+      const stored = localStorage.getItem('user')
+      if (stored) {
+        try {
+          const u = JSON.parse(stored)
+          if (u.email) setEmail(u.email)
+          if (u.firstName) setFirstName(u.firstName)
+          if (u.lastName) setLastName(u.lastName)
+        } catch {}
+      }
+      setStep('category')
+    }
+  }, [])
 
   const handleAccountSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

@@ -47,10 +47,12 @@ export default function ArtistDashboard() {
   const [profile, setProfile] = useState<ArtistProfile | null>(null)
   const [rider, setRider] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [email, setEmail] = useState('')
 
   useEffect(() => {
     const token = localStorage.getItem('access_token')
     if (!token) { router.replace('/artist/login'); return }
+    try { const u = JSON.parse(localStorage.getItem('user') || '{}'); setEmail(u.email || '') } catch {}
 
     const load = async () => {
       try {
@@ -265,7 +267,7 @@ export default function ArtistDashboard() {
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <p className="font-semibold text-gray-900 mb-1">Payouts</p>
           <p className="text-xs text-gray-500 mb-4">Connect your bank account to accept payments via Stripe.</p>
-          <ConnectBankButton role="artist" />
+          <ConnectBankButton role="artist" email={email} />
         </div>
 
         {/* Social links */}

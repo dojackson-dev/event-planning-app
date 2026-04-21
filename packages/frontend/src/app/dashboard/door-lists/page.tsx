@@ -21,10 +21,12 @@ import {
   X
 } from 'lucide-react'
 import { parseLocalDate } from '@/lib/dateUtils'
+import { useVenue } from '@/contexts/VenueContext'
 
 export default function DoorListsPage() {
   const router = useRouter()
   const { user } = useAuth()
+  const { activeVenue } = useVenue()
   const [events, setEvents] = useState<Event[]>([])
   const [guestLists, setGuestLists] = useState<GuestList[]>([])
   const [selectedEvent, setSelectedEvent] = useState<string>('')
@@ -41,7 +43,7 @@ export default function DoorListsPage() {
   useEffect(() => {
     fetchEvents()
     fetchGuestLists()
-  }, [])
+  }, [activeVenue])
 
   useEffect(() => {
     if (selectedEvent && guestLists.length > 0) {
@@ -54,9 +56,11 @@ export default function DoorListsPage() {
 
   const fetchEvents = async () => {
     try {
-      const response = await api.get<Event[]>('/events')
-      // Show events from 3 days ago through the future so door lists work
-      // for events happening now, today, or recently completed
+      const params: any = {}
+      if (activeVenue) params.venueId = activeVenue.id
+      const response = await api.get<Event[]>('/events', { params })
+      // Only show BOOKED events (progress bar complete) — door lists only make sense for confirmed/paid events
+      const BOOKED_STATUSES = ['booked', 'deposit_paid', 'completed']
       const cutoff = new Date()
       cutoff.setDate(cutoff.getDate() - 3)
       cutoff.setHours(0, 0, 0, 0)
@@ -68,6 +72,12 @@ export default function DoorListsPage() {
         if (seenIds.has(event.id)) return false
         const nameKey = `${(event.name || '').toLowerCase().trim()}|${event.date}`
         if (seenKeys.has(nameKey)) return false
+        // Must be booked (progress bar complete)
+        const mgmt: any = (event as any).managementData ?? {}
+        const isBooked =
+          !!mgmt.depositPaid ||
+          BOOKED_STATUSES.includes(mgmt.clientStatus ?? '')
+        if (!isBooked) return false
         seenIds.add(event.id)
         seenKeys.add(nameKey)
         return true
@@ -237,7 +247,7 @@ export default function DoorListsPage() {
           </select>
 
           {events.length === 0 && (
-            <p className="text-sm text-gray-500 mt-2">No upcoming events found</p>
+            <p className="text-sm text-gray-500 mt-2">No booked events found. Events must be fully booked (progress bar complete) to appear here.</p>
           )}
         </div>
 

@@ -200,9 +200,14 @@ export default function EstimateDetailPage() {
 
       {/* Action Bar */}
       <div className="flex justify-between items-center mb-6 print:hidden">
-        <button onClick={() => router.push('/dashboard/estimates')} className="text-gray-600 hover:text-gray-900">
-          ← Back to Estimates
-        </button>
+        <div className="flex flex-col gap-1">
+          <button onClick={() => router.push('/dashboard/events')} className="text-gray-600 hover:text-gray-900 text-sm">
+            ← Back to Events
+          </button>
+          <button onClick={() => router.push('/dashboard/estimates')} className="text-xs text-gray-400 hover:text-gray-600">
+            View All Estimates →
+          </button>
+        </div>
         <div className="flex flex-wrap gap-2">
           {!editMode && estimate.status !== EstimateStatus.CONVERTED && (
             <button onClick={enterEditMode}
@@ -214,40 +219,6 @@ export default function EstimateDetailPage() {
             <button onClick={() => updateStatus(EstimateStatus.SENT)} disabled={actionLoading}
               className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 text-sm">
               Send to Client
-            </button>
-          )}
-          {canApprove && (
-            <button onClick={() => updateStatus(EstimateStatus.APPROVED)} disabled={actionLoading}
-              className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:opacity-50 text-sm">
-              Mark Approved
-            </button>
-          )}
-          {canReject && (
-            <button onClick={() => updateStatus(EstimateStatus.REJECTED)} disabled={actionLoading}
-              className="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 disabled:opacity-50 text-sm">
-              Mark Rejected
-            </button>
-          )}
-          {canConvert && (
-            <button onClick={convertToInvoice} disabled={actionLoading}
-              className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 disabled:opacity-50 text-sm font-semibold">
-              Convert to Invoice
-            </button>
-          )}
-          {estimate.status === EstimateStatus.CONVERTED && estimate.converted_invoice_id && (
-            <button onClick={() => router.push(`/dashboard/invoices/${estimate.converted_invoice_id}`)}
-              className="bg-purple-100 text-purple-700 px-4 py-2 rounded-md hover:bg-purple-200 text-sm">
-              View Invoice →
-            </button>
-          )}
-          <button onClick={() => window.print()}
-            className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 text-sm">
-            Print
-          </button>
-          {estimate.status === EstimateStatus.DRAFT && (
-            <button onClick={handleDelete}
-              className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 text-sm">
-              Delete
             </button>
           )}
         </div>

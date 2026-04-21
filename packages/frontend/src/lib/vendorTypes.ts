@@ -1,9 +1,21 @@
 // Shared types and constants for vendor pages
 
+export const VENDOR_CATEGORIES = [
+  { value: 'dj', label: 'DJ', icon: '🎧' },
+  { value: 'decorator', label: 'Decorator', icon: '🎨' },
+  { value: 'planner_coordinator', label: 'Planner / Coordinator', icon: '📋' },
+  { value: 'furniture', label: 'Furniture', icon: '🪑' },
+  { value: 'photographer', label: 'Photographer', icon: '📷' },
+  { value: 'musicians', label: 'Musicians', icon: '🎵' },
+  { value: 'mc_host', label: 'MC / Host', icon: '🎤' },
+  { value: 'other', label: 'Other', icon: '⭐' },
+]
+
 export interface VendorProfile {
   id: string
   business_name: string
   category: string
+  categories?: string[]
   bio: string
   address: string
   city: string

@@ -215,6 +215,84 @@ export class StripeController {
     return this.stripeService.resetVendorConnect(userId);
   }
 
+  // ─── Promoter Connect ─────────────────────────────────────────────────────
+
+  /**
+   * POST /stripe/connect/promoter
+   * Starts Connect Express onboarding for a promoter.
+   */
+  @Post('connect/promoter')
+  async promoterConnectOnboarding(
+    @Headers('authorization') authorization: string,
+    @Body() body: { email: string },
+  ): Promise<{ url: string }> {
+    if (!body.email) throw new BadRequestException('email is required');
+    const userId = await this.getUserIdFromAuth(authorization);
+    const url = await this.stripeService.createPromoterConnectOnboarding(userId, body.email);
+    return { url };
+  }
+
+  /**
+   * GET /stripe/connect/promoter/status
+   */
+  @Get('connect/promoter/status')
+  async promoterConnectStatus(
+    @Headers('authorization') authorization: string,
+  ): Promise<{ status: string; connectId: string | null }> {
+    const userId = await this.getUserIdFromAuth(authorization);
+    return this.stripeService.getPromoterConnectStatus(userId);
+  }
+
+  /**
+   * DELETE /stripe/connect/promoter/reset — Clear stuck Connect account
+   */
+  @Delete('connect/promoter/reset')
+  async resetPromoterConnect(
+    @Headers('authorization') authorization: string,
+  ): Promise<{ success: boolean }> {
+    const userId = await this.getUserIdFromAuth(authorization);
+    return this.stripeService.resetPromoterConnect(userId);
+  }
+
+  // ─── Artist Connect ───────────────────────────────────────────────────────
+
+  /**
+   * POST /stripe/connect/artist
+   * Starts Connect Express onboarding for an artist.
+   */
+  @Post('connect/artist')
+  async artistConnectOnboarding(
+    @Headers('authorization') authorization: string,
+    @Body() body: { email: string },
+  ): Promise<{ url: string }> {
+    if (!body.email) throw new BadRequestException('email is required');
+    const userId = await this.getUserIdFromAuth(authorization);
+    const url = await this.stripeService.createArtistConnectOnboarding(userId, body.email);
+    return { url };
+  }
+
+  /**
+   * GET /stripe/connect/artist/status
+   */
+  @Get('connect/artist/status')
+  async artistConnectStatus(
+    @Headers('authorization') authorization: string,
+  ): Promise<{ status: string; connectId: string | null }> {
+    const userId = await this.getUserIdFromAuth(authorization);
+    return this.stripeService.getArtistConnectStatus(userId);
+  }
+
+  /**
+   * DELETE /stripe/connect/artist/reset — Clear stuck Connect account
+   */
+  @Delete('connect/artist/reset')
+  async resetArtistConnect(
+    @Headers('authorization') authorization: string,
+  ): Promise<{ success: boolean }> {
+    const userId = await this.getUserIdFromAuth(authorization);
+    return this.stripeService.resetArtistConnect(userId);
+  }
+
   // ─── Payments ─────────────────────────────────────────────────────────────
 
   /**

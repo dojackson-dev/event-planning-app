@@ -15,6 +15,7 @@ import {
   Clock,
   Receipt,
   AlertCircle,
+  MapPin,
 } from 'lucide-react'
 
 interface OverviewData {
@@ -22,6 +23,23 @@ interface OverviewData {
   contracts: any[]
   estimates: any[]
   invoices: any[]
+}
+
+const statusLabel: Record<string, string> = {
+  scheduled: 'Scheduled',
+  pending:   'Pending',
+  confirmed: 'Confirmed',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+  draft:     'Draft',
+}
+
+function resolveEventStatus(event: any): string {
+  if (event.booking) {
+    if (event.booking.client_confirmation_status === 'confirmed') return 'confirmed'
+    return event.booking.status ?? event.status
+  }
+  return event.status
 }
 
 const statusColor: Record<string, string> = {
@@ -38,17 +56,24 @@ const statusColor: Record<string, string> = {
 export default function ClientPortalPage() {
   const { client } = useClientAuth()
   const [data, setData] = useState<OverviewData | null>(null)
+  const [events, setEvents] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    clientApi.get('/overview')
-      .then((res) => setData(res.data))
+    Promise.all([
+      clientApi.get('/overview'),
+      clientApi.get('/events'),
+    ])
+      .then(([overviewRes, eventsRes]) => {
+        setData(overviewRes.data)
+        setEvents(eventsRes.data)
+      })
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [])
 
-  const upcoming = (data?.bookings ?? [])
-    .filter((b: any) => b.event?.date && new Date(b.event.date + 'T12:00:00') >= new Date())
+  const upcoming = events
+    .filter((e: any) => e.date && new Date(e.date + 'T12:00:00') >= new Date() && e.status !== 'cancelled')
     .slice(0, 3)
 
   const invoices = data?.invoices ?? []
@@ -62,13 +87,22 @@ export default function ClientPortalPage() {
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       {/* Welcome Banner */}
-      <div className="rounded-2xl bg-primary-600 text-white px-8 py-6">
-        <h1 className="text-2xl font-bold">
-          Welcome back, {client?.firstName}!
-        </h1>
-        <p className="mt-1 text-primary-100 text-sm">
-          Here's everything you need to know about your upcoming events.
-        </p>
+      <div className="rounded-2xl bg-primary-600 text-white px-8 py-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">
+            Welcome back, {client?.firstName}!
+          </h1>
+          <p className="mt-1 text-primary-100 text-sm">
+            Here's everything you need to know about your upcoming events.
+          </p>
+        </div>
+        <button
+          onClick={() => (window as any).__openClientPortalTour?.()}
+          className="flex-shrink-0 flex items-center gap-1.5 bg-white/15 hover:bg-white/25 transition-colors text-white text-xs font-semibold px-3 py-2 rounded-xl"
+        >
+          <MapPin className="h-3.5 w-3.5" />
+          Take a Tour
+        </button>
       </div>
 
       {loading ? (
@@ -177,8 +211,8 @@ export default function ClientPortalPage() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <StatCard
               icon={<Calendar className="h-5 w-5 text-primary-600" />}
-              label="Bookings"
-              value={data?.bookings.length ?? 0}
+              label="Events"
+              value={events.length}
               href="/client-portal/events"
               bg="bg-primary-50"
             />
@@ -221,21 +255,24 @@ export default function ClientPortalPage() {
               <div className="px-6 py-8 text-center text-gray-400 text-sm">No upcoming events.</div>
             ) : (
               <ul className="divide-y divide-gray-100">
-                {upcoming.map((b: any) => (
-                  <li key={b.id} className="px-6 py-4 flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-gray-900">{b.event?.name ?? 'Event'}</p>
-                      <p className="text-sm text-gray-500 mt-0.5">
-                        {b.event?.date ? new Date(b.event.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' }) : ''}
-                        {b.event?.start_time ? ` · ${b.event.start_time}` : ''}
-                      </p>
-                      {b.event?.venue && <p className="text-xs text-gray-400">{b.event.venue}</p>}
-                    </div>
-                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusColor[b.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                      {b.status}
-                    </span>
-                  </li>
-                ))}
+                {upcoming.map((e: any) => {
+                  const status = resolveEventStatus(e)
+                  return (
+                    <li key={e.id} className="px-6 py-4 flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-gray-900">{e.name ?? 'Event'}</p>
+                        <p className="text-sm text-gray-500 mt-0.5">
+                          {e.date ? new Date(e.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' }) : ''}
+                          {e.start_time ? ` · ${e.start_time}` : ''}
+                        </p>
+                        {e.venue && <p className="text-xs text-gray-400">{e.venue}</p>}
+                      </div>
+                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusColor[status] ?? 'bg-gray-100 text-gray-600'}`}>
+                        {statusLabel[status] ?? status}
+                      </span>
+                    </li>
+                  )
+                })}
               </ul>
             )}
           </div>

@@ -51,14 +51,15 @@ export class ContractsController {
     @Headers('authorization') authorization: string,
     @Query('ownerId') ownerId?: string,
     @Query('clientId') clientId?: string,
+    @Query('venueId') venueId?: string,
   ): Promise<any[]> {
     const userId = await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabase = this.supabaseService.setAuthContext(token);
 
-    if (ownerId) return this.contractsService.findByOwner(supabase, ownerId);
+    if (ownerId) return this.contractsService.findByOwner(supabase, ownerId, venueId);
     if (clientId) return this.contractsService.findByClient(supabase, clientId);
-    return this.contractsService.findByOwner(supabase, userId);
+    return this.contractsService.findByOwner(supabase, userId, venueId);
   }
 
   @Get(':id')

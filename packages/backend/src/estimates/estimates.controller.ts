@@ -32,12 +32,13 @@ export class EstimatesController {
     @Headers('authorization') authorization: string,
     @Query('ownerId') ownerId?: string,
     @Query('intakeFormId') intakeFormId?: string,
+    @Query('venueId') venueId?: string,
   ): Promise<Estimate[]> {
     const userId = await this.getUserId(authorization);
     const supabaseAdmin = this.supabaseService.getAdminClient();
     if (intakeFormId) return this.estimatesService.findByIntakeForm(supabaseAdmin, intakeFormId);
-    if (ownerId) return this.estimatesService.findByOwner(supabaseAdmin, ownerId);
-    return this.estimatesService.findByOwner(supabaseAdmin, userId);
+    if (ownerId) return this.estimatesService.findByOwner(supabaseAdmin, ownerId, venueId);
+    return this.estimatesService.findByOwner(supabaseAdmin, userId, venueId);
   }
 
   @Get(':id')

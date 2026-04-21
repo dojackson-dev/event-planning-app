@@ -17,7 +17,8 @@ import {
   addWeeks,
   subWeeks
 } from 'date-fns'
-import { ChevronLeft, ChevronRight, CalendarDays, CalendarRange, X, Edit2, Trash2, Clock, MapPin, Users, DollarSign, FileText, AlertCircle, Plus } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CalendarDays, CalendarRange, X, Edit2, Trash2, Clock, MapPin, Users, DollarSign, FileText, AlertCircle, Plus, Building2 } from 'lucide-react'
+import { useVenue } from '@/contexts/VenueContext'
 
 type ViewType = 'month' | 'week'
 
@@ -68,6 +69,7 @@ const formatTime = (timeString: string | undefined): string => {
 
 export default function CalendarPage() {
   const router = useRouter()
+  const { venues, activeVenue, setActiveVenue } = useVenue()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [viewType, setViewType] = useState<ViewType>('month')
   const [entries, setEntries] = useState<CalendarEntry[]>([])
@@ -103,7 +105,7 @@ export default function CalendarPage() {
 
   useEffect(() => {
     fetchAllEntries()
-  }, [currentDate])
+  }, [currentDate, activeVenue])
 
   useEffect(() => {
     api.get('/intake-forms').then(res => {
@@ -116,10 +118,13 @@ export default function CalendarPage() {
   }, [])
 
   const fetchAllEntries = async () => {
+    setLoading(true)
+    setEntries([])
     try {
+      const venueParams = activeVenue ? { venueId: activeVenue.id } : {}
       const [eventsRes, bookingsRes, intakeRes, apptRes] = await Promise.allSettled([
-        api.get<Event[]>('/events'),
-        api.get<Booking[]>('/bookings'),
+        api.get<Event[]>('/events', { params: venueParams }),
+        api.get<Booking[]>('/bookings', { params: venueParams }),
         api.get<any[]>('/intake-forms'),
         api.get<any[]>('/appointments'),
       ])
@@ -442,6 +447,32 @@ export default function CalendarPage() {
             New Event
           </button>
         </div>
+
+        {/* Venue filter tabs — only shown when owner has multiple venues */}
+        {venues.length > 1 && (
+          <div className="flex items-center justify-center gap-2 flex-wrap mb-4">
+            <Building2 className="h-4 w-4 text-gray-400 flex-shrink-0" />
+            <button
+              onClick={() => setActiveVenue(null)}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                !activeVenue ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              All Venues
+            </button>
+            {venues.map(v => (
+              <button
+                key={v.id}
+                onClick={() => setActiveVenue(v)}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                  activeVenue?.id === v.id ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {v.name}
+              </button>
+            ))}
+          </div>
+        )}
         
         {/* View Toggle - Centered */}
         <div className="flex justify-center mb-4">

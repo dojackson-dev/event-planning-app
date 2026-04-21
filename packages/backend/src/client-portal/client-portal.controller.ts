@@ -211,6 +211,24 @@ export class ClientPortalController {
     return this.clientPortalService.markViewed('estimates', id);
   }
 
+  @Post('estimates/:id/respond')
+  async respondToEstimate(
+    @Headers('x-client-token') token: string,
+    @Param('id') id: string,
+    @Body() body: { action: 'approved' | 'rejected' },
+  ) {
+    const session = this.requireSession(token);
+    if (body.action !== 'approved' && body.action !== 'rejected') {
+      throw new BadRequestException('action must be "approved" or "rejected"');
+    }
+    return this.clientPortalService.respondToEstimate(
+      id,
+      session.clientId,
+      session.phone,
+      body.action,
+    );
+  }
+
   @Post('contracts/:id/viewed')
   async markContractViewed(
     @Headers('x-client-token') token: string,
@@ -281,7 +299,7 @@ export class ClientPortalController {
   @Get('notifications')
   async getNotifications(@Headers('x-client-token') token: string) {
     const session = this.requireSession(token);
-    return this.clientPortalService.getNotifications(session.clientId);
+    return this.clientPortalService.getNotifications(session.clientId, session.phone);
   }
 
   @Put('notifications/:id/read')

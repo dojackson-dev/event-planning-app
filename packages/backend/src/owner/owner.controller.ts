@@ -1,11 +1,15 @@
 import {
   Controller,
   Get,
+  Post,
   Put,
+  Delete,
   Body,
+  Param,
   Headers,
   BadRequestException,
   UnauthorizedException,
+  NotFoundException,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 
@@ -75,7 +79,7 @@ export class OwnerController {
 
     const { data, error } = await admin
       .from('owner_accounts')
-      .select('business_name, logo_url')
+      .select('business_name, logo_url, cover_image_url')
       .eq('id', ownerAccountId)
       .maybeSingle();
 
@@ -86,6 +90,7 @@ export class OwnerController {
     return {
       businessName: data?.business_name || '',
       logoUrl: data?.logo_url || null,
+      coverImageUrl: data?.cover_image_url || null,
     };
   }
 
@@ -96,7 +101,7 @@ export class OwnerController {
   @Put('profile')
   async updateProfile(
     @Headers('authorization') authorization: string,
-    @Body() body: { logoUrl?: string | null; businessName?: string },
+    @Body() body: { logoUrl?: string | null; coverImageUrl?: string | null; businessName?: string },
   ) {
     const userId = await this.getUserId(authorization);
     const admin = this.supabaseService.getAdminClient();
@@ -106,6 +111,7 @@ export class OwnerController {
 
     const updates: Record<string, any> = { updated_at: new Date().toISOString() };
     if (body.logoUrl !== undefined) updates.logo_url = body.logoUrl;
+    if (body.coverImageUrl !== undefined) updates.cover_image_url = body.coverImageUrl;
     if (body.businessName !== undefined && body.businessName.trim()) {
       updates.business_name = body.businessName.trim();
     }
@@ -315,14 +321,18 @@ export class OwnerController {
 
     const { data } = await admin
       .from('owner_accounts')
-      .select('subscription_status, trial_ends_at')
+      .select('subscription_status, trial_ends_at, referred_by_affiliate_id')
       .eq('id', ownerAccountId)
       .maybeSingle();
 
-    // Only treat as a trial if trial_ends_at is explicitly set.
-    // Accounts created before the trial system have subscription_status='trial'
-    // but no trial_ends_at — they should not show the trial banner.
-    const isTrial = data?.subscription_status === 'trial' && !!data?.trial_ends_at;
+    // Only show trial UI for accounts that:
+    // 1. Have an explicit trial_ends_at (created via the trial system), AND
+    // 2. Were referred by an affiliate (came through a sales link)
+    // This prevents pre-existing accounts or direct signups from seeing the trial banner.
+    const isTrial =
+      data?.subscription_status === 'trial' &&
+      !!data?.trial_ends_at &&
+      !!data?.referred_by_affiliate_id;
     let daysRemaining = 0;
 
     if (isTrial && data?.trial_ends_at) {
@@ -336,6 +346,161 @@ export class OwnerController {
       daysRemaining,
       trialEndsAt: data?.trial_ends_at ?? null,
     };
+  }
+
+  // ─────────────────────────────────────────────
+  // GET /owner/venues
+  // Returns ALL venues for this owner
+  // ─────────────────────────────────────────────
+  @Get('venues')
+  async getVenues(@Headers('authorization') authorization: string) {
+    const userId = await this.getUserId(authorization);
+    const admin = this.supabaseService.getAdminClient();
+    const ownerAccountId = await this.getOwnerAccountId(userId, admin);
+    if (!ownerAccountId) return { venues: [] };
+
+    const { data, error } = await admin
+      .from('venues')
+      .select('id, name, address, city, state, zip_code, phone, website, capacity, description')
+      .eq('owner_account_id', ownerAccountId)
+      .order('id', { ascending: true });
+
+    if (error) throw new BadRequestException(error.message);
+    return { venues: data || [] };
+  }
+
+  // ─────────────────────────────────────────────
+  // POST /owner/venues
+  // Creates a new venue for this owner
+  // ─────────────────────────────────────────────
+  @Post('venues')
+  async createVenue(
+    @Headers('authorization') authorization: string,
+    @Body() body: {
+      name: string;
+      address?: string;
+      city?: string;
+      state?: string;
+      zipCode?: string;
+      phone?: string;
+      website?: string;
+      capacity?: number;
+      description?: string;
+    },
+  ) {
+    const userId = await this.getUserId(authorization);
+    const admin = this.supabaseService.getAdminClient();
+    const ownerAccountId = await this.getOwnerAccountId(userId, admin);
+    if (!ownerAccountId) throw new BadRequestException('Owner account not found');
+
+    const { data, error } = await admin
+      .from('venues')
+      .insert({
+        owner_account_id: ownerAccountId,
+        name: body.name,
+        address: body.address,
+        city: body.city,
+        state: body.state,
+        zip_code: body.zipCode,
+        phone: body.phone,
+        website: body.website,
+        capacity: body.capacity || null,
+        description: body.description,
+      })
+      .select('id, name, address, city, state, zip_code, phone, website, capacity, description')
+      .single();
+
+    if (error) throw new BadRequestException(error.message);
+    return { venue: data };
+  }
+
+  // ─────────────────────────────────────────────
+  // PUT /owner/venues/:id
+  // Updates a specific venue owned by this owner
+  // ─────────────────────────────────────────────
+  @Put('venues/:id')
+  async updateVenueById(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+    @Body() body: {
+      name?: string;
+      address?: string;
+      city?: string;
+      state?: string;
+      zipCode?: string;
+      phone?: string;
+      website?: string;
+      capacity?: number;
+      description?: string;
+    },
+  ) {
+    const userId = await this.getUserId(authorization);
+    const admin = this.supabaseService.getAdminClient();
+    const ownerAccountId = await this.getOwnerAccountId(userId, admin);
+    if (!ownerAccountId) throw new BadRequestException('Owner account not found');
+
+    // Verify the venue belongs to this owner
+    const { data: existing } = await admin
+      .from('venues')
+      .select('id')
+      .eq('id', id)
+      .eq('owner_account_id', ownerAccountId)
+      .maybeSingle();
+
+    if (!existing) throw new NotFoundException('Venue not found');
+
+    const updateData: Record<string, any> = {};
+    if (body.name !== undefined) updateData.name = body.name;
+    if (body.address !== undefined) updateData.address = body.address;
+    if (body.city !== undefined) updateData.city = body.city;
+    if (body.state !== undefined) updateData.state = body.state;
+    if (body.zipCode !== undefined) updateData.zip_code = body.zipCode;
+    if (body.phone !== undefined) updateData.phone = body.phone;
+    if (body.website !== undefined) updateData.website = body.website;
+    if (body.capacity !== undefined) updateData.capacity = body.capacity || null;
+    if (body.description !== undefined) updateData.description = body.description;
+
+    const { data, error } = await admin
+      .from('venues')
+      .update(updateData)
+      .eq('id', id)
+      .select('id, name, address, city, state, zip_code, phone, website, capacity, description')
+      .single();
+
+    if (error) throw new BadRequestException(error.message);
+    return { venue: data };
+  }
+
+  // ─────────────────────────────────────────────
+  // DELETE /owner/venues/:id
+  // Deletes a specific venue owned by this owner
+  // ─────────────────────────────────────────────
+  @Delete('venues/:id')
+  async deleteVenue(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+  ) {
+    const userId = await this.getUserId(authorization);
+    const admin = this.supabaseService.getAdminClient();
+    const ownerAccountId = await this.getOwnerAccountId(userId, admin);
+    if (!ownerAccountId) throw new BadRequestException('Owner account not found');
+
+    const { data: existing } = await admin
+      .from('venues')
+      .select('id')
+      .eq('id', id)
+      .eq('owner_account_id', ownerAccountId)
+      .maybeSingle();
+
+    if (!existing) throw new NotFoundException('Venue not found');
+
+    const { error } = await admin
+      .from('venues')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw new BadRequestException(error.message);
+    return { success: true };
   }
 }
 

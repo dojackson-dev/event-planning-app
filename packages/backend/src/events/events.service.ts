@@ -20,6 +20,7 @@ export class EventsService {
       specialRequirements: 'special_requirements',
       clientId: 'client_id',
       ownerId: 'owner_id',
+      venueId: 'venue_id',
     };
     
     const result = {};
@@ -44,6 +45,7 @@ export class EventsService {
       special_requirements: 'specialRequirements',
       client_id: 'clientId',
       owner_id: 'ownerId',
+      venue_id: 'venueId',
     };
     
     const result = {};
@@ -84,23 +86,37 @@ export class EventsService {
     return labels[type] || type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, ' ');
   }
 
-  async findAll(supabase: SupabaseClient, userId: string): Promise<Event[]> {
+  async findAll(supabase: SupabaseClient, userId: string, venueId?: string): Promise<Event[]> {
     // Use admin client so the intake_forms join isn't blocked by RLS
     const adminClient = this.supabaseService.getAdminClient();
-    const { data, error } = await adminClient
+    let query = adminClient
       .from('event')
-      .select('*, intake_form:intake_forms!intake_form_id(contact_name, event_name, event_type)')
+      .select('*, intake_form:intake_forms!intake_form_id(contact_name, event_name, event_type, status)')
       .eq('owner_id', userId)
       .order('date', { ascending: true });
+    // When filtering by venue, also include events with no venue_id assigned yet
+    // so newly-created events from intake forms are always visible.
+    if (venueId) query = query.or(`venue_id.eq.${venueId},venue_id.is.null`);
+    const { data, error } = await query;
 
     if (error) {
-      // Fall back to basic query if join fails (migration not yet run)
-      const { data: basicData, error: basicError } = await supabase
+      // Fall back to basic query if join fails (e.g. migration not yet run)
+      let basicQuery = supabase
         .from('event')
         .select('*')
         .eq('owner_id', userId)
         .order('date', { ascending: true });
-      if (basicError) throw basicError;
+      if (venueId) basicQuery = basicQuery.or(`venue_id.eq.${venueId},venue_id.is.null`);
+      const { data: basicData, error: basicError } = await basicQuery;
+      if (basicError) {
+        // venue_id column may not exist yet — return unfiltered results
+        const { data: fallbackData } = await supabase
+          .from('event')
+          .select('*')
+          .eq('owner_id', userId)
+          .order('date', { ascending: true });
+        return (fallbackData || []).map(event => this.snakeToCamelCase(event));
+      }
       return (basicData || []).map(event => this.snakeToCamelCase(event));
     }
 
@@ -110,6 +126,7 @@ export class EventsService {
       if (event.intake_form) {
         converted.clientName = event.intake_form.contact_name || null;
         converted.intakeEventName = event.intake_form.event_name || null;
+        converted.intakeFormStatus = event.intake_form.status || null;
         // If no explicit event_name, derive a readable title from event_type
         if (!converted.intakeEventName && event.intake_form.event_type) {
           converted.intakeEventName = this.formatEventType(event.intake_form.event_type);
@@ -125,7 +142,7 @@ export class EventsService {
     const adminClient = this.supabaseService.getAdminClient();
     const { data, error } = await adminClient
       .from('event')
-      .select('*, intake_form:intake_forms!intake_form_id(contact_name, event_name, event_type)')
+      .select('*, intake_form:intake_forms!intake_form_id(contact_name, event_name, event_type, status)')
       .eq('id', id)
       .eq('owner_id', userId)
       .single();
@@ -147,6 +164,7 @@ export class EventsService {
     if (data.intake_form) {
       converted.clientName = data.intake_form.contact_name || null;
       converted.intakeEventName = data.intake_form.event_name || null;
+      converted.intakeFormStatus = data.intake_form.status || null;
       if (!converted.intakeEventName && data.intake_form.event_type) {
         converted.intakeEventName = this.formatEventType(data.intake_form.event_type);
       }
@@ -194,5 +212,35 @@ export class EventsService {
       .eq('owner_id', userId);
 
     if (error) throw error;
+  }
+
+  async getManagementData(userId: string, eventId: string): Promise<any> {
+    const admin = this.supabaseService.getAdminClient();
+    const { data, error } = await admin
+      .from('event')
+      .select('management_data')
+      .eq('id', eventId)
+      .eq('owner_id', userId)
+      .single();
+
+    if (error) {
+      // Column may not exist yet — return empty object gracefully
+      return {};
+    }
+    return (data as any)?.management_data || {};
+  }
+
+  async saveManagementData(userId: string, eventId: string, payload: any): Promise<any> {
+    const admin = this.supabaseService.getAdminClient();
+    const { data, error } = await admin
+      .from('event')
+      .update({ management_data: payload })
+      .eq('id', eventId)
+      .eq('owner_id', userId)
+      .select('management_data')
+      .single();
+
+    if (error) throw error;
+    return (data as any)?.management_data || {};
   }
 }

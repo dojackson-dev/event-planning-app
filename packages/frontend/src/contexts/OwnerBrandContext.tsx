@@ -6,18 +6,22 @@ import { useAuth } from '@/contexts/AuthContext'
 
 interface OwnerBrand {
   logoUrl: string | null
+  coverImageUrl: string | null
   businessName: string
   loading: boolean
   updateLogo: (url: string | null) => Promise<void>
+  updateCover: (url: string | null) => Promise<void>
   updateBusinessName: (name: string) => Promise<void>
   refetch: () => void
 }
 
 const OwnerBrandContext = createContext<OwnerBrand>({
   logoUrl: null,
+  coverImageUrl: null,
   businessName: '',
   loading: true,
   updateLogo: async () => {},
+  updateCover: async () => {},
   updateBusinessName: async () => {},
   refetch: () => {},
 })
@@ -25,6 +29,7 @@ const OwnerBrandContext = createContext<OwnerBrand>({
 export function OwnerBrandProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null)
   const [businessName, setBusinessName] = useState('')
   const [loading, setLoading] = useState(true)
 
@@ -35,6 +40,7 @@ export function OwnerBrandProvider({ children }: { children: ReactNode }) {
     try {
       const res = await api.get('/owner/profile')
       setLogoUrl(res.data.logoUrl)
+      setCoverImageUrl(res.data.coverImageUrl || null)
       setBusinessName(res.data.businessName)
     } catch {
       // Silently fail — non-owners or network issues
@@ -53,13 +59,18 @@ export function OwnerBrandProvider({ children }: { children: ReactNode }) {
     setLogoUrl(url)
   }
 
+  const updateCover = async (url: string | null) => {
+    await api.put('/owner/profile', { coverImageUrl: url })
+    setCoverImageUrl(url)
+  }
+
   const updateBusinessName = async (name: string) => {
     await api.put('/owner/profile', { businessName: name })
     setBusinessName(name)
   }
 
   return (
-    <OwnerBrandContext.Provider value={{ logoUrl, businessName, loading, updateLogo, updateBusinessName, refetch: fetchProfile }}>
+    <OwnerBrandContext.Provider value={{ logoUrl, coverImageUrl, businessName, loading, updateLogo, updateCover, updateBusinessName, refetch: fetchProfile }}>
       {children}
     </OwnerBrandContext.Provider>
   )

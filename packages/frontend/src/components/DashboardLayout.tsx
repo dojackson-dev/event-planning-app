@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { OwnerBrandProvider, useOwnerBrand } from '@/contexts/OwnerBrandContext'
 import { NotificationProvider } from '@/contexts/NotificationContext'
+import { VenueProvider, useVenue } from '@/contexts/VenueContext'
 import NotificationPanel from '@/components/NotificationPanel'
 import RoleSwitcher from '@/components/RoleSwitcher'
 import { 
@@ -26,7 +27,11 @@ import {
   Settings,
   ChevronDown,
   Store,
-  CreditCard
+  CreditCard,
+  Building2,
+  Check,
+  Megaphone,
+  Music,
 } from 'lucide-react'
 
 function getInitials(name: string): string {
@@ -85,12 +90,127 @@ function BrandLogo({ variant }: { variant: 'sidebar' | 'mobile' }) {
   )
 }
 
+function VenueSelectorWidget() {
+  const { venues, activeVenue, setActiveVenue } = useVenue()
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  if (venues.length === 0) return null
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-2 w-full px-3 py-2 bg-primary-700/40 rounded-lg text-white text-sm hover:bg-primary-700/60 transition-colors"
+      >
+        <Building2 className="h-4 w-4 flex-shrink-0 text-white/70" />
+        <span className="flex-1 text-left truncate font-medium">
+          {activeVenue ? activeVenue.name : 'All Venues'}
+        </span>
+        <ChevronDown className={`h-3.5 w-3.5 text-white/70 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute left-0 right-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 z-50 overflow-hidden">
+          <button
+            onClick={() => { setActiveVenue(null); setOpen(false) }}
+            className={`flex items-center gap-2 w-full px-3 py-2.5 text-sm text-left transition-colors ${
+              !activeVenue ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <Building2 className="h-4 w-4 text-gray-400 flex-shrink-0" />
+            <span className="flex-1">All Venues</span>
+            {!activeVenue && <Check className="h-3.5 w-3.5 text-primary-600 flex-shrink-0" />}
+          </button>
+          {venues.length > 1 && <div className="border-t border-gray-100" />}
+          {venues.map(v => (
+            <button
+              key={v.id}
+              onClick={() => { setActiveVenue(v); setOpen(false) }}
+              className={`flex items-center gap-2 w-full px-3 py-2.5 text-sm text-left transition-colors ${
+                activeVenue?.id === v.id ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <Building2 className="h-4 w-4 text-gray-400 flex-shrink-0" />
+              <span className="flex-1 truncate">{v.name}</span>
+              {activeVenue?.id === v.id && <Check className="h-3.5 w-3.5 text-primary-600 flex-shrink-0" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function VenueSelectorTopBar() {
+  const { venues, activeVenue, setActiveVenue } = useVenue()
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  if (venues.length < 2) return null
+
+  return (
+    <div className="relative mr-2" ref={ref}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition-colors border border-gray-200"
+      >
+        <Building2 className="h-4 w-4 text-primary-600" />
+        <span className="max-w-[160px] truncate">{activeVenue ? activeVenue.name : 'All Venues'}</span>
+        <ChevronDown className={`h-3.5 w-3.5 text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute right-0 mt-1 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-50 overflow-hidden">
+          <p className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-100">Switch Venue</p>
+          <button
+            onClick={() => { setActiveVenue(null); setOpen(false) }}
+            className={`flex items-center gap-2 w-full px-3 py-2.5 text-sm text-left transition-colors ${
+              !activeVenue ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <Building2 className="h-4 w-4 text-gray-400 flex-shrink-0" />
+            <span className="flex-1">All Venues</span>
+            {!activeVenue && <Check className="h-3.5 w-3.5 text-primary-600 flex-shrink-0" />}
+          </button>
+          {venues.map(v => (
+            <button
+              key={v.id}
+              onClick={() => { setActiveVenue(v); setOpen(false) }}
+              className={`flex items-center gap-2 w-full px-3 py-2.5 text-sm text-left transition-colors ${
+                activeVenue?.id === v.id ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <Building2 className="h-4 w-4 text-gray-400 flex-shrink-0" />
+              <span className="flex-1 truncate">{v.name}</span>
+              {activeVenue?.id === v.id && <Check className="h-3.5 w-3.5 text-primary-600 flex-shrink-0" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Calendar', href: '/dashboard/calendar', icon: Calendar },
   { name: 'Events', href: '/dashboard/events', icon: Calendar },
   { name: 'Clients', href: '/dashboard/clients', icon: Users },
-  { name: 'Bookings', href: '/dashboard/bookings', icon: Users },
   { name: 'Client Intake', href: '/dashboard/intake', icon: ClipboardList },
   { name: 'Items & Packages', href: '/dashboard/items', icon: Package },
   { name: 'Invoices', href: '/dashboard/invoices', icon: Receipt },
@@ -103,6 +223,8 @@ const navigation = [
   { name: 'Messages', href: '/dashboard/messages', icon: MessageSquare },
   { name: 'Vendors', href: '/dashboard/vendors', icon: Store },
   { name: 'Vendor Invoices', href: '/dashboard/vendor-invoices', icon: Receipt },
+  { name: 'Promoter', href: '/dashboard/promoter', icon: Megaphone },
+  { name: 'Artists', href: '/dashboard/artists', icon: Music },
 ]
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -134,6 +256,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <NotificationProvider>
     <OwnerBrandProvider>
+    <VenueProvider>
     <div className="min-h-screen bg-gray-50">
       {/* Mobile Header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50">
@@ -183,6 +306,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </span>
               </div>
             </div>
+          </div>
+
+          {/* Venue Selector */}
+          <div className="px-4 py-3 bg-primary-600">
+            <VenueSelectorWidget />
           </div>
 
           {/* Navigation */}
@@ -244,6 +372,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Desktop Top Bar with Notifications */}
         <div className="hidden lg:flex items-center justify-end h-16 px-8 bg-white border-b border-gray-100 sticky top-0 z-30">
           <div className="flex items-center gap-4">
+            {/* Venue Selector - Desktop */}
+            <VenueSelectorTopBar />
             {/* Notification Bell - Desktop */}
             <NotificationPanel />
             
@@ -302,6 +432,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </main>
       </div>
     </div>
+    </VenueProvider>
     </OwnerBrandProvider>
     </NotificationProvider>
   )

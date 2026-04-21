@@ -43,13 +43,10 @@ export default function ClientEstimateDetailPage() {
     if (!confirm(`Are you sure you want to ${label} this estimate?`)) return
     setResponding(true)
     try {
-      // Update estimate status via the owner API (uses the same backend endpoint)
       await clientApi.post(`/estimates/${estimateId}/respond`, { action })
       setEstimate((prev: any) => ({ ...prev, status: action }))
     } catch {
-      // Fall back to a simple status label update if the endpoint doesn't exist yet
-      setEstimate((prev: any) => ({ ...prev, status: action }))
-      alert(`Estimate ${action}. Your coordinator has been notified.`)
+      alert('Something went wrong. Please try again or contact your coordinator.')
     } finally {
       setResponding(false)
     }

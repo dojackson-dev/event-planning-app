@@ -8,13 +8,14 @@ import { Colors, Shadow, Radius } from '@/lib/theme';
 
 interface Booking {
   id: string;
-  client_status: string;
-  contact_name?: string;
-  contact_phone?: string;
+  client_status?: string;
+  payment_status?: string;
   total_amount?: number;
-  deposit_amount?: number;
   created_at: string;
-  event?: { id: string; name: string; date: string; venue?: string } | null;
+  name?: string;
+  date?: string;
+  venue?: string;
+  intake_form?: { contact_name?: string; contact_phone?: string } | null;
 }
 
 export default function BookingsScreen() {
@@ -29,10 +30,10 @@ export default function BookingsScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       const { data, error } = await supabase
-        .from('booking')
-        .select('*, event:event(id, name, date, venue)')
-        .eq('user_id', user.id)
-        .in('client_status', ['deposit_paid', 'completed'])
+        .from('event')
+        .select('id, name, date, venue, client_status, payment_status, total_amount, created_at, intake_form:intake_forms!intake_form_id(contact_name, contact_phone)')
+        .eq('owner_id', user.id)
+        .not('intake_form_id', 'is', null)
         .order('created_at', { ascending: false });
       if (error) throw error;
       setBookings(data || []);
@@ -64,16 +65,18 @@ export default function BookingsScreen() {
       keyExtractor={(item) => item.id}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
       renderItem={({ item }) => {
-        const st = getStatus(item.client_status);
-        const eventDate = item.event?.date
-          ? new Date(item.event.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        const st = getStatus(item.client_status ?? '');
+        const eventDate = item.date
+          ? new Date(item.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
           : null;
+        const contactName = (item.intake_form as any)?.contact_name;
+        const contactPhone = (item.intake_form as any)?.contact_phone;
         return (
           <View style={styles.card}>
             <View style={styles.cardTop}>
               <View style={styles.cardLeft}>
-                <Text style={styles.clientName} numberOfLines={1}>{item.contact_name || 'Client'}</Text>
-                {item.event?.name && <Text style={styles.eventName} numberOfLines={1}>{item.event.name}</Text>}
+                <Text style={styles.clientName} numberOfLines={1}>{contactName || 'Client'}</Text>
+                {item.name && <Text style={styles.eventName} numberOfLines={1}>{item.name}</Text>}
               </View>
               <View style={[styles.badge, { backgroundColor: st.bg }]}>
                 <Text style={[styles.badgeText, { color: st.text }]}>{st.label}</Text>
@@ -87,10 +90,10 @@ export default function BookingsScreen() {
                   <Text style={styles.metaText}>{eventDate}</Text>
                 </View>
               )}
-              {item.event?.venue && (
+              {item.venue && (
                 <View style={styles.metaItem}>
                   <Ionicons name="location-outline" size={13} color="#9CA3AF" />
-                  <Text style={styles.metaText} numberOfLines={1}>{item.event.venue}</Text>
+                  <Text style={styles.metaText} numberOfLines={1}>{item.venue}</Text>
                 </View>
               )}
               {item.total_amount != null && (
@@ -99,10 +102,10 @@ export default function BookingsScreen() {
                   <Text style={styles.metaText}>${Number(item.total_amount).toLocaleString()}</Text>
                 </View>
               )}
-              {item.contact_phone && (
+              {contactPhone && (
                 <View style={styles.metaItem}>
                   <Ionicons name="call-outline" size={13} color="#9CA3AF" />
-                  <Text style={styles.metaText}>{item.contact_phone}</Text>
+                  <Text style={styles.metaText}>{contactPhone}</Text>
                 </View>
               )}
             </View>

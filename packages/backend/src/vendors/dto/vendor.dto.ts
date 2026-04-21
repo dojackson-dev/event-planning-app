@@ -21,7 +21,8 @@ export const VENDOR_CATEGORIES: { value: VendorCategory; label: string }[] = [
 
 export class CreateVendorDto {
   businessName: string;
-  category: VendorCategory;
+  category?: VendorCategory;
+  categories?: VendorCategory[];
   bio?: string;
   website?: string;
   instagram?: string;
@@ -42,6 +43,7 @@ export class CreateVendorDto {
 export class UpdateVendorDto {
   businessName?: string;
   category?: VendorCategory;
+  categories?: VendorCategory[];
   bio?: string;
   website?: string;
   instagram?: string;

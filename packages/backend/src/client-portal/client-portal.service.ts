@@ -36,29 +36,27 @@ export class ClientPortalService {
     return [...new Set(results.flatMap((r: any) => (r.data || []).map((i: any) => i.id)))];
   }
 
+  /** Helper: returns event IDs linked to a client's phone variants via intake_forms */
+  private async getEventIds(supabase: any, phoneVariants: string[], clientId?: string): Promise<string[]> {
+    const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
+    if (!intakeFormIds.length) return [];
+    const { data: events } = await supabase.from('event').select('id').in('intake_form_id', intakeFormIds);
+    return (events || []).map((e: any) => e.id);
+  }
+
   /** Overview stats for the client dashboard */
   async getOverview(clientId: string, clientPhone: string) {
     const supabase = this.supabaseService.getAdminClient();
     const phoneVariants = buildPhoneVariants(clientPhone);
 
-    // ── Bookings (by user_id + all phone variants) ────────────────────────────
-    const bookingSelect = 'id, status, total_amount, deposit_amount, payment_status, created_at, event:event(id, name, date, start_time, end_time, venue, status)';
-    const [byUserId, ...byPhones] = await Promise.all([
-      supabase.from('booking').select(bookingSelect).eq('user_id', clientId).order('created_at', { ascending: false }),
-      ...phoneVariants.map(p =>
-        supabase.from('booking').select(bookingSelect).eq('contact_phone', p).order('created_at', { ascending: false }),
-      ),
-    ]);
-
-    const seen = new Set<string>();
-    const bookings: any[] = [];
-    for (const row of [(byUserId.data || []), ...byPhones.map((r: any) => r.data || [])].flat()) {
-      if (!seen.has(row.id)) { seen.add(row.id); bookings.push(row); }
-    }
-
-    // ── Linked intake form IDs (used for contracts + estimates) ───────────────
+    // ── Events for this client (via intake_forms phone match) ─────────────────
     const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
-    const bookingIds = bookings.map((b: any) => b.id);
+    const eventSelect = 'id, status, total_amount, deposit_amount, payment_status, created_at, name, date, start_time, end_time, venue';
+    const events: any[] = [];
+    if (intakeFormIds.length) {
+      const { data: evData } = await supabase.from('event').select(eventSelect).in('intake_form_id', intakeFormIds).order('created_at', { ascending: false });
+      events.push(...(evData || []));
+    }
 
     // ── Contracts: by client_id OR intake_form_id ─────────────────────────────
     const contractQueries: any[] = [
@@ -70,18 +68,12 @@ export class ClientPortalService {
       );
     }
 
-    // ── Estimates: by client_phone (direct), booking_id, or intake_form_id ──
+    // ── Estimates: by client_phone or intake_form_id ─────────────────────────
     const estimateQueries: any[] = [
-      // Direct phone match (most reliable)
       ...phoneVariants.map(p =>
         supabase.from('estimates').select('id, status, total_amount, created_at').eq('client_phone', p).neq('status', 'draft'),
       ),
     ];
-    if (bookingIds.length) {
-      estimateQueries.push(
-        supabase.from('estimates').select('id, status, total_amount, created_at').in('booking_id', bookingIds).neq('status', 'draft'),
-      );
-    }
     if (intakeFormIds.length) {
       estimateQueries.push(
         supabase.from('estimates').select('id, status, total_amount, created_at').in('intake_form_id', intakeFormIds).neq('status', 'draft'),
@@ -103,18 +95,13 @@ export class ClientPortalService {
       .flatMap((r: any) => r.data || [])
       .filter((e: any) => { if (estimateSeen.has(e.id)) return false; estimateSeen.add(e.id); return true; });
 
-    // ── Invoices: by client_phone, booking_id, or intake_form_id ─────────────
+    // ── Invoices: by client_phone or intake_form_id ───────────────────────────
     const invoiceSelect = 'id, invoice_number, status, total_amount, amount_due, amount_paid, due_date, issue_date, created_at, client_name';
     const invoiceQueries: any[] = [
       ...phoneVariants.map(p =>
         supabase.from('invoices').select(invoiceSelect).eq('client_phone', p).neq('status', 'draft').order('created_at', { ascending: false }),
       ),
     ];
-    if (bookingIds.length) {
-      invoiceQueries.push(
-        supabase.from('invoices').select(invoiceSelect).in('booking_id', bookingIds).neq('status', 'draft').order('created_at', { ascending: false }),
-      );
-    }
     if (intakeFormIds.length) {
       invoiceQueries.push(
         supabase.from('invoices').select(invoiceSelect).in('intake_form_id', intakeFormIds).neq('status', 'draft').order('created_at', { ascending: false }),
@@ -127,94 +114,50 @@ export class ClientPortalService {
       .flatMap((r: any) => r.data || [])
       .filter((i: any) => { if (invoiceSeen.has(i.id)) return false; invoiceSeen.add(i.id); return true; });
 
-    return { bookings, contracts, estimates, invoices };
+    return { bookings: events, contracts, estimates, invoices };
   }
 
-  /** All bookings for the client including event + vendor info */
+  /** All events/bookings for the client (queried via intake_forms phone match) */
   async getBookings(clientId: string, clientPhone: string) {
     const supabase = this.supabaseService.getAdminClient();
-
     const phoneVariants = buildPhoneVariants(clientPhone);
-    const bookingSelect = `
-      *,
-      event:event(
-        id, name, description, date, start_time, end_time, venue, location, max_guests, status, event_type
-      )
-    `;
+    const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
+    if (!intakeFormIds.length) return [];
 
-    // Run separate queries to avoid PostgREST OR-filter encoding issues with '+' in phone
-    const [byUserId, ...byPhones] = await Promise.all([
-      supabase.from('booking').select(bookingSelect).eq('user_id', clientId).order('created_at', { ascending: false }),
-      ...phoneVariants.map(p => supabase.from('booking').select(bookingSelect).eq('contact_phone', p).order('created_at', { ascending: false })),
-    ]);
+    const { data, error } = await supabase
+      .from('event')
+      .select('*, intake_form:intake_forms!intake_form_id(contact_name, contact_phone, contact_email)')
+      .in('intake_form_id', intakeFormIds)
+      .order('created_at', { ascending: false });
 
-    const seen = new Set<string>();
-    const merged: any[] = [];
-    for (const row of [
-      ...(byUserId.data || []),
-      ...byPhones.flatMap(r => r.data || []),
-    ]) {
-      if (!seen.has(row.id)) { seen.add(row.id); merged.push(row); }
-    }
-    return merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    if (error) { this.logger.error('getBookings error', error); return []; }
+    return data || [];
   }
 
-  /** All events linked to this client (via bookings by user_id or contact_phone) */
+  /** All events for this client (via intake_forms phone match) */
   async getEvents(clientId: string, clientPhone: string) {
     const supabase = this.supabaseService.getAdminClient();
-
     const phoneVariants = buildPhoneVariants(clientPhone);
-
-    // Return events from all non-cancelled/rejected bookings linked to this client.
-    // We intentionally do NOT filter by client_confirmation_status so that bookings
-    // created by the owner (which default to 'pending') still surface to the client.
-    const [byUserId, ...byPhones] = await Promise.all([
-      supabase
-        .from('booking')
-        .select('event_id')
-        .eq('user_id', clientId)
-        .not('status', 'eq', 'cancelled'),
-      ...phoneVariants.map(p =>
-        supabase
-          .from('booking')
-          .select('event_id')
-          .eq('contact_phone', p)
-          .not('status', 'eq', 'cancelled'),
-      ),
-    ]);
-
-    const allBookings = [
-      ...(byUserId.data || []),
-      ...byPhones.flatMap(r => r.data || []),
-    ];
-
-    if (!allBookings.length) return [];
-
-    const eventIds = [...new Set(allBookings.map((b: any) => b.event_id))];
+    const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
+    if (!intakeFormIds.length) return [];
 
     const { data: events, error: eErr } = await supabase
       .from('event')
       .select('*')
-      .in('id', eventIds)
+      .in('intake_form_id', intakeFormIds)
+      .not('status', 'eq', 'cancelled')
       .order('date', { ascending: true });
 
-    if (eErr) {
-      this.logger.error('getEvents error', eErr);
-      return [];
-    }
+    if (eErr) { this.logger.error('getEvents error', eErr); return []; }
     if (!events?.length) return [];
 
-    // Fetch owner info separately so a missing FK never breaks event display
     const ownerIds = [...new Set(events.map((e: any) => e.owner_id).filter(Boolean))];
     let ownersById: Record<string, any> = {};
     if (ownerIds.length) {
       const { data: owners } = await supabase
-        .from('users')
-        .select('id, first_name, last_name, phone_number, email')
-        .in('id', ownerIds);
+        .from('users').select('id, first_name, last_name, phone_number, email').in('id', ownerIds);
       for (const o of owners || []) ownersById[o.id] = o;
     }
-
     return events.map((e: any) => ({ ...e, owner: ownersById[e.owner_id] || null }));
   }
 
@@ -222,13 +165,8 @@ export class ClientPortalService {
   async getVendors(clientId: string, clientPhone: string) {
     const supabase = this.supabaseService.getAdminClient();
 
-    // Get event IDs from all bookings associated with this client (by user_id OR phone)
-    const { data: bookings } = await supabase
-      .from('booking')
-      .select('event_id')
-      .or(`user_id.eq.${clientId},contact_phone.eq.${clientPhone}`);
-
-    const eventIds = [...new Set((bookings || []).map((b: any) => b.event_id).filter(Boolean))];
+    const phoneVariants = buildPhoneVariants(clientPhone);
+    const eventIds = await this.getEventIds(supabase, phoneVariants, clientId);
 
     const vendorSelect = `
       *,
@@ -502,34 +440,18 @@ export class ClientPortalService {
     return data;
   }
 
-  /** Estimates for this client (by client_id, booking phone, or intake_form phone) */
+  /** Estimates for this client (by client_phone or intake_form_id) */
   async getEstimates(clientId: string, clientPhone: string) {
     const supabase = this.supabaseService.getAdminClient();
     const phoneVariants = buildPhoneVariants(clientPhone);
-
-    // Get booking IDs and intake form IDs for this client
-    const [bookingByUserId, ...bookingByPhones] = await Promise.all([
-      supabase.from('booking').select('id').eq('user_id', clientId),
-      ...phoneVariants.map(p => supabase.from('booking').select('id').eq('contact_phone', p)),
-    ]);
-    const bookingIds = [...new Set(
-      [...(bookingByUserId.data || []), ...bookingByPhones.flatMap((r: any) => r.data || [])].map((b: any) => b.id),
-    )];
-
     const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
 
-    const estimateSelect = `*, items:estimate_items(*), booking:booking(id, contact_name, event_id)`;
+    const estimateSelect = `*, items:estimate_items(*), intake_form:intake_forms(contact_name)`;
     const queries: any[] = [
-      // Direct client_phone match (most reliable — populated when estimate is created/sent)
       ...phoneVariants.map(p =>
         supabase.from('estimates').select(estimateSelect).eq('client_phone', p).neq('status', 'draft').order('created_at', { ascending: false }),
       ),
     ];
-    if (bookingIds.length) {
-      queries.push(
-        supabase.from('estimates').select(estimateSelect).in('booking_id', bookingIds).neq('status', 'draft').order('created_at', { ascending: false }),
-      );
-    }
     if (intakeFormIds.length) {
       queries.push(
         supabase.from('estimates').select(estimateSelect).in('intake_form_id', intakeFormIds).neq('status', 'draft').order('created_at', { ascending: false }),
@@ -563,12 +485,9 @@ export class ClientPortalService {
 
     const phoneVariants = buildPhoneVariants(clientPhone);
     const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
-    const bookingResult = await supabase.from('booking').select('id').eq('user_id', clientId);
-    const bookingIds = (bookingResult.data || []).map((b: any) => b.id);
 
     const hasAccess =
       phoneVariants.includes(data.client_phone ?? '') ||
-      (data.booking_id && bookingIds.includes(data.booking_id)) ||
       (data.intake_form_id && intakeFormIds.includes(data.intake_form_id));
     if (!hasAccess) throw new NotFoundException('Estimate not found');
     return data;
@@ -584,24 +503,38 @@ export class ClientPortalService {
       .is('viewed_at', null);
   }
 
-  /** Invoices for this client (by client_phone, booking_id, or intake_form_id) */
+  /** Client approves or rejects an estimate */
+  async respondToEstimate(id: string, clientId: string, clientPhone: string, action: 'approved' | 'rejected') {
+    const supabase = this.supabaseService.getAdminClient();
+    const phoneVariants = buildPhoneVariants(clientPhone);
+    const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
+
+    // Verify client has access to this estimate
+    const { data, error } = await supabase.from('estimates').select('id, client_phone, intake_form_id').eq('id', id).single();
+    if (error || !data) throw new NotFoundException('Estimate not found');
+    const hasAccess =
+      phoneVariants.includes(data.client_phone ?? '') ||
+      (data.intake_form_id && intakeFormIds.includes(data.intake_form_id));
+    if (!hasAccess) throw new NotFoundException('Estimate not found');
+
+    const { error: updateError } = await supabase
+      .from('estimates')
+      .update({ status: action, responded_at: new Date().toISOString() })
+      .eq('id', id);
+    if (updateError) throw new Error(updateError.message);
+
+    return { success: true, status: action };
+  }
+
+  /** Invoices for this client (by client_phone or intake_form_id) */
   async getInvoices(clientId: string, clientPhone: string) {
     const supabase = this.supabaseService.getAdminClient();
     const phoneVariants = buildPhoneVariants(clientPhone);
-
-    // Get booking IDs and intake form IDs for cross-reference
-    const [bookingByUserId, ...bookingByPhones] = await Promise.all([
-      supabase.from('booking').select('id').eq('user_id', clientId),
-      ...phoneVariants.map(p => supabase.from('booking').select('id').eq('contact_phone', p)),
-    ]);
-    const bookingIds = [...new Set(
-      [...(bookingByUserId.data || []), ...bookingByPhones.flatMap((r: any) => r.data || [])].map((b: any) => b.id),
-    )];
     const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
 
     const invoiceSelect = `
       id, invoice_number, status, total_amount, amount_due, amount_paid,
-      due_date, issue_date, paid_date, created_at, client_name, notes,
+      due_date, issue_date, paid_date, created_at, client_name, notes, owner_id,
       items:invoice_items(id, description, quantity, unit_price, amount, item_type)
     `;
 
@@ -610,11 +543,6 @@ export class ClientPortalService {
         supabase.from('invoices').select(invoiceSelect).eq('client_phone', p).neq('status', 'draft').order('created_at', { ascending: false }),
       ),
     ];
-    if (bookingIds.length) {
-      queries.push(
-        supabase.from('invoices').select(invoiceSelect).in('booking_id', bookingIds).neq('status', 'draft').order('created_at', { ascending: false }),
-      );
-    }
     if (intakeFormIds.length) {
       queries.push(
         supabase.from('invoices').select(invoiceSelect).in('intake_form_id', intakeFormIds).neq('status', 'draft').order('created_at', { ascending: false }),
@@ -623,7 +551,7 @@ export class ClientPortalService {
 
     const results = await Promise.all(queries);
     const seen = new Set<string>();
-    return results
+    const invoices = results
       .flatMap((r: any) => {
         if (r.error) this.logger.error('getInvoices error', r.error);
         return r.data || [];
@@ -634,6 +562,26 @@ export class ClientPortalService {
         return true;
       })
       .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    // Enrich with owner/venue name so the client sees who the invoice is from
+    const ownerIds = [...new Set(invoices.map((i: any) => i.owner_id).filter(Boolean))];
+    let fromNameById: Record<string, string> = {};
+    if (ownerIds.length) {
+      const { data: ownerAccounts } = await supabase
+        .from('owner_accounts')
+        .select('primary_owner_id, business_name')
+        .in('primary_owner_id', ownerIds);
+      for (const oa of ownerAccounts || []) {
+        if (oa.primary_owner_id && oa.business_name) {
+          fromNameById[oa.primary_owner_id] = oa.business_name;
+        }
+      }
+    }
+
+    return invoices.map((i: any) => ({
+      ...i,
+      from_name: i.owner_id ? (fromNameById[i.owner_id] ?? null) : null,
+    }));
   }
 
   /** Create a Stripe Checkout session for the client to pay an invoice */
@@ -657,17 +605,11 @@ export class ClientPortalService {
       if (q.data) { invoice = q.data; break; }
     }
 
-    // If not found by phone, check via booking IDs (for bookings tied to this client)
+    // If not found by phone, check via intake_form_id
     if (!invoice) {
-      const [byUserId, ...byPhones] = await Promise.all([
-        supabase.from('booking').select('id').eq('user_id', clientId),
-        ...phoneVariants.map(p => supabase.from('booking').select('id').eq('contact_phone', p)),
-      ]);
-      const bookingIds = [...new Set(
-        [...(byUserId.data || []), ...byPhones.flatMap((r: any) => r.data || [])].map((b: any) => b.id),
-      )];
-      if (bookingIds.length) {
-        const { data } = await supabase.from('invoices').select(invoiceSelect).eq('id', invoiceId).in('booking_id', bookingIds).maybeSingle();
+      const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
+      if (intakeFormIds.length) {
+        const { data } = await supabase.from('invoices').select(invoiceSelect).eq('id', invoiceId).in('intake_form_id', intakeFormIds).maybeSingle();
         invoice = data ?? null;
       }
     }
@@ -681,7 +623,8 @@ export class ClientPortalService {
   }
 
   /** Messages between this client and their owner/vendors */
-  async getMessages(clientId: string) {
+  async getMessages(clientId_unused: string) {
+    const clientId = clientId_unused;
     const supabase = this.supabaseService.getAdminClient();
 
     const { data, error } = await supabase
@@ -708,38 +651,21 @@ export class ClientPortalService {
   ) {
     const supabase = this.supabaseService.getAdminClient();
 
-    // Verify the recipient is actually an owner/vendor that this client is booked with
+    // Verify the recipient is an owner/vendor this client is connected to via intake forms
     const phoneVariants = buildPhoneVariants(clientPhone);
-    const [byUserId, ...byPhones] = await Promise.all([
-      supabase
-        .from('booking')
-        .select('event_id, event:event(owner_id)')
-        .eq('user_id', clientId),
-      ...phoneVariants.map(p =>
-        supabase
-          .from('booking')
-          .select('event_id, event:event(owner_id)')
-          .eq('contact_phone', p),
-      ),
-    ]);
+    const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
+    let ownerIds: string[] = [];
+    let eventIds: string[] = [];
+    if (intakeFormIds.length) {
+      const { data: evData } = await supabase.from('event').select('id, owner_id').in('intake_form_id', intakeFormIds);
+      ownerIds = (evData || []).map((e: any) => e.owner_id).filter(Boolean);
+      eventIds = (evData || []).map((e: any) => e.id).filter(Boolean);
+    }
 
-    const allMsgBookings = [
-      ...(byUserId.data || []),
-      ...byPhones.flatMap(r => r.data || []),
-    ];
-
-    const ownerIds = allMsgBookings.map((b: any) => b.event?.owner_id).filter(Boolean);
-
-    // Also collect vendor IDs for their events
-    const eventIds = allMsgBookings.map((b: any) => b.event_id).filter(Boolean);
     const { data: vendorBookings } = await supabase
-      .from('vendor_bookings')
-      .select('vendor_user_id')
-      .in('event_id', eventIds)
-      .eq('status', 'confirmed');
-
+      .from('vendor_bookings').select('vendor_user_id')
+      .in('event_id', eventIds).eq('status', 'confirmed');
     const vendorUserIds = (vendorBookings || []).map((v: any) => v.vendor_user_id).filter(Boolean);
-
     const allowedRecipients = [...new Set([...ownerIds, ...vendorUserIds])];
 
     if (!allowedRecipients.includes(recipientId)) {
@@ -767,11 +693,12 @@ export class ClientPortalService {
     return data;
   }
 
-  /** Notifications for this client */
-  async getNotifications(clientId: string) {
+  /** Notifications for this client — combines stored DB rows with dynamically generated alerts */
+  async getNotifications(clientId: string, clientPhone?: string) {
     const supabase = this.supabaseService.getAdminClient();
 
-    const { data, error } = await supabase
+    // 1. Fetch stored notifications from DB
+    const { data: stored, error } = await supabase
       .from('notifications')
       .select('*')
       .eq('user_id', clientId)
@@ -780,9 +707,165 @@ export class ClientPortalService {
 
     if (error) {
       this.logger.error('getNotifications error', error);
-      return [];
     }
-    return data || [];
+
+    const storedNotifs: any[] = stored || [];
+
+    // 2. Generate dynamic notifications from live data (upcoming events, due invoices, new estimates)
+    const dynamic: any[] = [];
+    if (clientPhone) {
+      try {
+        const phoneVariants = buildPhoneVariants(clientPhone);
+        const now = new Date();
+        const sevenDays = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+        // Get intake form IDs and event IDs for this client
+        const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
+        const eventIds = await this.getEventIds(supabase, phoneVariants, clientId);
+        const bookingIds: string[] = []; // kept for variable compat below
+
+        // ── Upcoming event notifications ──────────────────────────────────────
+        if (eventIds.length) {
+          const { data: upcomingEvents } = await supabase
+            .from('event')
+            .select('id, name, date, start_time')
+            .in('id', eventIds)
+            .gte('date', now.toISOString().split('T')[0])
+            .lte('date', sevenDays.toISOString().split('T')[0])
+            .order('date', { ascending: true });
+
+          for (const ev of upcomingEvents || []) {
+            const daysUntil = Math.ceil((new Date(ev.date + 'T12:00:00').getTime() - now.getTime()) / 86_400_000);
+            const dayLabel = daysUntil === 0 ? 'today' : daysUntil === 1 ? 'tomorrow' : `in ${daysUntil} days`;
+            dynamic.push({
+              id: `dynamic-event-${ev.id}`,
+              user_id: clientId,
+              type: 'booking',
+              title: daysUntil === 0 ? `Your event is TODAY!` : `Upcoming event ${dayLabel}`,
+              message: `${ev.name} is scheduled for ${new Date(ev.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}${ev.start_time ? ` at ${ev.start_time}` : ''}.`,
+              read: false,
+              created_at: new Date().toISOString(),
+              is_dynamic: true,
+            });
+          }
+        }
+
+        // ── Invoice due / overdue notifications ───────────────────────────────
+        const invoiceSelect = 'id, invoice_number, status, amount_due, due_date';
+        const invoiceQueries: any[] = [
+          ...phoneVariants.map(p =>
+            supabase.from('invoices').select(invoiceSelect).eq('client_phone', p).not('status', 'in', '("draft","paid","cancelled")'),
+          ),
+        ];
+        if (intakeFormIds.length) {
+          invoiceQueries.push(supabase.from('invoices').select(invoiceSelect).in('intake_form_id', intakeFormIds).not('status', 'in', '("draft","paid","cancelled")'));
+        }
+        const invoiceResults = await Promise.all(invoiceQueries);
+        const invoiceSeen = new Set<string>();
+        const unpaidInvoices = invoiceResults
+          .flatMap((r: any) => r.data || [])
+          .filter((i: any) => { if (invoiceSeen.has(i.id)) return false; invoiceSeen.add(i.id); return true; });
+
+        for (const inv of unpaidInvoices) {
+          if (!inv.due_date) continue;
+          const dueDate = new Date(inv.due_date + 'T23:59:59');
+          const isOverdue = dueDate < now;
+          const daysUntilDue = Math.ceil((dueDate.getTime() - now.getTime()) / 86_400_000);
+          const isDueSoon = !isOverdue && daysUntilDue <= 7;
+          if (isOverdue) {
+            dynamic.push({
+              id: `dynamic-invoice-overdue-${inv.id}`,
+              user_id: clientId,
+              type: 'alert',
+              title: `Invoice #${inv.invoice_number} is OVERDUE`,
+              message: `Your invoice of $${Number(inv.amount_due).toFixed(2)} was due on ${new Date(inv.due_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}. Please pay as soon as possible.`,
+              read: false,
+              created_at: new Date().toISOString(),
+              is_dynamic: true,
+            });
+          } else if (isDueSoon) {
+            dynamic.push({
+              id: `dynamic-invoice-due-${inv.id}`,
+              user_id: clientId,
+              type: 'alert',
+              title: `Invoice #${inv.invoice_number} due ${daysUntilDue === 0 ? 'today' : daysUntilDue === 1 ? 'tomorrow' : `in ${daysUntilDue} days`}`,
+              message: `Payment of $${Number(inv.amount_due).toFixed(2)} is due on ${new Date(inv.due_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.`,
+              read: false,
+              created_at: new Date().toISOString(),
+              is_dynamic: true,
+            });
+          }
+        }
+
+        // ── New estimate notifications (sent in last 30 days, not yet viewed) ─
+        const estimateQueries: any[] = [
+          ...phoneVariants.map(p =>
+            supabase.from('estimates').select('id, status, total_amount, created_at, viewed_at').eq('client_phone', p).eq('status', 'sent').is('viewed_at', null),
+          ),
+        ];
+        if (intakeFormIds.length) {
+          estimateQueries.push(
+            supabase.from('estimates').select('id, status, total_amount, created_at, viewed_at').in('intake_form_id', intakeFormIds).eq('status', 'sent').is('viewed_at', null),
+          );
+        }
+        const estimateResults = await Promise.all(estimateQueries);
+        const estimateSeen = new Set<string>();
+        const newEstimates = estimateResults
+          .flatMap((r: any) => r.data || [])
+          .filter((e: any) => { if (estimateSeen.has(e.id)) return false; estimateSeen.add(e.id); return true; });
+
+        for (const est of newEstimates) {
+          dynamic.push({
+            id: `dynamic-estimate-${est.id}`,
+            user_id: clientId,
+            type: 'estimate',
+            title: 'New estimate received',
+            message: `You have a new estimate for $${Number(est.total_amount).toFixed(2)} waiting for your review.`,
+            read: false,
+            created_at: est.created_at,
+            is_dynamic: true,
+          });
+        }
+
+        // ── New contract notifications (sent, not yet viewed) ─────────────────
+        const contractQueries: any[] = [
+          supabase.from('contracts').select('id, contract_number, status, created_at, viewed_at').eq('client_id', clientId).eq('status', 'sent').is('viewed_at', null),
+          ...phoneVariants.map(p =>
+            supabase.from('contracts').select('id, contract_number, status, created_at, viewed_at').eq('client_phone', p).eq('status', 'sent').is('viewed_at', null),
+          ),
+        ];
+        if (intakeFormIds.length) {
+          contractQueries.push(
+            supabase.from('contracts').select('id, contract_number, status, created_at, viewed_at').in('intake_form_id', intakeFormIds).eq('status', 'sent').is('viewed_at', null),
+          );
+        }
+        const contractResults = await Promise.all(contractQueries);
+        const contractSeen = new Set<string>();
+        const newContracts = contractResults
+          .flatMap((r: any) => r.data || [])
+          .filter((c: any) => { if (contractSeen.has(c.id)) return false; contractSeen.add(c.id); return true; });
+
+        for (const con of newContracts) {
+          dynamic.push({
+            id: `dynamic-contract-${con.id}`,
+            user_id: clientId,
+            type: 'contract',
+            title: 'Contract ready to sign',
+            message: `A contract${con.contract_number ? ` #${con.contract_number}` : ''} has been sent to you and is ready for your e-signature.`,
+            read: false,
+            created_at: con.created_at,
+            is_dynamic: true,
+          });
+        }
+      } catch (dynErr) {
+        this.logger.warn('[getNotifications] dynamic generation failed:', (dynErr as any)?.message);
+      }
+    }
+
+    // Merge stored + dynamic; deduplicate by id; sort newest first
+    const storedIds = new Set(storedNotifs.map((n: any) => n.id));
+    const merged = [...storedNotifs, ...dynamic.filter(d => !storedIds.has(d.id))];
+    return merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }
 
   /** Mark a notification as read */
@@ -801,79 +884,43 @@ export class ClientPortalService {
     return { success: !error };
   }
 
-  /** Bookings pending client confirmation (linked via intake form phone match) */
+  /** Events pending client confirmation */
   async getPendingConfirmations(clientId: string, clientPhone: string) {
     const supabase = this.supabaseService.getAdminClient();
     const phoneVariants = buildPhoneVariants(clientPhone);
+    const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
+    if (!intakeFormIds.length) return [];
 
-    const bookingSelect = `
-      id, status, contact_name, contact_phone, client_confirmation_status,
-      event:event(id, name, date, start_time, venue)
-    `;
+    const { data, error } = await supabase
+      .from('event')
+      .select('id, status, client_confirmation_status, name, date, start_time, venue, intake_form:intake_forms!intake_form_id(contact_name, contact_phone)')
+      .in('intake_form_id', intakeFormIds)
+      .in('client_confirmation_status', ['pending', null as any])
+      .order('created_at', { ascending: false });
 
-    // Query for explicit 'pending' confirmations AND null status (pre-migration bookings)
-    // Run both in parallel across all phone variants
-    const [pendingResults, nullResults] = await Promise.all([
-      Promise.all(
-        phoneVariants.map(p =>
-          supabase
-            .from('booking')
-            .select(bookingSelect)
-            .eq('contact_phone', p)
-            .eq('client_confirmation_status', 'pending')
-            .order('created_at', { ascending: false })
-        )
-      ),
-      Promise.all(
-        phoneVariants.map(p =>
-          supabase
-            .from('booking')
-            .select(bookingSelect)
-            .eq('contact_phone', p)
-            .is('client_confirmation_status', null)
-            .order('created_at', { ascending: false })
-        )
-      ),
-    ]);
-
-    const seen = new Set<string>();
-    const merged: any[] = [];
-    const allRows = [
-      ...pendingResults.flatMap(r => r.data || []),
-      ...nullResults.flatMap(r => r.data || []),
-    ];
-    for (const row of allRows) {
-      if (!seen.has(row.id)) { seen.add(row.id); merged.push(row); }
-    }
-    return merged;
+    if (error) { this.logger.error('getPendingConfirmations error', error); return []; }
+    return data || [];
   }
 
-  /** Client confirms or rejects a booking that was linked to them via phone */
-  async respondToConfirmation(clientPhone: string, bookingId: string, action: 'confirmed' | 'rejected') {
+  /** Client confirms or rejects an event */
+  async respondToConfirmation(clientPhone: string, eventId: string, action: 'confirmed' | 'rejected') {
     const supabase = this.supabaseService.getAdminClient();
     const phoneVariants = buildPhoneVariants(clientPhone);
+    const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
 
-    // Find the booking by ID and verify it belongs to this client's phone
-    const { data: booking, error: fetchErr } = await supabase
-      .from('booking')
-      .select('id, contact_phone, client_confirmation_status')
-      .eq('id', bookingId)
-      .eq('client_confirmation_status', 'pending')
+    const { data: event, error: fetchErr } = await supabase
+      .from('event')
+      .select('id, intake_form_id, client_confirmation_status')
+      .eq('id', eventId)
       .maybeSingle();
 
-    if (fetchErr || !booking) {
-      throw new NotFoundException('Booking not found or already responded to.');
-    }
-
-    // Verify the booking's phone matches one of the client's phone variants
-    if (!phoneVariants.includes(booking.contact_phone)) {
-      throw new NotFoundException('Booking not found or already responded to.');
-    }
+    if (fetchErr || !event) throw new NotFoundException('Event not found or already responded to.');
+    if (!intakeFormIds.includes(event.intake_form_id)) throw new NotFoundException('Event not found or already responded to.');
 
     const { error } = await supabase
-      .from('booking')
+      .from('event')
       .update({ client_confirmation_status: action })
-      .eq('id', bookingId);
+      .eq('id', eventId);
 
     if (error) throw new BadRequestException(error.message);
     return { success: true, action };
@@ -936,61 +983,41 @@ export class ClientPortalService {
       );
     }
 
-    // 3. Create the event
-    const eventData = {
-      name: `${form.event_type || 'Event'} - ${form.contact_name}`,
-      date: form.event_date,
-      start_time: form.event_time || '00:00',
-      end_time: '23:59',
-      description: form.special_requests || '',
-      status: 'scheduled' as const,
-      guest_count: form.guest_count,
-      venue: form.venue_preference || 'TBD',
-      owner_id: form.user_id,
-    };
-
-    const { data: event, error: eventErr } = await supabase
-      .from('event')
-      .insert([eventData])
-      .select()
-      .single();
-
-    if (eventErr) throw new BadRequestException(`Failed to create event: ${eventErr.message}`);
-
-    // 4. Create the booking – mark confirmed immediately
-    const normalizedPhone = clientPhone; // already normalized by auth service
-    const bookingData = {
-      user_id: form.user_id,
-      event_id: event.id,
-      booking_date: new Date().toISOString().split('T')[0],
-      status: 'pending',
-      contact_name: form.contact_name,
-      contact_email: form.contact_email,
-      contact_phone: normalizedPhone,
-      special_requests: form.special_requests,
-      notes: 'Confirmed by client via invitation email.',
-      client_confirmation_status: 'confirmed',
-    };
-
-    const { data: booking, error: bookingErr } = await supabase
-      .from('booking')
-      .insert([bookingData])
-      .select()
-      .single();
-
-    if (bookingErr) {
-      // Roll back event
-      await supabase.from('event').delete().eq('id', event.id);
-      throw new BadRequestException(`Failed to create booking: ${bookingErr.message}`);
+    // 3. Create the event (or find existing one linked to the intake form)
+    let event: any = null;
+    const { data: existingEvent } = await supabase.from('event').select('*').eq('intake_form_id', form.id).maybeSingle();
+    if (existingEvent) {
+      // Update existing event to confirmed
+      const { data: updatedEvent, error: upErr } = await supabase
+        .from('event')
+        .update({ client_confirmation_status: 'confirmed' })
+        .eq('id', existingEvent.id)
+        .select().single();
+      if (upErr) throw new BadRequestException(`Failed to update event: ${upErr.message}`);
+      event = updatedEvent;
+    } else {
+      const eventData = {
+        name: `${form.event_type || 'Event'} - ${form.contact_name}`,
+        date: form.event_date,
+        start_time: form.event_time || '00:00',
+        end_time: '23:59',
+        description: form.special_requests || '',
+        status: 'scheduled' as const,
+        guest_count: form.guest_count,
+        venue: form.venue_preference || 'TBD',
+        owner_id: form.user_id,
+        intake_form_id: form.id,
+        client_confirmation_status: 'confirmed',
+      };
+      const { data: newEvent, error: eventErr } = await supabase.from('event').insert([eventData]).select().single();
+      if (eventErr) throw new BadRequestException(`Failed to create event: ${eventErr.message}`);
+      event = newEvent;
     }
 
-    // 5. Mark intake form as confirmed
-    await supabase
-      .from('intake_forms')
-      .update({ invite_status: 'confirmed', status: 'confirmed' })
-      .eq('id', form.id);
+    // 4. Mark intake form as confirmed
+    await supabase.from('intake_forms').update({ invite_status: 'confirmed', status: 'confirmed' }).eq('id', form.id);
 
-    // 6. Insert a notification so the client sees confirmation in their portal
+    // 5. Notification
     try {
       await supabase.from('notifications').insert({
         user_id: clientId,
@@ -1004,8 +1031,8 @@ export class ClientPortalService {
       this.logger.warn('[confirmInvite] notification insert failed:', notifErr);
     }
 
-    this.logger.log(`Client ${clientPhone} confirmed invite ${token} → booking ${booking.id}`);
-    return { success: true, event, booking };
+    this.logger.log(`Client ${clientPhone} confirmed invite ${token} → event ${event.id}`);
+    return { success: true, event };
   }
 
   /**
@@ -1044,14 +1071,13 @@ export class ClientPortalService {
     const supabase = this.supabaseService.getAdminClient();
     const phoneVariants = buildPhoneVariants(clientPhone);
 
-    // Get owner ID from bookings — try user_id first then each phone variant
-    const [byUserId, ...byPhones] = await Promise.all([
-      supabase.from('booking').select('event:event(owner_id)').eq('user_id', clientId).limit(1),
-      ...phoneVariants.map(p => supabase.from('booking').select('event:event(owner_id)').eq('contact_phone', p).limit(1)),
-    ]);
-
-    const allResults = [(byUserId.data || []), ...byPhones.map(r => r.data || [])].flat();
-    const ownerId = (allResults[0] as any)?.event?.owner_id;
+    // Get owner ID from event linked to client's intake form
+    const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
+    let ownerId: string | null = null;
+    if (intakeFormIds.length) {
+      const { data: evData } = await supabase.from('event').select('owner_id').in('intake_form_id', intakeFormIds).limit(1);
+      ownerId = evData?.[0]?.owner_id ?? null;
+    }
     if (!ownerId) return [];
 
     const { data, error } = await supabase

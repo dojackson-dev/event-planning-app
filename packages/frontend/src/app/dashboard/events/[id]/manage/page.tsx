@@ -34,6 +34,15 @@ import {
 import api from '@/lib/api';
 import { Event, EventType, ClientStatus, ContractStatus, InsuranceStatus } from '@/types';
 
+const formatTime = (timeString: string | undefined): string => {
+  if (!timeString) return 'Not set'
+  const [hours, minutes] = timeString.split(':')
+  const hour = parseInt(hours, 10)
+  const ampm = hour >= 12 ? 'PM' : 'AM'
+  const displayHour = hour % 12 || 12
+  return `${displayHour}:${minutes} ${ampm}`
+}
+
 const invoiceStatusColors: Record<string, string> = {
   draft:     'bg-gray-100 text-gray-700',
   sent:      'bg-blue-100 text-blue-800',
@@ -164,8 +173,14 @@ export default function EventManagementPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showVendorPicker, setShowVendorPicker] = useState(false);
+  const [vendorPickerList, setVendorPickerList] = useState<any[]>([]);
+  const [vendorPickerSearch, setVendorPickerSearch] = useState('');
+  const [vendorPickerLoading, setVendorPickerLoading] = useState(false);
   const [eventInvoices, setEventInvoices] = useState<any[]>([]);
   const [eventEstimates, setEventEstimates] = useState<any[]>([]);
+  const [eventContracts, setEventContracts] = useState<any[]>([]);
+  const [intakeFormActivated, setIntakeFormActivated] = useState(false);
   const [intakeFormId, setIntakeFormId] = useState<string | null>(null);
   const [guestListId, setGuestListId] = useState<number | null>(null);
   const [formData, setFormData] = useState<EventManagementData>({
@@ -218,8 +233,12 @@ export default function EventManagementPage() {
 
   const loadEventData = async () => {
     try {
-      const eventResponse = await api.get(`/events/${eventId}`);
+      const [eventResponse, managementResponse] = await Promise.all([
+        api.get(`/events/${eventId}`),
+        api.get(`/events/${eventId}/management`).catch(() => ({ data: {} })),
+      ]);
       const event = eventResponse.data;
+      const mgmt = managementResponse.data || {};
       setFormData(prev => ({
         ...prev,
         eventId: eventId,
@@ -230,10 +249,49 @@ export default function EventManagementPage() {
         startTime: event.startTime || '',
         endTime: event.endTime || '',
         venue: event.venue || '',
+        // Restore saved management fields
+        vendors: mgmt.vendors || [],
+        clientEmail: mgmt.clientEmail || '',
+        clientPhone: mgmt.clientPhone || '',
+        clientStatus: mgmt.clientStatus || ClientStatus.CONTACTED_BY_PHONE,
+        estimatedGuests: mgmt.estimatedGuests || 0,
+        confirmedGuests: mgmt.confirmedGuests || 0,
+        contractStatus: mgmt.contractStatus || ContractStatus.DRAFT,
+        contractSignedDate: mgmt.contractSignedDate || '',
+        contractAmount: mgmt.contractAmount || '',
+        depositAmount: mgmt.depositAmount || '',
+        depositPaid: mgmt.depositPaid || false,
+        depositPaidDate: mgmt.depositPaidDate || '',
+        balanceDue: mgmt.balanceDue || '',
+        balanceDueDate: mgmt.balanceDueDate || '',
+        insuranceStatus: mgmt.insuranceStatus || InsuranceStatus.NOT_REQUIRED,
+        insuranceProvider: mgmt.insuranceProvider || '',
+        insurancePolicyNumber: mgmt.insurancePolicyNumber || '',
+        insuranceExpiryDate: mgmt.insuranceExpiryDate || '',
+        certificateReceived: mgmt.certificateReceived || false,
+        securityRequired: mgmt.securityRequired || false,
+        securityCompany: mgmt.securityCompany || '',
+        securityContactName: mgmt.securityContactName || '',
+        securityContactPhone: mgmt.securityContactPhone || '',
+        numberOfSecurityStaff: mgmt.numberOfSecurityStaff || 0,
+        doorListLink: mgmt.doorListLink || '',
+        doorListLastUpdated: mgmt.doorListLastUpdated || '',
+        venueSetup: mgmt.venueSetup || '',
+        setupTime: mgmt.setupTime || '',
+        breakdownTime: mgmt.breakdownTime || '',
+        indoorOutdoor: mgmt.indoorOutdoor || '',
+        specialRequests: mgmt.specialRequests || '',
+        allergies: mgmt.allergies || '',
+        accessibility: mgmt.accessibility || '',
+        internalNotes: mgmt.internalNotes || '',
       }));
       setIntakeFormId(event.intakeFormId || null);
-      loadEventInvoices(event.bookingId, event.clientName);
+      // Activate step is done when the intake form has been converted (lead activated),
+      // or if this event has no linked intake form (created directly)
+      setIntakeFormActivated(!event.intakeFormId || event.intakeFormStatus === 'converted');
+      loadEventInvoices(event.bookingId, event.clientName, event.intakeFormId);
       loadEventEstimates(event.intakeFormId);
+      loadEventContracts(event.intakeFormId);
       loadGuestList();
     } catch (error) {
       console.error('Error loading event data:', error);
@@ -253,27 +311,50 @@ export default function EventManagementPage() {
   };
 
   const loadEventEstimates = async (intakeFormId?: string) => {
-    if (!intakeFormId) return;
     try {
-      const res = await api.get('/estimates', { params: { intakeFormId } });
-      setEventEstimates(res.data || []);
+      // Always fetch all estimates and filter client-side using the same dual-condition
+      // logic as the events list card — checking both booking.event_id AND intake_form_id
+      // so we never miss estimates regardless of which field was set on creation.
+      const res = await api.get('/estimates');
+      const all: any[] = res.data || [];
+      setEventEstimates(all.filter((e: any) =>
+        e.booking?.event_id === eventId ||
+        (intakeFormId && e.intake_form_id === intakeFormId)
+      ));
     } catch {
       // estimates are supplementary
     }
   };
 
-  const loadEventInvoices = async (bookingId?: string, clientName?: string) => {
+  const loadEventContracts = async (intakeFormId?: string) => {
+    try {
+      const res = await api.get('/contracts');
+      const all: any[] = res.data || [];
+      const matched = all.filter((c: any) =>
+        c.event_id === eventId || (intakeFormId && c.intake_form_id === intakeFormId)
+      );
+      setEventContracts(matched);
+    } catch {
+      // ignore — contract status is supplementary
+    }
+  };
+
+  const loadEventInvoices = async (bookingId?: string, clientName?: string, intakeFormId?: string) => {
     try {
       const res = await api.get('/invoices');
       const all: any[] = res.data || [];
       let matched: any[] = [];
       // 1. Match by event_id (most accurate)
       matched = all.filter((inv) => inv.event_id && inv.event_id === eventId);
-      // 2. Fall back to booking_id
+      // 2. Match by intake_form_id
+      if (matched.length === 0 && intakeFormId) {
+        matched = all.filter((inv) => inv.intake_form_id === intakeFormId);
+      }
+      // 3. Fall back to booking_id
       if (matched.length === 0 && bookingId) {
         matched = all.filter((inv) => inv.booking_id === bookingId);
       }
-      // 3. Fall back to client name (event name contains client name)
+      // 4. Fall back to client name (event name contains client name)
       if (matched.length === 0 && clientName) {
         matched = all.filter((inv) =>
           inv.client_name && clientName.toLowerCase().includes((inv.client_name || '').toLowerCase())
@@ -330,6 +411,47 @@ export default function EventManagementPage() {
     }));
   };
 
+  const openVendorPicker = async () => {
+    setShowVendorPicker(true);
+    setVendorPickerSearch('');
+    setVendorPickerLoading(true);
+    try {
+      const res = await api.get('/vendors/search?limit=100');
+      setVendorPickerList(res.data?.vendors || res.data || []);
+    } catch {
+      setVendorPickerList([]);
+    } finally {
+      setVendorPickerLoading(false);
+    }
+  };
+
+  const addVendorFromDirectory = (v: any) => {
+    const categoryMap: Record<string, VendorContact['category']> = {
+      catering: 'catering', decoration: 'decoration', decor: 'decoration',
+      music: 'music', dj: 'music', photography: 'photography', photo: 'photography',
+      videography: 'videography', video: 'videography', security: 'security',
+      valet: 'valet',
+    };
+    const cat = categoryMap[(v.category || '').toLowerCase()] || 'other';
+    setFormData(prev => ({
+      ...prev,
+      vendors: [
+        ...prev.vendors,
+        {
+          category: cat,
+          companyName: v.business_name || '',
+          contactPerson: v.contact_name || '',
+          phone: v.phone || '',
+          email: v.email || '',
+          contractStatus: 'pending',
+          estimatedCost: '',
+          notes: '',
+        },
+      ],
+    }));
+    setShowVendorPicker(false);
+  };
+
   const handleSave = async () => {
     setIsSaving(true);
     try {
@@ -373,8 +495,53 @@ export default function EventManagementPage() {
     }
   };
 
+  const filteredPickerVendors = vendorPickerList.filter(v =>
+    !vendorPickerSearch ||
+    (v.business_name || '').toLowerCase().includes(vendorPickerSearch.toLowerCase()) ||
+    (v.category || '').toLowerCase().includes(vendorPickerSearch.toLowerCase())
+  );
+
   return (
     <div className="max-w-7xl mx-auto">
+      {/* Vendor Directory Picker Modal */}
+      {showVendorPicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 flex flex-col max-h-[80vh]">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="font-bold text-gray-900 text-lg">Pick from Vendor Directory</h3>
+              <button onClick={() => setShowVendorPicker(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+            </div>
+            <div className="p-4 border-b">
+              <input
+                type="text"
+                placeholder="Search by name or category..."
+                value={vendorPickerSearch}
+                onChange={e => setVendorPickerSearch(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                autoFocus
+              />
+            </div>
+            <div className="overflow-y-auto flex-1 p-2">
+              {vendorPickerLoading ? (
+                <div className="text-center py-8 text-gray-400">Loading vendors...</div>
+              ) : filteredPickerVendors.length === 0 ? (
+                <div className="text-center py-8 text-gray-400">No vendors found</div>
+              ) : (
+                filteredPickerVendors.map(v => (
+                  <button
+                    key={v.id}
+                    onClick={() => addVendorFromDirectory(v)}
+                    className="w-full text-left px-4 py-3 rounded-lg hover:bg-primary-50 border border-transparent hover:border-primary-200 transition-colors mb-1"
+                  >
+                    <p className="font-semibold text-gray-900 text-sm">{v.business_name}</p>
+                    <p className="text-xs text-gray-500 capitalize">{v.category}{v.phone ? ` · ${v.phone}` : ''}{v.email ? ` · ${v.email}` : ''}</p>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
         {/* Header */}
         <div className="mb-6">
           <button
@@ -435,13 +602,17 @@ export default function EventManagementPage() {
         {/* Booking Progress Bar */}
         {(() => {
           const estimateAccepted = eventEstimates.some(e => ['approved', 'converted'].includes(e.status));
-          const contractSigned = formData.contractStatus === ContractStatus.SIGNED;
+          const contractSigned =
+            formData.contractStatus === ContractStatus.SIGNED ||
+            eventContracts.some((c: any) => c.status === 'signed');
           const invoiceSent = eventInvoices.some(inv => ['sent', 'partial', 'paid', 'overdue'].includes(inv.status));
+          const invoicePaid = eventInvoices.some(inv => inv.status === 'paid');
           const booked = formData.depositPaid ||
+            invoicePaid ||
             [ClientStatus.BOOKED, ClientStatus.DEPOSIT_PAID, ClientStatus.COMPLETED].includes(formData.clientStatus);
 
           const steps = [
-            { label: 'Activate',  done: true },
+            { label: 'Activate',  done: intakeFormActivated },
             { label: 'Estimate',  done: estimateAccepted },
             { label: 'Contract',  done: contractSigned },
             { label: 'Invoice',   done: invoiceSent },
@@ -653,7 +824,7 @@ export default function EventManagementPage() {
                       />
                     </div>
                   ) : (
-                    <p className="text-gray-900">{formData.startTime} - {formData.endTime}</p>
+                    <p className="text-gray-900">{formatTime(formData.startTime)} - {formatTime(formData.endTime)}</p>
                   )}
                 </div>
 
@@ -1011,12 +1182,20 @@ export default function EventManagementPage() {
                   Vendor Contacts
                 </h2>
                 {isEditing && (
-                  <button
-                    onClick={addVendor}
-                    className="px-3 py-1 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700"
-                  >
-                    + Add Vendor
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={openVendorPicker}
+                      className="px-3 py-1 bg-white border border-primary-600 text-primary-600 text-sm rounded-lg hover:bg-primary-50"
+                    >
+                      From Directory
+                    </button>
+                    <button
+                      onClick={addVendor}
+                      className="px-3 py-1 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700"
+                    >
+                      + Add Manual
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -1406,32 +1585,6 @@ export default function EventManagementPage() {
                 <p className="text-sm text-gray-500 mb-3">No invoices found for this event.</p>
               )}
 
-              <button
-                onClick={() => router.push(`/dashboard/invoices/new?eventId=${eventId}`)}
-                className="w-full px-4 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 font-medium"
-              >
-                + Create Invoice
-              </button>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <h2 className="text-lg font-bold text-gray-900 mb-4">Quick Actions</h2>
-              
-              <div className="space-y-2">
-                <button className="w-full px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 text-sm font-medium">
-                  Send Contract
-                </button>
-                <button className="w-full px-4 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 text-sm font-medium">
-                  Request Insurance
-                </button>
-                <button className="w-full px-4 py-2 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 text-sm font-medium">
-                  Send Payment Reminder
-                </button>
-                <button className="w-full px-4 py-2 bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 text-sm font-medium">
-                  Email Client
-                </button>
-              </div>
             </div>
           </div>
         </div>

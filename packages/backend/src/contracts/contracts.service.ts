@@ -21,12 +21,28 @@ export class ContractsService {
     return data || [];
   }
 
-  async findByOwner(supabase: SupabaseClient, ownerId: string): Promise<any[]> {
-    const { data, error } = await supabase
+  async findByOwner(supabase: SupabaseClient, ownerId: string, venueId?: string): Promise<any[]> {
+    let query = supabase
       .from('contracts')
       .select('*')
       .eq('owner_id', ownerId)
       .order('created_at', { ascending: false });
+
+    if (venueId) {
+      const admin = this.supabaseService.getAdminClient();
+      const { data: venueEvents } = await admin.from('event').select('id, intake_form_id').eq('venue_id', venueId);
+      if (!venueEvents || venueEvents.length === 0) return [];
+      const eventIds = venueEvents.map((e: any) => e.id);
+      const intakeIds = venueEvents.map((e: any) => e.intake_form_id).filter(Boolean);
+      // Filter by event_id or intake_form_id
+      if (intakeIds.length > 0) {
+        query = query.in('intake_form_id', intakeIds);
+      } else {
+        query = query.in('event_id', eventIds);
+      }
+    }
+
+    const { data, error } = await query;
     if (error) throw error;
     return data || [];
   }

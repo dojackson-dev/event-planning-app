@@ -4,6 +4,7 @@ import { useState } from 'react'
 import api from '@/lib/api'
 import ImageUpload from '@/components/ImageUpload'
 import AddressAutocomplete from '@/components/AddressAutocomplete'
+import { VENDOR_CATEGORIES } from '@/lib/vendorTypes'
 import type { VendorProfile } from '@/lib/vendorTypes'
 
 interface Props {
@@ -19,6 +20,9 @@ export default function VendorEditProfileTab({ profile, onUpdate }: Props) {
   const [coverUrl, setCoverUrl] = useState(profile.cover_image_url || '')
 
   const [businessName, setBusinessName] = useState(profile.business_name || '')
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(
+    profile.categories?.length ? profile.categories : (profile.category ? [profile.category] : [])
+  )
   const [bio, setBio] = useState(profile.bio || '')
   const [address, setAddress] = useState(profile.address || '')
   const [city, setCity] = useState(profile.city || '')
@@ -39,6 +43,7 @@ export default function VendorEditProfileTab({ profile, onUpdate }: Props) {
     try {
       const res = await api.put('/vendors/account/me', {
         businessName: businessName || undefined,
+        categories: selectedCategories,
         bio, address, city, state, zipCode,
         hourlyRate: hourlyRate ? parseFloat(hourlyRate) : undefined,
         flatRate: flatRate ? parseFloat(flatRate) : undefined,
@@ -96,6 +101,32 @@ export default function VendorEditProfileTab({ profile, onUpdate }: Props) {
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             placeholder="e.g. DJ Jay Entertainment"
           />
+        </div>
+
+        {/* Services / Categories */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Services You Offer <span className="text-gray-400 font-normal">(select all that apply)</span></label>
+          <div className="grid grid-cols-2 gap-2">
+            {VENDOR_CATEGORIES.map(cat => {
+              const checked = selectedCategories.includes(cat.value)
+              return (
+                <label key={cat.value} className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                  checked ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-gray-300'
+                }`}>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => setSelectedCategories(prev =>
+                      prev.includes(cat.value) ? prev.filter(c => c !== cat.value) : [...prev, cat.value]
+                    )}
+                    className="accent-primary-600"
+                  />
+                  <span className="text-base">{cat.icon}</span>
+                  <span className="text-sm font-medium text-gray-800">{cat.label}</span>
+                </label>
+              )
+            })}
+          </div>
         </div>
 
         {/* Bio */}

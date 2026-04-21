@@ -6,7 +6,7 @@ import Stripe from 'stripe';
 import * as nodemailer from 'nodemailer';
 import { CreateVendorInvoiceDto, UpdateVendorInvoiceDto, VendorInvoiceItemDto } from './dto/vendor-invoice.dto';
 
-const APP_FEE_RATE = 0.05;           // 5% platform fee — vendor-to-client invoices
+const APP_FEE_RATE = 0.03;           // 3% platform fee — vendor-to-client invoices
 const OWNER_BOOKING_FEE_RATE = 0.015; // 1.5% platform fee — owner-to-vendor invoices (1.5% above Stripe's processing fee)
 
 @Injectable()

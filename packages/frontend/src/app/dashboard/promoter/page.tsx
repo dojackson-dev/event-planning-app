@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
@@ -34,7 +34,7 @@ interface PromoterProfile {
   stripe_account_id: string | null
 }
 
-export default function PromoterDashboard() {
+function PromoterDashboardContent() {
   const searchParams = useSearchParams()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [profile, setProfile] = useState<PromoterProfile | null>(null)
@@ -295,5 +295,13 @@ export default function PromoterDashboard() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function PromoterDashboard() {
+  return (
+    <Suspense fallback={<div className="p-8"><div className="animate-pulse h-8 bg-gray-200 rounded w-1/3"></div></div>}>
+      <PromoterDashboardContent />
+    </Suspense>
   )
 }

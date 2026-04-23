@@ -503,6 +503,29 @@ export class ClientPortalService {
       .is('viewed_at', null);
   }
 
+  /** Client approves or rejects an estimate */
+  async respondToEstimate(id: string, clientId: string, clientPhone: string, action: 'approved' | 'rejected') {
+    const supabase = this.supabaseService.getAdminClient();
+    const phoneVariants = buildPhoneVariants(clientPhone);
+    const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
+
+    // Verify client has access to this estimate
+    const { data, error } = await supabase.from('estimates').select('id, client_phone, intake_form_id').eq('id', id).single();
+    if (error || !data) throw new NotFoundException('Estimate not found');
+    const hasAccess =
+      phoneVariants.includes(data.client_phone ?? '') ||
+      (data.intake_form_id && intakeFormIds.includes(data.intake_form_id));
+    if (!hasAccess) throw new NotFoundException('Estimate not found');
+
+    const { error: updateError } = await supabase
+      .from('estimates')
+      .update({ status: action, responded_at: new Date().toISOString() })
+      .eq('id', id);
+    if (updateError) throw new Error(updateError.message);
+
+    return { success: true, status: action };
+  }
+
   /** Invoices for this client (by client_phone or intake_form_id) */
   async getInvoices(clientId: string, clientPhone: string) {
     const supabase = this.supabaseService.getAdminClient();

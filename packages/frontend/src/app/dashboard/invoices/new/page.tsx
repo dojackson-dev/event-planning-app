@@ -54,6 +54,7 @@ function NewInvoicePageContent() {
   const [ownerDepositDays, setOwnerDepositDays] = useState<number | null>(null)
   const [ownerFinalDays, setOwnerFinalDays] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
+  const [approvedEstimates, setApprovedEstimates] = useState<any[]>([])
 
   useEffect(() => {
     fetchEvents()
@@ -159,6 +160,55 @@ function NewInvoicePageContent() {
       if (vb.event_id) setSelectedBooking('')
     }).catch(() => {})
   }, [searchParams])
+
+  // Fetch approved/converted estimates for this event so the user can import line items
+  useEffect(() => {
+    const eventId = lockedEvent?.id
+    if (!eventId && !intakeFormId) return
+    api.get('/estimates').then(res => {
+      const all: any[] = res.data || []
+      const matched = all.filter((e: any) =>
+        ['approved', 'converted'].includes(e.status) &&
+        (
+          (eventId && e.booking?.event_id === eventId) ||
+          (intakeFormId && e.intake_form_id === intakeFormId)
+        )
+      )
+      setApprovedEstimates(matched)
+    }).catch(() => {})
+  }, [lockedEvent, intakeFormId])
+
+  const applyFromEstimate = (estimate: any) => {
+    const discTypeMap: Record<string, DiscountType> = {
+      percentage: DiscountType.PERCENTAGE,
+      fixed: DiscountType.FIXED,
+      none: DiscountType.NONE,
+    }
+    const items: InvoiceLineItem[] = (estimate.items || []).map((item: any, idx: number) => {
+      const qty = Number(item.quantity) || 1
+      const unitPrice = Number(item.unit_price) || 0
+      const subtotal = qty * unitPrice
+      const discountType = discTypeMap[item.discount_type] ?? DiscountType.NONE
+      const discountValue = Number(item.discount_value) || 0
+      let discountAmount = 0
+      if (discountType === DiscountType.PERCENTAGE) discountAmount = subtotal * (discountValue / 100)
+      else if (discountType === DiscountType.FIXED) discountAmount = discountValue
+      return {
+        id: `est-${estimate.id}-${idx}`,
+        description: item.description || '',
+        quantity: qty,
+        standardPrice: unitPrice,
+        unitPrice,
+        subtotal,
+        discountType,
+        discountValue,
+        discountAmount,
+        amount: subtotal - discountAmount,
+        item_type: 'revenue' as const,
+      }
+    })
+    setLineItems(items)
+  }
 
   const fetchEvents = async () => {
     try {
@@ -542,6 +592,35 @@ function NewInvoicePageContent() {
               <a href="/dashboard/settings?tab=billing" className="text-xs text-blue-600 underline mt-1 inline-block">
                 Change in Settings → Billing
               </a>
+            </div>
+          </div>
+        )}
+
+        {/* Apply from Approved Estimate */}
+        {approvedEstimates.length > 0 && (
+          <div className="mb-6 border border-green-200 bg-green-50 rounded-lg p-4">
+            <p className="text-sm font-semibold text-green-800 mb-1">✓ Approved estimate available</p>
+            <p className="text-xs text-green-700 mb-3">Import line items directly from a confirmed estimate — you can still edit them after applying.</p>
+            <div className="flex flex-col gap-2">
+              {approvedEstimates.map(est => (
+                <div key={est.id} className="flex items-center justify-between bg-white rounded-md border border-green-200 px-3 py-2">
+                  <div>
+                    <span className="text-sm font-medium text-gray-800">
+                      Estimate #{est.estimate_number || est.id.slice(0, 8)}
+                    </span>
+                    <span className="ml-2 text-xs text-gray-500">
+                      ${Number(est.total_amount || 0).toFixed(2)} &middot; {est.items?.length || 0} item{est.items?.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => applyFromEstimate(est)}
+                    className="text-sm px-3 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 font-medium"
+                  >
+                    Apply
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
         )}

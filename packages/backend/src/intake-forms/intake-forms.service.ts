@@ -388,9 +388,6 @@ export class IntakeFormsService {
     const { data: booking, error: bookingError } = await supabaseAdmin
       .from('event')
       .update({
-        contact_name: intakeForm.contact_name,
-        contact_email: intakeForm.contact_email,
-        contact_phone: intakeForm.contact_phone ? normalizePhone(intakeForm.contact_phone) : null,
         special_requests: [
           intakeForm.special_requests,
           intakeForm.catering_requirements ? `Catering: ${intakeForm.catering_requirements}` : null,

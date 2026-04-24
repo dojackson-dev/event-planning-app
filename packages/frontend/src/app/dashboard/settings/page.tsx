@@ -1089,7 +1089,7 @@ function PromoterModeTab() {
 function BrandingTab() {
   const { logoUrl, coverImageUrl, businessName, updateLogo, updateCover, updateBusinessName, loading } = useOwnerBrand()
   const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
+  const [logoSaved, setLogoSaved] = useState(false)
   const [coverSaved, setCoverSaved] = useState(false)
   const [error, setError] = useState('')
   const [nameInput, setNameInput] = useState('')
@@ -1120,8 +1120,8 @@ function BrandingTab() {
     setError('')
     try {
       await updateLogo(url)
-      setSaved(true)
-      setTimeout(() => setSaved(false), 3000)
+      setLogoSaved(true)
+      setTimeout(() => setLogoSaved(false), 5000)
     } catch {
       setError('Failed to save logo. Please try again.')
     } finally {
@@ -1134,8 +1134,7 @@ function BrandingTab() {
     setError('')
     try {
       await updateLogo(null)
-      setSaved(true)
-      setTimeout(() => setSaved(false), 3000)
+      setLogoSaved(false)
     } catch {
       setError('Failed to remove logo.')
     } finally {
@@ -1183,7 +1182,33 @@ function BrandingTab() {
 
   return (
     <div className="space-y-6">
+      {/* Business Name — first */}
       <div>
+        <div className="flex items-center gap-2 mb-2">
+          <Building2 className="h-4 w-4 text-gray-400" />
+          <span className="text-sm font-medium text-gray-700">Business Name</span>
+        </div>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={nameInput}
+            onChange={e => setNameInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSaveBusinessName()}
+            className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            placeholder="Your business name"
+            disabled={saving}
+          />
+          <button
+            onClick={handleSaveBusinessName}
+            disabled={saving || !nameInput.trim() || nameInput.trim() === businessName}
+            className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+          >
+            {nameSaved ? '✓ Saved' : nameInput.trim() === businessName ? 'Up to date' : 'Save Name'}
+          </button>
+        </div>
+      </div>
+
+      <div className="border-t pt-6">
         <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
           <ImageIcon className="h-5 w-5 text-primary-600" />
           Venue Logo
@@ -1194,7 +1219,7 @@ function BrandingTab() {
       </div>
 
       {error && <div className="bg-red-50 text-red-700 rounded-lg px-4 py-3 text-sm">{error}</div>}
-      {saved && <div className="bg-green-50 text-green-700 rounded-lg px-4 py-3 text-sm">✓ Branding updated!</div>}
+      {logoSaved && <div className="bg-green-50 text-green-700 rounded-lg px-4 py-3 text-sm font-medium">✓ Logo saved automatically!</div>}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
         {/* Live sidebar preview */}
@@ -1219,9 +1244,12 @@ function BrandingTab() {
 
         {/* Upload */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
             {logoUrl ? 'Replace Logo' : 'Upload Logo'}
+            {logoUrl && !logoSaved && <span className="text-xs font-normal text-green-600 bg-green-50 px-2 py-0.5 rounded-full">✓ Saved</span>}
+            {logoSaved && <span className="text-xs font-normal text-green-700 bg-green-100 px-2 py-0.5 rounded-full animate-pulse">✓ Just saved!</span>}
           </label>
+          <p className="text-xs text-gray-400 mb-2">Uploads save automatically — no Save button needed.</p>
           <ImageUpload
             currentUrl={null}
             uploadType="owner-logo"
@@ -1271,7 +1299,8 @@ function BrandingTab() {
             Displayed at the top of your public profile. Recommended: 1200 × 400 px.
           </p>
         </div>
-        {coverSaved && <div className="bg-green-50 text-green-700 rounded-lg px-4 py-3 text-sm mb-3">✓ Cover updated!</div>}
+        {coverSaved && <div className="bg-green-50 text-green-700 rounded-lg px-4 py-3 text-sm font-medium mb-3">✓ Banner saved automatically!</div>}
+        {!coverSaved && coverImageUrl && <div className="text-xs text-green-600 mb-2">✓ Banner saved</div>}
         {coverImageUrl && (
           <div className="mb-3">
             <img src={coverImageUrl} alt="Cover" className="w-full h-28 object-cover rounded-xl border border-gray-200" />
@@ -1285,7 +1314,7 @@ function BrandingTab() {
           placeholder={
             <div className="flex flex-col items-center gap-2 text-gray-400">
               <ImageIcon className="h-8 w-8" />
-              <span className="text-xs">Upload a cover / banner image</span>
+              <span className="text-xs">Click to upload — saves automatically</span>
             </div>
           }
         />
@@ -1299,31 +1328,6 @@ function BrandingTab() {
             Remove cover image
           </button>
         )}
-      </div>
-
-      <div className="border-t pt-4">
-        <div className="flex items-center gap-2 mb-2">
-          <Building2 className="h-4 w-4 text-gray-400" />
-          <span className="text-sm font-medium text-gray-700">Business Name</span>
-        </div>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={nameInput}
-            onChange={e => setNameInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleSaveBusinessName()}
-            className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-            placeholder="Your business name"
-            disabled={saving}
-          />
-          <button
-            onClick={handleSaveBusinessName}
-            disabled={saving || !nameInput.trim() || nameInput.trim() === businessName}
-            className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {nameSaved ? 'Saved!' : 'Save'}
-          </button>
-        </div>
       </div>
     </div>
   )

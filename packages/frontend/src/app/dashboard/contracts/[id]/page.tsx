@@ -260,28 +260,39 @@ export default function ContractDetailPage() {
       {/* Document Section */}
       <div className="bg-white shadow-md rounded-lg p-6 mb-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Contract Document</h3>
-        <div className="flex items-center justify-between bg-gray-50 p-4 rounded-lg">
-          <div className="flex items-center gap-3">
-            <div className="bg-primary-100 p-2 rounded">
-              <FileText className="h-6 w-6 text-primary-600" />
+        {c.body ? (
+          /* Template-generated contract — render the stored HTML */
+          <div
+            className="border border-gray-200 rounded-lg p-6 bg-white print:border-0"
+            dangerouslySetInnerHTML={{ __html: c.body }}
+          />
+        ) : (c.file_url ?? contract.fileUrl) ? (
+          /* Uploaded file — show download button */
+          <div className="flex items-center justify-between bg-gray-50 p-4 rounded-lg">
+            <div className="flex items-center gap-3">
+              <div className="bg-primary-100 p-2 rounded">
+                <FileText className="h-6 w-6 text-primary-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900">{c.file_name ?? contract.fileName ?? 'Contract Document'}</p>
+                {(c.file_size ?? contract.fileSize) && (
+                  <p className="text-xs text-gray-500">
+                    {((c.file_size ?? contract.fileSize!) / 1024 / 1024).toFixed(2)} MB
+                  </p>
+                )}
+              </div>
             </div>
-            <div>
-              <p className="text-sm font-medium text-gray-900">{c.file_name ?? contract.fileName ?? 'Contract Document'}</p>
-              {(c.file_size ?? contract.fileSize) && (
-                <p className="text-xs text-gray-500">
-                  {((c.file_size ?? contract.fileSize!) / 1024 / 1024).toFixed(2)} MB
-                </p>
-              )}
-            </div>
+            <button
+              onClick={handleDownload}
+              className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
+            >
+              <Download className="h-4 w-4" />
+              Download
+            </button>
           </div>
-          <button
-            onClick={handleDownload}
-            className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
-          >
-            <Download className="h-4 w-4" />
-            Download
-          </button>
-        </div>
+        ) : (
+          <p className="text-sm text-gray-400 italic">No document attached to this contract.</p>
+        )}
       </div>
 
       {/* Signature Section */}

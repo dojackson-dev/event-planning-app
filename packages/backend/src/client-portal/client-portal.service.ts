@@ -152,11 +152,26 @@ export class ClientPortalService {
   async getEvents(clientId: string, clientPhone: string) {
     const supabase = this.supabaseService.getAdminClient();
     const phoneVariants = buildPhoneVariants(clientPhone);
+    this.logger.log(`[getEvents] phone=${clientPhone} variants=${JSON.stringify(phoneVariants)}`);
     const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
+    this.logger.log(`[getEvents] intakeFormIds count=${intakeFormIds.length} ids=${JSON.stringify(intakeFormIds)}`);
 
     // Collect event IDs and intake form IDs from multiple sources
     const eventIdSet = new Set<string>();
     const intakeFormIdSet = new Set<string>(intakeFormIds);
+
+    // Also collect event IDs via intake_forms.event_id (the forward reference)
+    if (intakeFormIds.length) {
+      const { data: formsWithEvent } = await supabase
+        .from('intake_forms')
+        .select('event_id')
+        .in('id', intakeFormIds)
+        .not('event_id', 'is', null);
+      for (const f of (formsWithEvent || [])) {
+        if (f.event_id) eventIdSet.add(f.event_id);
+      }
+      this.logger.log(`[getEvents] eventIdSet after intake_forms.event_id=${JSON.stringify([...eventIdSet])}`);
+    }
 
     // Fallback: find events via invoices that have the client's phone
     const invoiceResults = await Promise.all(
@@ -173,16 +188,18 @@ export class ClientPortalService {
 
     if (!intakeFormIdSet.size && !eventIdSet.size) return [];
 
-    // Fetch events by intake_form_id and by direct event_id
+    this.logger.log(`[getEvents] querying events: intakeFormIdSet=${[...intakeFormIdSet].length} eventIdSet=${[...eventIdSet].length}`);
+
+    // Fetch events by intake_form_id and by direct event_id (no status filter — show all)
     const queries: any[] = [];
     if (intakeFormIdSet.size) {
       queries.push(
-        supabase.from('event').select('*').in('intake_form_id', [...intakeFormIdSet]).not('status', 'eq', 'cancelled'),
+        supabase.from('event').select('*').in('intake_form_id', [...intakeFormIdSet]),
       );
     }
     if (eventIdSet.size) {
       queries.push(
-        supabase.from('event').select('*').in('id', [...eventIdSet]).not('status', 'eq', 'cancelled'),
+        supabase.from('event').select('*').in('id', [...eventIdSet]),
       );
     }
 
@@ -192,6 +209,8 @@ export class ClientPortalService {
       .flatMap((r: any) => r.data || [])
       .filter((e: any) => { if (seen.has(e.id)) return false; seen.add(e.id); return true; })
       .sort((a: any, b: any) => (a.date ?? '').localeCompare(b.date ?? ''));
+
+    this.logger.log(`[getEvents] found ${events.length} events`);
 
     if (!events.length) return [];
 

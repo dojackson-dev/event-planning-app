@@ -509,6 +509,74 @@ export class IntakeFormsService {
     };
   }
 
+  /**
+   * Recreate an event from an intake form if it was deleted.
+   * Links the newly created event back to the intake form via intake_form_id.
+   */
+  async recreateEvent(supabase: SupabaseClient, userId: string, intakeFormId: string) {
+    const supabaseAdmin = this.supabaseService.getAdminClient();
+
+    // Get the intake form
+    const { data: intakeForm, error: intakeError } = await supabase
+      .from('intake_forms')
+      .select('*')
+      .eq('id', intakeFormId)
+      .eq('user_id', userId)
+      .single();
+
+    if (intakeError) throw intakeError;
+    if (!intakeForm) throw new Error('Intake form not found');
+
+    // Check if an event already exists
+    const { data: existingEvent } = await supabaseAdmin
+      .from('event')
+      .select('id')
+      .eq('intake_form_id', intakeFormId)
+      .maybeSingle();
+
+    if (existingEvent) {
+      return {
+        event: existingEvent,
+        message: 'Event already exists for this intake form',
+      };
+    }
+
+    // Create the event using the same logic as convertToBooking
+    const ownerVenueId = await this.resolveOwnerVenueId(userId, supabaseAdmin);
+    const eventData = {
+      name: intakeForm.event_name || `${intakeForm.event_type ? intakeForm.event_type.charAt(0).toUpperCase() + intakeForm.event_type.slice(1).replace(/_/g, ' ') : 'Event'} - ${intakeForm.contact_name}`,
+      date: intakeForm.event_date,
+      start_time: intakeForm.event_time || '00:00',
+      end_time: intakeForm.event_end_time || '23:59',
+      description: intakeForm.special_requests || '',
+      status: 'scheduled' as const,
+      guest_count: intakeForm.guest_count || null,
+      venue: 'TBD',
+      owner_id: userId,
+      intake_form_id: intakeFormId,
+      ...(ownerVenueId ? { venue_id: ownerVenueId } : {}),
+    };
+
+    const { data: createdEvent, error: eventError } = await supabaseAdmin
+      .from('event')
+      .insert([eventData])
+      .select()
+      .single();
+
+    if (eventError) throw eventError;
+
+    // Update the intake form with the new event_id
+    await supabaseAdmin
+      .from('intake_forms')
+      .update({ event_id: createdEvent.id })
+      .eq('id', intakeFormId);
+
+    return {
+      event: createdEvent,
+      message: 'Event recreated successfully',
+    };
+  }
+
   async getPublicOwnerInfo(ownerId: string) {
     const supabaseAdmin = this.supabaseService.getAdminClient();
     const { data: owner, error } = await supabaseAdmin

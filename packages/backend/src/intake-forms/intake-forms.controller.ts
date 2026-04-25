@@ -143,6 +143,22 @@ export class IntakeFormsController {
     }
   }
 
+  @Post(':id/recreate-event')
+  async recreateEvent(@Headers('authorization') authorization: string, @Param('id') id: string) {
+    try {
+      console.log('Recreating event for intake form:', id);
+      const token = this.extractToken(authorization);
+      const userId = await this.getUserId(authorization);
+      const supabaseWithAuth = this.supabaseService.setAuthContext(token);
+      const result = await this.intakeFormsService.recreateEvent(supabaseWithAuth, userId, id);
+      console.log('Successfully recreated event:', result);
+      return result;
+    } catch (error) {
+      console.error('Error recreating event:', error);
+      throw error;
+    }
+  }
+
   @Post(':id/resend-invitation')
   async resendInvitation(@Headers('authorization') authorization: string, @Param('id') id: string) {
     const token = this.extractToken(authorization);

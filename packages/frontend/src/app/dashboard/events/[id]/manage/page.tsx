@@ -80,7 +80,6 @@ interface EventManagementData {
   
   // Guest Info
   estimatedGuests: number;
-  confirmedGuests: number;
   
   // Contract & Legal
   contractStatus: ContractStatus;
@@ -195,7 +194,6 @@ export default function EventManagementPage() {
     clientPhone: '',
     clientStatus: ClientStatus.CONTACTED_BY_PHONE,
     estimatedGuests: 0,
-    confirmedGuests: 0,
     contractStatus: ContractStatus.DRAFT,
     contractSignedDate: '',
     contractAmount: '',
@@ -254,8 +252,7 @@ export default function EventManagementPage() {
         clientEmail: mgmt.clientEmail || '',
         clientPhone: mgmt.clientPhone || '',
         clientStatus: mgmt.clientStatus || ClientStatus.CONTACTED_BY_PHONE,
-        estimatedGuests: mgmt.estimatedGuests || 0,
-        confirmedGuests: mgmt.confirmedGuests || 0,
+        estimatedGuests: mgmt.estimatedGuests || event.guestCount || 0,
         contractStatus: mgmt.contractStatus || ContractStatus.DRAFT,
         contractSignedDate: mgmt.contractSignedDate || '',
         contractAmount: mgmt.contractAmount || '',
@@ -840,21 +837,6 @@ export default function EventManagementPage() {
                     />
                   ) : (
                     <p className="text-gray-900">{formData.estimatedGuests}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Confirmed Guests</label>
-                  {isEditing ? (
-                    <input
-                      type="number"
-                      name="confirmedGuests"
-                      value={formData.confirmedGuests}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                    />
-                  ) : (
-                    <p className="text-gray-900">{formData.confirmedGuests}</p>
                   )}
                 </div>
 

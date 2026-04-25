@@ -194,6 +194,7 @@ export default function ClientDetailPage() {
     try {
       await api.post('/vendors/bookings', {
         vendorAccountId: selectedVendorToBook.id,
+        eventId: client.event_id || undefined,
         eventName: client.event_name || formatEventType(client.event_type),
         eventDate: client.event_date.split('T')[0],
         venueName: client.venue_preference || undefined,

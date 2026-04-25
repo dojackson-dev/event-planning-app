@@ -30,7 +30,7 @@ function computeProgress(event: any, allEstimates: any[], allInvoices: any[], al
   const ifId: string | undefined = event.intakeFormId
 
   const estimateAccepted = allEstimates.some(e =>
-    ['approved', 'converted'].includes(e.status) &&
+    ['sent', 'approved', 'converted'].includes(e.status) &&
     (e.booking?.event_id === eId || (ifId && e.intake_form_id === ifId))
   )
 

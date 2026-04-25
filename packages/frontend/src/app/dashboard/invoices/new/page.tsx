@@ -73,16 +73,20 @@ function NewInvoicePageContent() {
   // Pre-fill from event manage page workflow (eventId param)
   useEffect(() => {
     const eventId = searchParams?.get('eventId')
+    const clientIdParam = searchParams?.get('clientId')
     if (!eventId) return
     setSelectedBooking(eventId)
     api.get(`/events/${eventId}`).then(res => {
       const ev = res.data
-      const evName = ev.name || ''
+      const evName = ev.intakeEventName || ev.name || ''
       setLockedEvent({ id: eventId, name: evName, date: ev.date || '' })
       setEventName(evName)
 
-      // Try direct intake form lookup via intakeFormId/bookingId on the event
-      const intakeId = ev.intakeFormId || ev.bookingId || ev.booking_id || ev.intake_form_id
+      // Use clientName directly from event if available
+      if (ev.clientName) setClientName(ev.clientName)
+
+      // Try clientId param first (passed from manage page)
+      const intakeId = clientIdParam || ev.intakeFormId || ev.bookingId || ev.booking_id || ev.intake_form_id
       if (intakeId) {
         setIntakeFormId(intakeId)
         api.get(`/intake-forms/${intakeId}`).then(r => {

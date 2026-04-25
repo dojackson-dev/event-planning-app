@@ -16,9 +16,13 @@ export default function ContractDetailPage() {
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [showSignModal, setShowSignModal] = useState(false)
+  const [showOwnerSignModal, setShowOwnerSignModal] = useState(false)
   const [signerName, setSignerName] = useState('')
+  const [ownerSignerName, setOwnerSignerName] = useState('')
   const [signing, setSigning] = useState(false)
+  const [ownerSigning, setOwnerSigning] = useState(false)
   const signatureRef = useRef<SignatureCanvas>(null)
+  const ownerSignatureRef = useRef<SignatureCanvas>(null)
 
   useEffect(() => {
     if (params.id) {
@@ -29,6 +33,7 @@ export default function ContractDetailPage() {
   useEffect(() => {
     if (user) {
       setSignerName(`${user.firstName} ${user.lastName}`)
+      setOwnerSignerName(`${user.firstName} ${user.lastName}`)
     }
   }, [user])
 
@@ -98,6 +103,32 @@ export default function ContractDetailPage() {
     }
   }
 
+  const handleOwnerSign = async () => {
+    if (!contract || !ownerSignatureRef.current || ownerSignatureRef.current.isEmpty()) {
+      alert('Please provide your signature')
+      return
+    }
+    if (!ownerSignerName.trim()) {
+      alert('Please enter your name')
+      return
+    }
+    setOwnerSigning(true)
+    try {
+      const signatureData = ownerSignatureRef.current.toDataURL()
+      await api.post(`/contracts/${contract.id}/owner-sign`, {
+        signatureData,
+        signerName: ownerSignerName.trim(),
+      })
+      setShowOwnerSignModal(false)
+      fetchContract()
+    } catch (error) {
+      console.error('Failed to counter-sign contract:', error)
+      alert('Failed to counter-sign contract')
+    } finally {
+      setOwnerSigning(false)
+    }
+  }
+
   const handleDownload = () => {
     const url = (contract as any)?.file_url ?? contract?.fileUrl
     if (url) {
@@ -140,6 +171,9 @@ export default function ContractDetailPage() {
   const isOwner = user?.role === 'owner' && user?.id === (c.owner_id ?? contract.ownerId)
   const isClient = user?.id === (c.client_id ?? contract.clientId)
   const canSign = isClient && (c.status === 'sent' || contract.status === ContractStatus.SENT)
+  const clientHasSigned = c.status === 'signed' || contract.status === ContractStatus.SIGNED
+  const ownerHasSigned = !!c.owner_signature_data
+  const canOwnerCounterSign = isOwner && clientHasSigned && !ownerHasSigned
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
@@ -298,22 +332,62 @@ export default function ContractDetailPage() {
       {/* Signature Section */}
       {contract.status === ContractStatus.SIGNED && (c.signature_data ?? contract.signatureData) && (
         <div className="bg-white shadow-md rounded-lg p-6 mb-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Electronic Signature</h3>
-          <div className="border border-gray-300 rounded-lg p-4 bg-gray-50">
-            <img
-              src={c.signature_data ?? contract.signatureData}
-              alt="Signature"
-              className="max-w-md h-32 mx-auto"
-            />
-            <p className="text-center text-sm text-gray-600 mt-2">
-              Signed by {c.signer_name ?? contract.signerName} on {new Date(c.signed_date ?? contract.signedDate!).toLocaleString()}
-            </p>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Electronic Signatures</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Client signature */}
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-2">Client Signature</p>
+              <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                <img
+                  src={c.signature_data ?? contract.signatureData}
+                  alt="Client Signature"
+                  className="max-w-full h-28 mx-auto"
+                />
+                <p className="text-center text-sm text-gray-600 mt-2">
+                  {c.signer_name ?? contract.signerName}
+                </p>
+                <p className="text-center text-xs text-gray-400">
+                  {new Date(c.signed_date ?? contract.signedDate!).toLocaleString()}
+                </p>
+              </div>
+            </div>
+            {/* Owner counter-signature */}
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-2">Venue Owner Signature</p>
+              {ownerHasSigned ? (
+                <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                  <img
+                    src={c.owner_signature_data}
+                    alt="Owner Signature"
+                    className="max-w-full h-28 mx-auto"
+                  />
+                  <p className="text-center text-sm text-gray-600 mt-2">{c.owner_signer_name}</p>
+                  <p className="text-center text-xs text-gray-400">
+                    {new Date(c.owner_signed_date).toLocaleString()}
+                  </p>
+                </div>
+              ) : isOwner ? (
+                <div className="border-2 border-dashed border-amber-300 rounded-lg p-6 bg-amber-50 flex flex-col items-center justify-center gap-3">
+                  <p className="text-sm text-amber-700 font-medium text-center">Your counter-signature is pending</p>
+                  <button
+                    onClick={() => setShowOwnerSignModal(true)}
+                    className="flex items-center gap-2 bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 text-sm font-medium"
+                  >
+                    <Check className="h-4 w-4" /> Counter-Sign Now
+                  </button>
+                </div>
+              ) : (
+                <div className="border border-dashed border-gray-200 rounded-lg p-6 bg-gray-50 flex items-center justify-center">
+                  <p className="text-sm text-gray-400">Awaiting owner counter-signature</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
 
       {/* Action Buttons */}
-      <div className="flex gap-3">
+      <div className="flex gap-3 flex-wrap">
         {isOwner && (c.status === 'draft' || contract.status === ContractStatus.DRAFT) && (
           <button
             onClick={handleSend}
@@ -332,6 +406,16 @@ export default function ContractDetailPage() {
           >
             <Check className="h-5 w-5" />
             Sign Contract
+          </button>
+        )}
+
+        {canOwnerCounterSign && (
+          <button
+            onClick={() => setShowOwnerSignModal(true)}
+            className="flex items-center gap-2 bg-amber-600 text-white px-6 py-2 rounded-md hover:bg-amber-700"
+          >
+            <Check className="h-5 w-5" />
+            Counter-Sign Contract
           </button>
         )}
       </div>
@@ -394,6 +478,65 @@ export default function ContractDetailPage() {
                 className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {signing ? 'Signing...' : 'Sign & Submit'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Owner Counter-Sign Modal */}
+      {showOwnerSignModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 overflow-y-auto p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-1">Counter-Sign Contract</h2>
+            <p className="text-sm text-gray-500 mb-4">Add your signature as the venue owner to fully execute this contract.</p>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Your Full Name *</label>
+              <input
+                type="text"
+                value={ownerSignerName}
+                onChange={(e) => setOwnerSignerName(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                placeholder="Enter your full name"
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Your Signature *</label>
+              <div className="border-2 border-gray-300 rounded-lg">
+                <SignatureCanvas
+                  ref={ownerSignatureRef}
+                  canvasProps={{ className: 'w-full h-48 cursor-crosshair' }}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => ownerSignatureRef.current?.clear()}
+                className="mt-2 text-sm text-primary-600 hover:text-primary-700"
+              >
+                Clear Signature
+              </button>
+            </div>
+
+            <p className="text-sm text-gray-600 mb-6">
+              By signing, you confirm the terms of this contract as the venue owner/operator.
+            </p>
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowOwnerSignModal(false)}
+                disabled={ownerSigning}
+                className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleOwnerSign}
+                disabled={ownerSigning}
+                className="px-6 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {ownerSigning ? 'Signing...' : 'Counter-Sign & Complete'}
               </button>
             </div>
           </div>

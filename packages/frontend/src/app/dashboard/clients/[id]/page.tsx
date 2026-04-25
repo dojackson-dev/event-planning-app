@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { ArrowLeft, Calendar, Mail, Phone, Users, Clock, MapPin, Utensils, Wrench, Heart, Accessibility, DollarSign, Info, CheckCircle, MessageSquare, FileText, Clock as ClockIcon, Pencil, Store, X, ChevronRight, PlusCircle } from 'lucide-react'
+import { ArrowLeft, Calendar, Mail, Phone, Users, Clock, MapPin, Utensils, Wrench, Heart, Accessibility, DollarSign, Info, CheckCircle, MessageSquare, FileText, Clock as ClockIcon, Pencil, Store, X, ChevronRight, PlusCircle, AlertCircle } from 'lucide-react'
 import { Invoice, Estimate, EstimateStatus, InvoiceStatus } from '@/types'
 
 const VENDOR_CATEGORIES = [
@@ -102,6 +102,8 @@ export default function ClientDetailPage() {
   // ── Estimates & Invoices ──────────────────────────────────────
   const [clientEstimates, setClientEstimates] = useState<Estimate[]>([])
   const [clientInvoices, setClientInvoices] = useState<Invoice[]>([])
+  const [eventExists, setEventExists] = useState(true)
+  const [recreatingEvent, setRecreatingEvent] = useState(false)
 
   useEffect(() => {
     if (params.id) {
@@ -116,9 +118,20 @@ export default function ClientDetailPage() {
       setStatus(response.data.status)
       setNotes(response.data.notes || '')
       setEditData(response.data)
+      
+      // Check if the event exists (if event_id is set)
+      if (response.data.event_id) {
+        try {
+          await api.get(`/events/${response.data.event_id}`)
+          setEventExists(true)
+        } catch {
+          setEventExists(false)
+        }
+      }
+      
       fetchEventVendors(response.data.event_date, response.data.event_id)
       api.get<Estimate[]>(`/estimates?intakeFormId=${params.id}`).then(r => setClientEstimates(r.data || [])).catch(() => {})
-      api.get<Invoice[]>(`/invoices?intakeFormId=${params.id}`).then(r => setClientInvoices(r.data || [])).catch(() => {})
+      api.get<Invoice[]>(`/invoices?intakeFormId=${params.id}`).then(r => setClientInvoices(r.data || [])).catch(() => {}).catch(() => {})
     } catch (error) {
       console.error('Error fetching client:', error)
     } finally {
@@ -181,6 +194,7 @@ export default function ClientDetailPage() {
     try {
       await api.post('/vendors/bookings', {
         vendorAccountId: selectedVendorToBook.id,
+        eventId: client.event_id || undefined,
         eventName: client.event_name || formatEventType(client.event_type),
         eventDate: client.event_date.split('T')[0],
         venueName: client.venue_preference || undefined,
@@ -235,6 +249,27 @@ export default function ClientDetailPage() {
       alert(error.response?.data?.message || 'Error converting to booking')
     } finally {
       setUpdating(false)
+    }
+  }
+
+  const handleRecreateEvent = async () => {
+    if (!client) return
+    
+    if (!confirm('Recreate the event from this intake form? This will create a new event linked to this intake form.')) {
+      return
+    }
+    
+    setRecreatingEvent(true)
+    try {
+      const response = await api.post(`/intake-forms/${client.id}/recreate-event`, {})
+      alert('Event recreated successfully!')
+      // Refresh the client data to update event status
+      await fetchClient()
+    } catch (error: any) {
+      console.error('Error recreating event:', error)
+      alert(error.response?.data?.message || 'Error recreating event')
+    } finally {
+      setRecreatingEvent(false)
     }
   }
 
@@ -468,6 +503,26 @@ export default function ClientDetailPage() {
                 </div>
               </div>
             </div>
+
+            {/* Event Status Alert */}
+            {client.event_id && !eventExists && (
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
+                <div className="flex items-start gap-4">
+                  <AlertCircle className="h-6 w-6 text-orange-600 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-orange-900 mb-1">Event Not Found</h3>
+                    <p className="text-sm text-orange-800 mb-4">The event created from this intake form has been deleted. You can recreate it here.</p>
+                    <button
+                      onClick={handleRecreateEvent}
+                      disabled={recreatingEvent}
+                      className="px-4 py-2 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700 disabled:bg-orange-400 transition-colors"
+                    >
+                      {recreatingEvent ? 'Recreating Event...' : 'Recreate Event'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Services & Requirements */}
             <div className="bg-white rounded-lg shadow p-6">

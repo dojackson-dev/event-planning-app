@@ -1,6 +1,7 @@
 'use client'
 
 import { Bell, CheckCircle2, Calendar, MessageSquare, FileText, Package, AlertCircle, Receipt } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { useClientNotifications } from '@/contexts/ClientNotificationContext'
 
 const TYPE_ICON: Record<string, React.ReactNode> = {
@@ -15,6 +16,7 @@ const TYPE_ICON: Record<string, React.ReactNode> = {
 
 export default function ClientNotificationsPage() {
   const { notifications, unreadCount, loading, markAsRead, markAllAsRead } = useClientNotifications()
+  const router = useRouter()
 
   if (loading) {
     return <div className="flex items-center justify-center h-64 text-gray-500">Loading notifications...</div>
@@ -57,9 +59,14 @@ export default function ClientNotificationsPage() {
             return (
               <div
                 key={notif.id}
-                onClick={() => !notif.read && markAsRead(notif.id)}
+                onClick={() => {
+                  if (!notif.read) markAsRead(notif.id)
+                  if (notif.link_url) router.push(notif.link_url)
+                }}
                 className={`flex items-start gap-4 px-5 py-4 transition-colors ${
-                  !notif.read ? 'bg-primary-50 cursor-pointer hover:bg-primary-100' : 'bg-white'
+                  notif.link_url || !notif.read ? 'cursor-pointer' : ''
+                } ${
+                  !notif.read ? 'bg-primary-50 hover:bg-primary-100' : notif.link_url ? 'bg-white hover:bg-gray-50' : 'bg-white'
                 }`}
               >
                 <div className={`mt-0.5 h-9 w-9 rounded-full flex items-center justify-center flex-shrink-0 ${

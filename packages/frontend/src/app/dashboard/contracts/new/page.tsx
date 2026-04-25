@@ -3,8 +3,9 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
+import { useVenue } from '@/contexts/VenueContext'
 import api from '@/lib/api'
-import { Upload, X, Calendar, Clock, Mail, Phone, Users, FileText, Wand2 } from 'lucide-react'
+import { Upload, X, Calendar, Clock, Mail, Phone, Users, FileText, Wand2, Building2 } from 'lucide-react'
 import { parseLocalDate } from '@/lib/dateUtils'
 
 interface IntakeFormClient {
@@ -126,13 +127,119 @@ function generateVendorContract(d: {
 </div>`
 }
 
+// ── Venue Booking Agreement template ─────────────────────────────────────────
+function generateVenueContract(d: {
+  venueName: string
+  ownerName: string
+  clientName: string
+  eventType: string
+  eventDate: string
+  eventTime: string
+  accessWindow: string
+  guestCount: string
+  totalAmount: string
+  deposit: string
+  cancelMoreThan: string
+  cancelMoreThanPolicy: string
+  cancelWithin: string
+  cancelWithinPolicy: string
+  governingState: string
+  agreementDate: string
+}) {
+  return `<div style="font-family:Georgia,serif;max-width:780px;margin:0 auto;color:#111;line-height:1.75;padding:16px;">
+  <h1 style="text-align:center;font-size:1.35rem;text-transform:uppercase;letter-spacing:.06em;border-bottom:2px solid #111;padding-bottom:14px;margin-bottom:28px;">Venue Listing &amp; Booking Agreement</h1>
+  <p style="text-align:center;font-style:italic;color:#555;margin-top:-16px;margin-bottom:28px;">DoVenue Suite Platform</p>
+
+  <p>This Agreement is entered into as of <strong>${d.agreementDate}</strong> ("Effective Date"), by and between:</p>
+  <p style="margin-left:16px;"><strong>Venue Owner / Operator:</strong> ${d.ownerName}<br/><strong>Venue Name:</strong> ${d.venueName}</p>
+  <p style="margin-left:16px;">and</p>
+  <p style="margin-left:16px;"><strong>Client / Event Host:</strong> ${d.clientName}</p>
+  <hr style="border:none;border-top:1px solid #ccc;margin:28px 0;"/>
+
+  <h2 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.05em;margin-top:0;">1. Platform Overview</h2>
+  <p>This booking is facilitated through DoVenue Suite ("Platform"), which provides listing, booking, and payment processing services. The Platform is not a party to this Agreement and is not responsible for event execution, venue operations, vendor services, or disputes between Venue Owner and Client.</p>
+
+  <h2 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.05em;margin-top:24px;">2. Event Booking Details</h2>
+  <ul style="margin:0;padding-left:20px;">
+    <li><strong>Event Type:</strong> ${d.eventType || '____________________________'}</li>
+    <li><strong>Event Date:</strong> ${d.eventDate || '____________________________'}</li>
+    <li><strong>Event Time:</strong> ${d.eventTime || '____________________________'}</li>
+    <li><strong>Access Window:</strong> ${d.accessWindow || '____________________________'}</li>
+    <li><strong>Guest Count:</strong> ${d.guestCount || '____________________________'}</li>
+  </ul>
+
+  <h2 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.05em;margin-top:24px;">3. Fees &amp; Payment</h2>
+  <ul style="margin:0;padding-left:20px;">
+    <li><strong>Total Booking Amount:</strong> $${d.totalAmount || '__________'} <em style="font-size:.85rem;color:#555;">(subject to change based on added services)</em></li>
+    <li><strong>Deposit:</strong> $${d.deposit || '__________'}</li>
+    <li><strong>Remaining Balance Due:</strong> $${d.totalAmount && d.deposit ? (parseFloat(d.totalAmount) - parseFloat(d.deposit)).toFixed(2) : '__________'}</li>
+  </ul>
+  <p>All payments are processed via the Platform. The Venue Owner agrees that Platform fees may be deducted prior to payout and payout timing is governed by Platform processing terms.</p>
+
+  <h2 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.05em;margin-top:24px;">4. Cancellation &amp; Refund Policy</h2>
+  <p>Venue Owner agrees to the following cancellation terms:</p>
+  <ul style="margin:0;padding-left:20px;">
+    <li>More than <strong>${d.cancelMoreThan || '____'} days</strong> prior: ${d.cancelMoreThanPolicy || '____________________________'}</li>
+    <li>Within <strong>${d.cancelWithin || '____'} days</strong>: ${d.cancelWithinPolicy || '____________________________'}</li>
+  </ul>
+  <p>All refunds, credits, or disputes must be handled in accordance with Platform policies where applicable.</p>
+
+  <h2 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.05em;margin-top:24px;">5. Venue Responsibilities</h2>
+  <p>Venue Owner agrees to: (a) provide the venue as described in the listing; (b) maintain safe, clean, and functional premises; and (c) honor all confirmed bookings. Failure to meet these standards may result in refunds to Client, removal from Platform, or additional penalties as determined by Platform policies.</p>
+
+  <h2 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.05em;margin-top:24px;">6. Client Responsibilities</h2>
+  <p>Client agrees to: (a) use the venue only as described; (b) comply with all laws and regulations; and (c) ensure guest and vendor conduct. Client is responsible for any damages caused during the event.</p>
+
+  <h2 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.05em;margin-top:24px;">7. Vendors &amp; Services</h2>
+  <p>Venue Owner may require approved vendors OR allow open vendor selection. Client is responsible for vendor coordination unless otherwise specified. The Platform is not responsible for vendor performance.</p>
+
+  <h2 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.05em;margin-top:24px;">8. Insurance &amp; Compliance</h2>
+  <p>Client agrees to obtain event insurance if required by Venue Owner. Both parties agree to comply with local laws, licensing requirements, and safety regulations.</p>
+
+  <h2 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.05em;margin-top:24px;">9. Damage &amp; Liability</h2>
+  <p>Client assumes responsibility for property damage, guest behavior, and vendor-related incidents. Venue Owner is responsible for maintaining a safe environment.</p>
+
+  <h2 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.05em;margin-top:24px;">10. Indemnification</h2>
+  <p>Each party agrees to indemnify and hold harmless the other party from claims arising out of their respective actions.</p>
+
+  <h2 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.05em;margin-top:24px;">11. Platform Enforcement</h2>
+  <p>Venue Owner and Client acknowledge that the Platform may enforce booking policies, intervene in disputes when necessary, and repeated violations may result in account suspension or removal.</p>
+
+  <h2 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.05em;margin-top:24px;">12. Force Majeure</h2>
+  <p>Neither party is liable for failure to perform due to events beyond reasonable control.</p>
+
+  <h2 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.05em;margin-top:24px;">13. Governing Law</h2>
+  <p>This Agreement shall be governed by the laws of <strong>${d.governingState || '____________________'}</strong>.</p>
+
+  <h2 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.05em;margin-top:24px;">14. Entire Agreement</h2>
+  <p>This Agreement represents the full understanding between the parties.</p>
+
+  <h2 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.05em;margin-top:32px;">Signatures</h2>
+  <div style="margin-top:20px;display:flex;gap:48px;flex-wrap:wrap;">
+    <div style="flex:1;min-width:220px;">
+      <p style="margin:0 0 4px;font-weight:bold;">Client / Event Host</p>
+      <p style="margin:0;font-size:.9rem;color:#444;">${d.clientName}</p>
+      <div style="border-bottom:1px solid #333;height:52px;margin:12px 0;"></div>
+      <p style="margin:0;font-size:.8rem;color:#666;">Signature &amp; Date</p>
+    </div>
+    <div style="flex:1;min-width:220px;">
+      <p style="margin:0 0 4px;font-weight:bold;">Venue Owner / Operator</p>
+      <p style="margin:0;font-size:.9rem;color:#444;">${d.ownerName} — ${d.venueName}</p>
+      <div style="border-bottom:1px solid #333;height:52px;margin:12px 0;"></div>
+      <p style="margin:0;font-size:.8rem;color:#666;">Signature &amp; Date</p>
+    </div>
+  </div>
+</div>`
+}
+
 function NewContractForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user } = useAuth()
+  const { venues, activeVenue } = useVenue()
 
-  // mode: 'upload' | 'template'
-  const [mode, setMode] = useState<'upload' | 'template'>('upload')
+  // mode: 'upload' | 'template' | 'venue'
+  const [mode, setMode] = useState<'upload' | 'template' | 'venue'>('upload')
 
   // Shared fields
   const [clients, setClients] = useState<IntakeFormClient[]>([])
@@ -152,7 +259,7 @@ function NewContractForm() {
   const [file, setFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
 
-  // Template-mode fields
+  // Vendor template-mode fields
   const [companyName, setCompanyName] = useState('')
   const [companyState, setCompanyState] = useState('Mississippi')
   const [vendorName, setVendorName] = useState('')
@@ -172,18 +279,49 @@ function NewContractForm() {
   const [endDate, setEndDate] = useState('')
   const [governingState, setGoverningState] = useState('Mississippi')
 
+  // Venue template-mode fields
+  const [venueOwnerName, setVenueOwnerName] = useState('')
+  const [venueName, setVenueName] = useState('')
+  const [venueClientName, setVenueClientName] = useState('')
+  const [venueEventType, setVenueEventType] = useState('')
+  const [venueEventDate, setVenueEventDate] = useState('')
+  const [venueEventTime, setVenueEventTime] = useState('')
+  const [venueAccessWindow, setVenueAccessWindow] = useState('')
+  const [venueGuestCount, setVenueGuestCount] = useState('')
+  const [venueTotalAmount, setVenueTotalAmount] = useState('')
+  const [venueDeposit, setVenueDeposit] = useState('')
+  const [venueCancelMoreThan, setVenueCancelMoreThan] = useState('30')
+  const [venueCancelMoreThanPolicy, setVenueCancelMoreThanPolicy] = useState('Full refund minus processing fee')
+  const [venueCancelWithin, setVenueCancelWithin] = useState('30')
+  const [venueCancelWithinPolicy, setVenueCancelWithinPolicy] = useState('Deposit non-refundable; remaining balance refunded')
+  const [venueGoverningState, setVenueGoverningState] = useState('Mississippi')
+  const [venueClientEmail, setVenueClientEmail] = useState('')
+  const [estimateAmountFromClient, setEstimateAmountFromClient] = useState<string | null>(null)
+
   useEffect(() => {
     fetchClients()
     fetchVendors()
-    // Pre-fill company name from stored user profile
+    // Pre-fill company name + venue owner name from stored user profile
     try {
       const stored = localStorage.getItem('user')
       if (stored) {
         const u = JSON.parse(stored)
-        if (u.firstName || u.lastName) setCompanyName(`${u.firstName || ''} ${u.lastName || ''}`.trim())
+        const fullName = `${u.firstName || ''} ${u.lastName || ''}`.trim()
+        if (fullName) {
+          setCompanyName(fullName)
+          setVenueOwnerName(fullName)
+        }
       }
     } catch { /* ignore */ }
   }, [])
+
+  // Auto-populate venue name when venues load
+  useEffect(() => {
+    const primary = activeVenue || venues[0] || null
+    if (primary && !venueName) {
+      setVenueName(primary.name)
+    }
+  }, [activeVenue, venues])
 
   // When vendor is selected: auto-populate template fields
   useEffect(() => {
@@ -209,7 +347,7 @@ function NewContractForm() {
           ? client.event_type.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
           : 'Event'
         setDescription(`Contract for ${client.contact_name} — ${eventLabel}`)
-        // Auto-populate template fields from client record
+        // Auto-populate vendor template fields from client record
         if (client.contact_name) setVendorName(client.contact_name)
         if (client.event_date) {
           const d = parseLocalDate(client.event_date)
@@ -219,11 +357,51 @@ function NewContractForm() {
           setBalanceDueDate(d)
         }
         if (client.services_needed) setServicesDescription(client.services_needed)
+        // Auto-populate venue template fields from client record
+        if (client.contact_name) setVenueClientName(client.contact_name)
+        if (client.contact_email) setVenueClientEmail(client.contact_email)
+        if (client.event_type) setVenueEventType(eventLabel)
+        if (client.event_date) {
+          const d = parseLocalDate(client.event_date)
+            .toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+          setVenueEventDate(d)
+        }
+        if (client.event_time) setVenueEventTime(client.event_time)
+        if (client.guest_count) setVenueGuestCount(String(client.guest_count))
+        // Fetch estimate total for this client to pre-fill booking amount
+        fetchEstimateForClient(client.id)
       }
     } else {
       setSelectedClientData(null)
+      setEstimateAmountFromClient(null)
     }
   }, [selectedClient, clients])
+
+  const fetchEstimateForClient = async (intakeFormId: string) => {
+    try {
+      const res = await api.get('/estimates')
+      const all: any[] = res.data || []
+      const clientEstimates = all.filter((e: any) =>
+        e.intake_form_id === intakeFormId && ['sent', 'approved', 'draft', 'converted'].includes(e.status)
+      )
+      // Use the most recent estimate's total
+      if (clientEstimates.length > 0) {
+        const latest = clientEstimates.sort((a: any, b: any) =>
+          new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+        )[0]
+        const total = latest.total_amount ?? latest.total ?? latest.subtotal
+        if (total != null) {
+          const totalStr = Number(total).toFixed(2)
+          setEstimateAmountFromClient(totalStr)
+          setVenueTotalAmount(totalStr)
+        }
+      } else {
+        setEstimateAmountFromClient(null)
+      }
+    } catch {
+      setEstimateAmountFromClient(null)
+    }
+  }
 
   const fetchClients = async () => {
     try {
@@ -330,6 +508,46 @@ function NewContractForm() {
     }
   }
 
+  const handleSubmitVenue = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!venueOwnerName || !venueName || !venueClientName || !venueTotalAmount) {
+      alert('Please fill in Venue Owner, Venue Name, Client Name, and Total Amount')
+      return
+    }
+    setLoading(true)
+    try {
+      const agreementDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+      const body = generateVenueContract({
+        venueName, ownerName: venueOwnerName, clientName: venueClientName,
+        eventType: venueEventType, eventDate: venueEventDate, eventTime: venueEventTime,
+        accessWindow: venueAccessWindow, guestCount: venueGuestCount,
+        totalAmount: venueTotalAmount, deposit: venueDeposit,
+        cancelMoreThan: venueCancelMoreThan, cancelMoreThanPolicy: venueCancelMoreThanPolicy,
+        cancelWithin: venueCancelWithin, cancelWithinPolicy: venueCancelWithinPolicy,
+        governingState: venueGoverningState, agreementDate,
+      })
+      const contractData = {
+        owner_id: user?.id,
+        intake_form_id: selectedClient || undefined,
+        title: title || 'Venue Listing & Booking Agreement',
+        description: description || `Venue Booking Agreement — ${venueClientName}`,
+        notes,
+        contract_type: 'venue_booking',
+        body,
+        client_name: venueClientName,
+        client_email: venueClientEmail || undefined,
+        status: 'draft',
+      }
+      const response = await api.post('/contracts', contractData)
+      router.push(`/dashboard/contracts/${response.data.id}`)
+    } catch (error) {
+      console.error('Failed to create contract:', error)
+      alert('Failed to create contract')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm'
   const labelCls = 'block text-sm font-medium text-gray-700 mb-1'
 
@@ -337,11 +555,21 @@ function NewContractForm() {
     <div className="p-6 max-w-4xl mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Create New Contract</h1>
-        <p className="text-gray-600 mt-1">Generate a vendor agreement or upload an existing document</p>
+        <p className="text-gray-600 mt-1">Generate a venue booking agreement, vendor agreement, or upload an existing document</p>
       </div>
 
       {/* Mode toggle */}
-      <div className="flex gap-2 mb-6">
+      <div className="flex flex-wrap gap-2 mb-6">
+        <button
+          type="button"
+          onClick={() => { setMode('venue'); setTitle('Venue Listing & Booking Agreement') }}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm border transition-colors ${
+            mode === 'venue' ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-gray-700 border-gray-300 hover:border-primary-400'
+          }`}
+        >
+          <Building2 className="w-4 h-4" />
+          Venue Booking Agreement
+        </button>
         <button
           type="button"
           onClick={() => { setMode('template'); setTitle('Vendor Services Agreement') }}
@@ -411,6 +639,151 @@ function NewContractForm() {
             </div>
           )}
         </div>
+      )}
+
+      {/* ── VENUE BOOKING AGREEMENT MODE ───────────────────────────────────── */}
+      {mode === 'venue' && (
+        <form onSubmit={handleSubmitVenue}>
+          {/* Link to intake form client (optional) */}
+          <div className="bg-white shadow-md rounded-lg p-6 mb-4">
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-1">Link to Client Event <span className="font-normal normal-case text-gray-400">(optional — auto-fills fields)</span></h2>
+            <select
+              value={selectedClient}
+              onChange={e => setSelectedClient(e.target.value)}
+              className={inputCls}
+            >
+              <option value="">-- None --</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.contact_name}
+                  {c.event_type ? ` — ${c.event_type.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}` : ''}
+                  {c.event_date ? ` (${c.event_date})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Parties */}
+          <div className="bg-white shadow-md rounded-lg p-6 mb-4">
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-4">Parties</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className={labelCls}>Venue Owner / Operator Name *</label>
+                <input type="text" value={venueOwnerName} onChange={e => setVenueOwnerName(e.target.value)} required className={inputCls} placeholder="Your legal name or business name" />
+              </div>
+              <div>
+                <label className={labelCls}>Venue Name *</label>
+                <input type="text" value={venueName} onChange={e => setVenueName(e.target.value)} required className={inputCls} placeholder="Name of the venue" />
+              </div>
+              <div>
+                <label className={labelCls}>Client / Event Host Name *</label>
+                <input type="text" value={venueClientName} onChange={e => setVenueClientName(e.target.value)} required className={inputCls} placeholder="Client's full name" />
+              </div>
+              <div>
+                <label className={labelCls}>Client Email <span className="font-normal text-gray-400">(for sending)</span></label>
+                <input type="email" value={venueClientEmail} onChange={e => setVenueClientEmail(e.target.value)} className={inputCls} placeholder="client@example.com" />
+              </div>
+            </div>
+          </div>
+
+          {/* Event Booking Details */}
+          <div className="bg-white shadow-md rounded-lg p-6 mb-4">
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-4">Event Booking Details</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className={labelCls}>Event Type</label>
+                <input type="text" value={venueEventType} onChange={e => setVenueEventType(e.target.value)} className={inputCls} placeholder="e.g., Wedding, Birthday, Corporate" />
+              </div>
+              <div>
+                <label className={labelCls}>Event Date</label>
+                <input type="text" value={venueEventDate} onChange={e => setVenueEventDate(e.target.value)} className={inputCls} placeholder="e.g., May 9, 2026" />
+              </div>
+              <div>
+                <label className={labelCls}>Event Time</label>
+                <input type="text" value={venueEventTime} onChange={e => setVenueEventTime(e.target.value)} className={inputCls} placeholder="e.g., 6:00 PM – 11:00 PM" />
+              </div>
+              <div>
+                <label className={labelCls}>Access Window</label>
+                <input type="text" value={venueAccessWindow} onChange={e => setVenueAccessWindow(e.target.value)} className={inputCls} placeholder="e.g., 2 hours before event" />
+              </div>
+              <div>
+                <label className={labelCls}>Guest Count</label>
+                <input type="number" value={venueGuestCount} onChange={e => setVenueGuestCount(e.target.value)} min="1" className={inputCls} placeholder="150" />
+              </div>
+            </div>
+          </div>
+
+          {/* Fees & Payment */}
+          <div className="bg-white shadow-md rounded-lg p-6 mb-4">
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-4">Fees &amp; Payment</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className={labelCls}>Total Booking Amount ($) *</label>
+                <input type="number" value={venueTotalAmount} onChange={e => setVenueTotalAmount(e.target.value)} required min="0" step="0.01" className={inputCls} placeholder="0.00" />
+                {estimateAmountFromClient && (
+                  <p className="text-xs text-blue-600 mt-1">
+                    Auto-filled from estimate (${estimateAmountFromClient})
+                  </p>
+                )}
+                <p className="text-xs text-gray-400 mt-1">Subject to change based on added services.</p>
+              </div>
+              <div>
+                <label className={labelCls}>Deposit ($)</label>
+                <input type="number" value={venueDeposit} onChange={e => setVenueDeposit(e.target.value)} min="0" step="0.01" className={inputCls} placeholder="0.00" />
+              </div>
+            </div>
+          </div>
+
+          {/* Cancellation Policy */}
+          <div className="bg-white shadow-md rounded-lg p-6 mb-4">
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-4">Cancellation Policy</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className={labelCls}>More than ___ days prior: days</label>
+                <input type="number" value={venueCancelMoreThan} onChange={e => setVenueCancelMoreThan(e.target.value)} min="1" className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Policy (more than ____ days)</label>
+                <input type="text" value={venueCancelMoreThanPolicy} onChange={e => setVenueCancelMoreThanPolicy(e.target.value)} className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Within ___ days: days</label>
+                <input type="number" value={venueCancelWithin} onChange={e => setVenueCancelWithin(e.target.value)} min="1" className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Policy (within ____ days)</label>
+                <input type="text" value={venueCancelWithinPolicy} onChange={e => setVenueCancelWithinPolicy(e.target.value)} className={inputCls} />
+              </div>
+            </div>
+          </div>
+
+          {/* Contract Title & Governing Law */}
+          <div className="bg-white shadow-md rounded-lg p-6 mb-4">
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-4">Additional Details</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className={labelCls}>Contract Title</label>
+                <input type="text" value={title} onChange={e => setTitle(e.target.value)} className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Governing State</label>
+                <input type="text" value={venueGoverningState} onChange={e => setVenueGoverningState(e.target.value)} className={inputCls} />
+              </div>
+              <div className="md:col-span-2">
+                <label className={labelCls}>Internal Notes <span className="font-normal text-gray-400">(not visible to client)</span></label>
+                <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className={inputCls} />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3">
+            <button type="button" onClick={() => router.push('/dashboard/contracts')} className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Cancel</button>
+            <button type="submit" disabled={loading} className="px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+              <Building2 className="w-4 h-4" />
+              {loading ? 'Generating...' : 'Generate Contract'}
+            </button>
+          </div>
+        </form>
       )}
 
       {/* ── TEMPLATE MODE ─────────────────────────────────────────────────── */}

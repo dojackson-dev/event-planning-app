@@ -215,13 +215,20 @@ export class ContractsService {
       .single();
     if (error) throw error;
 
-    // Notify client via SMS
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    // Vendor template contracts link to the vendor dashboard, others to client portal
+    const isVendorContract = data.contract_type === 'vendor_template';
+    const contractUrl = isVendorContract
+      ? `${frontendUrl}/vendors/dashboard/contracts/${id}`
+      : `${frontendUrl}/client-portal/contracts/${id}`;
+
+    // Notify client via SMS (includes direct signing link)
     try {
       const clientPhone: string | null =
         data.client_phone ?? data.contact_phone ?? null;
       const clientName: string = data.client_name ?? data.contact_name ?? 'Valued Client';
       const contractNumber: string = data.contract_number ?? id;
-      await this.smsNotifications.contractSent(clientPhone, clientName, contractNumber);
+      await this.smsNotifications.contractSent(clientPhone, clientName, contractNumber, contractUrl);
     } catch {
       // SMS errors must never break the contract send
     }
@@ -266,6 +273,43 @@ export class ContractsService {
     } catch {
       // Email errors must never break the contract send
     }
+
+    return data;
+  }
+
+  /** Owner counter-signs a contract after the client has signed. */
+  async ownerSignContract(
+    supabase: SupabaseClient,
+    id: string,
+    ownerSignatureData: string,
+    ownerSignerName: string,
+    ownerId: string,
+  ): Promise<any> {
+    const { data, error } = await supabase
+      .from('contracts')
+      .update({
+        owner_signature_data: ownerSignatureData,
+        owner_signer_name: ownerSignerName,
+        owner_signed_date: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .eq('owner_id', ownerId)
+      .select()
+      .single();
+    if (error) throw error;
+
+    // Notify client that owner has counter-signed
+    try {
+      const clientPhone: string | null = data.client_phone ?? data.contact_phone ?? null;
+      const clientName: string = data.client_name ?? data.contact_name ?? 'Valued Client';
+      const contractNumber: string = data.contract_number ?? id;
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const contractUrl = `${frontendUrl}/client-portal/contracts/${id}`;
+      await this.smsNotifications.trySend(
+        clientPhone,
+        `DoVenue Suite: Hi ${clientName}, your contract ${contractNumber} has been counter-signed by your venue coordinator. View your fully executed contract: ${contractUrl}`,
+      );
+    } catch { /* SMS errors must not break signing */ }
 
     return data;
   }

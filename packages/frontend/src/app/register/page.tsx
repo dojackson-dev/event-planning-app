@@ -86,11 +86,25 @@ export default function RegisterPage() {
         referralCode: referralCode || undefined,
       })
 
-      // Store session tokens so the user is immediately logged in
+      // Store session tokens and user so AuthContext loads correctly
       if (res.data.session?.access_token) {
         localStorage.setItem('access_token', res.data.session.access_token)
         localStorage.setItem('refresh_token', res.data.session.refresh_token)
         localStorage.setItem('user_role', 'owner')
+        const newUser = {
+          id: res.data.userId,
+          email,
+          firstName,
+          lastName,
+          phone: phoneNumber,
+          role: 'owner',
+          roles: ['owner'],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }
+        localStorage.setItem('user', JSON.stringify(newUser))
+        localStorage.setItem('user_roles', JSON.stringify(['owner']))
+        localStorage.setItem('active_role', 'owner')
       }
 
       setSuccess(true)

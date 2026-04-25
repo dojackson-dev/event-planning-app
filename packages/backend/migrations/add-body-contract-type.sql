@@ -5,6 +5,9 @@ ALTER TABLE contracts ADD COLUMN IF NOT EXISTS body TEXT;
 ALTER TABLE contracts ADD COLUMN IF NOT EXISTS contract_type TEXT DEFAULT 'upload';
 ALTER TABLE contracts ADD COLUMN IF NOT EXISTS vendor_account_id UUID REFERENCES vendor_accounts(id) ON DELETE SET NULL;
 
+CREATE INDEX IF NOT EXISTS idx_contracts_contract_type ON contracts(contract_type)
+  WHERE contract_type IS NOT NULL;
+
 -- Allow vendors to read contracts assigned to their account
 CREATE POLICY IF NOT EXISTS "Vendors can read their own contracts"
   ON contracts FOR SELECT

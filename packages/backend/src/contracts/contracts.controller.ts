@@ -170,6 +170,21 @@ export class ContractsController {
     return this.contractsService.signContract(supabase, id, signatureData);
   }
 
+  @Post(':id/owner-sign')
+  async ownerSignContract(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+    @Body() body: { signatureData: string; signerName: string },
+  ): Promise<any | null> {
+    const userId = await this.getUserId(authorization);
+    const token = this.extractToken(authorization);
+    const supabase = this.supabaseService.setAuthContext(token);
+    if (!body?.signatureData || !body?.signerName) {
+      throw new BadRequestException('signatureData and signerName are required');
+    }
+    return this.contractsService.ownerSignContract(supabase, id, body.signatureData, body.signerName, userId);
+  }
+
   @Post(':id/send')
   async sendContract(
     @Headers('authorization') authorization: string,

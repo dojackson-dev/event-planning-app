@@ -301,7 +301,6 @@ export default function EventManagementPage() {
         startTime: event.startTime || '',
         endTime: event.endTime || '',
         venue: event.venue || '',
-        venueId: event.venueId || '',
         // Restore saved management fields
         vendors: mgmt.vendors || [],
         clientEmail: mgmt.clientEmail || '',

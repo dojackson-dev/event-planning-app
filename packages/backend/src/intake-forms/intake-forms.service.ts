@@ -30,9 +30,10 @@ export class IntakeFormsService {
     try {
       const supabaseAdmin = this.supabaseService.getAdminClient();
       await supabaseAdmin.from('event').insert([{
-        name: `${intakeForm.event_type || 'Event'} - ${intakeForm.contact_name || 'Client'}`,
+        name: intakeForm.event_name || `${intakeForm.event_type || 'Event'} - ${intakeForm.contact_name || 'Client'}`,
         date: intakeForm.event_date || new Date().toISOString().split('T')[0],
         start_time: intakeForm.event_time || null,
+        end_time: intakeForm.event_end_time || null,
         venue: intakeForm.venue_preference || null,
         guest_count: intakeForm.guest_count || null,
         description: intakeForm.special_requests || null,
@@ -138,7 +139,7 @@ export class IntakeFormsService {
           name: data.event_name || `${data.event_type ? data.event_type.charAt(0).toUpperCase() + data.event_type.slice(1).replace(/_/g, ' ') : 'Event'} - ${data.contact_name}`,
           date: data.event_date,
           start_time: data.event_time || '00:00',
-          end_time: '23:59',
+          end_time: data.event_end_time || '23:59',
           description: data.special_requests || '',
           status: 'scheduled',
           guest_count: data.guest_count || null,
@@ -346,10 +347,10 @@ export class IntakeFormsService {
       // No event exists yet — create one and link it to the intake form
       const ownerVenueId = await this.resolveOwnerVenueId(userId, supabaseAdmin);
       const eventData = {
-        name: `${intakeForm.event_type} Event - ${intakeForm.contact_name}`,
+        name: intakeForm.event_name || `${intakeForm.event_type ? intakeForm.event_type.charAt(0).toUpperCase() + intakeForm.event_type.slice(1).replace(/_/g, ' ') : 'Event'} - ${intakeForm.contact_name}`,
         date: intakeForm.event_date,
         start_time: intakeForm.event_time || '00:00',
-        end_time: '23:59',
+        end_time: intakeForm.event_end_time || '23:59',
         description: intakeForm.special_requests || '',
         status: 'scheduled' as const,
         guest_count: intakeForm.guest_count,

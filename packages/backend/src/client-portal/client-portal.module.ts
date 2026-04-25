@@ -10,5 +10,6 @@ import { ClientPortalController } from './client-portal.controller';
   imports: [SupabaseModule, MessagingModule, StripeModule],
   controllers: [ClientPortalController],
   providers: [ClientAuthService, ClientPortalService],
+  exports: [ClientAuthService],
 })
 export class ClientPortalModule {}

@@ -36,6 +36,7 @@ import { PromoterEventsModule } from './promoter-events/promoter-events.module';
 import { TeamModule } from './team/team.module';
 import { RemindersModule } from './reminders/reminders.module';
 import { AuditModule } from './audit/audit.module';
+import { RsvpModule } from './rsvp/rsvp.module';
 
 @Module({
   imports: [
@@ -76,6 +77,7 @@ import { AuditModule } from './audit/audit.module';
     TeamModule,
     RemindersModule,
     AuditModule,
+    RsvpModule,
   ],
   controllers: [AppController],
   providers: [AppService],

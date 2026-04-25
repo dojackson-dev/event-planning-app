@@ -20,6 +20,15 @@ interface IntakeFormClient {
   status: string
 }
 
+interface VendorAccount {
+  id: string
+  business_name: string
+  category?: string
+  email?: string
+  phone?: string
+  state?: string
+}
+
 // ── Vendor contract template generator ───────────────────────────────────────
 function generateVendorContract(d: {
   companyName: string
@@ -129,6 +138,11 @@ function NewContractForm() {
   const [clients, setClients] = useState<IntakeFormClient[]>([])
   const [selectedClient, setSelectedClient] = useState<string>('')
   const [selectedClientData, setSelectedClientData] = useState<IntakeFormClient | null>(null)
+
+  // Vendor selector (template mode)
+  const [vendors, setVendors] = useState<VendorAccount[]>([])
+  const [selectedVendorId, setSelectedVendorId] = useState<string>('')
+  const [selectedVendorData, setSelectedVendorData] = useState<VendorAccount | null>(null)
   const [title, setTitle] = useState('Event Service Agreement')
   const [description, setDescription] = useState('')
   const [notes, setNotes] = useState('')
@@ -160,6 +174,7 @@ function NewContractForm() {
 
   useEffect(() => {
     fetchClients()
+    fetchVendors()
     // Pre-fill company name from stored user profile
     try {
       const stored = localStorage.getItem('user')
@@ -169,6 +184,21 @@ function NewContractForm() {
       }
     } catch { /* ignore */ }
   }, [])
+
+  // When vendor is selected: auto-populate template fields
+  useEffect(() => {
+    if (selectedVendorId) {
+      const v = vendors.find(va => va.id === selectedVendorId)
+      setSelectedVendorData(v || null)
+      if (v) {
+        setVendorName(v.business_name)
+        if (v.state) setVendorState(v.state)
+        setDescription(`Vendor Services Agreement — ${v.business_name}`)
+      }
+    } else {
+      setSelectedVendorData(null)
+    }
+  }, [selectedVendorId, vendors])
 
   useEffect(() => {
     if (selectedClient) {
@@ -216,6 +246,15 @@ function NewContractForm() {
     }
   }
 
+  const fetchVendors = async () => {
+    try {
+      const res = await api.get<VendorAccount[]>('/vendors')
+      setVendors(res.data || [])
+    } catch (error) {
+      console.error('Failed to fetch vendors:', error)
+    }
+  }
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0]
@@ -259,8 +298,8 @@ function NewContractForm() {
 
   const handleSubmitTemplate = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedClient || !vendorName || !totalFee || !servicesDescription) {
-      alert('Please fill in all required fields (client, vendor name, fee, services)')
+    if (!selectedVendorId || !vendorName || !totalFee || !servicesDescription) {
+      alert('Please select a vendor and fill in all required fields (fee, services)')
       return
     }
     setLoading(true)
@@ -274,7 +313,8 @@ function NewContractForm() {
       })
       const contractData = {
         owner_id: user?.id,
-        intake_form_id: selectedClient,
+        intake_form_id: selectedClient || undefined,
+        vendor_account_id: selectedVendorId,
         title, description, notes,
         contract_type: 'vendor_template',
         body,
@@ -324,56 +364,110 @@ function NewContractForm() {
         </button>
       </div>
 
-      {/* ── Client selector (shared) ─────────────────────────────────────── */}
-      <div className="bg-white shadow-md rounded-lg p-6 mb-5">
-        <div className="mb-4">
-          <label className={labelCls}>Select Client *</label>
-          <select
-            value={selectedClient}
-            onChange={e => setSelectedClient(e.target.value)}
-            required
-            className={inputCls}
-          >
-            <option value="">-- Select a client --</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.contact_name}
-                {c.event_type ? ` — ${c.event_type.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}` : ''}
-                {c.event_date ? ` (${c.event_date})` : ''}
-              </option>
-            ))}
-          </select>
-          {clients.length === 0 && <p className="text-xs text-gray-400 mt-1">No upcoming clients found.</p>}
-        </div>
+      {/* ── Client selector (upload mode only) ───────────────────────── */}
+      {mode === 'upload' && (
+        <div className="bg-white shadow-md rounded-lg p-6 mb-5">
+          <div className="mb-4">
+            <label className={labelCls}>Select Client *</label>
+            <select
+              value={selectedClient}
+              onChange={e => setSelectedClient(e.target.value)}
+              required
+              className={inputCls}
+            >
+              <option value="">-- Select a client --</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.contact_name}
+                  {c.event_type ? ` — ${c.event_type.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}` : ''}
+                  {c.event_date ? ` (${c.event_date})` : ''}
+                </option>
+              ))}
+            </select>
+            {clients.length === 0 && <p className="text-xs text-gray-400 mt-1">No upcoming clients found.</p>}
+          </div>
 
-        {selectedClientData && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h3 className="text-sm font-semibold text-blue-900 mb-2">Client Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-              <div>
-                <p className="text-blue-900 font-semibold">{selectedClientData.contact_name}</p>
-                {selectedClientData.contact_email && <p className="text-blue-700 text-xs flex items-center gap-1"><Mail className="h-3 w-3"/>{selectedClientData.contact_email}</p>}
-                {selectedClientData.contact_phone && <p className="text-blue-700 text-xs flex items-center gap-1"><Phone className="h-3 w-3"/>{selectedClientData.contact_phone}</p>}
-              </div>
-              <div>
-                {selectedClientData.event_type && <p className="text-blue-700 text-xs">{selectedClientData.event_type.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}</p>}
-                {selectedClientData.event_date && (
-                  <p className="text-blue-700 text-xs flex items-center gap-1">
-                    <Calendar className="h-3 w-3"/>
-                    {parseLocalDate(selectedClientData.event_date).toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
-                  </p>
-                )}
-                {selectedClientData.event_time && <p className="text-blue-700 text-xs flex items-center gap-1"><Clock className="h-3 w-3"/>{selectedClientData.event_time}</p>}
-                {selectedClientData.guest_count && <p className="text-blue-700 text-xs flex items-center gap-1"><Users className="h-3 w-3"/>{selectedClientData.guest_count} guests</p>}
+          {selectedClientData && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-blue-900 mb-2">Client Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-blue-900 font-semibold">{selectedClientData.contact_name}</p>
+                  {selectedClientData.contact_email && <p className="text-blue-700 text-xs flex items-center gap-1"><Mail className="h-3 w-3"/>{selectedClientData.contact_email}</p>}
+                  {selectedClientData.contact_phone && <p className="text-blue-700 text-xs flex items-center gap-1"><Phone className="h-3 w-3"/>{selectedClientData.contact_phone}</p>}
+                </div>
+                <div>
+                  {selectedClientData.event_type && <p className="text-blue-700 text-xs">{selectedClientData.event_type.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}</p>}
+                  {selectedClientData.event_date && (
+                    <p className="text-blue-700 text-xs flex items-center gap-1">
+                      <Calendar className="h-3 w-3"/>
+                      {parseLocalDate(selectedClientData.event_date).toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
+                    </p>
+                  )}
+                  {selectedClientData.event_time && <p className="text-blue-700 text-xs flex items-center gap-1"><Clock className="h-3 w-3"/>{selectedClientData.event_time}</p>}
+                  {selectedClientData.guest_count && <p className="text-blue-700 text-xs flex items-center gap-1"><Users className="h-3 w-3"/>{selectedClientData.guest_count} guests</p>}
+                </div>
               </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {/* ── TEMPLATE MODE ─────────────────────────────────────────────────── */}
       {mode === 'template' && (
         <form onSubmit={handleSubmitTemplate}>
+          {/* Vendor selector */}
+          <div className="bg-white shadow-md rounded-lg p-6 mb-4">
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-4">Select Vendor *</h2>
+            <select
+              value={selectedVendorId}
+              onChange={e => setSelectedVendorId(e.target.value)}
+              required
+              className={inputCls}
+            >
+              <option value="">-- Select a vendor --</option>
+              {vendors.map(v => (
+                <option key={v.id} value={v.id}>
+                  {v.business_name}
+                  {v.category ? ` — ${v.category}` : ''}
+                </option>
+              ))}
+            </select>
+            {vendors.length === 0 && <p className="text-xs text-gray-400 mt-1">No vendors found. Make sure vendors have registered.</p>}
+            {selectedVendorData && (
+              <div className="mt-3 bg-purple-50 border border-purple-200 rounded-lg p-3 flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-purple-200 flex items-center justify-center flex-shrink-0">
+                  <span className="text-purple-700 font-bold text-xs">{selectedVendorData.business_name.charAt(0)}</span>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-purple-900">{selectedVendorData.business_name}</p>
+                  {selectedVendorData.email && <p className="text-xs text-purple-700 flex items-center gap-1"><Mail className="h-3 w-3"/>{selectedVendorData.email}</p>}
+                  {selectedVendorData.phone && <p className="text-xs text-purple-700 flex items-center gap-1"><Phone className="h-3 w-3"/>{selectedVendorData.phone}</p>}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Optional: link to a client event */}
+          <div className="bg-white shadow-md rounded-lg p-6 mb-4">
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-1">Link to Client Event <span className="font-normal normal-case text-gray-400">(optional)</span></h2>
+            <p className="text-xs text-gray-400 mb-3">If this vendor is being hired for a specific booked event, link that intake form here.</p>
+            <select
+              value={selectedClient}
+              onChange={e => setSelectedClient(e.target.value)}
+              className={inputCls}
+            >
+              <option value="">-- None --</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.contact_name}
+                  {c.event_type ? ` — ${c.event_type.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}` : ''}
+                  {c.event_date ? ` (${c.event_date})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Title */}
           <div className="bg-white shadow-md rounded-lg p-6 mb-4">
             <div className="mb-0">
@@ -397,9 +491,9 @@ function NewContractForm() {
             </div>
           </div>
 
-          {/* Vendor */}
+          {/* Vendor details */}
           <div className="bg-white shadow-md rounded-lg p-6 mb-4">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-4">Vendor Information</h2>
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-4">Vendor Details</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="md:col-span-2">
                 <label className={labelCls}>Vendor Legal Name *</label>

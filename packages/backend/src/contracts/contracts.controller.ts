@@ -192,6 +192,47 @@ export class ContractsController {
       .is('viewed_at', null);
   }
 
+  // ── Vendor-specific endpoints ─────────────────────────────────────────────
+
+  @Get('vendor/mine')
+  async getVendorContracts(
+    @Headers('authorization') authorization: string,
+  ): Promise<any[]> {
+    const userId = await this.getUserId(authorization);
+    return this.contractsService.findByVendorUser(userId);
+  }
+
+  @Post(':id/vendor-sign')
+  async vendorSignContract(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+    @Body() body: { signatureData: string; signerName: string },
+  ): Promise<any> {
+    const userId = await this.getUserId(authorization);
+    if (!body?.signatureData || !body?.signerName) {
+      throw new BadRequestException('signatureData and signerName are required');
+    }
+    return this.contractsService.signContractAsVendor(
+      userId,
+      id,
+      body.signatureData,
+      body.signerName,
+    );
+  }
+
+  @Post(':id/vendor-send')
+  async vendorSendContract(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+    @Body() body: { sendTo: 'client' | 'owner' },
+  ): Promise<any> {
+    const userId = await this.getUserId(authorization);
+    if (!body?.sendTo || !['client', 'owner'].includes(body.sendTo)) {
+      throw new BadRequestException('sendTo must be "client" or "owner"');
+    }
+    return this.contractsService.sendContractAsVendor(userId, id, body.sendTo);
+  }
+
   @Delete(':id')
   async remove(
     @Headers('authorization') authorization: string,

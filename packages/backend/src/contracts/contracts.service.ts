@@ -94,8 +94,21 @@ export class ContractsService {
     let clientPhone: string | undefined = contractData.client_phone;
     let clientEmail: string | undefined = contractData.client_email;
 
-    if (contractData.intake_form_id && (!clientPhone || !clientName)) {
-      const admin = this.supabaseService.getAdminClient();
+    const admin = this.supabaseService.getAdminClient();
+
+    // For vendor template contracts: populate contact info from vendor_accounts
+    if (contractData.vendor_account_id && (!clientPhone || !clientName)) {
+      const { data: vendorAccount } = await admin
+        .from('vendor_accounts')
+        .select('business_name, phone, email')
+        .eq('id', contractData.vendor_account_id)
+        .single();
+      if (vendorAccount) {
+        clientName  = clientName  ?? vendorAccount.business_name ?? undefined;
+        clientPhone = clientPhone ?? vendorAccount.phone         ?? undefined;
+        clientEmail = clientEmail ?? vendorAccount.email         ?? undefined;
+      }
+    } else if (contractData.intake_form_id && (!clientPhone || !clientName)) {
       const { data: form } = await admin
         .from('intake_forms')
         .select('contact_name, contact_phone, contact_email')
@@ -219,7 +232,11 @@ export class ContractsService {
       const clientName: string = data.client_name ?? data.contact_name ?? 'Valued Client';
       const contractNumber: string = data.contract_number ?? id;
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-      const contractUrl = `${frontendUrl}/client-portal/contracts/${id}`;
+      // Vendor template contracts link to the vendor dashboard, others to client portal
+      const isVendorContract = data.contract_type === 'vendor_template';
+      const contractUrl = isVendorContract
+        ? `${frontendUrl}/vendors/dashboard/contracts/${id}`
+        : `${frontendUrl}/client-portal/contracts/${id}`;
 
       let ownerName = 'Your Event Coordinator';
       if (data.owner_id) {
@@ -251,6 +268,187 @@ export class ContractsService {
     }
 
     return data;
+  }
+
+  /** Fetch all contracts for a vendor (identified by their user_id). Uses admin client to bypass RLS. */
+  async findByVendorUser(userId: string): Promise<any[]> {
+    const admin = this.supabaseService.getAdminClient();
+    // Look up vendor_account_id for this user
+    const { data: vendorAccount } = await admin
+      .from('vendor_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .single();
+    if (!vendorAccount) return [];
+
+    const { data, error } = await admin
+      .from('contracts')
+      .select('*')
+      .eq('vendor_account_id', vendorAccount.id)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  }
+
+  /** Vendor signs a contract (verifies vendor ownership before updating). */
+  async signContractAsVendor(
+    userId: string,
+    contractId: string,
+    signatureData: string,
+    signerName: string,
+  ): Promise<any> {
+    const admin = this.supabaseService.getAdminClient();
+    // Verify this vendor owns the contract
+    const { data: vendorAccount } = await admin
+      .from('vendor_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .single();
+    if (!vendorAccount) throw new Error('Vendor account not found');
+
+    const { data: contract } = await admin
+      .from('contracts')
+      .select('id, vendor_account_id, contract_number, owner_id')
+      .eq('id', contractId)
+      .single();
+    if (!contract || contract.vendor_account_id !== vendorAccount.id) {
+      throw new Error('Contract not found or not accessible');
+    }
+
+    const { data, error } = await admin
+      .from('contracts')
+      .update({
+        signature_data: signatureData,
+        signer_name: signerName,
+        signed_date: new Date().toISOString(),
+        status: 'signed',
+      })
+      .eq('id', contractId)
+      .select()
+      .single();
+    if (error) throw error;
+
+    // Notify owner
+    try {
+      const { data: ownerUser } = await admin
+        .from('users')
+        .select('phone_number')
+        .eq('id', data.owner_id)
+        .single();
+      await this.smsNotifications.contractSigned(
+        (ownerUser as any)?.phone_number ?? null,
+        signerName,
+        data.contract_number ?? contractId,
+      );
+    } catch { /* SMS errors must not break signing */ }
+
+    return data;
+  }
+
+  /** Vendor sends a contract to the client or back to the owner for review. */
+  async sendContractAsVendor(
+    userId: string,
+    contractId: string,
+    sendTo: 'client' | 'owner',
+  ): Promise<any> {
+    const admin = this.supabaseService.getAdminClient();
+
+    // Verify vendor owns this contract
+    const { data: vendorAccount } = await admin
+      .from('vendor_accounts')
+      .select('id, business_name')
+      .eq('user_id', userId)
+      .single();
+    if (!vendorAccount) throw new Error('Vendor account not found');
+
+    const { data: contract } = await admin
+      .from('contracts')
+      .select('*')
+      .eq('id', contractId)
+      .single();
+    if (!contract || contract.vendor_account_id !== vendorAccount.id) {
+      throw new Error('Contract not found or not accessible');
+    }
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const contractNumber: string = contract.contract_number ?? contractId;
+
+    if (sendTo === 'client') {
+      let clientEmail: string | null = contract.client_email ?? contract.contact_email ?? null;
+      let clientName: string = contract.client_name ?? contract.contact_name ?? 'Valued Client';
+
+      if (!clientEmail && contract.intake_form_id) {
+        const { data: form } = await admin
+          .from('intake_forms')
+          .select('contact_name, contact_email, contact_phone')
+          .eq('id', contract.intake_form_id)
+          .single();
+        if (form) {
+          clientEmail = form.contact_email ?? null;
+          clientName = form.contact_name ?? clientName;
+        }
+      }
+
+      if (clientEmail) {
+        const contractUrl = `${frontendUrl}/client-portal/contracts/${contractId}`;
+        await this.mailService.sendContractWithResend({
+          clientName,
+          clientEmail,
+          ownerName: vendorAccount.business_name,
+          contractNumber,
+          contractTitle: contract.title ?? 'Contract',
+          contractDescription: contract.description ?? undefined,
+          contractUrl,
+        }).catch(() => {});
+      }
+
+      // SMS notification to client
+      try {
+        const clientPhone: string | null = contract.client_phone ?? contract.contact_phone ?? null;
+        await this.smsNotifications.contractSent(clientPhone, clientName, contractNumber);
+      } catch { /* non-fatal */ }
+    } else {
+      // sendTo === 'owner'
+      const { data: ownerUser } = await admin
+        .from('users')
+        .select('email, first_name, last_name')
+        .eq('id', contract.owner_id)
+        .single();
+
+      if (ownerUser?.email) {
+        const ownerName =
+          `${ownerUser.first_name ?? ''} ${ownerUser.last_name ?? ''}`.trim() || 'Owner';
+        const contractUrl = `${frontendUrl}/dashboard/contracts/${contractId}`;
+        await this.mailService.sendContractWithResend({
+          clientName: ownerName,
+          clientEmail: ownerUser.email,
+          ownerName: vendorAccount.business_name,
+          contractNumber,
+          contractTitle: contract.title ?? 'Contract',
+          contractDescription: contract.description ?? undefined,
+          contractUrl,
+        }).catch(() => {});
+      }
+    }
+
+    // Mark as sent if still in draft
+    const updates: any = {};
+    if (contract.status === 'draft') {
+      updates.status = 'sent';
+      updates.sent_date = new Date().toISOString();
+    }
+
+    if (Object.keys(updates).length > 0) {
+      const { data, error } = await admin
+        .from('contracts')
+        .update(updates)
+        .eq('id', contractId)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    }
+    return contract;
   }
 
   async delete(supabase: SupabaseClient, id: string): Promise<void> {

@@ -49,22 +49,36 @@ export class ClientPortalService {
     const supabase = this.supabaseService.getAdminClient();
     const phoneVariants = buildPhoneVariants(clientPhone);
 
-    // ── Events for this client (via intake_forms phone match) ─────────────────
+    // ── Events for this client (via intake_forms phone match + invoice client_phone fallback) ──
     const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
     const eventSelect = 'id, status, total_amount, deposit_amount, payment_status, created_at, name, date, start_time, end_time, venue';
-    const events: any[] = [];
-    if (intakeFormIds.length) {
-      const { data: evData } = await supabase.from('event').select(eventSelect).in('intake_form_id', intakeFormIds).order('created_at', { ascending: false });
-      events.push(...(evData || []));
+    const eventIdSet = new Set<string>();
+    const intakeFormIdSet = new Set<string>(intakeFormIds);
+    const invFallback = await Promise.all(
+      phoneVariants.map(p => supabase.from('invoices').select('event_id, intake_form_id').eq('client_phone', p)),
+    );
+    for (const r of invFallback) {
+      for (const inv of (r.data || [])) {
+        if (inv.event_id) eventIdSet.add(inv.event_id);
+        if (inv.intake_form_id) intakeFormIdSet.add(inv.intake_form_id);
+      }
     }
+    const eventQueries: any[] = [];
+    if (intakeFormIdSet.size) eventQueries.push(supabase.from('event').select(eventSelect).in('intake_form_id', [...intakeFormIdSet]).order('created_at', { ascending: false }));
+    if (eventIdSet.size) eventQueries.push(supabase.from('event').select(eventSelect).in('id', [...eventIdSet]).order('created_at', { ascending: false }));
+    const eventResults = await Promise.all(eventQueries);
+    const seenEvIds = new Set<string>();
+    const events: any[] = eventResults
+      .flatMap((r: any) => r.data || [])
+      .filter((e: any) => { if (seenEvIds.has(e.id)) return false; seenEvIds.add(e.id); return true; });
 
     // ── Contracts: by client_id OR intake_form_id ─────────────────────────────
     const contractQueries: any[] = [
       supabase.from('contracts').select('id, status, created_at').eq('client_id', clientId),
     ];
-    if (intakeFormIds.length) {
+    if (intakeFormIdSet.size) {
       contractQueries.push(
-        supabase.from('contracts').select('id, status, created_at').in('intake_form_id', intakeFormIds),
+        supabase.from('contracts').select('id, status, created_at').in('intake_form_id', [...intakeFormIdSet]),
       );
     }
 
@@ -74,9 +88,9 @@ export class ClientPortalService {
         supabase.from('estimates').select('id, status, total_amount, created_at').eq('client_phone', p).neq('status', 'draft'),
       ),
     ];
-    if (intakeFormIds.length) {
+    if (intakeFormIdSet.size) {
       estimateQueries.push(
-        supabase.from('estimates').select('id, status, total_amount, created_at').in('intake_form_id', intakeFormIds).neq('status', 'draft'),
+        supabase.from('estimates').select('id, status, total_amount, created_at').in('intake_form_id', [...intakeFormIdSet]).neq('status', 'draft'),
       );
     }
 
@@ -102,9 +116,9 @@ export class ClientPortalService {
         supabase.from('invoices').select(invoiceSelect).eq('client_phone', p).neq('status', 'draft').order('created_at', { ascending: false }),
       ),
     ];
-    if (intakeFormIds.length) {
+    if (intakeFormIdSet.size) {
       invoiceQueries.push(
-        supabase.from('invoices').select(invoiceSelect).in('intake_form_id', intakeFormIds).neq('status', 'draft').order('created_at', { ascending: false }),
+        supabase.from('invoices').select(invoiceSelect).in('intake_form_id', [...intakeFormIdSet]).neq('status', 'draft').order('created_at', { ascending: false }),
       );
     }
 
@@ -134,22 +148,52 @@ export class ClientPortalService {
     return data || [];
   }
 
-  /** All events for this client (via intake_forms phone match) */
+  /** All events for this client (via intake_forms phone match, and via invoices client_phone) */
   async getEvents(clientId: string, clientPhone: string) {
     const supabase = this.supabaseService.getAdminClient();
     const phoneVariants = buildPhoneVariants(clientPhone);
     const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
-    if (!intakeFormIds.length) return [];
 
-    const { data: events, error: eErr } = await supabase
-      .from('event')
-      .select('*')
-      .in('intake_form_id', intakeFormIds)
-      .not('status', 'eq', 'cancelled')
-      .order('date', { ascending: true });
+    // Collect event IDs and intake form IDs from multiple sources
+    const eventIdSet = new Set<string>();
+    const intakeFormIdSet = new Set<string>(intakeFormIds);
 
-    if (eErr) { this.logger.error('getEvents error', eErr); return []; }
-    if (!events?.length) return [];
+    // Fallback: find events via invoices that have the client's phone
+    const invoiceResults = await Promise.all(
+      phoneVariants.map(p =>
+        supabase.from('invoices').select('event_id, intake_form_id').eq('client_phone', p),
+      ),
+    );
+    for (const r of invoiceResults) {
+      for (const inv of (r.data || [])) {
+        if (inv.event_id) eventIdSet.add(inv.event_id);
+        if (inv.intake_form_id) intakeFormIdSet.add(inv.intake_form_id);
+      }
+    }
+
+    if (!intakeFormIdSet.size && !eventIdSet.size) return [];
+
+    // Fetch events by intake_form_id and by direct event_id
+    const queries: any[] = [];
+    if (intakeFormIdSet.size) {
+      queries.push(
+        supabase.from('event').select('*').in('intake_form_id', [...intakeFormIdSet]).not('status', 'eq', 'cancelled'),
+      );
+    }
+    if (eventIdSet.size) {
+      queries.push(
+        supabase.from('event').select('*').in('id', [...eventIdSet]).not('status', 'eq', 'cancelled'),
+      );
+    }
+
+    const results = await Promise.all(queries);
+    const seen = new Set<string>();
+    const events: any[] = results
+      .flatMap((r: any) => r.data || [])
+      .filter((e: any) => { if (seen.has(e.id)) return false; seen.add(e.id); return true; })
+      .sort((a: any, b: any) => (a.date ?? '').localeCompare(b.date ?? ''));
+
+    if (!events.length) return [];
 
     const ownerIds = [...new Set(events.map((e: any) => e.owner_id).filter(Boolean))];
     let ownersById: Record<string, any> = {};
@@ -824,6 +868,7 @@ export class ClientPortalService {
             read: false,
             created_at: est.created_at,
             is_dynamic: true,
+            link_url: `/client-portal/estimates/${est.id}`,
           });
         }
 
@@ -855,6 +900,7 @@ export class ClientPortalService {
             read: false,
             created_at: con.created_at,
             is_dynamic: true,
+            link_url: `/client-portal/contracts/${con.id}`,
           });
         }
       } catch (dynErr) {

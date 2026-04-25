@@ -119,10 +119,11 @@ export default function VendorDashboard() {
   }
 
   const navLinks = [
-    { href: '/vendors/dashboard/bookings', label: `📋 Bookings${pendingCount > 0 ? ` (${pendingCount})` : ''}` },
+    { href: '/vendors/dashboard/bookings',  label: `📋 Bookings${pendingCount > 0 ? ` (${pendingCount})` : ''}` },
     { href: '/vendors/dashboard/calendar',  label: '📆 Calendar' },
     { href: '/vendors/dashboard/earnings',  label: '💰 Earnings' },
     { href: '/vendors/dashboard/invoices',  label: '🧾 Invoices' },
+    { href: '/vendors/dashboard/contracts', label: '📄 Contracts' },
     { href: '/vendors/dashboard/reviews',   label: '⭐ Reviews' },
     { href: '/vendors/dashboard/profile',   label: '✏️ Profile' },
     { href: '/vendors/dashboard/payouts',   label: '🏦 Payouts' },
@@ -226,6 +227,19 @@ export default function VendorDashboard() {
             <div>
               <p className="font-semibold text-gray-900 text-sm">Booking Link</p>
               <p className="text-xs text-gray-400">Share your booking page</p>
+            </div>
+          </Link>
+
+          <Link
+            href="/vendors/dashboard/contracts"
+            className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:border-primary-300 hover:shadow-md transition-all flex items-center gap-3"
+          >
+            <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
+              <FileText className="w-5 h-5 text-purple-600" />
+            </div>
+            <div>
+              <p className="font-semibold text-gray-900 text-sm">Contracts</p>
+              <p className="text-xs text-gray-400">View &amp; sign contracts</p>
             </div>
           </Link>
         </div>

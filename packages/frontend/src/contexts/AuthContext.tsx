@@ -67,7 +67,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const storedActive = localStorage.getItem('active_role')
         const refreshTok   = localStorage.getItem('refresh_token')
 
-        if (!stored || !token) return
+        if (!token) return
+
+        // ── If we have a token but no stored user, fetch from backend ─────────
+        if (!stored) {
+          try {
+            const meRes = await api.get('/auth/flow/unified/me', {
+              headers: { Authorization: `Bearer ${token}` },
+            })
+            if (meRes.data?.roles?.length) {
+              const fetchedRoles: UserRole[] = meRes.data.roles
+              const fetchedActive = (storedActive as UserRole) || fetchedRoles[0]
+              localStorage.setItem('user_roles', JSON.stringify(fetchedRoles))
+              localStorage.setItem('active_role', fetchedActive)
+              setRoles(fetchedRoles)
+              setActiveRoleState(fetchedActive)
+            }
+          } catch { /* ignore — user may not be authenticated */ }
+          return
+        }
 
         // ── Proactively refresh if the JWT is expired ────────────────────────
         // Decoding the exp claim client-side avoids the 401 flash on page load
@@ -98,17 +116,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const parsed: User = JSON.parse(stored)
 
-        // Legacy e-mail overrides
+        // Legacy e-mail override
         if (parsed.email?.toLowerCase() === 'admin@dovenuesuite.com') {
           parsed.role = UserRole.ADMIN
         }
-        if (parsed.email?.toLowerCase() === 'larry@curesicklecell.org') {
-          if (!storedRoles) parsed.role = UserRole.VENDOR
-        }
 
-        const parsedRoles: UserRole[] = storedRoles
-          ? JSON.parse(storedRoles)
-          : [parsed.role]
+        // Parse stored roles — if empty/missing, fetch fresh roles from backend
+        let parsedRoles: UserRole[] = []
+        const rawStored = storedRoles ? JSON.parse(storedRoles) : []
+        if (Array.isArray(rawStored) && rawStored.length > 0) {
+          parsedRoles = rawStored
+        } else {
+          // Stale session — fetch roles from backend using the valid token
+          try {
+            const meRes = await api.get('/auth/flow/unified/me', {
+              headers: { Authorization: `Bearer ${activeToken}` },
+            }).catch(() => null)
+            if (meRes?.data?.roles?.length > 0) {
+              parsedRoles = meRes.data.roles
+            } else {
+              // Fallback: re-run unified login isn't possible without password,
+              // so derive from stored user or single role
+              parsedRoles = parsed.roles as UserRole[] || [parsed.role as UserRole]
+            }
+          } catch {
+            parsedRoles = [parsed.role as UserRole]
+          }
+          // Persist the resolved roles so next load is instant
+          localStorage.setItem('user_roles', JSON.stringify(parsedRoles))
+          console.log('🔄 [INIT] Refreshed roles from backend:', parsedRoles)
+        }
 
         const parsedActive: UserRole = (storedActive as UserRole) || parsedRoles[0]
 

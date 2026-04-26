@@ -62,18 +62,20 @@ export class RsvpService {
       eventIds.length
         ? admin.from('event').select('id, name, date, intake_form_id').in('id', eventIds)
         : { data: [] },
-      admin.from('rsvp_guests').select('intake_form_id, status').in('intake_form_id', intakeIds),
+      admin.from('rsvp_guests').select('intake_form_id, status, plus_ones').in('intake_form_id', intakeIds),
     ]);
 
     // Build summary per intake form
     const guestRows: any[] = countRes.data || [];
-    const summary: Record<string, { total: number; attending: number; declined: number; pending: number }> = {};
+    const summary: Record<string, { total: number; attending: number; declined: number; pending: number; headcount: number }> = {};
     for (const row of guestRows) {
       const id = row.intake_form_id;
-      if (!summary[id]) summary[id] = { total: 0, attending: 0, declined: 0, pending: 0 };
+      if (!summary[id]) summary[id] = { total: 0, attending: 0, declined: 0, pending: 0, headcount: 0 };
       summary[id].total++;
-      if (row.status === 'attending') summary[id].attending++;
-      else if (row.status === 'declined') summary[id].declined++;
+      if (row.status === 'attending') {
+        summary[id].attending++;
+        summary[id].headcount += 1 + (row.plus_ones ?? 0);
+      } else if (row.status === 'declined') summary[id].declined++;
       else summary[id].pending++;
     }
 
@@ -85,7 +87,7 @@ export class RsvpService {
         event_id: form.event_id,
         event_name: event?.name ?? null,
         event_date: event?.date ?? null,
-        rsvp_summary: summary[form.id] ?? { total: 0, attending: 0, declined: 0, pending: 0 },
+        rsvp_summary: summary[form.id] ?? { total: 0, attending: 0, declined: 0, pending: 0, headcount: 0 },
       };
     });
   }

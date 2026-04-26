@@ -24,7 +24,7 @@ interface RsvpEvent {
   contact_name: string
   event_name: string | null
   event_date: string | null
-  rsvp_summary: { total: number; attending: number; declined: number; pending: number }
+  rsvp_summary: { total: number; attending: number; declined: number; pending: number; headcount: number }
 }
 
 interface RsvpGuest {
@@ -274,7 +274,10 @@ export default function ClientRsvpPage() {
                   <div className="text-right flex-shrink-0">
                     <p className="text-sm font-semibold text-gray-900">{ev.rsvp_summary.total} guests</p>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      {ev.rsvp_summary.attending} attending · {ev.rsvp_summary.pending} pending
+                      {ev.rsvp_summary.headcount > ev.rsvp_summary.attending
+                        ? `${ev.rsvp_summary.headcount} attending (w/ +1s)`
+                        : `${ev.rsvp_summary.attending} attending`
+                      } · {ev.rsvp_summary.pending} pending
                     </p>
                   </div>
                 </div>
@@ -311,13 +314,14 @@ export default function ClientRsvpPage() {
       <div className="grid grid-cols-4 gap-3">
         {[
           { label: 'Total', value: summary.total, color: 'text-gray-900', bg: 'bg-gray-50 border-gray-200' },
-          { label: 'Attending', value: summary.attending, color: 'text-green-700', bg: 'bg-green-50 border-green-200' },
+          { label: 'Attending', value: summary.attending, sub: summary.headcount > summary.attending ? `${summary.headcount} w/ +1s` : undefined, color: 'text-green-700', bg: 'bg-green-50 border-green-200' },
           { label: 'Declined', value: summary.declined, color: 'text-red-700', bg: 'bg-red-50 border-red-200' },
           { label: 'Pending', value: summary.pending, color: 'text-yellow-700', bg: 'bg-yellow-50 border-yellow-200' },
         ].map(s => (
           <div key={s.label} className={`${s.bg} border rounded-xl p-3 text-center`}>
             <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
             <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
+            {'sub' in s && s.sub && <p className="text-xs font-medium text-green-600 mt-0.5">{s.sub}</p>}
           </div>
         ))}
       </div>

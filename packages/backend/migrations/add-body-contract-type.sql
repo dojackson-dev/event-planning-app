@@ -1,14 +1,24 @@
--- Migration: Add body and contract_type columns to contracts table
--- body        – inline contract content (rich text / plain text) as an alternative
---               to uploading a file. NULL when a file-based contract is used.
--- contract_type – categorises the contract (e.g. 'venue_rental', 'catering',
---               'service_agreement', 'entertainment'). NULL = uncategorised.
--- Run this in the Supabase SQL Editor:
--- https://supabase.com/dashboard/project/unzfkcmmakyyjgruexpy/editor
+-- Migration: add body, contract_type, and vendor_account_id to contracts table
+-- Run this in the Supabase SQL Editor
 
-ALTER TABLE contracts
-  ADD COLUMN IF NOT EXISTS body          TEXT,
-  ADD COLUMN IF NOT EXISTS contract_type VARCHAR(100);
+ALTER TABLE contracts ADD COLUMN IF NOT EXISTS body TEXT;
+ALTER TABLE contracts ADD COLUMN IF NOT EXISTS contract_type TEXT DEFAULT 'upload';
+ALTER TABLE contracts ADD COLUMN IF NOT EXISTS vendor_account_id UUID REFERENCES vendor_accounts(id) ON DELETE SET NULL;
 
-CREATE INDEX IF NOT EXISTS idx_contracts_contract_type ON contracts(contract_type)
-  WHERE contract_type IS NOT NULL;
+-- Allow vendors to read contracts assigned to their account
+CREATE POLICY IF NOT EXISTS "Vendors can read their own contracts"
+  ON contracts FOR SELECT
+  USING (
+    vendor_account_id IN (
+      SELECT id FROM vendor_accounts WHERE user_id = auth.uid()
+    )
+  );
+
+-- Allow vendors to update (sign) contracts assigned to their account
+CREATE POLICY IF NOT EXISTS "Vendors can update their own contracts"
+  ON contracts FOR UPDATE
+  USING (
+    vendor_account_id IN (
+      SELECT id FROM vendor_accounts WHERE user_id = auth.uid()
+    )
+  );

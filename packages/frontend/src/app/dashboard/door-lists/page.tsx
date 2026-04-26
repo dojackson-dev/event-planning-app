@@ -67,6 +67,7 @@ export default function DoorListsPage() {
       const seenIds = new Set<string>()
       const seenKeys = new Set<string>()
       const relevantEvents = response.data.filter(event => {
+        if (!event.date) return false
         const eventDate = parseLocalDate(event.date)
         if (eventDate < cutoff) return false
         if (seenIds.has(event.id)) return false
@@ -213,7 +214,11 @@ export default function DoorListsPage() {
     )
   }
 
-  if (user?.role !== 'owner' && user?.role !== 'planner') {
+  const hasAccess =
+    user?.role === 'owner' || user?.role === 'planner' ||
+    user?.roles?.some(r => r === 'owner' || r === 'planner')
+
+  if (!hasAccess) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -570,7 +575,7 @@ export default function DoorListsPage() {
               Create a guest list first from the Guest Lists page
             </p>
             <button
-              onClick={() => router.push('/dashboard/guest-lists/new')}
+              onClick={() => router.push(`/dashboard/guest-lists/new?eventId=${selectedEvent}`)}
               className="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
             >
               Create Guest List

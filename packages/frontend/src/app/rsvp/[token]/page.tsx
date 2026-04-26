@@ -52,6 +52,7 @@ export default function PublicRsvpPage() {
   const [attending, setAttending] = useState<boolean | null>(null)
   const [plusOnes, setPlusOnes] = useState(0)
   const [meal, setMeal] = useState('standard')
+  const [smsOptIn, setSmsOptIn] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState('')
@@ -93,6 +94,7 @@ export default function PublicRsvpPage() {
         phone_last_four: invite?.requires_phone_verify ? phoneLast4 : undefined,
         plus_ones: choice === 'attending' ? plusOnes : 0,
         meal_preference: choice === 'attending' ? meal : undefined,
+        sms_opt_in: choice === 'attending' ? smsOptIn : false,
       })
       setAttending(choice === 'attending')
       setSubmitted(true)
@@ -338,6 +340,21 @@ export default function PublicRsvpPage() {
                   <p className="text-xs text-indigo-600 font-medium uppercase tracking-wide">Your Table</p>
                   <p className="text-lg font-bold text-indigo-900 mt-0.5">{invite.table_assignment}</p>
                 </div>
+              )}
+
+              {/* SMS opt-in */}
+              {invite.event.host_name && (
+                <label className="flex items-start gap-3 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={smsOptIn}
+                    onChange={e => setSmsOptIn(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 flex-shrink-0"
+                  />
+                  <span className="text-sm text-gray-600">
+                    Send me SMS reminders about this event from <strong>{invite.event.host_name}</strong>
+                  </span>
+                </label>
               )}
             </div>
           )}

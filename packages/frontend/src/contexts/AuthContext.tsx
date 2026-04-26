@@ -133,7 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               headers: { Authorization: `Bearer ${activeToken}` },
             }).catch(() => null)
             if (meRes?.data?.roles?.length > 0) {
-              parsedRoles = meRes.data.roles
+              parsedRoles = meRes!.data.roles
             } else {
               // Fallback: re-run unified login isn't possible without password,
               // so derive from stored user or single role

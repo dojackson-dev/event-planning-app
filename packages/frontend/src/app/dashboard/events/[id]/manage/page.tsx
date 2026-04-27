@@ -609,20 +609,6 @@ export default function EventManagementPage() {
     }
   };
 
-  const handleSave = async () => {
-    setIsSaving(true);
-    try {
-      await api.put(`/events/${eventId}/management`, formData);
-      setIsEditing(false);
-      alert('Event management data saved successfully!');
-    } catch (error) {
-      console.error('Error saving event management data:', error);
-      alert('Error saving data. Please try again.');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   const handleRsvpImageUpload = async (file: File) => {
     if ((formData.invitationImages || []).length >= 2) return;
     setUploadingRsvpImage(true);

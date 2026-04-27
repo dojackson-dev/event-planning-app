@@ -105,6 +105,8 @@ export class RsvpController {
     return this.rsvpService.sendAllInvites(intakeFormId, session.phone);
   }
 
+  // ── Public (token-gated, no auth required) ────────────────────────────────
+
   /** Get invitation images for an event. */
   @Get('images/:intakeFormId')
   async getImages(
@@ -126,8 +128,6 @@ export class RsvpController {
     const session = this.requireSession(token);
     return this.rsvpService.setInvitationImages(intakeFormId, session.phone, body.images);
   }
-
-  // ── Public (token-gated, no auth required) ────────────────────────────────
 
   /** Get public invite info (guest name, event, table). */
   @Get(':token')

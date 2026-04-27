@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
+import { ClientAuthService } from '../client-portal/client-auth.service';
 
 interface MulterFile {
   fieldname: string;
@@ -30,7 +31,10 @@ const MAX_COVER_BYTES = 5 * 1024 * 1024;          // 5 MB
 
 @Controller('upload')
 export class UploadController {
-  constructor(private readonly supabaseService: SupabaseService) {}
+  constructor(
+    private readonly supabaseService: SupabaseService,
+    private readonly clientAuthService: ClientAuthService,
+  ) {}
 
   // ─────────────────────────────────────────────
   // HELPERS
@@ -455,14 +459,23 @@ export class UploadController {
   // Max 2 images per event, max 5 MB each, JPEG/PNG/WebP
   // Recommended: 1200×800 px — landscape works best on mobile
   // Returns: { url }
+  // Accepts: Bearer JWT (owner) OR x-client-token (client portal)
   // ─────────────────────────────────────────────
   @Post('rsvp-invitation')
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
   async uploadRsvpInvitation(
     @UploadedFile() file: MulterFile,
     @Headers('authorization') authorization: string,
+    @Headers('x-client-token') clientToken: string,
   ) {
-    const userId = await this.getUserId(authorization);
+    // Accept either owner JWT or client portal session token
+    let uploaderId: string;
+    if (clientToken) {
+      const session = this.clientAuthService.validateSession(clientToken);
+      uploaderId = session.phone.replace(/\D/g, '');
+    } else {
+      uploaderId = await this.getUserId(authorization);
+    }
 
     if (!file) throw new BadRequestException('No file provided');
     if (!ALLOWED_TYPES.includes(file.mimetype)) {
@@ -481,7 +494,7 @@ export class UploadController {
       .webp({ quality: 85 })
       .toBuffer();
 
-    const path = `invitations/${userId}-${Date.now()}.webp`;
+    const path = `invitations/${uploaderId}-${Date.now()}.webp`;
 
     const { error: uploadError } = await admin.storage
       .from('rsvp-invitations')

@@ -180,8 +180,22 @@ export default function ClientInvoicesPage() {
         </div>
       )}
 
-      {/* Filters */}
-      <div className="flex gap-2 flex-wrap">
+      {/* Filters — dropdown on mobile, pills on md+ */}
+      <div className="md:hidden">
+        <select
+          value={filter}
+          onChange={e => setFilter(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+        >
+          <option value="all">All</option>
+          <option value="unpaid">Unpaid</option>
+          <option value="sent">Awaiting Payment</option>
+          <option value="partial">Partial</option>
+          <option value="overdue">Overdue</option>
+          <option value="paid">Paid</option>
+        </select>
+      </div>
+      <div className="hidden md:flex gap-2 flex-wrap">
         {[
           { key: 'all',       label: 'All' },
           { key: 'unpaid',    label: 'Unpaid' },
@@ -255,7 +269,7 @@ export default function ClientInvoicesPage() {
                         <h3 className="font-bold text-gray-900 text-base">
                           Invoice #{invoice.invoice_number}
                         </h3>
-                        <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full border ${cfg.color}`}>
+                        <span className={`hidden md:inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full border ${cfg.color}`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
                           {cfg.label}
                         </span>

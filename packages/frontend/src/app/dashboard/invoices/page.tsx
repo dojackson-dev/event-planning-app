@@ -163,9 +163,6 @@ export default function InvoicesPage() {
                     <p className="font-semibold text-gray-900 truncate">{invoice.invoice_number}</p>
                     <p className="text-sm text-gray-600 truncate">{getCustomerName(invoice)}</p>
                   </div>
-                  <span className={`px-2 py-1 text-xs font-semibold rounded-full flex-shrink-0 whitespace-nowrap ${getStatusColor(invoice.status)}`}>
-                    {invoice.status}
-                  </span>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm text-gray-600">
                   <span className="font-medium">${Number(invoice.total_amount).toFixed(2)}</span>

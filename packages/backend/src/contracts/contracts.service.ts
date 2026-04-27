@@ -238,6 +238,12 @@ export class ContractsService {
       const clientEmail: string | null = data.client_email ?? data.contact_email ?? null;
       const clientName: string = data.client_name ?? data.contact_name ?? 'Valued Client';
       const contractNumber: string = data.contract_number ?? id;
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      // Vendor template contracts link to the vendor dashboard, others to client portal
+      const isVendorContract = data.contract_type === 'vendor_template';
+      const contractUrl = isVendorContract
+        ? `${frontendUrl}/vendors/dashboard/contracts/${id}`
+        : `${frontendUrl}/client-portal/contracts/${id}`;
 
       let ownerName = 'Your Event Coordinator';
       if (data.owner_id) {

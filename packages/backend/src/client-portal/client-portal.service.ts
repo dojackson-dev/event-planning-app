@@ -145,7 +145,7 @@ export class ClientPortalService {
       .from('event')
       .select('*')
       .in('intake_form_id', intakeFormIds)
-      .not('status', 'eq', 'cancelled')
+      .in('status', ['scheduled', 'completed', 'draft'])
       .order('date', { ascending: true });
 
     if (eErr) { this.logger.error('getEvents error', eErr); return []; }

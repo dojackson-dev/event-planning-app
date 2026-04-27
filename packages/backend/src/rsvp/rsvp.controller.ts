@@ -122,6 +122,7 @@ export class RsvpController {
       status: 'attending' | 'declined';
       plus_ones?: number;
       meal_preference?: string;
+      sms_opt_in?: boolean;
     },
   ) {
     if (!body?.status) throw new BadRequestException('status is required');
@@ -129,6 +130,7 @@ export class RsvpController {
       status: body.status,
       plus_ones: body.plus_ones,
       meal_preference: body.meal_preference,
+      sms_opt_in: body.sms_opt_in,
     });
   }
 }

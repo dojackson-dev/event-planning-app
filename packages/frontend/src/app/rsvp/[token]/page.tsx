@@ -18,6 +18,7 @@ interface InviteData {
   table_assignment: string | null
   responded_at: string | null
   requires_phone_verify: boolean
+  invitation_images?: string[]
   event: {
     name: string | null
     date: string | null
@@ -56,6 +57,9 @@ export default function PublicRsvpPage() {
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState('')
+
+  // Lightbox
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
 
   useEffect(() => {
     axios.get(`${API}/rsvp/${token}`)
@@ -258,6 +262,45 @@ export default function PublicRsvpPage() {
             </p>
           )}
         </div>
+
+        {/* Invitation images */}
+        {invite.invitation_images && invite.invitation_images.length > 0 && (
+          <div className="space-y-2 px-0">
+            {invite.invitation_images.slice(0, 2).map((url, i) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={i}
+                src={url}
+                alt={`Invitation image ${i + 1}`}
+                onClick={() => setLightboxUrl(url)}
+                className="w-full object-cover max-h-64 rounded-none first:rounded-none cursor-zoom-in"
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Lightbox */}
+        {lightboxUrl && (
+          <div
+            className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+            onClick={() => setLightboxUrl(null)}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={lightboxUrl}
+              alt="Full size invitation"
+              className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+              onClick={e => e.stopPropagation()}
+            />
+            <button
+              onClick={() => setLightboxUrl(null)}
+              className="absolute top-4 right-4 bg-white/20 hover:bg-white/40 text-white rounded-full w-10 h-10 flex items-center justify-center text-xl font-bold transition-colors"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         <div className="p-6 space-y-5">
           <p className="text-center text-gray-700 font-medium">

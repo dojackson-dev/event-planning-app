@@ -6,6 +6,7 @@ import axios from 'axios'
 import {
   Users, Plus, Trash2, Send, CheckCircle2, XCircle, Clock,
   ChevronDown, ChevronUp, Loader2, Mail, Phone, Table2, Copy, Check,
+  ImageIcon, Upload, X,
 } from 'lucide-react'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
@@ -78,6 +79,10 @@ export default function ClientRsvpPage() {
   const [editId, setEditId] = useState<string | null>(null)
   const [editTable, setEditTable] = useState('')
   const [editPhone, setEditPhone] = useState('')
+
+  // Invitation images
+  const [invitationImages, setInvitationImages] = useState<string[]>([])
+  const [uploadingImage, setUploadingImage] = useState(false)
   const [editEmail, setEditEmail] = useState('')
   const [editLoading, setEditLoading] = useState(false)
 
@@ -95,10 +100,15 @@ export default function ClientRsvpPage() {
 
   const selectEvent = async (ev: RsvpEvent) => {
     setSelectedEvent(ev)
+    setInvitationImages([])
     setGuestsLoading(true)
     try {
-      const res = await rsvpApi.get(`/guests/${ev.intake_form_id}`)
-      setGuests(res.data || [])
+      const [guestsRes, imagesRes] = await Promise.all([
+        rsvpApi.get(`/guests/${ev.intake_form_id}`),
+        rsvpApi.get(`/images/${ev.intake_form_id}`).catch(() => ({ data: [] })),
+      ])
+      setGuests(guestsRes.data || [])
+      setInvitationImages(Array.isArray(imagesRes.data) ? imagesRes.data : [])
     } finally {
       setGuestsLoading(false)
     }
@@ -219,6 +229,39 @@ export default function ClientRsvpPage() {
     }
   }
 
+  const handleImageUpload = async (file: File) => {
+    if (invitationImages.length >= 2) return
+    setUploadingImage(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      // Upload to backend storage
+      const uploadRes = await axios.post(`${API_URL}/upload/rsvp-invitation`, fd, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'x-client-token': localStorage.getItem('client_token') || '',
+        },
+      })
+      const newImages = [...invitationImages, uploadRes.data.url]
+      await rsvpApi.put(`/images/${selectedEvent!.intake_form_id}`, { images: newImages })
+      setInvitationImages(newImages)
+    } catch {
+      alert('Failed to upload image. Please try again.')
+    } finally {
+      setUploadingImage(false)
+    }
+  }
+
+  const handleRemoveImage = async (index: number) => {
+    const newImages = invitationImages.filter((_, i) => i !== index)
+    try {
+      await rsvpApi.put(`/images/${selectedEvent!.intake_form_id}`, { images: newImages })
+      setInvitationImages(newImages)
+    } catch {
+      alert('Failed to remove image.')
+    }
+  }
+
   const copyRsvpLink = (guest: RsvpGuest) => {
     navigator.clipboard.writeText(`${window.location.origin}/rsvp/${guest.rsvp_token}`)
     setCopiedId(guest.id)
@@ -324,6 +367,59 @@ export default function ClientRsvpPage() {
             {'sub' in s && s.sub && <p className="text-xs font-medium text-green-600 mt-0.5">{s.sub}</p>}
           </div>
         ))}
+      </div>
+
+      {/* Invitation Images */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-semibold text-gray-800 flex items-center gap-2">
+            <ImageIcon className="h-4 w-4 text-primary-600" />
+            Invitation Images
+          </h2>
+          <span className="text-xs text-gray-400">{invitationImages.length}/2</span>
+        </div>
+        <p className="text-xs text-gray-500 mb-3">These images appear on your guests' RSVP page.</p>
+
+        <div className="space-y-3">
+          {invitationImages.map((url, i) => (
+            <div key={i} className="relative rounded-lg overflow-hidden border border-gray-200">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={url} alt={`Invitation ${i + 1}`} className="w-full h-36 object-cover" />
+              <button
+                onClick={() => handleRemoveImage(i)}
+                className="absolute top-2 right-2 bg-white/80 hover:bg-white rounded-full p-1 shadow"
+                title="Remove"
+              >
+                <X className="h-3.5 w-3.5 text-gray-700" />
+              </button>
+            </div>
+          ))}
+
+          {invitationImages.length < 2 && (
+            <label className={`flex flex-col items-center justify-center gap-2 w-full h-24 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${uploadingImage ? 'opacity-50 cursor-not-allowed border-gray-200' : 'border-primary-300 hover:border-primary-500 hover:bg-primary-50'}`}>
+              {uploadingImage ? (
+                <span className="text-sm text-gray-400 flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />Uploading…</span>
+              ) : (
+                <>
+                  <Upload className="h-5 w-5 text-primary-400" />
+                  <span className="text-sm text-primary-600 font-medium">Upload Image</span>
+                  <span className="text-xs text-gray-400">JPG, PNG, WebP · max 5 MB</span>
+                </>
+              )}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="hidden"
+                disabled={uploadingImage}
+                onChange={e => {
+                  const file = e.target.files?.[0]
+                  if (file) handleImageUpload(file)
+                  e.target.value = ''
+                }}
+              />
+            </label>
+          )}
+        </div>
       </div>
 
       {/* Action bar */}

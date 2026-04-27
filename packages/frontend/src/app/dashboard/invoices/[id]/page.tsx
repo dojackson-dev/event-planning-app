@@ -266,73 +266,48 @@ export default function InvoiceDetailPage() {
     <div className="p-4 sm:p-6 max-w-4xl mx-auto">
       {/* Back link */}
       <div className="mb-3 print:hidden">
-        <button
-          onClick={() => router.push('/dashboard/invoices')}
-          className="text-gray-600 hover:text-gray-900 flex items-center gap-1 text-sm"
-        >
-          ← Back to Invoices
-        </button>
+        <div className="flex flex-col gap-1">
+          <button
+            onClick={() => router.push('/dashboard/events')}
+            className="text-gray-600 hover:text-gray-900 flex items-center gap-1 text-sm"
+          >
+            ← Back to Events
+          </button>
+          <button
+            onClick={() => router.push('/dashboard/invoices')}
+            className="text-xs text-gray-400 hover:text-gray-600 text-left"
+          >
+            View All Invoices →
+          </button>
+        </div>
       </div>
 
       {/* Action Buttons */}
       <div className="flex flex-wrap gap-2 mb-6 print:hidden">
-        {invoice.status !== InvoiceStatus.PAID && (
-          <>
-            <button
-              onClick={() => setShowPaymentModal(true)}
-              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium"
-            >
-              <DollarSign className="w-4 h-4" />
-              Record Payment
-            </button>
-            <button
-              onClick={handleGeneratePaymentLink}
-              disabled={generatingLink}
-              className="flex items-center gap-2 border border-indigo-300 text-indigo-600 px-4 py-2 rounded-lg hover:bg-indigo-50 disabled:opacity-50 text-sm font-medium"
-            >
-              {generatingLink ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
-              {generatingLink ? 'Generating...' : 'Payment Link'}
-            </button>
-            {invoice.status === InvoiceStatus.DRAFT && (
-              <button
-                onClick={() => handleStatusUpdate(InvoiceStatus.SENT)}
-                className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium"
-              >
-                <Send className="w-4 h-4" />
-                Send Invoice
-              </button>
-            )}
-            {(invoice.status === InvoiceStatus.SENT || invoice.status === InvoiceStatus.PARTIAL || invoice.status === InvoiceStatus.OVERDUE) && (
-              <button
-                onClick={() => handleStatusUpdate(invoice.status)}
-                className="flex items-center gap-2 border border-indigo-300 text-indigo-600 px-4 py-2 rounded-lg hover:bg-indigo-50 text-sm font-medium"
-              >
-                <Send className="w-4 h-4" />
-                Resend Invoice
-              </button>
-            )}
-          </>
+        {invoice.status === InvoiceStatus.DRAFT && (
+          <button
+            onClick={() => handleStatusUpdate(InvoiceStatus.SENT)}
+            className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium"
+          >
+            <Send className="w-4 h-4" />
+            Send Invoice
+          </button>
         )}
-        <button
-          onClick={handlePrint}
-          className="flex items-center gap-2 border border-gray-300 text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium"
-        >
-          <Printer className="w-4 h-4" />
-          Print
-        </button>
+        {(invoice.status === InvoiceStatus.SENT || invoice.status === InvoiceStatus.PARTIAL || invoice.status === InvoiceStatus.OVERDUE) && (
+          <button
+            onClick={() => handleStatusUpdate(invoice.status)}
+            className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium"
+          >
+            <Send className="w-4 h-4" />
+            Resend Invoice
+          </button>
+        )}
         <button
           onClick={openEditModal}
           className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium"
         >
           <Pencil className="w-4 h-4" />
           Edit
-        </button>
-        <button
-          onClick={handleDelete}
-          className="flex items-center gap-2 border border-red-300 text-red-600 px-4 py-2 rounded-lg hover:bg-red-50 text-sm font-medium"
-        >
-          <Trash2 className="w-4 h-4" />
-          Delete
         </button>
       </div>
 

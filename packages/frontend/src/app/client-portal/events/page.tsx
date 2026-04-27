@@ -26,31 +26,41 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
 
 const statusColor: Record<string, string> = {
   scheduled:  'bg-blue-100 text-blue-700 border-blue-200',
+  pending:    'bg-yellow-100 text-yellow-700 border-yellow-200',
   completed:  'bg-green-100 text-green-700 border-green-200',
   draft:      'bg-gray-100 text-gray-600 border-gray-200',
   confirmed:  'bg-emerald-100 text-emerald-700 border-emerald-200',
   cancelled:  'bg-red-100 text-red-700 border-red-200',
 }
 
+const statusLabel: Record<string, string> = {
+  scheduled: 'Scheduled',
+  pending:   'Pending',
+  confirmed: 'Confirmed',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+  draft:     'Draft',
+}
+
+function resolveStatus(event: any): string {
+  if (event.booking) {
+    if (event.booking.client_confirmation_status === 'confirmed') return 'confirmed'
+    return event.booking.status ?? event.status
+  }
+  return event.status
+}
+
 export default function ClientEventsPage() {
   const [events, setEvents] = useState<any[]>([])
-  const [bookings, setBookings] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState<string | null>(null)
 
   useEffect(() => {
-    Promise.all([
-      clientApi.get('/events'),
-      clientApi.get('/bookings'),
-    ]).then(([evRes, bkRes]) => {
-      setEvents(evRes.data)
-      setBookings(bkRes.data)
-    }).catch(console.error)
+    clientApi.get('/events')
+      .then((res) => setEvents(res.data))
+      .catch(console.error)
       .finally(() => setLoading(false))
   }, [])
-
-  const bookingForEvent = (eventId: string) =>
-    bookings.find((b: any) => b.event_id === eventId || b.event?.id === eventId)
 
   if (loading) {
     return <div className="flex items-center justify-center h-64 text-gray-500">Loading events...</div>
@@ -69,15 +79,16 @@ export default function ClientEventsPage() {
       {events.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
           <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500 font-medium">No confirmed events yet.</p>
+          <p className="text-gray-500 font-medium">No events scheduled yet.</p>
           <p className="text-gray-400 text-sm mt-1">
-            Events will appear here once you confirm them via the invitation link sent to your email.
+            Events will appear here as soon as your coordinator schedules them.
           </p>
         </div>
       ) : (
         <div className="space-y-4">
           {events.map((event: any) => {
-            const booking = bookingForEvent(event.id)
+            const booking = event.booking
+            const status = resolveStatus(event)
             const isExpanded = expanded === event.id
             return (
               <div key={event.id} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -89,8 +100,8 @@ export default function ClientEventsPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 flex-wrap">
                       <h3 className="text-base font-semibold text-gray-900">{event.name}</h3>
-                      <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full border ${statusColor[event.status] ?? 'bg-gray-100 text-gray-600 border-gray-200'}`}>
-                        {event.status}
+                      <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full border ${statusColor[status] ?? 'bg-gray-100 text-gray-600 border-gray-200'}`}>
+                        {statusLabel[status] ?? status}
                       </span>
                       {event.event_type && (
                         <span className="text-xs text-gray-500">{EVENT_TYPE_LABELS[event.event_type] ?? event.event_type}</span>

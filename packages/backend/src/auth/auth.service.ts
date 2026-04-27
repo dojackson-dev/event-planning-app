@@ -152,7 +152,7 @@ export class AuthService {
         first_name: updateProfileDto.firstName,
         last_name: updateProfileDto.lastName,
         ...(updateProfileDto.email ? { email: updateProfileDto.email } : {}),
-        phone: updateProfileDto.phone,
+        phone_number: updateProfileDto.phone,
         updated_at: new Date().toISOString(),
       })
       .eq('id', userId);

@@ -3,9 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import type { Invoice } from '@/types'
 import Pagination from '@/components/Pagination'
-import { User, Calendar, Mail, Phone, Clock, Eye, CheckCircle, Search, MessageSquare, FileText, Clock as ClockIcon, Trash2, Zap, PhoneCall } from 'lucide-react'
+import { User, Calendar, Mail, Phone, Clock, Eye, CheckCircle, Search, MessageSquare, Clock as ClockIcon, Trash2, Zap, PhoneCall } from 'lucide-react'
 
 interface IntakeForm {
   id: string
@@ -31,6 +30,7 @@ interface IntakeForm {
   notes: string | null
   created_at: string
   updated_at: string
+  event_id: string | null
 }
 
 export default function ClientsPage() {
@@ -42,13 +42,9 @@ export default function ClientsPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedClient, setSelectedClient] = useState<IntakeForm | null>(null)
   const [showMessageModal, setShowMessageModal] = useState(false)
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false)
   const [showAppointmentModal, setShowAppointmentModal] = useState(false)
   const [messageContent, setMessageContent] = useState('')
   const [appointmentData, setAppointmentData] = useState({ date: '', time: '', duration: '60', notes: '' })
-  const [clientInvoices, setClientInvoices] = useState<Invoice[]>([])
-  const [selectedInvoiceId, setSelectedInvoiceId] = useState('')
-  const [loadingInvoices, setLoadingInvoices] = useState(false)
   const [activatingId, setActivatingId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -66,19 +62,6 @@ export default function ClientsPage() {
     }
   }
 
-  const fetchClientInvoices = async (clientId: string) => {
-    setLoadingInvoices(true)
-    setClientInvoices([])
-    setSelectedInvoiceId('')
-    try {
-      const response = await api.get<Invoice[]>(`/invoices?intakeFormId=${clientId}`)
-      setClientInvoices(response.data)
-    } catch (error) {
-      console.error('Error fetching client invoices:', error)
-    } finally {
-      setLoadingInvoices(false)
-    }
-  }
 
   const handleSendMessage = async () => {
     if (!selectedClient || !messageContent.trim()) return
@@ -104,20 +87,6 @@ export default function ClientsPage() {
     }
   }
 
-  const handleSendInvoice = async () => {
-    if (!selectedClient || !selectedInvoiceId) return
-    try {
-      // TODO: Implement invoice sending API endpoint
-      console.log('Sending invoice', selectedInvoiceId, 'to', selectedClient.contact_email)
-      alert('Invoice sent successfully!')
-      setShowInvoiceModal(false)
-      setSelectedInvoiceId('')
-      setClientInvoices([])
-    } catch (error) {
-      console.error('Error sending invoice:', error)
-      alert('Failed to send invoice')
-    }
-  }
 
   const handleMakeAppointment = async () => {
     if (!selectedClient || !appointmentData.date || !appointmentData.time) return
@@ -453,18 +422,20 @@ export default function ClientsPage() {
                     )}
                     <button
                       onClick={() => { setSelectedClient(client); setShowMessageModal(true) }}
-                      className="flex items-center justify-center gap-2 h-11 px-3 bg-gray-100 hover:bg-blue-50 active:bg-blue-100 text-gray-700 hover:text-blue-700 text-sm font-medium rounded-xl transition-colors"
+                      className="flex items-center justify-center gap-2 h-11 px-3 bg-gray-100 hover:bg-blue-50 active:bg-blue-100 text-gray-700 hover:text-blue-700 text-sm font-medium rounded-xl transition-colors col-span-2"
                     >
                       <MessageSquare className="h-4 w-4" />
                       Message
                     </button>
-                    <button
-                      onClick={() => { setSelectedClient(client); setShowInvoiceModal(true); fetchClientInvoices(client.id) }}
-                      className="flex items-center justify-center gap-2 h-11 px-3 bg-gray-100 hover:bg-green-50 active:bg-green-100 text-gray-700 hover:text-green-700 text-sm font-medium rounded-xl transition-colors"
-                    >
-                      <FileText className="h-4 w-4" />
-                      Invoice
-                    </button>
+                    {client.status === 'converted' && client.event_id && (
+                      <button
+                        onClick={() => router.push(`/dashboard/events/${client.event_id}/manage`)}
+                        className="flex items-center justify-center gap-2 h-11 px-3 bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white text-sm font-semibold rounded-xl transition-colors col-span-2"
+                      >
+                        <Eye className="h-4 w-4" />
+                        View Event
+                      </button>
+                    )}
                     <button
                       onClick={() => { setSelectedClient(client); setShowAppointmentModal(true) }}
                       className="flex items-center justify-center gap-2 h-11 px-3 bg-gray-100 hover:bg-purple-50 active:bg-purple-100 text-gray-700 hover:text-purple-700 text-sm font-medium rounded-xl col-span-2 transition-colors"
@@ -543,70 +514,6 @@ export default function ClientsPage() {
                 >
                   <MessageSquare className="h-4 w-4" />
                   Send SMS
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Invoice Modal */}
-      {showInvoiceModal && selectedClient && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-          <div className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-xl">
-            <div className="flex justify-center pt-3 pb-1 sm:hidden">
-              <div className="w-10 h-1 bg-gray-300 rounded-full" />
-            </div>
-            <div className="p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-gray-900">Send Invoice</h2>
-                <button onClick={() => { setShowInvoiceModal(false); setSelectedInvoiceId(''); setClientInvoices([]) }} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">✕</button>
-              </div>
-              <div className="flex items-center gap-3 mb-4 p-3 bg-gray-50 rounded-xl">
-                <div className="bg-green-100 rounded-full p-2">
-                  <User className="h-5 w-5 text-green-600" />
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-900 text-sm">{selectedClient.contact_name}</p>
-                  <p className="text-xs text-gray-500">{selectedClient.contact_email}</p>
-                </div>
-              </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Select Invoice</label>
-                {loadingInvoices ? (
-                  <p className="text-sm text-gray-500 py-3 text-center">Loading invoices…</p>
-                ) : clientInvoices.length === 0 ? (
-                  <p className="text-sm text-gray-500 py-3 text-center">No invoices found for this client.</p>
-                ) : (
-                  <select
-                    value={selectedInvoiceId}
-                    onChange={(e) => setSelectedInvoiceId(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 text-sm bg-white"
-                  >
-                    <option value="">— Select an invoice —</option>
-                    {clientInvoices.map((inv) => (
-                      <option key={inv.id} value={inv.id}>
-                        {inv.invoice_number} · ${inv.total_amount.toFixed(2)} ({inv.status})
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-              <p className="text-xs text-gray-500 mb-4">Invoice will be sent to the client&apos;s email address on file.</p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => { setShowInvoiceModal(false); setSelectedInvoiceId(''); setClientInvoices([]) }}
-                  className="flex-1 h-12 border border-gray-200 rounded-xl text-gray-700 font-medium hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSendInvoice}
-                  disabled={!selectedInvoiceId}
-                  className="flex-1 h-12 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  <FileText className="h-4 w-4" />
-                  Send Invoice
                 </button>
               </div>
             </div>

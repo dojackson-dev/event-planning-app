@@ -162,8 +162,19 @@ export default function ClientContractDetailPage() {
         <StatusBadge status={contract.status} />
       </div>
 
-      {/* Document */}
-      {fileUrl && (
+      {/* Document — inline body (template-generated contracts) */}
+      {contract.body && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">Contract Document</h2>
+          <div
+            className="border border-gray-100 rounded-lg p-4 bg-white overflow-x-auto"
+            dangerouslySetInnerHTML={{ __html: contract.body }}
+          />
+        </div>
+      )}
+
+      {/* Document — uploaded file */}
+      {!contract.body && fileUrl && (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">Contract Document</h2>
           <div className="flex items-center justify-between bg-gray-50 rounded-lg p-4">

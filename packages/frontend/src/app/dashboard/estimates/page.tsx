@@ -95,14 +95,9 @@ export default function EstimatesPage() {
     <div className="p-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 text-center mb-3">Estimates</h1>
-        <div className="flex justify-center">
-          <button
-            onClick={() => router.push('/dashboard/estimates/new')}
-            className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
-          >
-            + New Estimate
-          </button>
-        </div>
+        <p className="text-center text-sm text-gray-500">
+          Estimates are created through the <a href="/dashboard/events" className="text-primary-600 hover:underline font-medium">Events</a> tab.
+        </p>
       </div>
 
       {/* Search + Filter */}
@@ -131,10 +126,7 @@ export default function EstimatesPage() {
 
       {filtered.length === 0 ? (
         <div className="bg-white rounded-lg p-8 text-center text-gray-500">
-          No estimates found.{' '}
-          <button onClick={() => router.push('/dashboard/estimates/new')} className="text-primary-600 hover:underline">
-            Create one
-          </button>
+          No estimates found. Estimates are created through the <a href="/dashboard/events" className="text-primary-600 hover:underline">Events</a> tab.
         </div>
       ) : (
         <>

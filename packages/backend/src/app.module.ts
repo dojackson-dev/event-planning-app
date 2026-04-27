@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { SupabaseModule } from './supabase/supabase.module';
@@ -32,12 +33,17 @@ import { ArtistBookingsModule } from './artist-bookings/artist-bookings.module';
 import { PromoterInvoicesModule } from './promoter-invoices/promoter-invoices.module';
 import { PromoterBookingsModule } from './promoter-bookings/promoter-bookings.module';
 import { PromoterEventsModule } from './promoter-events/promoter-events.module';
+import { TeamModule } from './team/team.module';
+import { RemindersModule } from './reminders/reminders.module';
+import { AuditModule } from './audit/audit.module';
+import { RsvpModule } from './rsvp/rsvp.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    ScheduleModule.forRoot(),
     SupabaseModule,
     AuthModule,
     ServiceItemsModule,
@@ -68,6 +74,10 @@ import { PromoterEventsModule } from './promoter-events/promoter-events.module';
     PromoterInvoicesModule,
     PromoterBookingsModule,
     PromoterEventsModule,
+    TeamModule,
+    RemindersModule,
+    AuditModule,
+    RsvpModule,
   ],
   controllers: [AppController],
   providers: [AppService],

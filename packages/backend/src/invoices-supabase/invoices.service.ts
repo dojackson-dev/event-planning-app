@@ -61,10 +61,24 @@ export class InvoicesService {
       const { data: venueEvents } = await supabase.from('event').select('id').eq('venue_id', venueId);
       const eventIds = (venueEvents || []).map((e: any) => e.id);
       if (eventIds.length === 0) return [];
-      const { data: eventBookings } = await supabase.from('booking').select('id').in('event_id', eventIds);
-      const bookingIds = (eventBookings || []).map((b: any) => b.id);
-      if (bookingIds.length === 0) return [];
-      query = query.in('booking_id', bookingIds);
+      // Match invoices linked to these events via event_id or intake_form_id
+      const { data: formIds } = await supabase.from('event').select('intake_form_id').in('id', eventIds).not('intake_form_id', 'is', null);
+      const intakeIds = (formIds || []).map((r: any) => r.intake_form_id).filter(Boolean);
+      const conditions: any[] = [query];
+      // Re-query with OR filter
+      let filteredQuery = supabase
+        .from('invoices')
+        .select('*')
+        .eq('owner_id', ownerId)
+        .order('created_at', { ascending: false });
+      if (intakeIds.length > 0) {
+        filteredQuery = filteredQuery.in('intake_form_id', intakeIds);
+      } else {
+        filteredQuery = filteredQuery.in('event_id', eventIds);
+      }
+      const { data, error } = await filteredQuery;
+      if (error) throw error;
+      return data || [];
     }
 
     const { data, error } = await query;

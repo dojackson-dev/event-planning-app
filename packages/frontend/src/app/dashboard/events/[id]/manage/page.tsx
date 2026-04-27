@@ -29,10 +29,25 @@ import {
   Lock,
   List,
   Briefcase,
-  Trash2
+  Trash2,
+  Store,
+  Upload,
+  ImageIcon,
+  X,
+  ChevronRight
 } from 'lucide-react';
 import api from '@/lib/api';
 import { Event, EventType, ClientStatus, ContractStatus, InsuranceStatus } from '@/types';
+import { useVenue } from '@/contexts/VenueContext';
+
+const formatTime = (timeString: string | undefined): string => {
+  if (!timeString) return 'Not set'
+  const [hours, minutes] = timeString.split(':')
+  const hour = parseInt(hours, 10)
+  const ampm = hour >= 12 ? 'PM' : 'AM'
+  const displayHour = hour % 12 || 12
+  return `${displayHour}:${minutes} ${ampm}`
+}
 
 const invoiceStatusColors: Record<string, string> = {
   draft:     'bg-gray-100 text-gray-700',
@@ -41,6 +56,41 @@ const invoiceStatusColors: Record<string, string> = {
   overdue:   'bg-red-100 text-red-800',
   cancelled: 'bg-gray-100 text-gray-500',
 };
+
+const VENDOR_CATEGORIES = [
+  { value: '', label: 'All Categories' },
+  { value: 'dj', label: '🎧 DJ' },
+  { value: 'decorator', label: '🎨 Decorator' },
+  { value: 'planner_coordinator', label: '📋 Planner/Coordinator' },
+  { value: 'furniture', label: '🪑 Furniture' },
+  { value: 'photographer', label: '📷 Photographer' },
+  { value: 'musicians', label: '🎵 Musicians' },
+  { value: 'mc_host', label: '🎤 MC/Host' },
+  { value: 'other', label: '⭐ Other' },
+]
+
+interface VendorForSearch {
+  id: string
+  business_name: string
+  category: string
+  city?: string
+  state?: string
+  hourly_rate?: number
+  flat_rate?: number
+  profile_image_url?: string
+}
+
+interface EventVendorBooking {
+  id: string
+  vendor_account_id: string
+  event_id?: string | null
+  event_name: string
+  event_date: string
+  agreed_amount: number
+  deposit_amount: number
+  status: string
+  vendor_accounts?: { business_name: string; category: string; profile_image_url?: string }
+}
 
 interface VendorContact {
   id?: string;
@@ -71,7 +121,6 @@ interface EventManagementData {
   
   // Guest Info
   estimatedGuests: number;
-  confirmedGuests: number;
   
   // Contract & Legal
   contractStatus: ContractStatus;
@@ -102,6 +151,7 @@ interface EventManagementData {
   doorListLastUpdated: string;
   
   // Venue Details
+  venueId: string;
   venueSetup: string;
   setupTime: string;
   breakdownTime: string;
@@ -115,6 +165,9 @@ interface EventManagementData {
   allergies: string;
   accessibility: string;
   internalNotes: string;
+
+  // RSVP Invitation Images
+  invitationImages: string[];
 }
 
 const contractStatusLabels: Record<ContractStatus, string> = {
@@ -160,6 +213,7 @@ export default function EventManagementPage() {
   const params = useParams();
   const router = useRouter();
   const eventId = params.id as string;
+  const { venues } = useVenue();
 
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -168,10 +222,25 @@ export default function EventManagementPage() {
   const [vendorPickerList, setVendorPickerList] = useState<any[]>([]);
   const [vendorPickerSearch, setVendorPickerSearch] = useState('');
   const [vendorPickerLoading, setVendorPickerLoading] = useState(false);
+
+  // Vendor booking (directory) state
+  const [eventVendors, setEventVendors] = useState<EventVendorBooking[]>([]);
+  const [showVendorBookModal, setShowVendorBookModal] = useState(false);
+  const [vendorBookList, setVendorBookList] = useState<VendorForSearch[]>([]);
+  const [vendorBookListLoading, setVendorBookListLoading] = useState(false);
+  const [vendorCategoryFilter, setVendorCategoryFilter] = useState('');
+  const [selectedVendorToBook, setSelectedVendorToBook] = useState<VendorForSearch | null>(null);
+  const [vbAgreedAmount, setVbAgreedAmount] = useState('');
+  const [vbDepositAmount, setVbDepositAmount] = useState('');
+  const [vbNotes, setVbNotes] = useState('');
+  const [vbSubmitting, setVbSubmitting] = useState(false);
   const [eventInvoices, setEventInvoices] = useState<any[]>([]);
   const [eventEstimates, setEventEstimates] = useState<any[]>([]);
+  const [eventContracts, setEventContracts] = useState<any[]>([]);
+  const [intakeFormActivated, setIntakeFormActivated] = useState(false);
   const [intakeFormId, setIntakeFormId] = useState<string | null>(null);
   const [guestListId, setGuestListId] = useState<number | null>(null);
+  const [uploadingRsvpImage, setUploadingRsvpImage] = useState(false);
   const [formData, setFormData] = useState<EventManagementData>({
     eventId: '',
     eventType: EventType.WEDDING_RECEPTION,
@@ -184,7 +253,6 @@ export default function EventManagementPage() {
     clientPhone: '',
     clientStatus: ClientStatus.CONTACTED_BY_PHONE,
     estimatedGuests: 0,
-    confirmedGuests: 0,
     contractStatus: ContractStatus.DRAFT,
     contractSignedDate: '',
     contractAmount: '',
@@ -205,6 +273,7 @@ export default function EventManagementPage() {
     numberOfSecurityStaff: 0,
     doorListLink: '',
     doorListLastUpdated: '',
+    venueId: '',
     venueSetup: '',
     setupTime: '',
     breakdownTime: '',
@@ -214,6 +283,7 @@ export default function EventManagementPage() {
     allergies: '',
     accessibility: '',
     internalNotes: '',
+    invitationImages: [],
   });
 
   useEffect(() => {
@@ -243,8 +313,7 @@ export default function EventManagementPage() {
         clientEmail: mgmt.clientEmail || '',
         clientPhone: mgmt.clientPhone || '',
         clientStatus: mgmt.clientStatus || ClientStatus.CONTACTED_BY_PHONE,
-        estimatedGuests: mgmt.estimatedGuests || 0,
-        confirmedGuests: mgmt.confirmedGuests || 0,
+        estimatedGuests: mgmt.estimatedGuests || event.guestCount || 0,
         contractStatus: mgmt.contractStatus || ContractStatus.DRAFT,
         contractSignedDate: mgmt.contractSignedDate || '',
         contractAmount: mgmt.contractAmount || '',
@@ -265,6 +334,7 @@ export default function EventManagementPage() {
         numberOfSecurityStaff: mgmt.numberOfSecurityStaff || 0,
         doorListLink: mgmt.doorListLink || '',
         doorListLastUpdated: mgmt.doorListLastUpdated || '',
+        venueId: event.venueId || mgmt.venueId || '',
         venueSetup: mgmt.venueSetup || '',
         setupTime: mgmt.setupTime || '',
         breakdownTime: mgmt.breakdownTime || '',
@@ -273,11 +343,17 @@ export default function EventManagementPage() {
         allergies: mgmt.allergies || '',
         accessibility: mgmt.accessibility || '',
         internalNotes: mgmt.internalNotes || '',
+        invitationImages: mgmt.invitationImages || [],
       }));
       setIntakeFormId(event.intakeFormId || null);
-      loadEventInvoices(event.bookingId, event.clientName);
+      // Activate step is done when the intake form has been converted (lead activated),
+      // or if this event has no linked intake form (created directly)
+      setIntakeFormActivated(!event.intakeFormId || event.intakeFormStatus === 'converted');
+      loadEventInvoices(event.bookingId, event.clientName, event.intakeFormId);
       loadEventEstimates(event.intakeFormId);
+      loadEventContracts(event.intakeFormId);
       loadGuestList();
+      fetchEventVendors(event.date || '', eventId);
     } catch (error) {
       console.error('Error loading event data:', error);
       alert('Unable to load event data. Please try again.');
@@ -296,27 +372,50 @@ export default function EventManagementPage() {
   };
 
   const loadEventEstimates = async (intakeFormId?: string) => {
-    if (!intakeFormId) return;
     try {
-      const res = await api.get('/estimates', { params: { intakeFormId } });
-      setEventEstimates(res.data || []);
+      // Always fetch all estimates and filter client-side using the same dual-condition
+      // logic as the events list card — checking both booking.event_id AND intake_form_id
+      // so we never miss estimates regardless of which field was set on creation.
+      const res = await api.get('/estimates');
+      const all: any[] = res.data || [];
+      setEventEstimates(all.filter((e: any) =>
+        e.booking?.event_id === eventId ||
+        (intakeFormId && e.intake_form_id === intakeFormId)
+      ));
     } catch {
       // estimates are supplementary
     }
   };
 
-  const loadEventInvoices = async (bookingId?: string, clientName?: string) => {
+  const loadEventContracts = async (intakeFormId?: string) => {
+    try {
+      const res = await api.get('/contracts');
+      const all: any[] = res.data || [];
+      const matched = all.filter((c: any) =>
+        c.event_id === eventId || (intakeFormId && c.intake_form_id === intakeFormId)
+      );
+      setEventContracts(matched);
+    } catch {
+      // ignore — contract status is supplementary
+    }
+  };
+
+  const loadEventInvoices = async (bookingId?: string, clientName?: string, intakeFormId?: string) => {
     try {
       const res = await api.get('/invoices');
       const all: any[] = res.data || [];
       let matched: any[] = [];
       // 1. Match by event_id (most accurate)
       matched = all.filter((inv) => inv.event_id && inv.event_id === eventId);
-      // 2. Fall back to booking_id
+      // 2. Match by intake_form_id
+      if (matched.length === 0 && intakeFormId) {
+        matched = all.filter((inv) => inv.intake_form_id === intakeFormId);
+      }
+      // 3. Fall back to booking_id
       if (matched.length === 0 && bookingId) {
         matched = all.filter((inv) => inv.booking_id === bookingId);
       }
-      // 3. Fall back to client name (event name contains client name)
+      // 4. Fall back to client name (event name contains client name)
       if (matched.length === 0 && clientName) {
         matched = all.filter((inv) =>
           inv.client_name && clientName.toLowerCase().includes((inv.client_name || '').toLowerCase())
@@ -414,6 +513,102 @@ export default function EventManagementPage() {
     setShowVendorPicker(false);
   };
 
+  // ── Vendor booking (directory) functions ──────────────────────
+  const fetchEventVendors = async (eventDate: string, evId: string) => {
+    if (!eventDate) return;
+    try {
+      const res = await api.get('/vendors/bookings/owner');
+      const all: EventVendorBooking[] = res.data || [];
+      const dateStr = eventDate.split('T')[0];
+      // Primary: match by event_id. Fallback: match by date for bookings where event_id wasn't set yet.
+      const matched = all.filter(b =>
+        b.event_id === evId ||
+        (!b.event_id && b.event_date?.split('T')[0] === dateStr)
+      );
+      setEventVendors(matched);
+    } catch {
+      // owner may not have vendor bookings yet
+    }
+  };
+
+  const handleOpenVendorBookModal = async (cat = '') => {
+    setShowVendorBookModal(true);
+    setSelectedVendorToBook(null);
+    setVbAgreedAmount('');
+    setVbDepositAmount('');
+    setVbNotes('');
+    setVendorCategoryFilter(cat);
+    setVendorBookListLoading(true);
+    try {
+      const res = await api.get(`/vendors/public${cat ? `?category=${cat}` : ''}`);
+      setVendorBookList(res.data?.vendors || res.data || []);
+    } catch {
+      setVendorBookList([]);
+    } finally {
+      setVendorBookListLoading(false);
+    }
+  };
+
+  const handleVendorCategoryFilter = async (cat: string) => {
+    setVendorCategoryFilter(cat);
+    setVendorBookListLoading(true);
+    try {
+      const res = await api.get(`/vendors/public${cat ? `?category=${cat}` : ''}`);
+      setVendorBookList(res.data?.vendors || res.data || []);
+    } catch {
+      setVendorBookList([]);
+    } finally {
+      setVendorBookListLoading(false);
+    }
+  };
+
+  const handleBookVendorSubmit = async () => {
+    if (!selectedVendorToBook) return;
+    setVbSubmitting(true);
+    try {
+      await api.post('/vendors/bookings', {
+        vendorAccountId: selectedVendorToBook.id,
+        eventId: eventId,
+        eventName: formData.eventName,
+        eventDate: formData.eventDate,
+        venueName: venues.find(v => v.id === formData.venueId)?.name || undefined,
+        notes: vbNotes || undefined,
+        agreedAmount: vbAgreedAmount ? parseFloat(vbAgreedAmount) : undefined,
+        depositAmount: vbDepositAmount ? parseFloat(vbDepositAmount) : undefined,
+      });
+      setShowVendorBookModal(false);
+      setSelectedVendorToBook(null);
+      fetchEventVendors(formData.eventDate, eventId);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to book vendor');
+    } finally {
+      setVbSubmitting(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      // Update core event fields (name, date, times, venueId) on the event record
+      await api.patch(`/events/${eventId}`, {
+        name: formData.eventName,
+        date: formData.eventDate,
+        startTime: formData.startTime,
+        endTime: formData.endTime,
+        venueId: formData.venueId || null,
+      });
+      // Save management data
+      await api.put(`/events/${eventId}/management`, formData);
+      setIsEditing(false);
+      alert('Event saved successfully!');
+    } catch (error) {
+      console.error('Error saving event management data:', error);
+      alert('Error saving data. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleSave = async () => {
     setIsSaving(true);
     try {
@@ -426,6 +621,33 @@ export default function EventManagementPage() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleRsvpImageUpload = async (file: File) => {
+    if ((formData.invitationImages || []).length >= 2) return;
+    setUploadingRsvpImage(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await api.post('/upload/rsvp-invitation', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setFormData(prev => ({
+        ...prev,
+        invitationImages: [...(prev.invitationImages || []), res.data.url],
+      }));
+    } catch {
+      alert('Failed to upload image. Please try again.');
+    } finally {
+      setUploadingRsvpImage(false);
+    }
+  };
+
+  const removeRsvpImage = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      invitationImages: (prev.invitationImages || []).filter((_, i) => i !== index),
+    }));
   };
 
   const handleDelete = async () => {
@@ -563,34 +785,46 @@ export default function EventManagementPage() {
 
         {/* Booking Progress Bar */}
         {(() => {
-          const estimateAccepted = eventEstimates.some(e => ['approved', 'converted'].includes(e.status));
-          const contractSigned = formData.contractStatus === ContractStatus.SIGNED;
+          const estimateAccepted = eventEstimates.some(e => ['sent', 'approved', 'converted'].includes(e.status));
+          const hasContracts = eventContracts.length > 0;
+          const contractSigned =
+            formData.contractStatus === ContractStatus.SIGNED ||
+            eventContracts.some((c: any) => c.status === 'signed');
+          // Contract is optional — skipped (neutral) when no contracts exist and none signed
+          const contractSkipped = !hasContracts && !contractSigned;
           const invoiceSent = eventInvoices.some(inv => ['sent', 'partial', 'paid', 'overdue'].includes(inv.status));
+          const invoicePaid = eventInvoices.some(inv => inv.status === 'paid');
+          const depositPaid = eventInvoices.some(inv => inv.status === 'partial' || inv.paid_amount > 0);
           const booked = formData.depositPaid ||
+            depositPaid ||
+            invoicePaid ||
             [ClientStatus.BOOKED, ClientStatus.DEPOSIT_PAID, ClientStatus.COMPLETED].includes(formData.clientStatus);
 
           const steps = [
-            { label: 'Activate',  done: true },
-            { label: 'Estimate',  done: estimateAccepted },
-            { label: 'Contract',  done: contractSigned },
-            { label: 'Invoice',   done: invoiceSent },
-            { label: 'Booked',    done: booked },
+            { label: 'Activate',  done: intakeFormActivated,  skipped: false },
+            { label: 'Estimate',  done: estimateAccepted,      skipped: false },
+            { label: 'Contract',  done: contractSigned,        skipped: contractSkipped },
+            { label: 'Invoice',   done: invoiceSent,           skipped: false },
+            { label: 'Booked',    done: booked,                skipped: false },
           ];
 
-          const currentStepIndex = steps.findIndex(s => !s.done);
+          // Skip optional steps when finding the current active step
+          const currentStepIndex = steps.findIndex((s, i) => !s.done && !s.skipped);
 
           const handleProgressAction = () => {
             if (!estimateAccepted) {
               router.push(`/dashboard/estimates/new?eventId=${eventId}${intakeFormId ? `&clientId=${intakeFormId}` : ''}`);
-            } else if (!contractSigned) {
+            } else if (!contractSigned && hasContracts) {
               router.push(`/dashboard/contracts/new${intakeFormId ? `?intakeFormId=${intakeFormId}` : ''}`);
             } else if (!invoiceSent) {
-              router.push(`/dashboard/invoices/new?eventId=${eventId}`);
+              router.push(`/dashboard/invoices/new?eventId=${eventId}${intakeFormId ? `&clientId=${intakeFormId}` : ''}`);
             }
           };
 
           const actionLabels = ['', 'Send Estimate', 'Send Contract', 'Send Invoice', ''];
-          const actionLabel = currentStepIndex > 0 && currentStepIndex < 4 ? actionLabels[currentStepIndex] : null;
+          const actionLabel = currentStepIndex > 0 && currentStepIndex < 4 && !steps[currentStepIndex]?.skipped
+            ? actionLabels[currentStepIndex]
+            : null;
 
           return (
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-6">
@@ -603,19 +837,21 @@ export default function EventManagementPage() {
                     <React.Fragment key={step.label}>
                       <div className="flex flex-col items-center min-w-0">
                         <div className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0
-                          ${step.done ? 'bg-green-500 text-white' : isCurrent ? 'bg-primary-600 text-white ring-4 ring-primary-100' : 'bg-gray-200 text-gray-400'}`}>
+                          ${step.done ? 'bg-green-500 text-white' : step.skipped ? 'bg-gray-100 text-gray-300 border border-dashed border-gray-300' : isCurrent ? 'bg-primary-600 text-white ring-4 ring-primary-100' : 'bg-gray-200 text-gray-400'}`}>
                           {step.done
                             ? <CheckCircle className="h-4 w-4" />
+                            : step.skipped
+                            ? <span className="text-xs">—</span>
                             : <span className="text-xs font-bold">{i + 1}</span>}
                         </div>
                         <span className={`text-xs mt-1.5 font-medium text-center leading-tight
-                          ${step.done ? 'text-green-600' : isCurrent ? 'text-primary-600' : 'text-gray-400'}`}>
-                          {step.label}
+                          ${step.done ? 'text-green-600' : step.skipped ? 'text-gray-300' : isCurrent ? 'text-primary-600' : 'text-gray-400'}`}>
+                          {step.label}{step.skipped ? ' (opt)' : ''}
                         </span>
                       </div>
                       {!isLast && (
                         <div className={`flex-1 h-1 mx-1 rounded-full mb-4
-                          ${step.done ? 'bg-green-400' : 'bg-gray-200'}`} />
+                          ${step.done ? 'bg-green-400' : step.skipped ? 'bg-gray-100' : 'bg-gray-200'}`} />
                       )}
                     </React.Fragment>
                   );
@@ -782,7 +1018,7 @@ export default function EventManagementPage() {
                       />
                     </div>
                   ) : (
-                    <p className="text-gray-900">{formData.startTime} - {formData.endTime}</p>
+                    <p className="text-gray-900">{formatTime(formData.startTime)} - {formatTime(formData.endTime)}</p>
                   )}
                 </div>
 
@@ -798,21 +1034,6 @@ export default function EventManagementPage() {
                     />
                   ) : (
                     <p className="text-gray-900">{formData.estimatedGuests}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Confirmed Guests</label>
-                  {isEditing ? (
-                    <input
-                      type="number"
-                      name="confirmedGuests"
-                      value={formData.confirmedGuests}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                    />
-                  ) : (
-                    <p className="text-gray-900">{formData.confirmedGuests}</p>
                   )}
                 </div>
 
@@ -843,6 +1064,27 @@ export default function EventManagementPage() {
                     />
                   ) : (
                     <p className="text-gray-900">{formData.breakdownTime}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Venue</label>
+                  {isEditing ? (
+                    <select
+                      name="venueId"
+                      value={formData.venueId}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    >
+                      <option value="">— No venue assigned —</option>
+                      {venues.map(v => (
+                        <option key={v.id} value={v.id}>{v.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <p className="text-gray-900">
+                      {venues.find(v => v.id === formData.venueId)?.name || formData.venueId || 'Not assigned'}
+                    </p>
                   )}
                 </div>
 
@@ -1386,6 +1628,55 @@ export default function EventManagementPage() {
 
           {/* Right Sidebar */}
           <div className="space-y-6">
+            {/* Contracts */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-gray-900 flex items-center">
+                  <FileText className="h-5 w-5 mr-2 text-green-600" />
+                  Contracts
+                </h2>
+                <button
+                  onClick={() => router.push(`/dashboard/contracts/new${intakeFormId ? `?intakeFormId=${intakeFormId}` : ''}`)}
+                  className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 font-medium"
+                >
+                  + Draft
+                </button>
+              </div>
+
+              {eventContracts.length > 0 ? (
+                <div className="space-y-2">
+                  {eventContracts.map((c: any) => (
+                    <div key={c.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="min-w-0 mr-2">
+                        <p className="text-sm font-medium text-gray-900 truncate">{c.title ?? `Contract #${c.contract_number}`}</p>
+                        {c.title && c.contract_number && (
+                          <p className="text-xs text-gray-400">#{c.contract_number}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
+                          c.status === 'signed' ? 'bg-green-100 text-green-800' :
+                          c.status === 'sent' ? 'bg-blue-100 text-blue-800' :
+                          c.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {c.status}
+                        </span>
+                        <button
+                          onClick={() => router.push(`/dashboard/contracts/${c.id}`)}
+                          className="text-primary-600 hover:text-primary-700 text-xs font-medium"
+                        >
+                          View
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">No contracts yet.</p>
+              )}
+            </div>
+
             {/* Security Details */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
               <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
@@ -1510,6 +1801,112 @@ export default function EventManagementPage() {
               </div>
             </div>
 
+            {/* Booked Vendors */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <Store className="h-5 w-5 text-purple-600" /> Vendors
+                </h2>
+                <button
+                  onClick={() => handleOpenVendorBookModal()}
+                  className="flex items-center gap-1.5 bg-purple-600 text-white text-sm px-3 py-1.5 rounded-lg hover:bg-purple-700"
+                >
+                  <Store className="h-3.5 w-3.5" /> Book Vendor
+                </button>
+              </div>
+
+              {eventVendors.length === 0 ? (
+                <p className="text-sm text-gray-500 italic">No vendors booked yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {eventVendors.map(vb => {
+                    const vendor = vb.vendor_accounts;
+                    return (
+                      <div key={vb.id} className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                        <div>
+                          <p className="font-medium text-gray-900 text-sm">{vendor?.business_name || 'Vendor'}</p>
+                          <p className="text-xs text-gray-500 capitalize">{vendor?.category?.replace('_', ' ')}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {vb.agreed_amount > 0 && (
+                            <span className="text-sm font-semibold text-gray-900">${Number(vb.agreed_amount).toLocaleString()}</span>
+                          )}
+                          <span className={`text-xs px-2 py-0.5 rounded-full capitalize font-medium ${
+                            vb.status === 'confirmed' ? 'bg-green-100 text-green-700' :
+                            vb.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                            vb.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                            'bg-gray-100 text-gray-600'
+                          }`}>{vb.status}</span>
+                          {(vb.status === 'confirmed' || vb.status === 'completed') && (
+                            <a
+                              href={`/dashboard/invoices/new?vendorBookingId=${vb.id}`}
+                              className="text-xs text-indigo-600 hover:underline flex items-center gap-0.5"
+                            >
+                              + Invoice <ChevronRight className="h-3 w-3" />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* RSVP Invitation Images */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <h2 className="text-lg font-bold text-gray-900 mb-1 flex items-center">
+                <ImageIcon className="h-5 w-5 mr-2 text-primary-600" />
+                RSVP Invitation Images
+              </h2>
+              <p className="text-xs text-gray-500 mb-4">Up to 2 images shown on the guest RSVP page.</p>
+
+              <div className="space-y-3">
+                {(formData.invitationImages || []).map((url, i) => (
+                  <div key={i} className="relative rounded-lg overflow-hidden border border-gray-200">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt={`Invitation ${i + 1}`} className="w-full h-40 object-cover" />
+                    <button
+                      onClick={() => removeRsvpImage(i)}
+                      className="absolute top-2 right-2 bg-white/80 hover:bg-white rounded-full p-1 shadow"
+                      title="Remove image"
+                    >
+                      <X className="h-4 w-4 text-gray-700" />
+                    </button>
+                  </div>
+                ))}
+
+                {(formData.invitationImages || []).length < 2 && (
+                  <label className={`flex flex-col items-center justify-center gap-2 w-full h-28 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${uploadingRsvpImage ? 'opacity-50 cursor-not-allowed border-gray-200' : 'border-primary-300 hover:border-primary-500 hover:bg-primary-50'}`}>
+                    {uploadingRsvpImage ? (
+                      <span className="text-sm text-gray-400">Uploading…</span>
+                    ) : (
+                      <>
+                        <Upload className="h-6 w-6 text-primary-400" />
+                        <span className="text-sm text-primary-600 font-medium">Upload Image</span>
+                        <span className="text-xs text-gray-400">JPG, PNG, WebP · max 5 MB</span>
+                      </>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      className="hidden"
+                      disabled={uploadingRsvpImage}
+                      onChange={e => {
+                        const file = e.target.files?.[0];
+                        if (file) handleRsvpImageUpload(file);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                )}
+
+                {(formData.invitationImages || []).length > 0 && (
+                  <p className="text-xs text-gray-400 text-center">Images save with the "Save Changes" button above.</p>
+                )}
+              </div>
+            </div>
+
             {/* Invoices */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
               <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
@@ -1543,35 +1940,181 @@ export default function EventManagementPage() {
                 <p className="text-sm text-gray-500 mb-3">No invoices found for this event.</p>
               )}
 
-              <button
-                onClick={() => router.push(`/dashboard/invoices/new?eventId=${eventId}`)}
-                className="w-full px-4 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 font-medium"
-              >
-                + Create Invoice
-              </button>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <h2 className="text-lg font-bold text-gray-900 mb-4">Quick Actions</h2>
-              
-              <div className="space-y-2">
-                <button className="w-full px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 text-sm font-medium">
-                  Send Contract
-                </button>
-                <button className="w-full px-4 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 text-sm font-medium">
-                  Request Insurance
-                </button>
-                <button className="w-full px-4 py-2 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 text-sm font-medium">
-                  Send Payment Reminder
-                </button>
-                <button className="w-full px-4 py-2 bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 text-sm font-medium">
-                  Email Client
-                </button>
-              </div>
             </div>
           </div>
         </div>
+
+      {/* ─── Vendor Booking Modal ─────────────────────────────── */}
+      {showVendorBookModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 overflow-y-auto p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Book a Vendor</h2>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  {formData.eventName} &bull; {formData.eventDate ? new Date(formData.eventDate + 'T12:00:00').toLocaleDateString() : ''}
+                </p>
+              </div>
+              <button onClick={() => setShowVendorBookModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {!selectedVendorToBook ? (
+              /* Step 1: Choose a vendor */
+              <div className="flex flex-col flex-1 overflow-hidden">
+                {/* Category filter */}
+                <div className="px-6 pt-4 flex gap-2 flex-wrap">
+                  {VENDOR_CATEGORIES.map(c => (
+                    <button
+                      key={c.value}
+                      onClick={() => handleVendorCategoryFilter(c.value)}
+                      className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-all ${
+                        vendorCategoryFilter === c.value
+                          ? 'bg-purple-600 text-white border-purple-600'
+                          : 'bg-white text-gray-600 border-gray-300 hover:border-purple-300'
+                      }`}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex-1 overflow-y-auto px-6 py-4">
+                  {vendorBookListLoading ? (
+                    <div className="py-8 text-center text-gray-400">
+                      <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-purple-600 mx-auto mb-2" />
+                      Loading vendors…
+                    </div>
+                  ) : vendorBookList.length === 0 ? (
+                    <p className="text-center text-gray-400 py-8">No vendors found.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {vendorBookList.map(v => (
+                        <button
+                          key={v.id}
+                          onClick={() => setSelectedVendorToBook(v)}
+                          className="text-left p-4 border border-gray-200 rounded-xl hover:border-purple-400 hover:bg-purple-50 transition-all group"
+                        >
+                          <p className="font-semibold text-gray-900 group-hover:text-purple-700 text-sm">{v.business_name}</p>
+                          <p className="text-xs text-gray-500 mt-0.5 capitalize">{v.category?.replace('_', ' ')}</p>
+                          {(v.city || v.state) && (
+                            <p className="text-xs text-gray-400 mt-1">{[v.city, v.state].filter(Boolean).join(', ')}</p>
+                          )}
+                          {(v.hourly_rate || v.flat_rate) && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              {v.hourly_rate ? `$${v.hourly_rate}/hr` : `$${v.flat_rate} flat`}
+                            </p>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* Step 2: Confirm booking details */
+              <div className="px-6 py-5 flex flex-col gap-4">
+                {/* Selected vendor summary */}
+                <div className="flex items-center justify-between p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                  <div>
+                    <p className="font-semibold text-gray-900">{selectedVendorToBook.business_name}</p>
+                    <p className="text-xs text-gray-500 capitalize">{selectedVendorToBook.category?.replace('_', ' ')}</p>
+                  </div>
+                  <button
+                    onClick={() => setSelectedVendorToBook(null)}
+                    className="text-xs text-purple-600 hover:underline"
+                  >
+                    Change
+                  </button>
+                </div>
+
+                {/* Event summary (read-only) */}
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Event</label>
+                    <p className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-700">{formData.eventName}</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Date</label>
+                    <p className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-700">
+                      {formData.eventDate ? new Date(formData.eventDate + 'T12:00:00').toLocaleDateString() : '—'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Agreed amount */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Agreed Amount <span className="text-gray-400 font-normal">(optional)</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 text-gray-400 text-sm">$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={vbAgreedAmount}
+                        onChange={e => setVbAgreedAmount(e.target.value)}
+                        placeholder="0.00"
+                        className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Deposit <span className="text-gray-400 font-normal">(optional)</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 text-gray-400 text-sm">$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={vbDepositAmount}
+                        onChange={e => setVbDepositAmount(e.target.value)}
+                        placeholder="0.00"
+                        className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Notes */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
+                  <textarea
+                    value={vbNotes}
+                    onChange={e => setVbNotes(e.target.value)}
+                    rows={2}
+                    placeholder="Any special requirements or notes for this vendor…"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-3 justify-end pt-2">
+                  <button
+                    onClick={() => setShowVendorBookModal(false)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleBookVendorSubmit}
+                    disabled={vbSubmitting}
+                    className="px-5 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50"
+                  >
+                    {vbSubmitting ? 'Booking…' : 'Send Booking Request'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

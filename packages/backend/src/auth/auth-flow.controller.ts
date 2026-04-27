@@ -109,6 +109,13 @@ export class AuthFlowController {
     return this.authFlowService.unifiedLogin(body.email, body.password);
   }
 
+  /** Returns the authenticated user's roles — used by the frontend to refresh stale sessions */
+  @Get('unified/me')
+  async unifiedMe(@Headers('authorization') authorization: string) {
+    const token = authorization?.replace('Bearer ', '') || '';
+    return this.authFlowService.getMyRoles(token);
+  }
+
   /**
    * Add a new role to the authenticated user.
    * Body: { newRole: 'owner' | 'vendor' }

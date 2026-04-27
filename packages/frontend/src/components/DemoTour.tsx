@@ -11,9 +11,9 @@ import { useEffect, useState, useCallback } from 'react'
 import {
   LayoutDashboard,
   Users,
-  CalendarDays,
+  CalendarCheck2,
   FileText,
-  Receipt,
+  ClipboardList,
   Users2,
   Store,
   Rocket,
@@ -22,7 +22,7 @@ import {
   X,
 } from 'lucide-react'
 
-const STORAGE_KEY = 'demo_tour_v1_dismissed'
+const STORAGE_KEY = 'demo_tour_v2_dismissed'
 
 interface Step {
   icon: React.ReactNode
@@ -38,48 +38,46 @@ const STEPS: Step[] = [
     icon: <Rocket className="h-10 w-10 text-indigo-500" />,
     title: 'Welcome to DoVenueSuite!',
     description:
-      'You\'re on a free trial — all features are unlocked. Let\'s take a quick tour so you can see everything the platform can do for your venue business.',
+      'You\'re on a free trial — all features are unlocked. Let\'s take a quick tour so you can see how everything flows through the platform.',
     badge: 'Free Trial Active',
   },
   {
     icon: <LayoutDashboard className="h-10 w-10 text-blue-500" />,
     title: 'Your Dashboard',
     description:
-      'The dashboard is your command center. See unpaid invoices, upcoming bookings, total revenue, and new leads all in one place — updated in real time.',
+      'The dashboard is your command center. See upcoming events, recent activity, revenue at a glance, and quick stats — all updated in real time.',
     href: '/dashboard',
     hrefLabel: 'Go to Dashboard',
   },
   {
-    icon: <Users className="h-10 w-10 text-purple-500" />,
-    title: 'Clients & Intake Forms',
+    icon: <ClipboardList className="h-10 w-10 text-purple-500" />,
+    title: 'Start with a Client Intake Form',
     description:
-      'Share your unique intake form link and watch leads roll in. Every submission creates a client record you can track through your sales pipeline — contacted, walkthrough completed, booked, and beyond.',
-    href: '/dashboard/clients',
-    hrefLabel: 'View Clients',
+      'Everything begins here. Share your intake form link with clients. When they fill it out, an event is automatically created and they receive an SMS with a link to their client portal.',
+    href: '/dashboard/intake',
+    hrefLabel: 'View Intake Form',
   },
   {
-    icon: <CalendarDays className="h-10 w-10 text-green-500" />,
-    title: 'Events & Bookings',
+    icon: <CalendarCheck2 className="h-10 w-10 text-primary-500" />,
+    title: 'Events Are Your Hub',
     description:
-      'Create events, attach clients, collect deposits, and track every booking from first contact to final payment. The calendar view keeps you organized across all upcoming events.',
+      'Each event has a 5-step progress bar: Form → Estimate → Contract → Invoice → Booked. All invoices, estimates, and contracts are created directly from the event page — keeping everything in one place.',
     href: '/dashboard/events',
     hrefLabel: 'View Events',
   },
   {
-    icon: <Receipt className="h-10 w-10 text-amber-500" />,
-    title: 'Invoices & Estimates',
+    icon: <FileText className="h-10 w-10 text-rose-500" />,
+    title: 'Estimates, Contracts & Invoices',
     description:
-      'Generate professional invoices and estimates in seconds. Clients receive a payment link and can pay online via card — funds go directly to your connected Stripe account.',
-    href: '/dashboard/invoices',
-    hrefLabel: 'View Invoices',
+      'Once inside an event, send an estimate for approval, upload and send a contract for e-signature, then issue an invoice. Clients receive payment links and can pay online — funds go directly to your Stripe account.',
+    href: '/dashboard/events',
+    hrefLabel: 'Go to Events',
   },
   {
-    icon: <FileText className="h-10 w-10 text-rose-500" />,
-    title: 'Contracts',
+    icon: <Users className="h-10 w-10 text-teal-500" />,
+    title: 'Your Client Portal',
     description:
-      'Upload your contract documents and send them for client e-signature. Track viewed and signed status so nothing falls through the cracks before an event.',
-    href: '/dashboard/contracts',
-    hrefLabel: 'View Contracts',
+      'Clients get their own portal where they can track their event, review and pay invoices, and sign contracts — no login required, just their unique SMS link.',
   },
   {
     icon: <Users2 className="h-10 w-10 text-teal-500" />,

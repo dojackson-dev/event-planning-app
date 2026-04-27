@@ -96,24 +96,7 @@ export class ClientAuthService {
       }
     }
 
-    // 3. Check booking.contact_phone by phone variants (+ optional name match)
-    if (!clientFound) {
-      const bookingResults = await Promise.all(
-        phoneVariants.map(p =>
-          supabase
-            .from('booking')
-            .select('id, contact_name, contact_phone')
-            .eq('contact_phone', p)
-            .limit(10),
-        ),
-      );
-      const allBookings = bookingResults.flatMap((r: any) => r.data || []);
-      if (allBookings.length > 0) {
-        clientFound = name ? this.nameMatches(name, allBookings.map((b: any) => b.contact_name)) : true;
-      }
-    }
-
-    // 4. Check vendor_booking_requests.client_phone (submitted via vendor public booking form)
+    // 3. Check vendor_booking_requests.client_phone (submitted via vendor public booking form)
     if (!clientFound) {
       const vendorRequestResults = await Promise.all(
         phoneVariants.map(p =>
@@ -241,18 +224,6 @@ export class ClientAuthService {
           firstName = parts[0] || '';
           lastName = parts.slice(1).join(' ') || '';
         } else {
-          // Try bookings
-          const bookingResults = await Promise.all(
-            phoneVariants.map(p =>
-              supabase.from('booking').select('contact_name').eq('contact_phone', p).limit(1),
-            ),
-          );
-          const bookingName = bookingResults.flatMap((r: any) => r.data || [])[0]?.contact_name || '';
-          if (bookingName) {
-            const parts = bookingName.split(/\s+/);
-            firstName = parts[0] || '';
-            lastName = parts.slice(1).join(' ') || '';
-          } else {
             // Try vendor_booking_requests (submitted via vendor public booking form)
             const vendorRequestResults = await Promise.all(
               phoneVariants.map(p =>
@@ -263,7 +234,6 @@ export class ClientAuthService {
             const parts = vendorRequestName.split(/\s+/);
             firstName = parts[0] || '';
             lastName = parts.slice(1).join(' ') || '';
-          }
         }
       }
       // Generate a stable, UUID-format client ID derived from the phone number

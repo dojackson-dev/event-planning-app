@@ -66,16 +66,6 @@ export class EstimatesService {
     let phone: string | null = null;
     let email: string | null = null;
 
-    if ((estimate as any).booking_id) {
-      const { data: booking } = await supabase
-        .from('booking')
-        .select('contact_phone, contact_email')
-        .eq('id', (estimate as any).booking_id)
-        .single();
-      phone = (booking as any)?.contact_phone ?? null;
-      email = (booking as any)?.contact_email ?? null;
-    }
-
     if (!phone && (estimate as any).intake_form_id) {
       const { data: form } = await supabase
         .from('intake_forms')
@@ -143,7 +133,7 @@ export class EstimatesService {
     try {
       const { data, error } = await supabase
         .from('estimates')
-        .select('*, booking:booking(id, contact_name, contact_email, contact_phone, event_id, total_amount), intake_form:intake_forms(*), items:estimate_items(*)')
+        .select('*, intake_form:intake_forms(*), items:estimate_items(*)')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
@@ -156,18 +146,20 @@ export class EstimatesService {
     try {
       let query = supabase
         .from('estimates')
-        .select('*, booking:booking(id, contact_name, contact_email, contact_phone, event_id, total_amount), intake_form:intake_forms(*), items:estimate_items(*)')
+        .select('*, intake_form:intake_forms(*), items:estimate_items(*)')
         .eq('owner_id', ownerId)
         .order('created_at', { ascending: false });
 
       if (venueId) {
-        const { data: venueEvents } = await supabase.from('event').select('id').eq('venue_id', venueId);
-        const eventIds = (venueEvents || []).map((e: any) => e.id);
-        if (eventIds.length === 0) return [];
-        const { data: eventBookings } = await supabase.from('booking').select('id').in('event_id', eventIds);
-        const bookingIds = (eventBookings || []).map((b: any) => b.id);
-        if (bookingIds.length === 0) return [];
-        query = query.in('booking_id', bookingIds);
+        const { data: venueEvents } = await supabase.from('event').select('id, intake_form_id').eq('venue_id', venueId);
+        if (!venueEvents || venueEvents.length === 0) return [];
+        const intakeIds = venueEvents.map((e: any) => e.intake_form_id).filter(Boolean);
+        const eventIds = venueEvents.map((e: any) => e.id);
+        if (intakeIds.length > 0) {
+          query = query.in('intake_form_id', intakeIds);
+        } else {
+          query = query.in('event_id', eventIds);
+        }
       }
 
       const { data, error } = await query;
@@ -195,7 +187,7 @@ export class EstimatesService {
   async findOne(supabase: SupabaseClient, id: string): Promise<Estimate> {
     const { data, error } = await supabase
       .from('estimates')
-      .select('*, booking:booking(id, contact_name, contact_email, contact_phone, event_id, total_amount), intake_form:intake_forms(*), items:estimate_items(*)')
+      .select('*, intake_form:intake_forms(*), items:estimate_items(*)')
       .eq('id', id)
       .single();
     if (error) throw new NotFoundException('Estimate not found');
@@ -233,14 +225,9 @@ export class EstimatesService {
       Number(estimateData.discount_amount) || 0,
     );
 
-    // Resolve client contact info from booking or intake form
+    // Resolve client contact info from intake form or event
     let clientPhone: string | null = estimateData.client_phone || null;
     let clientEmail: string | null = estimateData.client_email || null;
-    if (!clientPhone && estimateData.booking_id) {
-      const { data: bk } = await supabase.from('booking').select('contact_phone, contact_email').eq('id', estimateData.booking_id).single();
-      clientPhone = (bk as any)?.contact_phone ?? null;
-      clientEmail = (bk as any)?.contact_email ?? null;
-    }
     if (!clientPhone && estimateData.intake_form_id) {
       const { data: fm } = await supabase.from('intake_forms').select('contact_phone, contact_email').eq('id', estimateData.intake_form_id).single();
       clientPhone = (fm as any)?.contact_phone ?? null;
@@ -253,7 +240,6 @@ export class EstimatesService {
         estimate_number: estimateNumber,
         owner_id: ownerId,
         created_by: userId,
-        booking_id: estimateData.booking_id || null,
         intake_form_id: estimateData.intake_form_id || null,
         client_phone: clientPhone,
         client_email: clientEmail,
@@ -285,7 +271,7 @@ export class EstimatesService {
         .from('estimates')
         .update({ subtotal: totals.subtotal, tax_amount: totals.taxAmount, total_amount: totals.totalAmount })
         .eq('id', estimate.id)
-        .select('*, booking:booking(id, contact_name, contact_email, contact_phone, event_id, total_amount), intake_form:intake_forms(*), items:estimate_items(*)')
+        .select('*, intake_form:intake_forms(*), items:estimate_items(*)')
         .single();
       if (upErr) throw upErr;
       return updated;
@@ -351,7 +337,7 @@ export class EstimatesService {
     try {
       const { phone } = await this.lookupAndPersistClientContact(supabase, updated);
       const clientName =
-        (updated as any).booking?.contact_name || 'Valued Client';
+        (updated as any).intake_form?.contact_name || 'Valued Client';
       if (status === 'sent') {
         await this.smsNotifications.estimateSent(
           phone,
@@ -461,7 +447,6 @@ export class EstimatesService {
         invoice_number: invoiceNumber,
         owner_id: estimate.owner_id,
         created_by: userId,
-        booking_id: estimate.booking_id || null,
         intake_form_id: estimate.intake_form_id || null,
         subtotal: estimate.subtotal,
         tax_rate: estimate.tax_rate,

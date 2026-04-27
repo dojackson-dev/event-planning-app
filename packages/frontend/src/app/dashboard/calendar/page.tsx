@@ -1064,18 +1064,23 @@ export default function CalendarPage() {
               ) : (
                 <>
                   <button
-                    onClick={handleEditEvent}
+                    onClick={() => { closeModal(); router.push(`/dashboard/events/${selectedEntry.id}/manage`) }}
                     className="flex-1 inline-flex items-center justify-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
                   >
                     <Edit2 className="h-4 w-4 mr-2" />
+                    Manage
+                  </button>
+                  <button
+                    onClick={handleEditEvent}
+                    className="inline-flex items-center justify-center px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
                     Edit
                   </button>
                   <button
                     onClick={() => setShowDeleteConfirm(true)}
-                    className="flex-1 inline-flex items-center justify-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                    className="inline-flex items-center justify-center px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
                   >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete
+                    <Trash2 className="h-4 w-4" />
                   </button>
                 </>
               )}

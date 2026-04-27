@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, InternalServerErrorException, Logger } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import { MailService } from '../mail/mail.service';
+import { randomUUID } from 'crypto';
 
 export interface Invoice {
   id?: string;
@@ -58,6 +59,8 @@ export interface InvoiceItem {
 
 @Injectable()
 export class InvoicesService {
+  private readonly logger = new Logger(InvoicesService.name);
+
   constructor(
     private readonly supabaseService: SupabaseService,
     private readonly smsNotifications: SmsNotificationsService,
@@ -75,7 +78,7 @@ export class InvoicesService {
     if (invoice.client_phone) return invoice.client_phone;
     if (invoice.booking_id) {
       const { data: booking } = await supabase
-        .from('booking')
+        .from('event')
         .select('contact_phone')
         .eq('id', invoice.booking_id)
         .single();
@@ -127,7 +130,7 @@ export class InvoicesService {
         .from('invoices')
         .select(`
           *,
-          booking:booking(*, event:event(id, name, date)),
+          event!event_id(id, name, date),
           intake_form:intake_forms(*),
           items:invoice_items(*)
         `)
@@ -151,7 +154,7 @@ export class InvoicesService {
         .from('invoices')
         .select(`
           *,
-          booking:booking(*, event:event(id, name, date)),
+          event!event_id(id, name, date),
           intake_form:intake_forms(*),
           items:invoice_items(*)
         `)
@@ -175,7 +178,7 @@ export class InvoicesService {
         .from('invoices')
         .select(`
           *,
-          booking:booking(*, event:event(id, name, date)),
+          event!event_id(id, name, date),
           intake_form:intake_forms(*),
           items:invoice_items(*)
         `)
@@ -198,7 +201,7 @@ export class InvoicesService {
       .from('invoices')
       .select(`
         *,
-        booking:booking(*, event:event(id, name, date)),
+event!event_id(id, name, date),
         intake_form:intake_forms(*),
         items:invoice_items(*)
       `)
@@ -220,83 +223,77 @@ export class InvoicesService {
     return data || [];
   }
 
-  async create(supabase: SupabaseClient, userId: string, invoiceData: Partial<Invoice>, items?: Partial<InvoiceItem>[]): Promise<Invoice> {
-    // Determine the owner_id to use
-    const ownerId = invoiceData.owner_id || userId;
-
-    // Guard: owner must have an active Stripe Connect account to receive payments
+  /** Check whether the owner (by userId) has an active Stripe Connect account */
+  private async isStripeConnected(ownerId: string): Promise<boolean> {
     const adminClient = this.supabaseService.getAdminClient();
-    let stripeConnected = false;
     const { data: directOwner } = await adminClient
       .from('owner_accounts')
       .select('stripe_connect_id, stripe_connect_status')
       .eq('primary_owner_id', ownerId)
       .maybeSingle();
     if (directOwner) {
-      stripeConnected = !!(directOwner.stripe_connect_id && directOwner.stripe_connect_status === 'active');
-    } else {
-      const { data: membership } = await adminClient
-        .from('memberships')
-        .select('owner_account_id')
-        .eq('user_id', ownerId)
-        .eq('role', 'owner')
+      return !!(directOwner.stripe_connect_id && directOwner.stripe_connect_status === 'active');
+    }
+    const { data: membership } = await adminClient
+      .from('memberships')
+      .select('owner_account_id')
+      .eq('user_id', ownerId)
+      .eq('role', 'owner')
+      .maybeSingle();
+    if (membership?.owner_account_id) {
+      const { data: ownerById } = await adminClient
+        .from('owner_accounts')
+        .select('stripe_connect_id, stripe_connect_status')
+        .eq('id', membership.owner_account_id)
         .maybeSingle();
-      if (membership?.owner_account_id) {
-        const { data: ownerById } = await adminClient
-          .from('owner_accounts')
-          .select('stripe_connect_id, stripe_connect_status')
-          .eq('id', membership.owner_account_id)
-          .maybeSingle();
-        stripeConnected = !!(ownerById?.stripe_connect_id && ownerById.stripe_connect_status === 'active');
-      }
+      return !!(ownerById?.stripe_connect_id && ownerById.stripe_connect_status === 'active');
     }
-    if (!stripeConnected) {
-      throw new BadRequestException(
-        'You must connect a Stripe account before sending invoices. Go to Settings → Payouts to get started.',
-      );
-    }
-    
-    // Check if the owner exists in the users table (required by foreign key constraint)
-    const { data: ownerUser, error: userError } = await supabase
+    return false;
+  }
+
+  async create(supabase: SupabaseClient, userId: string, invoiceData: Partial<Invoice>, items?: Partial<InvoiceItem>[]): Promise<Invoice> {
+    // Determine the owner_id to use
+    const ownerId = invoiceData.owner_id || userId;
+
+    // Ensure the owner exists in public.users (required by FK). Use admin client to
+    // bypass RLS and avoid PGRST116 false-negatives from .single().
+    const adminClient = this.supabaseService.getAdminClient();
+    const { data: ownerUser } = await adminClient
       .from('users')
       .select('id')
       .eq('id', ownerId)
-      .single();
-    
-    // If user doesn't exist, try to create them from auth.users
-    if (userError || !ownerUser) {
-      // Get user info from auth.users
-      const { data: authUser } = await supabase.auth.admin.getUserById(ownerId);
-      
-      if (authUser?.user) {
-        // Create the user record in public.users
-        const { error: insertError } = await supabase
+      .maybeSingle();
+
+    if (!ownerUser) {
+      // Owner not in public.users yet — bootstrap from auth.users via admin client
+      const { data: authData } = await adminClient.auth.admin.getUserById(ownerId);
+      if (authData?.user) {
+        const { error: insertError } = await adminClient
           .from('users')
           .insert({
             id: ownerId,
-            email: authUser.user.email,
+            email: authData.user.email,
             role: 'owner',
             status: 'active',
-            first_name: authUser.user.user_metadata?.first_name || '',
-            last_name: authUser.user.user_metadata?.last_name || '',
+            first_name: authData.user.user_metadata?.first_name || '',
+            last_name: authData.user.user_metadata?.last_name || '',
           });
-        
         if (insertError) {
           console.error('Failed to create user record:', insertError);
-          throw new Error(`Cannot create invoice: Failed to create user record. ${insertError.message}`);
+          throw new BadRequestException(`Cannot create invoice: user record missing. ${insertError.message}`);
         }
       } else {
-        throw new Error(`Cannot create invoice: User with ID ${ownerId} not found.`);
+        throw new BadRequestException(`Cannot create invoice: owner user ID ${ownerId} not found.`);
       }
     }
-    
-    // Generate unique invoice number with timestamp to avoid duplicates
-    const { data: maxInvoice } = await supabase
+
+    // Generate unique invoice number — use maybeSingle so zero-rows case is handled gracefully
+    const { data: maxInvoice } = await adminClient
       .from('invoices')
       .select('invoice_number')
       .order('created_at', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
     
     let nextNumber = 1;
     if (maxInvoice?.invoice_number) {
@@ -316,6 +313,7 @@ export class InvoicesService {
     );
 
     // Insert invoice using snake_case column names
+    // Core required fields only — optional columns added below when non-null
     const insertPayload: any = {
         invoice_number: invoiceNumber,
         owner_id: ownerId,
@@ -335,33 +333,50 @@ export class InvoicesService {
         due_date: invoiceData.due_date,
         notes: invoiceData.notes || null,
         terms: invoiceData.terms || null,
-        deposit_percentage: invoiceData.deposit_percentage != null ? Number(invoiceData.deposit_percentage) : null,
-        deposit_due_days_before: invoiceData.deposit_due_days_before != null ? Number(invoiceData.deposit_due_days_before) : null,
-        final_payment_due_days_before: invoiceData.final_payment_due_days_before != null ? Number(invoiceData.final_payment_due_days_before) : null,
     };
 
-    // Only include client_phone if the column exists (migration may not have run yet)
+    // Optional columns that require migrations — only include when non-null
     const clientPhone = (invoiceData as any).client_phone;
     if (clientPhone) insertPayload.client_phone = clientPhone;
 
-    // Only include event_id if the column exists (migration may not have run yet)
     const eventId = (invoiceData as any).event_id;
     if (eventId) insertPayload.event_id = eventId;
 
+    if (invoiceData.deposit_percentage != null) insertPayload.deposit_percentage = Number(invoiceData.deposit_percentage);
+    if (invoiceData.deposit_due_days_before != null) insertPayload.deposit_due_days_before = Number(invoiceData.deposit_due_days_before);
+    if (invoiceData.final_payment_due_days_before != null) insertPayload.final_payment_due_days_before = Number(invoiceData.final_payment_due_days_before);
+
+    // public_token has a DB default (gen_random_uuid()) — only include if column exists
+    insertPayload.public_token = randomUUID();
+
+    // Optional columns that may not exist if a migration hasn't been run yet
+    const optionalColumns = ['client_phone', 'event_id', 'deposit_percentage', 'deposit_due_days_before', 'final_payment_due_days_before', 'public_token'];
+
     let data: any, error: any;
 
-    ({ data, error } = await supabase.from('invoices').insert(insertPayload).select().single());
+    ({ data, error } = await adminClient.from('invoices').insert(insertPayload).select().single());
 
-    // If client_phone or event_id column doesn't exist yet, retry without them
-    if (error?.code === 'PGRST204' && (insertPayload.client_phone || insertPayload.event_id)) {
-      delete insertPayload.client_phone;
-      delete insertPayload.event_id;
-      ({ data, error } = await supabase.from('invoices').insert(insertPayload).select().single());
+    // Column not found (schema cache miss or migration not run) — strip optional columns and retry
+    if (error?.code === 'PGRST204') {
+      this.logger.warn(`Invoice insert PGRST204 (column not found): ${error.message} — retrying without optional columns`);
+      for (const col of optionalColumns) delete insertPayload[col];
+      ({ data, error } = await adminClient.from('invoices').insert(insertPayload).select().single());
     }
 
-    if (error) throw error;
+    // FK violation on event_id (event row not in referenced table) — retry without it
+    if (error?.code === '23503' && insertPayload.event_id) {
+      this.logger.warn(`event_id ${insertPayload.event_id} failed FK check — inserting invoice without event_id`);
+      delete insertPayload.event_id;
+      ({ data, error } = await adminClient.from('invoices').insert(insertPayload).select().single());
+    }
+
+    if (error) {
+      console.error('Invoice insert failed:', error);
+      this.logger.error('Invoice insert failed', { code: error.code, message: error.message, details: error.details, hint: error.hint });
+      throw new InternalServerErrorException(`Failed to create invoice: ${error.message}`);
+    }
     if (!data) {
-      throw new Error('Failed to create invoice');
+      throw new InternalServerErrorException('Failed to create invoice: no data returned');
     }
     
     const invoice = data as Invoice;
@@ -389,7 +404,7 @@ export class InvoicesService {
         .eq('id', invoice.id)
         .select(`
           *,
-          booking:booking(*, event:event(id, name, date)),
+          event!event_id(id, name, date),
           intake_form:intake_forms(*),
           items:invoice_items(*)
         `)
@@ -412,7 +427,8 @@ export class InvoicesService {
    */
   private async sendInvoiceNotifications(supabase: SupabaseClient, invoice: Invoice): Promise<void> {
     const frontendUrl = process.env.FRONTEND_URL || 'https://dovenuesuite.com';
-    const invoiceUrl = `${frontendUrl}/client-portal/invoices/${invoice.id}`;
+    // Link to the invoices list — no individual invoice detail page exists in the client portal
+    const invoiceUrl = `${frontendUrl}/client-portal/invoices`;
 
     // Resolve client details
     let clientName = (invoice as any).client_name || 'Valued Client';
@@ -438,10 +454,10 @@ export class InvoicesService {
       }
     }
 
-    // Fall back to booking
+    // Fall back to event (bookings are now events with deposit paid)
     if (!clientPhone && invoice.booking_id) {
       const { data: booking } = await supabase
-        .from('booking')
+        .from('event')
         .select('contact_name, contact_phone, contact_email')
         .eq('id', invoice.booking_id)
         .single();
@@ -500,7 +516,10 @@ export class InvoicesService {
       .insert(itemsWithCalculations)
       .select();
 
-    if (error) throw error;
+    if (error) {
+      console.error('invoice_items insert failed:', error);
+      throw error;
+    }
     return data || [];
   }
 

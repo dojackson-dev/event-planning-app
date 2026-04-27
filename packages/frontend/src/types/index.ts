@@ -1,6 +1,7 @@
 // Enums
 export enum UserRole {
   ADMIN = 'admin',
+  ASSOCIATE = 'associate',
   CUSTOMER = 'customer',
   OWNER = 'owner',
   PLANNER = 'planner',
@@ -367,7 +368,9 @@ export interface Contract {
   booking?: Booking
   title: string
   description?: string
-  fileUrl: string
+  body?: string
+  contractType?: string
+  fileUrl?: string
   fileName?: string
   fileSize?: number
   status: ContractStatus

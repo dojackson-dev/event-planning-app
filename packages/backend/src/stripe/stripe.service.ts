@@ -36,6 +36,11 @@ export class StripeService {
     this.frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://dovenuesuite.com');
   }
 
+  /** Returns a public-facing URL Stripe will accept for business_profile.url (never localhost). */
+  private get connectBusinessUrl(): string {
+    return this.frontendUrl.startsWith('http://localhost') ? 'https://dovenuesuite.com' : this.frontendUrl;
+  }
+
   // ─── Customer ─────────────────────────────────────────────────────────────
 
   /**
@@ -436,11 +441,7 @@ export class StripeService {
     const clientName = invoice.client_name || 'Valued Client';
     const invoiceNumber = invoice.invoice_number || invoiceId;
 
-    // Fallback: look up phone from booking or intake form
-    if (!clientPhone && invoice.booking_id) {
-      const { data: booking } = await admin.from('booking').select('contact_phone').eq('id', invoice.booking_id).maybeSingle();
-      clientPhone = (booking as any)?.contact_phone ?? null;
-    }
+    // Fallback: look up phone from intake form
     if (!clientPhone && invoice.intake_form_id) {
       const { data: form } = await admin.from('intake_forms').select('contact_phone').eq('id', invoice.intake_form_id).maybeSingle();
       clientPhone = (form as any)?.contact_phone ?? null;
@@ -682,7 +683,7 @@ export class StripeService {
         type: 'express',
         email,
         capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
-        business_profile: { url: this.frontendUrl },
+        business_profile: { url: this.connectBusinessUrl },
         metadata: { owner_account_id: String(owner.id) },
       });
       connectId = account.id;
@@ -725,7 +726,7 @@ export class StripeService {
         type: 'express',
         email,
         capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
-        business_profile: { url: this.frontendUrl },
+        business_profile: { url: this.connectBusinessUrl },
         metadata: { vendor_account_id: vendor.id },
       });
       connectId = account.id;
@@ -862,7 +863,7 @@ export class StripeService {
         type: 'express',
         email,
         capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
-        business_profile: { url: this.frontendUrl },
+        business_profile: { url: this.connectBusinessUrl },
         metadata: { promoter_account_id: promoter.id },
       });
       connectId = account.id;
@@ -958,7 +959,7 @@ export class StripeService {
         type: 'express',
         email,
         capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
-        business_profile: { url: this.frontendUrl },
+        business_profile: { url: this.connectBusinessUrl },
         metadata: { artist_account_id: artist.id },
       });
       connectId = account.id;
@@ -1240,7 +1241,7 @@ export class StripeService {
         total_amount, amount_paid, amount_due, status,
         issue_date, due_date, notes, terms,
         deposit_percentage, deposit_due_days_before, final_payment_due_days_before,
-        booking:booking(event:event(id, name, date)),
+        event:event!event_id(id, name, date),
         items:invoice_items(id, description, quantity, unit_price, amount, item_type)
       `)
       .eq('public_token', token)

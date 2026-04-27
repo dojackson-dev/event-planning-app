@@ -185,11 +185,12 @@ export class SmsNotificationsService {
     phone: string | null | undefined,
     clientName: string,
     contractNumber: string,
+    contractUrl?: string,
   ): Promise<void> {
+    const link = contractUrl ?? this.url('/client-portal/contracts');
     await this.trySend(
       phone,
-      `DoVenue Suite Contract Message\nHi ${clientName}, contract ${contractNumber} is ready for your signature. Sign here: ${this.url('/client-portal/contracts')}`,
-
+      `DoVenue Suite Contract Message\nHi ${clientName}, contract ${contractNumber} is ready for your signature. Sign here: ${link}`,
     );
   }
 

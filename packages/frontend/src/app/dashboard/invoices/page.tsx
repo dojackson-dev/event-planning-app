@@ -107,14 +107,9 @@ export default function InvoicesPage() {
           {user?.role === 'owner' ? 'My Invoices' : 'Invoices'}
         </h1>
         {user?.role === 'owner' && (
-          <div className="flex justify-center">
-            <button
-              onClick={() => router.push('/dashboard/invoices/new')}
-              className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
-            >
-              Create Invoice
-            </button>
-          </div>
+          <p className="text-center text-sm text-gray-500">
+            Invoices are created through the <a href="/dashboard/events" className="text-primary-600 hover:underline font-medium">Events</a> tab.
+          </p>
         )}
       </div>
 
@@ -168,9 +163,6 @@ export default function InvoicesPage() {
                     <p className="font-semibold text-gray-900 truncate">{invoice.invoice_number}</p>
                     <p className="text-sm text-gray-600 truncate">{getCustomerName(invoice)}</p>
                   </div>
-                  <span className={`px-2 py-1 text-xs font-semibold rounded-full flex-shrink-0 whitespace-nowrap ${getStatusColor(invoice.status)}`}>
-                    {invoice.status}
-                  </span>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm text-gray-600">
                   <span className="font-medium">${Number(invoice.total_amount).toFixed(2)}</span>

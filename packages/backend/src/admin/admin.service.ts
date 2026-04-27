@@ -26,7 +26,7 @@ export class AdminService {
       supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'customer'),
       supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'customer').gte('created_at', startOfMonth),
       supabase.from('event').select('*', { count: 'exact', head: true }),
-      supabase.from('booking').select('*', { count: 'exact', head: true }),
+      supabase.from('event').select('*', { count: 'exact', head: true }).not('intake_form_id', 'is', null),
       supabase.from('users').select('id, email, first_name, last_name, created_at').eq('role', 'owner').order('created_at', { ascending: false }).limit(10),
       supabase.from('invoices').select('total_amount').eq('status', 'paid'),
       supabase.from('owner_accounts').select('*', { count: 'exact', head: true }).eq('subscription_status', 'trialing'),
@@ -131,33 +131,26 @@ export class AdminService {
     const offset = (page - 1) * limit;
 
     let query = supabase
-      .from('booking')
+      .from('event')
       .select(
-        'id, event_id, user_id, owner_id, contact_name, contact_email, contact_phone, status, payment_status, total_amount, deposit_amount, booking_date, notes, created_at',
+        'id, name, date, status, client_confirmation_status, payment_status, total_amount, deposit_amount, owner_id, intake_form_id, created_at, intake_form:intake_forms!intake_form_id(contact_name, contact_email, contact_phone)',
         { count: 'exact' },
       )
+      .not('intake_form_id', 'is', null)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (search) {
-      query = query.or(`contact_name.ilike.%${search}%,contact_email.ilike.%${search}%`);
+      query = query.ilike('name', `%${search}%`);
     }
     if (ownerId) {
-      query = query.eq('user_id', ownerId);
+      query = query.eq('owner_id', ownerId);
     }
 
     const { data, count, error } = await query;
     if (error) throw error;
 
-    // Enrich with event name
-    const eventIds = [...new Set((data || []).map((b: any) => b.event_id).filter(Boolean))];
-    const { data: events } = eventIds.length
-      ? await supabase.from('event').select('id, name, date').in('id', eventIds)
-      : { data: [] };
-    const eventMap = new Map((events || []).map((e: any) => [e.id, e]));
-
-    // Enrich with owner info (user_id is the owner)
-    const ownerIds = [...new Set((data || []).map((b: any) => b.user_id).filter(Boolean))];
+    const ownerIds = [...new Set((data || []).map((b: any) => b.owner_id).filter(Boolean))];
     const { data: owners } = ownerIds.length
       ? await supabase.from('users').select('id, email, first_name, last_name').in('id', ownerIds)
       : { data: [] };
@@ -165,8 +158,7 @@ export class AdminService {
 
     const enriched = (data || []).map((b: any) => ({
       ...b,
-      event: eventMap.get(b.event_id) || null,
-      owner: ownerMap.get(b.user_id) || null,
+      owner: ownerMap.get(b.owner_id) || null,
     }));
 
     return { bookings: enriched, total: count || 0, page, limit };
@@ -260,7 +252,7 @@ export class AdminService {
       supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'owner'),
       supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'customer'),
       supabase.from('event').select('*', { count: 'exact', head: true }),
-      supabase.from('booking').select('*', { count: 'exact', head: true }),
+      supabase.from('event').select('*', { count: 'exact', head: true }).not('intake_form_id', 'is', null),
       supabase.from('users').select('id, created_at').eq('role', 'owner').gte('created_at', sixMonthsAgo),
       supabase.from('users').select('id, created_at').eq('role', 'customer').gte('created_at', sixMonthsAgo),
       supabase.from('event').select('id, created_at').gte('created_at', sixMonthsAgo),

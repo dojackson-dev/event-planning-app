@@ -18,7 +18,8 @@ import {
   Download,
   UserPlus,
   Plus,
-  X
+  X,
+  RefreshCw,
 } from 'lucide-react'
 import { parseLocalDate } from '@/lib/dateUtils'
 import { useVenue } from '@/contexts/VenueContext'
@@ -39,6 +40,7 @@ export default function DoorListsPage() {
   const [addPhone, setAddPhone] = useState('')
   const [addPlusOnes, setAddPlusOnes] = useState(0)
   const [addLoading, setAddLoading] = useState(false)
+  const [importingRsvp, setImportingRsvp] = useState(false)
 
   useEffect(() => {
     fetchEvents()
@@ -59,14 +61,13 @@ export default function DoorListsPage() {
       const params: any = {}
       if (activeVenue) params.venueId = activeVenue.id
       const response = await api.get<Event[]>('/events', { params })
-      // Show events from 3 days ago through the future so door lists work
-      // for events happening now, today, or recently completed
       const cutoff = new Date()
-      cutoff.setDate(cutoff.getDate() - 3)
+      cutoff.setDate(cutoff.getDate() - 1)
       cutoff.setHours(0, 0, 0, 0)
       const seenIds = new Set<string>()
       const seenKeys = new Set<string>()
       const relevantEvents = response.data.filter(event => {
+        if (!event.date) return false
         const eventDate = parseLocalDate(event.date)
         if (eventDate < cutoff) return false
         if (seenIds.has(event.id)) return false
@@ -123,8 +124,28 @@ export default function DoorListsPage() {
     }
   }
 
-  const handleAddGuest = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleImportRsvp = async () => {
+    if (!selectedGuestList) return
+    setImportingRsvp(true)
+    try {
+      const res = await api.post(`/guest-lists/${selectedGuestList.id}/import-rsvp`)
+      const { imported, skipped } = res.data
+      if (imported === 0) {
+        alert(skipped > 0
+          ? `All ${skipped} attending RSVP guest${skipped !== 1 ? 's' : ''} are already on the door list.`
+          : 'No attending RSVP guests found for this event.')
+      } else {
+        alert(`Imported ${imported} guest${imported !== 1 ? 's' : ''} from RSVP${skipped > 0 ? ` (${skipped} already existed)` : ''}.`)
+      }
+      fetchGuestLists()
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'Failed to import from RSVP')
+    } finally {
+      setImportingRsvp(false)
+    }
+  }
+
+  const handleAddGuest = async (e: React.FormEvent) => {    e.preventDefault()
     if (!selectedGuestList) return
     setAddLoading(true)
     try {
@@ -193,7 +214,11 @@ export default function DoorListsPage() {
     )
   }
 
-  if (user?.role !== 'owner' && user?.role !== 'planner') {
+  const hasAccess =
+    user?.role === 'owner' || user?.role === 'planner' ||
+    user?.roles?.some(r => r === 'owner' || r === 'planner')
+
+  if (!hasAccess) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -241,20 +266,28 @@ export default function DoorListsPage() {
           </select>
 
           {events.length === 0 && (
-            <p className="text-sm text-gray-500 mt-2">No upcoming events found</p>
+            <p className="text-sm text-gray-500 mt-2">No upcoming events found.</p>
           )}
         </div>
 
         {selectedGuestList ? (
           <>
             {/* Action Buttons */}
-            <div className="mb-6 flex gap-3">
+            <div className="mb-6 flex gap-3 flex-wrap">
               <button
                 onClick={() => setShowAddForm(v => !v)}
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
               >
                 <UserPlus className="w-4 h-4" />
                 Add Guest
+              </button>
+              <button
+                onClick={handleImportRsvp}
+                disabled={importingRsvp}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 ${importingRsvp ? 'animate-spin' : ''}`} />
+                {importingRsvp ? 'Importing…' : 'Import from RSVP'}
               </button>
               <button
                 onClick={() => router.push(`/dashboard/guest-lists/${selectedGuestList.id}`)}
@@ -542,7 +575,7 @@ export default function DoorListsPage() {
               Create a guest list first from the Guest Lists page
             </p>
             <button
-              onClick={() => router.push('/dashboard/guest-lists/new')}
+              onClick={() => router.push(`/dashboard/guest-lists/new?eventId=${selectedEvent}`)}
               className="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
             >
               Create Guest List

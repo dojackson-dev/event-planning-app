@@ -289,7 +289,7 @@ export class RsvpService {
       .single();
 
     if (form?.event_id) {
-      const { data: ev } = await admin.from('event').select('name, date, start_time, venue').eq('id', form.event_id).single();
+      const { data: ev } = await admin.from('event').select('name, date, start_time, venue, management_data').eq('id', form.event_id).single();
       event = ev;
     }
 
@@ -302,6 +302,7 @@ export class RsvpService {
       responded_at: guest.responded_at,
       // Only indicate whether phone verification is required (don't expose the phone)
       requires_phone_verify: !!guest.guest_phone,
+      invitation_images: (event as any)?.management_data?.invitationImages ?? [],
       event: {
         name: event?.name ?? null,
         date: event?.date ?? form?.event_date ?? null,

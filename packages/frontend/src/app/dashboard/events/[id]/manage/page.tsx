@@ -29,7 +29,10 @@ import {
   Lock,
   List,
   Briefcase,
-  Trash2
+  Trash2,
+  Upload,
+  ImageIcon,
+  X,
 } from 'lucide-react';
 import api from '@/lib/api';
 import { Event, EventType, ClientStatus, ContractStatus, InsuranceStatus } from '@/types';
@@ -124,6 +127,9 @@ interface EventManagementData {
   allergies: string;
   accessibility: string;
   internalNotes: string;
+
+  // RSVP Invitation Images
+  invitationImages: string[];
 }
 
 const contractStatusLabels: Record<ContractStatus, string> = {
@@ -183,6 +189,7 @@ export default function EventManagementPage() {
   const [intakeFormActivated, setIntakeFormActivated] = useState(false);
   const [intakeFormId, setIntakeFormId] = useState<string | null>(null);
   const [guestListId, setGuestListId] = useState<number | null>(null);
+  const [uploadingRsvpImage, setUploadingRsvpImage] = useState(false);
   const [formData, setFormData] = useState<EventManagementData>({
     eventId: '',
     eventType: EventType.WEDDING_RECEPTION,
@@ -225,6 +232,7 @@ export default function EventManagementPage() {
     allergies: '',
     accessibility: '',
     internalNotes: '',
+    invitationImages: [],
   });
 
   useEffect(() => {
@@ -284,6 +292,7 @@ export default function EventManagementPage() {
         allergies: mgmt.allergies || '',
         accessibility: mgmt.accessibility || '',
         internalNotes: mgmt.internalNotes || '',
+        invitationImages: mgmt.invitationImages || [],
       }));
       setIntakeFormId(event.intakeFormId || null);
       // Activate step is done when the intake form has been converted (lead activated),
@@ -464,6 +473,47 @@ export default function EventManagementPage() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      await api.put(`/events/${eventId}/management`, formData);
+      setIsEditing(false);
+      alert('Event management data saved successfully!');
+    } catch (error) {
+      console.error('Error saving event management data:', error);
+      alert('Error saving data. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleRsvpImageUpload = async (file: File) => {
+    if ((formData.invitationImages || []).length >= 2) return;
+    setUploadingRsvpImage(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await api.post('/upload/rsvp-invitation', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setFormData(prev => ({
+        ...prev,
+        invitationImages: [...(prev.invitationImages || []), res.data.url],
+      }));
+    } catch {
+      alert('Failed to upload image. Please try again.');
+    } finally {
+      setUploadingRsvpImage(false);
+    }
+  };
+
+  const removeRsvpImage = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      invitationImages: (prev.invitationImages || []).filter((_, i) => i !== index),
+    }));
   };
 
   const handleDelete = async () => {
@@ -1548,6 +1598,60 @@ export default function EventManagementPage() {
                       Create Door List
                     </button>
                   </>
+                )}
+              </div>
+            </div>
+
+            {/* RSVP Invitation Images */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <h2 className="text-lg font-bold text-gray-900 mb-1 flex items-center">
+                <ImageIcon className="h-5 w-5 mr-2 text-primary-600" />
+                RSVP Invitation Images
+              </h2>
+              <p className="text-xs text-gray-500 mb-4">Up to 2 images shown on the guest RSVP page.</p>
+
+              <div className="space-y-3">
+                {(formData.invitationImages || []).map((url, i) => (
+                  <div key={i} className="relative rounded-lg overflow-hidden border border-gray-200">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt={`Invitation ${i + 1}`} className="w-full h-40 object-cover" />
+                    <button
+                      onClick={() => removeRsvpImage(i)}
+                      className="absolute top-2 right-2 bg-white/80 hover:bg-white rounded-full p-1 shadow"
+                      title="Remove image"
+                    >
+                      <X className="h-4 w-4 text-gray-700" />
+                    </button>
+                  </div>
+                ))}
+
+                {(formData.invitationImages || []).length < 2 && (
+                  <label className={`flex flex-col items-center justify-center gap-2 w-full h-28 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${uploadingRsvpImage ? 'opacity-50 cursor-not-allowed border-gray-200' : 'border-primary-300 hover:border-primary-500 hover:bg-primary-50'}`}>
+                    {uploadingRsvpImage ? (
+                      <span className="text-sm text-gray-400">Uploading…</span>
+                    ) : (
+                      <>
+                        <Upload className="h-6 w-6 text-primary-400" />
+                        <span className="text-sm text-primary-600 font-medium">Upload Image</span>
+                        <span className="text-xs text-gray-400">JPG, PNG, WebP · max 5 MB</span>
+                      </>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      className="hidden"
+                      disabled={uploadingRsvpImage}
+                      onChange={e => {
+                        const file = e.target.files?.[0];
+                        if (file) handleRsvpImageUpload(file);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                )}
+
+                {(formData.invitationImages || []).length > 0 && (
+                  <p className="text-xs text-gray-400 text-center">Images save with the "Save Changes" button above.</p>
                 )}
               </div>
             </div>

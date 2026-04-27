@@ -18,6 +18,7 @@ interface InviteData {
   table_assignment: string | null
   responded_at: string | null
   requires_phone_verify: boolean
+  invitation_images?: string[]
   event: {
     name: string | null
     date: string | null
@@ -256,6 +257,21 @@ export default function PublicRsvpPage() {
             </p>
           )}
         </div>
+
+        {/* Invitation images */}
+        {invite.invitation_images && invite.invitation_images.length > 0 && (
+          <div className="space-y-2 px-0">
+            {invite.invitation_images.slice(0, 2).map((url, i) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={i}
+                src={url}
+                alt={`Invitation image ${i + 1}`}
+                className="w-full object-cover max-h-64 rounded-none first:rounded-none"
+              />
+            ))}
+          </div>
+        )}
 
         <div className="p-6 space-y-5">
           <p className="text-center text-gray-700 font-medium">

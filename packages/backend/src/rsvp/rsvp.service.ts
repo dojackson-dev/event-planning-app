@@ -273,27 +273,39 @@ export class RsvpService {
   /** Get invitation images for an event. */
   async getInvitationImages(intakeFormId: string, clientPhone: string): Promise<string[]> {
     const form = await this.verifyClientOwnsForm(intakeFormId, clientPhone);
-    if (!form.event_id) return [];
     const admin = this.supabaseService.getAdminClient();
-    const { data: event } = await admin
-      .from('event')
-      .select('management_data')
-      .eq('id', form.event_id)
-      .single();
-    return (event as any)?.management_data?.invitationImages ?? [];
+    let eventData: any = null;
+    if (form.event_id) {
+      const { data } = await admin.from('event').select('management_data').eq('id', form.event_id).single();
+      eventData = data;
+    }
+    if (!eventData) {
+      // Fallback: find event by intake_form_id (handles older forms without event_id set)
+      const { data } = await admin.from('event').select('management_data').eq('intake_form_id', intakeFormId).maybeSingle();
+      eventData = data;
+    }
+    return (eventData as any)?.management_data?.invitationImages ?? [];
   }
 
   /** Set invitation images for an event (replaces existing list). */
   async setInvitationImages(intakeFormId: string, clientPhone: string, images: string[]): Promise<string[]> {
     const form = await this.verifyClientOwnsForm(intakeFormId, clientPhone);
-    if (!form.event_id) throw new NotFoundException('No linked event found');
     const admin = this.supabaseService.getAdminClient();
-    // Merge with existing management_data to avoid overwriting other fields
-    const { data: event } = await admin.from('event').select('management_data').eq('id', form.event_id).single();
-    const existing = (event as any)?.management_data ?? {};
+    // Resolve the event (prefer form.event_id, fallback to event.intake_form_id)
+    let targetEventId: string | null = form.event_id ?? null;
+    let existingMgmt: any = {};
+    if (targetEventId) {
+      const { data } = await admin.from('event').select('id, management_data').eq('id', targetEventId).single();
+      existingMgmt = (data as any)?.management_data ?? {};
+    } else {
+      const { data } = await admin.from('event').select('id, management_data').eq('intake_form_id', intakeFormId).maybeSingle();
+      if (!data) throw new NotFoundException('No linked event found');
+      targetEventId = data.id;
+      existingMgmt = (data as any)?.management_data ?? {};
+    }
     await admin.from('event').update({
-      management_data: { ...existing, invitationImages: images.slice(0, 2) },
-    }).eq('id', form.event_id);
+      management_data: { ...existingMgmt, invitationImages: images.slice(0, 2) },
+    }).eq('id', targetEventId);
     return images.slice(0, 2);
   }
 
@@ -319,6 +331,11 @@ export class RsvpService {
 
     if (form?.event_id) {
       const { data: ev } = await admin.from('event').select('name, date, start_time, venue, management_data').eq('id', form.event_id).single();
+      event = ev;
+    }
+    if (!event && guest.intake_form_id) {
+      // Fallback: find event by intake_form_id (handles older forms without event_id set)
+      const { data: ev } = await admin.from('event').select('name, date, start_time, venue, management_data').eq('intake_form_id', guest.intake_form_id).maybeSingle();
       event = ev;
     }
 

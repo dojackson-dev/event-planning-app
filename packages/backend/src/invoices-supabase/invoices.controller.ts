@@ -45,10 +45,41 @@ export class InvoicesController {
   @Post()
   async create(
     @Headers('authorization') auth: string,
-    @Body() invoice: Partial<Invoice>,
+    @Body() body: { invoice?: Partial<Invoice>; items?: any[] } & Partial<Invoice>,
   ): Promise<Invoice> {
     const supabase = this.getSupabase(auth);
-    return this.invoicesService.create(supabase, invoice);
+
+    // Support both wrapped `{ invoice, items }` and flat body formats
+    const invoiceData: Partial<Invoice> = body.invoice ?? body;
+    const rawItems: any[] = body.items ?? [];
+
+    // Compute subtotal from items so totals are accurate
+    const computedSubtotal = rawItems.reduce((sum: number, it: any) => {
+      return sum + (Number(it.unit_price) || 0) * (Number(it.quantity) || 1);
+    }, 0);
+    invoiceData.subtotal = computedSubtotal;
+
+    const created = await this.invoicesService.create(supabase, invoiceData);
+
+    // Insert line items linked to the new invoice
+    if (rawItems.length > 0) {
+      const itemRows = rawItems.map((it: any) => ({
+        invoice_id: created.id,
+        service_item_id: it.service_item_id || null,
+        description: it.description || '',
+        quantity: Number(it.quantity) || 1,
+        unit_price: Number(it.unit_price) || 0,
+        amount: (Number(it.unit_price) || 0) * (Number(it.quantity) || 1),
+        discount_type: it.discount_type || 'none',
+        discount_value: Number(it.discount_value) || 0,
+        sort_order: it.sort_order ?? 0,
+        item_type: it.item_type || 'revenue',
+        vendor_booking_id: it.vendor_booking_id || null,
+      }));
+      await supabase.from('invoice_items').insert(itemRows);
+    }
+
+    return created;
   }
 
   @Put(':id/status')

@@ -243,6 +243,24 @@ export class AuthFlowService {
     return [...new Set(rolesArray)];
   }
 
+  /** Returns the authenticated user's id, email, and roles — used to refresh stale frontend sessions */
+  async getMyRoles(accessToken: string) {
+    const supabase = this.supabaseService.getClient();
+    const adminClient = this.supabaseService.getAdminClient();
+
+    const { data: { user: authUser }, error } = await supabase.auth.getUser(accessToken);
+    if (error || !authUser) throw new UnauthorizedException('Invalid token');
+
+    const { data: dbUser } = await adminClient
+      .from('users')
+      .select('id, email, role, roles')
+      .eq('id', authUser.id)
+      .single();
+
+    const roles = this.getUserRoles(dbUser ?? { role: authUser.user_metadata?.role ?? 'owner' });
+    return { id: authUser.id, email: authUser.email, roles };
+  }
+
   /**
    * OWNER LOGIN FLOW
    * Check email verified, subscription status (skipped for now)

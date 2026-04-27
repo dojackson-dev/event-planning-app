@@ -4,14 +4,12 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { useAuth } from '@/contexts/AuthContext'
-import { UserRole } from '@/types'
+import RoleSwitcher from '@/components/RoleSwitcher'
 import {
   Store,
   Calendar,
   FileText,
   Link2,
-  Building2,
 } from 'lucide-react'
 
 interface VendorProfile {
@@ -33,29 +31,9 @@ interface Booking {
 
 export default function VendorDashboard() {
   const router = useRouter()
-  const { roles, switchRole, loading: authLoading } = useAuth()
-  const [isAlsoOwner, setIsAlsoOwner] = useState(false)
   const [profile, setProfile] = useState<VendorProfile | null>(null)
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
-
-  // Update switcher whenever AuthContext finishes loading roles
-  useEffect(() => {
-    if (!authLoading) {
-      const hasOwner = roles.includes(UserRole.OWNER)
-      console.log('[VendorDashboard] roles from context:', roles, 'isAlsoOwner:', hasOwner)
-      setIsAlsoOwner(hasOwner)
-    }
-  }, [roles, authLoading])
-
-  // Read roles from localStorage as soon as component mounts (client-only)
-  useEffect(() => {
-    try {
-      const storedRoles: string[] = JSON.parse(localStorage.getItem('user_roles') || '[]')
-      console.log('[VendorDashboard] stored roles:', storedRoles)
-      setIsAlsoOwner(storedRoles.includes(UserRole.OWNER))
-    } catch { /* ignore */ }
-  }, [])
 
   useEffect(() => {
     const token = localStorage.getItem('access_token')
@@ -144,15 +122,7 @@ export default function VendorDashboard() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            {isAlsoOwner && (
-              <button
-                onClick={() => switchRole(UserRole.OWNER)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 border border-indigo-200 rounded-lg text-sm font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors"
-              >
-                <Building2 className="w-3.5 h-3.5" />
-                Switch to Owner
-              </button>
-            )}
+            <RoleSwitcher variant="banner" />
             <Link href="/vendors/settings" className="text-sm text-gray-500 hover:text-gray-700">⚙️ Settings</Link>
             <button
               onClick={handleLogout}

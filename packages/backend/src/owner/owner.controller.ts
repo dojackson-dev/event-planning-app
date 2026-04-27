@@ -91,7 +91,7 @@ export class OwnerController {
     return {
       businessName: data?.business_name || '',
       logoUrl: data?.logo_url || null,
-      coverImageUrl: data?.cover_image_url || null,
+      coverImageUrl: (data as any)?.cover_image_url || null,
     };
   }
 

@@ -223,8 +223,6 @@ const ALL_NAV = [
   { name: 'Messages',       href: '/dashboard/messages',     icon: MessageSquare,   ownerOnly: false },
   { name: 'Vendors',        href: '/dashboard/vendors',      icon: Store,           ownerOnly: false },
   { name: 'Vendor Invoices', href: '/dashboard/vendor-invoices', icon: Receipt,     ownerOnly: false },
-  { name: 'Promoter',       href: '/dashboard/promoter',     icon: Megaphone,       ownerOnly: false },
-  { name: 'Artists',        href: '/dashboard/artists',      icon: Music,           ownerOnly: false },
   { name: 'Team',           href: '/dashboard/team',         icon: Users,           ownerOnly: true  },
 ]
 

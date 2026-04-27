@@ -43,6 +43,7 @@ export interface Booking {
   start_time: string
   end_time: string
   venue_name: string
+  client_name: string
   status: string
   agreed_amount: number
   deposit_amount: number

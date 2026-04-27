@@ -260,12 +260,31 @@ export class VendorsService {
     // Verify vendor exists (include phone for SMS)
     const { data: vendor } = await admin
       .from('vendor_accounts')
-      .select('id, business_name, phone')
+      .select('id, business_name, phone, user_id')
       .eq('id', dto.vendorAccountId)
       .eq('is_active', true)
       .single();
 
     if (!vendor) throw new NotFoundException('Vendor not found');
+
+    // Resolve the vendor's phone: prefer vendor_accounts.phone, fall back to users.phone_number
+    let vendorPhone: string | null = vendor.phone || null;
+    if (!vendorPhone && vendor.user_id) {
+      const { data: vendorUser } = await admin
+        .from('users')
+        .select('phone_number')
+        .eq('id', vendor.user_id)
+        .single();
+      if (vendorUser?.phone_number) {
+        vendorPhone = normalizePhone(vendorUser.phone_number);
+        // Backfill vendor_accounts.phone so future lookups don't need the extra query
+        await admin
+          .from('vendor_accounts')
+          .update({ phone: vendorPhone })
+          .eq('id', vendor.id);
+        this.logger.log(`Backfilled phone ${vendorPhone} for vendor ${vendor.business_name}`);
+      }
+    }
 
     const { data, error } = await admin
       .from('vendor_bookings')
@@ -300,23 +319,25 @@ export class VendorsService {
     this.logger.log(`Vendor booking created: vendor ${dto.vendorAccountId} by user ${bookedByUserId}`);
 
     // Send SMS notification to vendor if they have a phone number
-    if (vendor.phone) {
+    if (vendorPhone) {
       const dateStr = new Date(dto.eventDate + 'T00:00:00').toLocaleDateString('en-US', {
         weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
       });
       try {
         await this.smsNotifications.vendorBookingCreated(
-          vendor.phone,
+          vendorPhone,
           vendor.business_name,
           dto.eventName,
           dateStr,
           dto.agreedAmount ? Number(dto.agreedAmount) : undefined,
         );
-        this.logger.log(`SMS sent to vendor ${vendor.business_name} at ${vendor.phone}`);
+        this.logger.log(`SMS sent to vendor ${vendor.business_name} at ${vendorPhone}`);
       } catch (smsErr) {
         // Don't fail the booking if SMS fails
         this.logger.warn(`Failed to send SMS to vendor ${vendor.business_name}: ${smsErr.message}`);
       }
+    } else {
+      this.logger.warn(`No phone number for vendor ${vendor.business_name} (${vendor.id}) — SMS skipped`);
     }
 
     // Auto-create an owner-facing invoice when agreed_amount is set

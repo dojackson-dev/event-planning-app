@@ -73,16 +73,20 @@ function NewInvoicePageContent() {
   // Pre-fill from event manage page workflow (eventId param)
   useEffect(() => {
     const eventId = searchParams?.get('eventId')
+    const clientIdParam = searchParams?.get('clientId')
     if (!eventId) return
     setSelectedBooking(eventId)
     api.get(`/events/${eventId}`).then(res => {
       const ev = res.data
-      const evName = ev.name || ''
+      const evName = ev.intakeEventName || ev.name || ''
       setLockedEvent({ id: eventId, name: evName, date: ev.date || '' })
       setEventName(evName)
 
-      // Try direct intake form lookup via intakeFormId/bookingId on the event
-      const intakeId = ev.intakeFormId || ev.bookingId || ev.booking_id || ev.intake_form_id
+      // Use clientName directly from event if available
+      if (ev.clientName) setClientName(ev.clientName)
+
+      // Try clientId param first (passed from manage page)
+      const intakeId = clientIdParam || ev.intakeFormId || ev.bookingId || ev.booking_id || ev.intake_form_id
       if (intakeId) {
         setIntakeFormId(intakeId)
         api.get(`/intake-forms/${intakeId}`).then(r => {
@@ -161,22 +165,55 @@ function NewInvoicePageContent() {
     }).catch(() => {})
   }, [searchParams])
 
-  // Fetch approved/converted estimates for this event so the user can import line items
+  // Fetch sent/approved/converted estimates for this event so the user can import line items
   useEffect(() => {
     const eventId = lockedEvent?.id
     if (!eventId && !intakeFormId) return
     api.get('/estimates').then(res => {
       const all: any[] = res.data || []
       const matched = all.filter((e: any) =>
-        ['approved', 'converted'].includes(e.status) &&
+        ['sent', 'approved', 'converted'].includes(e.status) &&
         (
-          (eventId && e.booking?.event_id === eventId) ||
+          (eventId && e.event_id === eventId) ||
           (intakeFormId && e.intake_form_id === intakeFormId)
         )
       )
       setApprovedEstimates(matched)
     }).catch(() => {})
   }, [lockedEvent, intakeFormId])
+
+  // Auto-load vendor bookings for this event as expense items
+  useEffect(() => {
+    const eventId = lockedEvent?.id
+    if (!eventId) return
+    // Skip if a specific vendorBookingId was already pre-filled
+    if (searchParams?.get('vendorBookingId')) return
+    api.get(`/vendors/bookings/by-event/${eventId}`).then(res => {
+      const bookings: any[] = res.data || []
+      if (bookings.length === 0) return
+      const items: InvoiceLineItem[] = bookings.map((vb: any) => {
+        const vendor = vb.vendor_accounts
+        const amount = Number(vb.agreed_amount) || 0
+        return {
+          id: `expense-vb-${vb.id}`,
+          description: `Vendor: ${vendor?.business_name || 'Vendor'} — ${vb.event_name || ''}`,
+          quantity: 1,
+          standardPrice: amount,
+          unitPrice: amount,
+          subtotal: amount,
+          discountType: DiscountType.NONE,
+          discountValue: 0,
+          discountAmount: 0,
+          amount,
+          item_type: 'expense' as const,
+          vendor_booking_id: vb.id,
+        }
+      })
+      setExpenseItems(items)
+      const names = bookings.map((vb: any) => vb.vendor_accounts?.business_name || 'Vendor').join(', ')
+      setVendorBookingBanner(`Vendor costs pre-filled from event bookings: ${names}`)
+    }).catch(() => {})
+  }, [lockedEvent])
 
   const applyFromEstimate = (estimate: any) => {
     const discTypeMap: Record<string, DiscountType> = {
@@ -599,8 +636,8 @@ function NewInvoicePageContent() {
         {/* Apply from Approved Estimate */}
         {approvedEstimates.length > 0 && (
           <div className="mb-6 border border-green-200 bg-green-50 rounded-lg p-4">
-            <p className="text-sm font-semibold text-green-800 mb-1">✓ Approved estimate available</p>
-            <p className="text-xs text-green-700 mb-3">Import line items directly from a confirmed estimate — you can still edit them after applying.</p>
+            <p className="text-sm font-semibold text-green-800 mb-1">✓ Estimate available</p>
+            <p className="text-xs text-green-700 mb-3">Import line items directly from an estimate — you can still edit them after applying.</p>
             <div className="flex flex-col gap-2">
               {approvedEstimates.map(est => (
                 <div key={est.id} className="flex items-center justify-between bg-white rounded-md border border-green-200 px-3 py-2">

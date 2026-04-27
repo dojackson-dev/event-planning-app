@@ -321,6 +321,7 @@ export class RsvpService {
       status: 'attending' | 'declined';
       plus_ones?: number;
       meal_preference?: string;
+      sms_opt_in?: boolean;
     },
   ): Promise<any> {
     const admin = this.supabaseService.getAdminClient();
@@ -350,6 +351,7 @@ export class RsvpService {
         status: response.status,
         plus_ones: response.status === 'attending' ? (response.plus_ones ?? 0) : 0,
         meal_preference: response.status === 'attending' ? (response.meal_preference || 'standard') : guest.meal_preference,
+        sms_opt_in: response.status === 'attending' ? (response.sms_opt_in ?? false) : false,
         responded_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })

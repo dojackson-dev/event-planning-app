@@ -130,7 +130,7 @@ export class InvoicesService {
         .from('invoices')
         .select(`
           *,
-          event:event(id, name, date),
+          event!event_id(id, name, date),
           intake_form:intake_forms(*),
           items:invoice_items(*)
         `)
@@ -154,7 +154,7 @@ export class InvoicesService {
         .from('invoices')
         .select(`
           *,
-          event:event(id, name, date),
+          event!event_id(id, name, date),
           intake_form:intake_forms(*),
           items:invoice_items(*)
         `)
@@ -178,7 +178,7 @@ export class InvoicesService {
         .from('invoices')
         .select(`
           *,
-          event:event(id, name, date),
+          event!event_id(id, name, date),
           intake_form:intake_forms(*),
           items:invoice_items(*)
         `)
@@ -201,7 +201,7 @@ export class InvoicesService {
       .from('invoices')
       .select(`
         *,
-        event:event(id, name, date),
+event!event_id(id, name, date),
         intake_form:intake_forms(*),
         items:invoice_items(*)
       `)
@@ -313,9 +313,9 @@ export class InvoicesService {
     );
 
     // Insert invoice using snake_case column names
+    // Core required fields only — optional columns added below when non-null
     const insertPayload: any = {
         invoice_number: invoiceNumber,
-        public_token: randomUUID(),
         owner_id: ownerId,
         created_by: userId,
         booking_id: invoiceData.booking_id || null,
@@ -333,27 +333,33 @@ export class InvoicesService {
         due_date: invoiceData.due_date,
         notes: invoiceData.notes || null,
         terms: invoiceData.terms || null,
-        deposit_percentage: invoiceData.deposit_percentage != null ? Number(invoiceData.deposit_percentage) : null,
-        deposit_due_days_before: invoiceData.deposit_due_days_before != null ? Number(invoiceData.deposit_due_days_before) : null,
-        final_payment_due_days_before: invoiceData.final_payment_due_days_before != null ? Number(invoiceData.final_payment_due_days_before) : null,
     };
 
-    // Only include client_phone if the column exists (migration may not have run yet)
+    // Optional columns that require migrations — only include when non-null
     const clientPhone = (invoiceData as any).client_phone;
     if (clientPhone) insertPayload.client_phone = clientPhone;
 
-    // Only include event_id if the column exists (migration may not have run yet)
     const eventId = (invoiceData as any).event_id;
     if (eventId) insertPayload.event_id = eventId;
+
+    if (invoiceData.deposit_percentage != null) insertPayload.deposit_percentage = Number(invoiceData.deposit_percentage);
+    if (invoiceData.deposit_due_days_before != null) insertPayload.deposit_due_days_before = Number(invoiceData.deposit_due_days_before);
+    if (invoiceData.final_payment_due_days_before != null) insertPayload.final_payment_due_days_before = Number(invoiceData.final_payment_due_days_before);
+
+    // public_token has a DB default (gen_random_uuid()) — only include if column exists
+    insertPayload.public_token = randomUUID();
+
+    // Optional columns that may not exist if a migration hasn't been run yet
+    const optionalColumns = ['client_phone', 'event_id', 'deposit_percentage', 'deposit_due_days_before', 'final_payment_due_days_before', 'public_token'];
 
     let data: any, error: any;
 
     ({ data, error } = await adminClient.from('invoices').insert(insertPayload).select().single());
 
-    // Column not found (schema cache) — retry without optional columns
-    if (error?.code === 'PGRST204' && (insertPayload.client_phone || insertPayload.event_id)) {
-      delete insertPayload.client_phone;
-      delete insertPayload.event_id;
+    // Column not found (schema cache miss or migration not run) — strip optional columns and retry
+    if (error?.code === 'PGRST204') {
+      this.logger.warn(`Invoice insert PGRST204 (column not found): ${error.message} — retrying without optional columns`);
+      for (const col of optionalColumns) delete insertPayload[col];
       ({ data, error } = await adminClient.from('invoices').insert(insertPayload).select().single());
     }
 
@@ -365,6 +371,7 @@ export class InvoicesService {
     }
 
     if (error) {
+      console.error('Invoice insert failed:', error);
       this.logger.error('Invoice insert failed', { code: error.code, message: error.message, details: error.details, hint: error.hint });
       throw new InternalServerErrorException(`Failed to create invoice: ${error.message}`);
     }
@@ -397,7 +404,7 @@ export class InvoicesService {
         .eq('id', invoice.id)
         .select(`
           *,
-          event:event(id, name, date),
+          event!event_id(id, name, date),
           intake_form:intake_forms(*),
           items:invoice_items(*)
         `)
@@ -509,7 +516,10 @@ export class InvoicesService {
       .insert(itemsWithCalculations)
       .select();
 
-    if (error) throw error;
+    if (error) {
+      console.error('invoice_items insert failed:', error);
+      throw error;
+    }
     return data || [];
   }
 

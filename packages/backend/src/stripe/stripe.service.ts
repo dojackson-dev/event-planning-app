@@ -36,6 +36,11 @@ export class StripeService {
     this.frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://dovenuesuite.com');
   }
 
+  /** Returns a public-facing URL Stripe will accept for business_profile.url (never localhost). */
+  private get connectBusinessUrl(): string {
+    return this.frontendUrl.startsWith('http://localhost') ? 'https://dovenuesuite.com' : this.frontendUrl;
+  }
+
   // ─── Customer ─────────────────────────────────────────────────────────────
 
   /**
@@ -678,7 +683,7 @@ export class StripeService {
         type: 'express',
         email,
         capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
-        business_profile: { url: this.frontendUrl },
+        business_profile: { url: this.connectBusinessUrl },
         metadata: { owner_account_id: String(owner.id) },
       });
       connectId = account.id;
@@ -721,7 +726,7 @@ export class StripeService {
         type: 'express',
         email,
         capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
-        business_profile: { url: this.frontendUrl },
+        business_profile: { url: this.connectBusinessUrl },
         metadata: { vendor_account_id: vendor.id },
       });
       connectId = account.id;
@@ -858,7 +863,7 @@ export class StripeService {
         type: 'express',
         email,
         capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
-        business_profile: { url: this.frontendUrl },
+        business_profile: { url: this.connectBusinessUrl },
         metadata: { promoter_account_id: promoter.id },
       });
       connectId = account.id;
@@ -954,7 +959,7 @@ export class StripeService {
         type: 'express',
         email,
         capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
-        business_profile: { url: this.frontendUrl },
+        business_profile: { url: this.connectBusinessUrl },
         metadata: { artist_account_id: artist.id },
       });
       connectId = account.id;

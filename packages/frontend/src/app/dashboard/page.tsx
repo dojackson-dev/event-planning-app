@@ -45,7 +45,11 @@ export default function DashboardPage() {
   const [intakeSlug, setIntakeSlug] = useState<string | null>(null)
 
   useEffect(() => {
-    if (authLoading || !user) return
+    if (authLoading) return
+    if (!user) {
+      setLoading(false)
+      return
+    }
     fetchDashboardData()
   }, [authLoading, user, activeVenue])
 

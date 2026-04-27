@@ -29,6 +29,7 @@ function NewEstimatePageInner() {
   const [events, setEvents] = useState<any[]>([])
   const [serviceItems, setServiceItems] = useState<ServiceItem[]>([])
   const [selectedEvent, setSelectedEvent] = useState('')
+  const [lockedEvent, setLockedEvent] = useState<{ id: string; name: string; date: string } | null>(null)
   const [clientName, setClientName] = useState('')
   const [clientPhone, setClientPhone] = useState('')
   const [intakeFormId, setIntakeFormId] = useState<string | null>(null)
@@ -67,6 +68,14 @@ function NewEstimatePageInner() {
     const eventIdParam = searchParams?.get('eventId')
     if (eventIdParam) {
       setSelectedEvent(eventIdParam)
+      // Lock the event and fetch its details for display
+      api.get(`/events/${eventIdParam}`).then(res => {
+        const ev = res.data
+        const evName = ev.intakeEventName || ev.name || 'Event'
+        setLockedEvent({ id: eventIdParam, name: evName, date: ev.date || '' })
+        // Also use clientName from event if no clientId provided
+        if (!clientId && ev.clientName) setClientName(ev.clientName)
+      }).catch(() => {})
     }
     if (!clientId) return
     setIntakeFormId(clientId)
@@ -313,7 +322,17 @@ function NewEstimatePageInner() {
         {/* Event (Required) */}
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">Event <span className="text-red-500">*</span></label>
-          {events.length === 0 ? (
+          {lockedEvent ? (
+            <div className="flex items-center gap-3 px-3 py-2 bg-teal-50 border border-teal-200 rounded-md">
+              <span className="text-teal-600 font-medium text-sm">{lockedEvent.name}</span>
+              {lockedEvent.date && (
+                <span className="text-xs text-teal-500">
+                  {new Date(lockedEvent.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
+              )}
+              <span className="ml-auto text-xs text-teal-400">Linked from event</span>
+            </div>
+          ) : events.length === 0 ? (
             <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
               No upcoming events found. <a href="/dashboard/events/new" className="underline font-medium">Create an event</a> first.
             </p>
@@ -327,7 +346,7 @@ function NewEstimatePageInner() {
               <option value="">-- Select an event --</option>
               {events.map((ev: any) => (
                 <option key={ev.id} value={ev.id}>
-                  {ev.name || 'Event'}{ev.date ? ` (${new Date(ev.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})` : ''}
+                  {ev.intakeEventName || ev.name || 'Event'}{ev.date ? ` (${new Date(ev.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})` : ''}
                 </option>
               ))}
             </select>

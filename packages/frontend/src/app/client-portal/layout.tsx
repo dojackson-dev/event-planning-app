@@ -17,6 +17,7 @@ import {
   Menu,
   X,
   ChevronRight,
+  Users,
 } from 'lucide-react'
 import { ClientAuthProvider } from '@/contexts/ClientAuthContext'
 import ClientPortalTour from '@/components/ClientPortalTour'
@@ -26,6 +27,7 @@ const navItems = [
   { name: 'Overview',      href: '/client-portal',               icon: LayoutDashboard },
   { name: 'Invoices',      href: '/client-portal/invoices',      icon: Receipt },
   { name: 'My Events',     href: '/client-portal/events',        icon: Calendar },
+  { name: 'RSVP',          href: '/client-portal/rsvp',          icon: Users },
   { name: 'Contracts',     href: '/client-portal/contracts',     icon: FileText },
   { name: 'Estimates',     href: '/client-portal/estimates',     icon: FileText },
   { name: 'Vendors',       href: '/client-portal/vendors',       icon: Store },

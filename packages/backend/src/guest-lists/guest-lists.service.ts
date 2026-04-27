@@ -437,4 +437,64 @@ export class GuestListsService {
       return { sent: false, error: smsErr?.message || 'SMS failed' };
     }
   }
+
+  /**
+   * Import attending RSVP guests into a guest list.
+   * Looks up rsvp_guests via: guest_list → event_id → intake_forms → rsvp_guests(status=attending)
+   * Skips guests already on the list (matched by name, case-insensitive).
+   */
+  async importFromRsvp(guestListId: number): Promise<{ imported: number; skipped: number }> {
+    const supabase = this.supabaseService.getAdminClient();
+
+    // Get the guest list to find event_id
+    const { data: guestList, error: glErr } = await supabase
+      .from('guest_lists')
+      .select('id, event_id')
+      .eq('id', guestListId)
+      .single();
+    if (glErr || !guestList) throw new Error('Guest list not found');
+
+    // Find intake forms for this event
+    const { data: forms } = await supabase
+      .from('intake_forms')
+      .select('id')
+      .eq('event_id', guestList.event_id);
+    if (!forms?.length) return { imported: 0, skipped: 0 };
+
+    const intakeFormIds = forms.map((f: any) => f.id);
+
+    // Get attending RSVP guests
+    const { data: rsvpGuests, error: rsvpErr } = await supabase
+      .from('rsvp_guests')
+      .select('guest_name, guest_phone, plus_ones')
+      .in('intake_form_id', intakeFormIds)
+      .eq('status', 'attending');
+    if (rsvpErr) throw rsvpErr;
+    if (!rsvpGuests?.length) return { imported: 0, skipped: 0 };
+
+    // Get existing guests to avoid duplicates
+    const { data: existing } = await supabase
+      .from('guests')
+      .select('name')
+      .eq('guest_list_id', guestListId);
+    const existingNames = new Set((existing || []).map((g: any) => g.name.toLowerCase().trim()));
+
+    const toInsert = rsvpGuests
+      .filter((g: any) => !existingNames.has((g.guest_name || '').toLowerCase().trim()))
+      .map((g: any) => ({
+        guest_list_id: guestListId,
+        name: g.guest_name,
+        phone: g.guest_phone || null,
+        plus_one_count: g.plus_ones ?? 0,
+        has_arrived: false,
+      }));
+
+    if (!toInsert.length) return { imported: 0, skipped: rsvpGuests.length };
+
+    const { error: insertErr } = await supabase.from('guests').insert(toInsert);
+    if (insertErr) throw insertErr;
+
+    return { imported: toInsert.length, skipped: rsvpGuests.length - toInsert.length };
+  }
 }
+

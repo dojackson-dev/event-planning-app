@@ -107,6 +107,28 @@ export class RsvpController {
 
   // ── Public (token-gated, no auth required) ────────────────────────────────
 
+  /** Get invitation images for an event. */
+  @Get('images/:intakeFormId')
+  async getImages(
+    @Headers('x-client-token') token: string,
+    @Param('intakeFormId') intakeFormId: string,
+  ) {
+    const session = this.requireSession(token);
+    return this.rsvpService.getInvitationImages(intakeFormId, session.phone);
+  }
+
+  /** Set invitation images for an event (max 2). */
+  @Put('images/:intakeFormId')
+  async setImages(
+    @Headers('x-client-token') token: string,
+    @Param('intakeFormId') intakeFormId: string,
+    @Body() body: { images: string[] },
+  ) {
+    if (!Array.isArray(body?.images)) throw new BadRequestException('images array is required');
+    const session = this.requireSession(token);
+    return this.rsvpService.setInvitationImages(intakeFormId, session.phone, body.images);
+  }
+
   /** Get public invite info (guest name, event, table). */
   @Get(':token')
   async getPublicInvite(@Param('token') token: string) {

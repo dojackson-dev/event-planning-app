@@ -268,6 +268,35 @@ export class RsvpService {
     }
   }
 
+  // ── Invitation images (client-portal) ────────────────────────────────────
+
+  /** Get invitation images for an event. */
+  async getInvitationImages(intakeFormId: string, clientPhone: string): Promise<string[]> {
+    const form = await this.verifyClientOwnsForm(intakeFormId, clientPhone);
+    if (!form.event_id) return [];
+    const admin = this.supabaseService.getAdminClient();
+    const { data: event } = await admin
+      .from('event')
+      .select('management_data')
+      .eq('id', form.event_id)
+      .single();
+    return (event as any)?.management_data?.invitationImages ?? [];
+  }
+
+  /** Set invitation images for an event (replaces existing list). */
+  async setInvitationImages(intakeFormId: string, clientPhone: string, images: string[]): Promise<string[]> {
+    const form = await this.verifyClientOwnsForm(intakeFormId, clientPhone);
+    if (!form.event_id) throw new NotFoundException('No linked event found');
+    const admin = this.supabaseService.getAdminClient();
+    // Merge with existing management_data to avoid overwriting other fields
+    const { data: event } = await admin.from('event').select('management_data').eq('id', form.event_id).single();
+    const existing = (event as any)?.management_data ?? {};
+    await admin.from('event').update({
+      management_data: { ...existing, invitationImages: images.slice(0, 2) },
+    }).eq('id', form.event_id);
+    return images.slice(0, 2);
+  }
+
   // ── Public methods (no auth — token-gated) ────────────────────────────────
 
   /** Get public invite details (for guest to view before responding). */
@@ -289,7 +318,7 @@ export class RsvpService {
       .single();
 
     if (form?.event_id) {
-      const { data: ev } = await admin.from('event').select('name, date, start_time, venue').eq('id', form.event_id).single();
+      const { data: ev } = await admin.from('event').select('name, date, start_time, venue, management_data').eq('id', form.event_id).single();
       event = ev;
     }
 
@@ -302,6 +331,7 @@ export class RsvpService {
       responded_at: guest.responded_at,
       // Only indicate whether phone verification is required (don't expose the phone)
       requires_phone_verify: !!guest.guest_phone,
+      invitation_images: (event as any)?.management_data?.invitationImages ?? [],
       event: {
         name: event?.name ?? null,
         date: event?.date ?? form?.event_date ?? null,

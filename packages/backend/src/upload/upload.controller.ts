@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
+import { ClientAuthService } from '../client-portal/client-auth.service';
 
 interface MulterFile {
   fieldname: string;
@@ -30,7 +31,10 @@ const MAX_COVER_BYTES = 5 * 1024 * 1024;          // 5 MB
 
 @Controller('upload')
 export class UploadController {
-  constructor(private readonly supabaseService: SupabaseService) {}
+  constructor(
+    private readonly supabaseService: SupabaseService,
+    private readonly clientAuthService: ClientAuthService,
+  ) {}
 
   // ─────────────────────────────────────────────
   // HELPERS
@@ -447,5 +451,59 @@ export class UploadController {
       mimeType:  file.mimetype,
       sizeBytes: file.size,
     };
+  }
+
+  // ─────────────────────────────────────────────
+  // POST /upload/rsvp-invitation
+  // RSVP invitation image (displayed on public RSVP page)
+  // Max 2 images per event, max 5 MB each, JPEG/PNG/WebP
+  // Recommended: 1200×800 px — landscape works best on mobile
+  // Returns: { url }
+  // Accepts: Bearer JWT (owner) OR x-client-token (client portal)
+  // ─────────────────────────────────────────────
+  @Post('rsvp-invitation')
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
+  async uploadRsvpInvitation(
+    @UploadedFile() file: MulterFile,
+    @Headers('authorization') authorization: string,
+    @Headers('x-client-token') clientToken: string,
+  ) {
+    // Accept either owner JWT or client portal session token
+    let uploaderId: string;
+    if (clientToken) {
+      const session = this.clientAuthService.validateSession(clientToken);
+      uploaderId = session.phone.replace(/\D/g, '');
+    } else {
+      uploaderId = await this.getUserId(authorization);
+    }
+
+    if (!file) throw new BadRequestException('No file provided');
+    if (!ALLOWED_TYPES.includes(file.mimetype)) {
+      throw new BadRequestException('File must be JPEG, PNG, or WebP');
+    }
+    if (file.size > MAX_SERVICE_ITEM_BYTES) {
+      throw new BadRequestException('Image must be under 5 MB');
+    }
+
+    const admin = this.supabaseService.getAdminClient();
+    await this.ensureBucket(admin, 'rsvp-invitations');
+
+    // Resize to max 1200×800, preserve aspect, convert to WebP
+    const processed = await sharp(file.buffer)
+      .resize(1200, 800, { fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 85 })
+      .toBuffer();
+
+    const path = `invitations/${uploaderId}-${Date.now()}.webp`;
+
+    const { error: uploadError } = await admin.storage
+      .from('rsvp-invitations')
+      .upload(path, processed, { contentType: 'image/webp', upsert: true });
+
+    if (uploadError) throw new BadRequestException('Upload failed: ' + uploadError.message);
+
+    const { data: { publicUrl } } = admin.storage.from('rsvp-invitations').getPublicUrl(path);
+
+    return { url: publicUrl };
   }
 }

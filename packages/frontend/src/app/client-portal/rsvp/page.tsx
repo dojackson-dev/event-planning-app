@@ -268,7 +268,7 @@ export default function ClientRsvpPage() {
     setTimeout(() => setCopiedId(null), 2000)
   }
 
-  const summary = selectedEvent?.rsvp_summary ?? { total: 0, attending: 0, declined: 0, pending: 0 }
+  const summary = selectedEvent?.rsvp_summary ?? { total: 0, attending: 0, declined: 0, pending: 0, headcount: 0 }
   const unsentCount = guests.filter(g => !g.sms_sent_at && (g.guest_phone || g.guest_email)).length
 
   if (loading) {

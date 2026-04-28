@@ -66,7 +66,7 @@ export class PromoterEventsService {
         city: dto.city ?? null,
         state: dto.state ?? null,
         category: dto.category ?? null,
-        venue_type: dto.venue_type ?? null,
+        ...(dto.venue_type !== undefined && { venue_type: dto.venue_type }),
         image_url: dto.image_url ?? null,
         age_restriction: dto.age_restriction ?? null,
         status: dto.status ?? 'draft',

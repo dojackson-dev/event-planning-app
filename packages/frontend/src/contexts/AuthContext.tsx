@@ -26,6 +26,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 function getRoleDashboard(role: UserRole): string {
   if (role === UserRole.ADMIN)     return '/admin'
   if (role === UserRole.VENDOR)    return '/vendors/dashboard'
+  if (role === UserRole.PROMOTER)  return '/dashboard/promoter'
   if (role === UserRole.ASSOCIATE) return '/dashboard'
   return '/dashboard'
 }

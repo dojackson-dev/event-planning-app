@@ -18,13 +18,31 @@ export default function PromoterLogin() {
     setLoading(true); setError('')
     try {
       const res = await api.post('/auth/flow/unified/login', { email, password })
-      const token = res.data?.session?.access_token || res.data?.access_token
+      const token = res.data?.session?.access_token
+      const roles = res.data?.roles || []
+      
       if (token) {
         localStorage.setItem('access_token', token)
         localStorage.setItem('refresh_token', res.data?.session?.refresh_token || res.data?.refresh_token || '')
-        localStorage.setItem('user_role', 'promoter')
+        localStorage.setItem('user', JSON.stringify(res.data.user))
+        localStorage.setItem('user_roles', JSON.stringify(roles))
+        
+        // Check if user has promoter role
+        if (!roles.includes('promoter')) {
+          setError('This account does not have promoter access. Please use a promoter account.')
+          setLoading(false)
+          return
+        }
+        
+        localStorage.setItem('active_role', 'promoter')
       }
-      router.push('/dashboard/promoter')
+      
+      // Navigate to promoter dashboard or role picker
+      if (roles.length > 1) {
+        router.push('/choose-role')
+      } else {
+        router.push('/dashboard/promoter')
+      }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Invalid email or password')
     } finally {

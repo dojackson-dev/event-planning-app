@@ -8,15 +8,20 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
 export default function Home() {
-  const { isAuthenticated, loading } = useAuth()
+  const { isAuthenticated, loading, user } = useAuth()
   const router = useRouter()
   const [showFeatures, setShowFeatures] = useState(false)
 
   useEffect(() => {
-    if (!loading && isAuthenticated) {
+    if (!loading && isAuthenticated && user) {
+      const role = user.role as string
+      if (role === 'vendor')   { router.push('/vendors/dashboard'); return }
+      if (role === 'admin')    { router.push('/admin'); return }
+      if (role === 'promoter') { router.push('/dashboard/promoter'); return }
+      if (role === 'artist')   { router.push('/artist/dashboard'); return }
       router.push('/dashboard')
     }
-  }, [isAuthenticated, loading, router])
+  }, [isAuthenticated, loading, router, user])
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>

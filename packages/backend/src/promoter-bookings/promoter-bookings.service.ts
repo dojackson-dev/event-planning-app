@@ -40,9 +40,11 @@ export class PromoterBookingsService {
         deposit_amount: dto.deposit_amount ?? null,
         notes: dto.notes ?? null,
         promoter_invoice_id: dto.promoter_invoice_id ?? null,
+        artist_account_id: dto.artist_account_id ?? null,
+        artist_name: dto.artist_name ?? null,
         status: 'inquiry',
       })
-      .select('*, promoter_invoices(invoice_number, total_amount, status)')
+      .select('*, promoter_invoices(invoice_number, total_amount, status), artist_accounts(id, artist_name, stage_name, artist_type)')
       .single();
 
     if (error || !data) throw new Error(error?.message ?? 'Failed to create booking');
@@ -55,7 +57,7 @@ export class PromoterBookingsService {
 
     const { data, error } = await admin
       .from('promoter_bookings')
-      .select('*, promoter_invoices(invoice_number, total_amount, status)')
+      .select('*, promoter_invoices(invoice_number, total_amount, status), artist_accounts(id, artist_name, stage_name, artist_type)')
       .eq('promoter_account_id', promoterAccountId)
       .order('event_date', { ascending: true, nullsFirst: false });
 
@@ -69,7 +71,7 @@ export class PromoterBookingsService {
 
     const { data, error } = await admin
       .from('promoter_bookings')
-      .select('*, promoter_invoices(id, invoice_number, total_amount, amount_due, status, public_token)')
+      .select('*, promoter_invoices(id, invoice_number, total_amount, amount_due, status, public_token), artist_accounts(id, artist_name, stage_name, artist_type, booking_email, booking_phone, performance_fee_min, performance_fee_max)')
       .eq('id', bookingId)
       .eq('promoter_account_id', promoterAccountId)
       .single();

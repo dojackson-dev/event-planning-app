@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
-import { Plus, Loader2, Calendar, User, Megaphone } from 'lucide-react'
+import { Plus, Loader2, Calendar, User, Megaphone, Mic2 } from 'lucide-react'
 
 interface PromoterBooking {
   id: string
@@ -18,6 +18,9 @@ interface PromoterBooking {
   status: 'inquiry' | 'estimate_sent' | 'deposit_paid' | 'confirmed' | 'completed' | 'cancelled'
   notes?: string
   promoter_invoice_id?: string
+  artist_account_id?: string
+  artist_name?: string
+  artist_accounts?: { id: string; artist_name: string; stage_name: string | null; artist_type: string } | null
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -100,6 +103,14 @@ export default function PromoterBookingsPage() {
                               {STATUS_LABELS[b.status]}
                             </span>
                           </div>
+                          {(b.artist_accounts?.artist_name || b.artist_name) && (
+                            <div className="flex items-center gap-1 mb-1">
+                              <Mic2 className="w-3 h-3 text-purple-500" />
+                              <span className="text-xs font-medium text-purple-700">
+                                {b.artist_accounts?.stage_name || b.artist_accounts?.artist_name || b.artist_name}
+                              </span>
+                            </div>
+                          )}
                           <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500">
                             <span className="flex items-center gap-1"><User className="w-3 h-3" />{b.client_name}</span>
                             {b.event_date && (
@@ -137,6 +148,14 @@ export default function PromoterBookingsPage() {
                               {STATUS_LABELS[b.status]}
                             </span>
                           </div>
+                          {(b.artist_accounts?.artist_name || b.artist_name) && (
+                            <div className="flex items-center gap-1 mb-1">
+                              <Mic2 className="w-3 h-3 text-purple-500" />
+                              <span className="text-xs font-medium text-purple-700">
+                                {b.artist_accounts?.stage_name || b.artist_accounts?.artist_name || b.artist_name}
+                              </span>
+                            </div>
+                          )}
                           <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500">
                             <span className="flex items-center gap-1"><User className="w-3 h-3" />{b.client_name}</span>
                             {b.event_date && <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{b.event_date}</span>}

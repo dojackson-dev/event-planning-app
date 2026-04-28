@@ -20,6 +20,7 @@ import {
   FileText,
   HelpCircle,
   ChevronRight,
+  Mic2,
 } from 'lucide-react'
 
 interface DashboardStats {
@@ -336,6 +337,21 @@ function PromoterDashboardContent() {
             </div>
             <div className="p-2 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition-colors">
               <BookOpen className="h-5 w-5 text-purple-600" />
+            </div>
+          </div>
+        </Link>
+
+        <Link
+          href="/dashboard/promoter/artists"
+          className="group bg-white border border-gray-200 rounded-xl p-6 hover:shadow-lg hover:border-purple-300 transition-all"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-1">Book an Artist</h3>
+              <p className="text-sm text-gray-600">Browse the artist directory and book talent for your events</p>
+            </div>
+            <div className="p-2 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition-colors">
+              <Mic2 className="h-5 w-5 text-purple-600" />
             </div>
           </div>
         </Link>

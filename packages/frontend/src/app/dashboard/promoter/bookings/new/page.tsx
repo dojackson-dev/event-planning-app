@@ -1,31 +1,42 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
-import { Loader2, Save } from 'lucide-react'
+import { Loader2, Save, Mic2 } from 'lucide-react'
 
 export default function NewPromoterBookingPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  const artistId = searchParams?.get('artistId') || ''
+  const artistNameParam = searchParams?.get('artistName') || ''
+  const artistEmailParam = searchParams?.get('artistEmail') || ''
+  const feeMin = searchParams?.get('feeMin') || ''
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   const [form, setForm] = useState({
     event_name: '',
     client_name: '',
-    client_email: '',
+    client_email: artistEmailParam,
     client_phone: '',
     event_date: '',
     event_start_time: '',
     event_end_time: '',
     venue_name: '',
     venue_address: '',
-    agreed_amount: '',
+    agreed_amount: feeMin,
     deposit_amount: '',
     notes: '',
     status: 'inquiry',
   })
+
+  useEffect(() => {
+    if (artistEmailParam) setForm(f => ({ ...f, client_email: artistEmailParam }))
+    if (feeMin) setForm(f => ({ ...f, agreed_amount: feeMin }))
+  }, [artistEmailParam, feeMin])
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
 
@@ -43,6 +54,11 @@ export default function NewPromoterBookingPage() {
       if (!payload.agreed_amount) delete payload.agreed_amount
       if (!payload.deposit_amount) delete payload.deposit_amount
 
+      if (artistId) {
+        payload.artist_account_id = artistId
+        payload.artist_name = artistNameParam
+      }
+
       await api.post('/promoter-bookings', payload)
       router.push('/dashboard/promoter/bookings')
     } catch (e: any) {
@@ -55,13 +71,33 @@ export default function NewPromoterBookingPage() {
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white border-b sticky top-0 z-10">
         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center gap-3">
-          <Link href="/dashboard/promoter/bookings" className="text-sm text-gray-500 hover:text-gray-700">← Bookings</Link>
+          <Link
+            href={artistId ? `/dashboard/promoter/artists/${artistId}` : '/dashboard/promoter/bookings'}
+            className="text-sm text-gray-500 hover:text-gray-700"
+          >
+            ← {artistId ? 'Artist Profile' : 'Bookings'}
+          </Link>
           <span className="text-sm font-semibold text-gray-800">New Booking</span>
         </div>
       </nav>
 
       <div className="max-w-2xl mx-auto px-4 py-6">
         <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Artist Banner */}
+          {artistId && artistNameParam && (
+            <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 flex items-center gap-3">
+              <Mic2 className="w-5 h-5 text-purple-600 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-purple-900">Booking Artist: {artistNameParam}</p>
+                <p className="text-xs text-purple-600 mt-0.5">
+                  Fill in the event details below to submit your booking request.
+                </p>
+              </div>
+              <Link href={`/dashboard/promoter/artists/${artistId}`} className="ml-auto text-xs text-purple-600 hover:underline whitespace-nowrap">
+                View Profile
+              </Link>
+            </div>
+          )}
           {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">{error}</div>}
 
           <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">

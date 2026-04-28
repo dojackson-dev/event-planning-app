@@ -12,6 +12,8 @@ export class CreatePromoterBookingDto {
   deposit_amount?: number;
   notes?: string;
   promoter_invoice_id?: string;
+  artist_account_id?: string;
+  artist_name?: string;
 }
 
 export class UpdatePromoterBookingDto {
@@ -29,4 +31,6 @@ export class UpdatePromoterBookingDto {
   notes?: string;
   status?: 'inquiry' | 'estimate_sent' | 'deposit_paid' | 'confirmed' | 'completed' | 'cancelled';
   promoter_invoice_id?: string | null;
+  artist_account_id?: string | null;
+  artist_name?: string | null;
 }

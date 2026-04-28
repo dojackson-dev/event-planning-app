@@ -26,11 +26,11 @@ export default function SignupPage() {
             Create your free account
           </h1>
           <p className="text-gray-500 text-lg max-w-md mx-auto">
-            Are you listing a <strong>venue</strong> or offering services as a <strong>vendor</strong>?
+            Choose how you&apos;d like to use DoVenueSuite.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full max-w-2xl">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full max-w-4xl">
           {/* Venue Owner Card */}
           <Link
             href="/register"
@@ -76,13 +76,63 @@ export default function SignupPage() {
               Sign up as Vendor →
             </span>
           </Link>
+
+          {/* Promoter Card */}
+          <Link
+            href="/promoter/register"
+            className="group bg-white rounded-2xl border-2 border-gray-200 hover:border-purple-500 hover:shadow-lg transition-all p-8 flex flex-col items-center text-center"
+          >
+            <div className="w-20 h-20 rounded-2xl bg-purple-50 group-hover:bg-purple-100 flex items-center justify-center text-5xl mb-5 transition-colors">
+              📣
+            </div>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Event Promoter</h2>
+            <p className="text-gray-500 text-sm leading-relaxed mb-6">
+              You organize and promote events — concerts, parties, festivals, and more. Sell tickets, manage guest lists, and grow your audience.
+            </p>
+            <ul className="text-left text-sm text-gray-600 space-y-1.5 w-full mb-6">
+              <li className="flex items-center gap-2"><span className="text-green-500 font-bold">✓</span> Create & promote events</li>
+              <li className="flex items-center gap-2"><span className="text-green-500 font-bold">✓</span> Sell tickets & manage RSVPs</li>
+              <li className="flex items-center gap-2"><span className="text-green-500 font-bold">✓</span> Guest list & door management</li>
+              <li className="flex items-center gap-2"><span className="text-green-500 font-bold">✓</span> Track revenue & payouts</li>
+            </ul>
+            <span className="w-full text-center bg-purple-600 group-hover:bg-purple-700 text-white font-semibold py-3 rounded-xl transition-colors">
+              Sign up as Promoter →
+            </span>
+          </Link>
+
+          {/* Artist Card */}
+          <Link
+            href="/artist/register"
+            className="group bg-white rounded-2xl border-2 border-gray-200 hover:border-pink-500 hover:shadow-lg transition-all p-8 flex flex-col items-center text-center"
+          >
+            <div className="w-20 h-20 rounded-2xl bg-pink-50 group-hover:bg-pink-100 flex items-center justify-center text-5xl mb-5 transition-colors">
+              🎤
+            </div>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Artist / Performer</h2>
+            <p className="text-gray-500 text-sm leading-relaxed mb-6">
+              You perform at events — musicians, DJs, comedians, dancers, MCs, and more. Get booked by venues and promoters looking for talent.
+            </p>
+            <ul className="text-left text-sm text-gray-600 space-y-1.5 w-full mb-6">
+              <li className="flex items-center gap-2"><span className="text-green-500 font-bold">✓</span> Artist profile & portfolio</li>
+              <li className="flex items-center gap-2"><span className="text-green-500 font-bold">✓</span> Receive booking requests</li>
+              <li className="flex items-center gap-2"><span className="text-green-500 font-bold">✓</span> Set availability & rates</li>
+              <li className="flex items-center gap-2"><span className="text-green-500 font-bold">✓</span> Track bookings & earnings</li>
+            </ul>
+            <span className="w-full text-center bg-pink-600 group-hover:bg-pink-700 text-white font-semibold py-3 rounded-xl transition-colors">
+              Sign up as Artist →
+            </span>
+          </Link>
         </div>
 
         <p className="mt-8 text-sm text-gray-400">
           Already have an account?{' '}
           <Link href="/login" className="text-primary-600 font-medium hover:text-primary-700">Log in as venue owner</Link>
-          {' '}or{' '}
-          <Link href="/vendors/login" className="text-indigo-600 font-medium hover:text-indigo-700">log in as vendor</Link>
+          {' · '}
+          <Link href="/vendors/login" className="text-indigo-600 font-medium hover:text-indigo-700">Vendor</Link>
+          {' · '}
+          <Link href="/promoter/login" className="text-purple-600 font-medium hover:text-purple-700">Promoter</Link>
+          {' · '}
+          <Link href="/artist/login" className="text-pink-600 font-medium hover:text-pink-700">Artist</Link>
         </p>
       </div>
 

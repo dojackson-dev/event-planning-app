@@ -1,24 +1,13 @@
 'use client'
 
-import { useAuth } from '@/contexts/AuthContext'
-import { UserRole } from '@/types'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import DashboardLayout from '@/components/DashboardLayout'
 
 export default function DashboardLayoutWrapper({ children }: { children: React.ReactNode }) {
-  const { activeRole } = useAuth()
-
-  // Promoter has its own isolated layout in /dashboard/promoter/layout.tsx
-  // Don't wrap it with the owner DashboardLayout
-  if (activeRole === UserRole.PROMOTER) {
-    return (
-      <ProtectedRoute>
-        {children}
-      </ProtectedRoute>
-    )
-  }
-
-  // Owner, vendor, and other roles use the standard DashboardLayout
+  // Owner dashboard always uses DashboardLayout with sidebar
+  // Promoter has their own layout at /dashboard/promoter/layout.tsx
+  // This layout is only for owners/vendors/other roles
+  
   return (
     <ProtectedRoute>
       <DashboardLayout>

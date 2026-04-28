@@ -12,8 +12,11 @@ EXCEPTION
   WHEN duplicate_object THEN null;
 END $$;
 
+-- Drop existing public_events table if it exists (to rebuild with all columns)
+DROP TABLE IF EXISTS public_events CASCADE;
+
 -- public_events TABLE
-CREATE TABLE IF NOT EXISTS public_events (
+CREATE TABLE public_events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   promoter_account_id UUID NOT NULL REFERENCES promoter_accounts(id) ON DELETE CASCADE,
   title VARCHAR(255) NOT NULL,
@@ -39,8 +42,12 @@ CREATE INDEX IF NOT EXISTS idx_public_events_status ON public_events(status);
 CREATE INDEX IF NOT EXISTS idx_public_events_category ON public_events(category);
 CREATE INDEX IF NOT EXISTS idx_public_events_status_date ON public_events(status, event_date DESC);
 
+-- Drop existing tables if they exist
+DROP TABLE IF EXISTS ticket_tiers CASCADE;
+DROP TABLE IF EXISTS tickets CASCADE;
+
 -- ticket_tiers TABLE
-CREATE TABLE IF NOT EXISTS ticket_tiers (
+CREATE TABLE ticket_tiers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   public_event_id UUID NOT NULL REFERENCES public_events(id) ON DELETE CASCADE,
   name VARCHAR(255) NOT NULL,
@@ -56,7 +63,7 @@ CREATE INDEX IF NOT EXISTS idx_ticket_tiers_public_event_id ON ticket_tiers(publ
 CREATE INDEX IF NOT EXISTS idx_ticket_tiers_price ON ticket_tiers(price);
 
 -- tickets TABLE
-CREATE TABLE IF NOT EXISTS tickets (
+CREATE TABLE tickets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   public_event_id UUID NOT NULL REFERENCES public_events(id) ON DELETE CASCADE,
   ticket_tier_id UUID NOT NULL REFERENCES ticket_tiers(id) ON DELETE CASCADE,

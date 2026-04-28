@@ -85,7 +85,7 @@ SELECT
   NOW(),
   NOW()
 FROM users u
-INNER JOIN owner_accounts oa ON oa.user_id = u.id
+INNER JOIN owner_accounts oa ON oa.primary_owner_id = u.id
 WHERE NOT EXISTS (
   SELECT 1 FROM promoter_accounts pa WHERE pa.user_id = u.id
 )

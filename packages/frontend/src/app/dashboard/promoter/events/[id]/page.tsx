@@ -38,6 +38,7 @@ interface PromoterEvent {
   venue_address: string | null
   city: string | null
   state: string | null
+  venue_type: string | null
   category: string | null
   image_url: string | null
   age_restriction: string | null
@@ -54,6 +55,35 @@ const STATUS_COLORS: Record<string, string> = {
 const EVENT_CATEGORIES = [
   'Music','Comedy','Sports','Arts & Theater','Food & Drink',
   'Networking','Conference','Festival','Club Night','Other',
+]
+
+const VENUE_TYPES = [
+  // Indoor
+  'Church / House of Worship',
+  'School / University Auditorium',
+  'Community Center',
+  'Convention Center',
+  'Hotel Ballroom / Banquet Hall',
+  'Restaurant / Bar',
+  'Nightclub / Lounge',
+  'Theater / Performing Arts Center',
+  'Indoor Arena',
+  'Warehouse / Industrial Loft',
+  'Museum / Gallery',
+  'Private Residence / Estate',
+  // Outdoor
+  'Outdoor Stadium',
+  'Amphitheater',
+  'Park / Open Field',
+  'Rooftop',
+  'Beach / Waterfront',
+  'Fairgrounds / Expo Center',
+  'Street / Public Plaza',
+  // Generic
+  'Indoor (Generic)',
+  'Outdoor (Generic)',
+  'Indoor + Outdoor (Mixed)',
+  'Other',
 ]
 
 export default function PromoterEventDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -79,6 +109,7 @@ export default function PromoterEventDetailPage({ params }: { params: Promise<{ 
   const [venueAddress, setVenueAddress] = useState('')
   const [city, setCity] = useState('')
   const [state, setState] = useState('')
+  const [venueType, setVenueType] = useState('')
   const [category, setCategory] = useState('')
   const [ageRestriction, setAgeRestriction] = useState('')
   const [imageUrl, setImageUrl] = useState('')
@@ -109,6 +140,7 @@ export default function PromoterEventDetailPage({ params }: { params: Promise<{ 
       setVenueAddress(ev.venue_address || '')
       setCity(ev.city || '')
       setState(ev.state || '')
+      setVenueType(ev.venue_type || '')
       setCategory(ev.category || '')
       setAgeRestriction(ev.age_restriction || '')
       setImageUrl(ev.image_url || '')
@@ -127,6 +159,7 @@ export default function PromoterEventDetailPage({ params }: { params: Promise<{ 
         end_time: endTime || undefined, venue_name: venueName || undefined,
         venue_address: venueAddress || undefined, city: city || undefined,
         state: state || undefined, category: category || undefined,
+        venue_type: venueType || undefined,
         age_restriction: ageRestriction || undefined, image_url: imageUrl || undefined,
         status,
       })
@@ -354,6 +387,22 @@ export default function PromoterEventDetailPage({ params }: { params: Promise<{ 
                   <input value={state} onChange={e => setState(e.target.value)} maxLength={2} placeholder="GA"
                     className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Venue Type</label>
+                <select value={venueType} onChange={e => setVenueType(e.target.value)}
+                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white">
+                  <option value="">Select venue type</option>
+                  <optgroup label="Indoor">
+                    {VENUE_TYPES.slice(0, 12).map(v => <option key={v} value={v}>{v}</option>)}
+                  </optgroup>
+                  <optgroup label="Outdoor">
+                    {VENUE_TYPES.slice(12, 19).map(v => <option key={v} value={v}>{v}</option>)}
+                  </optgroup>
+                  <optgroup label="General">
+                    {VENUE_TYPES.slice(19).map(v => <option key={v} value={v}>{v}</option>)}
+                  </optgroup>
+                </select>
               </div>
             </div>
 

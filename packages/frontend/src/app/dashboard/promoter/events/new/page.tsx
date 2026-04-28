@@ -18,6 +18,35 @@ const EVENT_CATEGORIES = [
   'Networking', 'Conference', 'Festival', 'Club Night', 'Other',
 ]
 
+const VENUE_TYPES = [
+  // Indoor
+  'Church / House of Worship',
+  'School / University Auditorium',
+  'Community Center',
+  'Convention Center',
+  'Hotel Ballroom / Banquet Hall',
+  'Restaurant / Bar',
+  'Nightclub / Lounge',
+  'Theater / Performing Arts Center',
+  'Indoor Arena',
+  'Warehouse / Industrial Loft',
+  'Museum / Gallery',
+  'Private Residence / Estate',
+  // Outdoor
+  'Outdoor Stadium',
+  'Amphitheater',
+  'Park / Open Field',
+  'Rooftop',
+  'Beach / Waterfront',
+  'Fairgrounds / Expo Center',
+  'Street / Public Plaza',
+  // Generic
+  'Indoor (Generic)',
+  'Outdoor (Generic)',
+  'Indoor + Outdoor (Mixed)',
+  'Other',
+]
+
 export default function NewPromoterEventPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -33,6 +62,7 @@ export default function NewPromoterEventPage() {
   const [venueAddress, setVenueAddress] = useState('')
   const [city, setCity] = useState('')
   const [state, setState] = useState('')
+  const [venueType, setVenueType] = useState('')
   const [category, setCategory] = useState('')
   const [ageRestriction, setAgeRestriction] = useState('')
   const [imageUrl, setImageUrl] = useState('')
@@ -75,6 +105,7 @@ export default function NewPromoterEventPage() {
         venue_address: venueAddress || undefined,
         city: city || undefined,
         state: state || undefined,
+        venue_type: venueType || undefined,
         category: category || undefined,
         age_restriction: ageRestriction || undefined,
         image_url: imageUrl || undefined,
@@ -187,6 +218,22 @@ export default function NewPromoterEventPage() {
                 className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
                 placeholder="e.g. GA" maxLength={2} />
             </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Venue Type</label>
+            <select value={venueType} onChange={e => setVenueType(e.target.value)}
+              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white">
+              <option value="">Select venue type</option>
+              <optgroup label="Indoor">
+                {VENUE_TYPES.slice(0, 12).map(v => <option key={v} value={v}>{v}</option>)}
+              </optgroup>
+              <optgroup label="Outdoor">
+                {VENUE_TYPES.slice(12, 19).map(v => <option key={v} value={v}>{v}</option>)}
+              </optgroup>
+              <optgroup label="General">
+                {VENUE_TYPES.slice(19).map(v => <option key={v} value={v}>{v}</option>)}
+              </optgroup>
+            </select>
           </div>
         </div>
 

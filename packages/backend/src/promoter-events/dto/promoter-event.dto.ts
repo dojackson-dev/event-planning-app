@@ -9,6 +9,7 @@ export class CreatePromoterEventDto {
   city?: string;
   state?: string;
   category?: string; // concert, festival, club_night, comedy, etc.
+  venue_type?: string; // Church, Stadium, Nightclub, Park, etc.
   image_url?: string;
   status?: 'draft' | 'published' | 'cancelled'; // default draft
   age_restriction?: string; // 18+, 21+, all_ages
@@ -26,6 +27,7 @@ export class UpdatePromoterEventDto {
   city?: string;
   state?: string;
   category?: string;
+  venue_type?: string;
   image_url?: string;
   status?: 'draft' | 'published' | 'cancelled';
   age_restriction?: string;

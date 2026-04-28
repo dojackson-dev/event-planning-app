@@ -66,6 +66,7 @@ export class PromoterEventsService {
         city: dto.city ?? null,
         state: dto.state ?? null,
         category: dto.category ?? null,
+        venue_type: dto.venue_type ?? null,
         image_url: dto.image_url ?? null,
         age_restriction: dto.age_restriction ?? null,
         status: dto.status ?? 'draft',
@@ -135,6 +136,7 @@ export class PromoterEventsService {
     if (dto.city !== undefined) updates.city = dto.city;
     if (dto.state !== undefined) updates.state = dto.state;
     if (dto.category !== undefined) updates.category = dto.category;
+    if (dto.venue_type !== undefined) updates.venue_type = dto.venue_type;
     if (dto.image_url !== undefined) updates.image_url = dto.image_url;
     if (dto.age_restriction !== undefined) updates.age_restriction = dto.age_restriction;
     if (dto.status !== undefined) updates.status = dto.status;

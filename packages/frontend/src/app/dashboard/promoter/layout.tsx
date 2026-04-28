@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { Megaphone, Home, Calendar, FileText, Users, Settings, Menu, X, LogOut } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import RoleSwitcher from '@/components/RoleSwitcher'
@@ -16,8 +16,15 @@ interface NavItem {
 
 export default function PromoterLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const { logout } = useAuth()
+  const router = useRouter()
+  const { user, loading, logout } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/promoter/login')
+    }
+  }, [user, loading, router])
 
   const navItems: NavItem[] = [
     { href: '/dashboard/promoter', label: 'Dashboard', icon: <Home className="h-5 w-5" /> },
@@ -104,6 +111,11 @@ export default function PromoterLayout({ children }: { children: React.ReactNode
           </button>
           <div className="flex-1" />
           <div className="flex items-center gap-4">
+            {user && (
+              <span className="text-sm text-gray-600 hidden sm:block">
+                {user.firstName} {user.lastName}
+              </span>
+            )}
             <Link href="/dashboard/promoter/profile" className="text-sm text-gray-600 hover:text-gray-900">
               Account Settings
             </Link>

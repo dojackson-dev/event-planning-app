@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Megaphone, Home, Calendar, FileText, Users, Settings, Menu, X, LogOut } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
+import RoleSwitcher from '@/components/RoleSwitcher'
 
 interface NavItem {
   href: string
@@ -47,6 +48,7 @@ export default function PromoterLayout({ children }: { children: React.ReactNode
         </div>
 
         {/* Navigation */}
+        <RoleSwitcher variant="sidebar" />
         <nav className="flex-1 px-4 py-6 space-y-1">
           {navItems.map((item) => {
             const isActive = pathname === item.href

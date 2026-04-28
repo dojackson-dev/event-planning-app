@@ -46,7 +46,7 @@ export default function Home() {
             </Link>
           </div>
           {/* Secondary links row */}
-          <div className="flex justify-center items-center gap-4 py-3">
+          <div className="flex justify-center items-center gap-4 py-3 flex-wrap">
               <Link
                 href="/client-login"
                 className="text-primary-600 hover:bg-primary-50 px-3 py-2 rounded-md text-sm font-medium border border-primary-600 flex items-center gap-2"
@@ -60,6 +60,12 @@ export default function Home() {
               >
                 <Store className="h-4 w-4" />
                 Find Vendors
+              </Link>
+              <Link
+                href="/events"
+                className="text-purple-600 hover:bg-purple-50 px-3 py-2 rounded-md text-sm font-medium border border-purple-600 flex items-center gap-2"
+              >
+                🎉 Discover Events
               </Link>
           </div>
         </div>
@@ -245,6 +251,39 @@ export default function Home() {
               className="inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-xl text-white bg-primary-600 hover:bg-primary-700"
             >
               List Your Business
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Discover Events Banner */}
+      <div className="py-16 bg-gradient-to-br from-purple-50 to-purple-100 border-t border-purple-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <div className="flex justify-center mb-4">
+            <div className="flex items-center justify-center h-16 w-16 rounded-full bg-purple-100 border-2 border-purple-300">
+              <svg className="h-8 w-8 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4a1 1 0 011 1v6a1 1 0 11-2 0V5a1 1 0 011-1zM17 4a1 1 0 011 1v6a1 1 0 11-2 0V5a1 1 0 011-1zM7 14a1 1 0 011 1v2a1 1 0 11-2 0v-2a1 1 0 011-1zM17 14a1 1 0 011 1v2a1 1 0 11-2 0v-2a1 1 0 011-1zM12 2a1 1 0 011 1v2a1 1 0 11-2 0V3a1 1 0 011-1zM12 10a1 1 0 011 1v6a1 1 0 11-2 0v-6a1 1 0 011-1z" />
+              </svg>
+            </div>
+          </div>
+          <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">
+            Discover Live Events & Experiences
+          </h2>
+          <p className="mt-3 text-lg text-gray-600 max-w-xl mx-auto">
+            Explore concerts, festivals, workshops, and more events happening in your area. Browse thousands of experiences from event promoters.
+          </p>
+          <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
+            <Link
+              href="/events"
+              className="inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-xl text-white bg-purple-600 hover:bg-purple-700 transition-colors"
+            >
+              Browse Events
+            </Link>
+            <Link
+              href="/promoter/login"
+              className="inline-flex items-center justify-center px-8 py-3 border-2 border-purple-600 text-base font-medium rounded-xl text-purple-600 hover:bg-purple-50 transition-colors"
+            >
+              Become a Promoter
             </Link>
           </div>
         </div>

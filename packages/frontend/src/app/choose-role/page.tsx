@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { UserRole } from '@/types'
-import { Building2, Store, ArrowRight } from 'lucide-react'
+import { Building2, Store, ArrowRight, Megaphone } from 'lucide-react'
 
 const ROLE_CONFIG: Record<string, {
   label: string
@@ -18,17 +18,25 @@ const ROLE_CONFIG: Record<string, {
     label: 'Venue Owner',
     description: 'Manage your venues, events, clients, bookings, and contracts.',
     icon: <Building2 className="w-10 h-10" />,
-    color: 'text-indigo-600',
-    border: 'border-indigo-200',
-    hover: 'hover:border-indigo-500 hover:bg-indigo-50',
+    color: 'text-orange-600',
+    border: 'border-orange-200',
+    hover: 'hover:border-orange-500 hover:bg-orange-50',
   },
   [UserRole.VENDOR]: {
     label: 'Vendor',
     description: 'View your bookings, manage your profile, and connect with venues.',
     icon: <Store className="w-10 h-10" />,
-    color: 'text-emerald-600',
-    border: 'border-emerald-200',
-    hover: 'hover:border-emerald-500 hover:bg-emerald-50',
+    color: 'text-blue-600',
+    border: 'border-blue-200',
+    hover: 'hover:border-blue-500 hover:bg-blue-50',
+  },
+  [UserRole.PROMOTER]: {
+    label: 'Event Promoter',
+    description: 'Create public events, manage ticket sales, and grow your audience.',
+    icon: <Megaphone className="w-10 h-10" />,
+    color: 'text-purple-600',
+    border: 'border-purple-200',
+    hover: 'hover:border-purple-500 hover:bg-purple-50',
   },
 }
 
@@ -43,9 +51,7 @@ export default function ChooseRolePage() {
     }
     // If somehow only one role, go directly to the right dashboard
     if (!loading && isAuthenticated && roles.length === 1) {
-      if (roles[0] === UserRole.VENDOR) router.push('/vendor-portal')
-      else if (roles[0] === UserRole.ADMIN) router.push('/admin')
-      else router.push('/dashboard')
+      switchRole(roles[0])
     }
   }, [loading, isAuthenticated, roles, router])
 

@@ -50,7 +50,7 @@ export default function ArtistRegisterPage() {
     setError('')
     setLoading(true)
     try {
-      const res = await api.post('/auth/flow/vendor/signup', {
+      const res = await api.post('/auth/flow/artist/signup', {
         email,
         password,
         firstName,

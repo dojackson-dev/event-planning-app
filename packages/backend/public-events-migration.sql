@@ -1,8 +1,8 @@
 -- ================================================================
--- CREATE PUBLIC EVENTS AND TICKET SYSTEMS
+-- CREATE PUBLIC EVENTS AND TICKET SYSTEMS - PART 1
 -- ================================================================
--- Copy and paste this ENTIRE file into Supabase SQL Editor
--- Do NOT include any text before the line below
+-- RUN THIS FIRST
+-- Then run public-events-migration-part2.sql after this completes
 
 -- Create enum for event status
 DO $$
@@ -36,7 +36,6 @@ CREATE TABLE IF NOT EXISTS public_events (
 CREATE INDEX IF NOT EXISTS idx_public_events_promoter_account_id ON public_events(promoter_account_id);
 CREATE INDEX IF NOT EXISTS idx_public_events_event_date ON public_events(event_date);
 CREATE INDEX IF NOT EXISTS idx_public_events_status ON public_events(status);
-CREATE INDEX IF NOT EXISTS idx_public_events_city ON public_events(city);
 CREATE INDEX IF NOT EXISTS idx_public_events_category ON public_events(category);
 CREATE INDEX IF NOT EXISTS idx_public_events_status_date ON public_events(status, event_date DESC);
 
@@ -73,85 +72,8 @@ CREATE INDEX IF NOT EXISTS idx_tickets_ticket_tier_id ON tickets(ticket_tier_id)
 CREATE INDEX IF NOT EXISTS idx_tickets_buyer_email ON tickets(buyer_email);
 CREATE INDEX IF NOT EXISTS idx_tickets_session_id ON tickets(stripe_checkout_session_id);
 
--- Enable RLS
-ALTER TABLE public_events ENABLE ROW LEVEL SECURITY;
-ALTER TABLE ticket_tiers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tickets ENABLE ROW LEVEL SECURITY;
-
--- RLS Policies for public_events
-CREATE POLICY "Promoters can view their own events" ON public_events
-  FOR SELECT
-  USING (
-    promoter_account_id IN (
-      SELECT id FROM promoter_accounts WHERE user_id = auth.uid()
-    )
-  );
-
-CREATE POLICY "Promoters can create events" ON public_events
-  FOR INSERT
-  WITH CHECK (
-    promoter_account_id IN (
-      SELECT id FROM promoter_accounts WHERE user_id = auth.uid()
-    )
-  );
-
-CREATE POLICY "Promoters can update their own events" ON public_events
-  FOR UPDATE
-  USING (
-    promoter_account_id IN (
-      SELECT id FROM promoter_accounts WHERE user_id = auth.uid()
-    )
-  )
-  WITH CHECK (
-    promoter_account_id IN (
-      SELECT id FROM promoter_accounts WHERE user_id = auth.uid()
-    )
-  );
-
-CREATE POLICY "Promoters can delete their own events" ON public_events
-  FOR DELETE
-  USING (
-    promoter_account_id IN (
-      SELECT id FROM promoter_accounts WHERE user_id = auth.uid()
-    )
-  );
-
-CREATE POLICY "Anyone can view published events" ON public_events
-  FOR SELECT
-  USING (status = 'published');
-
--- RLS Policies for ticket_tiers
-CREATE POLICY "Promoters can manage their event's ticket tiers" ON ticket_tiers
-  FOR ALL
-  USING (
-    public_event_id IN (
-      SELECT id FROM public_events 
-      WHERE promoter_account_id IN (
-        SELECT id FROM promoter_accounts WHERE user_id = auth.uid()
-      )
-    )
-  );
-
-CREATE POLICY "Anyone can view ticket tiers for published events" ON ticket_tiers
-  FOR SELECT
-  USING (
-    public_event_id IN (
-      SELECT id FROM public_events WHERE status = 'published'
-    )
-  );
-
--- RLS Policies for tickets
-CREATE POLICY "Promoters can view tickets for their events" ON tickets
-  FOR SELECT
-  USING (
-    public_event_id IN (
-      SELECT id FROM public_events 
-      WHERE promoter_account_id IN (
-        SELECT id FROM promoter_accounts WHERE user_id = auth.uid()
-      )
-    )
-  );
-
-CREATE POLICY "Tickets can be created for checkout sessions" ON tickets
-  FOR INSERT
-  WITH CHECK (true);
+-- ================================================================
+-- SUCCESS: Tables created!
+-- ================================================================
+-- After running this successfully, run public-events-migration-part2.sql
+-- to enable RLS and create security policies.

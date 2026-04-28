@@ -589,6 +589,73 @@ export class AuthFlowService {
     };
   }
 
+  async promoterSignup(dto: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    phoneNumber?: string;
+    smsOptIn?: boolean;
+  }) {
+    const adminClient = this.supabaseService.getAdminClient();
+
+    const { data: existing } = await adminClient
+      .from('users')
+      .select('id')
+      .eq('email', dto.email.toLowerCase())
+      .single();
+
+    if (existing) {
+      throw new BadRequestException('An account with this email already exists');
+    }
+
+    const { data: authData, error: authError } = await adminClient.auth.signUp({
+      email: dto.email,
+      password: dto.password,
+      options: {
+        data: {
+          first_name: dto.firstName,
+          last_name: dto.lastName,
+        },
+      },
+    });
+
+    if (authError || !authData.user) {
+      throw new BadRequestException(authError?.message || 'Failed to create user');
+    }
+
+    if (!authData.user.identities || authData.user.identities.length === 0) {
+      throw new BadRequestException('An account with this email already exists');
+    }
+
+    const userId = authData.user.id;
+
+    const { error: userError } = await adminClient
+      .from('users')
+      .insert({
+        id: userId,
+        email: dto.email,
+        first_name: dto.firstName,
+        last_name: dto.lastName,
+        role: 'promoter',
+        roles: ['promoter'],
+        phone_number: dto.phoneNumber,
+        email_verified: false,
+        phone_verified: false,
+        sms_opt_in: dto.smsOptIn === true,
+        sms_opt_in_at: dto.smsOptIn === true ? new Date().toISOString() : null,
+        status: 'active',
+      });
+
+    if (userError) throw new BadRequestException(userError.message);
+
+    return {
+      userId,
+      message: 'Promoter account created. Please verify your email and complete your profile.',
+      session: authData.session,
+    };
+  }
+
   /**
    * VENDOR LOGIN
    */

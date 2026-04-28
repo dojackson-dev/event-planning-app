@@ -45,6 +45,10 @@ export class PromoterService {
 
     if (error) throw new BadRequestException(error.message);
     this.logger.log(`Created promoter account ${data.id} for user ${userId}`);
+
+    // Ensure the user's role is set to 'promoter'
+    await admin.from('users').update({ role: 'promoter' }).eq('id', userId);
+
     return data;
   }
 

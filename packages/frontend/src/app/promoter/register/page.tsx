@@ -29,7 +29,7 @@ export default function PromoterRegisterPage() {
   const handleAccountSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); setError(''); setLoading(true)
     try {
-      const res = await api.post('/auth/flow/vendor/signup', {
+      const res = await api.post('/auth/flow/promoter/signup', {
         email, password, firstName, lastName,
         phoneNumber: phone || undefined,
         smsOptIn: false,

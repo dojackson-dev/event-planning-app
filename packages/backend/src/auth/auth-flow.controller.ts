@@ -79,6 +79,11 @@ export class AuthFlowController {
     return this.authFlowService.vendorSignup(dto);
   }
 
+  @Post('promoter/signup')
+  async promoterSignup(@Body() dto: any) {
+    return this.authFlowService.promoterSignup(dto);
+  }
+
   @Post('vendor/login')
   async vendorLogin(@Body() dto: { email: string; password: string }) {
     return this.authFlowService.vendorLogin(dto.email, dto.password);

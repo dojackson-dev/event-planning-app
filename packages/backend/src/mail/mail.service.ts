@@ -472,4 +472,81 @@ export class MailService {
       // Non-fatal — cron jobs should not crash on email failure
     }
   }
+
+  /**
+   * Sends a confirmation email to a customer who just purchased event tickets.
+   * Triggered from the Stripe webhook after `checkout.session.completed`.
+   */
+  async sendTicketConfirmation(params: {
+    toEmail: string;
+    eventTitle: string;
+    eventDate: string;
+    eventTime?: string | null;
+    venueName?: string | null;
+    tierName: string;
+    quantity: number;
+    amountTotal: number;
+    eventId: string;
+    promoterName?: string | null;
+  }): Promise<void> {
+    try {
+      const frontendUrl = process.env.FRONTEND_URL || 'https://dovenuesuite.com';
+      const eventUrl = `${frontendUrl}/events/${params.eventId}`;
+      const formattedDate = params.eventDate
+        ? new Date(params.eventDate + (params.eventDate.includes('T') ? '' : 'T12:00:00'))
+            .toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+        : 'TBD';
+      const isFree = params.amountTotal === 0;
+      const amountStr = isFree ? 'Free' : `$${params.amountTotal.toFixed(2)}`;
+      const fromName = params.promoterName ? `${params.promoterName} via DoVenue` : 'DoVenue Tickets';
+
+      const mailOptions = {
+        from: `"${fromName}" <${process.env.SMTP_FROM || 'noreply@dovenue.com'}>`,
+        to: params.toEmail,
+        subject: `Your tickets to ${params.eventTitle} are confirmed`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb; padding: 32px 16px;">
+            <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08);">
+              <div style="background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%); padding: 32px; text-align: center;">
+                <h1 style="color: white; margin: 0; font-size: 26px; font-weight: 700;">You're going!</h1>
+                <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 15px;">Your tickets are confirmed</p>
+              </div>
+              <div style="padding: 32px;">
+                <h2 style="margin: 0 0 16px; color: #1f2937; font-size: 20px;">${params.eventTitle}</h2>
+                <div style="background: #f5f3ff; border-left: 4px solid #7c3aed; border-radius: 8px; padding: 20px 24px; margin: 0 0 24px;">
+                  <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #374151;">
+                    <tr><td style="padding: 4px 0; color: #6b7280; width: 110px;">Date</td><td style="padding: 4px 0; font-weight: 600;">${formattedDate}</td></tr>
+                    ${params.eventTime ? `<tr><td style="padding: 4px 0; color: #6b7280;">Time</td><td style="padding: 4px 0; font-weight: 600;">${params.eventTime}</td></tr>` : ''}
+                    ${params.venueName ? `<tr><td style="padding: 4px 0; color: #6b7280;">Venue</td><td style="padding: 4px 0; font-weight: 600;">${params.venueName}</td></tr>` : ''}
+                    <tr><td style="padding: 4px 0; color: #6b7280;">Ticket</td><td style="padding: 4px 0; font-weight: 600;">${params.tierName}</td></tr>
+                    <tr><td style="padding: 4px 0; color: #6b7280;">Quantity</td><td style="padding: 4px 0; font-weight: 600;">${params.quantity}</td></tr>
+                    <tr><td style="padding: 4px 0; color: #6b7280;">Total</td><td style="padding: 4px 0; font-weight: 700;">${amountStr}</td></tr>
+                  </table>
+                </div>
+                <p style="color: #374151; font-size: 14px; line-height: 1.6;">
+                  Save this email — you'll need it for entry. Show this confirmation (and a photo ID) at the door.
+                </p>
+                <div style="text-align: center; margin: 28px 0;">
+                  <a href="${eventUrl}"
+                     style="display: inline-block; background: #7c3aed; color: white; padding: 14px 36px; text-decoration: none; border-radius: 8px; font-size: 15px; font-weight: 600;">
+                    View Event Details
+                  </a>
+                </div>
+                <p style="color: #9ca3af; font-size: 12px; text-align: center; margin-top: 24px;">
+                  Questions? Reply to this email${params.promoterName ? ` and ${params.promoterName} will get back to you.` : '.'}
+                </p>
+              </div>
+            </div>
+          </div>
+        `,
+        text: `Your tickets are confirmed!\n\n${params.eventTitle}\nDate: ${formattedDate}${params.eventTime ? `\nTime: ${params.eventTime}` : ''}${params.venueName ? `\nVenue: ${params.venueName}` : ''}\nTicket: ${params.tierName}\nQuantity: ${params.quantity}\nTotal: ${amountStr}\n\nSave this email — you'll need it for entry.\n\nView event: ${eventUrl}`,
+      };
+
+      const info = await this.transporter.sendMail(mailOptions);
+      console.log('[MailService] Ticket confirmation sent to', params.toEmail, '—', info.messageId);
+    } catch (error) {
+      console.error('[MailService] Ticket confirmation email failed:', error);
+      // Non-fatal — webhook must not throw
+    }
+  }
 }

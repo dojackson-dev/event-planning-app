@@ -55,6 +55,7 @@ function PublicEventDetailPageContent({ params }: { params: { id: string } }) {
   const [selectedTier, setSelectedTier] = useState<TicketTier | null>(null)
   const [quantity, setQuantity] = useState(1)
   const [buyerEmail, setBuyerEmail] = useState('')
+  const [buyerPhone, setBuyerPhone] = useState('')
   const [purchasing, setPurchasing] = useState(false)
   const [purchaseError, setPurchaseError] = useState('')
 
@@ -80,6 +81,7 @@ function PublicEventDetailPageContent({ params }: { params: { id: string } }) {
         tier_id: selectedTier.id,
         quantity,
         buyer_email: buyerEmail,
+        buyer_phone: buyerPhone.trim() || undefined,
       })
       if (res.data?.url) {
         window.location.href = res.data.url
@@ -308,6 +310,15 @@ function PublicEventDetailPageContent({ params }: { params: { id: string } }) {
                     placeholder="your@email.com"
                     className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
                   <p className="text-xs text-gray-400 mt-1">Your ticket will be sent here</p>
+                </div>
+
+                {/* Phone (optional) */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Mobile phone (optional)</label>
+                  <input type="tel" value={buyerPhone} onChange={e => setBuyerPhone(e.target.value)}
+                    placeholder="+1 555 123 4567"
+                    className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                  <p className="text-xs text-gray-400 mt-1">We&apos;ll text you a confirmation. Reply STOP to opt out.</p>
                 </div>
 
                 {purchaseError && (

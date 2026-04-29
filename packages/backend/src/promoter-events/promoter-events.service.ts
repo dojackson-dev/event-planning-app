@@ -7,6 +7,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
+import { MailService } from '../mail/mail.service';
+import { TwilioService } from '../messaging/twilio.service';
 import Stripe from 'stripe';
 import {
   CreatePromoterEventDto,
@@ -26,6 +28,8 @@ export class PromoterEventsService {
   constructor(
     private readonly supabaseService: SupabaseService,
     private readonly configService: ConfigService,
+    private readonly mailService: MailService,
+    private readonly twilioService: TwilioService,
   ) {
     this.stripe = new Stripe(this.configService.get<string>('STRIPE_SECRET_KEY') || '', {
       apiVersion: '2024-04-10' as any,
@@ -303,7 +307,7 @@ export class PromoterEventsService {
 
   // ── STRIPE CHECKOUT for tickets ───────────────────────────────
 
-  async createTicketCheckout(eventId: string, tierId: string, quantity: number, buyerEmail: string) {
+  async createTicketCheckout(eventId: string, tierId: string, quantity: number, buyerEmail: string, buyerPhone?: string) {
     const admin = this.supabaseService.getAdminClient();
 
     const { data: event } = await admin
@@ -335,6 +339,7 @@ export class PromoterEventsService {
         public_event_id: eventId,
         ticket_tier_id: tierId,
         buyer_email: buyerEmail,
+        buyer_phone: buyerPhone || null,
         stripe_checkout_session_id: null,
         amount_paid: 0,
         status: 'valid',
@@ -351,6 +356,15 @@ export class PromoterEventsService {
           .update({ quantity_sold: (tierRow.quantity_sold ?? 0) + quantity })
           .eq('id', tierId);
       }
+      // Send confirmation for free tickets too (no webhook fires)
+      await this.sendTicketNotifications({
+        eventId,
+        tierId,
+        quantity,
+        amountTotal: 0,
+        buyerEmail,
+        buyerPhone,
+      });
       return { url: `${this.frontendUrl}/events/${eventId}?paid=true`, sessionId: null };
     }
 
@@ -388,6 +402,7 @@ export class PromoterEventsService {
         ticket_tier_id: tierId,
         quantity: String(quantity),
         buyer_email: buyerEmail,
+        buyer_phone: buyerPhone || '',
       },
     };
 
@@ -418,10 +433,12 @@ export class PromoterEventsService {
       return;
     }
 
-    const { public_event_id, ticket_tier_id, quantity, buyer_email } = session.metadata || {};
+    const { public_event_id, ticket_tier_id, quantity, buyer_email, buyer_phone } = session.metadata || {};
     if (!public_event_id || !ticket_tier_id) return;
 
     const qty = parseInt(quantity || '1', 10);
+    const phone = (buyer_phone || (session.customer_details?.phone ?? '')).trim() || null;
+    const email = buyer_email ?? session.customer_email ?? session.customer_details?.email ?? null;
 
     // idempotency check — see if tickets already exist for this session
     const { data: existing } = await admin
@@ -432,13 +449,16 @@ export class PromoterEventsService {
 
     if (existing && existing.length > 0) return;
 
+    const amountTotal = session.amount_total ? session.amount_total / 100 : 0;
+
     // create ticket records (one per ticket)
     const ticketRows = Array.from({ length: qty }, () => ({
       public_event_id,
       ticket_tier_id,
-      buyer_email: buyer_email ?? session.customer_email,
+      buyer_email: email,
+      buyer_phone: phone,
       stripe_checkout_session_id: sessionId,
-      amount_paid: session.amount_total ? session.amount_total / 100 / qty : 0,
+      amount_paid: qty > 0 ? amountTotal / qty : 0,
       status: 'valid',
     }));
 
@@ -459,6 +479,87 @@ export class PromoterEventsService {
     }
 
     this.logger.log(`Recorded ${qty} ticket(s) sold for event ${public_event_id}`);
+
+    // Fire-and-forget customer notifications
+    if (email) {
+      await this.sendTicketNotifications({
+        eventId: public_event_id,
+        tierId: ticket_tier_id,
+        quantity: qty,
+        amountTotal,
+        buyerEmail: email,
+        buyerPhone: phone || undefined,
+      });
+    }
+  }
+
+  /**
+   * Sends an email (always) and SMS (if phone provided) confirmation
+   * after a ticket purchase. Never throws — notification failures must
+   * not break the webhook or the free-ticket flow.
+   */
+  private async sendTicketNotifications(params: {
+    eventId: string;
+    tierId: string;
+    quantity: number;
+    amountTotal: number;
+    buyerEmail: string;
+    buyerPhone?: string;
+  }): Promise<void> {
+    try {
+      const admin = this.supabaseService.getAdminClient();
+      const { data: event } = await admin
+        .from('public_events')
+        .select('title, event_date, event_time, venue_name, promoter_accounts(company_name, contact_name)')
+        .eq('id', params.eventId)
+        .maybeSingle();
+
+      const { data: tier } = await admin
+        .from('ticket_tiers')
+        .select('name')
+        .eq('id', params.tierId)
+        .maybeSingle();
+
+      if (!event || !tier) {
+        this.logger.warn(`sendTicketNotifications: missing event/tier for ${params.eventId}/${params.tierId}`);
+        return;
+      }
+
+      const promoter: any = Array.isArray((event as any).promoter_accounts)
+        ? (event as any).promoter_accounts[0]
+        : (event as any).promoter_accounts;
+      const promoterName = promoter?.company_name || promoter?.contact_name || null;
+
+      // Email
+      await this.mailService.sendTicketConfirmation({
+        toEmail: params.buyerEmail,
+        eventTitle: (event as any).title,
+        eventDate: (event as any).event_date,
+        eventTime: (event as any).event_time,
+        venueName: (event as any).venue_name,
+        tierName: (tier as any).name,
+        quantity: params.quantity,
+        amountTotal: params.amountTotal,
+        eventId: params.eventId,
+        promoterName,
+      });
+
+      // SMS — only if phone provided
+      if (params.buyerPhone) {
+        try {
+          const eventUrl = `${this.frontendUrl}/events/${params.eventId}`;
+          const dateStr = (event as any).event_date
+            ? new Date((event as any).event_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+            : '';
+          const msg = `Your ${params.quantity} ticket(s) to ${(event as any).title}${dateStr ? ` on ${dateStr}` : ''} are confirmed. Check your email for details: ${eventUrl}`;
+          await this.twilioService.sendSMS(params.buyerPhone, msg);
+        } catch (smsErr) {
+          this.logger.error(`Ticket SMS failed for ${params.buyerPhone}`, smsErr as any);
+        }
+      }
+    } catch (err) {
+      this.logger.error('sendTicketNotifications failed', err as any);
+    }
   }
 
   // ── ATTENDEE LIST ─────────────────────────────────────────────

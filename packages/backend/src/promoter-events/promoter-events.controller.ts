@@ -54,9 +54,9 @@ export class PromoterEventsController {
   @Post('public/:id/checkout')
   createCheckout(
     @Param('id') id: string,
-    @Body() body: { tier_id: string; quantity: number; buyer_email: string },
+    @Body() body: { tier_id: string; quantity: number; buyer_email: string; buyer_phone?: string },
   ) {
-    return this.service.createTicketCheckout(id, body.tier_id, body.quantity || 1, body.buyer_email);
+    return this.service.createTicketCheckout(id, body.tier_id, body.quantity || 1, body.buyer_email, body.buyer_phone);
   }
 
   // ── PROTECTED routes ──────────────────────────────────────────

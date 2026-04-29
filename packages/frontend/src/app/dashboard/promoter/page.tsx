@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback, Suspense } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { useSearchParams, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import {
   Calendar,
@@ -43,7 +43,6 @@ interface PromoterProfile {
 
 function PromoterDashboardContent() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [profile, setProfile] = useState<PromoterProfile | null>(null)
   const [connectStatus, setConnectStatus] = useState<string>('not_connected')
@@ -52,15 +51,19 @@ function PromoterDashboardContent() {
   const [error, setError] = useState<string | null>(null)
   const [showTour, setShowTour] = useState(false)
   const [tourStep, setTourStep] = useState(0)
-
-  const connectSuccess = searchParams?.get('connect') === 'success'
-  const firstVisit = searchParams?.get('new') === 'true'
+  const [connectSuccess, setConnectSuccess] = useState(false)
+  const [firstVisit, setFirstVisit] = useState(false)
 
   useEffect(() => {
-    if (firstVisit && !localStorage.getItem('promoter_tour_completed')) {
+    const params = new URLSearchParams(window.location.search)
+    const isConnectSuccess = params.get('connect') === 'success'
+    const isFirstVisit = params.get('new') === 'true'
+    setConnectSuccess(isConnectSuccess)
+    setFirstVisit(isFirstVisit)
+    if (isFirstVisit && !localStorage.getItem('promoter_tour_completed')) {
       setShowTour(true)
     }
-  }, [firstVisit])
+  }, [])
 
   const fetchData = useCallback(async () => {
     try {
@@ -83,7 +86,7 @@ function PromoterDashboardContent() {
     fetchData()
   }, [fetchData])
 
-  // Re-fetch status after returning from Stripe onboarding (URL has ?connect=success)
+  // Re-fetch after Stripe onboarding redirect (?connect=success)
   useEffect(() => {
     if (connectSuccess) {
       const timer = setTimeout(() => fetchData(), 1500)
@@ -449,9 +452,5 @@ function PromoterDashboardContent() {
 }
 
 export default function PromoterDashboard() {
-  return (
-    <Suspense fallback={<div className="p-8"><div className="animate-pulse h-8 bg-gray-200 rounded w-1/3"></div></div>}>
-      <PromoterDashboardContent />
-    </Suspense>
-  )
+  return <PromoterDashboardContent />
 }

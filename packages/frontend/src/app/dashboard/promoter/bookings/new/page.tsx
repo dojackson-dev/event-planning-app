@@ -1,42 +1,49 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
 import { Loader2, Save, Mic2 } from 'lucide-react'
 
 function NewPromoterBookingContent() {
   const router = useRouter()
-  const searchParams = useSearchParams()
-
-  const artistId = searchParams?.get('artistId') || ''
-  const artistNameParam = searchParams?.get('artistName') || ''
-  const artistEmailParam = searchParams?.get('artistEmail') || ''
-  const feeMin = searchParams?.get('feeMin') || ''
+  const [artistId, setArtistId] = useState('')
+  const [artistNameParam, setArtistNameParam] = useState('')
+  const [artistEmailParam, setArtistEmailParam] = useState('')
+  const [feeMin, setFeeMin] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   const [form, setForm] = useState({
     event_name: '',
     client_name: '',
-    client_email: artistEmailParam,
+    client_email: '',
     client_phone: '',
     event_date: '',
     event_start_time: '',
     event_end_time: '',
     venue_name: '',
     venue_address: '',
-    agreed_amount: feeMin,
+    agreed_amount: '',
     deposit_amount: '',
     notes: '',
     status: 'inquiry',
   })
 
   useEffect(() => {
-    if (artistEmailParam) setForm(f => ({ ...f, client_email: artistEmailParam }))
-    if (feeMin) setForm(f => ({ ...f, agreed_amount: feeMin }))
-  }, [artistEmailParam, feeMin])
+    const params = new URLSearchParams(window.location.search)
+    const id = params.get('artistId') || ''
+    const name = params.get('artistName') || ''
+    const email = params.get('artistEmail') || ''
+    const fee = params.get('feeMin') || ''
+    setArtistId(id)
+    setArtistNameParam(name)
+    setArtistEmailParam(email)
+    setFeeMin(fee)
+    if (email) setForm(f => ({ ...f, client_email: email }))
+    if (fee) setForm(f => ({ ...f, agreed_amount: fee }))
+  }, [])
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
 
@@ -211,9 +218,5 @@ function NewPromoterBookingContent() {
 }
 
 export default function NewPromoterBookingPage() {
-  return (
-    <Suspense fallback={<div className="p-8"><div className="animate-pulse h-8 bg-gray-200 rounded w-1/3"></div></div>}>
-      <NewPromoterBookingContent />
-    </Suspense>
-  )
+  return <NewPromoterBookingContent />
 }

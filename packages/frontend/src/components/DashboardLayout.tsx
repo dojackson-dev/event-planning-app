@@ -248,9 +248,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   // Placeholder user for development when not logged in
   const displayUser = user || {
-    firstName: 'Demo',
-    lastName: 'Owner',
-    email: 'owner@eventcenter.com',
+    firstName: 'Guest',
+    lastName: '',
+    email: '',
     role: 'owner'
   }
 

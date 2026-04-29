@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect, use } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
 import {
-  MapPin, Clock, Tag, Ticket, Loader2, CheckCircle,
-  Calendar, Users, Minus, Plus, ExternalLink,
+  MapPin, Tag, Ticket, Loader2, CheckCircle,
+  Calendar, Users, Minus, Plus,
 } from 'lucide-react'
 
 interface TicketTier {
@@ -21,8 +21,8 @@ interface TicketTier {
 interface PromoterAccount {
   company_name: string | null
   contact_name: string
-  instagram: string | null
-  website: string | null
+  profile_image_url: string | null
+  location: string | null
 }
 
 interface PublicEvent {
@@ -43,8 +43,8 @@ interface PublicEvent {
   promoter_accounts: PromoterAccount | null
 }
 
-export default function PublicEventDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params)
+export default function PublicEventDetailPage({ params }: { params: { id: string } }) {
+  const { id } = params
   const searchParams = useSearchParams()
 
   const [event, setEvent] = useState<PublicEvent | null>(null)
@@ -58,7 +58,7 @@ export default function PublicEventDetailPage({ params }: { params: Promise<{ id
   const [purchasing, setPurchasing] = useState(false)
   const [purchaseError, setPurchaseError] = useState('')
 
-  const successSession = searchParams?.get('success')
+  const successSession = searchParams?.get('paid')
 
   useEffect(() => {
     if (!id) return
@@ -85,7 +85,12 @@ export default function PublicEventDetailPage({ params }: { params: Promise<{ id
         window.location.href = res.data.url
       }
     } catch (err: any) {
-      setPurchaseError(err.response?.data?.message || 'Checkout failed — please try again')
+      const msg = err.response?.data?.message || ''
+      setPurchaseError(
+        msg.toLowerCase().includes('not enabled') || msg.toLowerCase().includes('payment')
+          ? 'Checkout is temporarily unavailable for this event. Please contact the organizer.'
+          : msg || 'Checkout failed — please try again'
+      )
     } finally {
       setPurchasing(false)
     }
@@ -215,18 +220,10 @@ export default function PublicEventDetailPage({ params }: { params: Promise<{ id
               <h2 className="font-bold text-gray-900 mb-2">Presented by</h2>
               <p className="font-semibold text-gray-800">{promoterName}</p>
               <div className="flex gap-3 mt-2">
-                {event.promoter_accounts.instagram && (
-                  <a href={`https://instagram.com/${event.promoter_accounts.instagram.replace('@','')}`}
-                    target="_blank" rel="noopener noreferrer"
-                    className="text-xs text-purple-600 hover:underline flex items-center gap-1">
-                    <ExternalLink className="w-3 h-3" /> Instagram
-                  </a>
-                )}
-                {event.promoter_accounts.website && (
-                  <a href={event.promoter_accounts.website} target="_blank" rel="noopener noreferrer"
-                    className="text-xs text-purple-600 hover:underline flex items-center gap-1">
-                    <ExternalLink className="w-3 h-3" /> Website
-                  </a>
+                {event.promoter_accounts.location && (
+                  <span className="flex items-center gap-1 text-xs text-gray-500">
+                    <MapPin className="w-3 h-3" /> {event.promoter_accounts.location}
+                  </span>
                 )}
               </div>
             </div>

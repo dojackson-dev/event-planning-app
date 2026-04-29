@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react'
 import api from '@/lib/api'
 
-type UploadType = 'vendor-logo' | 'vendor-cover' | 'service-item' | 'owner-logo' | 'owner-cover' | 'artist-logo' | 'artist-cover' | 'promoter-logo' | 'promoter-cover'
+type UploadType = 'vendor-logo' | 'vendor-cover' | 'service-item' | 'owner-logo' | 'owner-cover' | 'artist-logo' | 'artist-cover' | 'promoter-logo' | 'promoter-cover' | 'event-image'
 
 interface ImageUploadProps {
   currentUrl?: string | null
@@ -78,6 +78,13 @@ const SPECS: Record<UploadType, { label: string; size: string; dims: string; max
     size: 'Max 5 MB',
     dims: '1200 × 400 px recommended (3:1 landscape)',
     maxMB: 5,
+    accept: 'image/jpeg,image/png,image/webp',
+  },
+  'event-image': {
+    label: 'Event Flyer / Banner',
+    size: 'Max 8 MB',
+    dims: '1200 × 630 px recommended (16:9)',
+    maxMB: 8,
     accept: 'image/jpeg,image/png,image/webp',
   },
 }

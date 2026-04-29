@@ -722,7 +722,7 @@ export class AuthFlowService {
       session: authData.session,
     };
   }
-   */
+
   async vendorLogin(email: string, password: string) {
     const supabase = this.supabaseService.getClient();
 

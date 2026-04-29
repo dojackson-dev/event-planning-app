@@ -292,7 +292,7 @@ export class PromoterEventsService {
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('public_events')
-      .select('*, ticket_tiers(id, name, price, quantity, quantity_sold, description), promoter_accounts(company_name, contact_name, profile_image_url, city, state)')
+      .select('*, ticket_tiers(id, name, price, quantity, quantity_sold, description), promoter_accounts(company_name, contact_name, profile_image_url, location)')
       .eq('id', eventId)
       .eq('status', 'published')
       .maybeSingle();
@@ -327,15 +327,46 @@ export class PromoterEventsService {
     const available = tier.quantity - tier.quantity_sold;
     if (quantity > available) throw new BadRequestException(`Only ${available} tickets remaining`);
 
+    const unitPrice = Number(tier.price);
+
+    // ── FREE TICKETS: skip Stripe entirely ──────────────────────
+    if (unitPrice === 0) {
+      const ticketRows = Array.from({ length: quantity }, () => ({
+        public_event_id: eventId,
+        ticket_tier_id: tierId,
+        buyer_email: buyerEmail,
+        stripe_checkout_session_id: null,
+        amount_paid: 0,
+        status: 'valid',
+      }));
+      await admin.from('tickets').insert(ticketRows);
+      const { data: tierRow } = await admin
+        .from('ticket_tiers')
+        .select('quantity_sold')
+        .eq('id', tierId)
+        .single();
+      if (tierRow) {
+        await admin
+          .from('ticket_tiers')
+          .update({ quantity_sold: (tierRow.quantity_sold ?? 0) + quantity })
+          .eq('id', tierId);
+      }
+      return { url: `${this.frontendUrl}/events/${eventId}?paid=true`, sessionId: null };
+    }
+
+    // ── PAID TICKETS: require active Stripe Connect (prod only) ──
     const promoter = event.promoter_accounts;
-    if (!promoter?.stripe_account_id || promoter.stripe_connect_status !== 'active') {
+    const isTestMode = (this.configService.get<string>('STRIPE_SECRET_KEY') || '').startsWith('sk_test_');
+    const hasActiveConnect = promoter?.stripe_account_id && promoter.stripe_connect_status === 'active';
+
+    if (!hasActiveConnect && !isTestMode) {
       throw new BadRequestException('Payments not enabled for this event');
     }
 
-    const unitAmount = Math.round(Number(tier.price) * 100);
-    const feeAmount = Math.round(unitAmount * quantity * APP_FEE_RATE);
+    const unitAmount = Math.round(unitPrice * 100);
+    const feeAmount = hasActiveConnect ? Math.round(unitAmount * quantity * APP_FEE_RATE) : 0;
 
-    const session = await this.stripe.checkout.sessions.create({
+    const sessionParams: Stripe.Checkout.SessionCreateParams = {
       payment_method_types: ['card'],
       mode: 'payment',
       customer_email: buyerEmail,
@@ -350,10 +381,6 @@ export class PromoterEventsService {
         },
         quantity,
       }],
-      payment_intent_data: {
-        application_fee_amount: feeAmount,
-        transfer_data: { destination: promoter.stripe_account_id },
-      },
       success_url: `${this.frontendUrl}/events/${eventId}?paid=true&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${this.frontendUrl}/events/${eventId}?canceled=true`,
       metadata: {
@@ -362,7 +389,17 @@ export class PromoterEventsService {
         quantity: String(quantity),
         buyer_email: buyerEmail,
       },
-    });
+    };
+
+    // Only attach Connect transfer when promoter has an active account
+    if (hasActiveConnect) {
+      sessionParams.payment_intent_data = {
+        application_fee_amount: feeAmount,
+        transfer_data: { destination: promoter.stripe_account_id },
+      };
+    }
+
+    const session = await this.stripe.checkout.sessions.create(sessionParams);
 
     return { url: session.url, sessionId: session.id };
   }

@@ -15,8 +15,10 @@ import {
   Mail,
   MapPin,
   CheckCircle,
+  CreditCard,
 } from 'lucide-react'
 import Link from 'next/link'
+import ConnectBankButton from '@/components/ConnectBankButton'
 
 interface PromoterProfile {
   id: string
@@ -286,6 +288,21 @@ export default function PromoterProfilePage() {
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
           />
         </div>
+      </div>
+
+      {/* Payments */}
+      <div id="payments" className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
+        <div className="flex items-center gap-2 mb-1">
+          <CreditCard className="h-5 w-5 text-purple-600" />
+          <h2 className="text-base font-semibold text-gray-900">Payments</h2>
+        </div>
+        <p className="text-sm text-gray-500">
+          Connect your bank account via Stripe to receive payouts from ticket sales.
+          The platform collects a 3% fee on each transaction.
+        </p>
+        {profile?.email && (
+          <ConnectBankButton role="promoter" email={profile.email} />
+        )}
       </div>
 
       {/* Save Button */}

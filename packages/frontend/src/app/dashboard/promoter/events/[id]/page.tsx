@@ -8,6 +8,7 @@ import {
   Loader2, Trash2, Plus, Save, ExternalLink, Copy,
   Users, DollarSign, Tag, MapPin, Clock, ChevronDown, CheckCircle,
 } from 'lucide-react'
+import ImageUpload from '@/components/ImageUpload'
 
 interface TicketTier {
   id: string
@@ -86,8 +87,8 @@ const VENUE_TYPES = [
   'Other',
 ]
 
-export default function PromoterEventDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params)
+export default function PromoterEventDetailPage({ params }: { params: { id: string } }) {
+  const { id } = params
   const router = useRouter()
 
   const [event, setEvent] = useState<PromoterEvent | null>(null)
@@ -98,6 +99,7 @@ export default function PromoterEventDetailPage({ params }: { params: Promise<{ 
   const [success, setSuccess] = useState('')
   const [activeTab, setActiveTab] = useState<'details' | 'tiers' | 'attendees'>('details')
   const [copied, setCopied] = useState(false)
+  const [stripeReady, setStripeReady] = useState<boolean | null>(null)
 
   // Edit fields
   const [title, setTitle] = useState('')
@@ -128,7 +130,8 @@ export default function PromoterEventDetailPage({ params }: { params: Promise<{ 
     Promise.all([
       api.get(`/promoter-events/${id}`),
       api.get(`/promoter-events/${id}/attendees`),
-    ]).then(([evRes, attRes]) => {
+      api.get('/stripe/connect/promoter/status'),
+    ]).then(([evRes, attRes, stripeRes]) => {
       const ev = evRes.data
       setEvent(ev)
       setTitle(ev.title)
@@ -146,6 +149,7 @@ export default function PromoterEventDetailPage({ params }: { params: Promise<{ 
       setImageUrl(ev.image_url || '')
       setStatus(ev.status)
       setAttendees(attRes.data || [])
+      setStripeReady(stripeRes.data?.status === 'active')
     }).catch(e => setError(e.response?.data?.message || 'Failed to load event'))
       .finally(() => setLoading(false))
   }, [id])
@@ -163,7 +167,7 @@ export default function PromoterEventDetailPage({ params }: { params: Promise<{ 
         age_restriction: ageRestriction || undefined, image_url: imageUrl || undefined,
         status,
       })
-      setEvent(res.data)
+      setEvent(prev => ({ ...res.data, ticket_tiers: prev?.ticket_tiers ?? [] }))
       setSuccess('Event saved!')
       setTimeout(() => setSuccess(''), 3000)
     } catch (err: any) {
@@ -267,6 +271,21 @@ export default function PromoterEventDetailPage({ params }: { params: Promise<{ 
           </div>
         )}
 
+        {/* Stripe Connect warning */}
+        {stripeReady === false && event.status === 'published' && event.ticket_tiers.some(t => Number(t.price) > 0) && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+            <svg className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-amber-900">Stripe account not connected</p>
+              <p className="text-sm text-amber-700 mt-0.5">Buyers can't check out until you connect your Stripe account to receive payouts.</p>
+            </div>
+            <Link href="/dashboard/promoter/profile#payments"
+              className="shrink-0 px-3 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-lg hover:bg-amber-700">
+              Connect Stripe →
+            </Link>
+          </div>
+        )}
+
         {/* Stats row */}
         <div className="grid grid-cols-3 gap-4">
           <div className="bg-white border border-gray-200 rounded-xl p-4">
@@ -358,9 +377,13 @@ export default function PromoterEventDetailPage({ params }: { params: Promise<{ 
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Image URL</label>
-                <input value={imageUrl} onChange={e => setImageUrl(e.target.value)} placeholder="https://..."
-                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                <label className="block text-sm font-medium text-gray-700 mb-2">Event Flyer / Banner</label>
+                <ImageUpload
+                  currentUrl={imageUrl || null}
+                  uploadType="event-image"
+                  shape="landscape"
+                  onUpload={(url) => setImageUrl(url)}
+                />
               </div>
             </div>
 

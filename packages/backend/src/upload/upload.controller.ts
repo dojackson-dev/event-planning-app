@@ -455,6 +455,60 @@ export class UploadController {
   }
 
   // ─────────────────────────────────────────────
+  // POST /upload/event-image
+  // Event flyer / banner image
+  // Produces two sizes stored side-by-side:
+  //   banner   — 1200 × 630 px (16:9 OG share)
+  //   thumb    — 600  × 400 px (4:3 card thumbnail)
+  // Max 8 MB, JPEG/PNG/WebP → converted to WebP
+  // Returns: { url, thumbUrl }
+  // ─────────────────────────────────────────────
+  @Post('event-image')
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
+  async uploadEventImage(
+    @UploadedFile() file: MulterFile,
+    @Headers('authorization') authorization: string,
+  ) {
+    const userId = await this.getUserId(authorization);
+    if (!file) throw new BadRequestException('No file provided');
+    if (!ALLOWED_TYPES.includes(file.mimetype)) throw new BadRequestException('File must be JPEG, PNG, or WebP');
+    if (file.size > 8 * 1024 * 1024) throw new BadRequestException('Image must be under 8 MB');
+
+    const admin = this.supabaseService.getAdminClient();
+    await this.ensureBucket(admin, 'event-images');
+
+    const stamp = Date.now();
+
+    // Banner: 1200×630, cover crop centred (fills the full area)
+    const banner = await sharp(file.buffer)
+      .resize(1200, 630, { fit: 'cover', position: 'centre' })
+      .webp({ quality: 85 })
+      .toBuffer();
+
+    // Thumbnail: 600×400, cover crop centred
+    const thumb = await sharp(file.buffer)
+      .resize(600, 400, { fit: 'cover', position: 'centre' })
+      .webp({ quality: 80 })
+      .toBuffer();
+
+    const bannerPath = `banners/${userId}-${stamp}.webp`;
+    const thumbPath  = `thumbs/${userId}-${stamp}.webp`;
+
+    const [bannerUpload, thumbUpload] = await Promise.all([
+      admin.storage.from('event-images').upload(bannerPath, banner, { contentType: 'image/webp', upsert: true }),
+      admin.storage.from('event-images').upload(thumbPath,  thumb,  { contentType: 'image/webp', upsert: true }),
+    ]);
+
+    if (bannerUpload.error) throw new BadRequestException('Banner upload failed: ' + bannerUpload.error.message);
+    if (thumbUpload.error)  throw new BadRequestException('Thumb upload failed: '  + thumbUpload.error.message);
+
+    const { data: { publicUrl } }      = admin.storage.from('event-images').getPublicUrl(bannerPath);
+    const { data: { publicUrl: thumbUrl } } = admin.storage.from('event-images').getPublicUrl(thumbPath);
+
+    return { url: publicUrl, thumbUrl };
+  }
+
+  // ─────────────────────────────────────────────
   // POST /upload/rsvp-invitation
   // RSVP invitation image (displayed on public RSVP page)
   // Max 2 images per event, max 5 MB each, JPEG/PNG/WebP

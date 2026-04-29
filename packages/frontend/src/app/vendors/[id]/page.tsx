@@ -64,6 +64,7 @@ interface BookingForm {
 }
 
 export default function VendorPublicProfile({ params }: { params: { id: string } }) {
+  const { id } = params
   const router = useRouter()
   const [vendor, setVendor] = useState<VendorProfile | null>(null)
   const [reviews, setReviews] = useState<Review[]>([])
@@ -102,8 +103,8 @@ export default function VendorPublicProfile({ params }: { params: { id: string }
     const loadVendor = async () => {
       try {
         const [vendorRes, reviewsRes] = await Promise.all([
-          api.get(`/vendors/${params.id}`),
-          api.get(`/vendors/${params.id}/reviews`),
+          api.get(`/vendors/${id}`),
+          api.get(`/vendors/${id}/reviews`),
         ])
         setVendor(vendorRes.data)
         setReviews(reviewsRes.data)
@@ -114,7 +115,7 @@ export default function VendorPublicProfile({ params }: { params: { id: string }
       }
     }
     loadVendor()
-  }, [params.id, router])
+  }, [id, router])
 
   const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -124,7 +125,7 @@ export default function VendorPublicProfile({ params }: { params: { id: string }
       if (isClientLoggedIn) {
         // Client portal path — booking is tied to the client's account
         await clientApi.post('/vendors/book', {
-          vendorAccountId: params.id,
+          vendorAccountId: id,
           eventName: bookingForm.eventName,
           eventDate: bookingForm.eventDate,
           startTime: bookingForm.startTime || undefined,
@@ -134,7 +135,7 @@ export default function VendorPublicProfile({ params }: { params: { id: string }
       } else {
         // Owner / anonymous path — captures contact info manually
         await api.post('/vendors/bookings', {
-          vendorAccountId: params.id,
+          vendorAccountId: id,
           clientName: bookingForm.clientName || undefined,
           clientEmail: bookingForm.clientEmail || undefined,
           clientPhone: bookingForm.clientPhone || undefined,
@@ -163,7 +164,7 @@ export default function VendorPublicProfile({ params }: { params: { id: string }
     setReviewError('')
     try {
       const res = await clientApi.post('/vendors/review', {
-        vendorAccountId: params.id,
+        vendorAccountId: id,
         rating: reviewForm.rating,
         reviewText: reviewForm.text,
       })

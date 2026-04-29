@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
@@ -18,7 +18,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
   cancelled: { label: 'Cancelled', color: 'bg-gray-100 text-gray-500',       icon: <XCircle className="w-4 h-4" /> },
 }
 
-export default function VendorInvoiceDetailPage() {
+function VendorInvoiceDetailPageContent() {
   const params = useParams()
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -298,5 +298,13 @@ export default function VendorInvoiceDetailPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function VendorInvoiceDetailPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="animate-spin h-8 w-8 border-4 border-indigo-500 border-t-transparent rounded-full" /></div>}>
+      <VendorInvoiceDetailPageContent />
+    </Suspense>
   )
 }

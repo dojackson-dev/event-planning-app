@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { CheckCircle2, Loader2, AlertCircle, CreditCard, Lock, Music } from 'lucide-react'
 
@@ -26,7 +26,7 @@ interface PublicArtistInvoice {
   artist_accounts: { artist_name: string; stage_name?: string; email: string; city?: string; state?: string; profile_image_url?: string | null }
 }
 
-export default function ArtistPayPage() {
+function ArtistPayContent() {
   const params = useParams()
   const searchParams = useSearchParams()
   const token = params.token as string
@@ -213,5 +213,13 @@ export default function ArtistPayPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function ArtistPayPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>}>
+      <ArtistPayContent />
+    </Suspense>
   )
 }

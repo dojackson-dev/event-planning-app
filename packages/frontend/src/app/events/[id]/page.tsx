@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
@@ -43,7 +43,7 @@ interface PublicEvent {
   promoter_accounts: PromoterAccount | null
 }
 
-export default function PublicEventDetailPage({ params }: { params: { id: string } }) {
+function PublicEventDetailPageContent({ params }: { params: { id: string } }) {
   const { id } = params
   const searchParams = useSearchParams()
 
@@ -337,5 +337,13 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
         </div>
       </div>
     </div>
+  )
+}
+
+export default function PublicEventDetailPage({ params }: { params: { id: string } }) {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="animate-spin h-8 w-8 border-4 border-purple-500 border-t-transparent rounded-full" /></div>}>
+      <PublicEventDetailPageContent params={params} />
+    </Suspense>
   )
 }

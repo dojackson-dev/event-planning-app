@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { CheckCircle2, Loader2, AlertCircle, CreditCard, Lock, Megaphone } from 'lucide-react'
 
@@ -26,7 +26,7 @@ interface PublicPromoterInvoice {
   promoter_accounts: { company_name?: string; contact_name?: string; email: string; city?: string; state?: string }
 }
 
-export default function PromoterPayPage() {
+function PromoterPayContent() {
   const params = useParams()
   const searchParams = useSearchParams()
   const token = params.token as string
@@ -204,5 +204,13 @@ export default function PromoterPayPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function PromoterPayPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div></div>}>
+      <PromoterPayContent />
+    </Suspense>
   )
 }

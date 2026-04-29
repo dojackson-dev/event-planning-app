@@ -25,6 +25,7 @@ interface VenueProfile {
 }
 
 export default function VenueProfilePage({ params }: { params: { id: string } }) {
+  const { id } = params
   const router = useRouter()
   const [venue, setVenue] = useState<VenueProfile | null>(null)
   const [loading, setLoading] = useState(true)
@@ -32,7 +33,7 @@ export default function VenueProfilePage({ params }: { params: { id: string } })
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await api.get(`/vendors/venue/${params.id}`)
+        const res = await api.get(`/vendors/venue/${id}`)
         setVenue(res.data)
       } catch {
         router.push('/venues')
@@ -41,7 +42,7 @@ export default function VenueProfilePage({ params }: { params: { id: string } })
       }
     }
     load()
-  }, [params.id, router])
+  }, [id, router])
 
   if (loading) {
     return (

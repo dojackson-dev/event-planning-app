@@ -83,8 +83,19 @@ function PromoterDashboardContent() {
     fetchData()
   }, [fetchData])
 
+  // Re-fetch status after returning from Stripe onboarding (URL has ?connect=success)
+  useEffect(() => {
+    if (connectSuccess) {
+      const timer = setTimeout(() => fetchData(), 1500)
+      return () => clearTimeout(timer)
+    }
+  }, [connectSuccess, fetchData])
+
   const handleConnectStripe = async () => {
-    if (!profile?.email) return
+    if (!profile?.email) {
+      setError('Your promoter profile could not be loaded. Please refresh the page and try again.')
+      return
+    }
     setConnectLoading(true)
     try {
       const res = await api.post('/stripe/connect/promoter', { email: profile.email })

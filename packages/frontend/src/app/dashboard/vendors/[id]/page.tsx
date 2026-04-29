@@ -104,6 +104,7 @@ function StarDisplay({ rating }: { rating: number }) {
 }
 
 export default function OwnerVendorProfile({ params }: { params: { id: string } }) {
+  const { id } = params
   const router = useRouter()
   const [vendor, setVendor] = useState<VendorProfile | null>(null)
   const [reviews, setReviews] = useState<Review[]>([])
@@ -137,8 +138,8 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
     const load = async () => {
       try {
         const [vendorRes, reviewsRes, eventsRes, bookingsRes, intakeRes] = await Promise.all([
-          api.get(`/vendors/${params.id}`),
-          api.get(`/vendors/${params.id}/reviews`),
+          api.get(`/vendors/${id}`),
+          api.get(`/vendors/${id}/reviews`),
           api.get('/events').catch(() => ({ data: [] })),
           api.get('/bookings').catch(() => ({ data: [] })),
           api.get('/intake-forms').catch(() => ({ data: [] })),
@@ -187,7 +188,7 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
       }
     }
     load()
-  }, [params.id, router])
+  }, [id, router])
 
   // When an owner event is selected, pre-fill all event details
   const handleEventSelect = (eventId: string) => {
@@ -226,7 +227,7 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
     setBookingError('')
     try {
       await api.post('/vendors/bookings', {
-        vendorAccountId: params.id,
+        vendorAccountId: id,
         eventName: form.eventName,
         eventDate: form.eventDate,
         startTime: form.startTime || undefined,

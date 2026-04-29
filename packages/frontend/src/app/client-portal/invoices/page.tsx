@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import clientApi from '@/lib/clientApi'
 import {
@@ -36,7 +36,7 @@ function isDueSoon(invoice: any): boolean {
   return days >= 0 && days <= 7
 }
 
-export default function ClientInvoicesPage() {
+function ClientInvoicesContent() {
   const searchParams = useSearchParams()
   const [invoices, setInvoices] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -408,5 +408,13 @@ export default function ClientInvoicesPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function ClientInvoicesPage() {
+  return (
+    <Suspense fallback={<div className="p-8"><div className="animate-pulse h-8 bg-gray-200 rounded w-1/3"></div></div>}>
+      <ClientInvoicesContent />
+    </Suspense>
   )
 }

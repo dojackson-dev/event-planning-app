@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
 import { Loader2, Save, Mic2 } from 'lucide-react'
 
-export default function NewPromoterBookingPage() {
+function NewPromoterBookingContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -207,5 +207,13 @@ export default function NewPromoterBookingPage() {
         </form>
       </div>
     </div>
+  )
+}
+
+export default function NewPromoterBookingPage() {
+  return (
+    <Suspense fallback={<div className="p-8"><div className="animate-pulse h-8 bg-gray-200 rounded w-1/3"></div></div>}>
+      <NewPromoterBookingContent />
+    </Suspense>
   )
 }

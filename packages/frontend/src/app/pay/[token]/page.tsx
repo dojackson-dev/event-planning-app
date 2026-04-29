@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { FileText, CheckCircle2, Loader2, AlertCircle, CreditCard, Lock, Building2, ArrowLeft } from 'lucide-react'
@@ -27,7 +27,7 @@ interface PublicInvoice {
   vendor_accounts: { business_name: string; email: string; phone: string; city: string; state: string; profile_image_url: string | null }
 }
 
-export default function PublicInvoicePayPage() {
+function PublicInvoicePayPageContent() {
   const params = useParams()
   const searchParams = useSearchParams()
   const token = params.token as string
@@ -266,5 +266,12 @@ export default function PublicInvoicePayPage() {
         </p>
       </div>
     </div>
+  )
+}
+export default function PublicInvoicePayPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="animate-spin h-8 w-8 border-4 border-indigo-500 border-t-transparent rounded-full" /></div>}>
+      <PublicInvoicePayPageContent />
+    </Suspense>
   )
 }

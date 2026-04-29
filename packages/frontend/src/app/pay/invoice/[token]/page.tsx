@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import {
   FileText, CheckCircle2, Loader2, AlertCircle, CreditCard, Lock, Calendar,
@@ -37,7 +37,7 @@ interface PublicOwnerInvoice {
 
 type PaymentSelection = 'deposit' | 'full' | 'custom'
 
-export default function OwnerInvoicePayPage() {
+function OwnerInvoicePayPageContent() {
   const params = useParams()
   const searchParams = useSearchParams()
   const token = params.token as string
@@ -379,5 +379,13 @@ export default function OwnerInvoicePayPage() {
         </p>
       </div>
     </div>
+  )
+}
+
+export default function OwnerInvoicePayPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="animate-spin h-8 w-8 border-4 border-indigo-500 border-t-transparent rounded-full" /></div>}>
+      <OwnerInvoicePayPageContent />
+    </Suspense>
   )
 }

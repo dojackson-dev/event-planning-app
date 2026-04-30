@@ -60,6 +60,7 @@ function PublicEventDetailPageContent({ params }: { params: { id: string } }) {
   const [purchaseError, setPurchaseError] = useState('')
 
   const successSession = searchParams?.get('paid')
+  const sessionId = searchParams?.get('session_id')
 
   useEffect(() => {
     if (!id) return
@@ -72,16 +73,23 @@ function PublicEventDetailPageContent({ params }: { params: { id: string } }) {
       .finally(() => setLoading(false))
   }, [id])
 
+  // Fallback: call verify-payment on success redirect in case webhook was slow/missed
+  useEffect(() => {
+    if (!successSession || !sessionId || !id) return
+    api.post(`/promoter-events/public/${id}/verify-payment`, { session_id: sessionId })
+      .catch(() => { /* silent — webhook may have already handled it */ })
+  }, [successSession, sessionId, id])
+
   const handlePurchase = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedTier || !buyerEmail) return
+    if (!selectedTier || !buyerPhone.trim()) return
     setPurchaseError(''); setPurchasing(true)
     try {
       const res = await api.post(`/promoter-events/public/${id}/checkout`, {
         tier_id: selectedTier.id,
         quantity,
-        buyer_email: buyerEmail,
-        buyer_phone: buyerPhone.trim() || undefined,
+        buyer_phone: buyerPhone.trim(),
+        buyer_email: buyerEmail.trim() || undefined,
       })
       if (res.data?.url) {
         window.location.href = res.data.url
@@ -130,8 +138,8 @@ function PublicEventDetailPageContent({ params }: { params: { id: string } }) {
           <div className="max-w-4xl mx-auto flex items-center gap-3">
             <CheckCircle className="w-5 h-5 text-green-600 shrink-0" />
             <div>
-              <p className="text-green-800 font-semibold text-sm">Payment successful! Check your email for your ticket.</p>
-              <p className="text-green-700 text-xs">Your ticket has been sent to your email address.</p>
+              <p className="text-green-800 font-semibold text-sm">You&apos;re in! Your ticket confirmation has been sent.</p>
+              <p className="text-green-700 text-xs">Check your text messages for your confirmation. Show it at the door.</p>
             </div>
           </div>
         </div>
@@ -303,22 +311,22 @@ function PublicEventDetailPageContent({ params }: { params: { id: string } }) {
                   </div>
                 )}
 
-                {/* Email */}
+                {/* Phone (required) */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
-                  <input type="email" value={buyerEmail} onChange={e => setBuyerEmail(e.target.value)} required
-                    placeholder="your@email.com"
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Mobile phone *</label>
+                  <input type="tel" value={buyerPhone} onChange={e => setBuyerPhone(e.target.value)} required
+                    placeholder="6015551234 or +16015551234"
                     className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                  <p className="text-xs text-gray-400 mt-1">Your ticket will be sent here</p>
+                  <p className="text-xs text-gray-400 mt-1">US number — digits only is fine. We&apos;ll text your confirmation here.</p>
                 </div>
 
-                {/* Phone (optional) */}
+                {/* Email (optional) */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Mobile phone (optional)</label>
-                  <input type="tel" value={buyerPhone} onChange={e => setBuyerPhone(e.target.value)}
-                    placeholder="+1 555 123 4567"
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email (optional)</label>
+                  <input type="email" value={buyerEmail} onChange={e => setBuyerEmail(e.target.value)}
+                    placeholder="your@email.com"
                     className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                  <p className="text-xs text-gray-400 mt-1">We&apos;ll text you a confirmation. Reply STOP to opt out.</p>
+                  <p className="text-xs text-gray-400 mt-1">Also receive confirmation by email</p>
                 </div>
 
                 {purchaseError && (

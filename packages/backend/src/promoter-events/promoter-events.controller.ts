@@ -46,6 +46,12 @@ export class PromoterEventsController {
     return this.service.listPublicEvents(city, category);
   }
 
+  /** Returns ticket confirmation details for a given checkout session (public — no auth needed) */
+  @Get('public/tickets/:sessionId')
+  getTicketsBySession(@Param('sessionId') sessionId: string) {
+    return this.service.getTicketsBySession(sessionId);
+  }
+
   @Get('public/:id')
   getPublicEvent(@Param('id') id: string) {
     return this.service.getPublicEvent(id);
@@ -54,9 +60,18 @@ export class PromoterEventsController {
   @Post('public/:id/checkout')
   createCheckout(
     @Param('id') id: string,
-    @Body() body: { tier_id: string; quantity: number; buyer_email: string; buyer_phone?: string },
+    @Body() body: { tier_id: string; quantity: number; buyer_phone: string; buyer_email?: string },
   ) {
-    return this.service.createTicketCheckout(id, body.tier_id, body.quantity || 1, body.buyer_email, body.buyer_phone);
+    return this.service.createTicketCheckout(id, body.tier_id, body.quantity || 1, body.buyer_phone, body.buyer_email);
+  }
+
+  /** Called from the success redirect — processes session and sends SMS if webhook hasn't already */
+  @Post('public/:id/verify-payment')
+  verifyPayment(
+    @Param('id') id: string,
+    @Body() body: { session_id: string },
+  ) {
+    return this.service.markTicketsSoldBySession(body.session_id);
   }
 
   // ── PROTECTED routes ──────────────────────────────────────────

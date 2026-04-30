@@ -842,23 +842,23 @@ function SettingsPageContent() {
                 </h3>
                 <p className="text-sm text-gray-500 mt-1">
                   Connect your bank account to receive client payments directly through
-                  DoVenueSuite. All payouts are processed securely by Stripe.
+                  EventEcos. All payouts are processed securely by Stripe.
                 </p>
               </div>
 
               <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
                 <h4 className="text-sm font-semibold text-blue-800 mb-2">💰 How payouts work</h4>
                 <ul className="text-sm text-blue-700 space-y-1">
-                  <li>• Clients pay you directly through DoVenueSuite</li>
-                  <li>• DoVenueSuite collects a <strong>5% platform fee</strong> per transaction</li>
+                  <li>• Clients pay you directly through EventEcos</li>
+                  <li>• EventEcos collects a <strong>5% platform fee</strong> per transaction</li>
                   <li>• Funds are deposited to your bank within 2 business days</li>
-                  <li>• Pay your vendors directly from your DoVenueSuite balance</li>
+                  <li>• Pay your vendors directly from your EventEcos balance</li>
                 </ul>
               </div>
 
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
                 <p className="font-semibold mb-1">📄 Tax & Reporting Notice</p>
-                <p>All payments in this system are processed through <strong>Stripe</strong>. Stripe may collect your EIN or SSN as required for payment processing and tax compliance. If you earn $600 or more in a calendar year, a <strong>1099 form will be issued by Stripe</strong> and made available directly in your Stripe account. DoVenueSuite does not issue 1099s.</p>
+                <p>All payments in this system are processed through <strong>Stripe</strong>. Stripe may collect your EIN or SSN as required for payment processing and tax compliance. If you earn $600 or more in a calendar year, a <strong>1099 form will be issued by Stripe</strong> and made available directly in your Stripe account. EventEcos does not issue 1099s.</p>
               </div>
 
               {user && (
@@ -1214,7 +1214,7 @@ function BrandingTab() {
           Venue Logo
         </h3>
         <p className="text-sm text-gray-500 mt-1">
-          Your logo replaces the DoVenueSuite logo in the sidebar. Landscape logos work best.
+          Your logo replaces the EventEcos logo in the sidebar. Landscape logos work best.
         </p>
       </div>
 

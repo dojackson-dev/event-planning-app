@@ -132,7 +132,7 @@ export default function AdminDashboardPage() {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-        <p className="text-gray-600 mt-1">Overview of DoVenue Suite platform metrics</p>
+        <p className="text-gray-600 mt-1">Overview of EventEcos platform metrics</p>
       </div>
 
       {/* Stats Grid */}

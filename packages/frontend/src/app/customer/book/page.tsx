@@ -73,7 +73,7 @@ export default function CustomerBookPage() {
     startTime: '',
     endTime: '',
     guestCount: 50,
-    venueName: 'DoVenue Event Center',
+    venueName: 'EventEcos Event Center',
     notes: '',
     contactName: user?.firstName ? `${user.firstName} ${user.lastName}` : '',
     contactEmail: user?.email || '',

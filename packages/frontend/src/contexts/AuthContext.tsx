@@ -34,7 +34,7 @@ function getRoleDashboard(role: UserRole): string {
 
 function resolveRoles(backendRoles: string[], dbUser: any, email?: string): UserRole[] {
   // Always override for known admin e-mail
-  if (email?.toLowerCase() === 'admin@dovenuesuite.com') return [UserRole.ADMIN]
+  if (email?.toLowerCase() === 'admin@eventecos.com') return [UserRole.ADMIN]
 
   if (backendRoles && backendRoles.length > 0) {
     return backendRoles as UserRole[]
@@ -119,7 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const parsed: User = JSON.parse(stored)
 
         // Legacy e-mail override
-        if (parsed.email?.toLowerCase() === 'admin@dovenuesuite.com') {
+        if (parsed.email?.toLowerCase() === 'admin@eventecos.com') {
           parsed.role = UserRole.ADMIN
         }
 
@@ -178,7 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Determine primary active role
       let activeR: UserRole = resolvedRoles[0]
-      if (credentials.email?.toLowerCase() === 'admin@dovenuesuite.com') {
+      if (credentials.email?.toLowerCase() === 'admin@eventecos.com') {
         activeR = UserRole.ADMIN
       }
 

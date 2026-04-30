@@ -62,9 +62,9 @@ function BrandLogo({ variant }: { variant: 'sidebar' | 'mobile' }) {
               <p className="text-white/80 text-xs font-medium text-center truncate max-w-[160px]">{businessName}</p>
             </div>
           ) : (
-            <img src="/lib/LogoDVS.png" alt="DoVenueSuite" style={{ height: '80px', width: 'auto' }} />
+            <img src="/lib/LogoEventEcos.png" alt="EventEcos" style={{ height: '80px', width: 'auto' }} />
           )}
-          <span className="text-white/60 text-[10px] font-semibold tracking-widest uppercase mt-0.5">OwnerSuite</span>
+          <span className="text-white/60 text-[10px] font-semibold tracking-widest uppercase mt-0.5">Platform</span>
         </div>
       </div>
     )
@@ -80,11 +80,11 @@ function BrandLogo({ variant }: { variant: 'sidebar' | 'mobile' }) {
           {initials}
         </div>
       ) : (
-        <img src="/lib/LogoDVS.png" alt="DoVenueSuite" style={{ height: '36px', width: 'auto' }} />
+        <img src="/lib/LogoEventEcos.png" alt="EventEcos" style={{ height: '36px', width: 'auto' }} />
       )}
       <div className="flex flex-col leading-tight">
         {businessName && !logoUrl && <span className="font-bold text-white text-sm truncate max-w-[140px]">{businessName}</span>}
-        <span className="text-white/70 text-[10px] font-semibold tracking-widest uppercase">OwnerSuite</span>
+        <span className="text-white/70 text-[10px] font-semibold tracking-widest uppercase">Platform</span>
       </div>
     </div>
   )

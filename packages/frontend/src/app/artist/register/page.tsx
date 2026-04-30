@@ -102,7 +102,7 @@ export default function ArtistRegisterPage() {
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-2">
             <Mic2 className="h-7 w-7 text-blue-600" />
-            <span className="text-2xl font-bold text-gray-900">DoVenueSuite</span>
+            <span className="text-2xl font-bold text-gray-900">EventEcos</span>
           </div>
           <p className="text-gray-500 text-sm">Artist Portal — Get discovered by promoters</p>
         </div>

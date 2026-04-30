@@ -31,7 +31,7 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
       {/* Beta Banner */}
       <div className="bg-amber-400 text-amber-900 text-center text-sm font-medium py-2 px-4">
-        🚧 DoVenue Suite is currently in <strong>beta</strong> — features may change and bugs may occur. Thanks for being an early tester!
+        🚧 EventEcos is currently in <strong>beta</strong> — features may change and bugs may occur. Thanks for being an early tester!
       </div>
 
       {/* Navigation Header */}
@@ -332,7 +332,7 @@ export default function Home() {
             </Link>
           </div>
           <p className="text-center text-base text-gray-400">
-            &copy; 2026 DoVenue Suite. All rights reserved.
+            &copy; 2026 EventEcos. All rights reserved.
           </p>
         </div>
       </footer>

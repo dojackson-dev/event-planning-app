@@ -185,7 +185,7 @@ export default function VendorSettingsPage() {
       <nav className="bg-white border-b sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link href="/" className="text-primary-600 font-bold text-lg">DoVenueSuite</Link>
+            <Link href="/" className="text-primary-600 font-bold text-lg">EventEcos</Link>
           </div>
           <Link
             href="/vendors/dashboard"
@@ -378,7 +378,7 @@ export default function VendorSettingsPage() {
             {activeTab === 'notifications' && (
               <div className="space-y-6 max-w-lg">
                 <p className="text-sm text-gray-500">
-                  Control which email notifications you receive from DoVenueSuite.
+                  Control which email notifications you receive from EventEcos.
                 </p>
 
                 <div className="space-y-4">
@@ -431,15 +431,15 @@ export default function VendorSettingsPage() {
                 <div>
                   <h3 className="text-base font-semibold text-gray-900 mb-1">Bank Account &amp; Payouts</h3>
                   <p className="text-sm text-gray-500">
-                    Connect your bank account to receive payments from clients directly through DoVenueSuite. Powered by Stripe Connect.
+                    Connect your bank account to receive payments from clients directly through EventEcos. Powered by Stripe Connect.
                   </p>
                 </div>
 
                 <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
                   <h4 className="text-sm font-semibold text-blue-800 mb-2">💰 How vendor payouts work</h4>
                   <ul className="text-sm text-blue-700 space-y-1.5">
-                    <li>• Event owners pay you directly through DoVenueSuite</li>
-                    <li>• DoVenueSuite collects a <strong>5% platform fee</strong> per transaction</li>
+                    <li>• Event owners pay you directly through EventEcos</li>
+                    <li>• EventEcos collects a <strong>5% platform fee</strong> per transaction</li>
                     <li>• Stripe's standard card processing fees also apply (~2.9% + 30¢)</li>
                     <li>• Funds arrive in your bank within 2 business days after payout</li>
                     <li>• All payment handling is secure and managed by Stripe</li>
@@ -452,7 +452,7 @@ export default function VendorSettingsPage() {
                   <p className="text-xs text-gray-400">
                     By connecting your bank account you agree to{' '}
                     <a href="https://stripe.com/connect-account/legal" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600">Stripe's Connected Account Agreement</a>.
-                    Your banking information is stored securely by Stripe and never shared with DoVenueSuite.
+                    Your banking information is stored securely by Stripe and never shared with EventEcos.
                   </p>
                 </div>
               </div>

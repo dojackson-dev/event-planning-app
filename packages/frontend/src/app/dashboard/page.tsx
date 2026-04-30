@@ -335,11 +335,11 @@ export default function DashboardPage() {
         <p className="text-blue-100 text-sm mb-3">Send this link to clients to collect event details automatically.</p>
         <div className="flex items-center gap-2 bg-white/10 border border-white/30 rounded-lg px-3 py-2">
           <span className="flex-1 text-sm font-mono truncate select-all">
-            dovenuesuite.com/intake/{intakeSlug ?? user?.id}
+            eventecos.com/intake/{intakeSlug ?? user?.id}
           </span>
           <button
             onClick={() => {
-              navigator.clipboard.writeText(`https://dovenuesuite.com/intake/${intakeSlug ?? user?.id}`)
+              navigator.clipboard.writeText(`https://eventecos.com/intake/${intakeSlug ?? user?.id}`)
               setCopied(true)
               setTimeout(() => setCopied(false), 2000)
             }}

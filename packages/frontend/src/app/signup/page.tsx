@@ -10,7 +10,7 @@ export default function SignupPage() {
       <nav className="bg-white border-b">
         <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/">
-            <img src="/lib/LogoDVS.png" alt="DoVenueSuite" style={{ height: '36px', width: 'auto' }} />
+            <img src="/lib/LogoEventEcos.png" alt="EventEcos" style={{ height: '36px', width: 'auto' }} />
           </Link>
           <div className="flex items-center gap-4 text-sm">
             <Link href="/login" className="text-gray-500 hover:text-gray-800">Venue owner login</Link>
@@ -26,7 +26,7 @@ export default function SignupPage() {
             Create your free account
           </h1>
           <p className="text-gray-500 text-lg max-w-md mx-auto">
-            Choose how you&apos;d like to use DoVenueSuite.
+            Choose how you&apos;d like to use EventEcos.
           </p>
         </div>
 
@@ -138,7 +138,7 @@ export default function SignupPage() {
 
       {/* Footer */}
       <footer className="text-center text-xs text-gray-400 py-6">
-        © 2026 DoVenueSuite ·{' '}
+        © 2026 EventEcos ·{' '}
         <Link href="/terms-of-service" className="hover:underline">Terms</Link>
         {' · '}
         <Link href="/privacy-policy" className="hover:underline">Privacy</Link>

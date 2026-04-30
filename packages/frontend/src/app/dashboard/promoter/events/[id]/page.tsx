@@ -6,7 +6,7 @@ import Link from 'next/link'
 import api from '@/lib/api'
 import {
   Loader2, Trash2, Plus, Save, ExternalLink, Copy,
-  Users, DollarSign, Tag, MapPin, Clock, ChevronDown, CheckCircle,
+  Users, DollarSign, Tag, MapPin, Clock, ChevronDown, CheckCircle, QrCode,
 } from 'lucide-react'
 import ImageUpload from '@/components/ImageUpload'
 
@@ -552,6 +552,14 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
 
         {/* ATTENDEES TAB */}
         {activeTab === 'attendees' && (
+          <>
+          <Link
+            href={`/dashboard/promoter/events/${id}/scan`}
+            className="flex items-center justify-center gap-2 w-full py-3.5 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl text-sm"
+          >
+            <QrCode className="w-5 h-5" />
+            Scan Tickets at Door
+          </Link>
           <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
             {attendees.length === 0 ? (
               <div className="p-10 text-center">
@@ -592,6 +600,7 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
               </table>
             )}
           </div>
+          </>
         )}
       </div>
     </div>

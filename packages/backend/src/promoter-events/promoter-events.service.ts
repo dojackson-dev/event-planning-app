@@ -591,6 +591,37 @@ export class PromoterEventsService {
     return tickets;
   }
 
+  async scanTicket(userId: string, eventId: string, ticketId: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const promoter = await this.getPromoterAccount(userId);
+
+    // Verify promoter owns this event
+    const { data: event } = await admin
+      .from('public_events')
+      .select('id, title')
+      .eq('id', eventId)
+      .eq('promoter_account_id', promoter.id)
+      .maybeSingle();
+    if (!event) throw new ForbiddenException('Event not found or not yours');
+
+    // Find the ticket
+    const { data: ticket } = await admin
+      .from('tickets')
+      .select('*, ticket_tiers(name)')
+      .eq('id', ticketId)
+      .eq('public_event_id', eventId)
+      .maybeSingle();
+
+    if (!ticket) return { valid: false, reason: 'Ticket not found', ticket: null };
+    if (ticket.status === 'used')  return { valid: false, reason: 'Already scanned', ticket };
+    if (ticket.status === 'invalid') return { valid: false, reason: 'Invalid ticket', ticket };
+
+    // Mark as used
+    await admin.from('tickets').update({ status: 'used' }).eq('id', ticketId);
+
+    return { valid: true, reason: 'Check-in successful', ticket: { ...ticket, status: 'used' } };
+  }
+
   async getEventAttendees(userId: string, eventId: string) {
     const admin = this.supabaseService.getAdminClient();
     const promoter = await this.getPromoterAccount(userId);

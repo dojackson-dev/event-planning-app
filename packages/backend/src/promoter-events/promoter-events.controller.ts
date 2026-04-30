@@ -149,6 +149,17 @@ export class PromoterEventsController {
     return this.service.deleteTicketTier(userId, tierId);
   }
 
+  // door scanner
+  @Post(':id/scan-ticket')
+  async scanTicket(
+    @Headers('authorization') auth: string,
+    @Param('id') eventId: string,
+    @Body() body: { ticket_id: string },
+  ) {
+    const userId = await this.getUserId(auth);
+    return this.service.scanTicket(userId, eventId, body.ticket_id);
+  }
+
   // attendees
   @Get(':id/attendees')
   async getAttendees(

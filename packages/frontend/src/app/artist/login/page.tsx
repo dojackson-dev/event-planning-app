@@ -20,10 +20,27 @@ export default function ArtistLogin() {
     try {
       const res = await api.post('/auth/flow/unified/login', { email, password })
       const token = res.data?.session?.access_token || res.data?.access_token
+      const dbUser = res.data?.user
       if (token) {
         localStorage.setItem('access_token', token)
         localStorage.setItem('refresh_token', res.data?.session?.refresh_token || res.data?.refresh_token || '')
         localStorage.setItem('user_role', 'artist')
+        localStorage.setItem('active_role', 'artist')
+        localStorage.setItem('user_roles', JSON.stringify(['artist']))
+      }
+      if (dbUser) {
+        const userObj = {
+          id: dbUser.id,
+          email: dbUser.email || email,
+          firstName: dbUser.first_name || dbUser.user_metadata?.first_name || '',
+          lastName: dbUser.last_name || dbUser.user_metadata?.last_name || '',
+          phone: dbUser.phone_number || dbUser.user_metadata?.phone || '',
+          role: 'artist',
+          roles: ['artist'],
+          createdAt: dbUser.created_at || new Date().toISOString(),
+          updatedAt: dbUser.updated_at || new Date().toISOString(),
+        }
+        localStorage.setItem('user', JSON.stringify(userObj))
       }
       router.push('/artist/dashboard')
     } catch (err: any) {

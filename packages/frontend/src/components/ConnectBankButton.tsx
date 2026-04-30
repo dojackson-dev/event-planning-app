@@ -46,7 +46,16 @@ export default function ConnectBankButton({ role, email }: ConnectBankButtonProp
     setConnecting(true)
     setError('')
     try {
-      const res = await api.post(`/stripe/connect/${role}`, { email })
+      const lsUser = (() => { try { return JSON.parse(localStorage.getItem('user') || '{}') } catch { return {} } })()
+      const lsEmail = lsUser.email || ''
+      const resolvedEmail = email || lsEmail
+      console.log('[ConnectBank] email prop:', JSON.stringify(email), 'ls email:', JSON.stringify(lsEmail), 'resolved:', JSON.stringify(resolvedEmail))
+      if (!resolvedEmail) {
+        setError('Could not determine your email. Please log out and log back in.')
+        setConnecting(false)
+        return
+      }
+      const res = await api.post(`/stripe/connect/${role}`, { email: resolvedEmail })
       window.location.href = res.data.url
     } catch (err: any) {
       setError(

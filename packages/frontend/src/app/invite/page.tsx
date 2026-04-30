@@ -211,7 +211,7 @@ function InvitePage() {
       <nav className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <Link href="/">
-            <img src="/lib/LogoEventEcos.png" alt="EventEcos" style={{ height: '56px', width: 'auto' }} />
+            <img src="/lib/LogoEventEcos.svg" alt="EventEcos" style={{ height: '56px', width: 'auto' }} />
           </Link>
           <Link href="/client-login" className="flex items-center gap-1 text-sm text-gray-600 hover:text-primary-600">
             <ArrowLeft className="h-4 w-4" />

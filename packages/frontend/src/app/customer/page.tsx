@@ -226,7 +226,7 @@ export default function CustomerDashboardPage() {
             )}
             <Link
               href="/customer/services"
-              className="inline-flex items-center px-5 py-2.5 bg-primary-500 text-white rounded-lg font-semibold hover:bg-primary-400 transition-colors"
+                className="inline-flex items-center px-5 py-2.5 bg-accent-600 hover:bg-accent-700 text-white rounded-lg font-semibold transition-colors"
             >
               <Package className="w-5 h-5 mr-2" />
               Browse Services

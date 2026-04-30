@@ -612,7 +612,11 @@ function SettingsPageContent() {
                     <div key={v.id}>
                       {editingVenueId === v.id ? (
                         /* ── Inline edit form ── */
-                        <form onSubmit={handleSaveVenueForm} className="border border-primary-300 rounded-xl p-5 space-y-4 bg-primary-50/30">
+                        <form onSubmit={handleSaveVenueForm} className="border border-accent-200 rounded-xl p-5 space-y-4 bg-accent-50/30">
+                            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                              <span className="w-8 h-8 rounded-full bg-accent-100 flex items-center justify-center text-accent-600 font-bold">✓</span>
+                              Edit Venue
+                            </h3>
                           <div className="flex items-center justify-between mb-1">
                             <h3 className="font-semibold text-gray-800">Edit Venue</h3>
                             <button type="button" onClick={cancelVenueEdit} className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>

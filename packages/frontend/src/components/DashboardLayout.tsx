@@ -292,9 +292,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <BrandLogo variant="sidebar" />
 
           {/* User info */}
-          <div className="p-4 border-b mt-16 lg:mt-0">
+          <div className="p-4 border-b border-accent-200 mt-16 lg:mt-0 bg-accent-50/40">
             <div className="flex items-center">
-              <div className="h-12 w-12 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-bold text-lg">
+              <div className="h-12 w-12 rounded-full bg-accent-200 flex items-center justify-center text-accent-700 font-bold text-lg">
                 {displayUser.firstName?.[0] || 'U'}{displayUser.lastName?.[0] || 'U'}
               </div>
               <div className="ml-3 flex-1">
@@ -302,8 +302,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   {displayUser.firstName || 'User'} {displayUser.lastName || ''}
                 </p>
                 <p className="text-xs text-gray-500">{displayUser.email}</p>
-                <span className="inline-block mt-1 px-2 py-0.5 text-xs font-medium bg-primary-100 text-primary-700 rounded">
-                  {displayUser.role}
+                <span className="inline-block mt-1 px-2 py-0.5 text-xs font-medium bg-accent-100 text-accent-700 rounded">
+                  ✓ {displayUser.role}
                 </span>
               </div>
             </div>

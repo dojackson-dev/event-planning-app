@@ -12,7 +12,7 @@ export default function TermsOfService() {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
               <Link href="/">
-                <img src="/lib/LogoEventEcos.svg" alt="EventEcos Logo" style={{ height: '64px', width: 'auto' }} />
+                <img src="/lib/LogoEventEcos.png" alt="EventEcos Logo" style={{ height: '64px', width: 'auto' }} />
               </Link>
             </div>
             <div className="flex items-center gap-4">

@@ -160,11 +160,11 @@ export default function AdminDashboardPage() {
         {/* Clients */}
         <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
           <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-green-100 rounded-lg">
-              <Users className="h-6 w-6 text-green-600" />
+            <div className="p-3 bg-accent-50 rounded-lg">
+              <Users className="h-6 w-6 text-accent-600" />
             </div>
             {stats.newClientsThisMonth > 0 && (
-              <span className="flex items-center text-sm text-green-600 font-medium">
+              <span className="flex items-center text-sm text-accent-600 font-medium">
                 <TrendingUp className="h-4 w-4 mr-1" />
                 +{stats.newClientsThisMonth} this month
               </span>
@@ -172,7 +172,7 @@ export default function AdminDashboardPage() {
           </div>
           <p className="text-3xl font-bold text-gray-900">{stats.totalClients}</p>
           <p className="text-sm text-gray-600 mt-1">Total Clients</p>
-          <Link href="/admin/clients" className="text-green-600 text-sm font-medium mt-3 inline-flex items-center hover:underline">
+          <Link href="/admin/clients" className="text-accent-600 text-sm font-medium mt-3 inline-flex items-center hover:underline">
             View all <ArrowRight className="h-4 w-4 ml-1" />
           </Link>
         </div>

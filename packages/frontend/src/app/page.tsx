@@ -39,7 +39,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Logo row — centered */}
           <div className="flex justify-center items-center py-4 border-b border-gray-100">
-            <img src="/lib/LogoEventEcos.svg" alt="EventEcos Logo" style={{ height: '72px', width: 'auto' }} />
+            <img src="/lib/LogoEventEcos.png" alt="EventEcos Logo" style={{ height: '72px', width: 'auto' }} />
           </div>
           {/* Log In row */}
           <div className="flex justify-center items-center py-3">
@@ -79,8 +79,8 @@ export default function Home() {
       {/* Hero Section */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <div className="text-center">
-          <div className="inline-flex items-center gap-2 bg-amber-100 text-amber-700 border border-amber-300 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide mb-4">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+          <div className="inline-flex items-center gap-2 bg-accent-100 text-accent-700 border border-accent-300 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide mb-4">
+            <span className="w-1.5 h-1.5 rounded-full bg-accent-500 animate-pulse" />
             Beta
           </div>
           <h2 className="text-4xl font-extrabold text-gray-900 sm:text-5xl md:text-6xl">
@@ -92,7 +92,7 @@ export default function Home() {
           <div className="mt-5 max-w-md mx-auto sm:flex sm:justify-center md:mt-8 gap-4">
             <Link
               href="/signup"
-              className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 md:py-4 md:text-lg md:px-10"
+              className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-accent-600 hover:bg-accent-700 md:py-4 md:text-lg md:px-10"
             >
               Get Started Free
             </Link>
@@ -106,7 +106,7 @@ export default function Home() {
           <div className="mt-4 text-center">
             <Link
               href="/client-login"
-              className="inline-flex items-center gap-2 text-sm font-medium text-primary-600 hover:text-primary-700 underline underline-offset-2"
+              className="inline-flex items-center gap-2 text-sm font-medium text-accent-600 hover:text-accent-700 underline underline-offset-2"
             >
               Are you a booked client? Access your Client Portal →
             </Link>
@@ -118,7 +118,7 @@ export default function Home() {
       <div className="py-12 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="lg:text-center">
-            <h2 className="text-base text-primary-600 font-semibold tracking-wide uppercase">Features</h2>
+            <h2 className="text-base text-accent-600 font-semibold tracking-wide uppercase">Features</h2>
             <p className="mt-2 text-3xl leading-8 font-extrabold tracking-tight text-gray-900 sm:text-4xl">
               Everything you need to manage your venue
             </p>
@@ -128,7 +128,7 @@ export default function Home() {
             <div className="mt-6 flex justify-center">
               <button
                 onClick={() => setShowFeatures(prev => !prev)}
-                className="inline-flex items-center gap-2 px-6 py-2 rounded-full border-2 border-primary-600 text-primary-600 font-semibold text-sm hover:bg-primary-600 hover:text-white transition-all duration-200"
+                className="inline-flex items-center gap-2 px-6 py-2 rounded-full border-2 border-accent-600 text-accent-600 font-semibold text-sm hover:bg-accent-600 hover:text-white transition-all duration-200"
               >
                 {showFeatures ? 'Hide Features ▲' : 'Explore Features ▼'}
               </button>

@@ -120,11 +120,8 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
                 </p>
                 <p className="text-xs text-gray-600 truncate">{displayUser.email}</p>
                 <span className="inline-flex items-center mt-1 px-2.5 py-0.5 text-xs font-medium bg-accent-100 text-accent-700 rounded-full">
-                  <span className="w-2 h-2 rounded-full bg-accent-500 mr-1.5"></span>
-                  {user?.business_name || 'Client'}
-                </span>
                   <Star className="w-3 h-3 mr-1" />
-                  Customer
+                  {displayUser.role || 'Customer'}
                 </span>
               </div>
             </div>

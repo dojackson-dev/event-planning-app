@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
+import { useAuth } from '@/contexts/AuthContext'
 import {
   Mic2,
   User,
@@ -44,15 +45,15 @@ const ARTIST_TYPE_ICONS: Record<string, string> = {
 
 export default function ArtistDashboard() {
   const router = useRouter()
+  const { user } = useAuth()
   const [profile, setProfile] = useState<ArtistProfile | null>(null)
   const [rider, setRider] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [email, setEmail] = useState('')
+  const email = user?.email || ''
 
   useEffect(() => {
     const token = localStorage.getItem('access_token')
     if (!token) { router.replace('/artist/login'); return }
-    try { const u = JSON.parse(localStorage.getItem('user') || '{}'); setEmail(u.email || '') } catch {}
 
     const load = async () => {
       try {

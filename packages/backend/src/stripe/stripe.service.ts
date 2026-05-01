@@ -36,9 +36,12 @@ export class StripeService {
     this.frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://dovenuesuite.com');
   }
 
-  /** Returns a public-facing URL Stripe will accept for business_profile.url (never localhost). */
+  /** Returns a public-facing URL Stripe will accept for business_profile.url (never localhost or bare IPs). */
   private get connectBusinessUrl(): string {
-    return this.frontendUrl.startsWith('http://localhost') ? 'https://dovenuesuite.com' : this.frontendUrl;
+    const isLocal = this.frontendUrl.startsWith('http://localhost') ||
+      this.frontendUrl.startsWith('http://127.') ||
+      /^https?:\/\/\d+\.\d+\.\d+\.\d+/.test(this.frontendUrl);
+    return isLocal ? 'https://dovenuesuite.com' : this.frontendUrl;
   }
 
   // ─── Customer ─────────────────────────────────────────────────────────────

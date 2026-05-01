@@ -362,7 +362,12 @@ export default function ArtistRiderPage() {
           </Field>
         </Section>
 
-        <div className="flex justify-end pb-6">
+        <div className="flex items-center justify-end gap-3 pb-6">
+          {saved && (
+            <span className="flex items-center gap-1.5 text-sm text-green-700 font-medium">
+              <CheckCircle className="h-4 w-4" /> Saved successfully
+            </span>
+          )}
           <button type="submit" disabled={saving}
             className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">
             <Save className="h-4 w-4" />

@@ -262,6 +262,17 @@ export default function ArtistDashboard() {
             </div>
             <ChevronRight className="h-5 w-5 text-gray-400" />
           </Link>
+          <Link href="/artist/dashboard/calendar"
+            className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow flex items-center justify-between sm:col-span-2 md:col-span-1">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-sky-50 rounded-lg"><Calendar className="h-5 w-5 text-sky-600" /></div>
+              <div>
+                <p className="font-semibold text-gray-900">Calendar</p>
+                <p className="text-xs text-gray-500">View bookings by month</p>
+              </div>
+            </div>
+            <ChevronRight className="h-5 w-5 text-gray-400" />
+          </Link>
         </div>
 
         {/* Payouts */}

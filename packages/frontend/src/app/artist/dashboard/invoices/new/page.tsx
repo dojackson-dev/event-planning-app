@@ -1,16 +1,28 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { Plus, Trash2, Loader2 } from 'lucide-react'
+import { Plus, Trash2, Loader2, ChevronDown, BookOpen } from 'lucide-react'
 
 interface LineItem {
   id: string
   description: string
   quantity: number
   unit_price: number
+}
+
+interface ArtistBooking {
+  id: string
+  event_name: string
+  client_name: string
+  client_email: string
+  client_phone?: string
+  event_date?: string
+  venue_name?: string
+  agreed_amount?: number
+  status: string
 }
 
 const today = new Date().toISOString().split('T')[0]
@@ -20,6 +32,12 @@ const newItem = (): LineItem => ({ id: String(idSeq++), description: '', quantit
 
 export default function NewArtistInvoicePage() {
   const router = useRouter()
+
+  const [bookings, setBookings] = useState<ArtistBooking[]>([])
+  const [showBookingPicker, setShowBookingPicker] = useState(false)
+  const [bookingsLoading, setBookingsLoading] = useState(false)
+  const [linkedBookingId, setLinkedBookingId] = useState<string | null>(null)
+  const [linkedBookingName, setLinkedBookingName] = useState('')
 
   const [clientName, setClientName] = useState('')
   const [clientEmail, setClientEmail] = useState('')
@@ -34,6 +52,38 @@ export default function NewArtistInvoicePage() {
   const [saving, setSaving] = useState(false)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
+
+  // Load bookings on demand
+  const openBookingPicker = async () => {
+    setShowBookingPicker(true)
+    if (bookings.length > 0) return
+    setBookingsLoading(true)
+    try {
+      const res = await api.get('/artist-bookings/mine')
+      const active = (res.data || []).filter(
+        (b: ArtistBooking) => b.status !== 'cancelled'
+      )
+      setBookings(active)
+    } catch {
+      // silently fail — user can still type manually
+    } finally {
+      setBookingsLoading(false)
+    }
+  }
+
+  const applyBooking = (b: ArtistBooking) => {
+    setClientName(b.client_name)
+    setClientEmail(b.client_email)
+    setClientPhone(b.client_phone || '')
+    setLinkedBookingId(b.id)
+    setLinkedBookingName(b.event_name)
+    // Pre-fill one line item from agreed amount if available and current items are empty
+    if (b.agreed_amount && b.agreed_amount > 0) {
+      const desc = b.event_name + (b.event_date ? ` – ${new Date(b.event_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : '')
+      setItems([{ id: String(idSeq++), description: desc, quantity: 1, unit_price: b.agreed_amount }])
+    }
+    setShowBookingPicker(false)
+  }
 
   const subtotal = items.reduce((s, i) => s + i.quantity * i.unit_price, 0)
   const taxAmount = subtotal * (taxRate / 100)
@@ -99,7 +149,27 @@ export default function NewArtistInvoicePage() {
 
         {/* Client */}
         <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
-          <h2 className="font-semibold text-gray-900">Client Details</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-gray-900">Client Details</h2>
+            <button
+              type="button"
+              onClick={openBookingPicker}
+              className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 border border-blue-200 hover:border-blue-400 rounded-lg px-3 py-1.5 bg-blue-50 hover:bg-blue-100 transition-colors"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              Pull from Booking
+            </button>
+          </div>
+          {linkedBookingName && (
+            <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-700">
+              <span>Linked to: <span className="font-medium">{linkedBookingName}</span></span>
+              <button
+                type="button"
+                onClick={() => { setLinkedBookingId(null); setLinkedBookingName('') }}
+                className="text-blue-400 hover:text-blue-600 ml-2"
+              >✕</button>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Name *</label>
@@ -223,10 +293,56 @@ export default function NewArtistInvoicePage() {
           </button>
           <button onClick={handleSaveAndSend} disabled={saving || sending}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
-            {sending && <Loader2 className="w-4 h-4 animate-spin" />} Save & Send
+            {sending && <Loader2 className="w-4 h-4 animate-spin" />} Save &amp; Send
           </button>
         </div>
       </div>
+
+      {/* Booking picker modal */}
+      {showBookingPicker && (
+        <div
+          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+          onClick={() => setShowBookingPicker(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[80vh] flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <h3 className="font-bold text-gray-900">Select a Booking</h3>
+              <button onClick={() => setShowBookingPicker(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <div className="overflow-y-auto flex-1 divide-y divide-gray-100">
+              {bookingsLoading ? (
+                <div className="flex justify-center py-10">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+                </div>
+              ) : bookings.length === 0 ? (
+                <div className="text-center py-10 text-sm text-gray-500">No active bookings found</div>
+              ) : (
+                bookings.map(b => (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => applyBooking(b)}
+                    className="w-full text-left px-5 py-3.5 hover:bg-blue-50 transition-colors"
+                  >
+                    <p className="font-medium text-gray-900 text-sm">{b.event_name}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {b.client_name} · {b.client_email}
+                      {b.event_date && ` · ${new Date(b.event_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`}
+                      {b.agreed_amount ? ` · $${b.agreed_amount.toLocaleString()}` : ''}
+                    </p>
+                  </button>
+                ))
+              )}
+            </div>
+            <div className="px-5 py-3 border-t text-xs text-gray-400">
+              Selecting a booking will fill in client details and performance fee.
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

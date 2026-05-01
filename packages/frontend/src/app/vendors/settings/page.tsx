@@ -54,6 +54,7 @@ export default function VendorSettingsPage() {
   // UI state
   const [activeTab, setActiveTab] = useState<Tab>('account')
   const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   // Load stored user data
@@ -104,6 +105,7 @@ export default function VendorSettingsPage() {
         }
       } catch {}
       setMessage({ type: 'success', text: 'Account info updated successfully!' })
+      setSaved(true); setTimeout(() => setSaved(false), 3000)
     } catch (err: any) {
       setMessage({ type: 'error', text: err.response?.data?.message || 'Failed to update account info' })
     } finally {
@@ -126,6 +128,7 @@ export default function VendorSettingsPage() {
     try {
       await api.put('/auth/password', { currentPassword, newPassword })
       setMessage({ type: 'success', text: 'Password changed successfully!' })
+      setSaved(true); setTimeout(() => setSaved(false), 3000)
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
@@ -146,6 +149,7 @@ export default function VendorSettingsPage() {
         marketing: notifyMarketing,
       }))
       setMessage({ type: 'success', text: 'Notification preferences saved!' })
+      setSaved(true); setTimeout(() => setSaved(false), 3000)
     } catch {
       setMessage({ type: 'error', text: 'Failed to save preferences' })
     }
@@ -289,7 +293,12 @@ export default function VendorSettingsPage() {
                   />
                 </div>
 
-                <div className="flex justify-end pt-2 border-t">
+                <div className="flex items-center justify-end gap-3 pt-2 border-t">
+                  {saved && (
+                    <span className="flex items-center gap-1.5 text-sm text-green-700 font-medium">
+                      <CheckCircle className="h-4 w-4" /> Saved successfully
+                    </span>
+                  )}
                   <button
                     type="submit" disabled={saving}
                     className="inline-flex items-center gap-2 px-6 py-2 bg-primary-600 text-white text-sm font-semibold rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors"
@@ -297,11 +306,7 @@ export default function VendorSettingsPage() {
                     <Save className="h-4 w-4" />
                     {saving ? 'Saving…' : 'Save Changes'}
                   </button>
-                </div>
-              </form>
-            )}
-
-            {/* ── PASSWORD TAB ── */}
+                </div>}
             {activeTab === 'password' && (
               <form onSubmit={handleChangePassword} className="space-y-6 max-w-md">
                 <p className="text-sm text-gray-500">Choose a strong password that you don't use elsewhere.</p>
@@ -362,7 +367,12 @@ export default function VendorSettingsPage() {
                   )}
                 </div>
 
-                <div className="flex justify-end pt-2 border-t">
+                <div className="flex items-center justify-end gap-3 pt-2 border-t">
+                  {saved && (
+                    <span className="flex items-center gap-1.5 text-sm text-green-700 font-medium">
+                      <CheckCircle className="h-4 w-4" /> Saved successfully
+                    </span>
+                  )}
                   <button
                     type="submit" disabled={saving}
                     className="inline-flex items-center gap-2 px-6 py-2 bg-primary-600 text-white text-sm font-semibold rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors"
@@ -413,7 +423,12 @@ export default function VendorSettingsPage() {
                   ))}
                 </div>
 
-                <div className="flex justify-end pt-2 border-t">
+                <div className="flex items-center justify-end gap-3 pt-2 border-t">
+                  {saved && (
+                    <span className="flex items-center gap-1.5 text-sm text-green-700 font-medium">
+                      <CheckCircle className="h-4 w-4" /> Saved successfully
+                    </span>
+                  )}
                   <button
                     type="button" onClick={handleSaveNotifications}
                     className="inline-flex items-center gap-2 px-6 py-2 bg-primary-600 text-white text-sm font-semibold rounded-lg hover:bg-primary-700 transition-colors"

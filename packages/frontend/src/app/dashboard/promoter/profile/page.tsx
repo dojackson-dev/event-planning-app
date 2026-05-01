@@ -306,7 +306,12 @@ export default function PromoterProfilePage() {
       </div>
 
       {/* Save Button */}
-      <div className="flex justify-end">
+      <div className="flex items-center justify-end gap-3">
+        {saved && (
+          <span className="flex items-center gap-1.5 text-sm text-green-700 font-medium">
+            <CheckCircle className="h-4 w-4" /> Saved successfully
+          </span>
+        )}
         <button
           onClick={handleSave}
           disabled={saving || !form.contactName || !form.email}

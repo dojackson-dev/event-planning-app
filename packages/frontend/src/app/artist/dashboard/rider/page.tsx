@@ -6,6 +6,29 @@ import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { ArrowLeft, Save, CheckCircle, FileText } from 'lucide-react'
 
+function Section({ num, title, children }: { num: number; title: string; children: React.ReactNode }) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="bg-gray-50 border-b border-gray-200 px-6 py-3 flex items-center gap-3">
+        <span className="h-6 w-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
+          {num}
+        </span>
+        <h2 className="font-semibold text-gray-900">{title}</h2>
+      </div>
+      <div className="p-6 space-y-4">{children}</div>
+    </div>
+  )
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode; half?: boolean }) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      {children}
+    </div>
+  )
+}
+
 const defaultRider = {
   // 1. Event Details (filled per-show by promoter, but artist can pre-fill defaults)
   // 2. Contacts
@@ -123,25 +146,6 @@ export default function ArtistRiderPage() {
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-600" />
-    </div>
-  )
-
-  const Section = ({ num, title, children }: { num: number; title: string; children: React.ReactNode }) => (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-      <div className="bg-gray-50 border-b border-gray-200 px-6 py-3 flex items-center gap-3">
-        <span className="h-6 w-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
-          {num}
-        </span>
-        <h2 className="font-semibold text-gray-900">{title}</h2>
-      </div>
-      <div className="p-6 space-y-4">{children}</div>
-    </div>
-  )
-
-  const Field = ({ label, children, half }: { label: string; children: React.ReactNode; half?: boolean }) => (
-    <div className={half ? '' : ''}>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-      {children}
     </div>
   )
 

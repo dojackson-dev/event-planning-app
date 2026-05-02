@@ -44,7 +44,7 @@ export default function Home() {
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <div className="flex items-center">
-              <img src="/lib/LogoEventEcos.png" alt="EventEcos Logo" style={{ height: '64px', width: 'auto' }} />
+              <img src="/favicon.svg" alt="EventEcos Logo" style={{ height: '64px', width: 'auto' }} />
             </div>
 
             {/* Center Nav Links */}
@@ -124,7 +124,7 @@ export default function Home() {
                 {/* Large Logo Display */}
                 <div className="bg-gradient-to-br from-green-100 to-blue-100 rounded-3xl p-12 shadow-2xl flex items-center justify-center mb-8">
                   <img 
-                    src="/lib/LogoEventEcos.png" 
+                    src="/favicon.svg" 
                     alt="EventEcos Logo" 
                     style={{ height: '450px', width: 'auto' }}
                     className="drop-shadow-lg"
@@ -270,51 +270,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Testimonials */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-white">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-4">
-              Loved by Event Professionals
-            </h2>
-            <p className="text-xl text-gray-600">See what customers are saying about EventEcos</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[
-              {
-                quote: 'EventEcos transformed how I manage my venue. Booking management is now a breeze!',
-                author: 'Sarah Johnson',
-                role: 'Venue Owner',
-              },
-              {
-                quote: 'The client portal is incredible. My customers love the transparency and ease of use.',
-                author: 'Mike Rodriguez',
-                role: 'Event Planner',
-              },
-              {
-                quote: 'Finally, a platform built by people who understand the event business. Highly recommended!',
-                author: 'Jennifer Lee',
-                role: 'Wedding Venue Manager',
-              },
-            ].map((testimonial, idx) => (
-              <div key={idx} className="bg-gradient-to-br from-green-50 to-blue-50 p-8 rounded-2xl border border-green-100">
-                <div className="flex gap-1 mb-4">
-                  {[...Array(5)].map((_, i) => (
-                    <span key={i} className="text-yellow-400">★</span>
-                  ))}
-                </div>
-                <p className="text-gray-700 italic mb-6">"{testimonial.quote}"</p>
-                <div>
-                  <p className="font-bold text-gray-900">{testimonial.author}</p>
-                  <p className="text-green-600 text-sm">{testimonial.role}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* Directory & Events CTA */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gray-900 text-white">
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-12">
@@ -385,7 +340,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
             <div>
-              <img src="/lib/LogoEventEcos.png" alt="EventEcos" style={{ height: '56px', width: 'auto' }} className="mb-4" />
+              <img src="/favicon.svg" alt="EventEcos" style={{ height: '56px', width: 'auto' }} className="mb-4" />
               <p className="text-gray-400 text-sm">The complete event management platform.</p>
             </div>
             <div>

@@ -43,9 +43,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
-            <div className="flex items-center">
-              <img src="/favicon.svg" alt="EventEcos Logo" style={{ height: '64px', width: 'auto' }} />
-            </div>
+            <div className="flex items-center"></div>
 
             {/* Center Nav Links */}
             <div className="hidden md:flex items-center gap-8">
@@ -121,15 +119,6 @@ export default function Home() {
             {/* Right - Logo + Visual */}
             <div className="flex justify-center lg:justify-end">
               <div className="relative w-full max-w-sm">
-                {/* Large Logo Display */}
-                <div className="bg-gradient-to-br from-green-100 to-blue-100 rounded-3xl p-12 shadow-2xl flex items-center justify-center mb-8">
-                  <img 
-                    src="/favicon.svg" 
-                    alt="EventEcos Logo" 
-                    style={{ height: '450px', width: 'auto' }}
-                    className="drop-shadow-lg"
-                  />
-                </div>
                 
                 {/* Feature Pills */}
                 <div className="space-y-3">
@@ -340,7 +329,6 @@ export default function Home() {
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
             <div>
-              <img src="/favicon.svg" alt="EventEcos" style={{ height: '56px', width: 'auto' }} className="mb-4" />
               <p className="text-gray-400 text-sm">The complete event management platform.</p>
             </div>
             <div>

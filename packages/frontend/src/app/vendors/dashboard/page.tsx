@@ -33,6 +33,7 @@ export default function VendorDashboard() {
   const router = useRouter()
   const [profile, setProfile] = useState<VendorProfile | null>(null)
   const [bookings, setBookings] = useState<Booking[]>([])
+  const [pendingRequests, setPendingRequests] = useState(0)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -41,12 +42,15 @@ export default function VendorDashboard() {
 
     const loadData = async () => {
       try {
-        const [profileRes, bookingsRes] = await Promise.all([
+        const [profileRes, bookingsRes, requestsRes] = await Promise.all([
           api.get('/vendors/account/me'),
           api.get('/vendors/bookings/mine'),
+          api.get('/vendors/booking-requests/mine'),
         ])
         setProfile(profileRes.data)
         setBookings(bookingsRes.data || [])
+        const reqs = requestsRes.data ?? []
+        setPendingRequests(reqs.filter((r: { status: string }) => r.status === 'pending').length)
       } catch (err: any) {
         if (err.response?.status === 401) {
           router.push('/vendors/login')
@@ -72,7 +76,7 @@ export default function VendorDashboard() {
     return acc
   }, {} as Record<string, number>)
 
-  const pendingCount = counts['pending'] || 0
+  const pendingCount = (counts['pending'] || 0) + pendingRequests
 
   const stats = {
     pending:   pendingCount,

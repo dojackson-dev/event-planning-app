@@ -1050,6 +1050,34 @@ export class VendorsService {
 
     if (error) throw new BadRequestException(error.message);
 
+    // When confirmed, create a vendor_bookings record so it shows in the main bookings list
+    if (dto.status === 'confirmed') {
+      const { error: bookingError } = await admin
+        .from('vendor_bookings')
+        .insert({
+          vendor_account_id: vendorAccountId,
+          owner_account_id: null,
+          booked_by_user_id: null,
+          event_id: null,
+          event_name: data.event_name ?? 'Booking Request',
+          event_date: data.event_date ?? new Date().toISOString().split('T')[0],
+          start_time: data.start_time ?? null,
+          end_time: data.end_time ?? null,
+          venue_name: data.venue_name ?? null,
+          venue_address: data.venue_address ?? null,
+          notes: data.notes ?? null,
+          agreed_amount: data.quoted_amount ?? null,
+          deposit_amount: null,
+          client_name: data.client_name ?? null,
+          client_email: data.client_email ?? null,
+          client_phone: data.client_phone ?? null,
+          status: 'confirmed',
+        });
+      if (bookingError) {
+        this.logger.warn('Failed to create vendor_bookings from booking request', bookingError.message);
+      }
+    }
+
     // Notify client if request was confirmed or declined
     if (dto.status && (data.client_phone || dto.status === 'confirmed' || dto.status === 'declined')) {
       try {

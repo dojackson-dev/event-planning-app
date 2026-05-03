@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { StripeService } from '../stripe/stripe.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
@@ -224,6 +224,40 @@ export class ClientPortalService {
     return events.map((e: any) => ({ ...e, owner: ownersById[e.owner_id] || null }));
   }
 
+  /** Cancel a pending vendor_booking_request — only the requesting client's phone may delete it */
+  async cancelBookingRequest(requestId: string, clientPhone: string) {
+    const supabase = this.supabaseService.getAdminClient();
+    const phoneVariants = buildPhoneVariants(clientPhone);
+
+    // Verify ownership: the request's client_phone must match this client
+    const { data: existing, error: fetchErr } = await supabase
+      .from('vendor_booking_requests')
+      .select('id, status, client_phone')
+      .eq('id', requestId)
+      .single();
+
+    if (fetchErr || !existing) {
+      throw new BadRequestException('Booking request not found');
+    }
+    if (!phoneVariants.includes(existing.client_phone)) {
+      throw new UnauthorizedException('You can only cancel your own requests');
+    }
+    if (existing.status !== 'pending') {
+      throw new BadRequestException('Only pending requests can be cancelled');
+    }
+
+    const { error } = await supabase
+      .from('vendor_booking_requests')
+      .delete()
+      .eq('id', requestId);
+
+    if (error) {
+      this.logger.error('cancelBookingRequest error', error);
+      throw new BadRequestException('Failed to cancel request');
+    }
+    return { success: true };
+  }
+
   /** Vendors booked for this client's events, plus any vendors the client booked directly */
   async getVendors(clientId: string, clientPhone: string) {
     const supabase = this.supabaseService.getAdminClient();
@@ -270,11 +304,37 @@ export class ClientPortalService {
       this.logger.error('getVendors (direct) error', directVendorsRes.error);
     }
 
+    // Also fetch vendor_booking_requests for this client's phone (public/client-portal bookings)
+    const requestSelect = `
+      *,
+      vendor:vendor_accounts(
+        id, business_name, category, city, state, phone, email, website, instagram,
+        bio, hourly_rate, flat_rate, rate_description, is_verified, profile_image_url
+      )
+    `;
+
+    const phoneRequestResults = clientPhone
+      ? await Promise.all(
+          phoneVariants.map(p =>
+            supabase
+              .from('vendor_booking_requests')
+              .select(requestSelect)
+              .eq('client_phone', p)
+              .order('created_at', { ascending: false }),
+          ),
+        )
+      : [];
+
+    const allRequests = phoneRequestResults
+      .flatMap((r: any) => r.data || [])
+      .map((r: any) => ({ ...r, _source: 'booking_request' }));
+
     // Merge and deduplicate by id
     const combined = [
       ...(eventVendorsRes.data || []),
       ...(directVendorsRes.data || []),
       ...(phoneVendorsRes.data || []),
+      ...allRequests,
     ];
     const seen = new Set<string>();
     return combined.filter((b: any) => {
@@ -347,13 +407,12 @@ export class ClientPortalService {
     if (!vendor) throw new NotFoundException('Vendor not found');
 
     const { data, error } = await supabase
-      .from('vendor_bookings')
+      .from('vendor_booking_requests')
       .insert({
         vendor_account_id: dto.vendorAccountId,
-        client_user_id: clientId,
         client_name: clientName,
         client_phone: clientPhone,
-        booked_by_user_id: clientId,
+        client_email: '',
         event_name: dto.eventName,
         event_date: dto.eventDate,
         start_time: dto.startTime ?? null,
@@ -361,6 +420,7 @@ export class ClientPortalService {
         venue_name: dto.venueName ?? null,
         venue_address: dto.venueAddress ?? null,
         notes: dto.notes ?? null,
+        sms_opt_in: true,
         status: 'pending',
       })
       .select()

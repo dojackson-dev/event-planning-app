@@ -43,14 +43,14 @@ const EVENT_CATEGORIES = [
 export default function PublicEventsPage() {
   const [events, setEvents] = useState<PublicEvent[]>([])
   const [loading, setLoading] = useState(true)
-  const [city, setCity] = useState('')
+  const [zipCode, setZipCode] = useState('')
   const [category, setCategory] = useState('')
   const [search, setSearch] = useState('')
 
-  const fetchEvents = (c?: string, cat?: string) => {
+  const fetchEvents = (zip?: string, cat?: string) => {
     setLoading(true)
     const params: Record<string, string> = {}
-    if (c) params.city = c
+    if (zip) params.zip_code = zip
     if (cat) params.category = cat
     api.get('/promoter-events/public', { params })
       .then(r => setEvents(r.data || []))
@@ -62,7 +62,7 @@ export default function PublicEventsPage() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    fetchEvents(city, category)
+    fetchEvents(zipCode, category)
   }
 
   const filtered = events.filter(e =>
@@ -74,7 +74,7 @@ export default function PublicEventsPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-gradient-to-br from-purple-700 to-pink-600 text-white">
+      <div className="bg-blue-700 text-white">
         <div className="max-w-6xl mx-auto px-4 py-12 text-center">
           <h1 className="text-3xl md:text-4xl font-bold mb-2">Upcoming Events</h1>
           <p className="text-purple-200 text-lg">Find and buy tickets to events near you</p>
@@ -89,8 +89,9 @@ export default function PublicEventsPage() {
             </div>
             <div className="flex items-center gap-2 px-3 border-r border-gray-200">
               <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
-              <input value={city} onChange={e => setCity(e.target.value)}
-                placeholder="City"
+              <input value={zipCode} onChange={e => setZipCode(e.target.value)}
+                placeholder="Zip code"
+                maxLength={10}
                 className="w-28 text-sm text-gray-800 placeholder-gray-400 focus:outline-none" />
             </div>
             <div className="flex items-center gap-2 px-3">

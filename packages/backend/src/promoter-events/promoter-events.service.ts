@@ -277,16 +277,16 @@ export class PromoterEventsService {
 
   // ── PUBLIC ROUTES (no auth) ───────────────────────────────────
 
-  async listPublicEvents(city?: string, category?: string) {
-    const admin = this.supabaseService.getAdminClient();
-    let query = admin
+  async listPublicEvents(zipCode?: string, category?: string) {
+    const client = this.supabaseService.getClient();
+    let query = client
       .from('public_events')
       .select('*, ticket_tiers(id, name, price, quantity, quantity_sold), promoter_accounts(company_name, contact_name, profile_image_url)')
       .eq('status', 'published')
       .gte('event_date', new Date().toISOString().split('T')[0])
       .order('event_date', { ascending: true });
 
-    if (city) query = query.ilike('city', `%${city}%`);
+    if (zipCode) query = query.eq('zip_code', zipCode);
     if (category) query = query.eq('category', category);
 
     const { data, error } = await query;
@@ -295,8 +295,8 @@ export class PromoterEventsService {
   }
 
   async getPublicEvent(eventId: string) {
-    const admin = this.supabaseService.getAdminClient();
-    const { data, error } = await admin
+    const client = this.supabaseService.getClient();
+    const { data, error } = await client
       .from('public_events')
       .select('*, ticket_tiers(id, name, price, quantity, quantity_sold, description), promoter_accounts(company_name, contact_name, profile_image_url, location)')
       .eq('id', eventId)

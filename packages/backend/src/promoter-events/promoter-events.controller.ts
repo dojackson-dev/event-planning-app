@@ -40,10 +40,10 @@ export class PromoterEventsController {
 
   @Get('public')
   listPublicEvents(
-    @Query('city') city?: string,
+    @Query('zip_code') zipCode?: string,
     @Query('category') category?: string,
   ) {
-    return this.service.listPublicEvents(city, category);
+    return this.service.listPublicEvents(zipCode, category);
   }
 
   /** Returns ticket confirmation details for a given checkout session (public — no auth needed) */

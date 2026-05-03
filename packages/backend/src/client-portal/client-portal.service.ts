@@ -347,13 +347,12 @@ export class ClientPortalService {
     if (!vendor) throw new NotFoundException('Vendor not found');
 
     const { data, error } = await supabase
-      .from('vendor_bookings')
+      .from('vendor_booking_requests')
       .insert({
         vendor_account_id: dto.vendorAccountId,
-        client_user_id: clientId,
         client_name: clientName,
         client_phone: clientPhone,
-        booked_by_user_id: clientId,
+        client_email: '',
         event_name: dto.eventName,
         event_date: dto.eventDate,
         start_time: dto.startTime ?? null,
@@ -361,6 +360,7 @@ export class ClientPortalService {
         venue_name: dto.venueName ?? null,
         venue_address: dto.venueAddress ?? null,
         notes: dto.notes ?? null,
+        sms_opt_in: true,
         status: 'pending',
       })
       .select()

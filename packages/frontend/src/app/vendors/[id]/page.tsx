@@ -3,10 +3,13 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import axios from 'axios'
 import api from '@/lib/api'
 import clientApi from '@/lib/clientApi'
 import DashboardReturnButton from '@/components/DashboardReturnButton'
 import { Phone, Mail, User, MessageSquare, LogIn } from 'lucide-react'
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
 const CATEGORY_LABELS: Record<string, string> = {
   dj: '🎵 DJ',
@@ -77,6 +80,16 @@ export default function VendorPublicProfile({ params }: { params: { id: string }
   const [bookingSubmitting, setBookingSubmitting] = useState(false)
   const [bookingSuccess, setBookingSuccess] = useState(false)
   const [bookingError, setBookingError] = useState('')
+  const [submittedPhone, setSubmittedPhone] = useState('')
+  const [submittedName, setSubmittedName] = useState('')
+
+  // Phone OTP login state (shown on confirmation screen)
+  type OtpStep = 'idle' | 'sent' | 'done'
+  const [otpStep, setOtpStep] = useState<OtpStep>('idle')
+  const [otpCode, setOtpCode] = useState('')
+  const [otpLoading, setOtpLoading] = useState(false)
+  const [otpError, setOtpError] = useState('')
+  const [devOtpCode, setDevOtpCode] = useState('')
   const [reviewForm, setReviewForm] = useState({ rating: 5, text: '' })
   const [reviewSubmitting, setReviewSubmitting] = useState(false)
   const [reviewError, setReviewError] = useState('')
@@ -133,9 +146,8 @@ export default function VendorPublicProfile({ params }: { params: { id: string }
           notes: bookingForm.notes || undefined,
         })
       } else {
-        // Owner / anonymous path — captures contact info manually
-        await api.post('/vendors/bookings', {
-          vendorAccountId: id,
+        // Anonymous path — uses public inquiry endpoint (no auth required)
+        await api.post(`/vendors/${id}/inquiry`, {
           clientName: bookingForm.clientName || undefined,
           clientEmail: bookingForm.clientEmail || undefined,
           clientPhone: bookingForm.clientPhone || undefined,
@@ -148,9 +160,11 @@ export default function VendorPublicProfile({ params }: { params: { id: string }
           agreedAmount: bookingForm.agreedAmount ? parseFloat(bookingForm.agreedAmount) : undefined,
         })
       }
-      setBookingSuccess(true)
+      setSubmittedPhone('')
+      setSubmittedName(bookingForm.clientName || (clientSession ? [clientSession.firstName, clientSession.lastName].filter(Boolean).join(' ') : ''))
       setBookingOpen(false)
       setBookingForm({ clientName: '', clientEmail: '', clientPhone: '', smsOptIn: true, eventName: '', eventDate: '', startTime: '', endTime: '', notes: '', agreedAmount: '' })
+      setBookingSuccess(true)
     } catch (err: any) {
       setBookingError(err.response?.data?.message || 'Failed to send booking request')
     } finally {
@@ -206,10 +220,141 @@ export default function VendorPublicProfile({ params }: { params: { id: string }
         </div>
       </nav>
 
-      {/* Success Banner */}
+      {/* Success Screen */}
       {bookingSuccess && (
-        <div className="bg-green-600 text-white text-center py-3 text-sm font-medium">
-          ✅ Booking request sent! The vendor will confirm shortly.
+        <div className="fixed inset-0 bg-white z-50 flex items-center justify-center p-6 overflow-y-auto">
+          <div className="max-w-md w-full text-center py-8">
+            {/* Checkmark */}
+            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Request Sent!</h1>
+            <p className="text-gray-500 mb-2">
+              Your booking inquiry has been sent to <span className="font-semibold text-gray-700">{vendor?.business_name}</span>.
+            </p>
+            <p className="text-gray-400 text-sm mb-8">
+              They&apos;ll review your request and reach out to confirm. Keep an eye on your phone or email.
+            </p>
+
+            {/* Phone OTP login */}
+            {otpStep === 'done' ? (
+              <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6">
+                <p className="text-green-700 font-semibold">You&apos;re logged in!</p>
+                <p className="text-green-600 text-sm mt-1">Redirecting to your client portal…</p>
+              </div>
+            ) : (
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 mb-6 text-left">
+                <p className="text-sm font-semibold text-gray-700 mb-1">Track your booking</p>
+                <p className="text-xs text-gray-400 mb-4">Log in with <span className="font-medium text-gray-600">your</span> phone number to view and manage your booking requests.</p>
+
+                {otpStep === 'idle' && (
+                  <>
+                    <label className="block text-xs text-gray-500 mb-1">Your phone number</label>
+                    <input
+                      type="tel"
+                      value={submittedPhone}
+                      onChange={e => setSubmittedPhone(e.target.value)}
+                      placeholder="(601) 555-1234"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    {otpError && <p className="text-red-500 text-xs mb-2">{otpError}</p>}
+                    <button
+                      disabled={otpLoading || !submittedPhone}
+                      onClick={async () => {
+                        setOtpLoading(true)
+                        setOtpError('')
+                        try {
+                          const res = await axios.post(`${API_URL}/client-portal/auth/request-otp`, {
+                            name: submittedName || 'Guest',
+                            phone: submittedPhone,
+                            agreedToSms: true,
+                            agreedToTerms: true,
+                          })
+                          if (res.data.devOtp) setDevOtpCode(res.data.devOtp)
+                          setOtpStep('sent')
+                        } catch (err: any) {
+                          setOtpError(err?.response?.data?.message || 'Failed to send code. Try again.')
+                        } finally {
+                          setOtpLoading(false)
+                        }
+                      }}
+                      className="w-full bg-blue-700 text-white py-2 rounded-lg text-sm font-semibold hover:bg-blue-800 disabled:opacity-50"
+                    >
+                      {otpLoading ? 'Sending…' : 'Send login code'}
+                    </button>
+                  </>
+                )}
+
+                {otpStep === 'sent' && (
+                  <>
+                    <p className="text-xs text-gray-500 mb-3">Enter the 6-digit code sent to <span className="font-medium text-gray-700">{submittedPhone}</span>.</p>
+                    {devOtpCode && (
+                      <p className="text-xs text-yellow-600 bg-yellow-50 border border-yellow-200 rounded px-2 py-1 mb-3">Dev code: {devOtpCode}</p>
+                    )}
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={otpCode}
+                      onChange={e => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                      placeholder="123456"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-3 text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    {otpError && <p className="text-red-500 text-xs mb-2">{otpError}</p>}
+                    <button
+                      disabled={otpLoading || otpCode.length < 6}
+                      onClick={async () => {
+                        setOtpLoading(true)
+                        setOtpError('')
+                        try {
+                          const res = await axios.post(`${API_URL}/client-portal/auth/verify-otp`, {
+                            phone: submittedPhone,
+                            code: otpCode,
+                            name: submittedName || 'Guest',
+                          })
+                          const { token, client: clientInfo } = res.data
+                          localStorage.setItem('client_token', token)
+                          localStorage.setItem('client_session', JSON.stringify(clientInfo))
+                          setOtpStep('done')
+                          setTimeout(() => router.push('/client-portal'), 1500)
+                        } catch (err: any) {
+                          setOtpError(err?.response?.data?.message || 'Invalid code. Try again.')
+                        } finally {
+                          setOtpLoading(false)
+                        }
+                      }}
+                      className="w-full bg-blue-700 text-white py-2 rounded-lg text-sm font-semibold hover:bg-blue-800 disabled:opacity-50"
+                    >
+                      {otpLoading ? 'Verifying…' : 'Verify & log in'}
+                    </button>
+                    <button
+                      onClick={() => { setOtpStep('idle'); setOtpCode(''); setOtpError('') }}
+                      className="w-full mt-2 text-xs text-gray-400 hover:text-gray-600"
+                    >
+                      Use a different number
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <button
+                onClick={() => setBookingSuccess(false)}
+                className="border border-gray-300 text-gray-700 px-6 py-2.5 rounded-xl font-semibold hover:bg-gray-50"
+              >
+                Back to Profile
+              </button>
+              <Link
+                href="/vendors"
+                className="bg-blue-700 text-white px-6 py-2.5 rounded-xl font-semibold hover:bg-blue-800"
+              >
+                Browse More Vendors
+              </Link>
+            </div>
+          </div>
         </div>
       )}
 

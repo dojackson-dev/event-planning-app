@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
   Body,
   Headers,
   UnauthorizedException,
@@ -120,6 +121,15 @@ export class ClientPortalController {
       clientName,
       body,
     );
+  }
+
+  @Delete('vendors/requests/:id')
+  async cancelBookingRequest(
+    @Headers('x-client-token') token: string,
+    @Param('id') requestId: string,
+  ) {
+    const session = this.requireSession(token);
+    return this.clientPortalService.cancelBookingRequest(requestId, session.phone);
   }
 
   @Get('vendors')

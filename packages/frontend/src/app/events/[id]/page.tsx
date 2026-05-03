@@ -36,6 +36,7 @@ interface PublicEvent {
   venue_address: string | null
   city: string | null
   state: string | null
+  zip_code: string | null
   category: string | null
   image_url: string | null
   age_restriction: string | null
@@ -197,7 +198,7 @@ function PublicEventDetailPageContent({ params }: { params: { id: string } }) {
                 <div>
                   {event.venue_name && <p className="font-semibold text-gray-900">{event.venue_name}</p>}
                   <p className="text-sm text-gray-500">
-                    {[event.venue_address, event.city, event.state].filter(Boolean).join(', ')}
+                    {[event.venue_address, event.city, event.state, event.zip_code].filter(Boolean).join(', ')}
                   </p>
                 </div>
               </div>

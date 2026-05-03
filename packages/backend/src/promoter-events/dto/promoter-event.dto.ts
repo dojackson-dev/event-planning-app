@@ -8,6 +8,7 @@ export class CreatePromoterEventDto {
   venue_address?: string;
   city?: string;
   state?: string;
+  zip_code?: string;
   category?: string; // concert, festival, club_night, comedy, etc.
   venue_type?: string; // Church, Stadium, Nightclub, Park, etc.
   image_url?: string;
@@ -26,6 +27,7 @@ export class UpdatePromoterEventDto {
   venue_address?: string;
   city?: string;
   state?: string;
+  zip_code?: string;
   category?: string;
   venue_type?: string;
   image_url?: string;

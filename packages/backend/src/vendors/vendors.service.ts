@@ -180,7 +180,7 @@ export class VendorsService {
 
     if (error) {
       this.logger.error('Vendor geo search error:', error);
-      throw new BadRequestException('Search failed: ' + error.message);
+      return [];
     }
 
     return vendors || [];
@@ -197,15 +197,35 @@ export class VendorsService {
 
     if (error) {
       this.logger.error('Venue geo search error:', error);
-      throw new BadRequestException('Venue search failed: ' + error.message);
+      return [];
     }
 
     return venues || [];
   }
 
+  /** Zip-code-based vendor search — used as fallback when geo RPC returns no results. */
+  async getVendorsByZip(zipCode: string, category?: string) {
+    const client = this.supabaseService.getClient();
+    let query = client
+      .from('vendor_accounts')
+      .select('id, business_name, category, bio, city, state, zip_code, profile_image_url, hourly_rate, flat_rate, rate_description, phone, email, website, instagram, facebook, is_verified, vendor_reviews(rating)')
+      .or('is_active.is.null,is_active.eq.true')
+      .eq('zip_code', zipCode)
+      .order('business_name');
+
+    if (category) query = query.eq('category', category);
+
+    const { data, error } = await query;
+    if (error) {
+      this.logger.error('getVendorsByZip error:', error.message);
+      return [];
+    }
+    return (data || []).map(v => this.enrichWithRating(v));
+  }
+
   async getAllVendors(category?: string) {
-    const admin = this.supabaseService.getAdminClient();
-    let query = admin
+    const client = this.supabaseService.getClient();
+    let query = client
       .from('vendor_accounts')
       .select('id, business_name, category, bio, city, state, zip_code, profile_image_url, hourly_rate, flat_rate, rate_description, phone, email, website, instagram, facebook, is_verified, vendor_reviews(rating)')
       .or('is_active.is.null,is_active.eq.true')
@@ -216,7 +236,10 @@ export class VendorsService {
     }
 
     const { data, error } = await query;
-    if (error) throw new BadRequestException(error.message);
+    if (error) {
+      this.logger.error('getAllVendors error:', error.message);
+      return [];
+    }
 
     return (data || []).map(v => this.enrichWithRating(v));
   }
@@ -862,6 +885,71 @@ export class VendorsService {
     return data;
   }
 
+  /** Public: submit a booking inquiry directly to a vendor by their account ID (no auth, no booking link required). */
+  async submitPublicInquiry(vendorId: string, dto: {
+    clientName: string;
+    clientEmail?: string;
+    clientPhone?: string;
+    smsOptIn?: boolean;
+    eventName: string;
+    eventDate: string;
+    startTime?: string;
+    endTime?: string;
+    notes?: string;
+    agreedAmount?: number;
+  }) {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: vendor } = await admin
+      .from('vendor_accounts')
+      .select('id, phone, business_name')
+      .eq('id', vendorId)
+      .eq('is_active', true)
+      .single();
+
+    if (!vendor) throw new NotFoundException('Vendor not found');
+
+    const { data: request, error } = await admin
+      .from('vendor_booking_requests')
+      .insert({
+        vendor_account_id: vendorId,
+        client_name: dto.clientName,
+        client_email: dto.clientEmail ?? null,
+        client_phone: dto.clientPhone ? normalizePhone(dto.clientPhone) : null,
+        event_name: dto.eventName ?? null,
+        event_date: dto.eventDate ?? null,
+        start_time: dto.startTime ?? null,
+        end_time: dto.endTime ?? null,
+        notes: dto.notes ?? null,
+        sms_opt_in: dto.smsOptIn ?? false,
+        quoted_amount: dto.agreedAmount ?? null,
+        status: 'pending',
+      })
+      .select()
+      .single();
+
+    if (error) throw new BadRequestException(error.message);
+
+    // Notify vendor via SMS
+    if (vendor.phone) {
+      try {
+        const formattedDate = dto.eventDate
+          ? new Date(dto.eventDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+          : '';
+        await this.smsNotifications.vendorBookingCreated(
+          vendor.phone,
+          vendor.business_name ?? 'Vendor',
+          dto.eventName ?? 'New Event',
+          formattedDate,
+        );
+      } catch (err) {
+        this.logger.warn('Failed to send SMS for public inquiry', (err as Error).message);
+      }
+    }
+
+    return request;
+  }
+
   /** Public: submit a booking request via a booking link. */
   async submitBookingRequest(slug: string, dto: SubmitBookingRequestDto) {
     const admin = this.supabaseService.getAdminClient();
@@ -961,6 +1049,34 @@ export class VendorsService {
       .single();
 
     if (error) throw new BadRequestException(error.message);
+
+    // When confirmed, create a vendor_bookings record so it shows in the main bookings list
+    if (dto.status === 'confirmed') {
+      const { error: bookingError } = await admin
+        .from('vendor_bookings')
+        .insert({
+          vendor_account_id: vendorAccountId,
+          owner_account_id: null,
+          booked_by_user_id: null,
+          event_id: null,
+          event_name: data.event_name ?? 'Booking Request',
+          event_date: data.event_date ?? new Date().toISOString().split('T')[0],
+          start_time: data.start_time ?? null,
+          end_time: data.end_time ?? null,
+          venue_name: data.venue_name ?? null,
+          venue_address: data.venue_address ?? null,
+          notes: data.notes ?? null,
+          agreed_amount: data.quoted_amount ?? null,
+          deposit_amount: null,
+          client_name: data.client_name ?? null,
+          client_email: data.client_email ?? null,
+          client_phone: data.client_phone ?? null,
+          status: 'confirmed',
+        });
+      if (bookingError) {
+        this.logger.warn('Failed to create vendor_bookings from booking request', bookingError.message);
+      }
+    }
 
     // Notify client if request was confirmed or declined
     if (dto.status && (data.client_phone || dto.status === 'confirmed' || dto.status === 'declined')) {

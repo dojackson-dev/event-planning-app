@@ -131,6 +131,13 @@ export class VendorsController {
       radiusMiles ? parseInt(radiusMiles) : 30,
     );
 
+    // If geo RPC returned nothing (vendors likely lack stored coordinates),
+    // fall back to direct zip-code match so results always appear.
+    if (vendors.length === 0 && zipCode) {
+      const zipVendors = await this.vendorsService.getVendorsByZip(zipCode, category);
+      return { vendors: zipVendors, venues };
+    }
+
     return { vendors, venues };
   }
 
@@ -179,6 +186,15 @@ export class VendorsController {
   @Get(':id/reviews')
   async getVendorReviews(@Param('id') vendorId: string) {
     return this.vendorsService.getVendorReviews(vendorId);
+  }
+
+  /** POST /vendors/:id/inquiry — Public: submit a booking inquiry directly to a vendor (no auth required) */
+  @Post(':id/inquiry')
+  async submitPublicInquiry(
+    @Param('id') vendorId: string,
+    @Body() body: any,
+  ) {
+    return this.vendorsService.submitPublicInquiry(vendorId, body);
   }
 
   // ─────────────────────────────────────────────

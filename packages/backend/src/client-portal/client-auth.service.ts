@@ -114,8 +114,7 @@ export class ClientAuthService {
     }
 
     if (!clientFound) {
-      this.logger.warn(`OTP requested for unrecognized phone: ${normalized}`);
-      return { message: 'If this number is on file, you will receive a verification code shortly.' };
+      this.logger.log(`New phone login attempt: ${normalized} — will create client record on verify`);
     }
 
     const otp = this.generateOtp();
@@ -133,10 +132,6 @@ export class ClientAuthService {
     const isDev = process.env.NODE_ENV !== 'production';
     if (isDev) {
       this.logger.warn(`[DEV] OTP for ${normalized}: ${otp}`);
-      return {
-        message: 'Verification code sent.',
-        devOtp: otp,
-      };
     }
 
     await this.twilioService.sendSMS(

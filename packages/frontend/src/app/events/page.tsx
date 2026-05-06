@@ -27,6 +27,7 @@ interface PublicEvent {
   venue_name: string | null
   city: string | null
   state: string | null
+  zip_code: string | null
   category: string | null
   image_url: string | null
   age_restriction: string | null

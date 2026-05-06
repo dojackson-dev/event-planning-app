@@ -69,6 +69,7 @@ export class PromoterEventsService {
         venue_address: dto.venue_address ?? null,
         city: dto.city ?? null,
         state: dto.state ?? null,
+        zip_code: dto.zip_code ?? null,
         category: dto.category ?? null,
         ...(dto.venue_type !== undefined && { venue_type: dto.venue_type }),
         image_url: dto.image_url ?? null,
@@ -139,6 +140,7 @@ export class PromoterEventsService {
     if (dto.venue_address !== undefined) updates.venue_address = dto.venue_address;
     if (dto.city !== undefined) updates.city = dto.city;
     if (dto.state !== undefined) updates.state = dto.state;
+    if (dto.zip_code !== undefined) updates.zip_code = dto.zip_code;
     if (dto.category !== undefined) updates.category = dto.category;
     if (dto.venue_type !== undefined) updates.venue_type = dto.venue_type;
     if (dto.image_url !== undefined) updates.image_url = dto.image_url;

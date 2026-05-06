@@ -39,6 +39,7 @@ interface PromoterEvent {
   venue_address: string | null
   city: string | null
   state: string | null
+  zip_code: string | null
   venue_type: string | null
   category: string | null
   image_url: string | null
@@ -111,6 +112,7 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
   const [venueAddress, setVenueAddress] = useState('')
   const [city, setCity] = useState('')
   const [state, setState] = useState('')
+  const [zipCode, setZipCode] = useState('')
   const [venueType, setVenueType] = useState('')
   const [category, setCategory] = useState('')
   const [ageRestriction, setAgeRestriction] = useState('')
@@ -143,6 +145,7 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
       setVenueAddress(ev.venue_address || '')
       setCity(ev.city || '')
       setState(ev.state || '')
+      setZipCode(ev.zip_code || '')
       setVenueType(ev.venue_type || '')
       setCategory(ev.category || '')
       setAgeRestriction(ev.age_restriction || '')
@@ -162,7 +165,8 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
         event_date: eventDate, start_time: startTime || undefined,
         end_time: endTime || undefined, venue_name: venueName || undefined,
         venue_address: venueAddress || undefined, city: city || undefined,
-        state: state || undefined, category: category || undefined,
+        state: state || undefined, zip_code: zipCode || undefined,
+        category: category || undefined,
         venue_type: venueType || undefined,
         age_restriction: ageRestriction || undefined, image_url: imageUrl || undefined,
         status,
@@ -399,7 +403,7 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
                 <input value={venueAddress} onChange={e => setVenueAddress(e.target.value)}
                   className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
                   <input value={city} onChange={e => setCity(e.target.value)}
@@ -408,6 +412,11 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
                   <input value={state} onChange={e => setState(e.target.value)} maxLength={2} placeholder="GA"
+                    className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Zip Code</label>
+                  <input value={zipCode} onChange={e => setZipCode(e.target.value)} maxLength={10} placeholder="30301"
                     className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
                 </div>
               </div>

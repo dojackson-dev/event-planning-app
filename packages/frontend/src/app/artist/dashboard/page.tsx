@@ -38,6 +38,22 @@ interface ArtistProfile {
   genres: string[]
 }
 
+interface PromoterBooking {
+  id: string
+  event_name: string
+  event_date?: string
+  event_start_time?: string
+  venue_name?: string
+  agreed_amount?: number
+  status: string
+  promoter_accounts?: {
+    company_name?: string
+    contact_name?: string
+    email?: string
+    phone?: string
+  } | null
+}
+
 const ARTIST_TYPE_ICONS: Record<string, string> = {
   musician: '🎵', dj: '🎧', comedian: '🎤', dancer: '💃',
   magician: '🎩', spoken_word: '📖', mc_host: '🎙️', other: '⭐',
@@ -48,6 +64,8 @@ export default function ArtistDashboard() {
   const { user } = useAuth()
   const [profile, setProfile] = useState<ArtistProfile | null>(null)
   const [rider, setRider] = useState<any>(null)
+  const [promoterBookings, setPromoterBookings] = useState<PromoterBooking[]>([])
+  const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(true)
   const email = user?.email || ''
 
@@ -57,9 +75,10 @@ export default function ArtistDashboard() {
 
     const load = async () => {
       try {
-        const [profileRes, riderRes] = await Promise.allSettled([
+        const [profileRes, riderRes, pbRes] = await Promise.allSettled([
           api.get('/artists/me/profile'),
           api.get('/artists/me/rider'),
+          api.get('/promoter-bookings/for-artist'),
         ])
         if (profileRes.status === 'fulfilled') {
           setProfile(profileRes.value.data)
@@ -71,6 +90,7 @@ export default function ArtistDashboard() {
           return
         }
         if (riderRes.status === 'fulfilled') setRider(riderRes.value.data)
+        if (pbRes.status === 'fulfilled') setPromoterBookings(pbRes.value.data || [])
       } finally {
         setLoading(false)
       }
@@ -83,6 +103,32 @@ export default function ArtistDashboard() {
     localStorage.removeItem('refresh_token')
     localStorage.removeItem('user_role')
     router.push('/artist/login')
+  }
+
+  const respondToBooking = async (bookingId: string, action: 'accept' | 'decline') => {
+    setActionLoading(prev => ({ ...prev, [bookingId]: true }))
+    try {
+      const res = await api.patch(`/promoter-bookings/${bookingId}/artist-respond`, { action })
+      const updated = res.data
+      setPromoterBookings(prev => prev.map(b => b.id === bookingId ? { ...b, ...updated } : b))
+
+      if (action === 'accept') {
+        // Immediately navigate to new invoice pre-filled with promoter info
+        const pa = updated.promoter_accounts || {}
+        const params = new URLSearchParams({
+          client_name: pa.contact_name || pa.company_name || '',
+          client_email: pa.email || '',
+          client_phone: pa.phone || '',
+          event_name: updated.event_name || '',
+          event_date: updated.event_date || '',
+          amount: String(updated.agreed_amount ?? ''),
+        })
+        router.push(`/artist/dashboard/invoices/new?${params.toString()}`)
+      }
+    } catch (e: any) {
+      console.error('Failed to respond to booking', e)
+      setActionLoading(prev => ({ ...prev, [bookingId]: false }))
+    }
   }
 
   if (loading) {
@@ -274,6 +320,44 @@ export default function ArtistDashboard() {
             <ChevronRight className="h-5 w-5 text-gray-400" />
           </Link>
         </div>
+
+        {/* Pending promoter booking requests */}
+        {promoterBookings.filter(b => b.status === 'inquiry').length > 0 && (
+          <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+            <p className="text-sm font-semibold text-purple-900 mb-2">
+              🎤 {promoterBookings.filter(b => b.status === 'inquiry').length} Promoter Booking Request{promoterBookings.filter(b => b.status === 'inquiry').length > 1 ? 's' : ''} Pending
+            </p>
+            <div className="space-y-2">
+              {promoterBookings.filter(b => b.status === 'inquiry').map(b => {
+                const promoterName = b.promoter_accounts?.company_name || b.promoter_accounts?.contact_name || 'Promoter'
+                return (
+                  <div key={b.id} className="flex items-center justify-between gap-3 bg-white rounded-lg px-3 py-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{b.event_name}</p>
+                      <p className="text-xs text-gray-500">by {promoterName}{b.agreed_amount ? ` · $${Number(b.agreed_amount).toLocaleString()}` : ''}</p>
+                    </div>
+                    <div className="flex gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => respondToBooking(b.id, 'accept')}
+                        disabled={!!actionLoading[b.id]}
+                        className="px-3 py-1 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 disabled:opacity-50"
+                      >
+                        {actionLoading[b.id] ? '...' : '✓ Accept'}
+                      </button>
+                      <button
+                        onClick={() => respondToBooking(b.id, 'decline')}
+                        disabled={!!actionLoading[b.id]}
+                        className="px-3 py-1 bg-white border border-red-300 text-red-600 text-xs font-medium rounded-lg hover:bg-red-50 disabled:opacity-50"
+                      >
+                        {actionLoading[b.id] ? '...' : '✕'}
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Payouts */}
         <div className="bg-white rounded-xl border border-gray-200 p-5">

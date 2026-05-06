@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Put, Delete, Body, Param, Headers, UnauthorizedException, Logger,
+  Controller, Get, Post, Put, Patch, Delete, Body, Param, Headers, UnauthorizedException, Logger,
 } from '@nestjs/common';
 import { PromoterBookingsService } from './promoter-bookings.service';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -34,6 +34,28 @@ export class PromoterBookingsController {
   async listBookings(@Headers('authorization') auth: string) {
     const userId = await this.getUserId(auth);
     return this.promoterBookingsService.listBookings(userId);
+  }
+
+  @Get('for-artist')
+  async listBookingsForArtist(@Headers('authorization') auth: string) {
+    const userId = await this.getUserId(auth);
+    return this.promoterBookingsService.listBookingsForArtist(userId);
+  }
+
+  @Get('artist-invoices/mine')
+  async listArtistInvoicesForPromoter(@Headers('authorization') auth: string) {
+    const userId = await this.getUserId(auth);
+    return this.promoterBookingsService.listArtistInvoicesForPromoter(userId);
+  }
+
+  @Patch(':id/artist-respond')
+  async artistRespondToBooking(
+    @Headers('authorization') auth: string,
+    @Param('id') id: string,
+    @Body() body: { action: 'accept' | 'decline' },
+  ) {
+    const userId = await this.getUserId(auth);
+    return this.promoterBookingsService.artistRespondToBooking(userId, id, body.action);
   }
 
   @Get(':id')

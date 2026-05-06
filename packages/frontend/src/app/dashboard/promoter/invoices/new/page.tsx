@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
 import { Plus, Trash2, Loader2 } from 'lucide-react'
 
@@ -18,8 +18,9 @@ const in30 = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split
 let idSeq = 1
 const newItem = (): LineItem => ({ id: String(idSeq++), description: '', quantity: 1, unit_price: 0 })
 
-export default function NewPromoterInvoicePage() {
+function NewPromoterInvoiceForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   const [clientName, setClientName] = useState('')
   const [clientEmail, setClientEmail] = useState('')
@@ -34,6 +35,24 @@ export default function NewPromoterInvoicePage() {
   const [saving, setSaving] = useState(false)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
+
+  // Pre-fill from URL params (coming from booking detail page)
+  useEffect(() => {
+    const name = searchParams.get('client_name')
+    const email = searchParams.get('client_email')
+    const phone = searchParams.get('client_phone')
+    const eventName = searchParams.get('event_name')
+    const eventDate = searchParams.get('event_date')
+    const amount = searchParams.get('amount')
+    if (name) setClientName(name)
+    if (email) setClientEmail(email)
+    if (phone) setClientPhone(phone)
+    if (eventName || amount) {
+      const desc = eventName ? `${eventName}${eventDate ? ` — ${eventDate}` : ''}` : 'Event Services'
+      const price = amount ? parseFloat(amount) || 0 : 0
+      setItems([{ id: String(idSeq++), description: desc, quantity: 1, unit_price: price }])
+    }
+  }, [searchParams])
 
   const subtotal = items.reduce((s, i) => s + i.quantity * i.unit_price, 0)
   const taxAmount = subtotal * (taxRate / 100)
@@ -57,12 +76,25 @@ export default function NewPromoterInvoicePage() {
     items: items.map(({ description, quantity, unit_price }) => ({ description, quantity, unit_price })),
   })
 
+  const linkToBooking = async (invoiceId: string) => {
+    const bookingId = searchParams.get('booking_id')
+    if (bookingId) {
+      try {
+        await api.put(`/promoter-bookings/${bookingId}`, { promoter_invoice_id: invoiceId })
+      } catch {
+        // non-fatal
+      }
+    }
+  }
+
   const handleSave = async () => {
     if (!clientName || !clientEmail) { setError('Client name and email are required.'); return }
     setSaving(true); setError('')
     try {
       const res = await api.post('/promoter-invoices', buildPayload())
-      router.push(`/dashboard/promoter/invoices/${res.data.id}`)
+      await linkToBooking(res.data.id)
+      const bookingId = searchParams.get('booking_id')
+      router.push(bookingId ? `/dashboard/promoter/bookings/${bookingId}` : `/dashboard/promoter/invoices/${res.data.id}`)
     } catch (e: any) {
       setError(e.response?.data?.message || 'Failed to create invoice.')
       setSaving(false)
@@ -75,7 +107,9 @@ export default function NewPromoterInvoicePage() {
     try {
       const res = await api.post('/promoter-invoices', buildPayload())
       await api.post(`/promoter-invoices/${res.data.id}/send`)
-      router.push(`/dashboard/promoter/invoices/${res.data.id}`)
+      await linkToBooking(res.data.id)
+      const bookingId = searchParams.get('booking_id')
+      router.push(bookingId ? `/dashboard/promoter/bookings/${bookingId}` : `/dashboard/promoter/invoices/${res.data.id}`)
     } catch (e: any) {
       setError(e.response?.data?.message || 'Failed to create or send invoice.')
       setSending(false)
@@ -220,5 +254,13 @@ export default function NewPromoterInvoicePage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function NewPromoterInvoicePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>}>
+      <NewPromoterInvoiceForm />
+    </Suspense>
   )
 }

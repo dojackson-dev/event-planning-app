@@ -146,7 +146,7 @@ export class ArtistInvoicesService {
 
     const { data, error } = await admin
       .from('artist_invoices')
-      .select('*, artist_invoice_items(*), artist_accounts(artist_name, stage_name, email, phone, city, state)')
+      .select('*, artist_invoice_items(*), artist_accounts(artist_name, stage_name, booking_email, booking_phone, location)')
       .eq('id', invoiceId)
       .eq('artist_account_id', artistAccountId)
       .single();
@@ -426,7 +426,7 @@ export class ArtistInvoicesService {
     const { data, error } = await admin
       .from('artist_invoices')
       .select(
-        '*, artist_invoice_items(*), artist_accounts(artist_name, stage_name, email, phone, city, state, profile_image_url)',
+        '*, artist_invoice_items(*), artist_accounts(artist_name, stage_name, booking_email, booking_phone, location, profile_image_url)',
       )
       .eq('public_token', token)
       .single();
@@ -525,7 +525,7 @@ export class ArtistInvoicesService {
     const { data: invoice } = await admin
       .from('artist_invoices')
       .select(
-        'id, total_amount, client_name, client_phone, artist_account_id, artist_accounts(artist_name, stage_name, phone)',
+        'id, total_amount, client_name, client_phone, artist_account_id, artist_accounts(artist_name, stage_name, booking_phone)',
       )
       .eq('stripe_checkout_session_id', sessionId)
       .maybeSingle();
@@ -583,7 +583,7 @@ export class ArtistInvoicesService {
     const { data: invoice } = await admin
       .from('artist_invoices')
       .select(
-        'id, status, total_amount, stripe_checkout_session_id, client_name, client_phone, artist_accounts(artist_name, stage_name, phone)',
+        'id, status, total_amount, stripe_checkout_session_id, client_name, client_phone, artist_accounts(artist_name, stage_name, booking_phone)',
       )
       .eq('public_token', token)
       .maybeSingle();

@@ -141,7 +141,7 @@ export class PromoterInvoicesService {
     const { data, error } = await admin
       .from('promoter_invoices')
       .select(
-        '*, promoter_invoice_items(*), promoter_accounts(company_name, contact_name, email, phone, city, state)',
+        '*, promoter_invoice_items(*), promoter_accounts(company_name, contact_name, email, phone, location)',
       )
       .eq('id', invoiceId)
       .eq('promoter_account_id', promoterAccountId)
@@ -381,7 +381,7 @@ export class PromoterInvoicesService {
     const { data, error } = await admin
       .from('promoter_invoices')
       .select(
-        '*, promoter_invoice_items(*), promoter_accounts(company_name, contact_name, email, phone, city, state, profile_image_url)',
+        '*, promoter_invoice_items(*), promoter_accounts(company_name, contact_name, email, phone, location, profile_image_url)',
       )
       .eq('public_token', token)
       .single();

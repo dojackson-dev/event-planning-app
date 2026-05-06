@@ -23,7 +23,7 @@ interface PublicPromoterInvoice {
   notes: string | null
   terms: string | null
   promoter_invoice_items: Array<{ id: string; description: string; quantity: number; unit_price: number; amount: number }>
-  promoter_accounts: { company_name?: string; contact_name?: string; email: string; city?: string; state?: string }
+  promoter_accounts: { company_name?: string; contact_name?: string; email: string; location?: string }
 }
 
 function PromoterPayContent() {
@@ -109,8 +109,8 @@ function PromoterPayContent() {
             <Megaphone className="w-7 h-7 text-purple-500" />
           </div>
           <p className="font-semibold text-gray-900">{displayName}</p>
-          {(promoter?.city || promoter?.state) && (
-            <p className="text-xs text-gray-400">{[promoter?.city, promoter?.state].filter(Boolean).join(', ')}</p>
+          {promoter?.location && (
+            <p className="text-xs text-gray-400">{promoter.location}</p>
           )}
         </div>
 

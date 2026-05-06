@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
-import { ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, Mic2 } from 'lucide-react'
 import {
   format,
   startOfMonth,
@@ -22,14 +22,7 @@ import {
 
 interface PromoterBooking {
   id: string
-  event_name: string
-  client_name: string
   event_date?: string
-  event_start_time?: string
-  venue_name?: string
-  agreed_amount?: number
-  status: 'inquiry' | 'estimate_sent' | 'deposit_paid' | 'confirmed' | 'completed' | 'cancelled'
-  notes?: string
   artist_name?: string
 }
 
@@ -44,59 +37,23 @@ interface PromoterEvent {
   status: 'draft' | 'published' | 'cancelled'
 }
 
-type CalEntry =
-  | { kind: 'booking'; data: PromoterBooking; date: Date }
-  | { kind: 'event';   data: PromoterEvent;   date: Date }
-
 // ─── Color maps ───────────────────────────────────────────────────────────────
 
-const BOOKING_DOT: Record<string, string> = {
-  inquiry:       'bg-gray-400',
-  estimate_sent: 'bg-blue-400',
-  deposit_paid:  'bg-yellow-400',
-  confirmed:     'bg-green-500',
-  completed:     'bg-emerald-500',
-  cancelled:     'bg-red-400',
-}
-
-const BOOKING_CELL: Record<string, string> = {
-  inquiry:       'bg-gray-50 text-gray-600',
-  estimate_sent: 'bg-blue-50 text-blue-700',
-  deposit_paid:  'bg-yellow-50 text-yellow-700',
-  confirmed:     'bg-green-50 text-green-700',
-  completed:     'bg-emerald-50 text-emerald-700',
-  cancelled:     'bg-red-50 text-red-500',
-}
-
-const BOOKING_PILL: Record<string, string> = {
-  inquiry:       'bg-gray-100 text-gray-700',
-  estimate_sent: 'bg-blue-100 text-blue-700',
-  deposit_paid:  'bg-yellow-100 text-yellow-700',
-  confirmed:     'bg-green-100 text-green-700',
-  completed:     'bg-emerald-100 text-emerald-700',
-  cancelled:     'bg-red-100 text-red-600',
-}
-
-const BOOKING_LABELS: Record<string, string> = {
-  inquiry: 'Inquiry', estimate_sent: 'Estimate Sent', deposit_paid: 'Deposit Paid',
-  confirmed: 'Confirmed', completed: 'Completed', cancelled: 'Cancelled',
-}
-
 const EVENT_DOT: Record<string, string> = {
-  draft:     'bg-purple-300',
-  published: 'bg-purple-600',
-  cancelled: 'bg-purple-200',
+  draft:     'bg-blue-400',
+  published: 'bg-green-500',
+  cancelled: 'bg-gray-300',
 }
 
 const EVENT_CELL: Record<string, string> = {
-  draft:     'bg-purple-50 text-purple-500',
-  published: 'bg-purple-100 text-purple-700',
-  cancelled: 'bg-purple-50 text-purple-300 line-through',
+  draft:     'bg-blue-50 text-blue-700',
+  published: 'bg-green-50 text-green-700',
+  cancelled: 'bg-gray-50 text-gray-400 line-through',
 }
 
 const EVENT_PILL: Record<string, string> = {
-  draft:     'bg-purple-100 text-purple-600',
-  published: 'bg-purple-200 text-purple-800',
+  draft:     'bg-blue-100 text-blue-700',
+  published: 'bg-green-100 text-green-700',
   cancelled: 'bg-gray-100 text-gray-500',
 }
 
@@ -115,7 +72,7 @@ export default function PromoterCalendarPage() {
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState('')
   const [currentDate, setCurrentDate] = useState(new Date())
-  const [selected, setSelected] = useState<CalEntry | null>(null)
+  const [selected, setSelected] = useState<PromoterEvent | null>(null)
 
   useEffect(() => {
     Promise.allSettled([
@@ -136,15 +93,11 @@ export default function PromoterCalendarPage() {
   const calEnd     = endOfWeek(monthEnd,     { weekStartsOn: 0 })
   const days       = eachDayOfInterval({ start: calStart, end: calEnd })
 
-  const entriesOnDay = (day: Date): CalEntry[] => {
-    const b: CalEntry[] = bookings
-      .filter(b => b.event_date && isSameDay(parseLocal(b.event_date), day))
-      .map(data => ({ kind: 'booking', data, date: parseLocal(data.event_date!) }))
-    const e: CalEntry[] = events
-      .filter(ev => isSameDay(parseLocal(ev.event_date), day))
-      .map(data => ({ kind: 'event', data, date: parseLocal(data.event_date) }))
-    return [...e, ...b]
-  }
+  const eventsOnDay = (day: Date) =>
+    events.filter(ev => isSameDay(parseLocal(ev.event_date), day))
+
+  const artistBookedOnDay = (day: Date) =>
+    bookings.some(b => b.event_date && b.artist_name && isSameDay(parseLocal(b.event_date), day))
 
   if (loading) {
     return (
@@ -158,7 +111,7 @@ export default function PromoterCalendarPage() {
     <div className="p-6 max-w-5xl mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Calendar</h1>
-        <p className="text-sm text-gray-500 mt-1">Your events and bookings in one view</p>
+        <p className="text-sm text-gray-500 mt-1">Your events at a glance</p>
       </div>
 
       {error && (
@@ -201,44 +154,42 @@ export default function PromoterCalendarPage() {
         {/* Grid */}
         <div className="grid grid-cols-7 border-l border-t border-gray-100">
           {days.map(day => {
-            const entries = entriesOnDay(day)
-            const inMonth = isSameMonth(day, currentDate)
-            const today   = isToday(day)
+            const dayEvents = eventsOnDay(day)
+            const hasArtist = artistBookedOnDay(day)
+            const inMonth   = isSameMonth(day, currentDate)
+            const today     = isToday(day)
             return (
               <div
                 key={day.toISOString()}
                 className={`min-h-[72px] border-r border-b border-gray-100 p-1 ${inMonth ? 'bg-white' : 'bg-gray-50'}`}
               >
-                <span className={`inline-flex items-center justify-center w-6 h-6 text-xs font-medium rounded-full mb-0.5 ${
-                  today   ? 'bg-purple-600 text-white' :
-                  inMonth ? 'text-gray-700'            :
-                            'text-gray-300'
-                }`}>
-                  {format(day, 'd')}
-                </span>
+                <div className="flex items-center justify-between mb-0.5">
+                  <span className={`inline-flex items-center justify-center w-6 h-6 text-xs font-medium rounded-full ${
+                    today   ? 'bg-purple-600 text-white' :
+                    inMonth ? 'text-gray-700'            :
+                              'text-gray-300'
+                  }`}>
+                    {format(day, 'd')}
+                  </span>
+                  {hasArtist && inMonth && (
+                    <Mic2 className="w-3 h-3 text-purple-400 flex-shrink-0" />
+                  )}
+                </div>
                 <div className="space-y-0.5">
-                  {entries.slice(0, 3).map((entry, i) => (
+                  {dayEvents.slice(0, 3).map((ev, i) => (
                     <button
-                      key={`${entry.kind}-${entry.data.id}-${i}`}
-                      onClick={() => setSelected(entry)}
+                      key={`${ev.id}-${i}`}
+                      onClick={() => setSelected(ev)}
                       className={`w-full text-left truncate text-xs px-1 py-0.5 rounded font-medium flex items-center gap-1 ${
-                        entry.kind === 'event'
-                          ? EVENT_CELL[(entry.data as PromoterEvent).status] || 'bg-purple-50 text-purple-600'
-                          : BOOKING_CELL[(entry.data as PromoterBooking).status] || 'bg-gray-100 text-gray-500'
+                        EVENT_CELL[ev.status] || 'bg-gray-50 text-gray-500'
                       }`}
                     >
-                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                        entry.kind === 'event'
-                          ? EVENT_DOT[(entry.data as PromoterEvent).status]
-                          : BOOKING_DOT[(entry.data as PromoterBooking).status]
-                      }`} />
-                      <span className="truncate">
-                        {entry.kind === 'event' ? (entry.data as PromoterEvent).title : (entry.data as PromoterBooking).event_name}
-                      </span>
+                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${EVENT_DOT[ev.status]}`} />
+                      <span className="truncate">{ev.title}</span>
                     </button>
                   ))}
-                  {entries.length > 3 && (
-                    <p className="text-xs text-gray-400 pl-1">+{entries.length - 3} more</p>
+                  {dayEvents.length > 3 && (
+                    <p className="text-xs text-gray-400 pl-1">+{dayEvents.length - 3} more</p>
                   )}
                 </div>
               </div>
@@ -247,28 +198,16 @@ export default function PromoterCalendarPage() {
         </div>
 
         {/* Legend */}
-        <div className="flex gap-4 mt-4 flex-wrap">
-          <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium">Events:</div>
-          {[
-            { label: 'Published', color: 'bg-purple-600' },
-            { label: 'Draft',     color: 'bg-purple-300' },
-          ].map(l => (
-            <div key={l.label} className="flex items-center gap-1.5 text-xs text-gray-500">
-              <span className={`w-2 h-2 rounded-full ${l.color}`} />{l.label}
-            </div>
-          ))}
-          <span className="text-gray-300">|</span>
-          <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium">Bookings:</div>
-          {[
-            { label: 'Confirmed',  color: 'bg-green-500' },
-            { label: 'Dep. Paid',  color: 'bg-yellow-400' },
-            { label: 'Est. Sent',  color: 'bg-blue-400' },
-            { label: 'Inquiry',    color: 'bg-gray-400' },
-          ].map(l => (
-            <div key={l.label} className="flex items-center gap-1.5 text-xs text-gray-500">
-              <span className={`w-2 h-2 rounded-full ${l.color}`} />{l.label}
-            </div>
-          ))}
+        <div className="flex items-center gap-4 mt-4 flex-wrap text-xs text-gray-500">
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-green-500" />Published
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-blue-400" />Draft
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Mic2 className="w-3 h-3 text-purple-400" />Artist Booked
+          </div>
         </div>
       </div>
 
@@ -282,90 +221,48 @@ export default function PromoterCalendarPage() {
             className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm"
             onClick={e => e.stopPropagation()}
           >
-            {selected.kind === 'event' ? (
-              <>
-                <div className="flex items-start justify-between mb-1">
-                  <span className="text-xs font-semibold text-purple-600 uppercase tracking-wide">Event</span>
-                  <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600">
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-                <h3 className="font-bold text-gray-900 text-lg mb-4">{(selected.data as PromoterEvent).title}</h3>
-                <div className="space-y-2 text-sm text-gray-600">
-                  <p>
-                    <span className="font-medium text-gray-700">📅 Date: </span>
-                    {parseLocal((selected.data as PromoterEvent).event_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
-                  </p>
-                  {(selected.data as PromoterEvent).start_time && (
-                    <p><span className="font-medium text-gray-700">🕐 Time: </span>{(selected.data as PromoterEvent).start_time}</p>
-                  )}
-                  {(selected.data as PromoterEvent).venue_name && (
-                    <p><span className="font-medium text-gray-700">📍 Venue: </span>{(selected.data as PromoterEvent).venue_name}</p>
-                  )}
-                  {((selected.data as PromoterEvent).city || (selected.data as PromoterEvent).state) && (
-                    <p><span className="font-medium text-gray-700">🏙️ City: </span>
-                      {[(selected.data as PromoterEvent).city, (selected.data as PromoterEvent).state].filter(Boolean).join(', ')}
-                    </p>
-                  )}
-                  <p>
-                    <span className="font-medium text-gray-700">Status: </span>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${EVENT_PILL[(selected.data as PromoterEvent).status] || 'bg-gray-100 text-gray-600'}`}>
-                      {(selected.data as PromoterEvent).status}
-                    </span>
-                  </p>
-                </div>
-                <div className="mt-4 pt-4 border-t border-gray-100">
-                  <Link href="/dashboard/promoter/events" className="text-sm text-purple-600 hover:underline" onClick={() => setSelected(null)}>
-                    View all events →
-                  </Link>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="flex items-start justify-between mb-1">
-                  <span className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Booking</span>
-                  <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600">
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-                <h3 className="font-bold text-gray-900 text-lg mb-4">{(selected.data as PromoterBooking).event_name}</h3>
-                <div className="space-y-2 text-sm text-gray-600">
-                  {(selected.data as PromoterBooking).event_date && (
-                    <p>
-                      <span className="font-medium text-gray-700">📅 Date: </span>
-                      {parseLocal((selected.data as PromoterBooking).event_date!).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
-                    </p>
-                  )}
-                  {(selected.data as PromoterBooking).event_start_time && (
-                    <p><span className="font-medium text-gray-700">🕐 Time: </span>{(selected.data as PromoterBooking).event_start_time}</p>
-                  )}
-                  {(selected.data as PromoterBooking).venue_name && (
-                    <p><span className="font-medium text-gray-700">📍 Venue: </span>{(selected.data as PromoterBooking).venue_name}</p>
-                  )}
-                  <p><span className="font-medium text-gray-700">👤 Client: </span>{(selected.data as PromoterBooking).client_name}</p>
-                  {(selected.data as PromoterBooking).artist_name && (
-                    <p><span className="font-medium text-gray-700">🎤 Artist: </span>{(selected.data as PromoterBooking).artist_name}</p>
-                  )}
-                  {(selected.data as PromoterBooking).agreed_amount != null && (
-                    <p><span className="font-medium text-gray-700">💰 Amount: </span>${(selected.data as PromoterBooking).agreed_amount!.toLocaleString()}</p>
-                  )}
-                  {(selected.data as PromoterBooking).notes && (
-                    <p className="italic text-gray-500">"{(selected.data as PromoterBooking).notes}"</p>
-                  )}
-                  <p>
-                    <span className="font-medium text-gray-700">Status: </span>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${BOOKING_PILL[(selected.data as PromoterBooking).status] || 'bg-gray-100 text-gray-600'}`}>
-                      {BOOKING_LABELS[(selected.data as PromoterBooking).status] || (selected.data as PromoterBooking).status}
-                    </span>
-                  </p>
-                </div>
-                <div className="mt-4 pt-4 border-t border-gray-100">
-                  <Link href="/dashboard/promoter/bookings" className="text-sm text-blue-600 hover:underline" onClick={() => setSelected(null)}>
-                    View all bookings →
-                  </Link>
-                </div>
-              </>
-            )}
+            <div className="flex items-start justify-between mb-1">
+              <span className={`text-xs font-semibold uppercase tracking-wide ${
+                selected.status === 'published' ? 'text-green-600' : 'text-blue-600'
+              }`}>Event</span>
+              <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <h3 className="font-bold text-gray-900 text-lg mb-4">{selected.title}</h3>
+            <div className="space-y-2 text-sm text-gray-600">
+              <p>
+                <span className="font-medium text-gray-700">📅 Date: </span>
+                {parseLocal(selected.event_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+              </p>
+              {selected.start_time && (
+                <p><span className="font-medium text-gray-700">🕐 Time: </span>{selected.start_time}</p>
+              )}
+              {selected.venue_name && (
+                <p><span className="font-medium text-gray-700">📍 Venue: </span>{selected.venue_name}</p>
+              )}
+              {(selected.city || selected.state) && (
+                <p><span className="font-medium text-gray-700">🏙️ City: </span>
+                  {[selected.city, selected.state].filter(Boolean).join(', ')}
+                </p>
+              )}
+              <p>
+                <span className="font-medium text-gray-700">Status: </span>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${EVENT_PILL[selected.status] || 'bg-gray-100 text-gray-600'}`}>
+                  {selected.status}
+                </span>
+              </p>
+              {artistBookedOnDay(parseLocal(selected.event_date)) && (
+                <p className="flex items-center gap-1.5 text-purple-600 font-medium">
+                  <Mic2 className="w-4 h-4" />Artist booked for this date
+                </p>
+              )}
+            </div>
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <Link href="/dashboard/promoter/events" className="text-sm text-green-600 hover:underline" onClick={() => setSelected(null)}>
+                View all events →
+              </Link>
+            </div>
           </div>
         </div>
       )}

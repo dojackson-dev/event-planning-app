@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
 import { Plus, Trash2, Loader2, ChevronDown, BookOpen } from 'lucide-react'
 
@@ -31,7 +32,16 @@ let idSeq = 1
 const newItem = (): LineItem => ({ id: String(idSeq++), description: '', quantity: 1, unit_price: 0 })
 
 export default function NewArtistInvoicePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>}>
+      <NewArtistInvoiceForm />
+    </Suspense>
+  )
+}
+
+function NewArtistInvoiceForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   const [bookings, setBookings] = useState<ArtistBooking[]>([])
   const [showBookingPicker, setShowBookingPicker] = useState(false)
@@ -52,6 +62,23 @@ export default function NewArtistInvoicePage() {
   const [saving, setSaving] = useState(false)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
+
+  // Pre-fill from URL params (e.g. coming from promoter booking accept flow)
+  useEffect(() => {
+    const name = searchParams.get('client_name')
+    const email = searchParams.get('client_email')
+    const phone = searchParams.get('client_phone')
+    const eventName = searchParams.get('event_name')
+    const eventDate = searchParams.get('event_date')
+    const amount = searchParams.get('amount')
+    if (name) setClientName(name)
+    if (email) setClientEmail(email)
+    if (phone) setClientPhone(phone)
+    if (eventName && amount && Number(amount) > 0) {
+      const desc = eventName + (eventDate ? ` – ${new Date(eventDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : '')
+      setItems([{ id: String(idSeq++), description: desc, quantity: 1, unit_price: Number(amount) }])
+    }
+  }, [searchParams])
 
   // Load bookings on demand
   const openBookingPicker = async () => {

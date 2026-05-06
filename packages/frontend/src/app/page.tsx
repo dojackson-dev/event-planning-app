@@ -39,7 +39,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Logo row — centered */}
           <div className="flex justify-center items-center py-4 border-b border-gray-100">
-            <img src="/lib/LogoEventEcos.png" alt="EventEcos Logo" style={{ height: '72px', width: 'auto' }} />
+            <img src="/lib/TransparentLogo.jpg" alt="EventEcos Logo" style={{ height: '72px', width: 'auto' }} />
           </div>
           {/* Log In row */}
           <div className="flex justify-center items-center py-3">

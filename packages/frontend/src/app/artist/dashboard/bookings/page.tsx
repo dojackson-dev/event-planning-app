@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
-import { Plus, Loader2, Calendar, User, Music } from 'lucide-react'
+import { Plus, Loader2, Calendar, User, Music, Building2 } from 'lucide-react'
 
 interface ArtistBooking {
   id: string
@@ -18,6 +18,8 @@ interface ArtistBooking {
   status: 'inquiry' | 'estimate_sent' | 'deposit_paid' | 'confirmed' | 'completed' | 'cancelled'
   notes?: string
   artist_invoice_id?: string
+  _source?: 'own' | 'promoter'
+  _promoter_name?: string
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -44,9 +46,37 @@ export default function ArtistBookingsPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    api.get('/artist-bookings/mine')
-      .then(r => setBookings(r.data || []))
-      .catch(e => setError(e.response?.data?.message || 'Failed to load bookings'))
+    Promise.allSettled([
+      api.get('/artist-bookings/mine'),
+      api.get('/promoter-bookings/for-artist'),
+    ]).then(([ownRes, pbRes]) => {
+      const own: ArtistBooking[] = (ownRes.status === 'fulfilled' ? ownRes.value.data || [] : [])
+        .map((b: ArtistBooking) => ({ ...b, _source: 'own' as const }))
+
+      const promoter: ArtistBooking[] = (pbRes.status === 'fulfilled' ? pbRes.value.data || [] : [])
+        .map((b: any) => ({
+          id: b.id,
+          event_name: b.event_name,
+          client_name: b.promoter_accounts?.contact_name || b.promoter_accounts?.company_name || 'Promoter',
+          client_email: b.promoter_accounts?.email || '',
+          event_date: b.event_date,
+          event_start_time: b.event_start_time,
+          venue_name: b.venue_name,
+          agreed_amount: b.agreed_amount,
+          deposit_amount: b.deposit_amount,
+          status: b.status,
+          notes: b.notes,
+          _source: 'promoter' as const,
+          _promoter_name: b.promoter_accounts?.company_name || b.promoter_accounts?.contact_name || 'Promoter',
+        }))
+
+      const all = [...own, ...promoter].sort((a, b) => {
+        if (!a.event_date) return 1
+        if (!b.event_date) return -1
+        return a.event_date.localeCompare(b.event_date)
+      })
+      setBookings(all)
+    }).catch(e => setError('Failed to load bookings'))
       .finally(() => setLoading(false))
   }, [])
 
@@ -113,36 +143,53 @@ export default function ArtistBookingsPage() {
 }
 
 function BookingCard({ booking }: { booking: ArtistBooking }) {
+  const inner = (
+    <div className="flex items-start justify-between gap-3">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1 flex-wrap">
+          <h3 className="font-semibold text-gray-900 truncate">{booking.event_name}</h3>
+          <span className={`flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[booking.status]}`}>
+            {STATUS_LABELS[booking.status]}
+          </span>
+          {booking._source === 'promoter' && (
+            <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
+              <Building2 className="w-3 h-3" /> via {booking._promoter_name}
+            </span>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500">
+          <span className="flex items-center gap-1"><User className="w-3 h-3" />{booking.client_name}</span>
+          {booking.event_date && (
+            <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{booking.event_date}
+              {booking.event_start_time && ` at ${booking.event_start_time}`}
+            </span>
+          )}
+          {booking.venue_name && <span>{booking.venue_name}</span>}
+        </div>
+      </div>
+      {booking.agreed_amount && (
+        <div className="text-right flex-shrink-0">
+          <p className="font-semibold text-gray-900">${Number(booking.agreed_amount).toFixed(0)}</p>
+          {booking.deposit_amount && (
+            <p className="text-xs text-gray-400">${Number(booking.deposit_amount).toFixed(0)} deposit</p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+
+  if (booking._source === 'promoter') {
+    return (
+      <div className="bg-white border border-gray-200 rounded-xl p-4">
+        {inner}
+      </div>
+    )
+  }
+
   return (
     <Link href={`/artist/dashboard/bookings/${booking.id}`}
       className="block bg-white border border-gray-200 rounded-xl p-4 hover:shadow-sm transition-shadow">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <h3 className="font-semibold text-gray-900 truncate">{booking.event_name}</h3>
-            <span className={`flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[booking.status]}`}>
-              {STATUS_LABELS[booking.status]}
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500">
-            <span className="flex items-center gap-1"><User className="w-3 h-3" />{booking.client_name}</span>
-            {booking.event_date && (
-              <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{booking.event_date}
-                {booking.event_start_time && ` at ${booking.event_start_time}`}
-              </span>
-            )}
-            {booking.venue_name && <span>{booking.venue_name}</span>}
-          </div>
-        </div>
-        {booking.agreed_amount && (
-          <div className="text-right flex-shrink-0">
-            <p className="font-semibold text-gray-900">${Number(booking.agreed_amount).toFixed(0)}</p>
-            {booking.deposit_amount && (
-              <p className="text-xs text-gray-400">${Number(booking.deposit_amount).toFixed(0)} deposit</p>
-            )}
-          </div>
-        )}
-      </div>
+      {inner}
     </Link>
   )
 }

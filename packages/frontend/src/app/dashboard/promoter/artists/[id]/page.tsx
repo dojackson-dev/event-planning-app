@@ -84,7 +84,7 @@ export default function ArtistProfileForPromoterPage() {
   const displayName = artist.stage_name || artist.artist_name
   const typeLabel = ARTIST_TYPES[artist.artist_type] || artist.artist_type
 
-  const bookingUrl = `/dashboard/promoter/bookings/new?artistId=${artist.id}&artistName=${encodeURIComponent(displayName)}&artistEmail=${encodeURIComponent(artist.booking_email || '')}&feeMin=${artist.performance_fee_min ?? ''}&feeMax=${artist.performance_fee_max ?? ''}`
+  const bookingUrl = `/dashboard/promoter/bookings/new?artistId=${artist.id}&artistName=${encodeURIComponent(displayName)}&artistEmail=${encodeURIComponent(artist.booking_email || '')}&artistPhone=${encodeURIComponent(artist.booking_phone || '')}&feeMin=${artist.performance_fee_min ?? ''}&feeMax=${artist.performance_fee_max ?? ''}`
 
   return (
     <div className="min-h-screen bg-gray-50">

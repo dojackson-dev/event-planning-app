@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { CreatePromoterBookingDto, UpdatePromoterBookingDto } from './dto/promoter-booking.dto';
 
@@ -77,7 +77,19 @@ export class PromoterBookingsService {
       .single();
 
     if (error || !data) throw new NotFoundException('Booking not found');
-    return data;
+
+    // Fetch artist invoices sent by the booked artist (payable by the promoter)
+    let artistInvoices: any[] = [];
+    if (data.artist_account_id) {
+      const { data: aiData } = await admin
+        .from('artist_invoices')
+        .select('id, invoice_number, total_amount, amount_due, amount_paid, status, public_token, issue_date, due_date, created_at')
+        .eq('artist_account_id', data.artist_account_id)
+        .order('created_at', { ascending: false });
+      artistInvoices = aiData ?? [];
+    }
+
+    return { ...data, artist_invoices: artistInvoices };
   }
 
   async updateBooking(userId: string, bookingId: string, dto: UpdatePromoterBookingDto) {
@@ -113,5 +125,90 @@ export class PromoterBookingsService {
 
     if (error) throw new Error(error.message);
     return { success: true };
+  }
+
+  async listArtistInvoicesForPromoter(userId: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const promoterAccountId = await this.getPromoterAccountId(userId);
+
+    // Find all artist_account_ids this promoter has booked
+    const { data: bookings } = await admin
+      .from('promoter_bookings')
+      .select('artist_account_id')
+      .eq('promoter_account_id', promoterAccountId)
+      .not('artist_account_id', 'is', null);
+
+    const artistIds = Array.from(
+      new Set((bookings ?? []).map((b: any) => b.artist_account_id).filter(Boolean)),
+    );
+    if (artistIds.length === 0) return [];
+
+    const { data, error } = await admin
+      .from('artist_invoices')
+      .select(
+        'id, invoice_number, total_amount, amount_due, amount_paid, status, public_token, issue_date, due_date, created_at, artist_account_id, artist_accounts(artist_name, stage_name)',
+      )
+      .in('artist_account_id', artistIds)
+      .order('created_at', { ascending: false });
+
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  }
+
+  async listBookingsForArtist(userId: string) {
+    const admin = this.supabaseService.getAdminClient();
+
+    // Look up artist_account_id for this user
+    const { data: artistAccount } = await admin
+      .from('artist_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (!artistAccount) return [];
+
+    const { data, error } = await admin
+      .from('promoter_bookings')
+      .select('*, promoter_accounts(company_name, contact_name, email, phone)')
+      .eq('artist_account_id', artistAccount.id)
+      .neq('status', 'cancelled')
+      .order('event_date', { ascending: true, nullsFirst: false });
+
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  }
+
+  async artistRespondToBooking(userId: string, bookingId: string, action: 'accept' | 'decline') {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: artistAccount } = await admin
+      .from('artist_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (!artistAccount) throw new ForbiddenException('No artist account found for this user');
+
+    const { data: booking } = await admin
+      .from('promoter_bookings')
+      .select('id, status')
+      .eq('id', bookingId)
+      .eq('artist_account_id', artistAccount.id)
+      .maybeSingle();
+    if (!booking) throw new NotFoundException('Booking not found or not assigned to you');
+
+    if (action === 'accept' && booking.status === 'confirmed') {
+      throw new BadRequestException('Booking is already confirmed');
+    }
+
+    const newStatus = action === 'accept' ? 'confirmed' : 'cancelled';
+
+    const { data, error } = await admin
+      .from('promoter_bookings')
+      .update({ status: newStatus, updated_at: new Date().toISOString() })
+      .eq('id', bookingId)
+      .select('*, promoter_accounts(company_name, contact_name, email, phone)')
+      .single();
+
+    if (error) throw new Error(error.message);
+    return data;
   }
 }

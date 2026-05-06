@@ -10,7 +10,7 @@ export default function SignupPage() {
       <nav className="bg-white border-b">
         <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/">
-            <img src="/lib/LogoEventEcos.png" alt="EventEcos" style={{ height: '36px', width: 'auto' }} />
+            <img src="/lib/TransparentLogo.jpg" alt="EventEcos" style={{ height: '36px', width: 'auto' }} />
           </Link>
           <div className="flex items-center gap-4 text-sm">
             <Link href="/login" className="text-gray-500 hover:text-gray-800">Venue owner login</Link>

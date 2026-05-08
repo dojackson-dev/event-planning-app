@@ -77,7 +77,7 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
           </div>
           <div>
             <h1 className="text-lg font-bold text-white">Admin Portal</h1>
-            <p className="text-xs text-gray-400">DoVenue Suite</p>
+            <p className="text-xs text-gray-400">EventEcos</p>
           </div>
         </div>
 

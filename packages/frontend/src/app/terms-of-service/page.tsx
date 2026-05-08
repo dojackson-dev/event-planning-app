@@ -12,7 +12,7 @@ export default function TermsOfService() {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
               <Link href="/">
-                <img src="/lib/LogoDVS.png" alt="DoVenue Suite Logo" style={{ height: '64px', width: 'auto' }} />
+                <img src="/lib/LogoEventEcos.png" alt="EventEcos Logo" style={{ height: '64px', width: 'auto' }} />
               </Link>
             </div>
             <div className="flex items-center gap-4">
@@ -41,21 +41,21 @@ export default function TermsOfService() {
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">SMS Terms of Service</h2>
             <p className="text-gray-600 leading-relaxed">
-              By opting into SMS from DoVenue Suite, you agree to receive account notifications, event confirmations, reminders, and related service messages. Message frequency varies. Message and data rates may apply. Reply STOP to unsubscribe. Reply HELP for assistance.
+              By opting into SMS from EventEcos, you agree to receive account notifications, event confirmations, reminders, and related service messages. Message frequency varies. Message and data rates may apply. Reply STOP to unsubscribe. Reply HELP for assistance.
             </p>
           </section>
 
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">Acceptance of Terms</h2>
             <p className="text-gray-600 leading-relaxed">
-              By accessing or using DoVenue Suite, you agree to be bound by these Terms of Service and all applicable laws and regulations. If you do not agree with any of these terms, you are prohibited from using or accessing this site.
+              By accessing or using EventEcos, you agree to be bound by these Terms of Service and all applicable laws and regulations. If you do not agree with any of these terms, you are prohibited from using or accessing this site.
             </p>
           </section>
 
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">Use License</h2>
             <p className="text-gray-600 leading-relaxed mb-4">
-              Permission is granted to temporarily access DoVenue Suite for personal, non-commercial transitory viewing only. This is the grant of a license, not a transfer of title, and under this license you may not:
+              Permission is granted to temporarily access EventEcos for personal, non-commercial transitory viewing only. This is the grant of a license, not a transfer of title, and under this license you may not:
             </p>
             <ul className="list-disc pl-6 text-gray-600 space-y-2">
               <li>Modify or copy the materials</li>
@@ -76,21 +76,21 @@ export default function TermsOfService() {
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">Service Modifications</h2>
             <p className="text-gray-600 leading-relaxed">
-              DoVenue Suite reserves the right to modify or discontinue, temporarily or permanently, the service (or any part thereof) with or without notice. You agree that DoVenue Suite shall not be liable to you or to any third party for any modification, suspension, or discontinuance of the service.
+              EventEcos reserves the right to modify or discontinue, temporarily or permanently, the service (or any part thereof) with or without notice. You agree that EventEcos shall not be liable to you or to any third party for any modification, suspension, or discontinuance of the service.
             </p>
           </section>
 
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">Disclaimer</h2>
             <p className="text-gray-600 leading-relaxed">
-              The materials on DoVenue Suite are provided on an 'as is' basis. DoVenue Suite makes no warranties, expressed or implied, and hereby disclaims and negates all other warranties including, without limitation, implied warranties or conditions of merchantability, fitness for a particular purpose, or non-infringement of intellectual property or other violation of rights.
+              The materials on EventEcos are provided on an 'as is' basis. EventEcos makes no warranties, expressed or implied, and hereby disclaims and negates all other warranties including, without limitation, implied warranties or conditions of merchantability, fitness for a particular purpose, or non-infringement of intellectual property or other violation of rights.
             </p>
           </section>
 
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">Contact Us</h2>
             <p className="text-gray-600 leading-relaxed">
-              If you have any questions about these Terms of Service, please contact us at support@dovenuesuite.com.
+              If you have any questions about these Terms of Service, please contact us at support@eventecos.com.
             </p>
           </section>
 
@@ -112,7 +112,7 @@ export default function TermsOfService() {
             </Link>
           </div>
           <p className="text-center text-base text-gray-400">
-            &copy; 2026 DoVenue Suite. All rights reserved.
+            &copy; 2026 EventEcos. All rights reserved.
           </p>
         </div>
       </footer>

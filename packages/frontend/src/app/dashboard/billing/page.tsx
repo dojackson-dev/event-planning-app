@@ -243,7 +243,7 @@ export default function BillingPage() {
     <div className="p-6 max-w-5xl mx-auto">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Billing & Subscription</h1>
-        <p className="text-gray-500 mt-1">Manage your DoVenueSuite plan and payment settings</p>
+        <p className="text-gray-500 mt-1">Manage your EventEcos plan and payment settings</p>
       </div>
 
       {/* ── Current Status Card ── */}
@@ -311,7 +311,7 @@ export default function BillingPage() {
             <div className="flex-1">
               <h2 className="text-lg font-bold mb-1">Convert Your Demo Account</h2>
               <p className="text-sm text-indigo-100">
-                You&apos;re exploring DoVenueSuite on a free trial. All your data, clients, and settings carry over
+                You're exploring EventEcos on a free trial. All your data, clients, and settings carry over
                 automatically when you subscribe — nothing is lost.
               </p>
               <ul className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-1">
@@ -415,7 +415,7 @@ export default function BillingPage() {
               </div>
               <p className="text-sm text-gray-500">
                 Connect your Stripe account to accept payments from clients and pay vendors.
-                DoVenueSuite takes a 5% platform fee on each transaction.
+                EventEcos takes a 5% platform fee on each transaction.
               </p>
               {connectStatus?.connectId && (
                 <p className="text-xs text-gray-400 mt-1 font-mono">{connectStatus.connectId}</p>

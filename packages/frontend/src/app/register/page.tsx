@@ -127,7 +127,7 @@ export default function RegisterPage() {
           </div>
           <h2 className="text-3xl font-extrabold text-gray-900">Account Created!</h2>
           <p className="text-gray-600">
-            Welcome to DoVenueSuite. A verification email has been sent to <strong>{email}</strong>.
+            Welcome to EventEcos. A verification email has been sent to <strong>{email}</strong>.
           </p>
           <p className="text-sm text-gray-500">Redirecting to your dashboard…</p>
         </div>

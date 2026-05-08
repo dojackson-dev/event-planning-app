@@ -1,13 +1,13 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter } from 'next/font/google'
+import { Poppins } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '@/contexts/AuthContext'
 
-const inter = Inter({ subsets: ['latin'] })
+const poppins = Poppins({ subsets: ['latin'], weight: ['400', '500', '600', '700'] })
 
 export const metadata: Metadata = {
-  title: 'Event Planning - Owner Dashboard',
-  description: 'Manage your event center with ease',
+  title: 'EventEcos - Event Management Platform',
+  description: 'Powering the Event Ecosystem',
   icons: {
     icon: '/favicon.svg',
   },
@@ -30,7 +30,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${inter.className} overflow-x-hidden`} suppressHydrationWarning>
+      <body className={`${poppins.className} overflow-x-hidden`} suppressHydrationWarning>
         <AuthProvider>
           {children}
         </AuthProvider>

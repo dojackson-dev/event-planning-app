@@ -148,7 +148,7 @@ function generateVenueContract(d: {
 }) {
   return `<div style="font-family:Georgia,serif;max-width:780px;margin:0 auto;color:#111;line-height:1.75;padding:16px;">
   <h1 style="text-align:center;font-size:1.35rem;text-transform:uppercase;letter-spacing:.06em;border-bottom:2px solid #111;padding-bottom:14px;margin-bottom:28px;">Venue Listing &amp; Booking Agreement</h1>
-  <p style="text-align:center;font-style:italic;color:#555;margin-top:-16px;margin-bottom:28px;">DoVenue Suite Platform</p>
+  <p style="text-align:center;font-style:italic;color:#555;margin-top:-16px;margin-bottom:28px;">EventEcos Platform</p>
 
   <p>This Agreement is entered into as of <strong>${d.agreementDate}</strong> ("Effective Date"), by and between:</p>
   <p style="margin-left:16px;"><strong>Venue Owner / Operator:</strong> ${d.ownerName}<br/><strong>Venue Name:</strong> ${d.venueName}</p>
@@ -157,7 +157,7 @@ function generateVenueContract(d: {
   <hr style="border:none;border-top:1px solid #ccc;margin:28px 0;"/>
 
   <h2 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.05em;margin-top:0;">1. Platform Overview</h2>
-  <p>This booking is facilitated through DoVenue Suite ("Platform"), which provides listing, booking, and payment processing services. The Platform is not a party to this Agreement and is not responsible for event execution, venue operations, vendor services, or disputes between Venue Owner and Client.</p>
+  <p>This booking is facilitated through EventEcos ("Platform"), which provides listing, booking, and payment processing services. The Platform is not a party to this Agreement and is not responsible for event execution, venue operations, vendor services, or disputes between Venue Owner and Client.</p>
 
   <h2 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.05em;margin-top:24px;">2. Event Booking Details</h2>
   <ul style="margin:0;padding-left:20px;">

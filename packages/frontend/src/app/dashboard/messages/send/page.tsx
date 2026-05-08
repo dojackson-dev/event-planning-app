@@ -196,20 +196,20 @@ export default function SendMessagePage() {
     switch (formData.messageType) {
       case 'confirmation':
         // Sample #1
-        return `DoVenue Suite: Your registration for ${eventName} on ${dateStr} is confirmed.${STOP_FOOTER}`
+        return `EventEcos: Your registration for ${eventName} on ${dateStr} is confirmed.${STOP_FOOTER}`
       case 'reminder':
         // Sample #2
         return `Reminder: ${eventName} starts at ${timeStr} at ${venue}.${STOP_FOOTER}`
       case 'support':
         // Sample #3
-        return `DoVenue Suite Support: We received your request and will respond shortly.${STOP_FOOTER}`
+        return `EventEcos Support: We received your request and will respond shortly.${STOP_FOOTER}`
       case 'announcement':
         // Sample #4
-        return `DoVenue Suite: New events are now available in your area. View at dovenuesuite.com.${STOP_FOOTER}`
+        return `EventEcos: New events are now available in your area. View at eventecos.com.${STOP_FOOTER}`
       case 'invoice':
-        return `DoVenue Suite: Your invoice has been updated. For assistance, contact support@dovenuesuite.com.${STOP_FOOTER}`
+        return `EventEcos: Your invoice has been updated. For assistance, contact support@eventecos.com.${STOP_FOOTER}`
       case 'update':
-        return `DoVenue Suite: We have an update regarding ${eventName}. For assistance, contact support@dovenuesuite.com.${STOP_FOOTER}`
+        return `EventEcos: We have an update regarding ${eventName}. For assistance, contact support@eventecos.com.${STOP_FOOTER}`
       default:
         return ''
     }

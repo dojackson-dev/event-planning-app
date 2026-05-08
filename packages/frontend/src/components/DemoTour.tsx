@@ -36,7 +36,7 @@ interface Step {
 const STEPS: Step[] = [
   {
     icon: <Rocket className="h-10 w-10 text-indigo-500" />,
-    title: 'Welcome to DoVenueSuite!',
+    title: 'Welcome to EventEcos!',
     description:
       'You\'re on a free trial — all features are unlocked. Let\'s take a quick tour so you can see how everything flows through the platform.',
     badge: 'Free Trial Active',

@@ -221,7 +221,7 @@ export default function CustomerSupportPage() {
               </div>
               
               <a
-                href="mailto:support@dovenue.com"
+                href="mailto:support@eventecos.com"
                 className="flex items-center gap-4 p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors group"
               >
                 <div className="bg-orange-100 rounded-xl p-3">
@@ -229,7 +229,7 @@ export default function CustomerSupportPage() {
                 </div>
                 <div className="flex-1">
                   <h3 className="font-semibold text-gray-900">Email Support</h3>
-                  <p className="text-sm text-gray-500">support@dovenue.com</p>
+                  <p className="text-sm text-gray-500">support@eventecos.com</p>
                 </div>
                 <ExternalLink className="w-4 h-4 text-gray-400 group-hover:text-primary-600" />
               </a>

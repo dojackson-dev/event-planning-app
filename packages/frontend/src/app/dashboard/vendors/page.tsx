@@ -297,7 +297,7 @@ function BookingRow({ booking, onCancel }: { booking: VendorBooking; onCancel: (
             </Link>
             <Link
               href={`/dashboard/invoices/new?vendorBookingId=${booking.id}`}
-              className="text-xs px-2 py-1 bg-primary-50 border border-primary-200 text-primary-700 rounded hover:bg-primary-100"
+              className="text-xs px-2 py-1 bg-accent-50 border border-accent-200 text-accent-700 rounded hover:bg-accent-100 transition-colors"
             >
               + Invoice
             </Link>

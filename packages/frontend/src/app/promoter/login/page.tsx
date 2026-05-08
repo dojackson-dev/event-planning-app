@@ -57,7 +57,7 @@ export default function PromoterLogin() {
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-purple-600 shadow-lg mb-4">
             <Megaphone className="h-7 w-7 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">DoVenueSuite</h1>
+          <h1 className="text-2xl font-bold text-gray-900">EventEcos</h1>
           <p className="text-gray-500 text-sm mt-1">Promoter Portal</p>
         </div>
 

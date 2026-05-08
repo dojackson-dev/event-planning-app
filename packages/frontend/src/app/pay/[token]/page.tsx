@@ -106,7 +106,7 @@ function PublicInvoicePayPageContent() {
   const isPaid = invoice.status === 'paid' || justPaid
   const isCancelled = invoice.status === 'cancelled'
   const vendor = invoice.vendor_accounts
-  const feeNote = '5% platform fee applies to payments processed via DoVenue Suite.'
+  const feeNote = '5% platform fee applies to payments processed via EventEcos.'
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
@@ -262,7 +262,7 @@ function PublicInvoicePayPageContent() {
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-5">
-          Powered by <span className="font-semibold text-gray-500">DoVenue Suite</span> · {feeNote}
+          Powered by <span className="font-semibold text-gray-500">EventEcos</span> · {feeNote}
         </p>
       </div>
     </div>

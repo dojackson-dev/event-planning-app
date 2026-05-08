@@ -128,7 +128,36 @@ export class ClientPortalService {
       .flatMap((r: any) => r.data || [])
       .filter((i: any) => { if (invoiceSeen.has(i.id)) return false; invoiceSeen.add(i.id); return true; });
 
-    return { bookings: events, contracts, estimates, invoices };
+    // ── Vendor Invoices: by client_phone ─────────────────────────────────────
+    const vendorInvoiceOverviewResults = await Promise.all(
+      phoneVariants.map(p =>
+        supabase
+          .from('vendor_invoices')
+          .select('id, invoice_number, status, total_amount, amount_due, amount_paid, due_date, issue_date, created_at, client_name, vendor_accounts(business_name)')
+          .eq('client_phone', p)
+          .neq('status', 'draft')
+          .order('created_at', { ascending: false }),
+      ),
+    );
+    const vendorInvoicesOverview = vendorInvoiceOverviewResults
+      .flatMap((r: any) => r.data || [])
+      .filter((i: any) => { if (invoiceSeen.has(i.id)) return false; invoiceSeen.add(i.id); return true; })
+      .map((i: any) => ({
+        id: i.id,
+        invoice_number: i.invoice_number,
+        status: i.status,
+        total_amount: i.total_amount,
+        amount_due: i.amount_due ?? i.total_amount,
+        amount_paid: i.amount_paid ?? 0,
+        due_date: i.due_date,
+        issue_date: i.issue_date,
+        created_at: i.created_at,
+        client_name: i.client_name,
+        from_name: (i.vendor_accounts as any)?.business_name ?? null,
+        _type: 'vendor_invoice',
+      }));
+
+    return { bookings: events, contracts, estimates, invoices: [...invoices, ...vendorInvoicesOverview] };
   }
 
   /** All events/bookings for the client (queried via intake_forms phone match) */
@@ -186,8 +215,6 @@ export class ClientPortalService {
       }
     }
 
-    if (!intakeFormIdSet.size && !eventIdSet.size) return [];
-
     this.logger.log(`[getEvents] querying events: intakeFormIdSet=${[...intakeFormIdSet].length} eventIdSet=${[...eventIdSet].length}`);
 
     // Fetch events by intake_form_id and by direct event_id (no status filter — show all)
@@ -212,7 +239,42 @@ export class ClientPortalService {
 
     this.logger.log(`[getEvents] found ${events.length} events`);
 
-    if (!events.length) return [];
+    // ── Vendor Bookings: confirmed bookings for this client ───────────────
+    const vendorBookingResults = await Promise.all(
+      phoneVariants.map(p =>
+        supabase
+          .from('vendor_bookings')
+          .select('id, event_name, event_date, start_time, end_time, venue_name, venue_address, status, client_name, notes, agreed_amount, vendor_account_id, vendor_accounts(business_name)')
+          .eq('client_phone', p)
+          .neq('status', 'cancelled')
+          .order('event_date', { ascending: true }),
+      ),
+    );
+    const vendorBookingSeen = new Set<string>();
+    const vendorBookingEvents = vendorBookingResults
+      .flatMap((r: any) => r.data || [])
+      .filter((b: any) => { if (vendorBookingSeen.has(b.id)) return false; vendorBookingSeen.add(b.id); return true; })
+      .map((b: any) => ({
+        id: b.id,
+        name: b.event_name,
+        date: b.event_date,
+        start_time: b.start_time,
+        end_time: b.end_time,
+        venue: b.venue_name,
+        location: b.venue_address,
+        status: b.status,
+        client_name: b.client_name,
+        notes: b.notes,
+        _type: 'vendor_booking',
+        vendor_name: (b.vendor_accounts as any)?.business_name ?? null,
+      }));
+
+    const allEvents = [
+      ...events,
+      ...vendorBookingEvents,
+    ].sort((a: any, b: any) => (a.date ?? '').localeCompare(b.date ?? ''));
+
+    if (!events.length && !vendorBookingEvents.length) return [];
 
     const ownerIds = [...new Set(events.map((e: any) => e.owner_id).filter(Boolean))];
     let ownersById: Record<string, any> = {};
@@ -221,7 +283,10 @@ export class ClientPortalService {
         .from('users').select('id, first_name, last_name, phone_number, email').in('id', ownerIds);
       for (const o of owners || []) ownersById[o.id] = o;
     }
-    return events.map((e: any) => ({ ...e, owner: ownersById[e.owner_id] || null }));
+    return allEvents.map((e: any) => ({
+      ...e,
+      owner: e.owner_id ? (ownersById[e.owner_id] || null) : null,
+    }));
   }
 
   /** Cancel a pending vendor_booking_request — only the requesting client's phone may delete it */

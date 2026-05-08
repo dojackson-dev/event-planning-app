@@ -53,6 +53,9 @@ export default function Home() {
               <Link href="/vendors" className="text-gray-700 hover:text-green-600 font-medium text-sm transition-colors">
                 Find Vendors
               </Link>
+              <Link href="/venues" className="text-gray-700 hover:text-green-600 font-medium text-sm transition-colors">
+                Find Venues
+              </Link>
               <Link href="/events" className="text-gray-700 hover:text-green-600 font-medium text-sm transition-colors">
                 Discover Events
               </Link>

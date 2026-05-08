@@ -33,6 +33,7 @@ export default function VendorDashboard() {
   const router = useRouter()
   const [profile, setProfile] = useState<VendorProfile | null>(null)
   const [bookings, setBookings] = useState<Booking[]>([])
+  const [vendorInvoices, setVendorInvoices] = useState<any[]>([])
   const [pendingRequests, setPendingRequests] = useState(0)
   const [loading, setLoading] = useState(true)
 
@@ -42,13 +43,15 @@ export default function VendorDashboard() {
 
     const loadData = async () => {
       try {
-        const [profileRes, bookingsRes, requestsRes] = await Promise.all([
+        const [profileRes, bookingsRes, requestsRes, invoicesRes] = await Promise.all([
           api.get('/vendors/account/me'),
           api.get('/vendors/bookings/mine'),
           api.get('/vendors/booking-requests/mine').catch(() => ({ data: [] })),
+          api.get('/vendor-invoices/mine').catch(() => ({ data: [] })),
         ])
         setProfile(profileRes.data)
         setBookings(bookingsRes.data || [])
+        setVendorInvoices(invoicesRes.data || [])
         setPendingRequests((requestsRes.data || []).filter((r: any) => r.status === 'pending').length)
       } catch (err: any) {
         if (err.response?.status === 401) {
@@ -83,7 +86,10 @@ export default function VendorDashboard() {
     completed: (counts['completed'] || 0) + (counts['paid'] || 0),
     revenue: bookings
       .filter(b => b.status === 'paid' || b.status === 'completed')
-      .reduce((sum, b) => sum + (b.agreed_amount || 0), 0),
+      .reduce((sum, b) => sum + (b.agreed_amount || 0), 0)
+      + vendorInvoices
+      .filter((inv: any) => inv.status === 'paid')
+      .reduce((sum: number, inv: any) => sum + Number(inv.amount_paid || inv.total_amount || 0), 0),
   }
 
   const upcomingConfirmed = bookings

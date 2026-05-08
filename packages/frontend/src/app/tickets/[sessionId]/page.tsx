@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import Link from 'next/link'
-import { CheckCircle, Calendar, MapPin, Ticket, Loader2 } from 'lucide-react'
+import { CheckCircle, Calendar, MapPin, Ticket, Loader2, Share2, Copy, Check } from 'lucide-react'
 import api from '@/lib/api'
 
 interface TicketData {
@@ -16,6 +16,7 @@ interface TicketData {
   created_at: string
   ticket_tiers: { name: string; price: number } | null
   public_events: {
+    id: string
     title: string
     event_date: string
     start_time: string | null
@@ -32,6 +33,7 @@ export default function TicketConfirmationPage({ params }: { params: { sessionId
   const [tickets, setTickets] = useState<TicketData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [copiedId, setCopiedId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!sessionId) return
@@ -40,6 +42,25 @@ export default function TicketConfirmationPage({ params }: { params: { sessionId
       .catch(e => setError(e.response?.data?.message || 'Could not load tickets'))
       .finally(() => setLoading(false))
   }, [sessionId])
+
+  const shareTicket = async (ticketId: string, eventTitle: string, tierName: string) => {
+    const url = `${window.location.origin}/ticket/${ticketId}`
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `${tierName} ticket — ${eventTitle}`,
+          text: `Here's your ticket for ${eventTitle}. Show the QR code at the door.`,
+          url,
+        })
+      } catch {
+        // user cancelled — ignore
+      }
+    } else {
+      await navigator.clipboard.writeText(url)
+      setCopiedId(ticketId)
+      setTimeout(() => setCopiedId(null), 2500)
+    }
+  }
 
   if (loading) {
     return (
@@ -118,9 +139,20 @@ export default function TicketConfirmationPage({ params }: { params: { sessionId
         {/* One QR per ticket */}
         {tickets.map((ticket, i) => (
           <div key={ticket.id} className="bg-white rounded-2xl border border-gray-200 p-5 flex flex-col items-center gap-3">
-            <p className="text-sm font-semibold text-gray-700">
-              Ticket {tickets.length > 1 ? `${i + 1} of ${tickets.length}` : ''} · {tier?.name}
-            </p>
+            <div className="w-full flex items-center justify-between">
+              <p className="text-sm font-semibold text-gray-700">
+                Ticket {tickets.length > 1 ? `${i + 1} of ${tickets.length}` : ''} · {ticket.ticket_tiers?.name ?? tier?.name}
+              </p>
+              <button
+                onClick={() => shareTicket(ticket.id, event?.title ?? '', ticket.ticket_tiers?.name ?? tier?.name ?? '')}
+                className="flex items-center gap-1.5 text-xs text-purple-600 hover:text-purple-800 font-medium px-3 py-1.5 rounded-lg hover:bg-purple-50 transition-colors"
+              >
+                {copiedId === ticket.id
+                  ? <><Check className="w-3.5 h-3.5" /> Copied!</>
+                  : <><Share2 className="w-3.5 h-3.5" /> Share ticket</>
+                }
+              </button>
+            </div>
             <div className="p-3 bg-white rounded-xl border border-gray-100 shadow-sm">
               <QRCodeSVG
                 value={ticket.id}
@@ -140,9 +172,20 @@ export default function TicketConfirmationPage({ params }: { params: { sessionId
           </div>
         ))}
 
-        <p className="text-center text-xs text-gray-400 pb-4">
+        <p className="text-center text-xs text-gray-400">
           Show this screen at the door. Each QR code can only be scanned once.
         </p>
+
+        {event?.id && (
+          <div className="pb-4 text-center">
+            <Link
+              href={`/events/${event.id}`}
+              className="text-purple-600 hover:underline text-sm font-medium"
+            >
+              ← Back to event page
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   )

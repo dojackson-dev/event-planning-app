@@ -651,6 +651,7 @@ export class ClientPortalService {
 
   /** Invoices for this client (by client_phone or intake_form_id) */
   async getInvoices(clientId: string, clientPhone: string) {
+    this.logger.log(`[getInvoices] clientId=${clientId} phone=${clientPhone}`);
     const supabase = this.supabaseService.getAdminClient();
     const phoneVariants = buildPhoneVariants(clientPhone);
     const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
@@ -701,10 +702,57 @@ export class ClientPortalService {
       }
     }
 
-    return invoices.map((i: any) => ({
-      ...i,
-      from_name: i.owner_id ? (fromNameById[i.owner_id] ?? null) : null,
-    }));
+    // Also fetch vendor_invoices for this client's phone
+    this.logger.log(`[getInvoices] fetching vendor_invoices for variants=${JSON.stringify(phoneVariants)}`);
+    const vendorInvoiceResults = await Promise.all(
+      phoneVariants.map(p =>
+        supabase
+          .from('vendor_invoices')
+          .select('id, invoice_number, status, total_amount, amount_due, amount_paid, due_date, issue_date, paid_at, created_at, client_name, notes, public_token, vendor_account_id, vendor_accounts(business_name)')
+          .eq('client_phone', p)
+          .neq('status', 'draft')
+          .order('created_at', { ascending: false }),
+      ),
+    );
+
+    const vendorInvoices = vendorInvoiceResults
+      .flatMap((r: any) => {
+        if (r.error) this.logger.error('[getInvoices] vendor_invoices error', r.error);
+        this.logger.log(`[getInvoices] vendor_invoices result count=${r.data?.length ?? 0}`);
+        return r.data || [];
+      })
+      .filter((i: any) => {
+        if (seen.has(i.id)) return false;
+        seen.add(i.id);
+        return true;
+      })
+      .map((i: any) => ({
+        id: i.id,
+        invoice_number: i.invoice_number,
+        status: i.status,
+        total_amount: i.total_amount,
+        amount_due: i.amount_due ?? i.total_amount,
+        amount_paid: i.amount_paid ?? 0,
+        due_date: i.due_date,
+        issue_date: i.issue_date,
+        paid_date: i.paid_at,
+        created_at: i.created_at,
+        client_name: i.client_name,
+        notes: i.notes,
+        public_token: i.public_token,
+        owner_id: null,
+        items: [],
+        from_name: (i.vendor_accounts as any)?.business_name ?? null,
+        _type: 'vendor_invoice',
+      }));
+
+    return [
+      ...invoices.map((i: any) => ({
+        ...i,
+        from_name: i.owner_id ? (fromNameById[i.owner_id] ?? null) : null,
+      })),
+      ...vendorInvoices,
+    ].sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }
 
   /** Create a Stripe Checkout session for the client to pay an invoice */

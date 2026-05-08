@@ -45,12 +45,11 @@ export default function VendorDashboard() {
         const [profileRes, bookingsRes, requestsRes] = await Promise.all([
           api.get('/vendors/account/me'),
           api.get('/vendors/bookings/mine'),
-          api.get('/vendors/booking-requests/mine'),
+          api.get('/vendors/booking-requests/mine').catch(() => ({ data: [] })),
         ])
         setProfile(profileRes.data)
         setBookings(bookingsRes.data || [])
-        const reqs = requestsRes.data ?? []
-        setPendingRequests(reqs.filter((r: { status: string }) => r.status === 'pending').length)
+        setPendingRequests((requestsRes.data || []).filter((r: any) => r.status === 'pending').length)
       } catch (err: any) {
         if (err.response?.status === 401) {
           router.push('/vendors/login')
@@ -102,6 +101,7 @@ export default function VendorDashboard() {
 
   const navLinks = [
     { href: '/vendors/dashboard/bookings',  label: `📋 Bookings${pendingCount > 0 ? ` (${pendingCount})` : ''}` },
+    { href: '/vendor-portal/booking-requests', label: `📩 Requests${pendingRequests > 0 ? ` (${pendingRequests})` : ''}` },
     { href: '/vendors/dashboard/calendar',  label: '📆 Calendar' },
     { href: '/vendors/dashboard/earnings',  label: '💰 Earnings' },
     { href: '/vendors/dashboard/invoices',  label: '🧾 Invoices' },
@@ -147,15 +147,15 @@ export default function VendorDashboard() {
         </div>
 
         {/* Quick Overview - only shown when there are pending bookings */}
-        {pendingCount > 0 && (
+        {pendingRequests > 0 && (
           <div className="bg-white rounded-xl shadow-sm p-5 mb-6">
             <h2 className="text-sm font-semibold text-gray-700 mb-3">Quick Overview</h2>
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
               <p className="text-yellow-800 font-medium text-sm">
-                ⏳ You have {pendingCount} pending booking request{pendingCount > 1 ? 's' : ''} awaiting your response.
+                ⏳ You have {pendingRequests} pending booking request{pendingRequests > 1 ? 's' : ''} awaiting your response.
               </p>
-              <Link href="/vendors/dashboard/bookings" className="text-yellow-700 underline text-sm mt-1 inline-block">
-                Review bookings →
+              <Link href="/vendor-portal/booking-requests" className="text-yellow-700 underline text-sm mt-1 inline-block">
+                Review requests →
               </Link>
             </div>
           </div>
@@ -177,7 +177,7 @@ export default function VendorDashboard() {
           </Link>
 
           <Link
-            href="/vendors/dashboard/bookings"
+            href="/vendor-portal/booking-requests"
             className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:border-primary-300 hover:shadow-md transition-all flex items-center gap-3"
           >
             <div className="w-10 h-10 rounded-lg bg-yellow-50 flex items-center justify-center flex-shrink-0">
@@ -186,7 +186,7 @@ export default function VendorDashboard() {
             <div>
               <p className="font-semibold text-gray-900 text-sm">Booking Requests</p>
               <p className="text-xs text-gray-400">
-                {pendingCount > 0 ? `${pendingCount} new request${pendingCount > 1 ? 's' : ''}` : 'Manage requests'}
+                {pendingRequests > 0 ? `${pendingRequests} new request${pendingRequests > 1 ? 's' : ''}` : 'Manage requests'}
               </p>
             </div>
           </Link>

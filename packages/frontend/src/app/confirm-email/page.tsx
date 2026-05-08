@@ -32,7 +32,10 @@ export default function ConfirmEmailPage() {
 
     try {
       const supabase = createClient()
-      const { error } = await supabase.auth.resendEnrollmentEmail(email)
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email,
+      })
 
       if (error) {
         setResendMessage('Error: ' + error.message)

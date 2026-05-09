@@ -72,12 +72,13 @@ export class PromoterEventsController {
       quantity?: number;
       buyer_phone: string;
       buyer_email?: string;
+      return_url?: string;
     },
   ) {
     if (body.items && body.items.length > 0) {
-      return this.service.createMultiTierCheckout(id, body.items, body.buyer_phone, body.buyer_email);
+      return this.service.createMultiTierCheckout(id, body.items, body.buyer_phone, body.buyer_email, body.return_url);
     }
-    return this.service.createTicketCheckout(id, body.tier_id!, body.quantity || 1, body.buyer_phone, body.buyer_email);
+    return this.service.createTicketCheckout(id, body.tier_id!, body.quantity || 1, body.buyer_phone, body.buyer_email, body.return_url);
   }
 
   /** Called from the success redirect — processes session and sends SMS if webhook hasn't already */

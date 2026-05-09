@@ -316,7 +316,8 @@ export class PromoterEventsService {
     return raw.startsWith('+') ? raw : '+' + digits;
   }
 
-  async createTicketCheckout(eventId: string, tierId: string, quantity: number, buyerPhone: string, buyerEmail?: string) {
+  async createTicketCheckout(eventId: string, tierId: string, quantity: number, buyerPhone: string, buyerEmail?: string, returnUrl?: string) {
+    const baseUrl = returnUrl || this.frontendUrl;
     const admin = this.supabaseService.getAdminClient();
     buyerPhone = this.normalizePhone(buyerPhone);
 
@@ -376,7 +377,7 @@ export class PromoterEventsService {
         buyerPhone,
         buyerEmail,
       });
-      return { url: `${this.frontendUrl}/events/${eventId}?paid=true`, sessionId: null };
+      return { url: `${baseUrl}/events/${eventId}?paid=true`, sessionId: null };
     }
 
     // ── PAID TICKETS: require active Stripe Connect (prod only) ──
@@ -428,8 +429,8 @@ export class PromoterEventsService {
           quantity: 1,
         },
       ],
-      success_url: `${this.frontendUrl}/tickets/{CHECKOUT_SESSION_ID}`,
-      cancel_url: `${this.frontendUrl}/events/${eventId}?canceled=true`,
+      success_url: `${baseUrl}/tickets/{CHECKOUT_SESSION_ID}`,
+      cancel_url: `${baseUrl}/events/${eventId}?canceled=true`,
       metadata: {
         public_event_id: eventId,
         ticket_tier_id: tierId,
@@ -459,7 +460,9 @@ export class PromoterEventsService {
     items: { tier_id: string; quantity: number }[],
     buyerPhone: string,
     buyerEmail?: string,
+    returnUrl?: string,
   ) {
+    const baseUrl = returnUrl || this.frontendUrl;
     const admin = this.supabaseService.getAdminClient();
     buyerPhone = this.normalizePhone(buyerPhone);
     if (!buyerPhone) throw new BadRequestException('Phone number is required');
@@ -508,7 +511,7 @@ export class PromoterEventsService {
         }
         await this.sendTicketNotifications({ eventId, tierId: tier.id, quantity, amountTotal: 0, buyerPhone, buyerEmail });
       }
-      return { url: `${this.frontendUrl}/events/${eventId}?paid=true`, sessionId: null };
+      return { url: `${baseUrl}/events/${eventId}?paid=true`, sessionId: null };
     }
 
     // Paid: build Stripe checkout with multiple line items
@@ -559,8 +562,8 @@ export class PromoterEventsService {
       ...(buyerEmail ? { customer_email: buyerEmail } : {}),
       phone_number_collection: { enabled: true },
       line_items: lineItems,
-      success_url: `${this.frontendUrl}/tickets/{CHECKOUT_SESSION_ID}`,
-      cancel_url: `${this.frontendUrl}/events/${eventId}?canceled=true`,
+      success_url: `${baseUrl}/tickets/{CHECKOUT_SESSION_ID}`,
+      cancel_url: `${baseUrl}/events/${eventId}?canceled=true`,
       metadata: {
         public_event_id: eventId,
         items_json: JSON.stringify(items),

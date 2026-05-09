@@ -90,6 +90,7 @@ function PublicEventDetailPageContent({ params }: { params: { id: string } }) {
         items,
         buyer_phone: buyerPhone.trim(),
         buyer_email: buyerEmail.trim() || undefined,
+        return_url: window.location.origin,
       })
       if (res.data?.url) {
         window.location.href = res.data.url

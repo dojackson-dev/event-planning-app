@@ -39,6 +39,7 @@ export default function DoorListDetailPage() {
   const [addName, setAddName] = useState('')
   const [addPhone, setAddPhone] = useState('')
   const [addPlusOnes, setAddPlusOnes] = useState(0)
+  const [addIsVip, setAddIsVip] = useState(false)
   const [addLoading, setAddLoading] = useState(false)
 
   useEffect(() => {
@@ -62,6 +63,7 @@ export default function DoorListDetailPage() {
     phone: g.phone ?? '',
     plusOneCount: g.plus_one_count ?? g.plusOneCount ?? 0,
     hasArrived: !!(g.has_arrived ?? g.hasArrived),
+    isVip: !!(g.is_vip ?? g.isVip),
     arrivedAt: g.arrived_at ?? g.arrivedAt ?? undefined,
     createdAt: g.created_at ?? g.createdAt ?? '',
     updatedAt: g.updated_at ?? g.updatedAt ?? '',
@@ -111,10 +113,12 @@ export default function DoorListDetailPage() {
         name: addName,
         phone: addPhone || undefined,
         plusOnes: addPlusOnes,
+        isVip: addIsVip,
       })
       setAddName('')
       setAddPhone('')
       setAddPlusOnes(0)
+      setAddIsVip(false)
       setShowAddForm(false)
       fetchGuestList()
     } catch (error) {
@@ -135,14 +139,16 @@ export default function DoorListDetailPage() {
   const exportToCSV = () => {
     if (!guestList?.guests) return
 
-    const headers = ['Name', 'Phone', 'Plus Ones', 'Status', 'Arrival Time']
+    const headers = ['Name', 'Phone', 'VIP', 'Plus Ones', 'Status', 'Arrival Time']
     const rows = guestList.guests.map(guest => {
       const arrived = !!((guest as any).has_arrived || guest.hasArrived)
       const plusOnes = (guest as any).plus_one_count ?? guest.plusOneCount ?? 0
       const arrivedAt = (guest as any).arrived_at || guest.arrivedAt
+      const isVip = !!(guest.isVip || (guest as any).is_vip)
       return [
         guest.name,
         guest.phone ?? '',
+        isVip ? 'VIP' : '',
         plusOnes.toString(),
         arrived ? 'Arrived' : 'Pending',
         arrivedAt ? new Date(arrivedAt).toLocaleString() : '-'
@@ -168,6 +174,7 @@ export default function DoorListDetailPage() {
     let filtered = guestList.guests
 
     const hasArrived = (g: any) => !!(g.has_arrived || g.hasArrived)
+    const isVip = (g: any) => !!(g.is_vip || g.isVip)
 
     if (searchTerm) {
       filtered = filtered.filter(guest => 
@@ -180,24 +187,27 @@ export default function DoorListDetailPage() {
       filtered = filtered.filter(guest => hasArrived(guest))
     } else if (filterStatus === 'pending') {
       filtered = filtered.filter(guest => !hasArrived(guest))
+    } else if (filterStatus === ('vip' as any)) {
+      filtered = filtered.filter(guest => isVip(guest))
     }
 
-    // Sort: pending first, then by name
+    // Sort: VIP first, then pending, then by name
     return filtered.sort((a, b) => {
+      const aVip = isVip(a), bVip = isVip(b)
+      if (aVip !== bVip) return aVip ? -1 : 1
       const aArrived = hasArrived(a)
       const bArrived = hasArrived(b)
-      if (aArrived === bArrived) {
-        return a.name.localeCompare(b.name)
-      }
+      if (aArrived === bArrived) return a.name.localeCompare(b.name)
       return aArrived ? 1 : -1
     })
   }
 
   const getStats = () => {
-    if (!guestList?.guests) return { total: 0, arrived: 0, pending: 0, totalWithPlus: 0, arrivedWithPlus: 0 }
+    if (!guestList?.guests) return { total: 0, arrived: 0, pending: 0, vip: 0, totalWithPlus: 0, arrivedWithPlus: 0 }
     
     const guests = guestList.guests
     const hasArrived = (g: any) => !!(g.has_arrived || g.hasArrived)
+    const isVip = (g: any) => !!(g.is_vip || g.isVip)
     const arrivedGuests = guests.filter(g => hasArrived(g))
     const arrived = arrivedGuests.length
     const plusCount = (g: any) => (g as any).plus_one_count ?? g.plusOneCount ?? 0
@@ -208,6 +218,7 @@ export default function DoorListDetailPage() {
       total: guests.length,
       arrived,
       pending: guests.length - arrived,
+      vip: guests.filter(g => isVip(g)).length,
       totalWithPlus,
       arrivedWithPlus
     }
@@ -362,6 +373,21 @@ export default function DoorListDetailPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
               </div>
+              <div className="md:col-span-3">
+                <label className="flex items-center gap-3 cursor-pointer select-none">
+                  <div
+                    onClick={() => setAddIsVip(!addIsVip)}
+                    className={`w-10 h-6 rounded-full transition-colors flex items-center px-1 ${
+                      addIsVip ? 'bg-amber-500' : 'bg-gray-300'
+                    }`}
+                  >
+                    <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform ${addIsVip ? 'translate-x-4' : ''}`} />
+                  </div>
+                  <span className="text-sm font-medium text-gray-700">
+                    👑 Mark as VIP
+                  </span>
+                </label>
+              </div>
               <div className="md:col-span-3 flex justify-end gap-3">
                 <button
                   type="button"
@@ -384,7 +410,7 @@ export default function DoorListDetailPage() {
         )}
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -412,6 +438,16 @@ export default function DoorListDetailPage() {
                 <p className="text-3xl font-bold text-orange-600">{stats.pending}</p>
               </div>
               <Clock className="h-10 w-10 text-orange-500" />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-amber-200 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-amber-700 mb-1 font-medium">VIP</p>
+                <p className="text-3xl font-bold text-amber-600">{stats.vip}</p>
+              </div>
+              <span className="text-3xl">👑</span>
             </div>
           </div>
 
@@ -484,6 +520,16 @@ export default function DoorListDetailPage() {
               >
                 Arrived ({stats.arrived})
               </button>
+              <button
+                onClick={() => setFilterStatus('vip' as any)}
+                className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+                  filterStatus === ('vip' as any)
+                    ? 'bg-amber-500 text-white'
+                    : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                }`}
+              >
+                👑 VIP ({stats.vip})
+              </button>
             </div>
           </div>
         </div>
@@ -508,7 +554,7 @@ export default function DoorListDetailPage() {
                 <div
                   key={guest.id}
                   className={`px-6 py-5 hover:bg-gray-50 transition-colors ${
-                    guest.hasArrived ? 'bg-green-50' : ''
+                    guest.hasArrived ? 'bg-green-50' : guest.isVip ? 'bg-amber-50' : ''
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -516,13 +562,22 @@ export default function DoorListDetailPage() {
                       <div className={`h-14 w-14 rounded-full flex items-center justify-center font-bold text-xl ${
                         guest.hasArrived 
                           ? 'bg-green-200 text-green-800'
+                          : guest.isVip
+                          ? 'bg-amber-200 text-amber-800'
                           : 'bg-gray-200 text-gray-700'
                       }`}>
                         {guest.name.charAt(0).toUpperCase()}
                       </div>
                       
                       <div className="flex-1">
-                        <h3 className="text-xl font-semibold text-gray-900">{guest.name}</h3>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-xl font-semibold text-gray-900">{guest.name}</h3>
+                          {guest.isVip && (
+                            <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-700 text-xs font-bold px-2.5 py-1 rounded-full border border-amber-300">
+                              👑 VIP
+                            </span>
+                          )}
+                        </div>
                         <p className="text-sm text-gray-600 mt-1">{guest.phone}</p>
                       </div>
                     </div>

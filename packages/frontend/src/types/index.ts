@@ -480,6 +480,7 @@ export interface Guest {
   phone: string
   plusOneCount: number
   hasArrived: boolean
+  isVip: boolean
   arrivedAt?: string
   createdAt: string
   updatedAt: string

@@ -296,6 +296,7 @@ export class GuestListsService {
         phone: guestData.phone || null,
         plus_one_count: guestData.plusOnes || 0,
         has_arrived: false,
+        is_vip: guestData.isVip ?? false,
       })
       .select()
       .single();
@@ -316,6 +317,7 @@ export class GuestListsService {
     if (guestData.plusOnes !== undefined) updateData.plus_one_count = guestData.plusOnes;
     if (guestData.hasArrived !== undefined) updateData.has_arrived = guestData.hasArrived;
     if (guestData.arrivedAt !== undefined) updateData.arrived_at = guestData.arrivedAt;
+    if (guestData.isVip !== undefined) updateData.is_vip = guestData.isVip;
 
     const { data, error } = await supabase
       .from('guests')

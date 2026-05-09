@@ -34,13 +34,37 @@ export default function TicketConfirmationPage({ params }: { params: { sessionId
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [retryCount, setRetryCount] = useState(0)
 
   useEffect(() => {
     if (!sessionId) return
-    api.get(`/promoter-events/public/tickets/${sessionId}`)
-      .then(r => setTickets(r.data))
-      .catch(e => setError(e.response?.data?.message || 'Could not load tickets'))
-      .finally(() => setLoading(false))
+    let cancelled = false
+    const MAX_RETRIES = 10
+    const RETRY_DELAY = 2500 // ms
+
+    const fetchTickets = async (attempt: number) => {
+      try {
+        const r = await api.get(`/promoter-events/public/tickets/${sessionId}`)
+        if (!cancelled) {
+          setTickets(r.data)
+          setLoading(false)
+        }
+      } catch (e: any) {
+        if (cancelled) return
+        const is404 = e.response?.status === 404
+        if (is404 && attempt < MAX_RETRIES) {
+          setRetryCount(attempt + 1)
+          setTimeout(() => fetchTickets(attempt + 1), RETRY_DELAY)
+          return
+        }
+        setError(e.response?.data?.message || 'Could not load tickets')
+        setLoading(false)
+      }
+    }
+
+    fetchTickets(0)
+
+    return () => { cancelled = true }
   }, [sessionId])
 
   const shareTicket = async (ticketId: string, eventTitle: string, tierName: string) => {
@@ -64,8 +88,14 @@ export default function TicketConfirmationPage({ params }: { params: { sessionId
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-3">
         <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
+        <p className="text-gray-600 text-sm font-medium">
+          {retryCount === 0 ? 'Loading your tickets…' : 'Confirming your payment…'}
+        </p>
+        {retryCount > 0 && (
+          <p className="text-gray-400 text-xs">This can take a few seconds</p>
+        )}
       </div>
     )
   }

@@ -1045,18 +1045,55 @@ export class VendorsService {
       .from('vendor_booking_requests')
       .update(update)
       .eq('id', requestId)
-      .select('*, vendor_accounts(business_name)')
+      .select('*, vendor_accounts(business_name, phone)')
       .single();
 
     if (error) throw new BadRequestException(error.message);
 
-    // Notify client if request was confirmed or declined
-    if (dto.status && (data.client_phone || dto.status === 'confirmed' || dto.status === 'declined')) {
+    // When confirmed, create a vendor_bookings record so it shows in the main bookings list
+    if (dto.status === 'confirmed') {
+      const { error: bookingError } = await admin
+        .from('vendor_bookings')
+        .insert({
+          vendor_account_id: vendorAccountId,
+          owner_account_id: null,
+          booked_by_user_id: null,
+          event_id: null,
+          event_name: data.event_name ?? 'Booking Request',
+          event_date: data.event_date ?? new Date().toISOString().split('T')[0],
+          start_time: data.start_time ?? null,
+          end_time: data.end_time ?? null,
+          venue_name: data.venue_name ?? null,
+          venue_address: data.venue_address ?? null,
+          notes: data.notes ?? null,
+          agreed_amount: data.quoted_amount ?? null,
+          deposit_amount: null,
+          client_name: data.client_name ?? null,
+          client_email: data.client_email ?? null,
+          client_phone: data.client_phone ?? null,
+          status: 'confirmed',
+        });
+      if (bookingError) {
+        this.logger.warn('Failed to create vendor_bookings from booking request', bookingError.message);
+      }
+    }
+
+    // Notify client — but never send to the vendor's own phone
+    const vendorPhone = (data.vendor_accounts as any)?.phone ?? null;
+    const rawClientPhone: string | null = data.client_phone ?? null;
+    const normalize = (p: string) => p.replace(/\D/g, '').slice(-10);
+    const clientPhoneToNotify =
+      rawClientPhone &&
+      (!vendorPhone || normalize(rawClientPhone) !== normalize(vendorPhone))
+        ? rawClientPhone
+        : null;
+
+    if (dto.status && clientPhoneToNotify) {
       try {
         const vendorName: string =
           (data.vendor_accounts as any)?.business_name ?? 'Your vendor';
         await this.smsNotifications.vendorBookingRequestUpdated(
-          data.client_phone ?? null,
+          clientPhoneToNotify,
           data.client_name ?? 'Client',
           dto.status,
           vendorName,

@@ -436,7 +436,6 @@ export class VendorInvoicesService {
   // ─── Send invoice email ──────────────────────────────────────────────────────
 
   async sendInvoice(userId: string, invoiceId: string): Promise<{ success: boolean }> {
-    // Guard: vendor must have an active Stripe Connect account to receive payments
     const admin = this.supabaseService.getAdminClient();
     const vendorAccountId = await this.getVendorAccountId(userId);
     const { data: vendorAccount } = await admin
@@ -444,33 +443,35 @@ export class VendorInvoicesService {
       .select('stripe_account_id, stripe_connect_status')
       .eq('id', vendorAccountId)
       .single();
-    if (!vendorAccount?.stripe_account_id || vendorAccount.stripe_connect_status !== 'active') {
-      throw new BadRequestException(
-        'You must connect a Stripe account before sending invoices. Go to Settings → Payouts to get started.',
-      );
-    }
+
+    // Only block sending if Stripe is not set up AND there is a client_email to send to
+    // (allows SMS-only delivery for testing without Stripe)
+    const hasStripe = vendorAccount?.stripe_account_id && vendorAccount.stripe_connect_status === 'active';
 
     const invoice = await this.getInvoice(userId, invoiceId);
     const payUrl = `${this.frontendUrl}/pay/${invoice.public_token}`;
     const vendorName = invoice.vendor_accounts?.business_name ?? 'Your Vendor';
 
-    const emailSent = await this.sendInvoiceEmail({
-      to: invoice.client_email,
-      clientName: invoice.client_name,
-      vendorName,
-      invoiceNumber: invoice.invoice_number,
-      totalAmount: invoice.total_amount,
-      dueDate: invoice.due_date,
-      payUrl,
-    });
-
-    if (emailSent) {
-      const admin = this.supabaseService.getAdminClient();
-      await admin
-        .from('vendor_invoices')
-        .update({ status: 'sent', updated_at: new Date().toISOString() })
-        .eq('id', invoiceId);
+    let emailSent = false;
+    if (hasStripe) {
+      emailSent = await this.sendInvoiceEmail({
+        to: invoice.client_email,
+        clientName: invoice.client_name,
+        vendorName,
+        invoiceNumber: invoice.invoice_number,
+        totalAmount: invoice.total_amount,
+        dueDate: invoice.due_date,
+        payUrl,
+      });
+    } else {
+      this.logger.warn(`Skipping email for invoice ${invoiceId} — no active Stripe account. Will send SMS only.`);
     }
+
+    // Always mark as sent so the client portal shows it
+    await admin
+      .from('vendor_invoices')
+      .update({ status: 'sent', updated_at: new Date().toISOString() })
+      .eq('id', invoiceId);
 
     // Send SMS with payment link if client has a phone number
     const clientPhone = (invoice as any).client_phone as string | null;

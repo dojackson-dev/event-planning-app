@@ -62,9 +62,9 @@ function BrandLogo({ variant }: { variant: 'sidebar' | 'mobile' }) {
               <p className="text-white/80 text-xs font-medium text-center truncate max-w-[160px]">{businessName}</p>
             </div>
           ) : (
-            <img src="/lib/LogoDVS.png" alt="DoVenueSuite" style={{ height: '80px', width: 'auto' }} />
+            <img src="/lib/LogoEventEcos.png" alt="EventEcos" style={{ height: '80px', width: 'auto' }} />
           )}
-          <span className="text-white/60 text-[10px] font-semibold tracking-widest uppercase mt-0.5">OwnerSuite</span>
+          <span className="text-white/60 text-[10px] font-semibold tracking-widest uppercase mt-0.5">Platform</span>
         </div>
       </div>
     )
@@ -80,11 +80,11 @@ function BrandLogo({ variant }: { variant: 'sidebar' | 'mobile' }) {
           {initials}
         </div>
       ) : (
-        <img src="/lib/LogoDVS.png" alt="DoVenueSuite" style={{ height: '36px', width: 'auto' }} />
+        <img src="/lib/LogoEventEcos.png" alt="EventEcos" style={{ height: '36px', width: 'auto' }} />
       )}
       <div className="flex flex-col leading-tight">
         {businessName && !logoUrl && <span className="font-bold text-white text-sm truncate max-w-[140px]">{businessName}</span>}
-        <span className="text-white/70 text-[10px] font-semibold tracking-widest uppercase">OwnerSuite</span>
+        <span className="text-white/70 text-[10px] font-semibold tracking-widest uppercase">Platform</span>
       </div>
     </div>
   )
@@ -292,9 +292,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <BrandLogo variant="sidebar" />
 
           {/* User info */}
-          <div className="p-4 border-b mt-16 lg:mt-0">
+          <div className="p-4 border-b border-accent-200 mt-16 lg:mt-0 bg-accent-50/40">
             <div className="flex items-center">
-              <div className="h-12 w-12 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-bold text-lg">
+              <div className="h-12 w-12 rounded-full bg-accent-200 flex items-center justify-center text-accent-700 font-bold text-lg">
                 {displayUser.firstName?.[0] || 'U'}{displayUser.lastName?.[0] || 'U'}
               </div>
               <div className="ml-3 flex-1">
@@ -302,8 +302,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   {displayUser.firstName || 'User'} {displayUser.lastName || ''}
                 </p>
                 <p className="text-xs text-gray-500">{displayUser.email}</p>
-                <span className="inline-block mt-1 px-2 py-0.5 text-xs font-medium bg-primary-100 text-primary-700 rounded">
-                  {displayUser.role}
+                <span className="inline-block mt-1 px-2 py-0.5 text-xs font-medium bg-accent-100 text-accent-700 rounded">
+                  ✓ {displayUser.role}
                 </span>
               </div>
             </div>

@@ -8,6 +8,23 @@ import VendorNav from '@/components/VendorNav'
 import { AlertCircle, CheckCircle2, XCircle, DollarSign, Pencil, X } from 'lucide-react'
 import type { VendorProfile, Booking } from '@/lib/vendorTypes'
 
+interface BookingRequest {
+  id: string
+  client_name: string
+  client_email?: string
+  client_phone?: string
+  event_name?: string
+  event_date?: string
+  start_time?: string
+  end_time?: string
+  venue_name?: string
+  venue_address?: string
+  notes?: string
+  status: string
+  quoted_amount?: number
+  created_at: string
+}
+
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   pending:   { label: 'Pending',   color: 'bg-yellow-100 text-yellow-700 border-yellow-200', icon: <AlertCircle className="w-4 h-4" /> },
   confirmed: { label: 'Confirmed', color: 'bg-green-100 text-green-700 border-green-200',    icon: <CheckCircle2 className="w-4 h-4" /> },
@@ -30,6 +47,8 @@ export default function BookingsPage() {
   const [editNotes, setEditNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [bookingRequests, setBookingRequests] = useState<BookingRequest[]>([])
+  const [updatingRequest, setUpdatingRequest] = useState<string | null>(null)
 
   useEffect(() => {
     const token = localStorage.getItem('access_token')
@@ -37,12 +56,14 @@ export default function BookingsPage() {
 
     const load = async () => {
       try {
-        const [profileRes, bookingsRes] = await Promise.all([
+        const [profileRes, bookingsRes, requestsRes] = await Promise.all([
           api.get('/vendors/account/me'),
           api.get('/vendors/bookings/mine'),
+          api.get('/vendors/booking-requests/mine'),
         ])
         setProfile(profileRes.data)
         setBookings(bookingsRes.data || [])
+        setBookingRequests(requestsRes.data || [])
       } catch (err: any) {
         if (err.response?.status === 401) router.replace('/vendors/login')
       } finally {
@@ -71,6 +92,18 @@ export default function BookingsPage() {
     setEditDeposit(booking.deposit_amount > 0 ? String(booking.deposit_amount) : '')
     setEditNotes(booking.notes || '')
     setSaved(false)
+  }
+
+  const updateRequestStatus = async (requestId: string, status: 'confirmed' | 'declined') => {
+    setUpdatingRequest(requestId)
+    try {
+      await api.put(`/vendors/booking-requests/${requestId}`, { status })
+      setBookingRequests(prev => prev.map(r => r.id === requestId ? { ...r, status } : r))
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setUpdatingRequest(null)
+    }
   }
 
   const saveEdit = async () => {
@@ -255,6 +288,85 @@ export default function BookingsPage() {
         <Link href="/vendors/dashboard" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-6">
           ← Back to Dashboard
         </Link>
+
+        {/* ── Booking Link Requests ── */}
+        {bookingRequests.length > 0 && (
+          <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-4">
+              📩 Booking Link Requests
+              {bookingRequests.filter(r => r.status === 'pending').length > 0 && (
+                <span className="ml-2 bg-yellow-100 text-yellow-700 text-sm px-2 py-0.5 rounded-full font-medium">
+                  {bookingRequests.filter(r => r.status === 'pending').length} new
+                </span>
+              )}
+            </h2>
+            <div className="space-y-3">
+              {bookingRequests.map(req => {
+                const isPending = req.status === 'pending'
+                const isConfirmed = req.status === 'confirmed'
+                const borderClass = isPending
+                  ? 'border-yellow-200 bg-yellow-50'
+                  : isConfirmed
+                  ? 'border-green-200 bg-green-50'
+                  : 'border-gray-200 bg-gray-50'
+                return (
+                  <div key={req.id} className={`border rounded-xl p-4 ${borderClass}`}>
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                          <p className="font-semibold text-gray-900">{req.event_name || 'Booking Request'}</p>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${
+                            isPending ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
+                            isConfirmed ? 'bg-green-100 text-green-700 border-green-200' :
+                            'bg-red-100 text-red-700 border-red-200'
+                          }`}>
+                            {isPending ? '⏳ Pending' : isConfirmed ? '✓ Confirmed' : '✗ Declined'}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600">👤 {req.client_name}</p>
+                        {req.client_email && <p className="text-sm text-gray-500">{req.client_email}</p>}
+                        {req.client_phone && <p className="text-sm text-gray-500">📞 {req.client_phone}</p>}
+                        {req.event_date && (
+                          <p className="text-sm text-gray-500 mt-1">
+                            📅 {new Date(req.event_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                            {req.start_time && ` · ${req.start_time}`}
+                            {req.end_time && ` – ${req.end_time}`}
+                          </p>
+                        )}
+                        {req.venue_name && <p className="text-sm text-gray-500">📍 {req.venue_name}</p>}
+                        {req.quoted_amount != null && req.quoted_amount > 0 && (
+                          <p className="text-sm font-medium text-gray-700 mt-1">💰 ${req.quoted_amount.toLocaleString()}</p>
+                        )}
+                        {req.notes && <p className="text-sm text-gray-500 italic mt-1">&ldquo;{req.notes}&rdquo;</p>}
+                        <p className="text-xs text-gray-400 mt-1">
+                          Submitted {new Date(req.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </p>
+                      </div>
+                      {isPending && (
+                        <div className="flex flex-col gap-2 flex-shrink-0">
+                          <button
+                            onClick={() => updateRequestStatus(req.id, 'confirmed')}
+                            disabled={updatingRequest === req.id}
+                            className="bg-green-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+                          >
+                            ✓ Accept
+                          </button>
+                          <button
+                            onClick={() => updateRequestStatus(req.id, 'declined')}
+                            disabled={updatingRequest === req.id}
+                            className="border border-red-300 text-red-600 px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-red-50 disabled:opacity-50"
+                          >
+                            ✗ Decline
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="bg-white rounded-xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-5">

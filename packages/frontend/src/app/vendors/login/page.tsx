@@ -35,7 +35,7 @@ export default function VendorLogin() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <Link href="/" className="text-primary-600 font-bold text-2xl">DoVenueSuite</Link>
+          <Link href="/" className="text-primary-600 font-bold text-2xl">EventEcos</Link>
           <p className="text-gray-500 text-sm mt-1">Vendor Portal</p>
         </div>
 

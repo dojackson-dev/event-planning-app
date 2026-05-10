@@ -211,7 +211,7 @@ function InvitePage() {
       <nav className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <Link href="/">
-            <img src="/lib/LogoDVS.png" alt="DoVenue Suites" style={{ height: '56px', width: 'auto' }} />
+            <img src="/lib/LogoEventEcos.png" alt="EventEcos" style={{ height: '56px', width: 'auto' }} />
           </Link>
           <Link href="/client-login" className="flex items-center gap-1 text-sm text-gray-600 hover:text-primary-600">
             <ArrowLeft className="h-4 w-4" />
@@ -416,7 +416,7 @@ function InvitePage() {
                       className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary-600"
                     />
                     <span className="text-xs text-gray-600">
-                      I agree to receive SMS verification codes from DoVenue Suites.
+                      I agree to receive SMS verification codes from EventEcos.
                     </span>
                   </label>
 

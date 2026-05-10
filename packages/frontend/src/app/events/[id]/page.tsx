@@ -53,8 +53,7 @@ function PublicEventDetailPageContent({ params }: { params: { id: string } }) {
   const [error, setError] = useState('')
 
   // Ticket purchase
-  const [selectedTier, setSelectedTier] = useState<TicketTier | null>(null)
-  const [quantity, setQuantity] = useState(1)
+  const [quantities, setQuantities] = useState<Record<string, number>>({})
   const [buyerEmail, setBuyerEmail] = useState('')
   const [buyerPhone, setBuyerPhone] = useState('')
   const [purchasing, setPurchasing] = useState(false)
@@ -68,7 +67,6 @@ function PublicEventDetailPageContent({ params }: { params: { id: string } }) {
     api.get(`/promoter-events/public/${id}`)
       .then(r => {
         setEvent(r.data)
-        if (r.data.ticket_tiers?.length > 0) setSelectedTier(r.data.ticket_tiers[0])
       })
       .catch(e => setError(e.response?.data?.message || 'Event not found'))
       .finally(() => setLoading(false))
@@ -83,14 +81,17 @@ function PublicEventDetailPageContent({ params }: { params: { id: string } }) {
 
   const handlePurchase = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedTier || !buyerPhone.trim()) return
+    const items = Object.entries(quantities)
+      .filter(([, qty]) => qty > 0)
+      .map(([tier_id, quantity]) => ({ tier_id, quantity }))
+    if (items.length === 0 || !buyerPhone.trim()) return
     setPurchaseError(''); setPurchasing(true)
     try {
       const res = await api.post(`/promoter-events/public/${id}/checkout`, {
-        tier_id: selectedTier.id,
-        quantity,
+        items,
         buyer_phone: buyerPhone.trim(),
         buyer_email: buyerEmail.trim() || undefined,
+        return_url: window.location.origin,
       })
       if (res.data?.url) {
         window.location.href = res.data.url
@@ -129,7 +130,17 @@ function PublicEventDetailPageContent({ params }: { params: { id: string } }) {
   const promoterName = event.promoter_accounts?.company_name || event.promoter_accounts?.contact_name
   const isSoldOut = event.ticket_tiers.length > 0 &&
     event.ticket_tiers.every(t => t.quantity_sold >= t.quantity)
-  const tierAvail = selectedTier ? selectedTier.quantity - selectedTier.quantity_sold : 0
+
+  const totalTickets = Object.values(quantities).reduce((s, q) => s + q, 0)
+  const subtotalPrice = event.ticket_tiers.reduce((s, tier) => {
+    const qty = quantities[tier.id] ?? 0
+    return s + Number(tier.price) * qty
+  }, 0)
+  const platformFee  = subtotalPrice > 0 ? Math.round(subtotalPrice * 0.03 * 100) / 100 : 0
+  const stripeFee    = subtotalPrice > 0 ? Math.round((subtotalPrice * 0.029 + 0.30) * 100) / 100 : 0
+  const totalPrice   = subtotalPrice + platformFee + stripeFee
+  const setTierQty = (tierId: string, qty: number) =>
+    setQuantities(prev => ({ ...prev, [tierId]: qty }))
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -258,59 +269,50 @@ function PublicEventDetailPageContent({ params }: { params: { id: string } }) {
               </div>
             ) : (
               <form onSubmit={handlePurchase} className="space-y-4">
-                {/* Tier selection */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Ticket Type</label>
-                  <div className="space-y-2">
-                    {event.ticket_tiers.map(tier => {
-                      const avail = tier.quantity - tier.quantity_sold
-                      const soldOut = avail <= 0
-                      return (
-                        <label key={tier.id} className={`flex items-center justify-between p-3 border-2 rounded-xl cursor-pointer transition ${
-                          soldOut ? 'opacity-50 cursor-not-allowed border-gray-200' :
-                          selectedTier?.id === tier.id ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-gray-300'
-                        }`}>
-                          <div className="flex items-center gap-2">
-                            <input type="radio" className="sr-only" checked={selectedTier?.id === tier.id}
-                              disabled={soldOut} onChange={() => { setSelectedTier(tier); setQuantity(1) }} />
-                            <div>
-                              <p className="text-sm font-semibold text-gray-800">{tier.name}</p>
-                              {tier.description && <p className="text-xs text-gray-500">{tier.description}</p>}
-                              {soldOut ? (
-                                <p className="text-xs text-red-500 font-medium">Sold out</p>
-                              ) : (
-                                <p className="text-xs text-gray-400">{avail} remaining</p>
-                              )}
+                {/* Per-tier quantity selectors */}
+                <div className="space-y-3">
+                  {event.ticket_tiers.map(tier => {
+                    const avail = tier.quantity - tier.quantity_sold
+                    const soldOut = avail <= 0
+                    const qty = quantities[tier.id] ?? 0
+                    return (
+                      <div key={tier.id} className={`p-3 border-2 rounded-xl transition ${
+                        soldOut ? 'opacity-50 border-gray-200' :
+                        qty > 0 ? 'border-purple-500 bg-purple-50' : 'border-gray-200'
+                      }`}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-800">{tier.name}</p>
+                            {tier.description && <p className="text-xs text-gray-500 mt-0.5">{tier.description}</p>}
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              {soldOut ? <span className="text-red-500 font-medium">Sold out</span> : `${avail} remaining`}
+                            </p>
+                          </div>
+                          <div className="flex flex-col items-end gap-1.5 shrink-0">
+                            <span className="font-bold text-gray-900 text-sm">
+                              {Number(tier.price) === 0 ? 'Free' : `$${Number(tier.price).toFixed(2)}`}
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <button type="button"
+                                disabled={soldOut || qty === 0}
+                                onClick={() => setTierQty(tier.id, Math.max(0, qty - 1))}
+                                className="w-7 h-7 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed">
+                                <Minus className="w-3 h-3" />
+                              </button>
+                              <span className="w-6 text-center text-sm font-semibold">{qty}</span>
+                              <button type="button"
+                                disabled={soldOut || qty >= Math.min(avail, 10)}
+                                onClick={() => setTierQty(tier.id, Math.min(avail, 10, qty + 1))}
+                                className="w-7 h-7 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed">
+                                <Plus className="w-3 h-3" />
+                              </button>
                             </div>
                           </div>
-                          <span className="font-bold text-gray-900 shrink-0">
-                            {Number(tier.price) === 0 ? 'Free' : `$${Number(tier.price).toFixed(2)}`}
-                          </span>
-                        </label>
-                      )
-                    })}
-                  </div>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
-
-                {/* Quantity */}
-                {selectedTier && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
-                    <div className="flex items-center gap-3">
-                      <button type="button" onClick={() => setQuantity(q => Math.max(1, q - 1))}
-                        className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100">
-                        <Minus className="w-3.5 h-3.5" />
-                      </button>
-                      <span className="w-8 text-center font-semibold">{quantity}</span>
-                      <button type="button"
-                        onClick={() => setQuantity(q => Math.min(tierAvail, Math.min(10, q + 1)))}
-                        className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100">
-                        <Plus className="w-3.5 h-3.5" />
-                      </button>
-                      <span className="text-xs text-gray-500">max 10 per order</span>
-                    </div>
-                  </div>
-                )}
 
                 {/* Phone (required) */}
                 <div>
@@ -335,20 +337,36 @@ function PublicEventDetailPageContent({ params }: { params: { id: string } }) {
                 )}
 
                 {/* Total + checkout button */}
-                {selectedTier && (
-                  <div className="border-t border-gray-100 pt-3">
-                    <div className="flex justify-between text-sm mb-3">
-                      <span className="text-gray-600">{quantity} × {selectedTier.name}</span>
-                      <span className="font-bold">
-                        {Number(selectedTier.price) === 0 ? 'Free' : `$${(Number(selectedTier.price) * quantity).toFixed(2)}`}
+                {totalTickets > 0 && (
+                  <div className="border-t border-gray-100 pt-3 space-y-1.5">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Subtotal ({totalTickets} ticket{totalTickets !== 1 ? 's' : ''})</span>
+                      <span className="font-medium">
+                        {subtotalPrice === 0 ? 'Free' : `$${subtotalPrice.toFixed(2)}`}
                       </span>
                     </div>
+                    {subtotalPrice > 0 && (
+                      <>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-500">Platform service fee (3%)</span>
+                          <span className="text-gray-700">${platformFee.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-500">Payment processing fee</span>
+                          <span className="text-gray-700">${stripeFee.toFixed(2)}</span>
+                        </div>
+                      </>
+                    )}
+                    <div className="flex justify-between text-sm font-bold border-t border-gray-100 pt-1.5 mt-1">
+                      <span className="text-gray-900">Total</span>
+                      <span>{totalPrice === 0 ? 'Free' : `$${totalPrice.toFixed(2)}`}</span>
+                    </div>
                     <button type="submit" disabled={purchasing}
-                      className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white font-bold py-3 rounded-xl hover:bg-purple-700 disabled:opacity-60">
+                      className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white font-bold py-3 rounded-xl hover:bg-purple-700 disabled:opacity-60 mt-2">
                       {purchasing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ticket className="w-4 h-4" />}
                       {purchasing ? 'Redirecting...' : 'Buy Tickets'}
                     </button>
-                    <p className="text-xs text-center text-gray-400 mt-2">Secure checkout via Stripe</p>
+                    <p className="text-xs text-center text-gray-400 mt-1">Secure checkout via Stripe</p>
                   </div>
                 )}
               </form>

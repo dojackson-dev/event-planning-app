@@ -52,6 +52,12 @@ export class PromoterEventsController {
     return this.service.getTicketsBySession(sessionId);
   }
 
+  /** Returns a single ticket by its UUID (public — for sharing) */
+  @Get('public/ticket/:ticketId')
+  getTicketById(@Param('ticketId') ticketId: string) {
+    return this.service.getTicketById(ticketId);
+  }
+
   @Get('public/:id')
   getPublicEvent(@Param('id') id: string) {
     return this.service.getPublicEvent(id);
@@ -60,9 +66,19 @@ export class PromoterEventsController {
   @Post('public/:id/checkout')
   createCheckout(
     @Param('id') id: string,
-    @Body() body: { tier_id: string; quantity: number; buyer_phone: string; buyer_email?: string },
+    @Body() body: {
+      items?: { tier_id: string; quantity: number }[];
+      tier_id?: string;
+      quantity?: number;
+      buyer_phone: string;
+      buyer_email?: string;
+      return_url?: string;
+    },
   ) {
-    return this.service.createTicketCheckout(id, body.tier_id, body.quantity || 1, body.buyer_phone, body.buyer_email);
+    if (body.items && body.items.length > 0) {
+      return this.service.createMultiTierCheckout(id, body.items, body.buyer_phone, body.buyer_email, body.return_url);
+    }
+    return this.service.createTicketCheckout(id, body.tier_id!, body.quantity || 1, body.buyer_phone, body.buyer_email, body.return_url);
   }
 
   /** Called from the success redirect — processes session and sends SMS if webhook hasn't already */

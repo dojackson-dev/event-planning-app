@@ -184,7 +184,7 @@ export default function PublicRsvpPage() {
               </p>
             </>
           )}
-          <p className="text-xs text-gray-400 mt-6">Sent by {ev.host_name} via DoVenue Suites</p>
+          <p className="text-xs text-gray-400 mt-6">Sent by {ev.host_name} via EventEcos</p>
         </div>
       </div>
     )
@@ -431,7 +431,7 @@ export default function PublicRsvpPage() {
         </div>
 
         <p className="text-center text-xs text-gray-400 pb-4">
-          Hosted by <strong>{ev.host_name}</strong> · Powered by DoVenue Suites
+          Hosted by <strong>{ev.host_name}</strong> · Powered by EventEcos
         </p>
       </div>
     </div>

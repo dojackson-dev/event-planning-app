@@ -63,7 +63,7 @@ export default function CustomerDashboardPage() {
         id: form.id,
         event_type: form.event_type,
         event_date: form.event_date,
-        venue_name: 'DoVenue Event Center',
+        venue_name: 'EventEcos Event Center',
         status: form.status,
         guest_count: form.guest_count,
         total_amount: form.estimated_total
@@ -114,7 +114,7 @@ export default function CustomerDashboardPage() {
           id: '1',
           event_type: 'Wedding Reception',
           event_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          venue_name: 'DoVenue Event Center',
+          venue_name: 'EventEcos Event Center',
           status: 'confirmed',
           guest_count: 150,
           total_amount: 8500
@@ -124,7 +124,7 @@ export default function CustomerDashboardPage() {
         {
           id: '1',
           title: 'Welcome!',
-          message: 'Thank you for choosing DoVenue. Start planning your event today!',
+          message: 'Thank you for choosing EventEcos. Start planning your event today!',
           type: 'info',
           time: 'Just now',
           read: false
@@ -226,7 +226,7 @@ export default function CustomerDashboardPage() {
             )}
             <Link
               href="/customer/services"
-              className="inline-flex items-center px-5 py-2.5 bg-primary-500 text-white rounded-lg font-semibold hover:bg-primary-400 transition-colors"
+                className="inline-flex items-center px-5 py-2.5 bg-accent-600 hover:bg-accent-700 text-white rounded-lg font-semibold transition-colors"
             >
               <Package className="w-5 h-5 mr-2" />
               Browse Services

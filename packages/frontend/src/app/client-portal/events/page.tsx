@@ -126,6 +126,11 @@ export default function ClientEventsPage() {
                           {event.venue}
                         </span>
                       )}
+                      {event.vendor_name && (
+                        <span className="flex items-center gap-1 text-emerald-600 font-medium">
+                          🎵 {event.vendor_name}
+                        </span>
+                      )}
                     </div>
                   </div>
                   {isExpanded ? <ChevronUp className="h-5 w-5 text-gray-400 flex-shrink-0 ml-4" /> : <ChevronDown className="h-5 w-5 text-gray-400 flex-shrink-0 ml-4" />}

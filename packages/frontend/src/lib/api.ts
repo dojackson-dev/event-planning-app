@@ -79,18 +79,20 @@ api.interceptors.response.use(
           refreshSubscribers = []
           // Refresh failed - clear ALL auth storage and redirect to appropriate login
           const isAffiliate = !!localStorage.getItem('affiliate_data')
+          const isVendor = localStorage.getItem('user_role') === 'vendor'
           ;['access_token','refresh_token','user','user_roles','active_role','user_role',
             'affiliate_token','affiliate_refresh_token','affiliate_data'].forEach(k => localStorage.removeItem(k))
-          window.location.href = isAffiliate ? '/sales-portal/login' : '/login'
+          window.location.href = isAffiliate ? '/sales-portal/login' : isVendor ? '/vendors/login' : '/login'
           return Promise.reject(refreshError)
         }
       } else {
         // No refresh token - redirect to appropriate login
         console.warn('API interceptor: 401 received, no refresh token', error.response)
         const isAffiliate = !!localStorage.getItem('affiliate_data')
+        const isVendor = localStorage.getItem('user_role') === 'vendor'
         ;['access_token','refresh_token','user','user_roles','active_role','user_role',
           'affiliate_token','affiliate_refresh_token','affiliate_data'].forEach(k => localStorage.removeItem(k))
-        window.location.href = isAffiliate ? '/sales-portal/login' : '/login'
+        window.location.href = isAffiliate ? '/sales-portal/login' : isVendor ? '/vendors/login' : '/login'
       }
     }
 

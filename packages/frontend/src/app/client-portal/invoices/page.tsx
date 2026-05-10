@@ -88,10 +88,15 @@ function ClientInvoicesContent() {
     })
   }
 
-  const handlePayNow = async (invoiceId: string) => {
+  const handlePayNow = async (invoice: any) => {
     try {
-      setPaying(invoiceId)
-      const res = await clientApi.post(`/invoices/${invoiceId}/checkout`)
+      setPaying(invoice.id)
+      // Vendor invoices use a public pay page; regular invoices use Stripe checkout
+      if (invoice._type === 'vendor_invoice' && invoice.public_token) {
+        window.location.href = `/pay/${invoice.public_token}`
+        return
+      }
+      const res = await clientApi.post(`/invoices/${invoice.id}/checkout`)
       window.location.href = res.data.url
     } catch (err: any) {
       console.error('Failed to create checkout session', err)
@@ -386,7 +391,7 @@ function ClientInvoicesContent() {
                   {invoice.status !== 'paid' && invoice.status !== 'cancelled' && (
                     <div className="mt-4 pt-4 border-t border-gray-100">
                       <button
-                        onClick={() => handlePayNow(invoice.id)}
+                        onClick={() => handlePayNow(invoice)}
                         disabled={paying === invoice.id}
                         className={`w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm ${
                           paying === invoice.id

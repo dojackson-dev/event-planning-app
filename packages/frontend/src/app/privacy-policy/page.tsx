@@ -12,7 +12,7 @@ export default function PrivacyPolicy() {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
               <Link href="/">
-                <img src="/lib/LogoDVS.png" alt="DoVenue Suite Logo" style={{ height: '64px', width: 'auto' }} />
+                <img src="/lib/LogoEventEcos.png" alt="EventEcos Logo" style={{ height: '64px', width: 'auto' }} />
               </Link>
             </div>
             <div className="flex items-center gap-4">
@@ -41,7 +41,7 @@ export default function PrivacyPolicy() {
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">Privacy Policy SMS Section</h2>
             <p className="text-gray-600 leading-relaxed">
-              DoVenue Suite respects your privacy. Phone numbers collected for SMS consent will not be shared, sold, or rented to third parties or affiliates for marketing purposes. SMS consent is not shared with third parties. Users may opt out at any time by replying STOP.
+              EventEcos respects your privacy. Phone numbers collected for SMS consent will not be shared, sold, or rented to third parties or affiliates for marketing purposes. SMS consent is not shared with third parties. Users may opt out at any time by replying STOP.
             </p>
           </section>
 
@@ -83,7 +83,7 @@ export default function PrivacyPolicy() {
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">Contact Us</h2>
             <p className="text-gray-600 leading-relaxed">
-              If you have any questions about this Privacy Policy, please contact us at support@dovenuesuite.com.
+              If you have any questions about this Privacy Policy, please contact us at support@eventecos.com.
             </p>
           </section>
 
@@ -105,7 +105,7 @@ export default function PrivacyPolicy() {
             </Link>
           </div>
           <p className="text-center text-base text-gray-400">
-            &copy; 2026 DoVenue Suite. All rights reserved.
+            &copy; 2026 EventEcos. All rights reserved.
           </p>
         </div>
       </footer>

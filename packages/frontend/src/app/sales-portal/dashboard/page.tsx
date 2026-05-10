@@ -51,7 +51,7 @@ interface Commission {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://dovenuesuite.com'
+const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://eventecos.com'
 
 function statusBadge(status: string) {
   const map: Record<string, string> = {
@@ -170,7 +170,7 @@ export default function SalesPortalDashboard() {
               </svg>
             </div>
             <span className="font-semibold text-gray-900 text-sm">
-              DoVenueSuite <span className="text-indigo-600">Sales Portal</span>
+              EventEcos <span className="text-indigo-600">Sales Portal</span>
             </span>
           </div>
 

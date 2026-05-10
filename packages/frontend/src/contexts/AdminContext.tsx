@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 // AUTH BYPASS: Set to false to re-enable admin authentication
 const BYPASS_ADMIN_AUTH = true
 
-const ADMIN_EMAIL = 'admin@dovenuesuite.com'
+const ADMIN_EMAIL = 'admin@eventecos.com'
 
 interface AdminSession {
   user: any

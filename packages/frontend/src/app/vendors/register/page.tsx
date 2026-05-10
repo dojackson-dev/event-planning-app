@@ -144,7 +144,7 @@ export default function VendorRegisterPage() {
       {/* Header */}
       <nav className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/" className="text-xl font-bold text-primary-600">DoVenueSuite</Link>
+          <Link href="/" className="text-xl font-bold text-primary-600">EventEcos</Link>
           <Link href="/login" className="text-sm text-gray-500 hover:text-gray-700">Already have an account? Log in</Link>
         </div>
       </nav>

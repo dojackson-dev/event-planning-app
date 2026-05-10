@@ -14,6 +14,8 @@ async function bootstrap() {
     'https://dovenuesuite.com',
     'https://www.dovenuesuite.com',
     'https://dev.dovenuesuite.com',
+    'https://eventecos.com',
+    'https://www.eventecos.com',
     process.env.FRONTEND_URL,
   ].filter(Boolean);
 
@@ -34,6 +36,11 @@ async function bootstrap() {
       
       // Allow do-venue-suites Vercel deployments
       if (origin.includes('do-venue-suites') && origin.includes('vercel.app')) {
+        return callback(null, true);
+      }
+
+      // Allow eventecos Vercel deployments
+      if (origin.includes('eventecos') && origin.includes('vercel.app')) {
         return callback(null, true);
       }
       

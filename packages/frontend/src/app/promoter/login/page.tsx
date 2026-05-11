@@ -54,6 +54,7 @@ export default function PromoterLogin() {
         }
         
         localStorage.setItem('active_role', 'promoter')
+        localStorage.setItem('user_role', 'promoter')
       }
       
       // Full page navigation so AuthContext re-initializes from localStorage

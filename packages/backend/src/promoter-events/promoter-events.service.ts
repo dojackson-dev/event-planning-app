@@ -17,7 +17,9 @@ import {
   UpdateTicketTierDto,
 } from './dto/promoter-event.dto';
 
-const APP_FEE_RATE = 0.03;
+const PLATFORM_FEE_RATE = 0.03;          // 3% platform service fee
+const STRIPE_FEE_RATE   = 0.029;         // 2.9% Stripe payment processing
+const STRIPE_FEE_FIXED  = 30;            // $0.30 fixed Stripe fee (cents)
 
 @Injectable()
 export class PromoterEventsService {
@@ -316,7 +318,8 @@ export class PromoterEventsService {
     return raw.startsWith('+') ? raw : '+' + digits;
   }
 
-  async createTicketCheckout(eventId: string, tierId: string, quantity: number, buyerPhone: string, buyerEmail?: string) {
+  async createTicketCheckout(eventId: string, tierId: string, quantity: number, buyerPhone: string, buyerEmail?: string, returnUrl?: string) {
+    const baseUrl = returnUrl || this.frontendUrl;
     const admin = this.supabaseService.getAdminClient();
     buyerPhone = this.normalizePhone(buyerPhone);
 
@@ -376,7 +379,7 @@ export class PromoterEventsService {
         buyerPhone,
         buyerEmail,
       });
-      return { url: `${this.frontendUrl}/events/${eventId}?paid=true`, sessionId: null };
+      return { url: `${baseUrl}/events/${eventId}?paid=true`, sessionId: null };
     }
 
     // ── PAID TICKETS: require active Stripe Connect (prod only) ──
@@ -389,8 +392,9 @@ export class PromoterEventsService {
     }
 
     const unitAmount = Math.round(unitPrice * 100);
-    const subtotal = unitAmount * quantity;
-    const feeAmount = Math.round(subtotal * APP_FEE_RATE);
+    const subtotalCents = unitAmount * quantity;
+    const platformFeeCents = Math.round(subtotalCents * PLATFORM_FEE_RATE);
+    const stripeFeeCents   = Math.round(subtotalCents * STRIPE_FEE_RATE) + STRIPE_FEE_FIXED;
 
     if (!buyerPhone) throw new BadRequestException('Phone number is required');
     const sessionParams: Stripe.Checkout.SessionCreateParams = {
@@ -413,14 +417,22 @@ export class PromoterEventsService {
         {
           price_data: {
             currency: 'usd',
-            product_data: { name: 'Service Fee' },
-            unit_amount: feeAmount,
+            product_data: { name: 'Platform Service Fee (3%)' },
+            unit_amount: platformFeeCents,
+          },
+          quantity: 1,
+        },
+        {
+          price_data: {
+            currency: 'usd',
+            product_data: { name: 'Payment Processing Fee' },
+            unit_amount: stripeFeeCents,
           },
           quantity: 1,
         },
       ],
-      success_url: `${this.frontendUrl}/events/${eventId}?paid=true&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${this.frontendUrl}/events/${eventId}?canceled=true`,
+      success_url: `${baseUrl}/tickets/{CHECKOUT_SESSION_ID}`,
+      cancel_url: `${baseUrl}/events/${eventId}?canceled=true`,
       metadata: {
         public_event_id: eventId,
         ticket_tier_id: tierId,
@@ -430,16 +442,146 @@ export class PromoterEventsService {
       },
     };
 
-    // Only attach Connect transfer when promoter has an active account
+    // application_fee = platform fee only; Stripe takes their cut separately
     if (hasActiveConnect) {
       sessionParams.payment_intent_data = {
-        application_fee_amount: feeAmount,
-        transfer_data: { destination: promoter.stripe_account_id! },
+        application_fee_amount: platformFeeCents,
+        transfer_data: { destination: promoter.stripe_account_id },
       };
     }
 
     const session = await this.stripe.checkout.sessions.create(sessionParams);
 
+    return { url: session.url, sessionId: session.id };
+  }
+
+  // ── MULTI-TIER CHECKOUT ────────────────────────────────────────
+
+  async createMultiTierCheckout(
+    eventId: string,
+    items: { tier_id: string; quantity: number }[],
+    buyerPhone: string,
+    buyerEmail?: string,
+    returnUrl?: string,
+  ) {
+    const baseUrl = returnUrl || this.frontendUrl;
+    const admin = this.supabaseService.getAdminClient();
+    buyerPhone = this.normalizePhone(buyerPhone);
+    if (!buyerPhone) throw new BadRequestException('Phone number is required');
+
+    const { data: event } = await admin
+      .from('public_events')
+      .select('*, promoter_accounts(stripe_account_id, stripe_connect_status, company_name, contact_name)')
+      .eq('id', eventId)
+      .eq('status', 'published')
+      .maybeSingle();
+    if (!event) throw new NotFoundException('Event not found');
+
+    // Validate each tier and check availability
+    const tierResults: { tier: any; quantity: number }[] = [];
+    for (const item of items) {
+      const { data: tier } = await admin
+        .from('ticket_tiers')
+        .select('*')
+        .eq('id', item.tier_id)
+        .eq('public_event_id', eventId)
+        .maybeSingle();
+      if (!tier) throw new NotFoundException(`Ticket tier not found`);
+      const available = tier.quantity - tier.quantity_sold;
+      if (item.quantity > available)
+        throw new BadRequestException(`Only ${available} tickets remaining for "${tier.name}"`);
+      tierResults.push({ tier, quantity: item.quantity });
+    }
+
+    const allFree = tierResults.every(r => Number(r.tier.price) === 0);
+
+    if (allFree) {
+      for (const { tier, quantity } of tierResults) {
+        const ticketRows = Array.from({ length: quantity }, () => ({
+          public_event_id: eventId,
+          ticket_tier_id: tier.id,
+          buyer_email: buyerEmail || null,
+          buyer_phone: buyerPhone,
+          stripe_checkout_session_id: null,
+          amount_paid: 0,
+          status: 'valid',
+        }));
+        await admin.from('tickets').insert(ticketRows);
+        const { data: tierRow } = await admin.from('ticket_tiers').select('quantity_sold').eq('id', tier.id).single();
+        if (tierRow) {
+          await admin.from('ticket_tiers').update({ quantity_sold: (tierRow.quantity_sold ?? 0) + quantity }).eq('id', tier.id);
+        }
+        await this.sendTicketNotifications({ eventId, tierId: tier.id, quantity, amountTotal: 0, buyerPhone, buyerEmail });
+      }
+      return { url: `${baseUrl}/events/${eventId}?paid=true`, sessionId: null };
+    }
+
+    // Paid: build Stripe checkout with multiple line items
+    const promoter = event.promoter_accounts;
+    const isTestMode = (this.configService.get<string>('STRIPE_SECRET_KEY') || '').startsWith('sk_test_');
+    const hasActiveConnect = promoter?.stripe_account_id && promoter.stripe_connect_status === 'active';
+    if (!hasActiveConnect && !isTestMode) throw new BadRequestException('Payments not enabled for this event');
+
+    const ticketLineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = tierResults.map(({ tier, quantity }) => ({
+      price_data: {
+        currency: 'usd',
+        product_data: {
+          name: `${event.title} — ${tier.name}`,
+          description: event.venue_name ? `${event.event_date} at ${event.venue_name}` : event.event_date,
+        },
+        unit_amount: Math.round(Number(tier.price) * 100),
+      },
+      quantity,
+    }));
+
+    const subtotalCents    = tierResults.reduce((s, { tier, quantity }) => s + Math.round(Number(tier.price) * 100) * quantity, 0);
+    const platformFeeCents  = Math.round(subtotalCents * PLATFORM_FEE_RATE);
+    const stripeFeeCents    = Math.round(subtotalCents * STRIPE_FEE_RATE) + STRIPE_FEE_FIXED;
+
+    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
+      ...ticketLineItems,
+      {
+        price_data: {
+          currency: 'usd',
+          product_data: { name: 'Platform Service Fee (3%)' },
+          unit_amount: platformFeeCents,
+        },
+        quantity: 1,
+      },
+      {
+        price_data: {
+          currency: 'usd',
+          product_data: { name: 'Payment Processing Fee' },
+          unit_amount: stripeFeeCents,
+        },
+        quantity: 1,
+      },
+    ];
+
+    const sessionParams: Stripe.Checkout.SessionCreateParams = {
+      payment_method_types: ['card'],
+      mode: 'payment',
+      ...(buyerEmail ? { customer_email: buyerEmail } : {}),
+      phone_number_collection: { enabled: true },
+      line_items: lineItems,
+      success_url: `${baseUrl}/tickets/{CHECKOUT_SESSION_ID}`,
+      cancel_url: `${baseUrl}/events/${eventId}?canceled=true`,
+      metadata: {
+        public_event_id: eventId,
+        items_json: JSON.stringify(items),
+        buyer_email: buyerEmail || '',
+        buyer_phone: buyerPhone,
+      },
+    };
+
+    if (hasActiveConnect) {
+      sessionParams.payment_intent_data = {
+        application_fee_amount: platformFeeCents,
+        transfer_data: { destination: promoter.stripe_account_id },
+      };
+    }
+
+    const session = await this.stripe.checkout.sessions.create(sessionParams);
     return { url: session.url, sessionId: session.id };
   }
 
@@ -457,23 +599,64 @@ export class PromoterEventsService {
       return;
     }
 
-    const { public_event_id, ticket_tier_id, quantity, buyer_email, buyer_phone } = session.metadata || {};
-    if (!public_event_id || !ticket_tier_id) return;
+    const { public_event_id, ticket_tier_id, quantity, buyer_email, buyer_phone, items_json } = session.metadata || {};
+    if (!public_event_id) return;
 
-    const qty = parseInt(quantity || '1', 10);
     const phone = (buyer_phone || (session.customer_details?.phone ?? '')).trim() || null;
     const email = buyer_email ?? session.customer_email ?? session.customer_details?.email ?? null;
 
-    // idempotency check — see if tickets already exist for this session
+    // idempotency check
     const { data: existing } = await admin
       .from('tickets')
       .select('id')
       .eq('stripe_checkout_session_id', sessionId)
       .limit(1);
-
     if (existing && existing.length > 0) return;
 
     const amountTotal = session.amount_total ? session.amount_total / 100 : 0;
+
+    if (items_json) {
+      // ── Multi-tier checkout ──────────────────────────────────
+      const items: { tier_id: string; quantity: number }[] = JSON.parse(items_json);
+      const totalTickets = items.reduce((s, i) => s + i.quantity, 0);
+
+      for (const item of items) {
+        const ticketRows = Array.from({ length: item.quantity }, () => ({
+          public_event_id,
+          ticket_tier_id: item.tier_id,
+          buyer_email: email,
+          buyer_phone: phone,
+          stripe_checkout_session_id: sessionId,
+          amount_paid: totalTickets > 0 ? amountTotal / totalTickets : 0,
+          status: 'valid',
+        }));
+        await admin.from('tickets').insert(ticketRows);
+
+        const { data: tier } = await admin.from('ticket_tiers').select('quantity_sold').eq('id', item.tier_id).single();
+        if (tier) {
+          await admin.from('ticket_tiers').update({ quantity_sold: (tier.quantity_sold ?? 0) + item.quantity }).eq('id', item.tier_id);
+        }
+
+        if (phone || email) {
+          await this.sendTicketNotifications({
+            eventId: public_event_id,
+            tierId: item.tier_id,
+            quantity: item.quantity,
+            amountTotal: totalTickets > 0 ? amountTotal * (item.quantity / totalTickets) : 0,
+            buyerPhone: phone || undefined,
+            buyerEmail: email || undefined,
+            sessionId,
+          });
+        }
+      }
+      this.logger.log(`Recorded ${totalTickets} ticket(s) (multi-tier) sold for event ${public_event_id}`);
+      return;
+    }
+
+    // ── Single-tier checkout (legacy) ────────────────────────
+    if (!ticket_tier_id) return;
+
+    const qty = parseInt(quantity || '1', 10);
 
     // create ticket records (one per ticket)
     const ticketRows = Array.from({ length: qty }, () => ({
@@ -596,12 +779,24 @@ export class PromoterEventsService {
     const admin = this.supabaseService.getAdminClient();
     const { data: tickets, error } = await admin
       .from('tickets')
-      .select('*, ticket_tiers(name, price), public_events(title, event_date, start_time, venue_name, venue_address, city, state, image_url)')
+      .select('*, ticket_tiers(name, price), public_events(id, title, event_date, start_time, venue_name, venue_address, city, state, image_url)')
       .eq('stripe_checkout_session_id', sessionId)
       .order('created_at', { ascending: true });
     if (error) throw new BadRequestException(error.message);
     if (!tickets || tickets.length === 0) throw new NotFoundException('No tickets found for this session');
     return tickets;
+  }
+
+  async getTicketById(ticketId: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: ticket, error } = await admin
+      .from('tickets')
+      .select('*, ticket_tiers(name, price), public_events(id, title, event_date, start_time, venue_name, venue_address, city, state, image_url)')
+      .eq('id', ticketId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!ticket) throw new NotFoundException('Ticket not found');
+    return ticket;
   }
 
   async scanTicket(userId: string, eventId: string, ticketId: string) {

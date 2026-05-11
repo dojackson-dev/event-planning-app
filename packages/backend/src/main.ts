@@ -11,6 +11,9 @@ async function bootstrap() {
     'http://localhost:3001',
     'http://localhost:8002',
     'https://event-planning-app-frontend-alpha.vercel.app',
+    'https://eventecos.com',
+    'https://www.eventecos.com',
+    'https://dev.eventecos.com',
     'https://dovenuesuite.com',
     'https://www.dovenuesuite.com',
     'https://dev.dovenuesuite.com',
@@ -34,6 +37,11 @@ async function bootstrap() {
       
       // Allow do-venue-suites Vercel deployments
       if (origin.includes('do-venue-suites') && origin.includes('vercel.app')) {
+        return callback(null, true);
+      }
+
+      // Allow eventecos Vercel deployments
+      if (origin.includes('eventecos') && origin.includes('vercel.app')) {
         return callback(null, true);
       }
       

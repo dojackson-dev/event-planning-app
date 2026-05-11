@@ -11,6 +11,7 @@ export default function EarningsPage() {
   const router = useRouter()
   const [profile, setProfile] = useState<VendorProfile | null>(null)
   const [bookings, setBookings] = useState<Booking[]>([])
+  const [vendorInvoices, setVendorInvoices] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -19,12 +20,14 @@ export default function EarningsPage() {
 
     const load = async () => {
       try {
-        const [profileRes, bookingsRes] = await Promise.all([
+        const [profileRes, bookingsRes, invoicesRes] = await Promise.all([
           api.get('/vendors/account/me'),
           api.get('/vendors/bookings/mine'),
+          api.get('/vendor-invoices/mine').catch(() => ({ data: [] })),
         ])
         setProfile(profileRes.data)
         setBookings(bookingsRes.data || [])
+        setVendorInvoices(invoicesRes.data || [])
       } catch (err: any) {
         if (err.response?.status === 401) router.replace('/vendors/login')
       } finally {
@@ -44,13 +47,21 @@ export default function EarningsPage() {
 
   const paid      = bookings.filter(b => b.status === 'paid' || b.status === 'completed')
   const confirmed = bookings.filter(b => b.status === 'confirmed')
+  const paidInvoices = vendorInvoices.filter((inv: any) => inv.status === 'paid')
+  const pendingInvoices = vendorInvoices.filter((inv: any) => inv.status === 'sent' || inv.status === 'partial')
   const totalEarned  = paid.reduce((s, b) => s + (b.agreed_amount || 0), 0)
+    + paidInvoices.reduce((s: number, inv: any) => s + Number(inv.amount_paid || inv.total_amount || 0), 0)
   const totalPending = confirmed.reduce((s, b) => s + (b.agreed_amount || 0), 0)
+    + pendingInvoices.reduce((s: number, inv: any) => s + Number(inv.amount_due || inv.total_amount || 0), 0)
 
   const byMonth: Record<string, number> = {}
   paid.forEach(b => {
     const month = new Date(b.event_date + 'T12:00:00').toLocaleString('default', { month: 'short', year: 'numeric' })
     byMonth[month] = (byMonth[month] || 0) + (b.agreed_amount || 0)
+  })
+  paidInvoices.forEach((inv: any) => {
+    const month = new Date(inv.paid_at || inv.created_at).toLocaleString('default', { month: 'short', year: 'numeric' })
+    byMonth[month] = (byMonth[month] || 0) + Number(inv.amount_paid || inv.total_amount || 0)
   })
   const months = Object.entries(byMonth).sort(
     (a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime()
@@ -72,7 +83,7 @@ export default function EarningsPage() {
             <div className="bg-green-50 rounded-xl p-4">
               <p className="text-xs text-gray-500 font-medium">Total Earned</p>
               <p className="text-2xl font-bold text-green-600 mt-1">${totalEarned.toLocaleString()}</p>
-              <p className="text-xs text-gray-400 mt-0.5">{paid.length} paid booking{paid.length !== 1 ? 's' : ''}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{paid.length} booking{paid.length !== 1 ? 's' : ''} + {paidInvoices.length} invoice{paidInvoices.length !== 1 ? 's' : ''}</p>
             </div>
             <div className="bg-blue-50 rounded-xl p-4">
               <p className="text-xs text-gray-500 font-medium">Pending (Confirmed)</p>
@@ -80,11 +91,11 @@ export default function EarningsPage() {
               <p className="text-xs text-gray-400 mt-0.5">{confirmed.length} upcoming booking{confirmed.length !== 1 ? 's' : ''}</p>
             </div>
             <div className="bg-primary-50 rounded-xl p-4">
-              <p className="text-xs text-gray-500 font-medium">Avg per Booking</p>
+              <p className="text-xs text-gray-500 font-medium">Avg per Transaction</p>
               <p className="text-2xl font-bold text-primary-600 mt-1">
-                ${paid.length > 0 ? Math.round(totalEarned / paid.length).toLocaleString() : '0'}
+                ${(paid.length + paidInvoices.length) > 0 ? Math.round(totalEarned / (paid.length + paidInvoices.length)).toLocaleString() : '0'}
               </p>
-              <p className="text-xs text-gray-400 mt-0.5">from completed events</p>
+              <p className="text-xs text-gray-400 mt-0.5">from bookings &amp; invoices</p>
             </div>
           </div>
 
@@ -114,15 +125,16 @@ export default function EarningsPage() {
             </div>
           )}
 
-          {paid.length > 0 && (
+          {(paid.length > 0 || paidInvoices.length > 0) && (
             <div className="mt-8">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">Paid Booking History</h3>
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Paid History</h3>
               <div className="overflow-x-auto">
                 <table className="min-w-full text-sm">
                   <thead>
                     <tr className="text-left text-xs font-medium text-gray-500 uppercase border-b">
-                      <th className="pb-2 pr-4">Event</th>
+                      <th className="pb-2 pr-4">Description</th>
                       <th className="pb-2 pr-4">Date</th>
+                      <th className="pb-2 pr-4">Type</th>
                       <th className="pb-2 text-right">Amount</th>
                     </tr>
                   </thead>
@@ -131,7 +143,16 @@ export default function EarningsPage() {
                       <tr key={b.id}>
                         <td className="py-2 pr-4 font-medium text-gray-800">{b.event_name}</td>
                         <td className="py-2 pr-4 text-gray-500">{new Date(b.event_date + 'T12:00:00').toLocaleDateString()}</td>
+                        <td className="py-2 pr-4"><span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Booking</span></td>
                         <td className="py-2 text-right font-semibold text-green-700">${(b.agreed_amount || 0).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                    {paidInvoices.map((inv: any) => (
+                      <tr key={inv.id}>
+                        <td className="py-2 pr-4 font-medium text-gray-800">Invoice #{inv.invoice_number} — {inv.client_name}</td>
+                        <td className="py-2 pr-4 text-gray-500">{new Date(inv.paid_at || inv.created_at).toLocaleDateString()}</td>
+                        <td className="py-2 pr-4"><span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Invoice</span></td>
+                        <td className="py-2 text-right font-semibold text-green-700">${Number(inv.amount_paid || inv.total_amount || 0).toLocaleString()}</td>
                       </tr>
                     ))}
                   </tbody>

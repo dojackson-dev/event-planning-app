@@ -2,16 +2,35 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
+import { createClient } from '@/lib/supabase/client'
 import { Megaphone, Loader2 } from 'lucide-react'
 
 export default function PromoterLogin() {
-  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [forgotMode, setForgotMode] = useState(false)
+  const [resetSent, setResetSent] = useState(false)
+  const [resetLoading, setResetLoading] = useState(false)
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setResetLoading(true); setError('')
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/promoter/login`,
+      })
+      if (error) throw error
+      setResetSent(true)
+    } catch (err: any) {
+      setError(err.message || 'Failed to send reset email')
+    } finally {
+      setResetLoading(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -35,14 +54,11 @@ export default function PromoterLogin() {
         }
         
         localStorage.setItem('active_role', 'promoter')
+        localStorage.setItem('user_role', 'promoter')
       }
       
-      // Navigate to promoter dashboard or role picker
-      if (roles.length > 1) {
-        router.push('/choose-role')
-      } else {
-        router.push('/dashboard/promoter')
-      }
+      // Full page navigation so AuthContext re-initializes from localStorage
+      window.location.href = '/dashboard/promoter'
     } catch (err: any) {
       setError(err.response?.data?.message || 'Invalid email or password')
     } finally {
@@ -69,30 +85,59 @@ export default function PromoterLogin() {
             <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm mb-5">{error}</div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                placeholder="your@email.com" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)} required
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                placeholder="••••••••" />
-            </div>
-            <button type="submit" disabled={loading}
-              className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white font-semibold py-3 rounded-xl hover:bg-purple-700 transition-colors disabled:opacity-60 mt-2">
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              Sign In
-            </button>
-          </form>
-
-          <p className="text-center text-sm text-gray-500 mt-5">
-            No account?{' '}
-            <Link href="/promoter/register" className="text-purple-600 font-medium hover:underline">Create one</Link>
-          </p>
+          {forgotMode ? (
+            resetSent ? (
+              <div className="text-center py-4">
+                <p className="text-green-600 font-medium text-sm">Password reset email sent! Check your inbox.</p>
+                <button onClick={() => { setForgotMode(false); setResetSent(false) }} className="text-purple-600 text-sm mt-4 hover:underline">Back to sign in</button>
+              </div>
+            ) : (
+              <form onSubmit={handleForgotPassword} className="space-y-4">
+                <p className="text-sm text-gray-500 mb-2">Enter your email and we'll send a reset link.</p>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus
+                    className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    placeholder="your@email.com" />
+                </div>
+                <button type="submit" disabled={resetLoading}
+                  className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white font-semibold py-3 rounded-xl hover:bg-purple-700 transition-colors disabled:opacity-60">
+                  {resetLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  Send Reset Link
+                </button>
+                <button type="button" onClick={() => setForgotMode(false)} className="w-full text-sm text-gray-500 hover:underline">Back to sign in</button>
+              </form>
+            )
+          ) : (
+            <>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus
+                    className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    placeholder="your@email.com" />
+                </div>
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block text-sm font-medium text-gray-700">Password</label>
+                    <button type="button" onClick={() => setForgotMode(true)} className="text-xs text-purple-600 hover:underline">Forgot password?</button>
+                  </div>
+                  <input type="password" value={password} onChange={e => setPassword(e.target.value)} required
+                    className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    placeholder="••••••••" />
+                </div>
+                <button type="submit" disabled={loading}
+                  className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white font-semibold py-3 rounded-xl hover:bg-purple-700 transition-colors disabled:opacity-60 mt-2">
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  Sign In
+                </button>
+              </form>
+              <p className="text-center text-sm text-gray-500 mt-5">
+                No account?{' '}
+                <Link href="/promoter/register" className="text-purple-600 font-medium hover:underline">Create one</Link>
+              </p>
+            </>
+          )}
         </div>
       </div>
     </div>

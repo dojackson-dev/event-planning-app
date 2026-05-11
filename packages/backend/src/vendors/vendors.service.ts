@@ -1045,7 +1045,7 @@ export class VendorsService {
       .from('vendor_booking_requests')
       .update(update)
       .eq('id', requestId)
-      .select('*, vendor_accounts(business_name)')
+      .select('*, vendor_accounts(business_name, phone)')
       .single();
 
     if (error) throw new BadRequestException(error.message);
@@ -1078,13 +1078,22 @@ export class VendorsService {
       }
     }
 
-    // Notify client if request was confirmed or declined
-    if (dto.status && (data.client_phone || dto.status === 'confirmed' || dto.status === 'declined')) {
+    // Notify client — but never send to the vendor's own phone
+    const vendorPhone = (data.vendor_accounts as any)?.phone ?? null;
+    const rawClientPhone: string | null = data.client_phone ?? null;
+    const normalize = (p: string) => p.replace(/\D/g, '').slice(-10);
+    const clientPhoneToNotify =
+      rawClientPhone &&
+      (!vendorPhone || normalize(rawClientPhone) !== normalize(vendorPhone))
+        ? rawClientPhone
+        : null;
+
+    if (dto.status && clientPhoneToNotify) {
       try {
         const vendorName: string =
           (data.vendor_accounts as any)?.business_name ?? 'Your vendor';
         await this.smsNotifications.vendorBookingRequestUpdated(
-          data.client_phone ?? null,
+          clientPhoneToNotify,
           data.client_name ?? 'Client',
           dto.status,
           vendorName,

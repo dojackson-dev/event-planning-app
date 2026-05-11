@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { User, AuthResponse, LoginCredentials, UserRole } from '@/types'
+import { User, AuthResponse, LoginCredentials, UserRole } from '@/types/index'
 
 interface AuthContextType {
   user: User | null
@@ -51,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roles, setRoles]                 = useState<UserRole[]>([])
   const [activeRole, setActiveRoleState]  = useState<UserRole | null>(null)
   const [isClient, setIsClient]           = useState(false)
+  const [authLoading, setAuthLoading]     = useState(true)
   const router = useRouter()
 
   // ── Load from localStorage (client only) ─────────────────────────────────
@@ -69,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const storedActive = localStorage.getItem('active_role')
         const refreshTok   = localStorage.getItem('refresh_token')
 
-        if (!token) return
+        if (!token) { setAuthLoading(false); return }
 
         // ── If we have a token but no stored user, fetch from backend ─────────
         if (!stored) {
@@ -86,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setActiveRoleState(fetchedActive)
             }
           } catch { /* ignore — user may not be authenticated */ }
-          return
+          setAuthLoading(false); return
         }
 
         // ── Proactively refresh if the JWT is expired ────────────────────────
@@ -99,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (!refreshTok) {
               console.warn('⚠️ [INIT] Token expired, no refresh token — clearing session')
               clearSession()
-              return
+              setAuthLoading(false); return
             }
             console.log('🔄 [INIT] Token expired — refreshing proactively...')
             const res = await api.post('/auth/refresh', { refresh_token: refreshTok })
@@ -112,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch (refreshErr) {
           console.warn('⚠️ [INIT] Token refresh failed — clearing session', refreshErr)
           clearSession()
-          return
+          setAuthLoading(false); return
         }
         // ─────────────────────────────────────────────────────────────────────
 
@@ -157,6 +158,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setActiveRoleState(parsedActive)
       } catch (e) {
         console.error('[INIT] Error loading from localStorage:', e)
+      } finally {
+        setAuthLoading(false)
       }
     }
 
@@ -176,8 +179,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const resolvedRoles = resolveRoles(backendRoles, dbUser, credentials.email)
 
-      // Determine primary active role
-      let activeR: UserRole = resolvedRoles[0]
+      // Determine primary active role — prefer previously stored role if still valid
+      const storedPreviousRole = typeof window !== 'undefined' ? localStorage.getItem('active_role') as UserRole : null
+      let activeR: UserRole = (storedPreviousRole && resolvedRoles.includes(storedPreviousRole))
+        ? storedPreviousRole
+        : resolvedRoles[0]
       if (credentials.email?.toLowerCase() === 'admin@eventecos.com') {
         activeR = UserRole.ADMIN
       }
@@ -215,14 +221,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await new Promise(r => setTimeout(r, 100))
 
       // ── Navigate ───────────────────────────────────────────────────────────
-      if (resolvedRoles.length > 1 && activeR !== UserRole.ADMIN) {
-        console.log('🚀 [LOGIN] Multiple roles — navigating to /choose-role')
-        router.push('/choose-role')
-      } else {
-        const dest = getRoleDashboard(activeR)
-        console.log('🚀 [LOGIN] Navigating to', dest)
-        router.push(dest)
-      }
+      // Always go straight to the active role's dashboard — the role switcher
+      // in the nav handles switching between roles once logged in.
+      const dest = getRoleDashboard(activeR)
+      console.log('🚀 [LOGIN] Navigating to', dest, '(roles:', resolvedRoles, ')')
+      router.push(dest)
 
     } catch (error: any) {
       console.error('❌ [LOGIN] Error:', error?.response?.data?.message || error?.message)
@@ -262,7 +265,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{
       user,
-      loading: !isClient,
+      loading: !isClient || authLoading,
       roles,
       activeRole,
       login,

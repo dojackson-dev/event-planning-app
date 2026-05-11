@@ -43,15 +43,17 @@ export default function BookingRequestsPage() {
   const [search, setSearch] = useState('')
 
   useEffect(() => {
-    fetchRequests()
+    // Wait briefly to ensure the access_token is in localStorage after login redirect
+    const timer = setTimeout(() => fetchRequests(), 300)
+    return () => clearTimeout(timer)
   }, [])
 
   const fetchRequests = async () => {
     try {
       const res = await api.get('/vendors/booking-requests/mine')
       setRequests(res.data || [])
-    } catch {
-      // silently fail
+    } catch (err: any) {
+      console.error('Failed to load booking requests:', err?.response?.data || err?.message)
     } finally {
       setLoading(false)
     }

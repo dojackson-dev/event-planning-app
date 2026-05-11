@@ -10,7 +10,7 @@
     "install:all": "npm install",
     "build": "npm run build --workspaces",
     "vercel-build": "cd packages/frontend && npm run build",
-    "dev": "npm run dev --workspaces",
+    "dev": "npm run dev --workspaces --parallel",
     "test": "npm run test --workspaces"
   },
   "devDependencies": {

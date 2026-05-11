@@ -179,8 +179,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const resolvedRoles = resolveRoles(backendRoles, dbUser, credentials.email)
 
-      // Determine primary active role
-      let activeR: UserRole = resolvedRoles[0]
+      // Determine primary active role — prefer previously stored role if still valid
+      const storedPreviousRole = typeof window !== 'undefined' ? localStorage.getItem('active_role') as UserRole : null
+      let activeR: UserRole = (storedPreviousRole && resolvedRoles.includes(storedPreviousRole))
+        ? storedPreviousRole
+        : resolvedRoles[0]
       if (credentials.email?.toLowerCase() === 'admin@eventecos.com') {
         activeR = UserRole.ADMIN
       }
@@ -218,14 +221,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await new Promise(r => setTimeout(r, 100))
 
       // ── Navigate ───────────────────────────────────────────────────────────
-      if (resolvedRoles.length > 1 && activeR !== UserRole.ADMIN) {
-        console.log('🚀 [LOGIN] Multiple roles — navigating to /choose-role')
-        router.push('/choose-role')
-      } else {
-        const dest = getRoleDashboard(activeR)
-        console.log('🚀 [LOGIN] Navigating to', dest)
-        router.push(dest)
-      }
+      // Always go straight to the active role's dashboard — the role switcher
+      // in the nav handles switching between roles once logged in.
+      const dest = getRoleDashboard(activeR)
+      console.log('🚀 [LOGIN] Navigating to', dest, '(roles:', resolvedRoles, ')')
+      router.push(dest)
 
     } catch (error: any) {
       console.error('❌ [LOGIN] Error:', error?.response?.data?.message || error?.message)

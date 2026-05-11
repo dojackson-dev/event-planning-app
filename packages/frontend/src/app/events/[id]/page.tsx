@@ -335,14 +335,28 @@ function PublicEventDetailPageContent({ params }: { params: { id: string } }) {
                 )}
 
                 {/* Total + checkout button */}
-                {selectedTier && (
+                {selectedTier && (() => {
+                  const ticketSubtotal = Number(selectedTier.price) * quantity
+                  const serviceFee = ticketSubtotal > 0 ? Math.round(ticketSubtotal * 0.03 * 100) / 100 : 0
+                  const orderTotal = ticketSubtotal + serviceFee
+                  return (
                   <div className="border-t border-gray-100 pt-3">
-                    <div className="flex justify-between text-sm mb-3">
+                    <div className="flex justify-between text-sm mb-1">
                       <span className="text-gray-600">{quantity} × {selectedTier.name}</span>
-                      <span className="font-bold">
-                        {Number(selectedTier.price) === 0 ? 'Free' : `$${(Number(selectedTier.price) * quantity).toFixed(2)}`}
-                      </span>
+                      <span>{ticketSubtotal === 0 ? 'Free' : `$${ticketSubtotal.toFixed(2)}`}</span>
                     </div>
+                    {serviceFee > 0 && (
+                      <div className="flex justify-between text-sm mb-3 text-gray-500">
+                        <span>Service fee (3%)</span>
+                        <span>${serviceFee.toFixed(2)}</span>
+                      </div>
+                    )}
+                    {ticketSubtotal > 0 && (
+                      <div className="flex justify-between text-sm font-bold mb-3">
+                        <span>Total</span>
+                        <span>${orderTotal.toFixed(2)}</span>
+                      </div>
+                    )}
                     <button type="submit" disabled={purchasing}
                       className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white font-bold py-3 rounded-xl hover:bg-purple-700 disabled:opacity-60">
                       {purchasing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ticket className="w-4 h-4" />}
@@ -350,7 +364,8 @@ function PublicEventDetailPageContent({ params }: { params: { id: string } }) {
                     </button>
                     <p className="text-xs text-center text-gray-400 mt-2">Secure checkout via Stripe</p>
                   </div>
-                )}
+                  )
+                })()}
               </form>
             )}
           </div>

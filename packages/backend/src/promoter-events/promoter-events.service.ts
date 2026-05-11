@@ -389,7 +389,8 @@ export class PromoterEventsService {
     }
 
     const unitAmount = Math.round(unitPrice * 100);
-    const feeAmount = hasActiveConnect ? Math.round(unitAmount * quantity * APP_FEE_RATE) : 0;
+    const subtotal = unitAmount * quantity;
+    const feeAmount = Math.round(subtotal * APP_FEE_RATE);
 
     if (!buyerPhone) throw new BadRequestException('Phone number is required');
     const sessionParams: Stripe.Checkout.SessionCreateParams = {
@@ -397,17 +398,27 @@ export class PromoterEventsService {
       mode: 'payment',
       ...(buyerEmail ? { customer_email: buyerEmail } : {}),
       phone_number_collection: { enabled: true },
-      line_items: [{
-        price_data: {
-          currency: 'usd',
-          product_data: {
-            name: `${event.title} — ${tier.name}`,
-            description: event.venue_name ? `${event.event_date} at ${event.venue_name}` : event.event_date,
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: `${event.title} — ${tier.name}`,
+              description: event.venue_name ? `${event.event_date} at ${event.venue_name}` : event.event_date,
+            },
+            unit_amount: unitAmount,
           },
-          unit_amount: unitAmount,
+          quantity,
         },
-        quantity,
-      }],
+        {
+          price_data: {
+            currency: 'usd',
+            product_data: { name: 'Service Fee' },
+            unit_amount: feeAmount,
+          },
+          quantity: 1,
+        },
+      ],
       success_url: `${this.frontendUrl}/events/${eventId}?paid=true&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${this.frontendUrl}/events/${eventId}?canceled=true`,
       metadata: {
@@ -423,7 +434,7 @@ export class PromoterEventsService {
     if (hasActiveConnect) {
       sessionParams.payment_intent_data = {
         application_fee_amount: feeAmount,
-        transfer_data: { destination: promoter.stripe_account_id },
+        transfer_data: { destination: promoter.stripe_account_id! },
       };
     }
 

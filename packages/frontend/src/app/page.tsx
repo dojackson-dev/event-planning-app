@@ -33,33 +33,40 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-white">
+      {/* Top Banner */}
+      <div className="w-full">
+        <img src="/lib/EventEcos-Web-Banner.jpg" alt="EventEcos Banner" className="w-full object-cover" />
+      </div>
+
       {/* Beta Banner */}
       <div className="bg-amber-50 border-b border-amber-200 text-amber-900 text-center text-sm font-medium py-3 px-4">
         🚧 EventEcos is currently in <strong>beta</strong> — features may change. Thanks for being an early tester!
       </div>
 
       {/* Navigation */}
-      <nav className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
+      <nav className="sticky top-0 z-50 bg-white md:bg-green-500 border-b border-gray-200 md:border-green-600 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
-            <div className="flex items-center"></div>
+            <div className="flex items-center">
+              <img src="/lib/EventEcos-Logo.jpg" alt="EventEcos Logo" className="h-10 w-auto" />
+            </div>
 
             {/* Center Nav Links */}
             <div className="hidden md:flex items-center gap-8">
-              <Link href="/client-login" className="text-gray-700 hover:text-green-600 font-medium text-sm transition-colors">
+              <Link href="/client-login" className="text-white hover:text-green-100 font-medium text-sm transition-colors">
                 Client Portal
               </Link>
-              <Link href="/vendors" className="text-gray-700 hover:text-green-600 font-medium text-sm transition-colors">
+              <Link href="/vendors" className="text-white hover:text-green-100 font-medium text-sm transition-colors">
                 Find Vendors
               </Link>
-              <Link href="/venues" className="text-gray-700 hover:text-green-600 font-medium text-sm transition-colors">
+              <Link href="/venues" className="text-white hover:text-green-100 font-medium text-sm transition-colors">
                 Find Venues
               </Link>
-              <Link href="/events" className="text-gray-700 hover:text-green-600 font-medium text-sm transition-colors">
+              <Link href="/events" className="text-white hover:text-green-100 font-medium text-sm transition-colors">
                 Discover Events
               </Link>
-              <Link href="#features" className="text-gray-700 hover:text-green-600 font-medium text-sm transition-colors">
+              <Link href="#features" className="text-white hover:text-green-100 font-medium text-sm transition-colors">
                 Features
               </Link>
             </div>
@@ -68,13 +75,13 @@ export default function Home() {
             <div className="flex items-center gap-3">
               <Link
                 href="/login"
-                className="text-gray-700 hover:text-green-600 font-medium text-sm"
+                className="text-white hover:text-green-100 font-medium text-sm"
               >
                 Sign In
               </Link>
               <Link
                 href="/signup"
-                className="bg-green-500 hover:bg-green-600 text-white font-semibold px-6 py-2 rounded-lg transition-colors"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2 rounded-lg transition-colors"
               >
                 Get Started
               </Link>
@@ -137,6 +144,13 @@ export default function Home() {
                     <div>
                       <p className="font-semibold text-gray-900 text-sm">Client Management</p>
                       <p className="text-gray-600 text-xs">Keep everyone in sync</p>
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-2xl p-4 shadow-lg border border-gray-100 flex items-start gap-3">
+                    <Zap className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-gray-900 text-sm">Promoter / Ticket Sales</p>
+                      <p className="text-gray-600 text-xs">Sell tickets & manage events</p>
                     </div>
                   </div>
                   <div className="bg-white rounded-2xl p-4 shadow-lg border border-gray-100 flex items-start gap-3">

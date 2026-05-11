@@ -51,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roles, setRoles]                 = useState<UserRole[]>([])
   const [activeRole, setActiveRoleState]  = useState<UserRole | null>(null)
   const [isClient, setIsClient]           = useState(false)
+  const [authLoading, setAuthLoading]     = useState(true)
   const router = useRouter()
 
   // ── Load from localStorage (client only) ─────────────────────────────────
@@ -69,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const storedActive = localStorage.getItem('active_role')
         const refreshTok   = localStorage.getItem('refresh_token')
 
-        if (!token) return
+        if (!token) { setAuthLoading(false); return }
 
         // ── If we have a token but no stored user, fetch from backend ─────────
         if (!stored) {
@@ -86,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setActiveRoleState(fetchedActive)
             }
           } catch { /* ignore — user may not be authenticated */ }
-          return
+          setAuthLoading(false); return
         }
 
         // ── Proactively refresh if the JWT is expired ────────────────────────
@@ -99,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (!refreshTok) {
               console.warn('⚠️ [INIT] Token expired, no refresh token — clearing session')
               clearSession()
-              return
+              setAuthLoading(false); return
             }
             console.log('🔄 [INIT] Token expired — refreshing proactively...')
             const res = await api.post('/auth/refresh', { refresh_token: refreshTok })
@@ -112,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch (refreshErr) {
           console.warn('⚠️ [INIT] Token refresh failed — clearing session', refreshErr)
           clearSession()
-          return
+          setAuthLoading(false); return
         }
         // ─────────────────────────────────────────────────────────────────────
 
@@ -157,6 +158,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setActiveRoleState(parsedActive)
       } catch (e) {
         console.error('[INIT] Error loading from localStorage:', e)
+      } finally {
+        setAuthLoading(false)
       }
     }
 
@@ -262,7 +265,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{
       user,
-      loading: !isClient,
+      loading: !isClient || authLoading,
       roles,
       activeRole,
       login,

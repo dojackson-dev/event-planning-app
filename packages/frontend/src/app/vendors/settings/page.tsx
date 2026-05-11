@@ -306,7 +306,9 @@ export default function VendorSettingsPage() {
                     <Save className="h-4 w-4" />
                     {saving ? 'Saving…' : 'Save Changes'}
                   </button>
-                </div>}
+                </div>
+              </form>
+            )}
             {activeTab === 'password' && (
               <form onSubmit={handleChangePassword} className="space-y-6 max-w-md">
                 <p className="text-sm text-gray-500">Choose a strong password that you don't use elsewhere.</p>

@@ -2,13 +2,11 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { createClient } from '@/lib/supabase/client'
 import { Megaphone, Loader2 } from 'lucide-react'
 
 export default function PromoterLogin() {
-  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -58,7 +56,8 @@ export default function PromoterLogin() {
         localStorage.setItem('active_role', 'promoter')
       }
       
-      router.push('/dashboard/promoter')
+      // Full page navigation so AuthContext re-initializes from localStorage
+      window.location.href = '/dashboard/promoter'
     } catch (err: any) {
       setError(err.response?.data?.message || 'Invalid email or password')
     } finally {

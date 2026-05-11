@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { User, AuthResponse, LoginCredentials, UserRole } from '@/types'
+import { User, AuthResponse, LoginCredentials, UserRole } from '@/types/index'
 
 interface AuthContextType {
   user: User | null

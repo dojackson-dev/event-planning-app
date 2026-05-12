@@ -15,6 +15,7 @@ const CATEGORIES = [
   { value: 'photographer', label: 'Photographer' },
   { value: 'musicians', label: 'Musicians' },
   { value: 'mc_host', label: 'MC / Host' },
+  { value: 'graphic_designer', label: 'Graphic Designer' },
   { value: 'other', label: 'Other' },
 ]
 
@@ -26,6 +27,7 @@ const CATEGORY_ICONS: Record<string, string> = {
   photographer: '📷',
   musicians: '🎵',
   mc_host: '🎤',
+  graphic_designer: '🖌️',
   other: '⭐',
 }
 
@@ -37,6 +39,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   photographer: 'bg-green-100 text-green-700',
   musicians: 'bg-indigo-100 text-indigo-700',
   mc_host: 'bg-red-100 text-red-700',
+  graphic_designer: 'bg-teal-100 text-teal-700',
   other: 'bg-gray-100 text-gray-700',
 }
 
@@ -288,27 +291,6 @@ export default function VendorsPage() {
             </div>
             {error && <p className="text-red-600 text-sm mt-2 text-left">{error}</p>}
           </form>
-        </div>
-      </div>
-
-      {/* Category pills */}
-      <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex gap-2 overflow-x-auto pb-1 hide-scrollbar">
-            {CATEGORIES.map(c => (
-              <button
-                key={c.value}
-                onClick={() => setCategory(c.value)}
-                className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium border transition-all ${
-                  category === c.value
-                    ? 'bg-primary-600 text-white border-primary-600'
-                    : 'bg-white text-gray-600 border-gray-300 hover:border-primary-400'
-                }`}
-              >
-                {c.value && CATEGORY_ICONS[c.value]} {c.label}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
 

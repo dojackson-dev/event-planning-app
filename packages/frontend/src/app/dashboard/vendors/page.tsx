@@ -29,6 +29,7 @@ const CATEGORIES = [
   { value: 'photographer', label: 'Photographer', icon: '📷' },
   { value: 'musicians', label: 'Musicians', icon: '🎵' },
   { value: 'mc_host', label: 'MC / Host', icon: '🎤' },
+  { value: 'graphic_designer', label: 'Graphic Designer', icon: '🖌️' },
   { value: 'other', label: 'Other', icon: '⭐' },
 ]
 

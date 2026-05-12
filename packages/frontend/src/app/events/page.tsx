@@ -44,14 +44,16 @@ export default function PublicEventsPage() {
   const [events, setEvents] = useState<PublicEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [zipCode, setZipCode] = useState('')
+  const [radiusMiles, setRadiusMiles] = useState('30')
   const [category, setCategory] = useState('')
   const [search, setSearch] = useState('')
 
-  const fetchEvents = (zip?: string, cat?: string) => {
+  const fetchEvents = (zip?: string, cat?: string, radius?: string) => {
     setLoading(true)
     const params: Record<string, string> = {}
     if (zip) params.zip_code = zip
     if (cat) params.category = cat
+    if (zip && radius) params.radius_miles = radius
     api.get('/promoter-events/public', { params })
       .then(r => setEvents(r.data || []))
       .catch(() => setEvents([]))
@@ -62,7 +64,7 @@ export default function PublicEventsPage() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    fetchEvents(zipCode, category)
+    fetchEvents(zipCode, category, radiusMiles)
   }
 
   const filtered = events.filter(e =>
@@ -93,6 +95,17 @@ export default function PublicEventsPage() {
                 placeholder="Zip code"
                 maxLength={10}
                 className="w-28 text-sm text-gray-800 placeholder-gray-400 focus:outline-none" />
+            </div>
+            <div className="flex items-center gap-2 px-3 border-r border-gray-200">
+              <select value={radiusMiles} onChange={e => setRadiusMiles(e.target.value)}
+                className="text-sm text-gray-800 focus:outline-none bg-transparent">
+                <option value="10">10 miles</option>
+                <option value="25">25 miles</option>
+                <option value="30">30 miles</option>
+                <option value="50">50 miles</option>
+                <option value="75">75 miles</option>
+                <option value="100">100 miles</option>
+              </select>
             </div>
             <div className="flex items-center gap-2 px-3">
               <Filter className="w-4 h-4 text-gray-400 shrink-0" />

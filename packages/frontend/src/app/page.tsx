@@ -46,42 +46,35 @@ export default function Home() {
       {/* Navigation */}
       <nav className="sticky top-0 z-50 bg-white md:bg-green-500 border-b border-gray-200 md:border-green-600 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <div className="flex items-center">
-              <img src="/lib/EventEcos-Logo.jpg" alt="EventEcos Logo" className="h-10 w-auto" />
-            </div>
+          <div className="flex items-center justify-center md:justify-between h-16 gap-2">
 
-            {/* Center Nav Links */}
-            <div className="hidden md:flex items-center gap-8">
-              <Link href="/client-login" className="text-white hover:text-green-100 font-medium text-sm transition-colors">
-                Client Portal
-              </Link>
-              <Link href="/vendors" className="text-white hover:text-green-100 font-medium text-sm transition-colors">
+            {/* Center Nav Links - desktop only */}
+            <div className="hidden md:flex items-center gap-2">
+              <Link href="/vendors" className="text-white hover:text-green-100 font-medium text-sm border border-white/40 hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors">
                 Find Vendors
               </Link>
-              <Link href="/venues" className="text-white hover:text-green-100 font-medium text-sm transition-colors">
+              <Link href="/venues" className="text-white hover:text-green-100 font-medium text-sm border border-white/40 hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors">
                 Find Venues
               </Link>
-              <Link href="/events" className="text-white hover:text-green-100 font-medium text-sm transition-colors">
+              <Link href="/events" className="text-white hover:text-green-100 font-medium text-sm border border-white/40 hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors">
                 Discover Events
               </Link>
-              <Link href="#features" className="text-white hover:text-green-100 font-medium text-sm transition-colors">
+              <Link href="#features" className="text-white hover:text-green-100 font-medium text-sm border border-white/40 hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors">
                 Features
               </Link>
             </div>
 
             {/* Right CTA */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <Link
                 href="/login"
-                className="text-white hover:text-green-100 font-medium text-sm"
+                className="hidden md:inline text-white hover:text-green-100 font-medium text-sm border border-white/40 hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors"
               >
                 Sign In
               </Link>
               <Link
                 href="/signup"
-                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2 rounded-lg transition-colors"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-1.5 rounded-lg transition-colors text-sm whitespace-nowrap"
               >
                 Get Started
               </Link>

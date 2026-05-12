@@ -73,8 +73,11 @@ export default function PromoterLogin() {
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-purple-600 shadow-lg mb-4">
             <Megaphone className="h-7 w-7 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">EventEcos</h1>
+          <Link href="/" className="text-2xl font-bold text-gray-900 hover:text-purple-600 block">EventEcos</Link>
           <p className="text-gray-500 text-sm mt-1">Promoter Portal</p>
+          <Link href="/" className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-purple-600 mt-1">
+            ← Back to Home
+          </Link>
         </div>
 
         <div className="bg-white rounded-2xl shadow-lg p-8">

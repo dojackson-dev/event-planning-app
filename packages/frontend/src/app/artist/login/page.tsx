@@ -56,9 +56,12 @@ export default function ArtistLogin() {
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-2">
             <Mic2 className="h-7 w-7 text-blue-600" />
-            <span className="text-2xl font-bold text-gray-900">EventEcos</span>
+            <Link href="/" className="text-2xl font-bold text-gray-900 hover:text-blue-600">EventEcos</Link>
           </div>
           <p className="text-gray-500 text-sm">Artist Portal</p>
+          <Link href="/" className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 mt-1">
+            ← Back to Home
+          </Link>
         </div>
 
         <div className="bg-white rounded-2xl shadow-lg p-8">

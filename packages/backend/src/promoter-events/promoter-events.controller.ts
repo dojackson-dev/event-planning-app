@@ -42,8 +42,9 @@ export class PromoterEventsController {
   listPublicEvents(
     @Query('zip_code') zipCode?: string,
     @Query('category') category?: string,
+    @Query('radius_miles') radiusMiles?: string,
   ) {
-    return this.service.listPublicEvents(zipCode, category);
+    return this.service.listPublicEvents(zipCode, category, radiusMiles ? parseInt(radiusMiles, 10) : undefined);
   }
 
   /** Returns ticket confirmation details for a given checkout session (public — no auth needed) */

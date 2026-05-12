@@ -279,7 +279,7 @@ export class PromoterEventsService {
 
   // ── PUBLIC ROUTES (no auth) ───────────────────────────────────
 
-  async listPublicEvents(zipCode?: string, category?: string) {
+  async listPublicEvents(zipCode?: string, category?: string, radiusMiles?: number) {
     const client = this.supabaseService.getClient();
     let query = client
       .from('public_events')
@@ -288,12 +288,58 @@ export class PromoterEventsService {
       .gte('event_date', new Date().toISOString().split('T')[0])
       .order('event_date', { ascending: true });
 
-    if (zipCode) query = query.eq('zip_code', zipCode);
     if (category) query = query.eq('category', category);
+
+    // If zip + radius provided, geocode and filter by distance
+    if (zipCode && radiusMiles) {
+      const [origin, fetchResult] = await Promise.all([
+        this.geocodeZip(zipCode),
+        query,
+      ]);
+
+      if (fetchResult.error) throw new BadRequestException(fetchResult.error.message);
+      const events: any[] = fetchResult.data || [];
+
+      if (!origin) return events; // can't geocode origin, return all
+
+      // Geocode all unique event zip codes in parallel
+      const uniqueZips = [...new Set(events.map((e: any) => e.zip_code).filter(Boolean))] as string[];
+      const zipCoords = new Map<string, { lat: number; lng: number } | null>();
+      await Promise.all(uniqueZips.map(async z => {
+        zipCoords.set(z, await this.geocodeZip(z));
+      }));
+
+      return events.filter((ev: any) => {
+        if (!ev.zip_code) return true;
+        const coords = zipCoords.get(ev.zip_code);
+        if (!coords) return true;
+        return this.haversineDistance(origin.lat, origin.lng, coords.lat, coords.lng) <= radiusMiles;
+      });
+    }
+
+    if (zipCode && !radiusMiles) query = query.eq('zip_code', zipCode);
 
     const { data, error } = await query;
     if (error) throw new BadRequestException(error.message);
     return data || [];
+  }
+
+  private async geocodeZip(zipCode: string): Promise<{ lat: number; lng: number } | null> {
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?postalcode=${encodeURIComponent(zipCode)}&country=US&format=json&limit=1`;
+      const res = await fetch(url, { headers: { 'User-Agent': 'EventEcos/1.0' } });
+      const data: any[] = await res.json();
+      if (data.length > 0) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    } catch { /* ignore */ }
+    return null;
+  }
+
+  private haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+    const R = 3958.8; // miles
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
 
   async getPublicEvent(eventId: string) {

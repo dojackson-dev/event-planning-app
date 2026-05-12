@@ -15,6 +15,7 @@ const CATEGORIES = [
   { value: 'photographer', label: 'Photographer', icon: '📷', desc: 'Photo & video services' },
   { value: 'musicians', label: 'Musicians', icon: '🎵', desc: 'Live music bands & performers' },
   { value: 'mc_host', label: 'MC / Host', icon: '🎤', desc: 'Master of ceremonies & hosting' },
+  { value: 'graphic_designer', label: 'Graphic Designer', icon: '🖌️', desc: 'Flyers, logos & event graphics' },
   { value: 'other', label: 'Other', icon: '⭐', desc: 'Other event services' },
 ]
 
@@ -236,35 +237,26 @@ export default function VendorRegisterPage() {
         {step === 'category' && (
           <div className="bg-white rounded-xl shadow-sm p-8">
             <h1 className="text-2xl font-bold text-gray-900 mb-2">What do you offer?</h1>
-            <p className="text-gray-500 text-sm mb-6">Select all services that apply to your business.</p>
-            <div className="grid grid-cols-2 gap-3">
-              {CATEGORIES.map(cat => {
-                const checked = selectedCategories.includes(cat.value)
-                return (
-                  <button
-                    key={cat.value}
-                    type="button"
-                    onClick={() => handleCategorySelect(cat.value)}
-                    className={`flex flex-col items-start p-4 border-2 rounded-xl transition-all text-left ${
-                      checked
-                        ? 'border-primary-500 bg-primary-50'
-                        : 'border-gray-200 hover:border-primary-400 hover:bg-primary-50'
-                    }`}
-                  >
-                    <span className="text-3xl mb-2">{cat.icon}</span>
-                    <span className={`font-semibold ${checked ? 'text-primary-600' : 'text-gray-900'}`}>{cat.label}</span>
-                    <span className="text-xs text-gray-500 mt-0.5">{cat.desc}</span>
-                    {checked && <span className="text-xs text-primary-600 font-medium mt-1">✓ Selected</span>}
-                  </button>
-                )
-              })}
+            <p className="text-gray-500 text-sm mb-6">Select the category that best describes your business.</p>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
+              <select
+                value={selectedCategories[0] || ''}
+                onChange={e => setSelectedCategories(e.target.value ? [e.target.value] : [])}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
+              >
+                <option value="">Select a category...</option>
+                {CATEGORIES.map(cat => (
+                  <option key={cat.value} value={cat.value}>{cat.icon} {cat.label}</option>
+                ))}
+              </select>
             </div>
             <button
               onClick={handleCategoryContinue}
               disabled={selectedCategories.length === 0}
               className="mt-6 w-full bg-primary-600 text-white py-3 rounded-lg font-semibold hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              Continue ({selectedCategories.length} selected) →
+              Continue →
             </button>
           </div>
         )}

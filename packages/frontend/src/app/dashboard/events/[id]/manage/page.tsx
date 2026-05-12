@@ -66,6 +66,7 @@ const VENDOR_CATEGORIES = [
   { value: 'photographer', label: '📷 Photographer' },
   { value: 'musicians', label: '🎵 Musicians' },
   { value: 'mc_host', label: '🎤 MC/Host' },
+  { value: 'graphic_designer', label: '🖌️ Graphic Designer' },
   { value: 'other', label: '⭐ Other' },
 ]
 

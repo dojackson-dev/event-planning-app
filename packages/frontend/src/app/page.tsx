@@ -52,9 +52,6 @@ export default function Home() {
 
             {/* Center Nav Links */}
             <div className="hidden md:flex items-center gap-8">
-              <Link href="/client-login" className="text-white hover:text-green-100 font-medium text-sm transition-colors">
-                Client Portal
-              </Link>
               <Link href="/vendors" className="text-white hover:text-green-100 font-medium text-sm transition-colors">
                 Find Vendors
               </Link>

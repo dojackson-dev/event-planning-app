@@ -105,28 +105,17 @@ export default function VendorEditProfileTab({ profile, onUpdate }: Props) {
 
         {/* Services / Categories */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Services You Offer <span className="text-gray-400 font-normal">(select all that apply)</span></label>
-          <div className="grid grid-cols-2 gap-2">
-            {VENDOR_CATEGORIES.map(cat => {
-              const checked = selectedCategories.includes(cat.value)
-              return (
-                <label key={cat.value} className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
-                  checked ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-gray-300'
-                }`}>
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => setSelectedCategories(prev =>
-                      prev.includes(cat.value) ? prev.filter(c => c !== cat.value) : [...prev, cat.value]
-                    )}
-                    className="accent-primary-600"
-                  />
-                  <span className="text-base">{cat.icon}</span>
-                  <span className="text-sm font-medium text-gray-800">{cat.label}</span>
-                </label>
-              )
-            })}
-          </div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+          <select
+            value={selectedCategories[0] || ''}
+            onChange={e => setSelectedCategories(e.target.value ? [e.target.value] : [])}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
+          >
+            <option value="">Select a category...</option>
+            {VENDOR_CATEGORIES.map(cat => (
+              <option key={cat.value} value={cat.value}>{cat.icon} {cat.label}</option>
+            ))}
+          </select>
         </div>
 
         {/* Bio */}

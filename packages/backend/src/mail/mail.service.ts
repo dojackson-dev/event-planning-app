@@ -505,7 +505,8 @@ export class MailService {
       const fromName = params.promoterName ? `${params.promoterName} via Eventecos` : 'Eventecos Tickets';
 
       // Fetch tickets by session ID if available
-      let ticketQRCodes: Array<{ id: string; qrDataUrl: string }> = [];
+      let ticketQRCodes: Array<{ id: string; buffer: Buffer; cid: string }> = [];
+      let attachments: any[] = [];
       if (params.sessionId) {
         try {
           const admin = this.supabaseService.getAdminClient();
@@ -519,14 +520,20 @@ export class MailService {
             // Generate QR code for each ticket
             for (const ticket of tickets) {
               const ticketUrl = `${frontendUrl}/ticket/${ticket.id}`;
-              const qrDataUrl = await QRCode.toDataURL(ticketUrl, {
+              const qrBuffer = await QRCode.toBuffer(ticketUrl, {
                 errorCorrectionLevel: 'H',
                 type: 'image/png',
                 quality: 0.95,
                 margin: 1,
                 width: 300,
               });
-              ticketQRCodes.push({ id: ticket.id, qrDataUrl });
+              const cid = `qr-${ticket.id}@eventecos`;
+              ticketQRCodes.push({ id: ticket.id, buffer: qrBuffer, cid });
+              attachments.push({
+                filename: `ticket-qr-${ticket.id.substring(0, 8)}.png`,
+                content: qrBuffer,
+                cid: cid,
+              });
             }
           }
         } catch (ticketError) {
@@ -542,7 +549,7 @@ export class MailService {
               ${ticketQRCodes.map((ticket, index) => `
                 <div style="background: white; border: 2px dashed #e5e7eb; border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 16px;">
                   <p style="color: #6b7280; font-size: 12px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: 0.5px;">Ticket ${index + 1}</p>
-                  <img src="${ticket.qrDataUrl}" alt="QR Code" style="width: 200px; height: 200px; display: block; margin: 0 auto 12px;" />
+                  <img src="cid:${ticket.cid}" alt="QR Code" style="width: 200px; height: 200px; display: block; margin: 0 auto 12px;" />
                   <p style="color: #9ca3af; font-size: 11px; margin: 0; font-family: monospace; word-break: break-all;">${ticket.id}</p>
                 </div>
               `).join('')}
@@ -599,6 +606,7 @@ export class MailService {
           </div>
         `,
         text: `Your tickets are confirmed!\n\n${params.eventTitle}\nDate: ${formattedDate}${params.eventTime ? `\nTime: ${params.eventTime}` : ''}${params.venueName ? `\nVenue: ${params.venueName}` : ''}\nTicket: ${params.tierName}\nQuantity: ${params.quantity}\nTotal: ${amountStr}\n\nShow the QR code above at the door. Each code can only be scanned once.\n\nIMPORTANT: Eventecos is not responsible for event cancellations, postponements, or refunds. The event organizer is solely liable for these matters.\n\nView event: ${eventUrl}`,
+        attachments: attachments,
       };
 
       const info = await this.transporter.sendMail(mailOptions);

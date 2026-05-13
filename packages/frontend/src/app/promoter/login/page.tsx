@@ -99,7 +99,7 @@ export default function PromoterLogin() {
                 <p className="text-sm text-gray-500 mb-2">Enter your email and we'll send a reset link.</p>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus
+                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus autoComplete="email"
                     className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
                     placeholder="your@email.com" />
                 </div>
@@ -116,7 +116,7 @@ export default function PromoterLogin() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus
+                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus autoComplete="email"
                     className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
                     placeholder="your@email.com" />
                 </div>
@@ -125,7 +125,7 @@ export default function PromoterLogin() {
                     <label className="block text-sm font-medium text-gray-700">Password</label>
                     <button type="button" onClick={() => setForgotMode(true)} className="text-xs text-purple-600 hover:underline">Forgot password?</button>
                   </div>
-                  <input type="password" value={password} onChange={e => setPassword(e.target.value)} required
+                  <input type="password" value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password"
                     className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
                     placeholder="••••••••" />
                 </div>

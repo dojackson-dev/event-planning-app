@@ -307,7 +307,7 @@ export class ContractsService {
       const contractUrl = `${frontendUrl}/client-portal/contracts/${id}`;
       await this.smsNotifications.trySend(
         clientPhone,
-        `DoVenue Suite: Hi ${clientName}, your contract ${contractNumber} has been counter-signed by your venue coordinator. View your fully executed contract: ${contractUrl}`,
+        `EventEcos: Hi ${clientName}, your contract ${contractNumber} has been counter-signed by your venue coordinator. View your fully executed contract: ${contractUrl}`,
       );
     } catch { /* SMS errors must not break signing */ }
 

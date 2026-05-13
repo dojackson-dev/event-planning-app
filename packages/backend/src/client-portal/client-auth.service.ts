@@ -136,7 +136,7 @@ export class ClientAuthService {
 
     await this.twilioService.sendSMS(
       normalized,
-      `Your DoVenue Suites verification code is: ${otp}. Valid for 10 minutes.`,
+      `Your EventEcos verification code is: ${otp}. Valid for 10 minutes.`,
     );
 
     return { message: 'Verification code sent.' };

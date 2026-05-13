@@ -3,13 +3,34 @@
 import { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [forgotMode, setForgotMode] = useState(false)
+  const [resetSent, setResetSent] = useState(false)
+  const [resetLoading, setResetLoading] = useState(false)
   const { login } = useAuth()
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setResetLoading(true); setError('')
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/login`,
+      })
+      if (error) throw error
+      setResetSent(true)
+    } catch (err: any) {
+      setError(err.message || 'Failed to send reset email')
+    } finally {
+      setResetLoading(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()  // Must be first — prevents any native form submission
@@ -59,6 +80,27 @@ export default function LoginPage() {
               <p className="text-xs text-red-700 mt-2">Check browser console (F12) for details</p>
             </div>
           )}
+
+          {forgotMode ? (
+            resetSent ? (
+              <div className="text-center py-4">
+                <p className="text-green-600 font-medium text-sm">Password reset email sent! Check your inbox.</p>
+                <button type="button" onClick={() => { setForgotMode(false); setResetSent(false) }} className="text-primary-600 text-sm mt-4 hover:underline">Back to sign in</button>
+              </div>
+            ) : (
+              <form onSubmit={handleForgotPassword} className="space-y-4">
+                <p className="text-sm text-gray-500">Enter your email and we'll send a reset link.</p>
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus autoComplete="email"
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="Email address" />
+                <button type="submit" disabled={resetLoading}
+                  className="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50">
+                  {resetLoading ? 'Sending…' : 'Send Reset Link'}
+                </button>
+                <button type="button" onClick={() => setForgotMode(false)} className="w-full text-sm text-gray-500 hover:underline">Back to sign in</button>
+              </form>
+            )
+          ) : (
           <div className="rounded-md shadow-sm -space-y-px">
             <div>
               <label htmlFor="email" className="sr-only">
@@ -93,7 +135,9 @@ export default function LoginPage() {
               />
             </div>
           </div>
+          )}
 
+          {!forgotMode && (
           <div>
             <button
               type="submit"
@@ -103,6 +147,15 @@ export default function LoginPage() {
               {loading ? 'Signing in...' : 'Sign in'}
             </button>
           </div>
+          )}
+
+          {!forgotMode && (
+          <div className="text-center">
+            <button type="button" onClick={() => setForgotMode(true)} className="text-sm text-primary-600 hover:underline">
+              Forgot password?
+            </button>
+          </div>
+          )}
 
           <div className="text-center">
             <p className="text-sm text-gray-600">

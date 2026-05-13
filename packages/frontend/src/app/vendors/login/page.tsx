@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
+import { createClient } from '@/lib/supabase/client'
 
 export default function VendorLogin() {
   const router = useRouter()
@@ -12,6 +13,26 @@ export default function VendorLogin() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [forgotMode, setForgotMode] = useState(false)
+  const [resetSent, setResetSent] = useState(false)
+  const [resetLoading, setResetLoading] = useState(false)
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setResetLoading(true); setError('')
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/vendors/login`,
+      })
+      if (error) throw error
+      setResetSent(true)
+    } catch (err: any) {
+      setError(err.message || 'Failed to send reset email')
+    } finally {
+      setResetLoading(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -49,6 +70,29 @@ export default function VendorLogin() {
             </div>
           )}
 
+          {forgotMode ? (
+            resetSent ? (
+              <div className="text-center py-4">
+                <p className="text-green-600 font-medium text-sm">Password reset email sent! Check your inbox.</p>
+                <button onClick={() => { setForgotMode(false); setResetSent(false) }} className="text-primary-600 text-sm mt-4 hover:underline">Back to sign in</button>
+              </div>
+            ) : (
+              <form onSubmit={handleForgotPassword} className="space-y-4">
+                <p className="text-sm text-gray-500">Enter your email and we'll send a reset link.</p>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus autoComplete="email"
+                    className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    placeholder="your@email.com" />
+                </div>
+                <button type="submit" disabled={resetLoading}
+                  className="w-full bg-primary-600 text-white py-3 rounded-xl font-semibold text-sm hover:bg-primary-700 transition-colors disabled:opacity-50">
+                  {resetLoading ? 'Sending…' : 'Send Reset Link'}
+                </button>
+                <button type="button" onClick={() => setForgotMode(false)} className="w-full text-sm text-gray-500 hover:underline">Back to sign in</button>
+              </form>
+            )
+          ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
@@ -58,17 +102,22 @@ export default function VendorLogin() {
                 onChange={e => setEmail(e.target.value)}
                 required
                 autoFocus
+                autoComplete="email"
                 className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 placeholder="your@email.com"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-sm font-medium text-gray-700">Password</label>
+                <button type="button" onClick={() => setForgotMode(true)} className="text-xs text-primary-600 hover:underline">Forgot password?</button>
+              </div>
               <input
                 type="password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 required
+                autoComplete="current-password"
                 className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 placeholder="••••••••"
               />
@@ -81,6 +130,7 @@ export default function VendorLogin() {
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
+          )}
 
           <div className="mt-6 text-center text-sm text-gray-500">
             Don't have an account?{' '}

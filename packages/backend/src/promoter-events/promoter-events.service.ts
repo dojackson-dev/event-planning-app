@@ -797,6 +797,7 @@ export class PromoterEventsService {
         amountTotal: params.amountTotal,
         eventId: params.eventId,
         promoterName,
+        sessionId: params.sessionId,
       });
 
       // SMS — only if phone provided

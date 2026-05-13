@@ -55,7 +55,7 @@ export class SmsNotificationsService {
     const link = payUrl ?? this.url('/client-portal');
     await this.trySend(
       phone,
-      `DoVenue Suite Invoice Message\nHi ${clientName}, invoice ${invoiceNumber} for ${amt} has been sent to you. View & pay here: ${link}`,
+      `EventEcos Invoice Message\nHi ${clientName}, invoice ${invoiceNumber} for ${amt} has been sent to you. View & pay here: ${link}`,
     );
   }
 
@@ -68,7 +68,7 @@ export class SmsNotificationsService {
     const amt = `$${Number(amount).toFixed(2)}`;
     await this.trySend(
       phone,
-      `DoVenue Suite Invoice Message\nHi ${clientName}, your payment of ${amt} for invoice ${invoiceNumber} has been received. Thank you! View your records: ${this.url('/client-portal')}`,
+      `EventEcos Invoice Message\nHi ${clientName}, your payment of ${amt} for invoice ${invoiceNumber} has been received. Thank you! View your records: ${this.url('/client-portal')}`,
 
     );
   }
@@ -80,7 +80,7 @@ export class SmsNotificationsService {
   ): Promise<void> {
     await this.trySend(
       phone,
-      `DoVenue Suite Invoice Message\nHi ${clientName}, invoice ${invoiceNumber} has been updated. Log in to view the latest details: ${this.url('/client-portal')}`,
+      `EventEcos Invoice Message\nHi ${clientName}, invoice ${invoiceNumber} has been updated. Log in to view the latest details: ${this.url('/client-portal')}`,
 
     );
   }
@@ -94,7 +94,7 @@ export class SmsNotificationsService {
     const amt = `$${Number(amount).toFixed(2)}`;
     await this.trySend(
       phone,
-      `DoVenue Suite Invoice Message\nHi ${clientName}, invoice ${invoiceNumber} for ${amt} is now past due. Please make payment: ${this.url('/client-portal')}`,
+      `EventEcos Invoice Message\nHi ${clientName}, invoice ${invoiceNumber} for ${amt} is now past due. Please make payment: ${this.url('/client-portal')}`,
 
     );
   }
@@ -110,7 +110,7 @@ export class SmsNotificationsService {
     const remaining = `$${Number(remainingAmount).toFixed(2)}`;
     await this.trySend(
       phone,
-      `DoVenue Suite Invoice Message\nHi ${clientName}, a payment of ${paid} has been recorded on invoice ${invoiceNumber}. Remaining balance: ${remaining}. Log in: ${this.url('/client-portal')}`,
+      `EventEcos Invoice Message\nHi ${clientName}, a payment of ${paid} has been recorded on invoice ${invoiceNumber}. Remaining balance: ${remaining}. Log in: ${this.url('/client-portal')}`,
 
     );
   }
@@ -126,7 +126,7 @@ export class SmsNotificationsService {
     const amt = `$${Number(amount).toFixed(2)}`;
     await this.trySend(
       phone,
-      `DoVenue Suite Estimate Message\nHi ${clientName}, estimate ${estimateNumber} for ${amt} is ready for your review. Approve or decline here: ${this.url('/client-portal/estimates')}`,
+      `EventEcos Estimate Message\nHi ${clientName}, estimate ${estimateNumber} for ${amt} is ready for your review. Approve or decline here: ${this.url('/client-portal/estimates')}`,
 
     );
   }
@@ -138,7 +138,7 @@ export class SmsNotificationsService {
   ): Promise<void> {
     await this.trySend(
       phone,
-      `DoVenue Suite Estimate Message\nGreat news! Estimate ${estimateNumber} has been approved by ${notifyName}. Log in to view: ${this.url('/dashboard')}`,
+      `EventEcos Estimate Message\nGreat news! Estimate ${estimateNumber} has been approved by ${notifyName}. Log in to view: ${this.url('/dashboard')}`,
 
     );
   }
@@ -150,7 +150,7 @@ export class SmsNotificationsService {
   ): Promise<void> {
     await this.trySend(
       phone,
-      `DoVenue Suite Estimate Message\nHi ${clientName}, estimate ${estimateNumber} has been declined. Contact us with any questions. View details: ${this.url('/client-portal/estimates')}`,
+      `EventEcos Estimate Message\nHi ${clientName}, estimate ${estimateNumber} has been declined. Contact us with any questions. View details: ${this.url('/client-portal/estimates')}`,
 
     );
   }
@@ -162,7 +162,7 @@ export class SmsNotificationsService {
   ): Promise<void> {
     await this.trySend(
       phone,
-      `DoVenue Suite Estimate Message\nHi ${clientName}, estimate ${estimateNumber} has been updated. Review the changes: ${this.url('/client-portal/estimates')}`,
+      `EventEcos Estimate Message\nHi ${clientName}, estimate ${estimateNumber} has been updated. Review the changes: ${this.url('/client-portal/estimates')}`,
 
     );
   }
@@ -174,7 +174,7 @@ export class SmsNotificationsService {
   ): Promise<void> {
     await this.trySend(
       phone,
-      `DoVenue Suite Estimate Message\nHi ${clientName}, estimate ${estimateNumber} has expired. Please contact us to request a new one. View your estimates: ${this.url('/client-portal/estimates')}`,
+      `EventEcos Estimate Message\nHi ${clientName}, estimate ${estimateNumber} has expired. Please contact us to request a new one. View your estimates: ${this.url('/client-portal/estimates')}`,
 
     );
   }
@@ -190,7 +190,7 @@ export class SmsNotificationsService {
     const link = contractUrl ?? this.url('/client-portal/contracts');
     await this.trySend(
       phone,
-      `DoVenue Suite Contract Message\nHi ${clientName}, contract ${contractNumber} is ready for your signature. Sign here: ${link}`,
+      `EventEcos Contract Message\nHi ${clientName}, contract ${contractNumber} is ready for your signature. Sign here: ${link}`,
     );
   }
 
@@ -201,7 +201,7 @@ export class SmsNotificationsService {
   ): Promise<void> {
     await this.trySend(
       phone,
-      `DoVenue Suite Contract Message\nContract ${contractNumber} has been signed by ${clientName}. Log in to view the signed copy: ${this.url('/dashboard')}`,
+      `EventEcos Contract Message\nContract ${contractNumber} has been signed by ${clientName}. Log in to view the signed copy: ${this.url('/dashboard')}`,
 
     );
   }
@@ -213,7 +213,7 @@ export class SmsNotificationsService {
   ): Promise<void> {
     await this.trySend(
       phone,
-      `DoVenue Suite Contract Message\nHi ${clientName}, contract ${contractNumber} has been updated. Log in to review the changes: ${this.url('/client-portal/contracts')}`,
+      `EventEcos Contract Message\nHi ${clientName}, contract ${contractNumber} has been updated. Log in to review the changes: ${this.url('/client-portal/contracts')}`,
 
     );
   }
@@ -225,7 +225,7 @@ export class SmsNotificationsService {
   ): Promise<void> {
     await this.trySend(
       phone,
-      `DoVenue Suite Contract Message\nHi ${signerName}, you have successfully signed contract ${contractNumber}. View your copy here: ${this.url('/client-portal/contracts')}`,
+      `EventEcos Contract Message\nHi ${signerName}, you have successfully signed contract ${contractNumber}. View your copy here: ${this.url('/client-portal/contracts')}`,
 
     );
   }
@@ -242,7 +242,7 @@ export class SmsNotificationsService {
     const loc = location ? ` at ${location}` : '';
     await this.trySend(
       phone,
-      `DoVenue Suite Security Message\nHi ${name}, you have been assigned to security for "${eventName}" on ${date}${loc}. Please confirm your availability. Log in: ${this.url('/vendor-portal/login')}`,
+      `EventEcos Security Message\nHi ${name}, you have been assigned to security for "${eventName}" on ${date}${loc}. Please confirm your availability. Log in: ${this.url('/vendor-portal/login')}`,
 
     );
   }
@@ -254,7 +254,7 @@ export class SmsNotificationsService {
   ): Promise<void> {
     await this.trySend(
       phone,
-      `DoVenue Suite Security Message\nHi ${name}, your security assignment for "${eventName}" has been updated. Log in to view the details: ${this.url('/vendor-portal/login')}`,
+      `EventEcos Security Message\nHi ${name}, your security assignment for "${eventName}" has been updated. Log in to view the details: ${this.url('/vendor-portal/login')}`,
 
     );
   }
@@ -264,7 +264,7 @@ export class SmsNotificationsService {
     name: string,
     eventName: string,
   ): Promise<void> {
-    await this.trySend(phone, `DoVenue Suite Security Message\nArrival confirmed for ${name} at "${eventName}". View your portal: ${this.url('/vendor-portal')}`);
+    await this.trySend(phone, `EventEcos Security Message\nArrival confirmed for ${name} at "${eventName}". View your portal: ${this.url('/vendor-portal')}`);
   }
 
   // ─── VENDOR BOOKINGS ──────────────────────────────────────────────────────
@@ -279,7 +279,7 @@ export class SmsNotificationsService {
     const amt = amount ? ` — Agreed amount: $${Number(amount).toLocaleString()}` : '';
     await this.trySend(
       phone,
-      `DoVenue Suite Booking Message\nNew booking request for ${vendorName}! Event: "${eventName}" on ${date}${amt}. Confirm or decline here: ${this.url('/vendor-portal')}`,
+      `EventEcos Booking Message\nNew booking request for ${vendorName}! Event: "${eventName}" on ${date}${amt}. Confirm or decline here: ${this.url('/vendor-portal')}`,
 
     );
   }
@@ -307,7 +307,7 @@ export class SmsNotificationsService {
       : isVendor
       ? this.url('/vendor-portal')
       : this.url('/client-portal');
-    await this.trySend(phone, `DoVenue Suite Booking Message\nHi ${recipientName}, ${msg} View details: ${portalLink}`);
+    await this.trySend(phone, `EventEcos Booking Message\nHi ${recipientName}, ${msg} View details: ${portalLink}`);
   }
 
   async vendorBookingRequestUpdated(
@@ -322,19 +322,19 @@ export class SmsNotificationsService {
     if (status === 'confirmed') {
       await this.trySend(
         phone,
-        `DoVenue Suite Booking Message\nHi ${clientName}, great news! ${vendorName} has confirmed your booking request${amt}. Log in to your portal: ${this.url('/client-portal')}`,
+        `EventEcos Booking Message\nHi ${clientName}, great news! ${vendorName} has confirmed your booking request${amt}. Log in to your portal: ${this.url('/client-portal')}`,
 
       );
     } else if (status === 'declined') {
       await this.trySend(
         phone,
-        `DoVenue Suite Booking Message\nHi ${clientName}, ${vendorName} is unable to accommodate your booking request at this time. View details: ${this.url('/client-portal')}`,
+        `EventEcos Booking Message\nHi ${clientName}, ${vendorName} is unable to accommodate your booking request at this time. View details: ${this.url('/client-portal')}`,
 
       );
     } else {
       await this.trySend(
         phone,
-        `DoVenue Suite Booking Message\nHi ${clientName}, your booking request with ${vendorName} has been updated to: ${status}${amt}. Log in: ${this.url('/client-portal')}`,
+        `EventEcos Booking Message\nHi ${clientName}, your booking request with ${vendorName} has been updated to: ${status}${amt}. Log in: ${this.url('/client-portal')}`,
 
       );
     }
@@ -353,7 +353,7 @@ export class SmsNotificationsService {
     const link = payUrl ?? this.url('/client-portal');
     await this.trySend(
       phone,
-      `DoVenue Suite Vendor Invoice Message\nHi ${clientName}, you have an invoice for ${amt} from ${vendorName}. Pay here: ${link}`,
+      `EventEcos Vendor Invoice Message\nHi ${clientName}, you have an invoice for ${amt} from ${vendorName}. Pay here: ${link}`,
 
     );
   }
@@ -367,7 +367,7 @@ export class SmsNotificationsService {
     const amt = `$${Number(amount).toFixed(2)}`;
     await this.trySend(
       phone,
-      `DoVenue Suite Vendor Invoice Message\nPayment of ${amt} received from ${clientName}. Your invoice has been marked as paid. View your invoices: ${this.url('/vendor-portal/invoices')} — ${vendorName}`,
+      `EventEcos Vendor Invoice Message\nPayment of ${amt} received from ${clientName}. Your invoice has been marked as paid. View your invoices: ${this.url('/vendor-portal/invoices')} — ${vendorName}`,
 
     );
   }
@@ -380,7 +380,7 @@ export class SmsNotificationsService {
   ): Promise<void> {
     await this.trySend(
       phone,
-      `DoVenue Suite Vendor Invoice Message\nHi ${clientName}, your invoice ${invoiceNumber} from ${vendorName} has been updated. Log in to view: ${this.url('/client-portal')}`,
+      `EventEcos Vendor Invoice Message\nHi ${clientName}, your invoice ${invoiceNumber} from ${vendorName} has been updated. Log in to view: ${this.url('/client-portal')}`,
 
     );
   }
@@ -403,7 +403,7 @@ export class SmsNotificationsService {
       : this.url('/client-portal/messages');
     await this.trySend(
       phone,
-      `DoVenue Suite Message\nHi ${recipientName}, you have a new message from ${senderName}${snippet}. Reply here: ${portalLink}`,
+      `EventEcos Message\nHi ${recipientName}, you have a new message from ${senderName}${snippet}. Reply here: ${portalLink}`,
 
     );
   }
@@ -419,7 +419,7 @@ export class SmsNotificationsService {
     const amt = `$${Number(amount).toFixed(2)}`;
     await this.trySend(
       phone,
-      `DoVenue Suite Payment Message\nHi ${clientName}, your payment of ${amt} for ${reference} has been received. Thank you! View your portal: ${this.url('/client-portal')}`,
+      `EventEcos Payment Message\nHi ${clientName}, your payment of ${amt} for ${reference} has been received. Thank you! View your portal: ${this.url('/client-portal')}`,
 
     );
   }
@@ -436,7 +436,7 @@ export class SmsNotificationsService {
     const link = payUrl ?? this.url('/client-portal');
     await this.trySend(
       phone,
-      `DoVenue Suite Payment Message\nHi ${clientName}, a friendly reminder that ${amt} for ${reference} is due on ${dueDate}. Pay here: ${link}`,
+      `EventEcos Payment Message\nHi ${clientName}, a friendly reminder that ${amt} for ${reference} is due on ${dueDate}. Pay here: ${link}`,
 
     );
   }
@@ -451,7 +451,7 @@ export class SmsNotificationsService {
   ): Promise<void> {
     await this.trySend(
       phone,
-      `DoVenue Suite Client Message\nNew intake form submitted by ${clientName} for a ${eventType} event on ${eventDate}. Log in to review: ${this.url('/dashboard/clients')}`,
+      `EventEcos Client Message\nNew intake form submitted by ${clientName} for a ${eventType} event on ${eventDate}. Log in to review: ${this.url('/dashboard/clients')}`,
     );
   }
 
@@ -466,7 +466,7 @@ export class SmsNotificationsService {
     const stars = '⭐'.repeat(Math.min(5, Math.max(1, rating)));
     await this.trySend(
       phone,
-      `DoVenue Suite Review Message\nHi ${vendorName}, you just received a new ${stars} review! See it here: ${this.url(`/vendors/${vendorAccountId}`)}`,
+      `EventEcos Review Message\nHi ${vendorName}, you just received a new ${stars} review! See it here: ${this.url(`/vendors/${vendorAccountId}`)}`,
     );
   }
 

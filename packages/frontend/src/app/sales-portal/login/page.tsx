@@ -22,7 +22,7 @@ export default function SalesPortalLogin() {
     try {
       const supabase = createClient()
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/sales-portal/login`,
+        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/sales-portal/login`,
       })
       if (error) throw error
       setResetSent(true)

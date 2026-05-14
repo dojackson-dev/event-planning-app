@@ -26,6 +26,22 @@ export class MailService {
     });
   }
 
+  /**
+   * Generate a consistent email header with EventEcos logo and branding
+   */
+  private getEmailHeader(title: string, subtitle: string = ''): string {
+    const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+    const logoUrl = `${frontendUrl}/lib/EventEcos-Logo-Only.jpg`;
+    
+    return `
+      <div style="background: linear-gradient(135deg, #00BFA5 0%, #26C485 50%, #1E3A7F 100%); padding: 32px 32px 24px; text-align: center;">
+        <img src="${logoUrl}" alt="EventEcos" style="max-width: 80px; height: auto; margin-bottom: 16px; display: inline-block;" />
+        <h1 style="color: white; margin: 0; font-size: 26px; font-weight: 700;">${title}</h1>
+        ${subtitle ? `<p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">${subtitle}</p>` : ''}
+      </div>
+    `;
+  }
+
   async sendContractNotification(contract: Contract, client: User, owner: User): Promise<void> {
     try {
       const contractUrl = `${process.env.FRONTEND_URL || 'https://dovenuesuite.com'}/dashboard/contracts/${contract.id}`;
@@ -152,10 +168,7 @@ export class MailService {
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb; padding: 32px 16px;">
             <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08);">
-              <div style="background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); padding: 32px 32px 24px; text-align: center;">
-                <h1 style="color: white; margin: 0; font-size: 26px; font-weight: 700;">DoVenue Suites</h1>
-                <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">Client Portal Invitation</p>
-              </div>
+              ${this.getEmailHeader('EventEcos', 'Client Portal Invitation')}
 
               <div style="padding: 32px;">
                 <p style="color: #374151; font-size: 16px; margin-bottom: 8px;">Hello <strong>${params.clientName}</strong>,</p>
@@ -227,10 +240,7 @@ export class MailService {
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb; padding: 32px 16px;">
             <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08);">
-              <div style="background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); padding: 32px 32px 24px; text-align: center;">
-                <h1 style="color: white; margin: 0; font-size: 26px; font-weight: 700;">DoVenue Suites</h1>
-                <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">Invoice Ready</p>
-              </div>
+              ${this.getEmailHeader('EventEcos', 'Invoice Ready')}
               <div style="padding: 32px;">
                 <p style="color: #374151; font-size: 16px; margin-bottom: 8px;">Hi <strong>${params.clientName}</strong>,</p>
                 <p style="color: #374151; font-size: 15px; line-height: 1.6;">Your invoice is ready. Please review the details below and make your payment at your earliest convenience.</p>
@@ -357,10 +367,7 @@ export class MailService {
       const html = `
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f9fafb;padding:32px 16px;">
           <div style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
-            <div style="background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%);padding:32px;text-align:center;">
-              <h1 style="color:white;margin:0;font-size:24px;font-weight:700;">DoVenue Suites</h1>
-              <p style="color:rgba(255,255,255,0.85);margin:8px 0 0;font-size:14px;">Contract Ready for Your Signature</p>
-            </div>
+            ${this.getEmailHeader('EventEcos', 'Contract Ready for Your Signature')}
             <div style="padding:32px;">
               <p style="color:#374151;font-size:16px;margin:0 0 8px;">Hello <strong>${params.clientName}</strong>,</p>
               <p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 20px;">
@@ -567,10 +574,7 @@ export class MailService {
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb; padding: 32px 16px;">
             <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08);">
-              <div style="background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%); padding: 32px; text-align: center;">
-                <h1 style="color: white; margin: 0; font-size: 26px; font-weight: 700;">You're going!</h1>
-                <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 15px;">Your tickets are confirmed</p>
-              </div>
+              ${this.getEmailHeader('You\'re going!', 'Your tickets are confirmed')}
               <div style="padding: 32px;">
                 <h2 style="margin: 0 0 16px; color: #1f2937; font-size: 20px;">${params.eventTitle}</h2>
                 <div style="background: #f5f3ff; border-left: 4px solid #7c3aed; border-radius: 8px; padding: 20px 24px; margin: 0 0 24px;">

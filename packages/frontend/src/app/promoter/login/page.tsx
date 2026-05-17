@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
 import { createClient } from '@/lib/supabase/client'
@@ -14,6 +14,54 @@ export default function PromoterLogin() {
   const [forgotMode, setForgotMode] = useState(false)
   const [resetSent, setResetSent] = useState(false)
   const [resetLoading, setResetLoading] = useState(false)
+
+  // Password update state (triggered by recovery link)
+  const [recoveryMode, setRecoveryMode] = useState(false)
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [updateLoading, setUpdateLoading] = useState(false)
+  const [updateSuccess, setUpdateSuccess] = useState(false)
+
+  useEffect(() => {
+    // Supabase appends #access_token=...&type=recovery to the redirect URL
+    const hash = window.location.hash
+    if (hash.includes('type=recovery')) {
+      const params = new URLSearchParams(hash.replace('#', ''))
+      const accessToken = params.get('access_token')
+      const refreshToken = params.get('refresh_token') || ''
+      if (accessToken) {
+        // Set the session in Supabase client so updateUser works
+        const supabase = createClient()
+        supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+        setRecoveryMode(true)
+        // Clear the hash so it's not re-processed on refresh
+        window.history.replaceState(null, '', window.location.pathname)
+      }
+    }
+  }, [])
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (newPassword !== confirmPassword) {
+      setError('Passwords do not match')
+      return
+    }
+    if (newPassword.length < 8) {
+      setError('Password must be at least 8 characters')
+      return
+    }
+    setUpdateLoading(true); setError('')
+    try {
+      const supabase = createClient()
+      const { error: updateErr } = await supabase.auth.updateUser({ password: newPassword })
+      if (updateErr) throw updateErr
+      setUpdateSuccess(true)
+    } catch (err: any) {
+      setError(err.message || 'Failed to update password')
+    } finally {
+      setUpdateLoading(false)
+    }
+  }
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -81,8 +129,55 @@ export default function PromoterLogin() {
         </div>
 
         <div className="bg-white rounded-2xl shadow-lg p-8">
-          <h2 className="text-xl font-bold text-gray-900 mb-1">Welcome back</h2>
-          <p className="text-gray-500 text-sm mb-6">Sign in to your promoter account</p>
+          {recoveryMode ? (
+            <>
+              <h2 className="text-xl font-bold text-gray-900 mb-1">Set New Password</h2>
+              <p className="text-gray-500 text-sm mb-6">Choose a new password for your promoter account.</p>
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm mb-5">{error}</div>
+              )}
+              {updateSuccess ? (
+                <div className="text-center py-4 space-y-4">
+                  <p className="text-green-600 font-medium text-sm">✅ Password updated! You can now sign in.</p>
+                  <button
+                    onClick={() => { setRecoveryMode(false); setUpdateSuccess(false) }}
+                    className="w-full bg-purple-600 text-white font-semibold py-3 rounded-xl hover:bg-purple-700 transition-colors"
+                  >
+                    Go to Sign In
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleUpdatePassword} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                    <input
+                      type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)}
+                      required autoFocus minLength={8} autoComplete="new-password"
+                      className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      placeholder="At least 8 characters"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+                    <input
+                      type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
+                      required autoComplete="new-password"
+                      className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      placeholder="••••••••"
+                    />
+                  </div>
+                  <button type="submit" disabled={updateLoading}
+                    className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white font-semibold py-3 rounded-xl hover:bg-purple-700 transition-colors disabled:opacity-60">
+                    {updateLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                    Set Password
+                  </button>
+                </form>
+              )}
+            </>
+          ) : (
+            <>
+              <h2 className="text-xl font-bold text-gray-900 mb-1">Welcome back</h2>
+              <p className="text-gray-500 text-sm mb-6">Sign in to your promoter account</p>
 
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm mb-5">{error}</div>
@@ -139,6 +234,8 @@ export default function PromoterLogin() {
                 No account?{' '}
                 <Link href="/promoter/register" className="text-purple-600 font-medium hover:underline">Create one</Link>
               </p>
+            </>
+          )}
             </>
           )}
         </div>

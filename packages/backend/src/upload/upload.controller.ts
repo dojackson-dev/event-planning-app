@@ -397,6 +397,40 @@ export class UploadController {
   }
 
   // ─────────────────────────────────────────────
+  // POST /upload/event-banner
+  // Public event banner / hero image (1920×1080)
+  // Recommended: 1920×1080 px (16:9), max 5 MB
+  // ─────────────────────────────────────────────
+  @Post('event-banner')
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
+  async uploadEventBanner(
+    @UploadedFile() file: MulterFile,
+    @Headers('authorization') authorization: string,
+  ) {
+    const userId = await this.getUserId(authorization);
+    if (!file) throw new BadRequestException('No file provided');
+    if (!ALLOWED_TYPES.includes(file.mimetype)) throw new BadRequestException('File must be JPEG, PNG, or WebP');
+    if (file.size > MAX_COVER_BYTES) throw new BadRequestException('Banner must be under 5 MB');
+
+    const admin = this.supabaseService.getAdminClient();
+    await this.ensureBucket(admin, 'event-banners');
+
+    const processed = await sharp(file.buffer)
+      .resize(1920, 1080, { fit: 'cover', position: 'centre' })
+      .webp({ quality: 85 })
+      .toBuffer();
+
+    const path = `banners/${userId}-${Date.now()}.webp`;
+    const { error: uploadError } = await admin.storage
+      .from('event-banners')
+      .upload(path, processed, { contentType: 'image/webp', upsert: true });
+
+    if (uploadError) throw new BadRequestException('Upload failed: ' + uploadError.message);
+    const { data: { publicUrl } } = admin.storage.from('event-banners').getPublicUrl(path);
+    return { url: publicUrl };
+  }
+
+  // ─────────────────────────────────────────────
   // POST /upload/attachment
   // General file attachment for events, contracts, invoices
   // Accepts: PDF, Word, Excel, images — up to 20 MB

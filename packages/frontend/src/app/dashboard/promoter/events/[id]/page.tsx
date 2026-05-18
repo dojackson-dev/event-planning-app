@@ -272,12 +272,7 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
       </nav>
 
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-5">
-        {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">{error}</div>}
-        {success && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-green-700 text-sm flex items-center gap-2">
-            <CheckCircle className="w-4 h-4" /> {success}
-          </div>
-        )}
+
 
         {/* Stripe Connect warning */}
         {stripeReady === false && event.status === 'published' && event.ticket_tiers.some(t => Number(t.price) > 0) && (
@@ -459,11 +454,19 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
                 className="px-4 py-2 text-red-600 border border-red-200 rounded-xl text-sm hover:bg-red-50">
                 Delete Event
               </button>
-              <button type="submit" disabled={saving}
-                className="flex items-center gap-2 px-5 py-2.5 bg-purple-600 text-white font-semibold rounded-xl hover:bg-purple-700 disabled:opacity-60">
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                Save Changes
-              </button>
+              <div className="flex items-center gap-3">
+                {error && <span className="text-sm text-red-600 font-medium">{error}</span>}
+                {success && (
+                  <span className="flex items-center gap-1.5 text-sm text-green-700 font-medium">
+                    <CheckCircle className="w-4 h-4" /> {success}
+                  </span>
+                )}
+                <button type="submit" disabled={saving}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-purple-600 text-white font-semibold rounded-xl hover:bg-purple-700 disabled:opacity-60">
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Save Changes
+                </button>
+              </div>
             </div>
           </form>
         )}

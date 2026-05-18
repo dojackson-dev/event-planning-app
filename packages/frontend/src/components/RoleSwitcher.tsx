@@ -14,7 +14,7 @@
 
 import { useAuth } from '@/contexts/AuthContext'
 import { UserRole } from '@/types'
-import { Building2, Store, RefreshCcw, Megaphone } from 'lucide-react'
+import { Building2, Store, RefreshCcw, Megaphone, Mic2 } from 'lucide-react'
 
 const ROLE_META: Record<string, { label: string; shortLabel: string; icon: React.ReactNode; accent: string }> = {
   [UserRole.OWNER]: {
@@ -34,6 +34,12 @@ const ROLE_META: Record<string, { label: string; shortLabel: string; icon: React
     shortLabel: 'Promoter',
     icon: <Megaphone className="w-4 h-4" />,
     accent: 'text-purple-600',
+  },
+  [UserRole.ARTIST]: {
+    label: 'Artist',
+    shortLabel: 'Artist',
+    icon: <Mic2 className="w-4 h-4" />,
+    accent: 'text-blue-600',
   },
 }
 

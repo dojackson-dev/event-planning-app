@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
-import { Plus, Loader2, Calendar, User, Music, Building2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Plus, Loader2, Calendar, User, Music, Building2, LogOut } from 'lucide-react'
+import RoleSwitcher from '@/components/RoleSwitcher'
 
 interface ArtistBooking {
   id: string
@@ -41,9 +43,15 @@ const STATUS_LABELS: Record<string, string> = {
 }
 
 export default function ArtistBookingsPage() {
+  const router = useRouter()
   const [bookings, setBookings] = useState<ArtistBooking[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+
+  const handleLogout = () => {
+    ;['access_token','refresh_token','user_role','user_roles','active_role'].forEach(k => localStorage.removeItem(k))
+    router.push('/artist/login')
+  }
 
   useEffect(() => {
     Promise.allSettled([
@@ -95,6 +103,15 @@ export default function ArtistBookingsPage() {
             className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
             <Plus className="w-4 h-4" /> New Booking
           </Link>
+        </div>
+        <div className="border-t border-gray-100 bg-gray-50">
+          <div className="max-w-4xl mx-auto px-4 h-11 flex items-center gap-2">
+            <RoleSwitcher variant="banner" />
+            <div className="flex-1" />
+            <button onClick={handleLogout} className="flex items-center gap-1.5 text-sm font-medium text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 px-3 py-1.5 rounded-lg transition-colors">
+              <LogOut className="h-4 w-4" /> Sign Out
+            </button>
+          </div>
         </div>
       </nav>
 

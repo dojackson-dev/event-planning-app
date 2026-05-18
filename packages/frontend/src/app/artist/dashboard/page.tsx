@@ -21,6 +21,8 @@ import {
   Receipt,
 } from 'lucide-react'
 import ConnectBankButton from '@/components/ConnectBankButton'
+import AddRoleCard from '@/components/AddRoleCard'
+import RoleSwitcher from '@/components/RoleSwitcher'
 
 interface ArtistProfile {
   id: string
@@ -169,13 +171,31 @@ export default function ArtistDashboard() {
               </p>
             </div>
           </div>
-          <button onClick={handleLogout} className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1">
-            <LogOut className="h-4 w-4" /> Sign out
-          </button>
+          <div className="flex items-center gap-2">
+            <RoleSwitcher variant="banner" />
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-1.5 text-sm font-medium text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              <LogOut className="h-4 w-4" /> Sign Out
+            </button>
+          </div>
         </div>
       </nav>
 
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
+        {/* Welcome heading */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+              Welcome back, {profile?.stage_name || profile?.artist_name || 'Artist'}!
+            </h1>
+            <p className="text-sm text-gray-500 mt-0.5">
+              {ARTIST_TYPE_ICONS[profile?.artist_type ?? ''] ?? '⭐'} {profile?.artist_type?.replace('_', ' ')} · {profile?.location || 'Artist Dashboard'}
+            </p>
+          </div>
+        </div>
+
         {/* Profile card */}
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <div className="flex items-start gap-4">
@@ -233,7 +253,7 @@ export default function ArtistDashboard() {
         {/* Quick actions */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Link href="/artist/dashboard/profile"
-            className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow flex items-center justify-between">
+            className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md hover:border-blue-200 transition-all flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-50 rounded-lg">
                 <User className="h-5 w-5 text-blue-600" />
@@ -247,7 +267,7 @@ export default function ArtistDashboard() {
           </Link>
 
           <Link href="/artist/dashboard/rider"
-            className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow flex items-center justify-between">
+            className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md hover:border-purple-200 transition-all flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-purple-50 rounded-lg">
                 <FileText className="h-5 w-5 text-purple-600" />
@@ -287,7 +307,7 @@ export default function ArtistDashboard() {
         {/* Invoices & Bookings */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Link href="/artist/dashboard/invoices"
-            className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow flex items-center justify-between">
+            className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md hover:border-green-200 transition-all flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-green-50 rounded-lg"><Receipt className="h-5 w-5 text-green-600" /></div>
               <div>
@@ -298,7 +318,7 @@ export default function ArtistDashboard() {
             <ChevronRight className="h-5 w-5 text-gray-400" />
           </Link>
           <Link href="/artist/dashboard/bookings"
-            className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow flex items-center justify-between">
+            className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md hover:border-orange-200 transition-all flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-orange-50 rounded-lg"><Calendar className="h-5 w-5 text-orange-600" /></div>
               <div>
@@ -309,7 +329,7 @@ export default function ArtistDashboard() {
             <ChevronRight className="h-5 w-5 text-gray-400" />
           </Link>
           <Link href="/artist/dashboard/calendar"
-            className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow flex items-center justify-between sm:col-span-2 md:col-span-1">
+            className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md hover:border-sky-200 transition-all flex items-center justify-between sm:col-span-2 md:col-span-1">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-sky-50 rounded-lg"><Calendar className="h-5 w-5 text-sky-600" /></div>
               <div>
@@ -365,6 +385,9 @@ export default function ArtistDashboard() {
           <p className="text-xs text-gray-500 mb-4">Connect your bank account to accept payments via Stripe.</p>
           <ConnectBankButton role="artist" email={email} />
         </div>
+
+        {/* Add Vendor Role */}
+        <AddRoleCard targetRole="vendor" />
 
         {/* Social links */}
         {(profile?.instagram || profile?.website) && (

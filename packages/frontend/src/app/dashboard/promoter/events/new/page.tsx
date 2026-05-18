@@ -1,10 +1,9 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
-import { createClient } from '@/lib/supabase/client'
 import { Plus, Trash2, Loader2, Tag, DollarSign, Users, Upload, X, AlertTriangle, CreditCard } from 'lucide-react'
 
 interface TierForm {
@@ -52,6 +51,7 @@ export default function NewPromoterEventPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const errorRef = useRef<HTMLDivElement>(null)
 
   // Event fields
   const [title, setTitle] = useState('')
@@ -80,10 +80,25 @@ export default function NewPromoterEventPage() {
   const hasPaidTiers = tiers.some(t => parseFloat(t.price) > 0)
 
   useEffect(() => {
+    const token = localStorage.getItem('access_token')
+    if (!token) { router.replace('/login'); return }
     api.get('/promoter/profile')
       .then(r => setStripeConnected(r.data?.stripe_connect_status === 'active'))
-      .catch(() => setStripeConnected(false))
-  }, [])
+      .catch((e) => {
+        if (e.response?.status === 404 || e.response?.status === 401) {
+          router.replace('/login')
+        } else {
+          setStripeConnected(false)
+        }
+      })
+  }, [router])
+
+  // Scroll to error when it changes
+  useEffect(() => {
+    if (error && errorRef.current) {
+      errorRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [error])
 
   function addTier() {
     setTiers(prev => [...prev, { name: '', price: '', quantity: '', description: '' }])
@@ -124,16 +139,13 @@ export default function NewPromoterEventPage() {
 
       if (bannerFile) {
         setUploadingBanner(true)
-        const supabase = createClient()
-        const ext = bannerFile.name.split('.').pop() ?? 'jpg'
-        const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
-        const { error: uploadError } = await supabase.storage
-          .from('event-banners')
-          .upload(path, bannerFile, { contentType: bannerFile.type })
+        const form = new FormData()
+        form.append('file', bannerFile)
+        const uploadRes = await api.post('/upload/event-banner', form, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
         setUploadingBanner(false)
-        if (uploadError) throw new Error('Image upload failed: ' + uploadError.message)
-        const { data: urlData } = supabase.storage.from('event-banners').getPublicUrl(path)
-        finalImageUrl = urlData.publicUrl
+        finalImageUrl = uploadRes.data.url
       }
 
       const ticket_tiers = tiers.map(t => ({
@@ -185,7 +197,7 @@ export default function NewPromoterEventPage() {
       </nav>
 
       <form onSubmit={handleSubmit} className="max-w-3xl mx-auto px-4 py-6 space-y-6">
-        {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">{error}</div>}
+        {error && <div ref={errorRef} className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm font-medium">{error}</div>}
 
         {/* Basic Details */}
         <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
@@ -202,21 +214,21 @@ export default function NewPromoterEventPage() {
               className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
               placeholder="Tell people about your event..." />
           </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="col-span-2 sm:col-span-1">
               <label className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
               <input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} required
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Start time</label>
               <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)}
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                className="w-full border border-gray-300 rounded-xl px-2 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">End time</label>
               <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)}
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                className="w-full border border-gray-300 rounded-xl px-2 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">

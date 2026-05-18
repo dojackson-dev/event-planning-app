@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { Plus, FileText, Send, Eye, Loader2 } from 'lucide-react'
+import { Plus, FileText, Send, Eye, Loader2, LogOut } from 'lucide-react'
+import RoleSwitcher from '@/components/RoleSwitcher'
 
 interface ArtistInvoice {
   id: string
@@ -34,6 +35,11 @@ export default function ArtistInvoicesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
+  const handleLogout = () => {
+    ;['access_token','refresh_token','user_role','user_roles','active_role'].forEach(k => localStorage.removeItem(k))
+    router.push('/artist/login')
+  }
+
   useEffect(() => {
     api.get('/artist-invoices/mine')
       .then(r => setInvoices(r.data))
@@ -55,6 +61,15 @@ export default function ArtistInvoicesPage() {
           <Link href="/artist/dashboard" className="text-sm text-gray-500 hover:text-gray-700">← Dashboard</Link>
           <span className="text-gray-300">/</span>
           <span className="text-sm font-semibold text-gray-800">Invoices</span>
+        </div>
+        <div className="border-t border-gray-100 bg-gray-50">
+          <div className="max-w-4xl mx-auto px-4 h-11 flex items-center gap-2">
+            <RoleSwitcher variant="banner" />
+            <div className="flex-1" />
+            <button onClick={handleLogout} className="flex items-center gap-1.5 text-sm font-medium text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 px-3 py-1.5 rounded-lg transition-colors">
+              <LogOut className="h-4 w-4" /> Sign Out
+            </button>
+          </div>
         </div>
       </nav>
 

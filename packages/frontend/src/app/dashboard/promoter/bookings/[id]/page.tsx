@@ -98,6 +98,7 @@ export default function PromoterBookingDetailPage() {
   const [statusOpen, setStatusOpen] = useState(false)
   const [statusSaving, setStatusSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [removingArtist, setRemovingArtist] = useState(false)
   const [copiedPay, setCopiedPay] = useState(false)
   const [sendingInv, setSendingInv] = useState(false)
   const [invSendResult, setInvSendResult] = useState<string | null>(null)
@@ -120,6 +121,19 @@ export default function PromoterBookingDetailPage() {
       setError(e.response?.data?.message || 'Failed to update status')
     } finally {
       setStatusSaving(false)
+    }
+  }
+
+  const handleRemoveArtist = async () => {
+    if (!confirm('Remove the artist from this booking?')) return
+    setRemovingArtist(true)
+    try {
+      const res = await api.put(`/promoter-bookings/${id}`, { artist_account_id: null, artist_name: null })
+      setBooking(res.data)
+    } catch (e: any) {
+      setError(e.response?.data?.message || 'Failed to remove artist')
+    } finally {
+      setRemovingArtist(false)
     }
   }
 
@@ -333,14 +347,24 @@ export default function PromoterBookingDetailPage() {
                   )}
                 </div>
               </div>
-              {booking.artist_account_id && (
-                <Link
-                  href={`/dashboard/promoter/artists/${booking.artist_account_id}`}
-                  className="text-xs text-blue-600 hover:underline"
+              <div className="flex items-center gap-2">
+                {booking.artist_account_id && (
+                  <Link
+                    href={`/dashboard/promoter/artists/${booking.artist_account_id}`}
+                    className="text-xs text-blue-600 hover:underline"
+                  >
+                    View profile →
+                  </Link>
+                )}
+                <button
+                  onClick={handleRemoveArtist}
+                  disabled={removingArtist}
+                  title="Remove artist"
+                  className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                 >
-                  View profile →
-                </Link>
-              )}
+                  {removingArtist ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                </button>
+              </div>
             </div>
             {booking.artist_accounts?.booking_email && (
               <div className="mt-3 flex flex-wrap gap-4 text-sm">

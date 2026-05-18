@@ -70,7 +70,7 @@ export default function LoginPage() {
             Welcome Back
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Sign in to your EventEcos account
+            Sign in to your EventEcos account — all roles welcome
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
@@ -165,7 +165,7 @@ export default function LoginPage() {
               </Link>
             </p>
             <p className="mt-2 text-xs text-gray-400">
-              Venue owners <em>and</em> vendors log in here. Multi-role users will be prompted to choose a dashboard.
+              Owners, vendors, promoters, and artists all sign in here. You'll be routed to your dashboard automatically.
             </p>
           </div>
 

@@ -86,11 +86,18 @@ export default function PromoterEventsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Title row */}
+      <div className="bg-white border-b">
+        <div className="max-w-5xl mx-auto px-4 py-5 text-center">
+          <h1 className="text-2xl font-bold text-gray-900">My Events</h1>
+        </div>
+      </div>
+
+      {/* Sticky nav bar */}
       <nav className="bg-white border-b sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href="/dashboard/promoter" className="text-sm text-gray-500 hover:text-gray-700">← Dashboard</Link>
-            <span className="text-sm font-semibold text-gray-800">My Events</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="flex border border-gray-200 rounded-lg overflow-hidden">
@@ -103,10 +110,6 @@ export default function PromoterEventsPage() {
                 <Calendar className="w-3.5 h-3.5" /> Calendar
               </button>
             </div>
-            <Link href="/dashboard/promoter/events/new"
-              className="flex items-center gap-1 px-3 py-1.5 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700">
-              <Plus className="w-4 h-4" /> New Event
-            </Link>
           </div>
         </div>
       </nav>
@@ -135,6 +138,14 @@ export default function PromoterEventsPage() {
         ) : view === 'list' ? (
           // ── LIST VIEW ──
           <div className="space-y-3">
+            {/* New Event button — top */}
+            <div className="flex justify-center">
+              <Link href="/dashboard/promoter/events/new"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 shadow-sm">
+                <Plus className="w-4 h-4" /> New Event
+              </Link>
+            </div>
+
             {events.length === 0 ? (
               <div className="bg-white border border-dashed border-gray-300 rounded-xl p-10 text-center">
                 <Calendar className="w-10 h-10 text-gray-300 mx-auto mb-3" />
@@ -211,6 +222,16 @@ export default function PromoterEventsPage() {
                 </Link>
               )
             })}
+
+            {/* New Event button — bottom (only shown when list has items) */}
+            {events.length > 0 && (
+              <div className="flex justify-center pt-2">
+                <Link href="/dashboard/promoter/events/new"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 shadow-sm">
+                  <Plus className="w-4 h-4" /> New Event
+                </Link>
+              </div>
+            )}
           </div>
         ) : (
           // ── CALENDAR VIEW ──

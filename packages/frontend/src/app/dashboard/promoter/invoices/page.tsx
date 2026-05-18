@@ -88,12 +88,16 @@ export default function PromoterInvoicesPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Title row */}
+      <div className="bg-white border-b">
+        <div className="max-w-4xl mx-auto px-4 py-5 text-center">
+          <h1 className="text-2xl font-bold text-gray-900">Invoices</h1>
+        </div>
+      </div>
+
       <nav className="bg-white border-b sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link href="/dashboard/promoter" className="text-sm text-gray-500 hover:text-gray-700">← Dashboard</Link>
-            <span className="text-sm font-semibold text-gray-800">Invoices</span>
-          </div>
+          <Link href="/dashboard/promoter" className="text-sm text-gray-500 hover:text-gray-700">← Dashboard</Link>
           <Link href="/dashboard/promoter/invoices/new"
             className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
             <Plus className="w-4 h-4" /> New Invoice

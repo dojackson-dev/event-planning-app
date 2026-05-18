@@ -65,6 +65,29 @@ export class PromoterService {
     return data;
   }
 
+  async getPublicProfile(promoterId: string) {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: profile, error } = await admin
+      .from('promoter_accounts')
+      .select('id, company_name, contact_name, location, bio, website, instagram, profile_image_url, cover_image_url')
+      .eq('id', promoterId)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (error || !profile) throw new NotFoundException('Promoter not found');
+
+    const { data: events } = await admin
+      .from('public_events')
+      .select('id, title, event_date, start_time, venue_name, city, state, category, image_url, ticket_tiers(id, name, price, quantity, quantity_sold)')
+      .eq('promoter_account_id', promoterId)
+      .eq('status', 'published')
+      .gte('event_date', new Date().toISOString().split('T')[0])
+      .order('event_date', { ascending: true });
+
+    return { profile, events: events || [] };
+  }
+
   async updatePromoterProfile(userId: string, dto: UpdatePromoterDto) {
     const admin = this.supabaseService.getAdminClient();
 

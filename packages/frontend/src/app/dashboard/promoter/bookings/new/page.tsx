@@ -135,15 +135,21 @@ function NewPromoterBookingContent() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Title row */}
+      <div className="bg-white border-b">
+        <div className="max-w-2xl mx-auto px-4 py-5 text-center">
+          <h1 className="text-2xl font-bold text-gray-900">New Booking</h1>
+        </div>
+      </div>
+
       <nav className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-2xl mx-auto px-4 h-14 flex items-center gap-3">
+        <div className="max-w-2xl mx-auto px-4 h-14 flex items-center">
           <Link
             href={artistId ? `/dashboard/promoter/artists/${artistId}` : '/dashboard/promoter/bookings'}
             className="text-sm text-gray-500 hover:text-gray-700"
           >
             ← {artistId ? 'Artist Profile' : 'Bookings'}
           </Link>
-          <span className="text-sm font-semibold text-gray-800">New Booking</span>
         </div>
       </nav>
 

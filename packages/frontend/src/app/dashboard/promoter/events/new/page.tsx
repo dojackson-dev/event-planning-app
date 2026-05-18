@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
-import { Plus, Trash2, Loader2, Tag, DollarSign, Users } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
+import { Plus, Trash2, Loader2, Tag, DollarSign, Users, Upload, X, AlertTriangle, CreditCard } from 'lucide-react'
 
 interface TierForm {
   name: string
@@ -66,10 +67,23 @@ export default function NewPromoterEventPage() {
   const [category, setCategory] = useState('')
   const [ageRestriction, setAgeRestriction] = useState('')
   const [imageUrl, setImageUrl] = useState('')
+  const [bannerFile, setBannerFile] = useState<File | null>(null)
+  const [bannerPreview, setBannerPreview] = useState('')
+  const [uploadingBanner, setUploadingBanner] = useState(false)
+  const bannerInputRef = useRef<HTMLInputElement>(null)
   const [status, setStatus] = useState<'draft' | 'published'>('draft')
+  const [stripeConnected, setStripeConnected] = useState<boolean | null>(null)
 
   // Ticket tiers
   const [tiers, setTiers] = useState<TierForm[]>([])
+
+  const hasPaidTiers = tiers.some(t => parseFloat(t.price) > 0)
+
+  useEffect(() => {
+    api.get('/promoter/profile')
+      .then(r => setStripeConnected(r.data?.stripe_connect_status === 'active'))
+      .catch(() => setStripeConnected(false))
+  }, [])
 
   function addTier() {
     setTiers(prev => [...prev, { name: '', price: '', quantity: '', description: '' }])
@@ -83,11 +97,45 @@ export default function NewPromoterEventPage() {
     setTiers(prev => prev.map((t, idx) => idx === i ? { ...t, [field]: value } : t))
   }
 
+  function handleBannerChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Banner image must be under 5 MB')
+      return
+    }
+    setBannerFile(file)
+    setBannerPreview(URL.createObjectURL(file))
+    setImageUrl('')
+  }
+
+  function removeBanner() {
+    setBannerFile(null)
+    setBannerPreview('')
+    if (bannerInputRef.current) bannerInputRef.current.value = ''
+  }
+
   const handleSubmit = async (e: React.FormEvent, saveStatus?: 'draft' | 'published') => {
     e.preventDefault()
     setError('')
     setLoading(true)
     try {
+      let finalImageUrl = imageUrl
+
+      if (bannerFile) {
+        setUploadingBanner(true)
+        const supabase = createClient()
+        const ext = bannerFile.name.split('.').pop() ?? 'jpg'
+        const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+        const { error: uploadError } = await supabase.storage
+          .from('event-banners')
+          .upload(path, bannerFile, { contentType: bannerFile.type })
+        setUploadingBanner(false)
+        if (uploadError) throw new Error('Image upload failed: ' + uploadError.message)
+        const { data: urlData } = supabase.storage.from('event-banners').getPublicUrl(path)
+        finalImageUrl = urlData.publicUrl
+      }
+
       const ticket_tiers = tiers.map(t => ({
         name: t.name,
         price: parseFloat(t.price) || 0,
@@ -108,7 +156,7 @@ export default function NewPromoterEventPage() {
         venue_type: venueType || undefined,
         category: category || undefined,
         age_restriction: ageRestriction || undefined,
-        image_url: imageUrl || undefined,
+        image_url: finalImageUrl || undefined,
         status: saveStatus ?? status,
         ticket_tiers: ticket_tiers.length > 0 ? ticket_tiers : undefined,
       })
@@ -122,10 +170,17 @@ export default function NewPromoterEventPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Title row */}
+      <div className="bg-white border-b">
+        <div className="max-w-3xl mx-auto px-4 py-5 text-center">
+          <h1 className="text-2xl font-bold text-gray-900">New Event</h1>
+        </div>
+      </div>
+
+      {/* Sticky nav bar */}
       <nav className="bg-white border-b sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-3">
           <Link href="/dashboard/promoter/events" className="text-sm text-gray-500 hover:text-gray-700">← Events</Link>
-          <span className="text-sm font-semibold text-gray-800">New Event</span>
         </div>
       </nav>
 
@@ -183,11 +238,50 @@ export default function NewPromoterEventPage() {
               </select>
             </div>
           </div>
+          {/* Banner Upload */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Event Image URL</label>
-            <input value={imageUrl} onChange={e => setImageUrl(e.target.value)}
-              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-              placeholder="https://..." />
+            <label className="block text-sm font-medium text-gray-700 mb-1">Event Banner</label>
+            <p className="text-xs text-gray-400 mb-2">
+              Recommended: <strong>1920 × 1080 px (16:9)</strong> · JPG, PNG, or WEBP · Max 5 MB — works great on mobile and desktop
+            </p>
+            {bannerPreview ? (
+              <div className="relative rounded-xl overflow-hidden border border-gray-200 bg-gray-100">
+                <div className="w-full" style={{ aspectRatio: '16/9' }}>
+                  <img src={bannerPreview} alt="Banner preview" className="w-full h-full object-cover" />
+                </div>
+                <button
+                  type="button"
+                  onClick={removeBanner}
+                  className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1 transition"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+                <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-0.5 rounded-full">
+                  {bannerFile?.name}
+                </div>
+              </div>
+            ) : (
+              <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-300 rounded-xl p-8 cursor-pointer hover:border-purple-400 hover:bg-purple-50 transition">
+                <Upload className="w-8 h-8 text-gray-400" />
+                <span className="text-sm font-medium text-gray-600">Click or drag to upload banner</span>
+                <span className="text-xs text-gray-400">JPG, PNG, WEBP — max 5 MB</span>
+                <input
+                  ref={bannerInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="sr-only"
+                  onChange={handleBannerChange}
+                />
+              </label>
+            )}
+            {!bannerPreview && (
+              <input
+                value={imageUrl}
+                onChange={e => setImageUrl(e.target.value)}
+                className="w-full mt-2 border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 text-gray-500"
+                placeholder="Or paste an image URL..."
+              />
+            )}
           </div>
         </div>
 
@@ -301,6 +395,22 @@ export default function NewPromoterEventPage() {
           )}
         </div>
 
+        {/* Stripe warning — shown when paid tiers exist but no Stripe connected */}
+        {hasPaidTiers && stripeConnected === false && (
+          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-amber-800">Stripe account required for paid tickets</p>
+              <p className="text-sm text-amber-700 mt-0.5">
+                You can save this event as a draft, but you must connect Stripe before publishing paid tickets.
+              </p>
+              <a href="/dashboard/promoter/profile" className="inline-flex items-center gap-1.5 mt-2 text-sm font-medium text-amber-800 underline hover:text-amber-900">
+                <CreditCard className="w-3.5 h-3.5" /> Go to Profile Settings
+              </a>
+            </div>
+          </div>
+        )}
+
         {/* Status + Submit */}
         <div className="bg-white border border-gray-200 rounded-xl p-5">
           <h2 className="font-semibold text-gray-900 mb-3">Publish Settings</h2>
@@ -312,20 +422,36 @@ export default function NewPromoterEventPage() {
                 <p className="text-xs text-gray-500">Not visible to public yet</p>
               </div>
             </label>
-            <label className={`flex-1 flex items-center gap-3 p-3 border-2 rounded-xl cursor-pointer transition ${status === 'published' ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300'}`}>
-              <input type="radio" className="sr-only" checked={status === 'published'} onChange={() => setStatus('published')} />
+            <label className={`flex-1 flex items-center gap-3 p-3 border-2 rounded-xl cursor-pointer transition ${
+              hasPaidTiers && stripeConnected === false
+                ? 'border-gray-200 opacity-50 cursor-not-allowed'
+                : status === 'published' ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300'
+            }`}>
+              <input
+                type="radio"
+                className="sr-only"
+                checked={status === 'published'}
+                disabled={hasPaidTiers && stripeConnected === false}
+                onChange={() => !(hasPaidTiers && stripeConnected === false) && setStatus('published')}
+              />
               <div>
                 <p className="text-sm font-semibold text-gray-800">Publish Now</p>
-                <p className="text-xs text-gray-500">Visible on public events page</p>
+                <p className="text-xs text-gray-500">
+                  {hasPaidTiers && stripeConnected === false
+                    ? 'Connect Stripe first to publish paid events'
+                    : 'Visible on public events page'}
+                </p>
               </div>
             </label>
           </div>
         </div>
 
-        <button type="submit" disabled={loading}
+        <button
+          type="submit"
+          disabled={loading || uploadingBanner || (hasPaidTiers && stripeConnected === false && status === 'published')}
           className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white font-semibold py-3 rounded-xl hover:bg-purple-700 disabled:opacity-60">
-          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-          {status === 'published' ? 'Create & Publish Event' : 'Save Draft'}
+          {(loading || uploadingBanner) ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+          {uploadingBanner ? 'Uploading banner…' : status === 'published' ? 'Create & Publish Event' : 'Save Draft'}
         </button>
       </form>
     </div>

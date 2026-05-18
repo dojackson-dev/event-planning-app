@@ -21,7 +21,7 @@ export default function PromoterLogin() {
     try {
       const supabase = createClient()
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/promoter/login`,
+        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/promoter/reset-password`,
       })
       if (error) throw error
       setResetSent(true)

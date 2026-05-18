@@ -59,6 +59,21 @@ export class PromoterEventsController {
     return this.service.getTicketById(ticketId);
   }
 
+  /** Forward a ticket to a phone/email — generates an access code */
+  @Post('public/ticket/:ticketId/forward')
+  forwardTicket(
+    @Param('ticketId') ticketId: string,
+    @Body() body: { recipientPhone?: string; recipientEmail?: string },
+  ) {
+    return this.service.forwardTicket(ticketId, body.recipientPhone, body.recipientEmail);
+  }
+
+  /** Claim a forwarded ticket using its access code */
+  @Get('public/forward/:code')
+  getTicketByForwardCode(@Param('code') code: string) {
+    return this.service.getTicketByForwardCode(code);
+  }
+
   @Get('public/:id')
   getPublicEvent(@Param('id') id: string) {
     return this.service.getPublicEvent(id);

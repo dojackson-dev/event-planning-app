@@ -1,15 +1,38 @@
-'use client'
+﻿'use client'
 
 import Link from 'next/link'
 import Image from 'next/image'
 import { Users, Store, Calendar, Zap, BarChart3, Shield, ArrowRight } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
 export default function Home() {
   const { isAuthenticated, loading, user } = useAuth()
   const router = useRouter()
+
+  const taglines = [
+    '"Events, vendors, venues — all in one ecosystem."',
+    '"Where venues, vendors, and vibes connect."',
+    '"Build the vibe. Power the ecosystem."',
+    '"EventEcos: Where Every Event Comes Alive."',
+    '"Let your event take root."',
+    '"Rooted in planning. Flourishing in celebration."',
+    '"EventEcos: From Seed to Soirée."',
+  ]
+  const [taglineIndex, setTaglineIndex] = useState(0)
+  const [taglineFade, setTaglineFade] = useState(true)
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTaglineFade(false)
+      setTimeout(() => {
+        setTaglineIndex(i => (i + 1) % taglines.length)
+        setTaglineFade(true)
+      }, 400)
+    }, 4000)
+    return () => clearInterval(interval)
+  }, [])
 
   useEffect(() => {
     if (!loading && isAuthenticated && user) {
@@ -23,9 +46,9 @@ export default function Home() {
   }, [isAuthenticated, loading, router, user])
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-white">
+    return <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-accent-50 to-white">
       <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-green-200 border-t-green-500 mx-auto mb-4"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-accent-200 border-t-accent-500 mx-auto mb-4"></div>
         <p className="text-gray-600">Loading...</p>
       </div>
     </div>
@@ -38,28 +61,23 @@ export default function Home() {
         <img src="/lib/EventEcos-Web-Banner.jpg" alt="EventEcos Banner" className="w-full object-cover" />
       </div>
 
-      {/* Beta Banner */}
-      <div className="bg-amber-50 border-b border-amber-200 text-amber-900 text-center text-sm font-medium py-3 px-4">
-        🚧 EventEcos is currently in <strong>beta</strong> — features may change. Thanks for being an early tester!
-      </div>
-
       {/* Navigation */}
-      <nav className="sticky top-0 z-50 bg-white md:bg-green-500 border-b border-gray-200 md:border-green-600 shadow-sm">
+      <nav className="sticky top-0 z-50 bg-white md:bg-primary-600 border-b border-gray-200 md:border-primary-700 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-center md:justify-between h-16 gap-2">
 
             {/* Center Nav Links - desktop only */}
             <div className="hidden md:flex items-center gap-2">
-              <Link href="/vendors" className="text-white hover:text-green-100 font-medium text-sm border border-white/40 hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors">
+              <Link href="/vendors" className="text-white hover:text-primary-100 font-medium text-sm border border-white/40 hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors">
                 Find Vendors
               </Link>
-              <Link href="/venues" className="text-white hover:text-green-100 font-medium text-sm border border-white/40 hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors">
+              <Link href="/venues" className="text-white hover:text-primary-100 font-medium text-sm border border-white/40 hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors">
                 Find Venues
               </Link>
-              <Link href="/events" className="text-white hover:text-green-100 font-medium text-sm border border-white/40 hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors">
+              <Link href="/events" className="text-white hover:text-primary-100 font-medium text-sm border border-white/40 hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors">
                 Discover Events
               </Link>
-              <Link href="#features" className="text-white hover:text-green-100 font-medium text-sm border border-white/40 hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors">
+              <Link href="#features" className="text-white hover:text-primary-100 font-medium text-sm border border-white/40 hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors">
                 Features
               </Link>
             </div>
@@ -68,13 +86,13 @@ export default function Home() {
             <div className="flex items-center gap-2">
               <Link
                 href="/login"
-                className="hidden md:inline text-white hover:text-green-100 font-medium text-sm border border-white/40 hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors"
+                className="text-white font-medium text-sm bg-primary-600 hover:bg-primary-700 md:bg-transparent md:border md:border-white/40 md:hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors"
               >
-                Sign In
+                Login
               </Link>
               <Link
                 href="/signup"
-                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-1.5 rounded-lg transition-colors text-sm whitespace-nowrap"
+                className="bg-accent-500 hover:bg-accent-600 text-white font-semibold px-5 py-1.5 rounded-lg transition-colors text-sm whitespace-nowrap"
               >
                 Get Started
               </Link>
@@ -83,40 +101,30 @@ export default function Home() {
         </div>
       </nav>
 
+      {/* Tagline row */}
+      <div className="bg-accent-50 border-b border-accent-100 py-3 text-center">
+        <div
+          className="inline-flex items-center gap-2 text-accent-700 font-semibold text-sm transition-opacity duration-400"
+          style={{ opacity: taglineFade ? 1 : 0 }}
+        >
+          {taglines[taglineIndex]}
+        </div>
+      </div>
+
       {/* Hero Section */}
-      <section className="bg-gradient-to-br from-green-50 via-white to-blue-50 pt-20 pb-32 px-4 sm:px-6 lg:px-8">
+      <section className="bg-gradient-to-br from-accent-50 via-white to-primary-50 pt-20 pb-32 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             {/* Left Content */}
             <div className="flex flex-col justify-center">
-              <div className="inline-flex items-center bg-green-100 text-green-700 px-4 py-2 rounded-full w-fit mb-6">
-                <Zap className="h-4 w-4 mr-2" />
-                <span className="font-semibold text-sm">The Complete Event Ecosystem</span>
-              </div>
               
               <h1 className="text-5xl lg:text-6xl font-bold text-gray-900 mb-6 leading-tight">
-                Manage Your Event Business <span className="text-green-500">Effortlessly</span>
+                Manage Your Event Business <span className="text-accent-500">Effortlessly</span>
               </h1>
               
               <p className="text-xl text-gray-600 mb-8 max-w-lg">
                 EventEcos is the all-in-one platform built for venue owners, event planners, and promoters. Streamline bookings, manage clients, and grow your business — all in one place.
               </p>
-
-              {/* CTA Buttons */}
-              <div className="flex flex-col sm:flex-row gap-4 mb-8">
-                <Link
-                  href="/signup"
-                  className="bg-green-500 hover:bg-green-600 text-white font-bold px-8 py-4 rounded-lg transition-colors flex items-center justify-center gap-2 text-lg shadow-lg hover:shadow-xl"
-                >
-                  Get Started <ArrowRight className="h-5 w-5" />
-                </Link>
-                <Link
-                  href="/vendors"
-                  className="border-2 border-green-500 text-green-600 hover:bg-green-50 font-bold px-8 py-4 rounded-lg transition-colors flex items-center justify-center gap-2 text-lg"
-                >
-                  Browse Vendors
-                </Link>
-              </div>
             </div>
 
             {/* Right - Logo + Visual */}
@@ -126,28 +134,28 @@ export default function Home() {
                 {/* Feature Pills */}
                 <div className="space-y-3">
                   <div className="bg-white rounded-2xl p-4 shadow-lg border border-gray-100 flex items-start gap-3">
-                    <Calendar className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
+                    <Calendar className="h-5 w-5 text-accent-500 flex-shrink-0 mt-0.5" />
                     <div>
                       <p className="font-semibold text-gray-900 text-sm">Smart Scheduling</p>
                       <p className="text-gray-600 text-xs">Never double-book again</p>
                     </div>
                   </div>
                   <div className="bg-white rounded-2xl p-4 shadow-lg border border-gray-100 flex items-start gap-3">
-                    <Users className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
+                    <Users className="h-5 w-5 text-accent-500 flex-shrink-0 mt-0.5" />
                     <div>
                       <p className="font-semibold text-gray-900 text-sm">Client Management</p>
                       <p className="text-gray-600 text-xs">Keep everyone in sync</p>
                     </div>
                   </div>
                   <div className="bg-white rounded-2xl p-4 shadow-lg border border-gray-100 flex items-start gap-3">
-                    <Zap className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
+                    <Zap className="h-5 w-5 text-accent-500 flex-shrink-0 mt-0.5" />
                     <div>
                       <p className="font-semibold text-gray-900 text-sm">Promoter / Ticket Sales</p>
                       <p className="text-gray-600 text-xs">Sell tickets & manage events</p>
                     </div>
                   </div>
                   <div className="bg-white rounded-2xl p-4 shadow-lg border border-gray-100 flex items-start gap-3">
-                    <BarChart3 className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
+                    <BarChart3 className="h-5 w-5 text-accent-500 flex-shrink-0 mt-0.5" />
                     <div>
                       <p className="font-semibold text-gray-900 text-sm">Real-time Analytics</p>
                       <p className="text-gray-600 text-xs">Track revenue & bookings</p>
@@ -157,6 +165,16 @@ export default function Home() {
               </div>
             </div>
           </div>
+
+          {/* CTA centered below both columns */}
+          <div className="flex justify-center mt-12">
+            <Link
+              href="/signup"
+              className="bg-accent-500 hover:bg-accent-600 text-white font-bold px-10 py-4 rounded-lg transition-colors flex items-center gap-2 text-lg shadow-lg hover:shadow-xl"
+            >
+              Get Started <ArrowRight className="h-5 w-5" />
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -165,7 +183,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-4">
-              Everything You Need to <span className="text-green-500">Succeed</span>
+              Everything You Need to <span className="text-accent-500">Succeed</span>
             </h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
               From lead to payment, manage every aspect of your event business with powerful tools designed for you.
@@ -175,36 +193,36 @@ export default function Home() {
           {/* Features Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {/* Feature 1 */}
-            <div className="group p-8 rounded-2xl border border-gray-200 hover:border-green-300 hover:shadow-xl transition-all duration-300 bg-white hover:bg-green-50">
-              <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-green-200 transition-colors">
-                <Calendar className="h-6 w-6 text-green-600" />
+            <div className="group p-8 rounded-2xl border border-gray-200 hover:border-accent-300 hover:shadow-xl transition-all duration-300 bg-white hover:bg-accent-50">
+              <div className="h-12 w-12 bg-accent-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-accent-200 transition-colors">
+                <Calendar className="h-6 w-6 text-accent-600" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">Event Management</h3>
               <p className="text-gray-600">Create and manage all your events in one centralized calendar. Set availability, block dates, and manage your capacity effortlessly.</p>
             </div>
 
             {/* Feature 2 */}
-            <div className="group p-8 rounded-2xl border border-gray-200 hover:border-green-300 hover:shadow-xl transition-all duration-300 bg-white hover:bg-green-50">
-              <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-green-200 transition-colors">
-                <Users className="h-6 w-6 text-green-600" />
+            <div className="group p-8 rounded-2xl border border-gray-200 hover:border-accent-300 hover:shadow-xl transition-all duration-300 bg-white hover:bg-accent-50">
+              <div className="h-12 w-12 bg-accent-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-accent-200 transition-colors">
+                <Users className="h-6 w-6 text-accent-600" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">Client Portal</h3>
               <p className="text-gray-600">Give clients a dedicated space to view bookings, access documents, communicate with you, and make payments securely online.</p>
             </div>
 
             {/* Feature 3 */}
-            <div className="group p-8 rounded-2xl border border-gray-200 hover:border-green-300 hover:shadow-xl transition-all duration-300 bg-white hover:bg-green-50">
-              <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-green-200 transition-colors">
-                <Shield className="h-6 w-6 text-green-600" />
+            <div className="group p-8 rounded-2xl border border-gray-200 hover:border-accent-300 hover:shadow-xl transition-all duration-300 bg-white hover:bg-accent-50">
+              <div className="h-12 w-12 bg-accent-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-accent-200 transition-colors">
+                <Shield className="h-6 w-6 text-accent-600" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">Document Management</h3>
               <p className="text-gray-600">Store contracts, liability insurance, and important documents securely. Share them with clients and track approvals.</p>
             </div>
 
             {/* Feature 4 */}
-            <div className="group p-8 rounded-2xl border border-gray-200 hover:border-green-300 hover:shadow-xl transition-all duration-300 bg-white hover:bg-green-50">
-              <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-green-200 transition-colors">
-                <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="group p-8 rounded-2xl border border-gray-200 hover:border-accent-300 hover:shadow-xl transition-all duration-300 bg-white hover:bg-accent-50">
+              <div className="h-12 w-12 bg-accent-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-accent-200 transition-colors">
+                <svg className="h-6 w-6 text-accent-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
@@ -213,9 +231,9 @@ export default function Home() {
             </div>
 
             {/* Feature 5 */}
-            <div className="group p-8 rounded-2xl border border-gray-200 hover:border-green-300 hover:shadow-xl transition-all duration-300 bg-white hover:bg-green-50">
-              <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-green-200 transition-colors">
-                <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="group p-8 rounded-2xl border border-gray-200 hover:border-accent-300 hover:shadow-xl transition-all duration-300 bg-white hover:bg-accent-50">
+              <div className="h-12 w-12 bg-accent-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-accent-200 transition-colors">
+                <svg className="h-6 w-6 text-accent-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                 </svg>
               </div>
@@ -224,9 +242,9 @@ export default function Home() {
             </div>
 
             {/* Feature 6 */}
-            <div className="group p-8 rounded-2xl border border-gray-200 hover:border-green-300 hover:shadow-xl transition-all duration-300 bg-white hover:bg-green-50">
-              <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-green-200 transition-colors">
-                <BarChart3 className="h-6 w-6 text-green-600" />
+            <div className="group p-8 rounded-2xl border border-gray-200 hover:border-accent-300 hover:shadow-xl transition-all duration-300 bg-white hover:bg-accent-50">
+              <div className="h-12 w-12 bg-accent-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-accent-200 transition-colors">
+                <BarChart3 className="h-6 w-6 text-accent-600" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">Analytics & Reports</h3>
               <p className="text-gray-600">Get insights into your business with comprehensive dashboards. Track revenue, bookings, and growth trends at a glance.</p>
@@ -236,7 +254,7 @@ export default function Home() {
       </section>
 
       {/* How It Works */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-green-50 to-blue-50">
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-accent-50 to-primary-50">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-4">
@@ -248,20 +266,20 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             {[
               { number: '1', title: 'Sign Up', desc: 'Create your free account in seconds' },
-              { number: '2', title: 'Setup Venue', desc: 'Add your venue details and availability' },
+              { number: '2', title: 'Set Up Your Role', desc: 'Choose your role — venue owner, promoter, vendor, or artist — and customize your profile' },
               { number: '3', title: 'Share Portal', desc: 'Invite clients to your portal' },
               { number: '4', title: 'Grow Business', desc: 'Accept bookings and payments' },
             ].map((step, idx) => (
               <div key={idx} className="relative">
                 <div className="text-center">
-                  <div className="h-16 w-16 bg-green-500 text-white rounded-full flex items-center justify-center mx-auto mb-4 font-bold text-2xl">
+                  <div className="h-16 w-16 bg-accent-500 text-white rounded-full flex items-center justify-center mx-auto mb-4 font-bold text-2xl">
                     {step.number}
                   </div>
                   <h3 className="text-xl font-bold text-gray-900 mb-2">{step.title}</h3>
                   <p className="text-gray-600">{step.desc}</p>
                 </div>
                 {idx < 3 && (
-                  <div className="hidden md:block absolute top-8 left-full w-8 h-0.5 bg-green-200 -ml-4" />
+                  <div className="hidden md:block absolute top-8 left-full w-8 h-0.5 bg-accent-200 -ml-4" />
                 )}
               </div>
             ))}
@@ -269,58 +287,91 @@ export default function Home() {
         </div>
       </section>
 
+      {/* CTA after How It Works */}
+      <div className="bg-white py-8 px-4 text-center border-b border-gray-100">
+        <Link
+          href="/signup"
+          className="inline-flex items-center gap-2 bg-accent-500 hover:bg-accent-600 text-white font-bold px-10 py-4 rounded-lg transition-colors text-lg shadow-lg"
+        >
+          Get Started <ArrowRight className="h-5 w-5" />
+        </Link>
+      </div>
+
       {/* Directory & Events CTA */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gray-900 text-white">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-12">
-          {/* Vendors */}
-          <div>
-            <h3 className="text-3xl font-bold mb-4">
-              <Store className="h-8 w-8 text-green-400 inline mr-3" />
-              Find Vendors & Venues
-            </h3>
-            <p className="text-gray-300 mb-6 text-lg">
-              Browse thousands of local DJs, photographers, decorators, planners, and more. All searchable by location.
-            </p>
-            <Link
-              href="/vendors"
-              className="inline-block bg-green-500 hover:bg-green-600 text-white font-bold px-6 py-3 rounded-lg transition-colors"
-            >
-              Browse Directory →
-            </Link>
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl lg:text-4xl font-bold text-white mb-3">Explore the Ecosystem</h2>
+            <p className="text-gray-400 text-lg">Discover venues, vendors, and events all in one place.</p>
           </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* Venues */}
+            <div className="bg-gray-800 rounded-2xl p-8 flex flex-col items-start hover:bg-gray-700 transition-colors">
+              <div className="h-12 w-12 bg-accent-500/20 rounded-xl flex items-center justify-center mb-5">
+                <Store className="h-6 w-6 text-accent-400" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-3">Browse Venues</h3>
+              <p className="text-gray-400 mb-6 flex-1">
+                Find the perfect space for your next event — ballrooms, rooftops, outdoor grounds, and more.
+              </p>
+              <Link
+                href="/venues"
+                className="inline-flex items-center gap-2 bg-accent-500 hover:bg-accent-600 text-white font-bold px-5 py-2.5 rounded-lg transition-colors"
+              >
+                Browse Venues <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
 
-          {/* Events */}
-          <div>
-            <h3 className="text-3xl font-bold mb-4">
-              <Calendar className="h-8 w-8 text-green-400 inline mr-3" />
-              Discover Events
-            </h3>
-            <p className="text-gray-300 mb-6 text-lg">
-              Explore concerts, festivals, workshops, and experiences happening near you. Created by promoters and organizers.
-            </p>
-            <Link
-              href="/events"
-              className="inline-block bg-green-500 hover:bg-green-600 text-white font-bold px-6 py-3 rounded-lg transition-colors"
-            >
-              Explore Events →
-            </Link>
+            {/* Vendors */}
+            <div className="bg-gray-800 rounded-2xl p-8 flex flex-col items-start hover:bg-gray-700 transition-colors">
+              <div className="h-12 w-12 bg-accent-500/20 rounded-xl flex items-center justify-center mb-5">
+                <Users className="h-6 w-6 text-accent-400" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-3">Discover Vendors</h3>
+              <p className="text-gray-400 mb-6 flex-1">
+                Connect with DJs, photographers, decorators, caterers, and more — all searchable by location.
+              </p>
+              <Link
+                href="/vendors"
+                className="inline-flex items-center gap-2 bg-accent-500 hover:bg-accent-600 text-white font-bold px-5 py-2.5 rounded-lg transition-colors"
+              >
+                Discover Vendors <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+
+            {/* Events */}
+            <div className="bg-gray-800 rounded-2xl p-8 flex flex-col items-start hover:bg-gray-700 transition-colors">
+              <div className="h-12 w-12 bg-accent-500/20 rounded-xl flex items-center justify-center mb-5">
+                <Calendar className="h-6 w-6 text-accent-400" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-3">Explore Events</h3>
+              <p className="text-gray-400 mb-6 flex-1">
+                Discover concerts, festivals, workshops, and experiences happening near you.
+              </p>
+              <Link
+                href="/events"
+                className="inline-flex items-center gap-2 bg-accent-500 hover:bg-accent-600 text-white font-bold px-5 py-2.5 rounded-lg transition-colors"
+              >
+                Explore Events <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
           </div>
         </div>
       </section>
 
       {/* Final CTA */}
-      <section className="py-24 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-green-500 to-blue-600">
+      <section className="py-24 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-primary-600 to-secondary-500">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-5xl lg:text-6xl font-bold text-white mb-6">
             Ready to Transform Your Event Business?
           </h2>
-          <p className="text-xl text-green-50 mb-8">
+          <p className="text-xl text-primary-100 mb-8">
             Join thousands of event professionals managing their businesses with EventEcos.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               href="/signup"
-              className="bg-white hover:bg-green-50 text-green-600 font-bold px-8 py-4 rounded-lg transition-colors text-lg shadow-lg"
+              className="bg-white hover:bg-accent-50 text-accent-600 font-bold px-8 py-4 rounded-lg transition-colors text-lg shadow-lg"
             >
               Get Started
             </Link>
@@ -339,6 +390,11 @@ export default function Home() {
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
             <div>
+              <Link href="/">
+                <div className="inline-block bg-white rounded-xl p-2">
+                  <img src="/lib/EventEcos-Logo.jpg" alt="EventEcos" style={{ height: '90px', width: 'auto' }} />
+                </div>
+              </Link>
               <p className="text-gray-400 text-sm">The complete event management platform.</p>
             </div>
             <div>

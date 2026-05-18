@@ -118,9 +118,6 @@ export default function PromoterLayout({ children }: { children: React.ReactNode
                 {user.firstName} {user.lastName}
               </span>
             )}
-            <Link href="/dashboard/promoter/profile" className="text-sm text-gray-600 hover:text-gray-900">
-              Account Settings
-            </Link>
           </div>
         </div>
 

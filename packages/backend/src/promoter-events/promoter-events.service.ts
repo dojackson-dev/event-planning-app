@@ -58,6 +58,14 @@ export class PromoterEventsService {
     const admin = this.supabaseService.getAdminClient();
     const promoter = await this.getPromoterAccount(userId);
 
+    // Block publishing paid events without active Stripe Connect
+    const hasPaidTiers = dto.ticket_tiers?.some(t => Number(t.price) > 0) ?? false;
+    if (hasPaidTiers && (!promoter.stripe_account_id || promoter.stripe_connect_status !== 'active')) {
+      throw new BadRequestException(
+        'You must connect a Stripe account before selling paid tickets. Go to Profile Settings to set up payments.'
+      );
+    }
+
     const { data: event, error } = await admin
       .from('public_events')
       .insert({
@@ -131,6 +139,20 @@ export class PromoterEventsService {
       .eq('promoter_account_id', promoter.id)
       .maybeSingle();
     if (!existing) throw new ForbiddenException('Event not found');
+
+    // Block publishing if the event has paid tiers and no active Stripe Connect
+    if (dto.status === 'published') {
+      const { data: tiers } = await admin
+        .from('ticket_tiers')
+        .select('price')
+        .eq('public_event_id', eventId);
+      const eventHasPaidTiers = tiers?.some(t => Number(t.price) > 0) ?? false;
+      if (eventHasPaidTiers && (!promoter.stripe_account_id || promoter.stripe_connect_status !== 'active')) {
+        throw new BadRequestException(
+          'You must connect a Stripe account before publishing an event with paid tickets. Go to Profile Settings to set up payments.'
+        );
+      }
+    }
 
     const updates: any = { updated_at: new Date().toISOString() };
     if (dto.title !== undefined) updates.title = dto.title;

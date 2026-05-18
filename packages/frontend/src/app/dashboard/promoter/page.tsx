@@ -21,6 +21,9 @@ import {
   HelpCircle,
   ChevronRight,
   Mic2,
+  Share2,
+  Copy,
+  ExternalLink,
 } from 'lucide-react'
 
 interface DashboardStats {
@@ -53,6 +56,7 @@ function PromoterDashboardContent() {
   const [tourStep, setTourStep] = useState(0)
   const [connectSuccess, setConnectSuccess] = useState(false)
   const [firstVisit, setFirstVisit] = useState(false)
+  const [copiedProfile, setCopiedProfile] = useState(false)
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -385,6 +389,43 @@ function PromoterDashboardContent() {
           </div>
         </Link>
       </div>
+
+      {/* Share Profile */}
+      {profile?.id && (
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <Share2 className="h-5 w-5 text-purple-600" />
+            <h3 className="font-semibold text-gray-900">Your Public Profile</h3>
+          </div>
+          <p className="text-sm text-gray-600 mb-3">
+            Share this link so fans and clients can view your profile and buy tickets to your events.
+          </p>
+          <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+            <span className="text-sm text-gray-700 flex-1 truncate">
+              {typeof window !== 'undefined' ? window.location.origin : ''}/promoters/{profile.id}
+            </span>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(`${window.location.origin}/promoters/${profile.id}`)
+                setCopiedProfile(true)
+                setTimeout(() => setCopiedProfile(false), 2000)
+              }}
+              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white text-xs font-medium rounded-lg hover:bg-purple-700"
+            >
+              {copiedProfile ? <CheckCircle className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              {copiedProfile ? 'Copied!' : 'Copy'}
+            </button>
+            <a
+              href={`/promoters/${profile.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-200"
+            >
+              <ExternalLink className="w-3.5 h-3.5" /> Preview
+            </a>
+          </div>
+        </div>
+      )}
 
       {/* Getting Started Tips */}
       <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-100 rounded-xl p-6">

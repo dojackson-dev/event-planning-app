@@ -529,8 +529,7 @@ export class MailService {
               const ticketUrl = `${frontendUrl}/ticket/${ticket.id}`;
               const qrBuffer = await QRCode.toBuffer(ticketUrl, {
                 errorCorrectionLevel: 'H',
-                type: 'image/png',
-                quality: 0.95,
+                type: 'png',
                 margin: 1,
                 width: 300,
               });

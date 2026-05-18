@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
 import { MapPin, Calendar, Tag, Search, Filter, Loader2, Ticket } from 'lucide-react'
+import DashboardReturnButton from '@/components/DashboardReturnButton'
 
 interface TicketTier {
   id: string
@@ -75,11 +76,41 @@ export default function PublicEventsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
+      {/* Nav */}
+      <nav className="sticky top-0 z-50 bg-white border-b-4 border-primary-600 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-20">
+            <Link href="/">
+              <img src="/lib/EventEcos-Logo.jpg" alt="EventEcos" style={{ height: '70px', width: 'auto' }} />
+            </Link>
+            <div className="flex items-center gap-2">
+              <Link href="/venues" className="text-gray-700 hover:text-primary-600 font-medium text-sm border border-gray-300 hover:border-primary-400 px-3 py-1.5 rounded-lg transition-colors hidden md:inline-flex">
+                Find Venues
+              </Link>
+              <Link href="/vendors" className="text-gray-700 hover:text-primary-600 font-medium text-sm border border-gray-300 hover:border-primary-400 px-3 py-1.5 rounded-lg transition-colors hidden md:inline-flex">
+                Find Vendors
+              </Link>
+              <Link href="/login" className="text-gray-700 hover:text-primary-600 font-medium text-sm border border-gray-300 hover:border-primary-400 px-3 py-1.5 rounded-lg transition-colors">
+                Login
+              </Link>
+              <Link href="/signup" className="bg-accent-500 hover:bg-accent-600 text-white font-semibold px-5 py-1.5 rounded-lg transition-colors text-sm whitespace-nowrap">
+                Get Started
+              </Link>
+              <DashboardReturnButton />
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {/* Banner */}
+      <div className="relative w-full h-56 md:h-72 overflow-hidden">
+        <img src="/lib/Events-Banner.jpg" alt="Explore Events" className="w-full h-full object-cover" />
+      </div>
+
+      {/* Search Header */}
       <div className="bg-blue-700 text-white">
-        <div className="max-w-6xl mx-auto px-4 py-12 text-center">
-          <h1 className="text-3xl md:text-4xl font-bold mb-2">Upcoming Events</h1>
-          <p className="text-purple-200 text-lg">Find and buy tickets to events near you</p>
+        <div className="max-w-6xl mx-auto px-4 py-8 text-center">
+          <p className="text-blue-200 text-lg">Find and buy tickets to events near you</p>
 
           {/* Search / Filter */}
           <form onSubmit={handleSearch} className="mt-8 bg-white rounded-2xl p-2 flex flex-col md:flex-row gap-2 max-w-2xl mx-auto">
@@ -219,6 +250,40 @@ export default function PublicEventsPage() {
           </div>
         )}
       </div>
+
+      {/* Footer */}
+      <footer className="bg-gray-900 border-t border-gray-800 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+            <div>
+              <Link href="/">
+                <div className="inline-block bg-white rounded-xl p-2">
+                  <img src="/lib/EventEcos-Logo.jpg" alt="EventEcos" style={{ height: '90px', width: 'auto' }} />
+                </div>
+              </Link>
+              <p className="text-gray-400 text-sm mt-2">The complete event management platform.</p>
+            </div>
+            <div>
+              <h4 className="text-white font-bold mb-4">Browse</h4>
+              <ul className="space-y-2 text-gray-400 text-sm">
+                <li><Link href="/venues" className="hover:text-white">Venues</Link></li>
+                <li><Link href="/vendors" className="hover:text-white">Vendors</Link></li>
+                <li><Link href="/events" className="hover:text-white">Events</Link></li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="text-white font-bold mb-4">Legal</h4>
+              <ul className="space-y-2 text-gray-400 text-sm">
+                <li><Link href="/privacy-policy" className="hover:text-white">Privacy</Link></li>
+                <li><Link href="/terms-of-service" className="hover:text-white">Terms</Link></li>
+              </ul>
+            </div>
+          </div>
+          <div className="border-t border-gray-800 pt-8">
+            <p className="text-center text-gray-400 text-sm">&copy; 2026 EventEcos. All rights reserved. Powering the Event Ecosystem.</p>
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }

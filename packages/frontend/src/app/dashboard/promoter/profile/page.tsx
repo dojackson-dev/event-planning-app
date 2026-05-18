@@ -119,20 +119,22 @@ export default function PromoterProfilePage() {
   }
 
   return (
-    <div className="p-6 max-w-2xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link
-          href="/dashboard/promoter"
-          className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Link>
-        <div>
+    <div className="min-h-screen bg-gray-50">
+      {/* Title row */}
+      <div className="bg-white border-b">
+        <div className="max-w-2xl mx-auto px-4 py-5 text-center">
           <h1 className="text-2xl font-bold text-gray-900">Promoter Profile</h1>
-          <p className="text-sm text-gray-500">Update your public promoter information</p>
+          <p className="text-sm text-gray-500 mt-1">Update your public promoter information</p>
         </div>
       </div>
+
+      <nav className="bg-white border-b sticky top-0 z-10">
+        <div className="max-w-2xl mx-auto px-4 h-14 flex items-center">
+          <Link href="/dashboard/promoter" className="text-sm text-gray-500 hover:text-gray-700">← Dashboard</Link>
+        </div>
+      </nav>
+
+      <div className="p-6 max-w-2xl mx-auto space-y-6">
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm">
@@ -321,6 +323,7 @@ export default function PromoterProfilePage() {
           {saving ? 'Saving...' : 'Save Profile'}
         </button>
       </div>
+    </div>
     </div>
   )
 }

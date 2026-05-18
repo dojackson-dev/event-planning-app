@@ -5,6 +5,7 @@ import {
   Put,
   Body,
   Headers,
+  Param,
   UnauthorizedException,
   Logger,
 } from '@nestjs/common';
@@ -66,6 +67,15 @@ export class PromoterController {
   ) {
     const userId = await this.getUserId(authorization);
     return this.promoterService.enablePromoterMode(userId);
+  }
+
+  /**
+   * GET /promoter/public/:id
+   * Public promoter profile + upcoming events (no auth)
+   */
+  @Get('public/:id')
+  getPublicProfile(@Param('id') id: string) {
+    return this.promoterService.getPublicProfile(id);
   }
 
   /**

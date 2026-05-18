@@ -249,12 +249,16 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Title row */}
+      <div className="bg-white border-b">
+        <div className="max-w-4xl mx-auto px-4 py-5 text-center">
+          <h1 className="text-2xl font-bold text-gray-900 truncate">{event.title}</h1>
+        </div>
+      </div>
+
       <nav className="bg-white border-b sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link href="/dashboard/promoter/events" className="text-sm text-gray-500 hover:text-gray-700">← Events</Link>
-            <span className="text-sm font-semibold text-gray-800 truncate max-w-[200px]">{event.title}</span>
-          </div>
+          <Link href="/dashboard/promoter/events" className="text-sm text-gray-500 hover:text-gray-700">← Events</Link>
           <div className="flex items-center gap-2">
             <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${STATUS_COLORS[event.status]}`}>{event.status}</span>
             {event.status === 'published' && (
@@ -291,7 +295,7 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
         )}
 
         {/* Stats row */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
           <div className="bg-white border border-gray-200 rounded-xl p-4">
             <p className="text-xs text-gray-500 uppercase font-medium mb-1">Tickets Sold</p>
             <p className="text-2xl font-bold text-purple-600">{totalSold}<span className="text-sm text-gray-400 font-normal">/{totalCap}</span></p>
@@ -300,9 +304,9 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
             <p className="text-xs text-gray-500 uppercase font-medium mb-1">Attendees</p>
             <p className="text-2xl font-bold text-gray-900">{attendees.length}</p>
           </div>
-          <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <div className="col-span-2 sm:col-span-1 bg-white border border-gray-200 rounded-xl p-4">
             <p className="text-xs text-gray-500 uppercase font-medium mb-1">Revenue</p>
-            <p className="text-2xl font-bold text-green-600">${revenue.toFixed(2)}</p>
+            <p className="text-2xl font-bold text-green-600 truncate">${revenue.toFixed(2)}</p>
           </div>
         </div>
 

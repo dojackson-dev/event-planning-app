@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { UserRole } from '@/types'
-import { Building2, Store, ArrowRight, Megaphone } from 'lucide-react'
+import { Building2, Store, ArrowRight, Megaphone, Mic2, Users } from 'lucide-react'
 
 const ROLE_CONFIG: Record<string, {
   label: string
@@ -38,6 +38,22 @@ const ROLE_CONFIG: Record<string, {
     border: 'border-purple-200',
     hover: 'hover:border-purple-500 hover:bg-purple-50',
   },
+  [UserRole.ARTIST]: {
+    label: 'Artist',
+    description: 'Manage your bookings, profile, and connect with promoters and venues.',
+    icon: <Mic2 className="w-10 h-10" />,
+    color: 'text-pink-600',
+    border: 'border-pink-200',
+    hover: 'hover:border-pink-500 hover:bg-pink-50',
+  },
+  [UserRole.ASSOCIATE]: {
+    label: 'Team Member',
+    description: 'Access your venue\'s dashboard and manage assigned tasks.',
+    icon: <Users className="w-10 h-10" />,
+    color: 'text-green-600',
+    border: 'border-green-200',
+    hover: 'hover:border-green-500 hover:bg-green-50',
+  },
 }
 
 export default function ChooseRolePage() {
@@ -63,7 +79,7 @@ export default function ChooseRolePage() {
     )
   }
 
-  const displayRoles = roles.filter(r => r !== UserRole.ADMIN)
+  const displayRoles = roles.filter(r => r !== UserRole.ADMIN && ROLE_CONFIG[r])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50 flex flex-col items-center justify-center p-6">

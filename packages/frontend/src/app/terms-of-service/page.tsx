@@ -9,10 +9,10 @@ export default function TermsOfService() {
       {/* Navigation Header */}
       <nav className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+          <div className="flex justify-between items-center h-28">
             <div className="flex items-center">
               <Link href="/">
-                <img src="/lib/TransparentLogo.jpg" alt="EventEcos Logo" style={{ height: '64px', width: 'auto' }} />
+                <img src="/lib/EventEcos-Logo.jpg" alt="EventEcos Logo" style={{ height: '110px', width: 'auto' }} />
               </Link>
             </div>
             <div className="flex items-center gap-4">
@@ -90,12 +90,13 @@ export default function TermsOfService() {
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">Contact Us</h2>
             <p className="text-gray-600 leading-relaxed">
-              If you have any questions about these Terms of Service, please contact us at support@eventecos.com.
+              If you have any questions about these Terms of Service, please contact us at{' '}
+              <a href="mailto:support@eventecos.com" className="text-primary-600 hover:underline">support@eventecos.com</a>.
             </p>
           </section>
 
           <p className="text-gray-500 text-sm mt-12">
-            Last updated: February 2026
+            Last updated: May 2026
           </p>
         </div>
       </div>
@@ -103,6 +104,13 @@ export default function TermsOfService() {
       {/* Footer */}
       <footer className="bg-gray-800">
         <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-center mb-6">
+            <Link href="/">
+              <div className="inline-block bg-white rounded-xl p-2">
+                <img src="/lib/EventEcos-Logo.jpg" alt="EventEcos" style={{ height: '90px', width: 'auto' }} />
+              </div>
+            </Link>
+          </div>
           <div className="flex justify-center space-x-6 mb-4">
             <Link href="/privacy-policy" className="text-gray-400 hover:text-gray-300 text-sm">
               Privacy Policy

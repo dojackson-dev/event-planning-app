@@ -221,9 +221,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await new Promise(r => setTimeout(r, 100))
 
       // ── Navigate ───────────────────────────────────────────────────────────
-      // Always go straight to the active role's dashboard — the role switcher
-      // in the nav handles switching between roles once logged in.
-      const dest = getRoleDashboard(activeR)
+      // Multi-role users go to the role picker; single-role users go straight to their dashboard.
+      let dest: string
+      const nonAdminRoles = resolvedRoles.filter(r => r !== UserRole.ADMIN)
+      if (nonAdminRoles.length > 1) {
+        dest = '/choose-role'
+      } else {
+        dest = getRoleDashboard(activeR)
+      }
       console.log('🚀 [LOGIN] Navigating to', dest, '(roles:', resolvedRoles, ')')
       router.push(dest)
 

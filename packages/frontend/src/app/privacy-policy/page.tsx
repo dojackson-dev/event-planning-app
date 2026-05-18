@@ -9,10 +9,10 @@ export default function PrivacyPolicy() {
       {/* Navigation Header */}
       <nav className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+          <div className="flex justify-between items-center h-28">
             <div className="flex items-center">
               <Link href="/">
-                <img src="/lib/TransparentLogo.jpg" alt="EventEcos Logo" style={{ height: '64px', width: 'auto' }} />
+                <img src="/lib/EventEcos-Logo.jpg" alt="EventEcos Logo" style={{ height: '110px', width: 'auto' }} />
               </Link>
             </div>
             <div className="flex items-center gap-4">
@@ -38,20 +38,33 @@ export default function PrivacyPolicy() {
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Privacy Policy</h1>
         
         <div className="prose prose-lg max-w-none">
+          <p className="text-gray-600 leading-relaxed mb-8">
+            <strong>EventEcos</strong> respects your privacy and is committed to protecting the personal information you provide to us. This Privacy Policy explains what information we collect, how we use it, and how we protect it.
+          </p>
+
           <section className="mb-8">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-4">Privacy Policy SMS Section</h2>
+            <h2 className="text-2xl font-semibold text-gray-900 mb-4">SMS Privacy Policy</h2>
+            <p className="text-gray-600 leading-relaxed mb-4">
+              EventEcos may collect phone numbers from users who provide consent to receive SMS messages related to events, bookings, account updates, or service notifications.
+            </p>
+            <p className="text-gray-600 leading-relaxed mb-4">
+              <strong>Phone numbers collected for SMS consent will not be shared, sold, rented, or disclosed to third parties or affiliates for marketing purposes.</strong>
+            </p>
+            <p className="text-gray-600 leading-relaxed mb-4">
+              SMS consent is not shared with third parties.
+            </p>
             <p className="text-gray-600 leading-relaxed">
-              EventEcos respects your privacy. Phone numbers collected for SMS consent will not be shared, sold, or rented to third parties or affiliates for marketing purposes. SMS consent is not shared with third parties. Users may opt out at any time by replying STOP.
+              Users may opt out of SMS communications at any time by replying <strong>STOP</strong> to any SMS message received from EventEcos.
             </p>
           </section>
 
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">Information We Collect</h2>
             <p className="text-gray-600 leading-relaxed mb-4">
-              We collect information you provide directly to us, including:
+              We may collect information you provide directly to us, including:
             </p>
             <ul className="list-disc pl-6 text-gray-600 space-y-2">
-              <li>Name and contact information (email address, phone number)</li>
+              <li>Name and contact information, such as email address and phone number</li>
               <li>Account credentials</li>
               <li>Event and booking information</li>
               <li>Payment information</li>
@@ -67,9 +80,9 @@ export default function PrivacyPolicy() {
             <ul className="list-disc pl-6 text-gray-600 space-y-2">
               <li>Provide, maintain, and improve our services</li>
               <li>Process transactions and send related information</li>
-              <li>Send you technical notices, updates, and support messages</li>
-              <li>Respond to your comments, questions, and requests</li>
-              <li>Send SMS notifications about your events and bookings (with your consent)</li>
+              <li>Send technical notices, updates, and support messages</li>
+              <li>Respond to comments, questions, and requests</li>
+              <li>Send SMS notifications about your events and bookings, with your consent</li>
             </ul>
           </section>
 
@@ -83,12 +96,13 @@ export default function PrivacyPolicy() {
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">Contact Us</h2>
             <p className="text-gray-600 leading-relaxed">
-              If you have any questions about this Privacy Policy, please contact us at support@eventecos.com.
+              If you have any questions about this Privacy Policy, please contact us at{' '}
+              <a href="mailto:support@eventecos.com" className="text-primary-600 hover:underline">support@eventecos.com</a>.
             </p>
           </section>
 
           <p className="text-gray-500 text-sm mt-12">
-            Last updated: February 2026
+            Last updated: May 2026
           </p>
         </div>
       </div>
@@ -96,6 +110,13 @@ export default function PrivacyPolicy() {
       {/* Footer */}
       <footer className="bg-gray-800">
         <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-center mb-6">
+            <Link href="/">
+              <div className="inline-block bg-white rounded-xl p-2">
+                <img src="/lib/EventEcos-Logo.jpg" alt="EventEcos" style={{ height: '90px', width: 'auto' }} />
+              </div>
+            </Link>
+          </div>
           <div className="flex justify-center space-x-6 mb-4">
             <Link href="/privacy-policy" className="text-gray-400 hover:text-gray-300 text-sm">
               Privacy Policy

@@ -96,29 +96,40 @@ export default function VenuesPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Nav */}
-      <nav className="bg-white shadow-sm sticky top-0 z-10">
+      <nav className="sticky top-0 z-50 bg-white border-b-4 border-primary-600 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <Link href="/" className="flex items-center gap-2">
-              <img src="/lib/LogoEventEcos.png" alt="EventEcos" style={{ height: '40px', width: 'auto' }} />
+          <div className="flex items-center justify-between h-20">
+            <Link href="/">
+              <img src="/lib/EventEcos-Logo.jpg" alt="EventEcos" style={{ height: '70px', width: 'auto' }} />
             </Link>
-            <div className="flex items-center gap-4">
-              <Link href="/vendors" className="text-sm text-gray-600 hover:text-gray-900 font-medium">Find Vendors</Link>
-              <Link href="/signup" className="bg-primary-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-primary-700">
-                List Your Venue
+            <div className="flex items-center gap-2">
+              <Link href="/vendors" className="text-gray-700 hover:text-primary-600 font-medium text-sm border border-gray-300 hover:border-primary-400 px-3 py-1.5 rounded-lg transition-colors hidden md:inline-flex">
+                Find Vendors
               </Link>
-              <Link href="/login" className="text-gray-600 hover:text-gray-900 text-sm font-medium">Log In</Link>
+              <Link href="/events" className="text-gray-700 hover:text-primary-600 font-medium text-sm border border-gray-300 hover:border-primary-400 px-3 py-1.5 rounded-lg transition-colors hidden md:inline-flex">
+                Discover Events
+              </Link>
+              <Link href="/login" className="text-gray-700 hover:text-primary-600 font-medium text-sm border border-gray-300 hover:border-primary-400 px-3 py-1.5 rounded-lg transition-colors">
+                Login
+              </Link>
+              <Link href="/signup" className="bg-accent-500 hover:bg-accent-600 text-white font-semibold px-5 py-1.5 rounded-lg transition-colors text-sm whitespace-nowrap">
+                Get Started
+              </Link>
               <DashboardReturnButton />
             </div>
           </div>
         </div>
       </nav>
 
-      {/* Hero */}
-      <div className="bg-gradient-to-br from-blue-700 to-blue-900 text-white py-16">
+      {/* Banner */}
+      <div className="relative w-full h-56 md:h-72 overflow-hidden">
+        <img src="/lib/Venues-Banner.jpg" alt="Browse Venues" className="w-full h-full object-cover" />
+      </div>
+
+      {/* Search */}
+      <div className="bg-blue-700 text-white py-8">
         <div className="max-w-4xl mx-auto px-4 text-center">
-          <h1 className="text-4xl font-extrabold mb-4">🏛️ Find Venues</h1>
-          <p className="text-blue-200 text-lg mb-8">
+          <p className="text-blue-200 text-lg mb-6">
             Discover ballrooms, event spaces, and unique venues near you.
           </p>
           <form onSubmit={searchVenues} className="bg-white rounded-xl p-4 shadow-xl">
@@ -209,9 +220,36 @@ export default function VenuesPage() {
         </div>
       </div>
 
-      <footer className="bg-gray-800 text-gray-400 text-sm py-8">
-        <div className="max-w-7xl mx-auto px-4 text-center">
-          <p>&copy; 2026 EventEcos. All rights reserved.</p>
+      <footer className="bg-gray-900 border-t border-gray-800 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+            <div>
+              <Link href="/">
+                <div className="inline-block bg-white rounded-xl p-2">
+                  <img src="/lib/EventEcos-Logo.jpg" alt="EventEcos" style={{ height: '90px', width: 'auto' }} />
+                </div>
+              </Link>
+              <p className="text-gray-400 text-sm mt-2">The complete event management platform.</p>
+            </div>
+            <div>
+              <h4 className="text-white font-bold mb-4">Browse</h4>
+              <ul className="space-y-2 text-gray-400 text-sm">
+                <li><Link href="/venues" className="hover:text-white">Venues</Link></li>
+                <li><Link href="/vendors" className="hover:text-white">Vendors</Link></li>
+                <li><Link href="/events" className="hover:text-white">Events</Link></li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="text-white font-bold mb-4">Legal</h4>
+              <ul className="space-y-2 text-gray-400 text-sm">
+                <li><Link href="/privacy-policy" className="hover:text-white">Privacy</Link></li>
+                <li><Link href="/terms-of-service" className="hover:text-white">Terms</Link></li>
+              </ul>
+            </div>
+          </div>
+          <div className="border-t border-gray-800 pt-8">
+            <p className="text-center text-gray-400 text-sm">&copy; 2026 EventEcos. All rights reserved. Powering the Event Ecosystem.</p>
+          </div>
         </div>
       </footer>
     </div>

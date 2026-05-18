@@ -8,14 +8,13 @@ export default function SignupPage() {
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-white flex flex-col">
       {/* Nav */}
       <nav className="bg-white border-b">
-        <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
+        <div className="max-w-5xl mx-auto px-4 h-24 flex items-center justify-between">
           <Link href="/">
-            <img src="/lib/TransparentLogo.jpg" alt="EventEcos" style={{ height: '36px', width: 'auto' }} />
+            <img src="/lib/EventEcos-Logo.jpg" alt="EventEcos" style={{ height: '90px', width: 'auto' }} />
           </Link>
-          <div className="flex items-center gap-4 text-sm">
-            <Link href="/login" className="text-gray-500 hover:text-gray-800">Venue owner login</Link>
-            <Link href="/vendors/login" className="text-gray-500 hover:text-gray-800">Vendor login</Link>
-          </div>
+          <Link href="/login" className="px-4 py-2 bg-primary-600 text-white text-sm font-semibold rounded-lg hover:bg-primary-700">
+            Login
+          </Link>
         </div>
       </nav>
 

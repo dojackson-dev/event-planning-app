@@ -65,8 +65,6 @@ export default function VendorEditProfileTab({ profile, onUpdate }: Props) {
   return (
     <div className="bg-white rounded-xl shadow-sm p-6">
       <h2 className="text-lg font-bold text-gray-900 mb-4">Edit Profile</h2>
-      {error && <div className="bg-red-50 text-red-700 rounded p-3 text-sm mb-4">{error}</div>}
-      {saved && <div className="bg-green-50 text-green-700 rounded p-3 text-sm mb-4">✓ Profile saved!</div>}
       <form onSubmit={handleSave} className="space-y-5">
 
         {/* Images */}
@@ -228,6 +226,7 @@ export default function VendorEditProfileTab({ profile, onUpdate }: Props) {
         </div>
 
         <div className="flex items-center gap-3">
+          {error && <span className="text-sm text-red-600 font-medium">{error}</span>}
           {saved && (
             <span className="flex items-center gap-1.5 text-sm text-green-700 font-medium">
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round"/></svg>

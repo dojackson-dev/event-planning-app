@@ -10,6 +10,13 @@ import {
   Calendar,
   FileText,
   Link2,
+  LogOut,
+  ChevronRight,
+  Clock,
+  DollarSign,
+  CheckCircle,
+  AlertCircle,
+  ArrowRight,
 } from 'lucide-react'
 
 interface VendorProfile {
@@ -121,7 +128,8 @@ export default function VendorDashboard() {
     <div className="min-h-screen bg-gray-50">
       {/* Top Nav */}
       <nav className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+        {/* Row 1: brand */}
+        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center">
           <div className="flex items-center gap-3">
             <Store className="w-5 h-5 text-primary-600" />
             <div>
@@ -131,14 +139,24 @@ export default function VendorDashboard() {
               <p className="text-xs text-gray-400">{profile?.email}</p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+        </div>
+        {/* Row 2: actions */}
+        <div className="border-t border-gray-100 bg-gray-50">
+          <div className="max-w-6xl mx-auto px-4 h-11 flex items-center gap-2">
             <RoleSwitcher variant="banner" />
-            <Link href="/vendors/settings" className="text-sm text-gray-500 hover:text-gray-700">⚙️ Settings</Link>
+            <div className="flex-1" />
+            <Link
+              href="/vendors/settings"
+              className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-gray-800 bg-white hover:bg-gray-100 border border-gray-200 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              Settings
+            </Link>
             <button
               onClick={handleLogout}
-              className="text-sm text-gray-400 hover:text-red-500 transition-colors"
+              className="flex items-center gap-1.5 text-sm font-medium text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 px-3 py-1.5 rounded-lg transition-colors"
             >
-              Log out
+              <LogOut className="h-4 w-4" /> Sign Out
             </button>
           </div>
         </div>
@@ -146,10 +164,17 @@ export default function VendorDashboard() {
 
       <div className="max-w-6xl mx-auto px-4 py-8">
 
-        {/* Suite title */}
-        <div className="mb-6 bg-blue-600 rounded-xl px-6 py-4 text-center">
-          <h1 className="text-2xl font-bold text-white">VendorSuite</h1>
-          <p className="text-sm text-blue-100 mt-0.5">Welcome back, {profile?.business_name || 'Vendor'}</p>
+        {/* Welcome heading */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+              Welcome back, {profile?.business_name || 'Vendor'}!
+            </h1>
+            <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1.5">
+              <Store className="h-3.5 w-3.5" />
+              {profile?.category || 'Vendor'} · {profile?.email}
+            </p>
+          </div>
         </div>
 
         {/* Quick Overview - only shown when there are pending bookings */}
@@ -168,79 +193,115 @@ export default function VendorDashboard() {
         )}
 
         {/* Quick action cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-          <Link
-            href="/vendors/dashboard/invoices"
-            className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:border-primary-300 hover:shadow-md transition-all flex items-center gap-3"
-          >
-            <div className="w-10 h-10 rounded-lg bg-primary-50 flex items-center justify-center flex-shrink-0">
-              <FileText className="w-5 h-5 text-primary-600" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          <Link href="/vendors/dashboard/invoices"
+            className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md hover:border-primary-200 transition-all flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary-50 rounded-lg"><FileText className="h-5 w-5 text-primary-600" /></div>
+              <div>
+                <p className="font-semibold text-gray-900">Invoices</p>
+                <p className="text-xs text-gray-500">Create &amp; send invoices</p>
+              </div>
             </div>
-            <div>
-              <p className="font-semibold text-gray-900 text-sm">Invoices</p>
-              <p className="text-xs text-gray-400">Create &amp; send invoices</p>
-            </div>
+            <ChevronRight className="h-5 w-5 text-gray-400" />
           </Link>
 
-          <Link
-            href="/vendor-portal/booking-requests"
-            className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:border-primary-300 hover:shadow-md transition-all flex items-center gap-3"
-          >
-            <div className="w-10 h-10 rounded-lg bg-yellow-50 flex items-center justify-center flex-shrink-0">
-              <Calendar className="w-5 h-5 text-yellow-600" />
+          <Link href="/vendor-portal/booking-requests"
+            className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md hover:border-yellow-200 transition-all flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-yellow-50 rounded-lg"><Calendar className="h-5 w-5 text-yellow-600" /></div>
+              <div>
+                <p className="font-semibold text-gray-900">Booking Requests</p>
+                <p className="text-xs text-gray-500">
+                  {pendingRequests > 0 ? `${pendingRequests} new request${pendingRequests > 1 ? 's' : ''}` : 'Manage requests'}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="font-semibold text-gray-900 text-sm">Booking Requests</p>
-              <p className="text-xs text-gray-400">
-                {pendingRequests > 0 ? `${pendingRequests} new request${pendingRequests > 1 ? 's' : ''}` : 'Manage requests'}
-              </p>
-            </div>
+            <ChevronRight className="h-5 w-5 text-gray-400" />
           </Link>
 
-          <Link
-            href="/vendor-portal/booking-link"
-            className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:border-primary-300 hover:shadow-md transition-all flex items-center gap-3"
-          >
-            <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center flex-shrink-0">
-              <Link2 className="w-5 h-5 text-green-600" />
+          <Link href="/vendor-portal/booking-link"
+            className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md hover:border-green-200 transition-all flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-green-50 rounded-lg"><Link2 className="h-5 w-5 text-green-600" /></div>
+              <div>
+                <p className="font-semibold text-gray-900">Booking Link</p>
+                <p className="text-xs text-gray-500">Share your booking page</p>
+              </div>
             </div>
-            <div>
-              <p className="font-semibold text-gray-900 text-sm">Booking Link</p>
-              <p className="text-xs text-gray-400">Share your booking page</p>
-            </div>
+            <ChevronRight className="h-5 w-5 text-gray-400" />
           </Link>
 
-          <Link
-            href="/vendors/dashboard/contracts"
-            className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:border-primary-300 hover:shadow-md transition-all flex items-center gap-3"
-          >
-            <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
-              <FileText className="w-5 h-5 text-purple-600" />
+          <Link href="/vendors/dashboard/contracts"
+            className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md hover:border-purple-200 transition-all flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-purple-50 rounded-lg"><FileText className="h-5 w-5 text-purple-600" /></div>
+              <div>
+                <p className="font-semibold text-gray-900">Contracts</p>
+                <p className="text-xs text-gray-500">View &amp; sign contracts</p>
+              </div>
             </div>
-            <div>
-              <p className="font-semibold text-gray-900 text-sm">Contracts</p>
-              <p className="text-xs text-gray-400">View &amp; sign contracts</p>
-            </div>
+            <ChevronRight className="h-5 w-5 text-gray-400" />
           </Link>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
-          {[
-            { label: 'Pending',   value: String(stats.pending),               color: 'text-yellow-600',  bg: 'bg-yellow-50',  border: 'border-yellow-200',  href: '/vendors/dashboard/bookings' },
-            { label: 'Confirmed', value: String(stats.confirmed),              color: 'text-green-600',   bg: 'bg-green-50',   border: 'border-green-200',   href: '/vendors/dashboard/bookings' },
-            { label: 'Completed', value: String(stats.completed),              color: 'text-blue-600',    bg: 'bg-blue-50',    border: 'border-blue-200',    href: '/vendors/dashboard/bookings' },
-            { label: 'Revenue',   value: `$${stats.revenue.toLocaleString()}`, color: 'text-primary-600', bg: 'bg-primary-50', border: 'border-primary-200', href: '/vendors/dashboard/earnings' },
-          ].map(s => (
-            <Link
-              key={s.label}
-              href={s.href}
-              className={`${s.bg} border ${s.border} rounded-xl p-4 text-left hover:opacity-80 transition-opacity`}
-            >
-              <p className="text-xs text-gray-500 font-medium">{s.label}</p>
-              <p className={`text-2xl font-bold mt-1 ${s.color}`}>{s.value}</p>
-            </Link>
-          ))}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
+          <Link href="/vendors/dashboard/bookings"
+            className="bg-white rounded-xl shadow-sm p-5 sm:p-6 border border-gray-100 hover:shadow-md hover:border-yellow-200 transition-all">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">Pending</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.pending}</p>
+                <p className="text-xs text-gray-500 mt-1">Awaiting response</p>
+              </div>
+              <div className="bg-yellow-50 p-3 rounded-lg">
+                <AlertCircle className="h-8 w-8 sm:h-10 sm:w-10 text-yellow-500" />
+              </div>
+            </div>
+          </Link>
+
+          <Link href="/vendors/dashboard/bookings"
+            className="bg-white rounded-xl shadow-sm p-5 sm:p-6 border border-gray-100 hover:shadow-md hover:border-green-200 transition-all">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">Confirmed</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.confirmed}</p>
+                <p className="text-xs text-gray-500 mt-1">Active bookings</p>
+              </div>
+              <div className="bg-green-50 p-3 rounded-lg">
+                <CheckCircle className="h-8 w-8 sm:h-10 sm:w-10 text-green-600" />
+              </div>
+            </div>
+          </Link>
+
+          <Link href="/vendors/dashboard/bookings"
+            className="bg-white rounded-xl shadow-sm p-5 sm:p-6 border border-gray-100 hover:shadow-md hover:border-blue-200 transition-all">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">Completed</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.completed}</p>
+                <p className="text-xs text-gray-500 mt-1">All time</p>
+              </div>
+              <div className="bg-blue-50 p-3 rounded-lg">
+                <Calendar className="h-8 w-8 sm:h-10 sm:w-10 text-blue-600" />
+              </div>
+            </div>
+          </Link>
+
+          <Link href="/vendors/dashboard/earnings"
+            className="bg-white rounded-xl shadow-sm p-5 sm:p-6 border border-gray-100 hover:shadow-md hover:border-primary-200 transition-all">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">Revenue</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900">${stats.revenue.toLocaleString()}</p>
+                <p className="text-xs text-gray-500 mt-1">Collected</p>
+              </div>
+              <div className="bg-primary-50 p-3 rounded-lg">
+                <DollarSign className="h-8 w-8 sm:h-10 sm:w-10 text-primary-600" />
+              </div>
+            </div>
+          </Link>
         </div>
 
         {/* Navigation links grid */}
@@ -257,9 +318,16 @@ export default function VendorDashboard() {
         </div>
 
         {/* Upcoming Confirmed Events */}
-        <div className="bg-white rounded-xl overflow-hidden shadow-sm">
-          <div className="bg-blue-600 px-5 py-3">
-            <h3 className="text-sm font-semibold text-white">Upcoming Confirmed Events</h3>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 mb-6">
+          <div className="p-4 sm:p-6 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center">
+              <Clock className="h-5 w-5 text-primary-600 mr-2" />
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900">Upcoming Confirmed Events</h2>
+            </div>
+            <Link href="/vendors/dashboard/bookings"
+              className="text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center">
+              View All <ArrowRight className="h-4 w-4 ml-1" />
+            </Link>
           </div>
           {upcomingConfirmed.length === 0 ? (
             <p className="text-sm text-gray-500 px-5 py-4">No upcoming confirmed events.</p>

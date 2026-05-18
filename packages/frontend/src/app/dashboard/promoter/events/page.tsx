@@ -62,7 +62,7 @@ export default function PromoterEventsPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  const totalTickets = events.reduce((s, e) => s + e.ticket_tiers.reduce((ts, t) => ts + t.quantity_sold, 0), 0)
+  const totalTickets = events.reduce((s, e) => s + (e.ticket_tiers || []).reduce((ts, t) => ts + t.quantity_sold, 0), 0)
   const published = events.filter(e => e.status === 'published').length
 
   // Calendar helpers
@@ -157,8 +157,9 @@ export default function PromoterEventsPage() {
                 </Link>
               </div>
             ) : events.map(ev => {
-              const tiersSold = ev.ticket_tiers.reduce((s, t) => s + t.quantity_sold, 0)
-              const tiersTotal = ev.ticket_tiers.reduce((s, t) => s + t.quantity, 0)
+              const tiers = ev.ticket_tiers || []
+              const tiersSold = tiers.reduce((s, t) => s + t.quantity_sold, 0)
+              const tiersTotal = tiers.reduce((s, t) => s + t.quantity, 0)
               const dateObj = new Date(ev.event_date + 'T00:00:00')
               return (
                 <Link key={ev.id} href={`/dashboard/promoter/events/${ev.id}`}
@@ -192,7 +193,7 @@ export default function PromoterEventsPage() {
                             </span>
                           )}
                         </div>
-                        {ev.ticket_tiers.length > 0 && (
+                        {tiers.length > 0 && (
                           <div className="flex items-center gap-3 mt-2">
                             <span className="flex items-center gap-1 text-xs text-gray-600">
                               <Ticket className="w-3 h-3 text-purple-400" />
@@ -200,7 +201,7 @@ export default function PromoterEventsPage() {
                             </span>
                             <span className="flex items-center gap-1 text-xs text-gray-600">
                               <Users className="w-3 h-3 text-blue-400" />
-                              {ev.ticket_tiers.length} tier{ev.ticket_tiers.length !== 1 ? 's' : ''}
+                              {tiers.length} tier{tiers.length !== 1 ? 's' : ''}
                             </span>
                           </div>
                         )}

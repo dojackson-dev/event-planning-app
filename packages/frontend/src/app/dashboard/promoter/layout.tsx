@@ -37,7 +37,7 @@ export default function PromoterLayout({ children }: { children: React.ReactNode
   ]
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-gray-50" suppressHydrationWarning>
       {/* Sidebar */}
       <div className={`fixed inset-y-0 left-0 w-64 bg-white border-r border-gray-200 transform transition-transform duration-200 ease-in-out z-50 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 md:static`}>
         {/* Header */}

@@ -619,4 +619,63 @@ export class MailService {
       // Non-fatal — webhook must not throw
     }
   }
+
+  /** Sends a ticket forward email with the claim code to the recipient */
+  async sendTicketForwardEmail(params: {
+    toEmail: string;
+    eventTitle: string;
+    code: string;
+    claimUrl: string;
+  }): Promise<void> {
+    try {
+      const mailOptions = {
+        from: `"Eventecos Tickets" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
+        to: params.toEmail,
+        subject: `You've received a ticket to ${params.eventTitle}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb; padding: 32px 16px;">
+            <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08);">
+              ${this.getEmailHeader("You've got a ticket!", `To: ${params.eventTitle}`)}
+              <div style="padding: 32px;">
+                <p style="color: #374151; font-size: 15px; margin: 0 0 24px;">
+                  Someone has forwarded you a ticket to <strong>${params.eventTitle}</strong>.
+                  Use the code below to access your ticket.
+                </p>
+
+                <div style="background: #f5f3ff; border: 2px dashed #7c3aed; border-radius: 12px; padding: 24px; text-align: center; margin: 0 0 24px;">
+                  <p style="color: #6b7280; font-size: 13px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: 1px;">Your Access Code</p>
+                  <p style="color: #1f2937; font-size: 40px; font-weight: 900; letter-spacing: 6px; margin: 0; font-family: monospace;">${params.code}</p>
+                </div>
+
+                <div style="text-align: center; margin: 28px 0;">
+                  <a href="${params.claimUrl}"
+                     style="display: inline-block; background: #7c3aed; color: white; padding: 14px 36px; text-decoration: none; border-radius: 8px; font-size: 15px; font-weight: 600;">
+                    View My Ticket
+                  </a>
+                </div>
+
+                <p style="color: #6b7280; font-size: 12px; text-align: center; margin: 16px 0 0;">
+                  Or visit <a href="${params.claimUrl}" style="color: #7c3aed;">${params.claimUrl}</a>
+                  and enter the code above. This code expires in 7 days.
+                </p>
+
+                <div style="background: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 8px; padding: 16px; margin: 24px 0 0;">
+                  <p style="color: #92400e; font-size: 13px; margin: 0;">
+                    <strong>Important:</strong> Eventecos is not responsible for event cancellations or refunds.
+                    Please contact the event organizer for those matters.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        `,
+        text: `You've received a ticket to ${params.eventTitle}!\n\nYour access code: ${params.code}\n\nClaim your ticket at: ${params.claimUrl}\n\nThis code expires in 7 days.`,
+      };
+
+      const info = await this.transporter.sendMail(mailOptions);
+      console.log('[MailService] Ticket forward email sent to', params.toEmail, '—', info.messageId);
+    } catch (error) {
+      console.error('[MailService] Ticket forward email failed:', error);
+    }
+  }
 }

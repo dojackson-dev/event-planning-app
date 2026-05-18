@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import Link from 'next/link'
-import { CheckCircle, Calendar, MapPin, Ticket, Loader2, Share2, Copy, Check } from 'lucide-react'
+import { CheckCircle, Calendar, MapPin, Ticket, Loader2, Send, X, Check, Phone, Mail } from 'lucide-react'
 import api from '@/lib/api'
 
 interface TicketData {
@@ -33,8 +33,15 @@ export default function TicketConfirmationPage({ params }: { params: { sessionId
   const [tickets, setTickets] = useState<TicketData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [copiedId, setCopiedId] = useState<string | null>(null)
   const [retryCount, setRetryCount] = useState(0)
+
+  // Forward modal state
+  const [forwardTicketId, setForwardTicketId] = useState<string | null>(null)
+  const [recipientPhone, setRecipientPhone] = useState('')
+  const [recipientEmail, setRecipientEmail] = useState('')
+  const [forwarding, setForwarding] = useState(false)
+  const [forwardError, setForwardError] = useState('')
+  const [forwardedCode, setForwardedCode] = useState<string | null>(null)
 
   useEffect(() => {
     if (!sessionId) return
@@ -67,22 +74,36 @@ export default function TicketConfirmationPage({ params }: { params: { sessionId
     return () => { cancelled = true }
   }, [sessionId])
 
-  const shareTicket = async (ticketId: string, eventTitle: string, tierName: string) => {
-    const url = `${window.location.origin}/ticket/${ticketId}`
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: `${tierName} ticket — ${eventTitle}`,
-          text: `Here's your ticket for ${eventTitle}. Show the QR code at the door.`,
-          url,
-        })
-      } catch {
-        // user cancelled — ignore
-      }
-    } else {
-      await navigator.clipboard.writeText(url)
-      setCopiedId(ticketId)
-      setTimeout(() => setCopiedId(null), 2500)
+  const openForward = (ticketId: string) => {
+    setForwardTicketId(ticketId)
+    setRecipientPhone('')
+    setRecipientEmail('')
+    setForwardError('')
+    setForwardedCode(null)
+  }
+
+  const closeForward = () => {
+    setForwardTicketId(null)
+    setForwardedCode(null)
+  }
+
+  const handleForward = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!recipientPhone && !recipientEmail) {
+      setForwardError('Enter a phone number or email address')
+      return
+    }
+    setForwarding(true); setForwardError('')
+    try {
+      const res = await api.post(`/promoter-events/public/ticket/${forwardTicketId}/forward`, {
+        recipientPhone: recipientPhone || undefined,
+        recipientEmail: recipientEmail || undefined,
+      })
+      setForwardedCode(res.data.code)
+    } catch (err: any) {
+      setForwardError(err.response?.data?.message || 'Failed to forward ticket')
+    } finally {
+      setForwarding(false)
     }
   }
 
@@ -174,13 +195,10 @@ export default function TicketConfirmationPage({ params }: { params: { sessionId
                 Ticket {tickets.length > 1 ? `${i + 1} of ${tickets.length}` : ''} · {ticket.ticket_tiers?.name ?? tier?.name}
               </p>
               <button
-                onClick={() => shareTicket(ticket.id, event?.title ?? '', ticket.ticket_tiers?.name ?? tier?.name ?? '')}
+                onClick={() => openForward(ticket.id)}
                 className="flex items-center gap-1.5 text-xs text-purple-600 hover:text-purple-800 font-medium px-3 py-1.5 rounded-lg hover:bg-purple-50 transition-colors"
               >
-                {copiedId === ticket.id
-                  ? <><Check className="w-3.5 h-3.5" /> Copied!</>
-                  : <><Share2 className="w-3.5 h-3.5" /> Share ticket</>
-                }
+                <Send className="w-3.5 h-3.5" /> Forward ticket
               </button>
             </div>
             <div className="p-3 bg-white rounded-xl border border-gray-100 shadow-sm">
@@ -217,6 +235,75 @@ export default function TicketConfirmationPage({ params }: { params: { sessionId
           </div>
         )}
       </div>
+
+      {/* Forward Ticket Modal */}
+      {forwardTicketId && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl">
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
+              <h3 className="font-bold text-gray-900">Forward Ticket</h3>
+              <button onClick={closeForward} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5">
+              {forwardedCode ? (
+                <div className="text-center space-y-4">
+                  <Check className="w-10 h-10 text-green-500 mx-auto" />
+                  <p className="font-semibold text-gray-900">Ticket forwarded!</p>
+                  <p className="text-sm text-gray-500">The recipient was sent the access code:</p>
+                  <div className="bg-purple-50 border border-purple-200 rounded-xl py-3 px-4">
+                    <p className="text-3xl font-black tracking-widest text-purple-700 font-mono">{forwardedCode}</p>
+                  </div>
+                  <p className="text-xs text-gray-400">They can use this code at <strong>eventecos.com/tickets/claim</strong></p>
+                  <button onClick={closeForward} className="w-full bg-purple-600 text-white font-semibold py-2.5 rounded-xl hover:bg-purple-700 transition-colors">
+                    Done
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleForward} className="space-y-4">
+                  <p className="text-sm text-gray-500">Send an access code to the recipient so they can view this ticket.</p>
+
+                  {forwardError && (
+                    <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2 text-sm">{forwardError}</div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" /> Phone number</span>
+                    </label>
+                    <input
+                      type="tel" value={recipientPhone} onChange={e => setRecipientPhone(e.target.value)}
+                      placeholder="+1 (555) 000-0000"
+                      className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+
+                  <div className="text-center text-xs text-gray-400">— or —</div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <span className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" /> Email address</span>
+                    </label>
+                    <input
+                      type="email" value={recipientEmail} onChange={e => setRecipientEmail(e.target.value)}
+                      placeholder="recipient@email.com"
+                      className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+
+                  <button type="submit" disabled={forwarding}
+                    className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white font-semibold py-3 rounded-xl hover:bg-purple-700 transition-colors disabled:opacity-60">
+                    {forwarding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    Send Access Code
+                  </button>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

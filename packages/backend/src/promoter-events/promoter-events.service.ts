@@ -920,4 +920,105 @@ export class PromoterEventsService {
     if (error) throw new BadRequestException(error.message);
     return data || [];
   }
+
+  // ── Ticket Forwarding ─────────────────────────────────────────
+
+  /** Generates a forward code for a ticket and notifies the recipient via SMS/email */
+  async forwardTicket(
+    ticketId: string,
+    recipientPhone?: string,
+    recipientEmail?: string,
+  ): Promise<{ code: string }> {
+    if (!recipientPhone && !recipientEmail) {
+      throw new BadRequestException('Provide a recipient phone or email');
+    }
+
+    const admin = this.supabaseService.getAdminClient();
+
+    // Verify ticket exists
+    const { data: ticket } = await admin
+      .from('tickets')
+      .select('id, status, public_events(id, title, event_date, venue_name)')
+      .eq('id', ticketId)
+      .maybeSingle();
+    if (!ticket) throw new NotFoundException('Ticket not found');
+    if (ticket.status === 'used') throw new BadRequestException('This ticket has already been scanned');
+
+    // Generate a unique 7-char alphanumeric code
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no I/O/1/0 to avoid confusion
+    let code = '';
+    let attempts = 0;
+    while (attempts < 10) {
+      code = Array.from({ length: 7 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+      const { data: existing } = await admin
+        .from('ticket_forward_codes')
+        .select('id')
+        .eq('code', code)
+        .maybeSingle();
+      if (!existing) break;
+      attempts++;
+    }
+
+    // Upsert: one active forward per ticket (replace previous code)
+    await admin.from('ticket_forward_codes').delete().eq('ticket_id', ticketId).is('claimed_at', null);
+    const { error: insertErr } = await admin.from('ticket_forward_codes').insert({
+      ticket_id: ticketId,
+      code,
+      recipient_phone: recipientPhone || null,
+      recipient_email: recipientEmail || null,
+      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    });
+    if (insertErr) throw new BadRequestException(insertErr.message);
+
+    const event: any = ticket.public_events;
+    const eventTitle = event?.title || 'the event';
+    const claimUrl = `${this.frontendUrl}/tickets/claim?code=${code}`;
+
+    // Send SMS
+    if (recipientPhone) {
+      try {
+        const phone = this.normalizePhone(recipientPhone);
+        await this.twilioService.sendSMS(
+          phone,
+          `You've been sent a ticket to ${eventTitle}! Use code ${code} to access it at: ${claimUrl}`,
+        );
+      } catch (e) {
+        this.logger.warn('Forward SMS failed', e);
+      }
+    }
+
+    // Send email
+    if (recipientEmail) {
+      try {
+        await this.mailService.sendTicketForwardEmail({
+          toEmail: recipientEmail,
+          eventTitle,
+          code,
+          claimUrl,
+        });
+      } catch (e) {
+        this.logger.warn('Forward email failed', e);
+      }
+    }
+
+    return { code };
+  }
+
+  /** Looks up a ticket by its forward code for the claim page */
+  async getTicketByForwardCode(code: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: forward, error } = await admin
+      .from('ticket_forward_codes')
+      .select('*, tickets(*, ticket_tiers(name, price), public_events(id, title, event_date, start_time, venue_name, venue_address, city, state, image_url))')
+      .eq('code', code.toUpperCase())
+      .maybeSingle();
+
+    if (error) throw new BadRequestException(error.message);
+    if (!forward) throw new NotFoundException('Invalid or expired code');
+
+    const expiresAt = new Date(forward.expires_at);
+    if (expiresAt < new Date()) throw new BadRequestException('This code has expired');
+
+    return forward.tickets;
+  }
 }

@@ -55,10 +55,11 @@ export class ArtistInvoicesService {
     const subtotal = items.reduce((sum, i) => sum + i.quantity * i.unit_price, 0);
     const taxAmount = subtotal * (taxRate / 100);
     const baseAmount = Math.max(0, subtotal + taxAmount - discountAmount);
-    // Pass fees to client: 3% platform fee + Stripe processing (2.9% + $0.30)
+    // Pass fees to client so artist receives exactly baseAmount.
+    // Correct Stripe pass-through formula: total = (base + platformFee + 0.30) / (1 - 0.029)
     const platformFeeAmount = Math.round(baseAmount * APP_FEE_RATE * 100) / 100;
-    const processingFeeAmount = Math.round((baseAmount + platformFeeAmount) * 0.029 * 100 + 30) / 100;
-    const totalAmount = baseAmount + platformFeeAmount + processingFeeAmount;
+    const totalAmount = Math.round(((baseAmount + platformFeeAmount + 0.30) / 0.971) * 100) / 100;
+    const processingFeeAmount = Math.round((totalAmount - baseAmount - platformFeeAmount) * 100) / 100;
     return { subtotal, taxAmount, baseAmount, platformFeeAmount, processingFeeAmount, totalAmount, amountDue: totalAmount };
   }
 

@@ -54,8 +54,12 @@ export class ArtistInvoicesService {
   ) {
     const subtotal = items.reduce((sum, i) => sum + i.quantity * i.unit_price, 0);
     const taxAmount = subtotal * (taxRate / 100);
-    const totalAmount = Math.max(0, subtotal + taxAmount - discountAmount);
-    return { subtotal, taxAmount, totalAmount, amountDue: totalAmount };
+    const baseAmount = Math.max(0, subtotal + taxAmount - discountAmount);
+    // Pass fees to client: 3% platform fee + Stripe processing (2.9% + $0.30)
+    const platformFeeAmount = Math.round(baseAmount * APP_FEE_RATE * 100) / 100;
+    const processingFeeAmount = Math.round((baseAmount + platformFeeAmount) * 0.029 * 100 + 30) / 100;
+    const totalAmount = baseAmount + platformFeeAmount + processingFeeAmount;
+    return { subtotal, taxAmount, baseAmount, platformFeeAmount, processingFeeAmount, totalAmount, amountDue: totalAmount };
   }
 
   // ─── Artist account helper ────────────────────────────────────────────────
@@ -480,7 +484,11 @@ export class ArtistInvoicesService {
     }
 
     const artistName = artist?.stage_name || artist?.artist_name || 'Artist';
-    const feeCents = Math.round(amountCents * APP_FEE_RATE);
+    // Platform fee is 3% of the base (subtotal + tax - discount), NOT of the gross total
+    const baseCents = Math.round(
+      (Number(invoice.subtotal) + Number(invoice.tax_amount) - Number(invoice.discount_amount)) * 100
+    );
+    const feeCents = Math.round(baseCents * APP_FEE_RATE);
 
     const session = await this.stripe.checkout.sessions.create({
       mode: 'payment',

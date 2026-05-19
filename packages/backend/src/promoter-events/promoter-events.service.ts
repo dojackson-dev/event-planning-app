@@ -564,6 +564,7 @@ export class PromoterEventsService {
     const allFree = tierResults.every(r => Number(r.tier.price) === 0);
 
     if (allFree) {
+      const tierItems: { tier_id: string; quantity: number }[] = [];
       for (const { tier, quantity } of tierResults) {
         const ticketRows = Array.from({ length: quantity }, () => ({
           public_event_id: eventId,
@@ -579,8 +580,18 @@ export class PromoterEventsService {
         if (tierRow) {
           await admin.from('ticket_tiers').update({ quantity_sold: (tierRow.quantity_sold ?? 0) + quantity }).eq('id', tier.id);
         }
-        await this.sendTicketNotifications({ eventId, tierId: tier.id, quantity, amountTotal: 0, buyerPhone, buyerEmail });
+        tierItems.push({ tier_id: tier.id, quantity });
       }
+      
+      // Send single consolidated email for all free tiers
+      await this.sendConsolidatedTicketNotifications({
+        eventId,
+        items: tierItems,
+        totalAmount: 0,
+        buyerPhone,
+        buyerEmail,
+      });
+
       return { url: `${baseUrl}/events/${eventId}?paid=true`, sessionId: null };
     }
 
@@ -704,19 +715,20 @@ export class PromoterEventsService {
         if (tier) {
           await admin.from('ticket_tiers').update({ quantity_sold: (tier.quantity_sold ?? 0) + item.quantity }).eq('id', item.tier_id);
         }
-
-        if (phone || email) {
-          await this.sendTicketNotifications({
-            eventId: public_event_id,
-            tierId: item.tier_id,
-            quantity: item.quantity,
-            amountTotal: totalTickets > 0 ? amountTotal * (item.quantity / totalTickets) : 0,
-            buyerPhone: phone || undefined,
-            buyerEmail: email || undefined,
-            sessionId,
-          });
-        }
       }
+
+      // Send single consolidated email for all tiers
+      if (phone || email) {
+        await this.sendConsolidatedTicketNotifications({
+          eventId: public_event_id,
+          items: items,
+          totalAmount: amountTotal,
+          buyerPhone: phone || undefined,
+          buyerEmail: email || undefined,
+          sessionId,
+        });
+      }
+
       this.logger.log(`Recorded ${totalTickets} ticket(s) (multi-tier) sold for event ${public_event_id}`);
       return;
     }
@@ -839,6 +851,95 @@ export class PromoterEventsService {
       }
     } catch (err) {
       this.logger.error('sendTicketNotifications failed', err as any);
+    }
+  }
+
+  /**
+   * Sends a single consolidated email for multi-tier ticket purchases
+   * with all ticket types in one email. Also sends SMS if phone is provided.
+   */
+  private async sendConsolidatedTicketNotifications(params: {
+    eventId: string;
+    items: { tier_id: string; quantity: number }[];
+    totalAmount: number;
+    buyerPhone?: string;
+    buyerEmail?: string;
+    sessionId?: string;
+  }): Promise<void> {
+    try {
+      const admin = this.supabaseService.getAdminClient();
+      const { data: event } = await admin
+        .from('public_events')
+        .select('title, event_date, start_time, venue_name, promoter_accounts(company_name, contact_name)')
+        .eq('id', params.eventId)
+        .maybeSingle();
+
+      if (!event) {
+        this.logger.warn(`sendConsolidatedTicketNotifications: missing event for ${params.eventId}`);
+        return;
+      }
+
+      // Fetch all tier names for the items
+      const tierData: { tier_id: string; quantity: number; tier_name: string }[] = [];
+      for (const item of params.items) {
+        const { data: tier } = await admin
+          .from('ticket_tiers')
+          .select('name')
+          .eq('id', item.tier_id)
+          .maybeSingle();
+        if (tier) {
+          tierData.push({
+            tier_id: item.tier_id,
+            quantity: item.quantity,
+            tier_name: (tier as any).name,
+          });
+        }
+      }
+
+      if (tierData.length === 0) {
+        this.logger.warn(`sendConsolidatedTicketNotifications: no tiers found for items`);
+        return;
+      }
+
+      const promoter: any = Array.isArray((event as any).promoter_accounts)
+        ? (event as any).promoter_accounts[0]
+        : (event as any).promoter_accounts;
+      const promoterName = promoter?.company_name || promoter?.contact_name || null;
+
+      // Email — send one email with all tier information
+      if (params.buyerEmail) {
+        await this.mailService.sendConsolidatedTicketConfirmation({
+          toEmail: params.buyerEmail,
+          eventTitle: (event as any).title,
+          eventDate: (event as any).event_date,
+          eventTime: (event as any).start_time,
+          venueName: (event as any).venue_name,
+          tiers: tierData,
+          amountTotal: params.totalAmount,
+          eventId: params.eventId,
+          promoterName,
+          sessionId: params.sessionId,
+        });
+      }
+
+      // SMS — only if phone provided (single SMS for all tickets)
+      if (params.buyerPhone) {
+        try {
+          const eventUrl = params.sessionId
+            ? `${this.frontendUrl}/tickets/${params.sessionId}`
+            : `${this.frontendUrl}/events/${params.eventId}?paid=true`;
+          const totalQty = params.items.reduce((s, i) => s + i.quantity, 0);
+          const dateStr = (event as any).event_date
+            ? new Date((event as any).event_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+            : '';
+          const msg = `Your ${totalQty} ticket(s) to ${(event as any).title}${dateStr ? ` on ${dateStr}` : ''} are confirmed! View event details: ${eventUrl}`;
+          await this.twilioService.sendSMS(params.buyerPhone, msg);
+        } catch (smsErr) {
+          this.logger.error(`Ticket SMS failed for ${params.buyerPhone}`, smsErr as any);
+        }
+      }
+    } catch (err) {
+      this.logger.error('sendConsolidatedTicketNotifications failed', err as any);
     }
   }
 

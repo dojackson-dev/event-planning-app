@@ -1,12 +1,16 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { MailService } from '../mail/mail.service';
 import { CreatePromoterBookingDto, UpdatePromoterBookingDto } from './dto/promoter-booking.dto';
 
 @Injectable()
 export class PromoterBookingsService {
   private readonly logger = new Logger(PromoterBookingsService.name);
 
-  constructor(private readonly supabaseService: SupabaseService) {}
+  constructor(
+    private readonly supabaseService: SupabaseService,
+    private readonly mailService: MailService,
+  ) {}
 
   async getPromoterAccountId(userId: string): Promise<string> {
     const admin = this.supabaseService.getAdminClient();
@@ -227,5 +231,50 @@ export class PromoterBookingsService {
 
     if (error) throw new Error(error.message);
     return data;
+  }
+
+  async sendRiderToPromoter(artistUserId: string, bookingId: string) {
+    const admin = this.supabaseService.getAdminClient();
+
+    // Verify artist owns an account
+    const { data: artistAccount } = await admin
+      .from('artist_accounts')
+      .select('id, artist_name, stage_name')
+      .eq('user_id', artistUserId)
+      .maybeSingle();
+    if (!artistAccount) throw new ForbiddenException('No artist account found');
+
+    // Verify artist is on this booking
+    const { data: booking } = await admin
+      .from('promoter_bookings')
+      .select('id, event_name, event_date, promoter_accounts(contact_name, company_name, email)')
+      .eq('id', bookingId)
+      .eq('artist_account_id', artistAccount.id)
+      .maybeSingle();
+    if (!booking) throw new NotFoundException('Booking not found or not assigned to you');
+
+    const promoter = (booking as any).promoter_accounts;
+    const toEmail = promoter?.email;
+    if (!toEmail) throw new BadRequestException('No promoter email on file for this booking');
+
+    // Fetch rider
+    const { data: rider } = await admin
+      .from('artist_riders')
+      .select('*')
+      .eq('artist_account_id', artistAccount.id)
+      .maybeSingle();
+    if (!rider) throw new BadRequestException('You have not set up a rider yet. Go to your rider page to create one.');
+
+    const artistName = (artistAccount as any).stage_name || (artistAccount as any).artist_name || 'Artist';
+
+    await this.mailService.sendRiderEmail({
+      to: toEmail,
+      artistName,
+      eventName: (booking as any).event_name,
+      eventDate: (booking as any).event_date,
+      rider,
+    });
+
+    return { success: true, sentTo: toEmail };
   }
 }

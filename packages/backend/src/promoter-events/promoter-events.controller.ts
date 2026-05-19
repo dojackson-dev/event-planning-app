@@ -201,4 +201,27 @@ export class PromoterEventsController {
     const userId = await this.getUserId(auth);
     return this.service.getEventAttendees(userId, eventId);
   }
+
+  // comp tickets
+  @Post(':id/comp-ticket')
+  async sendCompTicket(
+    @Headers('authorization') auth: string,
+    @Param('id') eventId: string,
+    @Body() body: {
+      tier_id: string;
+      recipient_email: string;
+      recipient_phone?: string;
+      recipient_name?: string;
+    },
+  ) {
+    const userId = await this.getUserId(auth);
+    return this.service.sendCompTicket(
+      userId,
+      eventId,
+      body.tier_id,
+      body.recipient_email,
+      body.recipient_phone,
+      body.recipient_name,
+    );
+  }
 }

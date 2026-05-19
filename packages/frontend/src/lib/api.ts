@@ -74,16 +74,19 @@ api.interceptors.response.use(
           isRefreshing = false
 
           return api(originalRequest)
-        } catch (refreshError) {
+        } catch (refreshError: any) {
           isRefreshing = false
           refreshSubscribers = []
-          // Refresh failed - clear ALL auth storage and redirect to appropriate login
-          const isAffiliate = !!localStorage.getItem('affiliate_data')
-          const isVendor = localStorage.getItem('user_role') === 'vendor'
-          const isPromoter = localStorage.getItem('user_role') === 'promoter'
-          ;['access_token','refresh_token','user','user_roles','active_role','user_role',
-            'affiliate_token','affiliate_refresh_token','affiliate_data'].forEach(k => localStorage.removeItem(k))
-          window.location.href = isAffiliate ? '/sales-portal/login' : isPromoter ? '/promoter/login' : isVendor ? '/vendors/login' : '/login'
+          // Only force logout on actual auth rejections, not network errors
+          const status = (refreshError as any)?.response?.status
+          if (status === 401 || status === 403) {
+            const isAffiliate = !!localStorage.getItem('affiliate_data')
+            const isVendor = localStorage.getItem('user_role') === 'vendor'
+            const isPromoter = localStorage.getItem('user_role') === 'promoter'
+            ;['access_token','refresh_token','user','user_roles','active_role','user_role',
+              'affiliate_token','affiliate_refresh_token','affiliate_data'].forEach(k => localStorage.removeItem(k))
+            window.location.href = isAffiliate ? '/sales-portal/login' : isPromoter ? '/promoter/login' : isVendor ? '/vendors/login' : '/login'
+          }
           return Promise.reject(refreshError)
         }
       } else {

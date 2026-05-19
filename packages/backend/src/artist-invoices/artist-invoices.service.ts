@@ -133,7 +133,12 @@ export class ArtistInvoicesService {
 
   async listInvoices(userId: string) {
     const admin = this.supabaseService.getAdminClient();
-    const artistAccountId = await this.getArtistAccountId(userId);
+    let artistAccountId: string;
+    try {
+      artistAccountId = await this.getArtistAccountId(userId);
+    } catch {
+      return [];
+    }
 
     const { data, error } = await admin
       .from('artist_invoices')
@@ -144,6 +149,7 @@ export class ArtistInvoicesService {
     if (error) throw new Error(error.message);
     return data ?? [];
   }
+
 
   async getInvoice(userId: string, invoiceId: string) {
     const admin = this.supabaseService.getAdminClient();

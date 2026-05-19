@@ -272,13 +272,20 @@ export class PromoterBookingsService {
 
     const artistName = (artistAccount as any).stage_name || (artistAccount as any).artist_name || 'Artist';
 
-    await this.mailService.sendRiderEmail({
-      to: toEmail,
-      artistName,
-      eventName: (booking as any).event_name,
-      eventDate: (booking as any).event_date,
-      rider,
-    });
+    try {
+      await this.mailService.sendRiderEmail({
+        to: toEmail,
+        artistName,
+        eventName: (booking as any).event_name,
+        eventDate: (booking as any).event_date,
+        rider,
+      });
+    } catch (err: any) {
+      this.logger.error('sendRiderEmail failed', err);
+      throw new BadRequestException(
+        `Failed to send rider email: ${err?.message ?? 'SMTP error'}. Check your email configuration.`,
+      );
+    }
 
     return { success: true, sentTo: toEmail };
   }

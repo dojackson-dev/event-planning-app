@@ -86,11 +86,30 @@ function NewArtistInvoiceForm() {
     if (bookings.length > 0) return
     setBookingsLoading(true)
     try {
-      const res = await api.get('/artist-bookings/mine')
-      const active = (res.data || []).filter(
-        (b: ArtistBooking) => b.status !== 'cancelled'
-      )
-      setBookings(active)
+      const [ownRes, promoterRes] = await Promise.allSettled([
+        api.get('/artist-bookings/mine'),
+        api.get('/promoter-bookings/for-artist'),
+      ])
+      const ownBookings: ArtistBooking[] = ownRes.status === 'fulfilled'
+        ? (ownRes.value.data || []).filter((b: ArtistBooking) => b.status !== 'cancelled')
+        : []
+      const promoterBookings: ArtistBooking[] = promoterRes.status === 'fulfilled'
+        ? (promoterRes.value.data || [])
+            .filter((b: any) => b.status !== 'cancelled')
+            .map((b: any) => ({
+              id: b.id,
+              event_name: b.event_name,
+              client_name: b.promoter_accounts?.contact_name || b.promoter_accounts?.company_name || b.artist_name || '',
+              client_email: b.promoter_accounts?.email || '',
+              client_phone: b.promoter_accounts?.phone || '',
+              event_date: b.event_date,
+              venue_name: b.venue_name,
+              agreed_amount: b.agreed_amount,
+              status: b.status,
+              _source: 'promoter',
+            }))
+        : []
+      setBookings([...ownBookings, ...promoterBookings])
     } catch {
       // silently fail — user can still type manually
     } finally {

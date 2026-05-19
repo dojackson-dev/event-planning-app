@@ -110,9 +110,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (newRefresh) localStorage.setItem('refresh_token', newRefresh)
             console.log('✅ [INIT] Token refreshed successfully')
           }
-        } catch (refreshErr) {
-          console.warn('⚠️ [INIT] Token refresh failed — clearing session', refreshErr)
-          clearSession()
+        } catch (refreshErr: any) {
+          // Only clear session on actual auth failures, not network errors
+          const status = refreshErr?.response?.status
+          if (status === 401 || status === 403) {
+            console.warn('⚠️ [INIT] Token refresh rejected by server — clearing session', refreshErr)
+            clearSession()
+          } else {
+            // Network error (backend down/restarting) — keep session, retry later
+            console.warn('⚠️ [INIT] Token refresh failed (network error) — keeping session', refreshErr)
+          }
           setAuthLoading(false); return
         }
         // ─────────────────────────────────────────────────────────────────────

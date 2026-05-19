@@ -4,7 +4,16 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
-import { Loader2, Calendar, User, Building2, MapPin, DollarSign, FileText, CheckCircle, XCircle, FilePlus, Send } from 'lucide-react'
+import { Loader2, Calendar, User, Building2, MapPin, DollarSign, FileText, CheckCircle, XCircle, FilePlus, Send, CheckCircle2 } from 'lucide-react'
+
+interface ArtistInvoice {
+  id: string
+  invoice_number: string
+  total_amount: number
+  amount_due: number
+  status: string
+  public_token?: string
+}
 
 interface PromoterBooking {
   id: string
@@ -25,6 +34,7 @@ interface PromoterBooking {
     email?: string
     phone?: string
   }
+  artist_invoices?: ArtistInvoice[]
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -246,6 +256,48 @@ export default function PromoterBookingDetailPage() {
               <h2 className="font-semibold text-gray-800">Notes</h2>
             </div>
             <p className="text-sm text-gray-600 whitespace-pre-wrap">{booking.notes}</p>
+          </div>
+        )}
+
+        {/* Invoice Status */}
+        {booking?.artist_invoices && booking.artist_invoices.length > 0 && (
+          <div className={`bg-white border rounded-xl p-5 space-y-3 ${
+            booking.artist_invoices.some(i => i.status === 'paid') ? 'border-green-300' : 'border-gray-200'
+          }`}>
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-gray-800">Invoice</h2>
+              {booking.artist_invoices.some(i => i.status === 'paid') && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm font-bold bg-green-100 text-green-700">
+                  <CheckCircle2 className="w-4 h-4" /> Paid
+                </span>
+              )}
+            </div>
+            <div className="space-y-2">
+              {booking.artist_invoices.map(inv => (
+                <div key={inv.id} className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{inv.invoice_number}</p>
+                    <p className="text-xs text-gray-500">${Number(inv.total_amount).toLocaleString()}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {inv.status === 'paid' ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                        <CheckCircle2 className="w-3 h-3" /> Paid
+                      </span>
+                    ) : (
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
+                        inv.status === 'sent' || inv.status === 'viewed' ? 'bg-blue-100 text-blue-700'
+                        : inv.status === 'overdue' ? 'bg-red-100 text-red-700'
+                        : 'bg-gray-100 text-gray-600'
+                      }`}>{inv.status}</span>
+                    )}
+                    <Link href={`/artist/dashboard/invoices/${inv.id}`} className="text-xs text-blue-600 hover:underline">
+                      View
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

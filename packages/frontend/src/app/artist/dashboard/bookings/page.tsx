@@ -197,9 +197,10 @@ function BookingCard({ booking }: { booking: ArtistBooking }) {
 
   if (booking._source === 'promoter') {
     return (
-      <div className="bg-white border border-gray-200 rounded-xl p-4">
+      <Link href={`/artist/dashboard/bookings/promoter/${booking.id}`}
+        className="block bg-white border border-gray-200 rounded-xl p-4 hover:shadow-sm transition-shadow">
         {inner}
-      </div>
+      </Link>
     )
   }
 

@@ -1143,7 +1143,7 @@ export class PromoterEventsService {
     // Verify promoter owns this event
     const { data: event } = await admin
       .from('public_events')
-      .select('id, title, event_date, event_time, venue_name, promoter_account_id')
+      .select('id, title, event_date, start_time, venue_name, promoter_account_id')
       .eq('id', eventId)
       .eq('promoter_account_id', promoter.id)
       .maybeSingle();
@@ -1191,9 +1191,11 @@ export class PromoterEventsService {
         toName: recipientName || recipientEmail,
         eventTitle: (event as any).title,
         eventDate: (event as any).event_date,
+        eventTime: (event as any).start_time || null,
         venueName: (event as any).venue_name,
         tierName: tier.name,
         ticketUrl,
+        ticketId: ticket.id,
         promoterName,
         eventId,
       });

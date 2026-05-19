@@ -684,59 +684,93 @@ export class MailService {
     toName: string;
     eventTitle: string;
     eventDate?: string;
+    eventTime?: string | null;
     venueName?: string;
     tierName: string;
     ticketUrl: string;
+    ticketId: string;
     promoterName: string;
     eventId: string;
   }): Promise<void> {
     try {
-      const dateStr = params.eventDate
-        ? new Date(params.eventDate + 'T12:00:00').toLocaleDateString('en-US', {
-            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-          })
-        : '';
+      const frontendUrl = process.env.FRONTEND_URL || 'https://dovenuesuite.com';
+      const formattedDate = params.eventDate
+        ? new Date(params.eventDate + (params.eventDate.includes('T') ? '' : 'T12:00:00'))
+            .toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+        : 'TBD';
+      const fromName = `${params.promoterName} via Eventecos`;
+
+      // Generate QR code for the comp ticket
+      let qrHtml = '';
+      let attachments: any[] = [];
+      try {
+        const qrBuffer = await QRCode.toBuffer(params.ticketUrl, {
+          errorCorrectionLevel: 'H',
+          type: 'png',
+          margin: 1,
+          width: 300,
+        });
+        const cid = `qr-${params.ticketId}@eventecos`;
+        attachments.push({ filename: `ticket-qr.png`, content: qrBuffer, cid });
+        qrHtml = `
+          <div style="margin: 32px 0;">
+            <h3 style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0 0 16px;">Your Ticket</h3>
+            <div style="background: white; border: 2px dashed #e5e7eb; border-radius: 12px; padding: 20px; text-align: center;">
+              <img src="cid:${cid}" alt="QR Code" style="width: 200px; height: 200px; display: block; margin: 0 auto 12px;" />
+              <p style="color: #9ca3af; font-size: 11px; margin: 0; font-family: monospace; word-break: break-all;">${params.ticketId}</p>
+            </div>
+            <p style="color: #6b7280; font-size: 13px; background: #f3f4f6; border-radius: 8px; padding: 12px; margin: 16px 0 0; line-height: 1.5;">
+              📱 <strong>Show this QR code at the door.</strong> You can also view your ticket anytime at the link below.
+            </p>
+          </div>
+        `;
+      } catch (qrErr) {
+        console.warn('[MailService] QR generation failed for comp ticket:', qrErr);
+      }
 
       const mailOptions = {
-        from: `"Eventecos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
+        from: `"${fromName}" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
         to: params.toEmail,
-        subject: `You've received a complimentary ticket to ${params.eventTitle}!`,
+        subject: `Your complimentary ticket to ${params.eventTitle} is confirmed`,
         html: `
-          <div style="background: #f0f4f8; padding: 32px; font-family: 'Segoe UI', Arial, sans-serif;">
-            <div style="max-width: 560px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.10);">
-              ${this.getEmailHeader('Your Complimentary Ticket', params.eventTitle)}
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb; padding: 32px 16px;">
+            <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08);">
+              ${this.getEmailHeader("You've got a comp ticket! 🎟️", 'Your complimentary ticket is confirmed')}
               <div style="padding: 32px;">
-                <h2 style="color: #1a202c; font-size: 22px; margin: 0 0 8px;">You've got a comp ticket! 🎟️</h2>
-                <p style="color: #4a5568; font-size: 15px; margin: 0 0 24px;">
+                <h2 style="margin: 0 0 16px; color: #1f2937; font-size: 20px;">${params.eventTitle}</h2>
+                <p style="color: #374151; font-size: 15px; margin: 0 0 20px;">
                   Hi ${params.toName}, <strong>${params.promoterName}</strong> has sent you a complimentary ticket.
                 </p>
-
-                <div style="background: linear-gradient(135deg, #008bea 0%, #35c178 100%); border-radius: 12px; padding: 20px; margin-bottom: 24px; color: white;">
-                  <div style="font-size: 13px; opacity: 0.85; margin-bottom: 4px;">EVENT</div>
-                  <div style="font-size: 20px; font-weight: 700; margin-bottom: 12px;">${params.eventTitle}</div>
-                  ${dateStr ? `<div style="font-size: 13px; opacity: 0.9; margin-bottom: 4px;">📅 ${dateStr}</div>` : ''}
-                  ${params.venueName ? `<div style="font-size: 13px; opacity: 0.9; margin-bottom: 4px;">📍 ${params.venueName}</div>` : ''}
-                  <div style="font-size: 13px; opacity: 0.9;">🎫 ${params.tierName} — Complimentary</div>
+                <div style="background: #f5f3ff; border-left: 4px solid #7c3aed; border-radius: 8px; padding: 20px 24px; margin: 0 0 24px;">
+                  <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #374151;">
+                    <tr><td style="padding: 4px 0; color: #6b7280; width: 110px;">Date</td><td style="padding: 4px 0; font-weight: 600;">${formattedDate}</td></tr>
+                    ${params.eventTime ? `<tr><td style="padding: 4px 0; color: #6b7280;">Time</td><td style="padding: 4px 0; font-weight: 600;">${params.eventTime}</td></tr>` : ''}
+                    ${params.venueName ? `<tr><td style="padding: 4px 0; color: #6b7280;">Venue</td><td style="padding: 4px 0; font-weight: 600;">${params.venueName}</td></tr>` : ''}
+                    <tr><td style="padding: 4px 0; color: #6b7280;">Ticket</td><td style="padding: 4px 0; font-weight: 600;">${params.tierName}</td></tr>
+                    <tr><td style="padding: 4px 0; color: #6b7280;">Total</td><td style="padding: 4px 0; font-weight: 700; color: #059669;">Complimentary</td></tr>
+                  </table>
                 </div>
 
-                <a href="${params.ticketUrl}" style="display: block; background: #008bea; color: white; text-decoration: none; font-weight: 700; font-size: 15px; padding: 14px 24px; border-radius: 10px; text-align: center; margin-bottom: 20px;">
-                  View My Ticket
-                </a>
+                ${qrHtml}
 
-                <p style="color: #718096; font-size: 13px; margin: 0;">
-                  Keep this email — your ticket QR code will be available at the link above. Present it at the door for entry.
-                </p>
-
-                <div style="background: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 8px; padding: 16px; margin: 24px 0 0;">
-                  <p style="color: #92400e; font-size: 13px; margin: 0;">
-                    <strong>Note:</strong> This is a complimentary ticket issued by the event organizer. Eventecos is not responsible for event cancellations or changes.
+                <div style="background: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 8px; padding: 16px; margin: 24px 0;">
+                  <p style="color: #92400e; font-size: 13px; margin: 0; line-height: 1.6;">
+                    <strong>Important Notice:</strong> Eventecos is not responsible for event cancellations, postponements, or refunds. The event organizer is solely liable for these matters.
                   </p>
+                </div>
+
+                <div style="text-align: center; margin: 28px 0;">
+                  <a href="${params.ticketUrl}"
+                     style="display: inline-block; background: #7c3aed; color: white; padding: 14px 36px; text-decoration: none; border-radius: 8px; font-size: 15px; font-weight: 600;">
+                    View My Ticket
+                  </a>
                 </div>
               </div>
             </div>
           </div>
         `,
-        text: `You've received a complimentary ticket to ${params.eventTitle}!\n\nIssued by: ${params.promoterName}\nTier: ${params.tierName}${dateStr ? `\nDate: ${dateStr}` : ''}${params.venueName ? `\nVenue: ${params.venueName}` : ''}\n\nView your ticket: ${params.ticketUrl}`,
+        text: `Your complimentary ticket to ${params.eventTitle} is confirmed!\n\nIssued by: ${params.promoterName}\nDate: ${formattedDate}${params.eventTime ? `\nTime: ${params.eventTime}` : ''}${params.venueName ? `\nVenue: ${params.venueName}` : ''}\nTier: ${params.tierName}\nTotal: Complimentary\n\nView your ticket: ${params.ticketUrl}`,
+        attachments,
       };
 
       const info = await this.transporter.sendMail(mailOptions);

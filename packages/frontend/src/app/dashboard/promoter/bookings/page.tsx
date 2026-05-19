@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
-import { Plus, Loader2, Calendar, User, Megaphone, Mic2 } from 'lucide-react'
+import { Plus, Loader2, Calendar, User, Megaphone, Mic2, CheckCircle2 } from 'lucide-react'
 
 interface PromoterBooking {
   id: string
@@ -18,6 +18,7 @@ interface PromoterBooking {
   status: 'inquiry' | 'estimate_sent' | 'deposit_paid' | 'confirmed' | 'completed' | 'cancelled'
   notes?: string
   promoter_invoice_id?: string
+  promoter_invoices?: { invoice_number: string; total_amount: number; status: string } | null
   artist_account_id?: string
   artist_name?: string
   artist_accounts?: { id: string; artist_name: string; stage_name: string | null; artist_type: string } | null
@@ -106,6 +107,11 @@ export default function PromoterBookingsPage() {
                             <span className={`flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[b.status]}`}>
                               {STATUS_LABELS[b.status]}
                             </span>
+                            {b.promoter_invoices?.status === 'paid' && (
+                              <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                                <CheckCircle2 className="w-3 h-3" /> Paid
+                              </span>
+                            )}
                           </div>
                           {(b.artist_accounts?.artist_name || b.artist_name) && (
                             <div className="flex items-center gap-1 mb-1">
@@ -151,6 +157,11 @@ export default function PromoterBookingsPage() {
                             <span className={`flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[b.status]}`}>
                               {STATUS_LABELS[b.status]}
                             </span>
+                            {b.promoter_invoices?.status === 'paid' && (
+                              <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                                <CheckCircle2 className="w-3 h-3" /> Paid
+                              </span>
+                            )}
                           </div>
                           {(b.artist_accounts?.artist_name || b.artist_name) && (
                             <div className="flex items-center gap-1 mb-1">

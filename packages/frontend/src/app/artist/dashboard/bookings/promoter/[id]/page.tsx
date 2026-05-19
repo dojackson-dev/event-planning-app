@@ -126,7 +126,7 @@ export default function PromoterBookingDetailPage() {
         {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">{error}</div>}
 
         {/* Artist respond banner */}
-        {booking?.artist_status === 'pending' && (
+        {booking?.status === 'inquiry' && (
           <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
             <p className="text-sm font-medium text-orange-900 mb-3">
               {promoterName} has sent you a booking request. Do you accept?
@@ -145,12 +145,17 @@ export default function PromoterBookingDetailPage() {
           </div>
         )}
 
-        {booking?.artist_status && booking.artist_status !== 'pending' && (
-          <div className={`rounded-xl p-3 text-sm font-medium flex items-center gap-2 ${
-            booking.artist_status === 'accepted' ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-800'
-          }`}>
-            {booking.artist_status === 'accepted' ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
-            You {booking.artist_status} this booking request
+        {booking?.status === 'confirmed' && (
+          <div className="rounded-xl p-3 text-sm font-medium flex items-center gap-2 bg-green-50 border border-green-200 text-green-800">
+            <CheckCircle className="w-4 h-4" />
+            You accepted this booking
+          </div>
+        )}
+
+        {booking?.status === 'cancelled' && (
+          <div className="rounded-xl p-3 text-sm font-medium flex items-center gap-2 bg-red-50 border border-red-200 text-red-800">
+            <XCircle className="w-4 h-4" />
+            This booking was declined or cancelled
           </div>
         )}
 

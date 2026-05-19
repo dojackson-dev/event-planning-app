@@ -620,6 +620,132 @@ export class MailService {
     }
   }
 
+  /** Sends a ticket forward email with the claim code to the recipient */
+  async sendTicketForwardEmail(params: {
+    toEmail: string;
+    eventTitle: string;
+    code: string;
+    claimUrl: string;
+  }): Promise<void> {
+    try {
+      const mailOptions = {
+        from: `"Eventecos Tickets" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
+        to: params.toEmail,
+        subject: `You've received a ticket to ${params.eventTitle}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb; padding: 32px 16px;">
+            <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08);">
+              ${this.getEmailHeader("You've got a ticket!", `To: ${params.eventTitle}`)}
+              <div style="padding: 32px;">
+                <p style="color: #374151; font-size: 15px; margin: 0 0 24px;">
+                  Someone has forwarded you a ticket to <strong>${params.eventTitle}</strong>.
+                  Use the code below to access your ticket.
+                </p>
+
+                <div style="background: #f5f3ff; border: 2px dashed #7c3aed; border-radius: 12px; padding: 24px; text-align: center; margin: 0 0 24px;">
+                  <p style="color: #6b7280; font-size: 13px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: 1px;">Your Access Code</p>
+                  <p style="color: #1f2937; font-size: 40px; font-weight: 900; letter-spacing: 6px; margin: 0; font-family: monospace;">${params.code}</p>
+                </div>
+
+                <div style="text-align: center; margin: 28px 0;">
+                  <a href="${params.claimUrl}"
+                     style="display: inline-block; background: #7c3aed; color: white; padding: 14px 36px; text-decoration: none; border-radius: 8px; font-size: 15px; font-weight: 600;">
+                    View My Ticket
+                  </a>
+                </div>
+
+                <p style="color: #6b7280; font-size: 12px; text-align: center; margin: 16px 0 0;">
+                  Or visit <a href="${params.claimUrl}" style="color: #7c3aed;">${params.claimUrl}</a>
+                  and enter the code above. This code expires in 7 days.
+                </p>
+
+                <div style="background: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 8px; padding: 16px; margin: 24px 0 0;">
+                  <p style="color: #92400e; font-size: 13px; margin: 0;">
+                    <strong>Important:</strong> Eventecos is not responsible for event cancellations or refunds.
+                    Please contact the event organizer for those matters.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        `,
+        text: `You've received a ticket to ${params.eventTitle}!\n\nYour access code: ${params.code}\n\nClaim your ticket at: ${params.claimUrl}\n\nThis code expires in 7 days.`,
+      };
+
+      const info = await this.transporter.sendMail(mailOptions);
+      console.log('[MailService] Ticket forward email sent to', params.toEmail, '—', info.messageId);
+    } catch (error) {
+      console.error('[MailService] Ticket forward email failed:', error);
+    }
+  }
+
+  async sendCompTicketEmail(params: {
+    toEmail: string;
+    toName: string;
+    eventTitle: string;
+    eventDate?: string;
+    venueName?: string;
+    tierName: string;
+    ticketUrl: string;
+    promoterName: string;
+    eventId: string;
+  }): Promise<void> {
+    try {
+      const dateStr = params.eventDate
+        ? new Date(params.eventDate + 'T12:00:00').toLocaleDateString('en-US', {
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+          })
+        : '';
+
+      const mailOptions = {
+        from: `"Eventecos" <${this.senderEmail}>`,
+        to: params.toEmail,
+        subject: `You've received a complimentary ticket to ${params.eventTitle}!`,
+        html: `
+          <div style="background: #f0f4f8; padding: 32px; font-family: 'Segoe UI', Arial, sans-serif;">
+            <div style="max-width: 560px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.10);">
+              ${this.getEmailHeader()}
+              <div style="padding: 32px;">
+                <h2 style="color: #1a202c; font-size: 22px; margin: 0 0 8px;">You've got a comp ticket! 🎟️</h2>
+                <p style="color: #4a5568; font-size: 15px; margin: 0 0 24px;">
+                  Hi ${params.toName}, <strong>${params.promoterName}</strong> has sent you a complimentary ticket.
+                </p>
+
+                <div style="background: linear-gradient(135deg, #008bea 0%, #35c178 100%); border-radius: 12px; padding: 20px; margin-bottom: 24px; color: white;">
+                  <div style="font-size: 13px; opacity: 0.85; margin-bottom: 4px;">EVENT</div>
+                  <div style="font-size: 20px; font-weight: 700; margin-bottom: 12px;">${params.eventTitle}</div>
+                  ${dateStr ? `<div style="font-size: 13px; opacity: 0.9; margin-bottom: 4px;">📅 ${dateStr}</div>` : ''}
+                  ${params.venueName ? `<div style="font-size: 13px; opacity: 0.9; margin-bottom: 4px;">📍 ${params.venueName}</div>` : ''}
+                  <div style="font-size: 13px; opacity: 0.9;">🎫 ${params.tierName} — Complimentary</div>
+                </div>
+
+                <a href="${params.ticketUrl}" style="display: block; background: #008bea; color: white; text-decoration: none; font-weight: 700; font-size: 15px; padding: 14px 24px; border-radius: 10px; text-align: center; margin-bottom: 20px;">
+                  View My Ticket
+                </a>
+
+                <p style="color: #718096; font-size: 13px; margin: 0;">
+                  Keep this email — your ticket QR code will be available at the link above. Present it at the door for entry.
+                </p>
+
+                <div style="background: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 8px; padding: 16px; margin: 24px 0 0;">
+                  <p style="color: #92400e; font-size: 13px; margin: 0;">
+                    <strong>Note:</strong> This is a complimentary ticket issued by the event organizer. Eventecos is not responsible for event cancellations or changes.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        `,
+        text: `You've received a complimentary ticket to ${params.eventTitle}!\n\nIssued by: ${params.promoterName}\nTier: ${params.tierName}${dateStr ? `\nDate: ${dateStr}` : ''}${params.venueName ? `\nVenue: ${params.venueName}` : ''}\n\nView your ticket: ${params.ticketUrl}`,
+      };
+
+      const info = await this.transporter.sendMail(mailOptions);
+      console.log('[MailService] Comp ticket email sent to', params.toEmail, '—', info.messageId);
+    } catch (error) {
+      console.error('[MailService] Comp ticket email failed:', error);
+    }
+  }
+
   /**
    * Sends a single consolidated email with multiple ticket tiers
    */

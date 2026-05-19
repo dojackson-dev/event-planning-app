@@ -6,7 +6,7 @@ import Link from 'next/link'
 import api from '@/lib/api'
 import {
   Loader2, Trash2, Plus, Save, ExternalLink, Copy,
-  Users, DollarSign, Tag, MapPin, Clock, ChevronDown, CheckCircle, QrCode,
+  Users, DollarSign, Tag, MapPin, Clock, ChevronDown, CheckCircle, QrCode, Gift, X, Send,
 } from 'lucide-react'
 import ImageUpload from '@/components/ImageUpload'
 
@@ -127,6 +127,16 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
   const [addingTier, setAddingTier] = useState(false)
   const [showAddTier, setShowAddTier] = useState(false)
 
+  // Comp ticket modal
+  const [showCompModal, setShowCompModal] = useState(false)
+  const [compTierId, setCompTierId] = useState('')
+  const [compRecipientEmail, setCompRecipientEmail] = useState('')
+  const [compRecipientPhone, setCompRecipientPhone] = useState('')
+  const [compRecipientName, setCompRecipientName] = useState('')
+  const [sendingComp, setSendingComp] = useState(false)
+  const [compError, setCompError] = useState('')
+  const [compSuccess, setCompSuccess] = useState(false)
+
   useEffect(() => {
     if (!id) return
     Promise.all([
@@ -227,6 +237,40 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
     setTimeout(() => setCopied(false), 2000)
   }
 
+  const handleSendComp = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!compTierId) { setCompError('Please select a ticket tier'); return }
+    if (!compRecipientEmail) { setCompError('Recipient email is required'); return }
+    setSendingComp(true)
+    setCompError('')
+    try {
+      await api.post(`/promoter-events/${id}/comp-ticket`, {
+        tier_id: compTierId,
+        recipient_email: compRecipientEmail,
+        recipient_phone: compRecipientPhone || undefined,
+        recipient_name: compRecipientName || undefined,
+      })
+      setCompSuccess(true)
+      // Refresh attendees list
+      const res = await api.get(`/promoter-events/${id}/attendees`)
+      setAttendees(res.data)
+    } catch (err: any) {
+      setCompError(err.response?.data?.message || 'Failed to send comp ticket')
+    } finally {
+      setSendingComp(false)
+    }
+  }
+
+  const closeCompModal = () => {
+    setShowCompModal(false)
+    setCompSuccess(false)
+    setCompError('')
+    setCompTierId('')
+    setCompRecipientEmail('')
+    setCompRecipientPhone('')
+    setCompRecipientName('')
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -248,6 +292,7 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
   const revenue = attendees.reduce((s, a) => s + Number(a.amount_paid), 0)
 
   return (
+    <>
     <div className="min-h-screen bg-gray-50">
       {/* Title row */}
       <div className="bg-white border-b">
@@ -573,6 +618,16 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
             <QrCode className="w-5 h-5" />
             Scan Tickets at Door
           </Link>
+
+          {/* Send Comp Ticket button */}
+          <button
+            onClick={() => setShowCompModal(true)}
+            className="flex items-center justify-center gap-2 w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-sm"
+          >
+            <Gift className="w-5 h-5" />
+            Send Comp Ticket
+          </button>
+
           <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
             {attendees.length === 0 ? (
               <div className="p-10 text-center">
@@ -617,5 +672,112 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
         )}
       </div>
     </div>
+
+    {/* Comp Ticket Modal */}
+    {showCompModal && (
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-4">
+        <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
+          <div className="flex items-center justify-between p-5 border-b">
+            <div className="flex items-center gap-2">
+              <Gift className="w-5 h-5 text-emerald-600" />
+              <h2 className="font-semibold text-gray-900">Send Comp Ticket</h2>
+            </div>
+            <button onClick={closeCompModal} className="text-gray-400 hover:text-gray-600">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {compSuccess ? (
+            <div className="p-6 text-center space-y-3">
+              <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mx-auto">
+                <CheckCircle className="w-8 h-8 text-emerald-600" />
+              </div>
+              <p className="font-semibold text-gray-900 text-lg">Comp ticket sent!</p>
+              <p className="text-gray-500 text-sm">
+                {compRecipientName ? `${compRecipientName} has` : compRecipientEmail} been sent a complimentary ticket via email{compRecipientPhone ? ' and SMS' : ''}.
+              </p>
+              <button
+                onClick={closeCompModal}
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-sm mt-2"
+              >
+                Done
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleSendComp} className="p-5 space-y-4">
+              {compError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">{compError}</div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ticket Tier <span className="text-red-500">*</span></label>
+                <select
+                  value={compTierId}
+                  onChange={e => setCompTierId(e.target.value)}
+                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                  required
+                >
+                  <option value="">Select a tier...</option>
+                  {event.ticket_tiers.map(tier => (
+                    <option key={tier.id} value={tier.id}>
+                      {tier.name} (${Number(tier.price).toFixed(2)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Recipient Name</label>
+                <input
+                  type="text"
+                  placeholder="Jane Doe"
+                  value={compRecipientName}
+                  onChange={e => setCompRecipientName(e.target.value)}
+                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Recipient Email <span className="text-red-500">*</span></label>
+                <input
+                  type="email"
+                  placeholder="jane@example.com"
+                  value={compRecipientEmail}
+                  onChange={e => setCompRecipientEmail(e.target.value)}
+                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Recipient Phone (optional SMS)</label>
+                <input
+                  type="tel"
+                  placeholder="+1 555 000 0000"
+                  value={compRecipientPhone}
+                  onChange={e => setCompRecipientPhone(e.target.value)}
+                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={closeCompModal} className="flex-1 py-3 border border-gray-300 text-gray-700 font-medium rounded-xl text-sm hover:bg-gray-50">
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={sendingComp}
+                  className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-60"
+                >
+                  {sendingComp ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  {sendingComp ? 'Sending...' : 'Send Comp'}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </div>
+    )}
+    </>
   )
 }

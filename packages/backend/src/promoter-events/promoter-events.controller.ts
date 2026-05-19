@@ -59,6 +59,21 @@ export class PromoterEventsController {
     return this.service.getTicketById(ticketId);
   }
 
+  /** Forward a ticket to a phone/email — generates an access code */
+  @Post('public/ticket/:ticketId/forward')
+  forwardTicket(
+    @Param('ticketId') ticketId: string,
+    @Body() body: { recipientPhone?: string; recipientEmail?: string },
+  ) {
+    return this.service.forwardTicket(ticketId, body.recipientPhone, body.recipientEmail);
+  }
+
+  /** Claim a forwarded ticket using its access code */
+  @Get('public/forward/:code')
+  getTicketByForwardCode(@Param('code') code: string) {
+    return this.service.getTicketByForwardCode(code);
+  }
+
   @Get('public/:id')
   getPublicEvent(@Param('id') id: string) {
     return this.service.getPublicEvent(id);
@@ -185,5 +200,28 @@ export class PromoterEventsController {
   ) {
     const userId = await this.getUserId(auth);
     return this.service.getEventAttendees(userId, eventId);
+  }
+
+  // comp tickets
+  @Post(':id/comp-ticket')
+  async sendCompTicket(
+    @Headers('authorization') auth: string,
+    @Param('id') eventId: string,
+    @Body() body: {
+      tier_id: string;
+      recipient_email: string;
+      recipient_phone?: string;
+      recipient_name?: string;
+    },
+  ) {
+    const userId = await this.getUserId(auth);
+    return this.service.sendCompTicket(
+      userId,
+      eventId,
+      body.tier_id,
+      body.recipient_email,
+      body.recipient_phone,
+      body.recipient_name,
+    );
   }
 }

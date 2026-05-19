@@ -196,7 +196,7 @@ export class ArtistsService {
       .eq('user_id', userId)
       .maybeSingle();
 
-    if (!artist) throw new NotFoundException('Artist account not found');
+    if (!artist) return null;
 
     const { data } = await admin
       .from('artist_riders')
@@ -216,7 +216,7 @@ export class ArtistsService {
       .eq('user_id', userId)
       .maybeSingle();
 
-    if (!artist) throw new NotFoundException('Artist account not found');
+    if (!artist) throw new BadRequestException('No artist account found. Please complete your artist profile first.');
 
     const { data: existing } = await admin
       .from('artist_riders')

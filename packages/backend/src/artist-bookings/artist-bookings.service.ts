@@ -55,7 +55,12 @@ export class ArtistBookingsService {
 
   async listBookings(userId: string) {
     const admin = this.supabaseService.getAdminClient();
-    const artistAccountId = await this.getArtistAccountId(userId);
+    let artistAccountId: string;
+    try {
+      artistAccountId = await this.getArtistAccountId(userId);
+    } catch {
+      return [];
+    }
 
     const { data, error } = await admin
       .from('artist_bookings')

@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
-import { Loader2, Calendar, User, Building2, MapPin, DollarSign, FileText, CheckCircle, XCircle } from 'lucide-react'
+import { Loader2, Calendar, User, Building2, MapPin, DollarSign, FileText, CheckCircle, XCircle, FilePlus, Send } from 'lucide-react'
 
 interface PromoterBooking {
   id: string
@@ -53,12 +53,16 @@ const STATUS_LABELS: Record<string, string> = {
 
 export default function PromoterBookingDetailPage() {
   const params = useParams()
+  const router = useRouter()
   const id = params.id as string
 
   const [booking, setBooking] = useState<PromoterBooking | null>(null)
   const [loading, setLoading] = useState(true)
   const [responding, setResponding] = useState(false)
+  const [sendingRider, setSendingRider] = useState(false)
+  const [riderSent, setRiderSent] = useState(false)
   const [error, setError] = useState('')
+  const [riderError, setRiderError] = useState('')
 
   useEffect(() => {
     api.get(`/promoter-bookings/${id}`)
@@ -78,6 +82,22 @@ export default function PromoterBookingDetailPage() {
       setResponding(false)
     }
   }
+
+  const handleSendRider = async () => {
+    setSendingRider(true); setRiderError('')
+    try {
+      await api.post(`/promoter-bookings/${id}/send-rider`)
+      setRiderSent(true)
+    } catch (e: any) {
+      setRiderError(e.response?.data?.message || 'Failed to send rider')
+    } finally {
+      setSendingRider(false)
+    }
+  }
+
+  const invoiceUrl = booking
+    ? `/artist/dashboard/invoices/new?client_name=${encodeURIComponent(booking.promoter_accounts?.contact_name || booking.promoter_accounts?.company_name || '')}&client_email=${encodeURIComponent(booking.promoter_accounts?.email || '')}&client_phone=${encodeURIComponent(booking.promoter_accounts?.phone || '')}&event_name=${encodeURIComponent(booking.event_name)}&event_date=${encodeURIComponent(booking.event_date || '')}&amount=${encodeURIComponent(String(booking.agreed_amount || ''))}`
+    : '#'
 
   if (loading) {
     return (
@@ -226,6 +246,52 @@ export default function PromoterBookingDetailPage() {
               <h2 className="font-semibold text-gray-800">Notes</h2>
             </div>
             <p className="text-sm text-gray-600 whitespace-pre-wrap">{booking.notes}</p>
+          </div>
+        )}
+
+        {/* Actions: Create Invoice + Send Rider */}
+        {booking?.status !== 'cancelled' && (
+          <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-3">
+            <h2 className="font-semibold text-gray-800">Actions</h2>
+
+            {/* Create Invoice */}
+            <Link href={invoiceUrl}
+              className="flex items-center gap-3 w-full px-4 py-3 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
+              <FilePlus className="w-4 h-4 flex-shrink-0" />
+              <div>
+                <div className="font-semibold">Create Invoice</div>
+                <div className="text-xs opacity-80">Bill the promoter for this booking</div>
+              </div>
+            </Link>
+
+            {/* Send Rider */}
+            <div className="space-y-1">
+              <button
+                onClick={handleSendRider}
+                disabled={sendingRider || riderSent}
+                className="flex items-center gap-3 w-full px-4 py-3 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50 transition-colors text-left">
+                {sendingRider
+                  ? <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+                  : riderSent
+                  ? <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                  : <Send className="w-4 h-4 flex-shrink-0" />}
+                <div>
+                  <div className="font-semibold">{riderSent ? 'Rider Sent!' : 'Send Rider to Promoter'}</div>
+                  <div className="text-xs text-gray-500">
+                    {riderSent
+                      ? `Emailed to ${booking?.promoter_accounts?.email || 'promoter'}`
+                      : 'Email your technical rider to the promoter'}
+                  </div>
+                </div>
+              </button>
+              {riderError && <p className="text-xs text-red-600 px-1">{riderError}</p>}
+              {!riderSent && (
+                <p className="text-xs text-gray-400 px-1">
+                  Don&apos;t have a rider?{' '}
+                  <Link href="/artist/dashboard/rider" className="text-blue-500 hover:underline">Set one up here</Link>
+                </p>
+              )}
+            </div>
           </div>
         )}
 

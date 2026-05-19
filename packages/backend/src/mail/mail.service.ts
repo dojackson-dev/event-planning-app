@@ -778,4 +778,148 @@ export class MailService {
       console.error('[MailService] Comp ticket email failed:', error);
     }
   }
+
+  async sendRiderEmail(params: {
+    to: string;
+    artistName: string;
+    eventName: string;
+    eventDate?: string;
+    rider: Record<string, any>;
+  }): Promise<void> {
+    const { to, artistName, eventName, eventDate, rider } = params;
+    const formattedDate = eventDate
+      ? new Date(eventDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+      : null;
+
+    const section = (title: string, content: string) =>
+      `<div style="margin-bottom:20px;">
+        <h3 style="color:#1f2937;font-size:14px;font-weight:700;margin:0 0 8px;text-transform:uppercase;letter-spacing:0.05em;">${title}</h3>
+        <p style="color:#374151;font-size:14px;margin:0;white-space:pre-wrap;line-height:1.6;">${content}</p>
+      </div>`;
+
+    const boolItem = (label: string, val: boolean) =>
+      val ? `<li style="color:#374151;font-size:14px;margin:0 0 4px;">${label}</li>` : '';
+
+    const sections: string[] = [];
+
+    // Contacts
+    const contactLines: string[] = [];
+    if (rider.artist_manager) contactLines.push(`Manager: ${rider.artist_manager}${rider.manager_phone ? ` · ${rider.manager_phone}` : ''}${rider.manager_email ? ` · ${rider.manager_email}` : ''}`);
+    if (rider.tour_manager) contactLines.push(`Tour Manager: ${rider.tour_manager}${rider.tour_manager_phone ? ` · ${rider.tour_manager_phone}` : ''}${rider.tour_manager_email ? ` · ${rider.tour_manager_email}` : ''}`);
+    if (rider.production_manager) contactLines.push(`Production Manager: ${rider.production_manager}${rider.production_manager_phone ? ` · ${rider.production_manager_phone}` : ''}${rider.production_manager_email ? ` · ${rider.production_manager_email}` : ''}`);
+    if (contactLines.length) sections.push(section('Contacts', contactLines.join('\n')));
+
+    // Travel
+    const travelLines: string[] = [];
+    if (rider.traveling_party_size) travelLines.push(`Party size: ${rider.traveling_party_size}`);
+    if (rider.transport_required) travelLines.push(`Transport: ${rider.transport_required}`);
+    if (rider.hotel_requirements) travelLines.push(`Hotel: ${rider.hotel_requirements}`);
+    if (travelLines.length) sections.push(section('Travel & Accommodation', travelLines.join('\n')));
+
+    // Dressing Room
+    const dressingItems: string[] = [];
+    if (rider.dressing_rooms_count) dressingItems.push(`Rooms required: ${rider.dressing_rooms_count}`);
+    if (rider.dressing_room_notes) dressingItems.push(rider.dressing_room_notes);
+    const dressingBools = [
+      boolItem('Private access required', rider.requires_private_access),
+      boolItem('Mirrors required', rider.requires_mirrors),
+      boolItem('Clothing rack', rider.requires_clothing_rack),
+      boolItem('Seating', rider.requires_seating),
+      boolItem('Wi-Fi', rider.requires_wifi),
+      boolItem('Climate control', rider.requires_climate_control),
+    ].filter(Boolean);
+    if (dressingItems.length || dressingBools.length) {
+      const content = [...dressingItems].join('\n') + (dressingBools.length ? `\n<ul style="margin:8px 0 0;padding-left:18px;">${dressingBools.join('')}</ul>` : '');
+      sections.push(section('Dressing Room', content));
+    }
+
+    // Hospitality
+    const hospLines: string[] = [];
+    if (rider.bottled_water) hospLines.push(`Water: ${rider.bottled_water}`);
+    if (rider.soft_drinks) hospLines.push(`Soft drinks: ${rider.soft_drinks}`);
+    if (rider.snacks) hospLines.push(`Snacks: ${rider.snacks}`);
+    if (rider.hot_meal) hospLines.push(`Hot meal required${rider.hot_meal_notes ? `: ${rider.hot_meal_notes}` : ''}`);
+    if (rider.dietary_restrictions) hospLines.push(`Dietary restrictions: ${rider.dietary_restrictions}`);
+    if (hospLines.length) sections.push(section('Hospitality', hospLines.join('\n')));
+
+    // Technical
+    const techLines: string[] = [];
+    if (rider.stage_size_min) techLines.push(`Stage size: ${rider.stage_size_min}`);
+    if (rider.power_requirements) techLines.push(`Power: ${rider.power_requirements}`);
+    if (rider.sound_system) techLines.push(`Sound: ${rider.sound_system}`);
+    if (rider.dj_setup) techLines.push(`DJ setup: ${rider.dj_setup}`);
+    if (rider.microphones) techLines.push(`Microphones: ${rider.microphones}`);
+    if (rider.monitors) techLines.push(`Monitors: ${rider.monitors}`);
+    if (rider.lighting) techLines.push(`Lighting: ${rider.lighting}`);
+    if (rider.video_playback) techLines.push(`Video/playback: ${rider.video_playback}`);
+    if (rider.technical_notes) techLines.push(rider.technical_notes);
+    if (techLines.length) sections.push(section('Technical Requirements', techLines.join('\n')));
+
+    // Schedule
+    const schedLines: string[] = [];
+    if (rider.load_in_time) schedLines.push(`Load-in: ${rider.load_in_time}`);
+    if (rider.soundcheck_time) schedLines.push(`Soundcheck: ${rider.soundcheck_time}`);
+    if (rider.performance_duration) schedLines.push(`Performance duration: ${rider.performance_duration}`);
+    if (rider.load_out_time) schedLines.push(`Load-out: ${rider.load_out_time}`);
+    if (schedLines.length) sections.push(section('Schedule', schedLines.join('\n')));
+
+    // Security
+    const secLines: string[] = [];
+    if (rider.backstage_access_control) secLines.push(`Access control: ${rider.backstage_access_control}`);
+    if (rider.crowd_barrier) secLines.push('Crowd barrier required');
+    if (rider.stage_escort) secLines.push('Stage escort required');
+    if (rider.security_notes) secLines.push(rider.security_notes);
+    if (secLines.length) sections.push(section('Security', secLines.join('\n')));
+
+    // Merch
+    const merchLines: string[] = [];
+    if (rider.merch_table_required) merchLines.push('Merch table required');
+    if (rider.merch_staffing) merchLines.push(`Staffing: ${rider.merch_staffing}`);
+    if (rider.merch_split_percentage) merchLines.push(`Merch split: ${rider.merch_split_percentage}%`);
+    if (rider.merch_settlement) merchLines.push(`Settlement: ${rider.merch_settlement}`);
+    if (merchLines.length) sections.push(section('Merchandise', merchLines.join('\n')));
+
+    // Special Notes
+    const specialLines: string[] = [];
+    if (rider.photography_policy) specialLines.push(`Photography: ${rider.photography_policy}`);
+    if (rider.recording_policy) specialLines.push(`Recording: ${rider.recording_policy}`);
+    if (rider.guest_list_comps) specialLines.push(`Guest list comps: ${rider.guest_list_comps}`);
+    if (rider.promoter_obligations) specialLines.push(`Promoter obligations: ${rider.promoter_obligations}`);
+    if (rider.special_notes) specialLines.push(rider.special_notes);
+    if (specialLines.length) sections.push(section('Special Notes', specialLines.join('\n')));
+
+    if (!sections.length) sections.push('<p style="color:#6b7280;font-size:14px;">No specific requirements listed.</p>');
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f9fafb;">
+        <div style="max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.1);">
+          ${this.getEmailHeader(`Artist Rider — ${artistName}`, `For: ${eventName}${formattedDate ? ` · ${formattedDate}` : ''}`)}
+          <div style="padding:32px;">
+            <p style="color:#374151;font-size:15px;margin:0 0 24px;line-height:1.5;">
+              <strong>${artistName}</strong> has sent you their artist rider for <strong>${eventName}</strong>${formattedDate ? ` on <strong>${formattedDate}</strong>` : ''}.
+              Please review the requirements below and confirm all arrangements are in place.
+            </p>
+            <div style="border-top:1px solid #e5e7eb;padding-top:24px;">
+              ${sections.join('<hr style="border:none;border-top:1px solid #f3f4f6;margin:16px 0;">')}
+            </div>
+            <p style="color:#9ca3af;font-size:12px;margin:24px 0 0;border-top:1px solid #f3f4f6;padding-top:16px;">
+              Sent via EventEcos · If you have questions, reply directly to ${artistName}.
+            </p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await this.transporter.sendMail({
+      from: `"EventEcos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
+      to,
+      subject: `Artist Rider: ${artistName} — ${eventName}`,
+      html,
+      text: `Artist Rider from ${artistName} for ${eventName}${formattedDate ? ` on ${formattedDate}` : ''}.\n\nPlease review all requirements and confirm arrangements are in place.`,
+    });
+    console.log('[MailService] Rider email sent to', to);
+  }
 }

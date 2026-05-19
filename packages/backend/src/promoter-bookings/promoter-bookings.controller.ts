@@ -58,6 +58,15 @@ export class PromoterBookingsController {
     return this.promoterBookingsService.artistRespondToBooking(userId, id, body.action);
   }
 
+  @Post(':id/send-rider')
+  async sendRiderToPromoter(
+    @Headers('authorization') auth: string,
+    @Param('id') id: string,
+  ) {
+    const userId = await this.getUserId(auth);
+    return this.promoterBookingsService.sendRiderToPromoter(userId, id);
+  }
+
   @Get(':id')
   async getBooking(@Headers('authorization') auth: string, @Param('id') id: string) {
     const userId = await this.getUserId(auth);

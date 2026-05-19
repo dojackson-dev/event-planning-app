@@ -67,16 +67,33 @@ export class PromoterBookingsService {
 
   async getBooking(userId: string, bookingId: string) {
     const admin = this.supabaseService.getAdminClient();
-    const promoterAccountId = await this.getPromoterAccountId(userId);
 
+    // Fetch the booking first without user filtering
     const { data, error } = await admin
       .from('promoter_bookings')
-      .select('*, promoter_invoices(id, invoice_number, total_amount, amount_due, status, public_token), artist_accounts(id, artist_name, stage_name, artist_type, booking_email, booking_phone, performance_fee_min, performance_fee_max)')
+      .select('*, promoter_invoices(id, invoice_number, total_amount, amount_due, status, public_token), artist_accounts(id, artist_name, stage_name, artist_type, booking_email, booking_phone, performance_fee_min, performance_fee_max), promoter_accounts(company_name, contact_name, email, phone)')
       .eq('id', bookingId)
-      .eq('promoter_account_id', promoterAccountId)
-      .single();
+      .maybeSingle();
 
     if (error || !data) throw new NotFoundException('Booking not found');
+
+    // Allow access if user is the promoter who owns it
+    const { data: promoterAccount } = await admin
+      .from('promoter_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    const isPromoter = promoterAccount && promoterAccount.id === data.promoter_account_id;
+
+    // Allow access if user is the artist on this booking
+    const { data: artistAccount } = await admin
+      .from('artist_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    const isArtist = artistAccount && artistAccount.id === data.artist_account_id;
+
+    if (!isPromoter && !isArtist) throw new ForbiddenException('Access denied');
 
     // Fetch artist invoices sent by the booked artist (payable by the promoter)
     let artistInvoices: any[] = [];

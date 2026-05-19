@@ -1021,4 +1021,101 @@ export class PromoterEventsService {
 
     return forward.tickets;
   }
+
+  // ── Comp Tickets ──────────────────────────────────────────────
+
+  /**
+   * Issues a complimentary (free) ticket for an event and notifies the recipient.
+   * Only the promoter who owns the event can issue comp tickets.
+   */
+  async sendCompTicket(
+    userId: string,
+    eventId: string,
+    tierId: string,
+    recipientEmail: string,
+    recipientPhone?: string,
+    recipientName?: string,
+  ): Promise<{ ticket: any }> {
+    const admin = this.supabaseService.getAdminClient();
+    const promoter = await this.getPromoterAccount(userId);
+
+    // Verify promoter owns this event
+    const { data: event } = await admin
+      .from('public_events')
+      .select('id, title, event_date, event_time, venue_name, promoter_account_id')
+      .eq('id', eventId)
+      .eq('promoter_account_id', promoter.id)
+      .maybeSingle();
+    if (!event) throw new ForbiddenException('Event not found or not yours');
+
+    // Verify tier belongs to this event
+    const { data: tier } = await admin
+      .from('ticket_tiers')
+      .select('id, name, quantity, quantity_sold')
+      .eq('id', tierId)
+      .eq('public_event_id', eventId)
+      .maybeSingle();
+    if (!tier) throw new NotFoundException('Ticket tier not found');
+
+    // Create a comp ticket (amount_paid = 0, status = valid, is_comp = true)
+    const { data: ticket, error: ticketErr } = await admin
+      .from('tickets')
+      .insert({
+        public_event_id: eventId,
+        ticket_tier_id: tierId,
+        buyer_email: recipientEmail,
+        buyer_phone: recipientPhone ? this.normalizePhone(recipientPhone) : null,
+        amount_paid: 0,
+        status: 'valid',
+        is_comp: true,
+        comp_note: recipientName ? `Comp issued to ${recipientName}` : 'Complimentary ticket',
+      })
+      .select()
+      .single();
+    if (ticketErr) throw new BadRequestException(ticketErr.message);
+
+    // Increment quantity_sold
+    await admin
+      .from('ticket_tiers')
+      .update({ quantity_sold: (tier.quantity_sold || 0) + 1 })
+      .eq('id', tierId);
+
+    const promoterName = promoter.company_name || promoter.contact_name || 'The Promoter';
+    const ticketUrl = `${this.frontendUrl}/ticket/${ticket.id}`;
+
+    // Send email
+    try {
+      await this.mailService.sendCompTicketEmail({
+        toEmail: recipientEmail,
+        toName: recipientName || recipientEmail,
+        eventTitle: (event as any).title,
+        eventDate: (event as any).event_date,
+        venueName: (event as any).venue_name,
+        tierName: tier.name,
+        ticketUrl,
+        promoterName,
+        eventId,
+      });
+    } catch (e) {
+      this.logger.warn('Comp ticket email failed', e);
+    }
+
+    // Send SMS
+    if (recipientPhone) {
+      try {
+        const phone = this.normalizePhone(recipientPhone);
+        const dateStr = (event as any).event_date
+          ? new Date((event as any).event_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+          : '';
+        await this.twilioService.sendSMS(
+          phone,
+          `${promoterName} sent you a complimentary ticket to ${(event as any).title}${dateStr ? ` on ${dateStr}` : ''}! View it here: ${ticketUrl}`,
+        );
+      } catch (e) {
+        this.logger.warn('Comp ticket SMS failed', e);
+      }
+    }
+
+    return { ticket };
+  }
 }

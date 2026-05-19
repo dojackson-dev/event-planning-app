@@ -913,13 +913,18 @@ export class MailService {
       </html>
     `;
 
-    await this.transporter.sendMail({
-      from: `"EventEcos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
+    if (!process.env.RESEND_API_KEY) {
+      console.warn('[MailService] RESEND_API_KEY not set — skipping rider email');
+      throw new Error('Email service not configured. Please set RESEND_API_KEY in your environment.');
+    }
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const { error } = await resend.emails.send({
+      from: `EventEcos <${process.env.RESEND_FROM || 'noreply@eventecos.com'}>`,
       to,
       subject: `Artist Rider: ${artistName} — ${eventName}`,
       html,
-      text: `Artist Rider from ${artistName} for ${eventName}${formattedDate ? ` on ${formattedDate}` : ''}.\n\nPlease review all requirements and confirm arrangements are in place.`,
     });
-    console.log('[MailService] Rider email sent to', to);
+    if (error) throw new Error(error.message);
+    console.log('[MailService] Rider email sent via Resend to', to);
   }
 }

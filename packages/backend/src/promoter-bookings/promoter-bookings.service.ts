@@ -57,7 +57,12 @@ export class PromoterBookingsService {
 
   async listBookings(userId: string) {
     const admin = this.supabaseService.getAdminClient();
-    const promoterAccountId = await this.getPromoterAccountId(userId);
+    let promoterAccountId: string;
+    try {
+      promoterAccountId = await this.getPromoterAccountId(userId);
+    } catch {
+      return [];
+    }
 
     const { data, error } = await admin
       .from('promoter_bookings')

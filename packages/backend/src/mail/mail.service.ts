@@ -511,9 +511,8 @@ export class MailService {
       const amountStr = isFree ? 'Free' : `$${params.amountTotal.toFixed(2)}`;
       const fromName = params.promoterName ? `${params.promoterName} via Eventecos` : 'Eventecos Tickets';
 
-      // Fetch tickets by session ID if available
-      let ticketQRCodes: Array<{ id: string; buffer: Buffer; cid: string }> = [];
-      let attachments: any[] = [];
+      // Fetch tickets by session ID if available and generate QR codes as base64
+      let ticketQRItems: Array<{ id: string; base64: string }> = [];
       if (params.sessionId) {
         try {
           const admin = this.supabaseService.getAdminClient();
@@ -524,7 +523,6 @@ export class MailService {
             .order('created_at', { ascending: true });
 
           if (!error && tickets && tickets.length > 0) {
-            // Generate QR code for each ticket
             for (const ticket of tickets) {
               const ticketUrl = `${frontendUrl}/ticket/${ticket.id}`;
               const qrBuffer = await QRCode.toBuffer(ticketUrl, {
@@ -533,13 +531,7 @@ export class MailService {
                 margin: 1,
                 width: 300,
               });
-              const cid = `qr-${ticket.id}@eventecos`;
-              ticketQRCodes.push({ id: ticket.id, buffer: qrBuffer, cid });
-              attachments.push({
-                filename: `ticket-qr-${ticket.id.substring(0, 8)}.png`,
-                content: qrBuffer,
-                cid: cid,
-              });
+              ticketQRItems.push({ id: ticket.id, base64: qrBuffer.toString('base64') });
             }
           }
         } catch (ticketError) {
@@ -547,15 +539,15 @@ export class MailService {
         }
       }
 
-      // Build QR codes HTML
-      const qrCodesHtml = ticketQRCodes.length > 0
+      // Build QR codes HTML using base64 data URIs (works with Resend)
+      const qrCodesHtml = ticketQRItems.length > 0
         ? `
             <div style="margin: 32px 0;">
               <h3 style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0 0 16px;">Your Tickets</h3>
-              ${ticketQRCodes.map((ticket, index) => `
+              ${ticketQRItems.map((ticket, index) => `
                 <div style="background: white; border: 2px dashed #e5e7eb; border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 16px;">
                   <p style="color: #6b7280; font-size: 12px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: 0.5px;">Ticket ${index + 1}</p>
-                  <img src="cid:${ticket.cid}" alt="QR Code" style="width: 200px; height: 200px; display: block; margin: 0 auto 12px;" />
+                  <img src="data:image/png;base64,${ticket.base64}" alt="QR Code" style="width: 200px; height: 200px; display: block; margin: 0 auto 12px;" />
                   <p style="color: #9ca3af; font-size: 11px; margin: 0; font-family: monospace; word-break: break-all;">${ticket.id}</p>
                 </div>
               `).join('')}
@@ -566,11 +558,12 @@ export class MailService {
           `
         : '';
 
-      const mailOptions = {
-        from: `"${fromName}" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
-        to: params.toEmail,
-        subject: `Your tickets to ${params.eventTitle} are confirmed`,
-        html: `
+      if (!process.env.RESEND_API_KEY) {
+        console.warn('[MailService] RESEND_API_KEY not set — skipping ticket confirmation email');
+        return;
+      }
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      const html = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb; padding: 32px 16px;">
             <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08);">
               ${this.getEmailHeader('You\'re going!', 'Your tickets are confirmed')}
@@ -607,13 +600,16 @@ export class MailService {
               </div>
             </div>
           </div>
-        `,
-        text: `Your tickets are confirmed!\n\n${params.eventTitle}\nDate: ${formattedDate}${params.eventTime ? `\nTime: ${params.eventTime}` : ''}${params.venueName ? `\nVenue: ${params.venueName}` : ''}\nTicket: ${params.tierName}\nQuantity: ${params.quantity}\nTotal: ${amountStr}\n\nShow the QR code above at the door. Each code can only be scanned once.\n\nIMPORTANT: Eventecos is not responsible for event cancellations, postponements, or refunds. The event organizer is solely liable for these matters.\n\nView event: ${eventUrl}`,
-        attachments: attachments,
-      };
+        `;
 
-      const info = await this.transporter.sendMail(mailOptions);
-      console.log('[MailService] Ticket confirmation sent to', params.toEmail, '—', info.messageId);
+      await resend.emails.send({
+        from: `${fromName} <${process.env.RESEND_FROM || 'noreply@eventecos.com'}>`,
+        to: params.toEmail,
+        subject: `Your tickets to ${params.eventTitle} are confirmed`,
+        html,
+        text: `Your tickets are confirmed!\n\n${params.eventTitle}\nDate: ${formattedDate}${params.eventTime ? `\nTime: ${params.eventTime}` : ''}${params.venueName ? `\nVenue: ${params.venueName}` : ''}\nTicket: ${params.tierName}\nQuantity: ${params.quantity}\nTotal: ${amountStr}\n\nIMPORTANT: Eventecos is not responsible for event cancellations, postponements, or refunds.\n\nView event: ${eventUrl}`,
+      });
+      console.log('[MailService] Ticket confirmation sent via Resend to', params.toEmail);
     } catch (error) {
       console.error('[MailService] Ticket confirmation email failed:', error);
       // Non-fatal — webhook must not throw
@@ -627,9 +623,14 @@ export class MailService {
     code: string;
     claimUrl: string;
   }): Promise<void> {
+    if (!process.env.RESEND_API_KEY) {
+      console.warn('[MailService] RESEND_API_KEY not set — skipping ticket forward email');
+      return;
+    }
     try {
-      const mailOptions = {
-        from: `"Eventecos Tickets" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      await resend.emails.send({
+        from: `Eventecos Tickets <${process.env.RESEND_FROM || 'noreply@eventecos.com'}>`,
         to: params.toEmail,
         subject: `You've received a ticket to ${params.eventTitle}`,
         html: `
@@ -670,10 +671,8 @@ export class MailService {
           </div>
         `,
         text: `You've received a ticket to ${params.eventTitle}!\n\nYour access code: ${params.code}\n\nClaim your ticket at: ${params.claimUrl}\n\nThis code expires in 7 days.`,
-      };
-
-      const info = await this.transporter.sendMail(mailOptions);
-      console.log('[MailService] Ticket forward email sent to', params.toEmail, '—', info.messageId);
+      });
+      console.log('[MailService] Ticket forward email sent via Resend to', params.toEmail);
     } catch (error) {
       console.error('[MailService] Ticket forward email failed:', error);
     }
@@ -700,9 +699,8 @@ export class MailService {
         : 'TBD';
       const fromName = `${params.promoterName} via Eventecos`;
 
-      // Generate QR code for the comp ticket
+      // Generate QR code as base64 data URI (works with Resend)
       let qrHtml = '';
-      let attachments: any[] = [];
       try {
         const qrBuffer = await QRCode.toBuffer(params.ticketUrl, {
           errorCorrectionLevel: 'H',
@@ -710,13 +708,12 @@ export class MailService {
           margin: 1,
           width: 300,
         });
-        const cid = `qr-${params.ticketId}@eventecos`;
-        attachments.push({ filename: `ticket-qr.png`, content: qrBuffer, cid });
+        const base64 = qrBuffer.toString('base64');
         qrHtml = `
           <div style="margin: 32px 0;">
             <h3 style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0 0 16px;">Your Ticket</h3>
             <div style="background: white; border: 2px dashed #e5e7eb; border-radius: 12px; padding: 20px; text-align: center;">
-              <img src="cid:${cid}" alt="QR Code" style="width: 200px; height: 200px; display: block; margin: 0 auto 12px;" />
+              <img src="data:image/png;base64,${base64}" alt="QR Code" style="width: 200px; height: 200px; display: block; margin: 0 auto 12px;" />
               <p style="color: #9ca3af; font-size: 11px; margin: 0; font-family: monospace; word-break: break-all;">${params.ticketId}</p>
             </div>
             <p style="color: #6b7280; font-size: 13px; background: #f3f4f6; border-radius: 8px; padding: 12px; margin: 16px 0 0; line-height: 1.5;">
@@ -728,8 +725,13 @@ export class MailService {
         console.warn('[MailService] QR generation failed for comp ticket:', qrErr);
       }
 
-      const mailOptions = {
-        from: `"${fromName}" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
+      if (!process.env.RESEND_API_KEY) {
+        console.warn('[MailService] RESEND_API_KEY not set — skipping comp ticket email');
+        return;
+      }
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      await resend.emails.send({
+        from: `${fromName} <${process.env.RESEND_FROM || 'noreply@eventecos.com'}>`,
         to: params.toEmail,
         subject: `Your complimentary ticket to ${params.eventTitle} is confirmed`,
         html: `
@@ -770,11 +772,8 @@ export class MailService {
           </div>
         `,
         text: `Your complimentary ticket to ${params.eventTitle} is confirmed!\n\nIssued by: ${params.promoterName}\nDate: ${formattedDate}${params.eventTime ? `\nTime: ${params.eventTime}` : ''}${params.venueName ? `\nVenue: ${params.venueName}` : ''}\nTier: ${params.tierName}\nTotal: Complimentary\n\nView your ticket: ${params.ticketUrl}`,
-        attachments,
-      };
-
-      const info = await this.transporter.sendMail(mailOptions);
-      console.log('[MailService] Comp ticket email sent to', params.toEmail, '—', info.messageId);
+      });
+      console.log('[MailService] Comp ticket email sent via Resend to', params.toEmail);
     } catch (error) {
       console.error('[MailService] Comp ticket email failed:', error);
     }

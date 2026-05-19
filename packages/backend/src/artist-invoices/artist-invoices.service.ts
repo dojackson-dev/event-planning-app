@@ -153,16 +153,44 @@ export class ArtistInvoicesService {
 
   async getInvoice(userId: string, invoiceId: string) {
     const admin = this.supabaseService.getAdminClient();
-    const artistAccountId = await this.getArtistAccountId(userId);
 
+    // Fetch the invoice first (no artist filter yet)
     const { data, error } = await admin
       .from('artist_invoices')
       .select('*, artist_invoice_items(*), artist_accounts(artist_name, stage_name, booking_email, booking_phone, location)')
       .eq('id', invoiceId)
-      .eq('artist_account_id', artistAccountId)
-      .single();
+      .maybeSingle();
 
     if (error || !data) throw new NotFoundException('Invoice not found');
+
+    // Allow if caller is the artist who owns this invoice
+    const { data: artistAccount } = await admin
+      .from('artist_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (artistAccount && artistAccount.id === data.artist_account_id) {
+      return data;
+    }
+
+    // Allow if caller is a promoter whose account is linked to a booking that has this invoice
+    // (the promoter is effectively the client being billed)
+    const { data: promoterAccount } = await admin
+      .from('promoter_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (promoterAccount) {
+      const { data: booking } = await admin
+        .from('promoter_bookings')
+        .select('id')
+        .eq('promoter_account_id', promoterAccount.id)
+        .eq('artist_account_id', data.artist_account_id)
+        .maybeSingle();
+      if (booking) return data;
+    }
+
+    throw new ForbiddenException('Access denied');
     return data;
   }
 

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { Plus, FileText, Send, Eye, Loader2, LogOut } from 'lucide-react'
+import { Plus, FileText, Send, Eye, Loader2, LogOut, CheckCircle2 } from 'lucide-react'
 import RoleSwitcher from '@/components/RoleSwitcher'
 
 interface ArtistInvoice {
@@ -27,6 +27,15 @@ const STATUS_COLORS: Record<string, string> = {
   paid: 'bg-green-100 text-green-700',
   overdue: 'bg-red-100 text-red-700',
   cancelled: 'bg-gray-100 text-gray-500',
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  draft: 'Draft',
+  sent: 'Sent',
+  viewed: 'Viewed',
+  paid: 'Paid',
+  overdue: 'Overdue',
+  cancelled: 'Cancelled',
 }
 
 export default function ArtistInvoicesPage() {
@@ -142,8 +151,9 @@ export default function ArtistInvoicesPage() {
                       ${Number(inv.total_amount).toFixed(2)}
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[inv.status] || 'bg-gray-100 text-gray-700'}`}>
-                        {inv.status}
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[inv.status] || 'bg-gray-100 text-gray-700'}`}>
+                        {inv.status === 'paid' && <CheckCircle2 className="w-3 h-3" />}
+                        {STATUS_LABELS[inv.status] ?? inv.status}
                       </span>
                     </td>
                     <td className="px-4 py-3">

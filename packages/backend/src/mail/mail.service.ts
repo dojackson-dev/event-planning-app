@@ -698,13 +698,13 @@ export class MailService {
         : '';
 
       const mailOptions = {
-        from: `"Eventecos" <${this.senderEmail}>`,
+        from: `"Eventecos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
         to: params.toEmail,
         subject: `You've received a complimentary ticket to ${params.eventTitle}!`,
         html: `
           <div style="background: #f0f4f8; padding: 32px; font-family: 'Segoe UI', Arial, sans-serif;">
             <div style="max-width: 560px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.10);">
-              ${this.getEmailHeader()}
+              ${this.getEmailHeader('Your Complimentary Ticket', params.eventTitle)}
               <div style="padding: 32px;">
                 <h2 style="color: #1a202c; font-size: 22px; margin: 0 0 8px;">You've got a comp ticket! 🎟️</h2>
                 <p style="color: #4a5568; font-size: 15px; margin: 0 0 24px;">

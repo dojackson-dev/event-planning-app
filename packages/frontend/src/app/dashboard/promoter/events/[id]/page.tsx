@@ -6,7 +6,7 @@ import Link from 'next/link'
 import api from '@/lib/api'
 import {
   Loader2, Trash2, Plus, Save, ExternalLink, Copy,
-  Users, DollarSign, Tag, MapPin, Clock, ChevronDown, CheckCircle, QrCode, Gift, X, Send,
+  Users, DollarSign, Tag, MapPin, Clock, ChevronDown, CheckCircle, QrCode, Gift, X, Send, Globe,
 } from 'lucide-react'
 import ImageUpload from '@/components/ImageUpload'
 
@@ -101,6 +101,7 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
   const [activeTab, setActiveTab] = useState<'details' | 'tiers' | 'attendees'>('details')
   const [copied, setCopied] = useState(false)
   const [stripeReady, setStripeReady] = useState<boolean | null>(null)
+  const [publishing, setPublishing] = useState(false)
 
   // Edit fields
   const [title, setTitle] = useState('')
@@ -235,6 +236,54 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
     navigator.clipboard.writeText(url)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handlePublish = async () => {
+    setError(''); setSuccess(''); setPublishing(true)
+    try {
+      const res = await api.put(`/promoter-events/${id}`, {
+        title, description: description || undefined,
+        event_date: eventDate, start_time: startTime || undefined,
+        end_time: endTime || undefined, venue_name: venueName || undefined,
+        venue_address: venueAddress || undefined, city: city || undefined,
+        state: state || undefined, zip_code: zipCode || undefined,
+        category: category || undefined, venue_type: venueType || undefined,
+        age_restriction: ageRestriction || undefined, image_url: imageUrl || undefined,
+        status: 'published',
+      })
+      setStatus('published')
+      setEvent(prev => ({ ...res.data, ticket_tiers: prev?.ticket_tiers ?? [] }))
+      setSuccess('Event published! It\'s now live.')
+      setTimeout(() => setSuccess(''), 4000)
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to publish')
+    } finally {
+      setPublishing(false)
+    }
+  }
+
+  const handleUnpublish = async () => {
+    setError(''); setSuccess(''); setPublishing(true)
+    try {
+      const res = await api.put(`/promoter-events/${id}`, {
+        title, description: description || undefined,
+        event_date: eventDate, start_time: startTime || undefined,
+        end_time: endTime || undefined, venue_name: venueName || undefined,
+        venue_address: venueAddress || undefined, city: city || undefined,
+        state: state || undefined, zip_code: zipCode || undefined,
+        category: category || undefined, venue_type: venueType || undefined,
+        age_restriction: ageRestriction || undefined, image_url: imageUrl || undefined,
+        status: 'draft',
+      })
+      setStatus('draft')
+      setEvent(prev => ({ ...res.data, ticket_tiers: prev?.ticket_tiers ?? [] }))
+      setSuccess('Event unpublished and set back to draft.')
+      setTimeout(() => setSuccess(''), 4000)
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to unpublish')
+    } finally {
+      setPublishing(false)
+    }
   }
 
   const handleSendComp = async (e: React.FormEvent) => {
@@ -504,11 +553,27 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
                 className="px-4 py-2 text-red-600 border border-red-200 rounded-xl text-sm hover:bg-red-50">
                 Delete Event
               </button>
-              <button type="submit" disabled={saving}
-                className="flex items-center gap-2 px-5 py-2.5 bg-purple-600 text-white font-semibold rounded-xl hover:bg-purple-700 disabled:opacity-60">
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                Save Changes
-              </button>
+              <div className="flex items-center gap-2">
+                {status === 'draft' && (
+                  <button type="button" onClick={handlePublish} disabled={publishing || saving}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white font-semibold rounded-xl hover:bg-green-700 disabled:opacity-60">
+                    {publishing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Globe className="w-4 h-4" />}
+                    Publish Event
+                  </button>
+                )}
+                {status === 'published' && (
+                  <button type="button" onClick={handleUnpublish} disabled={publishing || saving}
+                    className="flex items-center gap-2 px-4 py-2 text-orange-600 border border-orange-200 rounded-xl text-sm hover:bg-orange-50 disabled:opacity-60">
+                    {publishing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                    Unpublish
+                  </button>
+                )}
+                <button type="submit" disabled={saving}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-purple-600 text-white font-semibold rounded-xl hover:bg-purple-700 disabled:opacity-60">
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Save Changes
+                </button>
+              </div>
             </div>
           </form>
         )}
@@ -516,6 +581,15 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
         {/* TIERS TAB */}
         {activeTab === 'tiers' && (
           <div className="space-y-4">
+            {event.ticket_tiers.length > 0 && (
+              <button
+                onClick={() => setShowCompModal(true)}
+                className="flex items-center justify-center gap-2 w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-sm"
+              >
+                <Gift className="w-4 h-4" />
+                Send Comp Ticket
+              </button>
+            )}
             {event.ticket_tiers.length === 0 && !showAddTier ? (
               <div className="bg-white border border-dashed border-gray-300 rounded-xl p-10 text-center">
                 <Tag className="w-8 h-8 text-gray-300 mx-auto mb-2" />

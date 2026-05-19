@@ -1091,14 +1091,16 @@ export class PromoterEventsService {
     // Send email
     if (recipientEmail) {
       try {
+        this.logger.log(`[forwardTicket] Sending forward email to ${recipientEmail} for event "${eventTitle}"`);
         await this.mailService.sendTicketForwardEmail({
           toEmail: recipientEmail,
           eventTitle,
           code,
           claimUrl,
         });
+        this.logger.log(`[forwardTicket] Forward email sent OK to ${recipientEmail}`);
       } catch (e) {
-        this.logger.warn('Forward email failed', e);
+        this.logger.error(`[forwardTicket] Forward email failed to ${recipientEmail}`, e);
       }
     }
 

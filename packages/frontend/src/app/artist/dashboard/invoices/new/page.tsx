@@ -135,8 +135,9 @@ function NewArtistInvoiceForm() {
   const taxAmount = subtotal * (taxRate / 100)
   const baseAmount = Math.max(0, subtotal + taxAmount - discountAmount)
   const platformFee = Math.round(baseAmount * 0.03 * 100) / 100
-  const processingFee = Math.round((baseAmount + platformFee) * 0.029 * 100 + 30) / 100
-  const total = baseAmount + platformFee + processingFee
+  // Correct pass-through: total = (base + platformFee + $0.30) / (1 - 0.029)
+  const total = Math.round(((baseAmount + platformFee + 0.30) / 0.971) * 100) / 100
+  const processingFee = Math.round((total - baseAmount - platformFee) * 100) / 100
 
   const addItem = () => setItems(prev => [...prev, newItem()])
   const removeItem = (id: string) => setItems(prev => prev.filter(i => i.id !== id))
@@ -337,7 +338,7 @@ function NewArtistInvoiceForm() {
             {baseAmount > 0 && (
               <div className="flex justify-between text-green-700 text-xs">
                 <span>You receive (approx.)</span>
-                <span>${(baseAmount - Math.round(total * 0.029 * 100 + 30) / 100 + processingFee).toFixed(2)}</span>
+                <span>${baseAmount.toFixed(2)}</span>
               </div>
             )}
           </div>

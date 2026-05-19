@@ -103,7 +103,8 @@ function ArtistPayContent() {
   // Fee breakdown — fees are passed to client, derived from stored subtotal fields
   const invoiceBase = Number(invoice.subtotal) + Number(invoice.tax_amount) - Number(invoice.discount_amount)
   const platformFee = Math.round(invoiceBase * 0.03 * 100) / 100
-  const processingFee = Math.round((invoiceBase + platformFee) * 0.029 * 100 + 30) / 100
+  // Correct pass-through formula so artist receives exactly invoiceBase
+  const processingFee = Math.round((Number(invoice.total_amount) - invoiceBase - platformFee) * 100) / 100
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">

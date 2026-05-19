@@ -401,14 +401,22 @@ export default function PromoterBookingDetailPage() {
               {booking.artist_invoices.map(ai => (
                 <div key={ai.id} className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-900">{ai.invoice_number}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-gray-900">{ai.invoice_number}</p>
+                      {ai.status === 'paid' ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                          <CheckCircle2 className="w-3 h-3" /> Paid
+                        </span>
+                      ) : (
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
+                          ai.status === 'sent' || ai.status === 'viewed' ? 'bg-blue-100 text-blue-700'
+                          : ai.status === 'overdue' ? 'bg-red-100 text-red-700'
+                          : 'bg-gray-100 text-gray-600'
+                        }`}>{ai.status}</span>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      ${Number(ai.total_amount).toLocaleString()} ·{' '}
-                      <span className={`font-medium capitalize ${
-                        ai.status === 'paid' ? 'text-green-600'
-                        : ai.status === 'sent' || ai.status === 'viewed' ? 'text-blue-600'
-                        : 'text-gray-500'
-                      }`}>{ai.status}</span>
+                      ${Number(ai.total_amount).toLocaleString()}
                       {ai.status !== 'paid' && ai.amount_due > 0 && (
                         <span className="text-gray-400"> · ${Number(ai.amount_due).toLocaleString()} due</span>
                       )}
@@ -429,9 +437,16 @@ export default function PromoterBookingDetailPage() {
         )}
 
         {/* Invoice */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className={`bg-white rounded-xl border p-5 ${
+          booking.promoter_invoices?.status === 'paid' ? 'border-green-300' : 'border-gray-200'
+        }`}>
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-gray-700">Invoice</h3>
+            {booking.promoter_invoices?.status === 'paid' && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm font-bold bg-green-100 text-green-700">
+                <CheckCircle2 className="w-4 h-4" /> Paid
+              </span>
+            )}
           </div>
           {invSendResult && invSendResult !== 'sent' && (
             <p className="text-xs text-red-500 mb-2">{invSendResult}</p>
@@ -442,12 +457,13 @@ export default function PromoterBookingDetailPage() {
                 <div>
                   <p className="text-sm font-medium text-gray-900">{booking.promoter_invoices.invoice_number}</p>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    ${Number(booking.promoter_invoices.total_amount).toLocaleString()} ·{' '}
-                    <span className={`font-medium capitalize ${
-                      booking.promoter_invoices.status === 'paid' ? 'text-green-600'
-                      : booking.promoter_invoices.status === 'sent' || booking.promoter_invoices.status === 'viewed' ? 'text-blue-600'
-                      : 'text-gray-500'
-                    }`}>{booking.promoter_invoices.status}</span>
+                    ${Number(booking.promoter_invoices.total_amount).toLocaleString()}
+                    {booking.promoter_invoices.status !== 'paid' && (
+                      <span className={`ml-1 font-medium capitalize ${
+                        booking.promoter_invoices.status === 'sent' || booking.promoter_invoices.status === 'viewed' ? 'text-blue-600'
+                        : 'text-gray-500'
+                      }`}>· {booking.promoter_invoices.status}</span>
+                    )}
                   </p>
                 </div>
                 {invoiceUrl && (
@@ -475,11 +491,6 @@ export default function PromoterBookingDetailPage() {
                   </button>
                 )}
               </div>
-              {booking.promoter_invoices.status === 'paid' && (
-                <div className="flex items-center gap-1.5 text-xs text-green-600 font-medium">
-                  <CheckCircle2 className="w-4 h-4" /> Payment received
-                </div>
-              )}
             </div>
           ) : (
             <div className="flex items-center justify-between">

@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
+import { performTokenRefresh } from '@/lib/refreshAuth'
 import { User, AuthResponse, LoginCredentials, UserRole } from '@/types/index'
 
 interface AuthContextType {
@@ -103,11 +104,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setAuthLoading(false); return
             }
             console.log('🔄 [INIT] Token expired — refreshing proactively...')
-            const res = await api.post('/auth/refresh', { refresh_token: refreshTok })
-            const { access_token, refresh_token: newRefresh } = res.data
+            const { access_token, refresh_token: newRefresh } = await performTokenRefresh(refreshTok)
             activeToken = access_token
-            localStorage.setItem('access_token', access_token)
-            if (newRefresh) localStorage.setItem('refresh_token', newRefresh)
             console.log('✅ [INIT] Token refreshed successfully')
           }
         } catch (refreshErr: any) {

@@ -619,4 +619,161 @@ export class MailService {
       // Non-fatal — webhook must not throw
     }
   }
+
+  /**
+   * Sends a single consolidated email with multiple ticket tiers
+   */
+  async sendConsolidatedTicketConfirmation(params: {
+    toEmail: string;
+    eventTitle: string;
+    eventDate: string;
+    eventTime?: string | null;
+    venueName?: string | null;
+    tiers: { tier_id: string; quantity: number; tier_name: string }[];
+    amountTotal: number;
+    eventId: string;
+    promoterName?: string | null;
+    sessionId?: string;
+  }): Promise<void> {
+    try {
+      const frontendUrl = process.env.FRONTEND_URL || 'https://dovenuesuite.com';
+      const eventUrl = `${frontendUrl}/events/${params.eventId}`;
+      const formattedDate = params.eventDate
+        ? new Date(params.eventDate + (params.eventDate.includes('T') ? '' : 'T12:00:00'))
+            .toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+        : 'TBD';
+      const isFree = params.amountTotal === 0;
+      const amountStr = isFree ? 'Free' : `$${params.amountTotal.toFixed(2)}`;
+      const fromName = params.promoterName ? `${params.promoterName} via Eventecos` : 'Eventecos Tickets';
+
+      // Fetch tickets by session ID if available
+      let ticketQRCodes: Array<{ id: string; buffer: Buffer; cid: string }> = [];
+      let attachments: any[] = [];
+      if (params.sessionId) {
+        try {
+          const admin = this.supabaseService.getAdminClient();
+          const { data: tickets, error } = await admin
+            .from('tickets')
+            .select('id')
+            .eq('stripe_checkout_session_id', params.sessionId)
+            .order('created_at', { ascending: true });
+
+          if (!error && tickets && tickets.length > 0) {
+            // Generate QR code for each ticket
+            for (const ticket of tickets) {
+              const ticketUrl = `${frontendUrl}/ticket/${ticket.id}`;
+              const qrBuffer = await QRCode.toBuffer(ticketUrl, {
+                errorCorrectionLevel: 'H',
+                type: 'png',
+                margin: 1,
+                width: 300,
+              });
+              const cid = `qr-${ticket.id}@eventecos`;
+              ticketQRCodes.push({ id: ticket.id, buffer: qrBuffer, cid });
+              attachments.push({
+                filename: `ticket-qr-${ticket.id.substring(0, 8)}.png`,
+                content: qrBuffer,
+                cid: cid,
+              });
+            }
+          }
+        } catch (ticketError) {
+          console.warn('[MailService] Could not fetch tickets for QR codes:', ticketError);
+        }
+      }
+
+      // Build QR codes HTML
+      const qrCodesHtml = ticketQRCodes.length > 0
+        ? `
+            <div style="margin: 32px 0;">
+              <h3 style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0 0 16px;">Your Tickets</h3>
+              ${ticketQRCodes.map((ticket, index) => `
+                <div style="background: white; border: 2px dashed #e5e7eb; border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 16px;">
+                  <p style="color: #6b7280; font-size: 12px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: 0.5px;">Ticket ${index + 1}</p>
+                  <img src="cid:${ticket.cid}" alt="QR Code" style="width: 200px; height: 200px; display: block; margin: 0 auto 12px;" />
+                  <p style="color: #9ca3af; font-size: 11px; margin: 0; font-family: monospace; word-break: break-all;">${ticket.id}</p>
+                </div>
+              `).join('')}
+              <p style="color: #6b7280; font-size: 13px; background: #f3f4f6; border-radius: 8px; padding: 12px; margin: 16px 0 0; line-height: 1.5;">
+                📱 <strong>Show the QR code above at the door.</strong> Each code can only be scanned once. You can also view your tickets anytime by visiting your ticket page.
+              </p>
+            </div>
+          `
+        : '';
+
+      // Build ticket tier summary HTML
+      const tierSummaryHtml = `
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #374151;">
+          ${params.tiers.map(tier => `
+            <tr>
+              <td style="padding: 8px 0; color: #6b7280; border-bottom: 1px solid #e5e7eb;">${tier.tier_name}</td>
+              <td style="padding: 8px 0; font-weight: 600; text-align: right; border-bottom: 1px solid #e5e7eb;">${tier.quantity} ${tier.quantity === 1 ? 'ticket' : 'tickets'}</td>
+            </tr>
+          `).join('')}
+          <tr>
+            <td style="padding: 12px 0; color: #1f2937; font-weight: 700;">Total</td>
+            <td style="padding: 12px 0; font-weight: 700; text-align: right;">${params.tiers.reduce((s, t) => s + t.quantity, 0)} ${params.tiers.reduce((s, t) => s + t.quantity, 0) === 1 ? 'ticket' : 'tickets'}</td>
+          </tr>
+        </table>
+      `;
+
+      const mailOptions = {
+        from: `"${fromName}" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
+        to: params.toEmail,
+        subject: `Your tickets to ${params.eventTitle} are confirmed`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb; padding: 32px 16px;">
+            <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08);">
+              ${this.getEmailHeader('You\'re going!', 'Your tickets are confirmed')}
+              <div style="padding: 32px;">
+                <h2 style="margin: 0 0 16px; color: #1f2937; font-size: 20px;">${params.eventTitle}</h2>
+                <div style="background: #f5f3ff; border-left: 4px solid #7c3aed; border-radius: 8px; padding: 20px 24px; margin: 0 0 24px;">
+                  <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #374151;">
+                    <tr><td style="padding: 4px 0; color: #6b7280; width: 110px;">Date</td><td style="padding: 4px 0; font-weight: 600;">${formattedDate}</td></tr>
+                    ${params.eventTime ? `<tr><td style="padding: 4px 0; color: #6b7280;">Time</td><td style="padding: 4px 0; font-weight: 600;">${params.eventTime}</td></tr>` : ''}
+                    ${params.venueName ? `<tr><td style="padding: 4px 0; color: #6b7280;">Venue</td><td style="padding: 4px 0; font-weight: 600;">${params.venueName}</td></tr>` : ''}
+                  </table>
+                  <div style="margin-top: 16px; border-top: 1px solid rgba(124, 58, 237, 0.2); padding-top: 16px;">
+                    <h4 style="margin: 0 0 12px; color: #374151; font-size: 13px; font-weight: 600;">Tickets Ordered</h4>
+                    ${tierSummaryHtml}
+                  </div>
+                  <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(124, 58, 237, 0.2);">
+                    <table style="width: 100%;">
+                      <tr><td style="color: #6b7280; font-size: 14px;">Total Amount:</td><td style="text-align: right; font-weight: 700; font-size: 16px; color: #1f2937;">${amountStr}</td></tr>
+                    </table>
+                  </div>
+                </div>
+
+                ${qrCodesHtml}
+
+                <div style="background: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 8px; padding: 16px; margin: 24px 0;">
+                  <p style="color: #92400e; font-size: 13px; margin: 0; line-height: 1.6;">
+                    <strong>Important Notice:</strong> Eventecos is not responsible for event cancellations, postponements, or refunds. The event organizer is solely liable for these matters. Please contact the event organizer for questions about event policies, cancellations, or refunds. We are only responsible for ticket delivery and access management.
+                  </p>
+                </div>
+
+                <div style="text-align: center; margin: 28px 0;">
+                  <a href="${eventUrl}"
+                     style="display: inline-block; background: #7c3aed; color: white; padding: 14px 36px; text-decoration: none; border-radius: 8px; font-size: 15px; font-weight: 600;">
+                    View Event Details
+                  </a>
+                </div>
+                <p style="color: #9ca3af; font-size: 12px; text-align: center; margin-top: 24px;">
+                  Questions? Reply to this email${params.promoterName ? ` and ${params.promoterName} will get back to you.` : '.'}
+                </p>
+              </div>
+            </div>
+          </div>
+        `,
+        text: `Your tickets are confirmed!\n\n${params.eventTitle}\nDate: ${formattedDate}${params.eventTime ? `\nTime: ${params.eventTime}` : ''}${params.venueName ? `\nVenue: ${params.venueName}` : ''}\n\nTickets:\n${params.tiers.map(t => `- ${t.tier_name}: ${t.quantity}`).join('\n')}\n\nTotal: ${params.tiers.reduce((s, t) => s + t.quantity, 0)} tickets - ${amountStr}\n\nShow the QR code above at the door. Each code can only be scanned once.\n\nIMPORTANT: Eventecos is not responsible for event cancellations, postponements, or refunds. The event organizer is solely liable for these matters.\n\nView event: ${eventUrl}`,
+        attachments: attachments,
+      };
+
+      const info = await this.transporter.sendMail(mailOptions);
+      console.log('[MailService] Consolidated ticket confirmation sent to', params.toEmail, '—', info.messageId);
+    } catch (error) {
+      console.error('[MailService] Consolidated ticket confirmation email failed:', error);
+      // Non-fatal — webhook must not throw
+    }
+  }
 }

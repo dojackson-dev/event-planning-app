@@ -260,6 +260,15 @@ export class VendorsController {
   }
 
   /**
+   * GET /vendors/bookings/booked-by-me - promoter/anyone sees bookings they created
+   */
+  @Get('bookings/booked-by-me')
+  async getBookingsByMe(@Headers('authorization') authorization: string) {
+    const userId = await this.getUserId(authorization);
+    return this.vendorsService.getVendorBookingsByBooker(userId);
+  }
+
+  /**
    * GET /vendors/bookings/owner - owner sees all vendor bookings they made
    */
   @Get('bookings/owner')

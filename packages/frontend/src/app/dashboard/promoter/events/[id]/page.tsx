@@ -322,7 +322,7 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="flex items-center justify-center py-24 bg-gray-50">
         <Loader2 className="w-6 h-6 animate-spin text-purple-500" />
       </div>
     )
@@ -330,7 +330,7 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
 
   if (!event) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="flex items-center justify-center py-24 bg-gray-50">
         <p className="text-gray-500">Event not found</p>
       </div>
     )
@@ -342,29 +342,7 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
 
   return (
     <>
-    <div className="min-h-screen bg-gray-50">
-      {/* Title row */}
-      <div className="bg-white border-b">
-        <div className="max-w-4xl mx-auto px-4 py-5 text-center">
-          <h1 className="text-2xl font-bold text-gray-900 truncate">{event.title}</h1>
-        </div>
-      </div>
-
-      <nav className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Link href="/dashboard/promoter/events" className="text-sm text-gray-500 hover:text-gray-700">← Events</Link>
-          <div className="flex items-center gap-2">
-            <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${STATUS_COLORS[event.status]}`}>{event.status}</span>
-            {event.status === 'published' && (
-              <a href={`/events/${id}`} target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-1 text-xs text-purple-600 hover:underline">
-                <ExternalLink className="w-3.5 h-3.5" /> View Public
-              </a>
-            )}
-          </div>
-        </div>
-      </nav>
-
+    <div className="bg-gray-50">
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-5">
         {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">{error}</div>}
         {success && (

@@ -88,6 +88,12 @@ export default function PromoterInvoicesPage() {
 
   return (
     <div className="bg-gray-50">
+      {/* Page Title Banner */}
+      <div className="bg-gradient-to-r from-purple-700 to-purple-500 px-4 py-6">
+        <div className="max-w-4xl mx-auto">
+          <h1 className="text-2xl font-bold text-white">Invoices</h1>
+        </div>
+      </div>
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-5">
         {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">{error}</div>}
 

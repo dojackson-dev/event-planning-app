@@ -182,6 +182,12 @@ export default function NewPromoterEventPage() {
 
   return (
     <div className="bg-gray-50">
+      {/* Page Title Banner */}
+      <div className="bg-gradient-to-r from-purple-700 to-purple-500 px-4 py-6">
+        <div className="max-w-3xl mx-auto">
+          <h1 className="text-2xl font-bold text-white">New Event</h1>
+        </div>
+      </div>
       <form onSubmit={handleSubmit} className="max-w-3xl mx-auto px-4 py-6 space-y-6">
         {error && <div ref={errorRef} className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm font-medium">{error}</div>}
 

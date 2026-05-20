@@ -120,6 +120,12 @@ export default function PromoterProfilePage() {
 
   return (
     <div className="bg-gray-50">
+      {/* Page Title Banner */}
+      <div className="bg-gradient-to-r from-purple-700 to-purple-500 px-4 py-6">
+        <div className="max-w-2xl mx-auto">
+          <h1 className="text-2xl font-bold text-white">Promoter Profile</h1>
+        </div>
+      </div>
       <div className="p-6 max-w-2xl mx-auto space-y-6">
 
       {error && (

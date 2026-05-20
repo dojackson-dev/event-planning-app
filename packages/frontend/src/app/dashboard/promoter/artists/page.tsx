@@ -65,6 +65,12 @@ export default function PromoterArtistsPage() {
 
   return (
     <div className="bg-gray-50">
+      {/* Page Title Banner */}
+      <div className="bg-gradient-to-r from-purple-700 to-purple-500 px-4 py-6">
+        <div className="max-w-5xl mx-auto">
+          <h1 className="text-2xl font-bold text-white">Browse Artists</h1>
+        </div>
+      </div>
       <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
         {/* Search bar */}
         <div className="bg-white border border-gray-200 rounded-xl p-4 flex flex-wrap gap-3 items-end">

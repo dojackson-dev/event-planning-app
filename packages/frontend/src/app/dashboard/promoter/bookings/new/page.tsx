@@ -135,6 +135,12 @@ function NewPromoterBookingContent() {
 
   return (
     <div className="bg-gray-50">
+      {/* Page Title Banner */}
+      <div className="bg-gradient-to-r from-purple-700 to-purple-500 px-4 py-6">
+        <div className="max-w-2xl mx-auto">
+          <h1 className="text-2xl font-bold text-white">New Booking</h1>
+        </div>
+      </div>
       <div className="max-w-2xl mx-auto px-4 py-6">
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Artist Banner */}

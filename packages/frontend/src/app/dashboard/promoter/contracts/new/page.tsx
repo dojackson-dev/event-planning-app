@@ -3,7 +3,7 @@
 import { useState, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
-import { ChevronLeft, Upload, FileText, Wand2, Loader2, X, Eye, EyeOff } from 'lucide-react'
+import { ChevronLeft, Upload, FileText, Wand2, Loader2, X, Eye, EyeOff, BookOpen, CheckCircle } from 'lucide-react'
 
 // ── Artist Performance Agreement template generator ───────────────────────────
 function generateArtistContract(d: {
@@ -226,6 +226,27 @@ const Field = ({ label, required, children }: { label: string; required?: boolea
 const inputCls = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500'
 
 // ── Main component ────────────────────────────────────────────────────────────
+interface BookingOption {
+  id: string
+  event_name: string
+  client_name: string
+  client_email: string
+  client_phone?: string
+  event_date?: string
+  event_start_time?: string
+  event_end_time?: string
+  venue_name?: string
+  venue_address?: string
+  agreed_amount?: number
+  deposit_amount?: number
+  artist_accounts?: {
+    artist_name: string
+    stage_name?: string | null
+    booking_email?: string
+    booking_phone?: string
+  } | null
+}
+
 function NewContractContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -241,6 +262,14 @@ function NewContractContent() {
   const [previewHtml, setPreviewHtml] = useState('')
   const [showPreview, setShowPreview] = useState(false)
 
+  // Booking picker
+  const [bookings, setBookings] = useState<BookingOption[]>([])
+  const [bookingsLoading, setBookingsLoading] = useState(false)
+  const [bookingsLoaded, setBookingsLoaded] = useState(false)
+  const [showBookingPicker, setShowBookingPicker] = useState(false)
+  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null)
+  const [bookingSearch, setBookingSearch] = useState('')
+
   // Upload mode
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [uploadError, setUploadError] = useState('')
@@ -250,6 +279,47 @@ function NewContractContent() {
   const [error, setError] = useState('')
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
+
+  const loadBookings = async () => {
+    if (bookingsLoaded) { setShowBookingPicker(true); return }
+    setBookingsLoading(true)
+    try {
+      const res = await api.get('/promoter-bookings/mine')
+      const active = (res.data as BookingOption[]).filter((b: any) => b.status !== 'cancelled')
+      setBookings(active)
+      setBookingsLoaded(true)
+      setShowBookingPicker(true)
+    } catch { /* ignore */ } finally {
+      setBookingsLoading(false)
+    }
+  }
+
+  const applyBooking = (b: BookingOption) => {
+    const artistName = b.artist_accounts?.artist_name || b.client_name || ''
+    const stageName  = b.artist_accounts?.stage_name || ''
+    const email      = b.artist_accounts?.booking_email || b.client_email || ''
+    const phone      = b.artist_accounts?.booking_phone || b.client_phone || ''
+    // Format event_date from YYYY-MM-DD to readable
+    const dateVal = b.event_date || ''
+    setForm(f => ({
+      ...f,
+      artistLegalName: artistName,
+      artistStageName: stageName,
+      artistEmail: email,
+      artistPhone: phone,
+      eventName: b.event_name || f.eventName,
+      eventDate: dateVal,
+      perfStartTime: b.event_start_time || f.perfStartTime,
+      perfEndTime: b.event_end_time || f.perfEndTime,
+      venueName: b.venue_name || f.venueName,
+      venueAddress: b.venue_address || f.venueAddress,
+      performanceFee: b.agreed_amount ? String(b.agreed_amount) : f.performanceFee,
+      depositAmount: b.deposit_amount ? String(b.deposit_amount) : f.depositAmount,
+    }))
+    if (artistName) setContractTitle(`Artist Performance Agreement – ${artistName}`)
+    setSelectedBookingId(b.id)
+    setShowBookingPicker(false)
+  }
 
   const handleGenerate = () => {
     const html = generateArtistContract(form)
@@ -335,6 +405,74 @@ function NewContractContent() {
 
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
         {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">{error}</div>}
+
+        {/* Booking picker */}
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-gray-800">Pre-fill from a Booking</p>
+              <p className="text-xs text-gray-500 mt-0.5">Select an existing booking to auto-populate artist info, event details, and payment fields.</p>
+            </div>
+            <button
+              onClick={loadBookings}
+              disabled={bookingsLoading}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700 disabled:opacity-50"
+            >
+              {bookingsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <BookOpen className="w-4 h-4" />}
+              {selectedBookingId ? 'Change Booking' : 'Select Booking'}
+            </button>
+          </div>
+          {selectedBookingId && (
+            <div className="mt-3 flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+              <CheckCircle className="w-4 h-4 flex-shrink-0" />
+              Booking applied — fields below have been pre-filled. You can still edit any field.
+            </div>
+          )}
+
+          {/* Dropdown list */}
+          {showBookingPicker && bookings.length > 0 && (
+            <div className="mt-3 border border-gray-200 rounded-xl overflow-hidden">
+              <div className="p-3 border-b border-gray-100 bg-gray-50">
+                <input
+                  value={bookingSearch}
+                  onChange={e => setBookingSearch(e.target.value)}
+                  placeholder="Search bookings…"
+                  className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  autoFocus
+                />
+              </div>
+              <div className="max-h-64 overflow-y-auto divide-y divide-gray-100">
+                {bookings
+                  .filter(b => {
+                    const q = bookingSearch.toLowerCase()
+                    return !q || b.event_name.toLowerCase().includes(q) || (b.client_name || '').toLowerCase().includes(q) || (b.artist_accounts?.artist_name || '').toLowerCase().includes(q)
+                  })
+                  .map(b => (
+                    <button
+                      key={b.id}
+                      onClick={() => applyBooking(b)}
+                      className="w-full text-left px-4 py-3 hover:bg-purple-50 transition-colors"
+                    >
+                      <p className="font-medium text-sm text-gray-900">{b.event_name}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {b.artist_accounts?.artist_name || b.client_name}
+                        {b.event_date ? ` · ${new Date(b.event_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}
+                        {b.venue_name ? ` · ${b.venue_name}` : ''}
+                        {b.agreed_amount ? ` · $${Number(b.agreed_amount).toLocaleString()}` : ''}
+                      </p>
+                    </button>
+                  ))
+                }
+              </div>
+              <div className="p-2 border-t border-gray-100 bg-gray-50 text-right">
+                <button onClick={() => setShowBookingPicker(false)} className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1">Close</button>
+              </div>
+            </div>
+          )}
+          {showBookingPicker && bookingsLoaded && bookings.length === 0 && (
+            <p className="mt-3 text-sm text-gray-500">No active bookings found. Create a booking first or fill in the fields manually.</p>
+          )}
+        </div>
 
         {/* Contract title */}
         <div className="bg-white border border-gray-200 rounded-xl p-5">

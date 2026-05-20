@@ -21,7 +21,9 @@ interface TicketTier {
 
 interface Attendee {
   id: string
-  buyer_email: string
+  buyer_name: string | null
+  buyer_email: string | null
+  buyer_phone: string | null
   amount_paid: number
   status: string
   created_at: string
@@ -102,6 +104,8 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
   const [copied, setCopied] = useState(false)
   const [stripeReady, setStripeReady] = useState<boolean | null>(null)
   const [publishing, setPublishing] = useState(false)
+  const [resendingId, setResendingId] = useState<string | null>(null)
+  const [resendSuccess, setResendSuccess] = useState<string | null>(null)
 
   // Edit fields
   const [title, setTitle] = useState('')
@@ -318,6 +322,21 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
     setCompRecipientEmail('')
     setCompRecipientPhone('')
     setCompRecipientName('')
+  }
+
+  const handleResendConfirmation = async (ticketId: string) => {
+    setResendingId(ticketId)
+    setResendSuccess(null)
+    try {
+      await api.post(`/promoter-events/${id}/attendees/${ticketId}/resend-confirmation`)
+      setResendSuccess(ticketId)
+      setTimeout(() => setResendSuccess(null), 3000)
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to resend confirmation')
+      setTimeout(() => setError(''), 4000)
+    } finally {
+      setResendingId(null)
+    }
   }
 
   if (loading) {
@@ -699,17 +718,22 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b">
                   <tr>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Email</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Contact</th>
                     <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Tier</th>
                     <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Paid</th>
                     <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Status</th>
                     <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Date</th>
+                    <th className="px-4 py-3"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {attendees.map(a => (
                     <tr key={a.id} className="border-b last:border-0 hover:bg-gray-50">
-                      <td className="px-4 py-3 text-gray-800 font-medium">{a.buyer_email}</td>
+                      <td className="px-4 py-3">
+                        <p className="text-gray-800 font-medium">{a.buyer_name || a.buyer_email || '—'}</p>
+                        {a.buyer_name && <p className="text-gray-500 text-xs">{a.buyer_email}</p>}
+                        {a.buyer_phone && <p className="text-gray-400 text-xs">{a.buyer_phone}</p>}
+                      </td>
                       <td className="px-4 py-3 text-gray-600">{a.ticket_tiers?.name || '—'}</td>
                       <td className="px-4 py-3 text-gray-800">${Number(a.amount_paid).toFixed(2)}</td>
                       <td className="px-4 py-3">
@@ -721,6 +745,21 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
                       </td>
                       <td className="px-4 py-3 text-gray-500 text-xs">
                         {new Date(a.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {resendSuccess === a.id ? (
+                          <span className="text-xs text-green-600 font-medium">Sent!</span>
+                        ) : (
+                          <button
+                            onClick={() => handleResendConfirmation(a.id)}
+                            disabled={resendingId === a.id || (!a.buyer_email && !a.buyer_phone)}
+                            title={!a.buyer_email && !a.buyer_phone ? 'No contact info on file' : 'Resend confirmation'}
+                            className="text-xs text-purple-600 hover:text-purple-800 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                          >
+                            {resendingId === a.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                            Resend
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}

@@ -54,6 +54,7 @@ function PublicEventDetailPageContent({ params }: { params: { id: string } }) {
 
   // Ticket purchase
   const [quantities, setQuantities] = useState<Record<string, number>>({})
+  const [buyerName, setBuyerName] = useState('')
   const [buyerEmail, setBuyerEmail] = useState('')
   const [buyerPhone, setBuyerPhone] = useState('')
   const [purchasing, setPurchasing] = useState(false)
@@ -91,6 +92,7 @@ function PublicEventDetailPageContent({ params }: { params: { id: string } }) {
         items,
         buyer_phone: buyerPhone.trim(),
         buyer_email: buyerEmail.trim() || undefined,
+        buyer_name: buyerName.trim() || undefined,
         return_url: window.location.origin,
       })
       if (res.data?.url) {
@@ -312,6 +314,14 @@ function PublicEventDetailPageContent({ params }: { params: { id: string } }) {
                       </div>
                     )
                   })}
+                </div>
+
+                {/* Name (required) */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Full name *</label>
+                  <input type="text" value={buyerName} onChange={e => setBuyerName(e.target.value)} required
+                    placeholder="Cornell Graham"
+                    className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
                 </div>
 
                 {/* Phone (required) */}

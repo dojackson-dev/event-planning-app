@@ -183,15 +183,7 @@ function NewArtistInvoiceForm() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-3">
-          <Link href="/artist/dashboard/invoices" className="text-sm text-gray-500 hover:text-gray-700">← Invoices</Link>
-          <span className="text-gray-300">/</span>
-          <span className="text-sm font-semibold text-gray-800">New Invoice</span>
-        </div>
-      </nav>
-
+    <div className="bg-gray-50">
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-5">
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">{error}</div>

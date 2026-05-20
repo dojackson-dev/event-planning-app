@@ -50,6 +50,12 @@ api.interceptors.response.use(
     const originalRequest = error.config
 
     if (error.response?.status === 401 && !originalRequest._retry) {
+      // Don't intercept login/auth endpoints — 401 there means bad credentials
+      const url: string = originalRequest.url || ''
+      if (url.includes('/auth/flow/unified/login') || url.includes('/auth/login') || url.includes('/auth/refresh')) {
+        return Promise.reject(error)
+      }
+
       const refreshToken = localStorage.getItem('refresh_token')
 
       if (refreshToken) {

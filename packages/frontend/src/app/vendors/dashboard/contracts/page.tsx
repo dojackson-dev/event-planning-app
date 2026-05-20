@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import VendorNav from '@/components/VendorNav'
 import {
   ArrowLeft, FileText, CheckCircle2, PenLine, Send, X,
   Loader2, Clock, Mail, UserCheck,
@@ -49,7 +48,6 @@ export default function VendorContractsPage() {
   const [contracts, setContracts] = useState<VendorContract[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedContract, setSelectedContract] = useState<VendorContract | null>(null)
-  const [vendorProfile, setVendorProfile] = useState<any>(null)
 
   // Sign modal state
   const [showSignModal, setShowSignModal] = useState(false)
@@ -66,8 +64,6 @@ export default function VendorContractsPage() {
   useEffect(() => {
     const token = localStorage.getItem('access_token')
     if (!token) { router.replace('/vendors/login'); return }
-
-    api.get('/vendors/account/me').then(res => setVendorProfile(res.data)).catch(() => {})
 
     api.get('/contracts/vendor/mine')
       .then(res => setContracts(res.data || []))
@@ -162,7 +158,7 @@ export default function VendorContractsPage() {
   // ── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="bg-gray-50 flex items-center justify-center py-24">
         <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
       </div>
     )
@@ -175,7 +171,7 @@ export default function VendorContractsPage() {
     const isSigned = c.status === 'signed'
 
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="bg-gray-50">
         <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
           <button
             onClick={() => setSelectedContract(null)}
@@ -371,9 +367,18 @@ export default function VendorContractsPage() {
 
   // ── Contract list ─────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gray-50">
-      <VendorNav profile={vendorProfile} currentPage="Contracts" />
+    <div className="bg-gray-50">
       <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/vendors/dashboard"
+              className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700"
+            >
+              <ArrowLeft className="h-4 w-4 mr-1" /> Dashboard
+            </Link>
+          </div>
+        </div>
 
         <div>
           <h1 className="text-2xl font-bold text-gray-900">My Contracts</h1>

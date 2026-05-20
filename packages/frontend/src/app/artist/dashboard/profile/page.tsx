@@ -5,8 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import ImageUpload from '@/components/ImageUpload'
-import { ArrowLeft, Save, CheckCircle, LogOut } from 'lucide-react'
-import RoleSwitcher from '@/components/RoleSwitcher'
+import { ArrowLeft, Save, CheckCircle } from 'lucide-react'
 
 const ARTIST_TYPES = [
   { value: 'musician', label: 'Musician / Band' },
@@ -52,11 +51,6 @@ export default function ArtistProfilePage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
-
-  const handleLogout = () => {
-    ;['access_token','refresh_token','user_role','user_roles','active_role'].forEach(k => localStorage.removeItem(k))
-    router.push('/artist/login')
-  }
   const [profileImageUrl, setProfileImageUrl] = useState('')
   const [coverImageUrl, setCoverImageUrl] = useState('')
   const [photoSaving, setPhotoSaving] = useState(false)
@@ -205,26 +199,17 @@ export default function ArtistProfilePage() {
   )
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-3">
-          <Link href="/artist/dashboard" className="text-gray-500 hover:text-gray-700">
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-          <h1 className="font-semibold text-gray-900">Edit Profile</h1>
-        </div>
-        <div className="border-t border-gray-100 bg-gray-50">
-          <div className="max-w-3xl mx-auto px-4 h-11 flex items-center gap-2">
-            <RoleSwitcher variant="banner" />
-            <div className="flex-1" />
-            <button onClick={handleLogout} className="flex items-center gap-1.5 text-sm font-medium text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 px-3 py-1.5 rounded-lg transition-colors">
-              <LogOut className="h-4 w-4" /> Sign Out
-            </button>
-          </div>
-        </div>
-      </nav>
-
+    <div className="bg-gray-50">
       <form onSubmit={handleSave} className="max-w-3xl mx-auto px-4 py-6 space-y-4">
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg">{error}</div>
+        )}
+        {saved && (
+          <div className="bg-green-50 border border-green-200 text-green-700 text-sm px-4 py-3 rounded-lg flex items-center gap-2">
+            <CheckCircle className="h-4 w-4" /> Profile saved successfully
+          </div>
+        )}
+
         <Section title="Artist Identity">
           {/* Images */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-2">
@@ -331,7 +316,6 @@ export default function ArtistProfilePage() {
         </Section>
 
         <div className="flex items-center justify-end gap-3 pb-6">
-          {error && <span className="text-sm text-red-600 font-medium">{error}</span>}
           {saved && (
             <span className="flex items-center gap-1.5 text-sm text-green-700 font-medium">
               <CheckCircle className="h-4 w-4" /> Saved successfully

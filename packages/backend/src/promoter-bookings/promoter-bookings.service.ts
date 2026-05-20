@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { MailService } from '../mail/mail.service';
+import { TwilioService } from '../messaging/twilio.service';
 import { CreatePromoterBookingDto, UpdatePromoterBookingDto } from './dto/promoter-booking.dto';
 
 @Injectable()
@@ -10,6 +11,7 @@ export class PromoterBookingsService {
   constructor(
     private readonly supabaseService: SupabaseService,
     private readonly mailService: MailService,
+    private readonly twilioService: TwilioService,
   ) {}
 
   async getPromoterAccountId(userId: string): Promise<string> {
@@ -249,10 +251,10 @@ export class PromoterBookingsService {
       .maybeSingle();
     if (!artistAccount) throw new ForbiddenException('No artist account found');
 
-    // Verify artist is on this booking
+    // Verify booking & promoter — also fetch phone
     const { data: booking } = await admin
       .from('promoter_bookings')
-      .select('id, event_name, event_date, promoter_accounts(contact_name, company_name, email)')
+      .select('id, event_name, event_date, promoter_accounts(contact_name, company_name, email, phone)')
       .eq('id', bookingId)
       .eq('artist_account_id', artistAccount.id)
       .maybeSingle();
@@ -271,6 +273,8 @@ export class PromoterBookingsService {
     if (!rider) throw new BadRequestException('You have not set up a rider yet. Go to your rider page to create one.');
 
     const artistName = (artistAccount as any).stage_name || (artistAccount as any).artist_name || 'Artist';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+    const riderUrl = `${frontendUrl}/artists/${artistAccount.id}/rider`;
 
     try {
       await this.mailService.sendRiderEmail({
@@ -287,6 +291,17 @@ export class PromoterBookingsService {
       );
     }
 
-    return { success: true, sentTo: toEmail };
+    // SMS to promoter if they have a phone number
+    const promoterPhone = promoter?.phone;
+    if (promoterPhone) {
+      const smsBody = `Hi${promoter?.contact_name ? ' ' + promoter.contact_name : ''}, ${artistName} has shared their rider for "${(booking as any).event_name}". View it here: ${riderUrl}`;
+      try {
+        await this.twilioService.sendSMS(promoterPhone, smsBody);
+      } catch (smsErr: any) {
+        this.logger.warn(`Rider SMS failed (non-fatal): ${smsErr?.message}`);
+      }
+    }
+
+    return { success: true, sentTo: toEmail, smsSent: !!promoterPhone };
   }
 }

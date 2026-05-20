@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Megaphone, Home, Calendar, CalendarDays, FileText, Users, Settings, Menu, X, LogOut, Mic2, Store } from 'lucide-react'
+import { Megaphone, Home, Calendar, CalendarDays, FileText, Users, Settings, Menu, X, LogOut, Mic2, Store, ScrollText } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import RoleSwitcher from '@/components/RoleSwitcher'
 
@@ -30,6 +30,7 @@ export default function PromoterLayout({ children }: { children: React.ReactNode
     { href: '/dashboard/promoter', label: 'Dashboard', icon: <Home className="h-5 w-5" /> },
     { href: '/dashboard/promoter/events', label: 'Events', icon: <Calendar className="h-5 w-5" /> },
     { href: '/dashboard/promoter/artists', label: 'Book Artists', icon: <Mic2 className="h-5 w-5" /> },
+    { href: '/dashboard/promoter/contracts', label: 'Contracts', icon: <ScrollText className="h-5 w-5" /> },
     { href: '/dashboard/promoter/vendors', label: 'Book Vendors', icon: <Store className="h-5 w-5" /> },
     { href: '/dashboard/promoter/invoices', label: 'Invoices', icon: <FileText className="h-5 w-5" /> },
     { href: '/dashboard/promoter/bookings', label: 'Bookings', icon: <Users className="h-5 w-5" /> },

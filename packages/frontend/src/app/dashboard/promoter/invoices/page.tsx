@@ -87,24 +87,7 @@ export default function PromoterInvoicesPage() {
   const billsOwed = bills.filter(b => b.status !== 'paid' && b.status !== 'cancelled').reduce((s, b) => s + Number(b.amount_due), 0)
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Title row */}
-      <div className="bg-white border-b">
-        <div className="max-w-4xl mx-auto px-4 py-5 text-center">
-          <h1 className="text-2xl font-bold text-gray-900">Invoices</h1>
-        </div>
-      </div>
-
-      <nav className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Link href="/dashboard/promoter" className="text-sm text-gray-500 hover:text-gray-700">← Dashboard</Link>
-          <Link href="/dashboard/promoter/invoices/new"
-            className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
-            <Plus className="w-4 h-4" /> New Invoice
-          </Link>
-        </div>
-      </nav>
-
+    <div className="bg-gray-50">
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-5">
         {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">{error}</div>}
 

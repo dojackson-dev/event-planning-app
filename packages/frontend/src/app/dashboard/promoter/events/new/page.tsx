@@ -181,21 +181,7 @@ export default function NewPromoterEventPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Title row */}
-      <div className="bg-white border-b">
-        <div className="max-w-3xl mx-auto px-4 py-5 text-center">
-          <h1 className="text-2xl font-bold text-gray-900">New Event</h1>
-        </div>
-      </div>
-
-      {/* Sticky nav bar */}
-      <nav className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-3">
-          <Link href="/dashboard/promoter/events" className="text-sm text-gray-500 hover:text-gray-700">← Events</Link>
-        </div>
-      </nav>
-
+    <div className="bg-gray-50">
       <form onSubmit={handleSubmit} className="max-w-3xl mx-auto px-4 py-6 space-y-6">
         {error && <div ref={errorRef} className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm font-medium">{error}</div>}
 

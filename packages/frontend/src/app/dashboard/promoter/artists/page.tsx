@@ -64,20 +64,7 @@ export default function PromoterArtistsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Title row */}
-      <div className="bg-white border-b">
-        <div className="max-w-5xl mx-auto px-4 py-5 text-center">
-          <h1 className="text-2xl font-bold text-gray-900">Browse Artists</h1>
-        </div>
-      </div>
-
-      <nav className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center gap-3">
-          <Link href="/dashboard/promoter" className="text-sm text-gray-500 hover:text-gray-700">← Dashboard</Link>
-        </div>
-      </nav>
-
+    <div className="bg-gray-50">
       <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
         {/* Search bar */}
         <div className="bg-white border border-gray-200 rounded-xl p-4 flex flex-wrap gap-3 items-end">

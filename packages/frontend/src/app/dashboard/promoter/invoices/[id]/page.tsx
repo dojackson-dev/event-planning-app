@@ -93,12 +93,12 @@ export default function PromoterInvoiceDetailPage() {
   }
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>
+    return <div className="flex items-center justify-center py-24"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>
   }
 
   if (error || !invoice) {
     return (
-      <div className="min-h-screen bg-gray-50 p-6">
+      <div className="bg-gray-50 p-6">
         <div className="max-w-3xl mx-auto bg-red-50 border border-red-200 rounded-xl p-6 text-center">
           <p className="text-red-700">{error || 'Invoice not found'}</p>
           <Link href="/dashboard/promoter/invoices" className="mt-4 inline-block text-sm text-blue-600 underline">Back to invoices</Link>
@@ -110,23 +110,7 @@ export default function PromoterInvoiceDetailPage() {
   const displayName = invoice.promoter_accounts?.company_name || invoice.promoter_accounts?.contact_name || 'Promoter'
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Title row */}
-      <div className="bg-white border-b">
-        <div className="max-w-3xl mx-auto px-4 py-5 text-center">
-          <h1 className="text-2xl font-bold text-gray-900">{invoice.invoice_number}</h1>
-        </div>
-      </div>
-
-      <nav className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Link href="/dashboard/promoter/invoices" className="text-sm text-gray-500 hover:text-gray-700">← Invoices</Link>
-          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[invoice.status]}`}>
-            {invoice.status}
-          </span>
-        </div>
-      </nav>
-
+    <div className="bg-gray-50">
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-5">
         {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">{error}</div>}
 

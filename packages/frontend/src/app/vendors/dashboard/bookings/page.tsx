@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import VendorNav from '@/components/VendorNav'
 import { AlertCircle, CheckCircle2, XCircle, DollarSign, Pencil, X } from 'lucide-react'
 import type { VendorProfile, Booking } from '@/lib/vendorTypes'
 
@@ -156,16 +155,14 @@ export default function BookingsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="flex items-center justify-center py-24 bg-gray-50">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600" />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <VendorNav profile={profile} currentPage="Bookings" />
-
+    <div className="bg-gray-50">
       {/* ── Booking Detail / Edit Modal ── */}
       {selectedBooking && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center overflow-y-auto p-4">

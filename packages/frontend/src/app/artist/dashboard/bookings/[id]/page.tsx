@@ -160,19 +160,7 @@ export default function ArtistBookingDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link href="/artist/dashboard/bookings" className="text-sm text-gray-500 hover:text-gray-700">← Bookings</Link>
-            <span className="text-sm font-semibold text-gray-800 truncate max-w-[200px]">{booking?.event_name}</span>
-          </div>
-          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[form.status] || 'bg-gray-100 text-gray-700'}`}>
-            {STATUS_OPTIONS.find(s => s.value === form.status)?.label || form.status}
-          </span>
-        </div>
-      </nav>
-
+    <div className="bg-gray-50">
       <div className="max-w-2xl mx-auto px-4 py-6">
         {/* Invoice info banner */}
         {booking?.artist_invoices && (

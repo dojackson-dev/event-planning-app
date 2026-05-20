@@ -42,15 +42,13 @@ export default function ArtistLogin() {
       const res = await api.post('/auth/flow/unified/login', { email, password })
       const token = res.data?.session?.access_token || res.data?.access_token
       const dbUser = res.data?.user
-      const backendRoles: string[] = res.data?.roles || ['artist']
-      // Ensure artist is always in the roles list (this is the artist portal)
-      if (!backendRoles.includes('artist')) backendRoles.unshift('artist')
+      const roles: string[] = res.data?.roles || ['artist']
       if (token) {
         localStorage.setItem('access_token', token)
         localStorage.setItem('refresh_token', res.data?.session?.refresh_token || res.data?.refresh_token || '')
         localStorage.setItem('user_role', 'artist')
         localStorage.setItem('active_role', 'artist')
-        localStorage.setItem('user_roles', JSON.stringify(backendRoles))
+        localStorage.setItem('user_roles', JSON.stringify(roles))
       }
       if (dbUser) {
         const userObj = {
@@ -60,7 +58,7 @@ export default function ArtistLogin() {
           lastName: dbUser.last_name || dbUser.user_metadata?.last_name || '',
           phone: dbUser.phone_number || dbUser.user_metadata?.phone || '',
           role: 'artist',
-          roles: backendRoles,
+          roles,
           createdAt: dbUser.created_at || new Date().toISOString(),
           updatedAt: dbUser.updated_at || new Date().toISOString(),
         }

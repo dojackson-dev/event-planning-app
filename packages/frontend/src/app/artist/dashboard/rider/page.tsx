@@ -170,17 +170,7 @@ export default function ArtistRiderPage() {
   )
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-3">
-          <Link href="/artist/dashboard" className="text-gray-500 hover:text-gray-700">
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-          <FileText className="h-5 w-5 text-blue-600" />
-          <h1 className="font-semibold text-gray-900">Artist Rider</h1>
-        </div>
-      </nav>
-
+    <div className="bg-gray-50">
       <form onSubmit={handleSave} className="max-w-3xl mx-auto px-4 py-6 space-y-4">
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg">{error}</div>

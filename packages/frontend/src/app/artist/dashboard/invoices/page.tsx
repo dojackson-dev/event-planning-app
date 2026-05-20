@@ -58,15 +58,7 @@ export default function ArtistInvoicesPage() {
     .reduce((s, i) => s + Number(i.total_amount), 0)
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 h-14 flex items-center gap-3">
-          <Link href="/artist/dashboard" className="text-sm text-gray-500 hover:text-gray-700">← Dashboard</Link>
-          <span className="text-gray-300">/</span>
-          <span className="text-sm font-semibold text-gray-800">Invoices</span>
-        </div>
-      </nav>
-
+    <div className="bg-gray-50">
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-5">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold text-gray-900">Invoices</h1>
@@ -107,8 +99,36 @@ export default function ArtistInvoicesPage() {
             </Link>
           </div>
         ) : (
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="space-y-3 md:space-y-0 md:bg-white md:border md:border-gray-200 md:rounded-xl md:overflow-hidden">
+            {/* Mobile cards */}
+            <div className="md:hidden space-y-3">
+              {invoices.map(inv => (
+                <div
+                  key={inv.id}
+                  className={`bg-white border rounded-xl p-4 cursor-pointer hover:shadow-md transition-shadow ${inv.status === 'paid' ? 'border-green-200' : 'border-gray-200'}`}
+                  onClick={() => router.push(`/artist/dashboard/invoices/${inv.id}`)}
+                >
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-blue-600 text-sm">{inv.invoice_number}</p>
+                      <p className="font-medium text-gray-900 truncate">{inv.client_name}</p>
+                      <p className="text-xs text-gray-400 truncate">{inv.client_email}</p>
+                    </div>
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium flex-shrink-0 ${STATUS_COLORS[inv.status] || 'bg-gray-100 text-gray-700'}`}>
+                      {inv.status === 'paid' && <CheckCircle2 className="w-3 h-3" />}
+                      {STATUS_LABELS[inv.status] ?? inv.status}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-500 text-xs">Due {inv.due_date}</span>
+                    <span className="font-bold text-gray-900">${Number(inv.total_amount).toFixed(2)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop table */}
+            <table className="hidden md:table w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-4 py-3 text-left font-semibold text-gray-600">Invoice #</th>

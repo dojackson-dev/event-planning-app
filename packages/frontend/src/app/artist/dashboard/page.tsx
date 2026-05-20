@@ -98,13 +98,6 @@ export default function ArtistDashboard() {
     load()
   }, [router])
 
-  const handleLogout = () => {
-    localStorage.removeItem('access_token')
-    localStorage.removeItem('refresh_token')
-    localStorage.removeItem('user_role')
-    router.push('/artist/login')
-  }
-
   const respondToBooking = async (bookingId: string, action: 'accept' | 'decline') => {
     setActionLoading(prev => ({ ...prev, [bookingId]: true }))
     try {
@@ -154,27 +147,7 @@ export default function ArtistDashboard() {
   })()
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Nav */}
-      <nav className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Mic2 className="w-5 h-5 text-blue-600" />
-            <div>
-              <p className="font-semibold text-gray-900 leading-none">
-                {profile?.stage_name || profile?.artist_name || 'Artist Dashboard'}
-              </p>
-              <p className="text-xs text-gray-400">
-                {ARTIST_TYPE_ICONS[profile?.artist_type ?? ''] ?? '⭐'} {profile?.artist_type?.replace('_', ' ')}
-              </p>
-            </div>
-          </div>
-          <button onClick={handleLogout} className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1">
-            <LogOut className="h-4 w-4" /> Sign out
-          </button>
-        </div>
-      </nav>
-
+    <div className="bg-gray-50">
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
         {/* Profile card */}
         <div className="bg-white rounded-xl border border-gray-200 p-6">

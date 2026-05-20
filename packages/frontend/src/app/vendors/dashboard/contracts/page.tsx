@@ -158,7 +158,7 @@ export default function VendorContractsPage() {
   // ── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="bg-gray-50 flex items-center justify-center py-24">
         <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
       </div>
     )
@@ -171,7 +171,7 @@ export default function VendorContractsPage() {
     const isSigned = c.status === 'signed'
 
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="bg-gray-50">
         <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
           <button
             onClick={() => setSelectedContract(null)}
@@ -367,7 +367,7 @@ export default function VendorContractsPage() {
 
   // ── Contract list ─────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="bg-gray-50">
       <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">

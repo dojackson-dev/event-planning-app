@@ -431,6 +431,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <main className="p-4 sm:p-6 lg:p-8">
           {children}
         </main>
+        <footer className="bg-gray-900 border-t border-gray-800 py-8 px-4">
+          <div className="max-w-7xl mx-auto">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-6">
+              <div className="flex flex-col items-center text-center">
+                <div className="inline-block bg-white rounded-xl p-2 mb-2">
+                  <img src="/lib/EventEcos-Logo.jpg" alt="EventEcos" style={{ height: '60px', width: 'auto' }} />
+                </div>
+                <p className="text-gray-400 text-xs">The complete event management platform.</p>
+              </div>
+              <div>
+                <h4 className="text-white font-bold mb-3 text-sm">Product</h4>
+                <ul className="space-y-1 text-gray-400 text-xs">
+                  <li><a href="/client-login" className="hover:text-white">Client Portal</a></li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="text-white font-bold mb-3 text-sm">Legal</h4>
+                <ul className="space-y-1 text-gray-400 text-xs">
+                  <li><a href="/privacy-policy" className="hover:text-white">Privacy</a></li>
+                  <li><a href="/terms-of-service" className="hover:text-white">Terms</a></li>
+                </ul>
+              </div>
+            </div>
+            <div className="border-t border-gray-800 pt-6">
+              <p className="text-center text-gray-400 text-xs">&copy; 2026 EventEcos. All rights reserved. Powering the Event Ecosystem.</p>
+            </div>
+          </div>
+        </footer>
       </div>
     </div>
     </VenueProvider>

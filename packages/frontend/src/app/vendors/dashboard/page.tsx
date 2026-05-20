@@ -4,9 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import RoleSwitcher from '@/components/RoleSwitcher'
 import {
-  Store,
   Calendar,
   FileText,
   Link2,
@@ -66,11 +64,12 @@ export default function VendorDashboard() {
     loadData()
   }, [router])
 
-  const handleLogout = () => {
-    localStorage.removeItem('access_token')
-    localStorage.removeItem('refresh_token')
-    localStorage.removeItem('user_role')
-    router.push('/vendors/login')
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24 bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600" />
+      </div>
+    )
   }
 
   const counts = bookings.reduce((acc, b) => {
@@ -97,14 +96,6 @@ export default function VendorDashboard() {
     .sort((a, b) => new Date(a.event_date + 'T12:00:00').getTime() - new Date(b.event_date + 'T12:00:00').getTime())
     .slice(0, 5)
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600" />
-      </div>
-    )
-  }
-
   const navLinks = [
     { href: '/vendors/dashboard/bookings',  label: `📋 Bookings${pendingCount > 0 ? ` (${pendingCount})` : ''}` },
     { href: '/vendor-portal/booking-requests', label: `📩 Requests${pendingRequests > 0 ? ` (${pendingRequests})` : ''}` },
@@ -118,32 +109,7 @@ export default function VendorDashboard() {
   ]
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Top Nav */}
-      <nav className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Store className="w-5 h-5 text-primary-600" />
-            <div>
-              <p className="font-semibold text-gray-900 leading-none">
-                {profile?.business_name || 'Vendor Dashboard'}
-              </p>
-              <p className="text-xs text-gray-400">{profile?.email}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <RoleSwitcher variant="banner" />
-            <Link href="/vendors/settings" className="text-sm text-gray-500 hover:text-gray-700">⚙️ Settings</Link>
-            <button
-              onClick={handleLogout}
-              className="text-sm text-gray-400 hover:text-red-500 transition-colors"
-            >
-              Log out
-            </button>
-          </div>
-        </div>
-      </nav>
-
+    <div className="bg-gray-50">
       <div className="max-w-6xl mx-auto px-4 py-8">
 
         {/* Suite title */}

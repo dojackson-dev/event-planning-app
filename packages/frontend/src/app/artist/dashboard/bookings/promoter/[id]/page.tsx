@@ -132,26 +132,7 @@ export default function PromoterBookingDetailPage() {
     : null
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link href="/artist/dashboard/bookings" className="text-sm text-gray-500 hover:text-gray-700">← Bookings</Link>
-            <span className="text-sm font-semibold text-gray-800 truncate max-w-[180px]">{booking?.event_name}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
-              <Building2 className="w-3 h-3" /> {promoterName}
-            </span>
-            {booking?.status && (
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[booking.status] || 'bg-gray-100 text-gray-700'}`}>
-                {STATUS_LABELS[booking.status] || booking.status}
-              </span>
-            )}
-          </div>
-        </div>
-      </nav>
-
+    <div className="bg-gray-50">
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
         {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">{error}</div>}
 

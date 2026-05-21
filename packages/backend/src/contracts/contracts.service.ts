@@ -83,7 +83,9 @@ export class ContractsService {
   }
 
   async create(supabase: SupabaseClient, contractData: any): Promise<any> {
-    const { count } = await supabase
+    const admin = this.supabaseService.getAdminClient();
+
+    const { count } = await admin
       .from('contracts')
       .select('*', { count: 'exact', head: true });
     const contractNumber = `CON-${new Date().getFullYear()}-${String((count || 0) + 1).padStart(5, '0')}`;
@@ -93,8 +95,6 @@ export class ContractsService {
     let clientName: string | undefined = contractData.client_name;
     let clientPhone: string | undefined = contractData.client_phone;
     let clientEmail: string | undefined = contractData.client_email;
-
-    const admin = this.supabaseService.getAdminClient();
 
     // For vendor template contracts: populate contact info from vendor_accounts
     if (contractData.vendor_account_id && (!clientPhone || !clientName)) {
@@ -130,14 +130,14 @@ export class ContractsService {
     if (clientPhone) payload.client_phone = clientPhone;
     if (clientEmail) payload.client_email = clientEmail;
 
-    const { data, error } = await supabase
+    const { data, error } = await admin
       .from('contracts')
       .insert([payload])
       .select()
       .single();
     if (error) {
       console.error('[ContractsService] insert error:', error.message, error.details, error.hint);
-      throw error;
+      throw new Error(error.message);
     }
     return data;
   }

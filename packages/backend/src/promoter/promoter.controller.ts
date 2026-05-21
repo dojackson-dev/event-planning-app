@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Put,
+  Patch,
   Body,
   Headers,
   UnauthorizedException,
@@ -100,5 +101,18 @@ export class PromoterController {
   ) {
     const userId = await this.getUserId(authorization);
     return this.promoterService.getDashboardStats(userId);
+  }
+
+  /**
+   * PATCH /promoter/plan
+   * Let a promoter select their own plan (free / pro / premium).
+   */
+  @Patch('plan')
+  async updatePlan(
+    @Headers('authorization') authorization: string,
+    @Body() body: { plan: string },
+  ) {
+    const userId = await this.getUserId(authorization);
+    return this.promoterService.updatePlan(userId, body.plan);
   }
 }

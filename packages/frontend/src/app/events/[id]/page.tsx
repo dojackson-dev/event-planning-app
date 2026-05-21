@@ -115,6 +115,16 @@ export default function PublicEventDetailPage({ params }: { params: Promise<{ id
     event.ticket_tiers.every(t => t.quantity_sold >= t.quantity)
   const tierAvail = selectedTier ? selectedTier.quantity - selectedTier.quantity_sold : 0
 
+  // Fee breakdown (mirrors backend grossUp)
+  const STRIPE_PCT   = 0.029
+  const STRIPE_FIXED = 0.30
+  const APP_FEE_RATE = 0.03
+  const faceValue    = selectedTier ? Number(selectedTier.price) * quantity : 0
+  const totalCharge  = faceValue > 0
+    ? Math.ceil((faceValue * 100 + STRIPE_FIXED * 100) / (1 - STRIPE_PCT - APP_FEE_RATE)) / 100
+    : 0
+  const serviceFee   = +(totalCharge - faceValue).toFixed(2)
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Sucess state after Stripe redirect */}
@@ -319,15 +329,25 @@ export default function PublicEventDetailPage({ params }: { params: Promise<{ id
 
                 {/* Total + checkout button */}
                 {selectedTier && (
-                  <div className="border-t border-gray-100 pt-3">
-                    <div className="flex justify-between text-sm mb-3">
+                  <div className="border-t border-gray-100 pt-3 space-y-1.5">
+                    <div className="flex justify-between text-sm">
                       <span className="text-gray-600">{quantity} × {selectedTier.name}</span>
-                      <span className="font-bold">
-                        {Number(selectedTier.price) === 0 ? 'Free' : `$${(Number(selectedTier.price) * quantity).toFixed(2)}`}
+                      <span className="font-medium">
+                        {faceValue === 0 ? 'Free' : `$${faceValue.toFixed(2)}`}
                       </span>
                     </div>
+                    {faceValue > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">Service fee</span>
+                        <span className="text-gray-500">${serviceFee.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-sm font-bold border-t border-gray-100 pt-1.5 mt-1.5">
+                      <span className="text-gray-800">Total</span>
+                      <span>{faceValue === 0 ? 'Free' : `$${totalCharge.toFixed(2)}`}</span>
+                    </div>
                     <button type="submit" disabled={purchasing}
-                      className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white font-bold py-3 rounded-xl hover:bg-purple-700 disabled:opacity-60">
+                      className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white font-bold py-3 rounded-xl hover:bg-purple-700 disabled:opacity-60 mt-2">
                       {purchasing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ticket className="w-4 h-4" />}
                       {purchasing ? 'Redirecting...' : 'Buy Tickets'}
                     </button>

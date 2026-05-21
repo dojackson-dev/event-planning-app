@@ -15,7 +15,18 @@ import {
   UpdateTicketTierDto,
 } from './dto/promoter-event.dto';
 
-const APP_FEE_RATE = 0.03;
+const APP_FEE_RATE   = 0.03;   // 3% platform fee → goes to our account
+const STRIPE_PCT     = 0.029;  // Stripe's % fee
+const STRIPE_FIXED   = 30;     // Stripe's fixed fee in cents ($0.30)
+
+/**
+ * Gross-up helper: calculates the total charge so that after Stripe's
+ * processing fee AND the platform fee, the promoter nets the face value.
+ *   totalCharge = ceil((ticketTotal + 0.30) / (1 - 0.029 - 0.03))
+ */
+function grossUp(ticketTotalCents: number): number {
+  return Math.ceil((ticketTotalCents + STRIPE_FIXED) / (1 - STRIPE_PCT - APP_FEE_RATE));
+}
 
 @Injectable()
 export class PromoterEventsService {
@@ -330,26 +341,42 @@ export class PromoterEventsService {
       throw new BadRequestException('Payments not enabled for this event');
     }
 
-    const unitAmount = Math.round(Number(tier.price) * 100);
-    const feeAmount = Math.round(unitAmount * quantity * APP_FEE_RATE);
+    const unitAmount   = Math.round(Number(tier.price) * 100); // face value per ticket (cents)
+    const ticketTotal  = unitAmount * quantity;
+    const totalCharge  = grossUp(ticketTotal);                  // what buyer pays
+    const serviceFee   = totalCharge - ticketTotal;             // fee line item amount
+    const appFeeAmount = Math.round(totalCharge * APP_FEE_RATE); // our 3% cut
 
     const session = await this.stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'payment',
       customer_email: buyerEmail,
-      line_items: [{
-        price_data: {
-          currency: 'usd',
-          product_data: {
-            name: `${event.title} — ${tier.name}`,
-            description: event.venue_name ? `${event.event_date} at ${event.venue_name}` : event.event_date,
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: `${event.title} — ${tier.name}`,
+              description: event.venue_name ? `${event.event_date} at ${event.venue_name}` : event.event_date,
+            },
+            unit_amount: unitAmount,
           },
-          unit_amount: unitAmount,
+          quantity,
         },
-        quantity,
-      }],
+        {
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: 'Service fee',
+              description: 'Covers payment processing and platform fee',
+            },
+            unit_amount: serviceFee,
+          },
+          quantity: 1,
+        },
+      ],
       payment_intent_data: {
-        application_fee_amount: feeAmount,
+        application_fee_amount: appFeeAmount,
         transfer_data: { destination: promoter.stripe_account_id },
       },
       success_url: `${this.frontendUrl}/events/${eventId}?paid=true&session_id={CHECKOUT_SESSION_ID}`,

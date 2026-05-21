@@ -65,7 +65,7 @@ export default function ArtistProfileForPromoterPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="flex items-center justify-center py-24 bg-gray-50">
         <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
       </div>
     )
@@ -73,7 +73,7 @@ export default function ArtistProfileForPromoterPage() {
 
   if (error || !artist) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-4">
+      <div className="flex flex-col items-center justify-center py-24 gap-4 bg-gray-50">
         <Mic2 className="w-12 h-12 text-gray-300" />
         <p className="text-gray-500">{error || 'Artist not found'}</p>
         <Link href="/dashboard/promoter/artists" className="text-purple-600 text-sm hover:underline">← Back to Artists</Link>
@@ -87,31 +87,21 @@ export default function ArtistProfileForPromoterPage() {
   const bookingUrl = `/dashboard/promoter/bookings/new?artistId=${artist.id}&artistName=${encodeURIComponent(displayName)}&artistEmail=${encodeURIComponent(artist.booking_email || '')}&artistPhone=${encodeURIComponent(artist.booking_phone || '')}&feeMin=${artist.performance_fee_min ?? ''}&feeMax=${artist.performance_fee_max ?? ''}`
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Title row */}
-      <div className="bg-white border-b">
-        <div className="max-w-3xl mx-auto px-4 py-5 text-center">
-          <h1 className="text-2xl font-bold text-gray-900">{displayName}</h1>
-        </div>
-      </div>
-
-      {/* Navbar */}
-      <nav className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Link href="/dashboard/promoter/artists" className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1">
-            <ChevronLeft className="w-4 h-4" />Browse Artists
-          </Link>
+    <div className="bg-gray-50">
+      {/* Page Title Banner */}
+      <div className="bg-gradient-to-r from-purple-700 to-purple-500 px-4 py-6">
+        <div className="max-w-3xl mx-auto flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-white">{displayName}</h1>
           {artist.available_for_booking && (
             <button
               onClick={() => router.push(bookingUrl)}
-              className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700"
+              className="px-4 py-2 bg-white text-purple-700 rounded-lg text-sm font-semibold hover:bg-purple-50"
             >
               Book This Artist
             </button>
           )}
         </div>
-      </nav>
-
+      </div>
       <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
         {/* Hero */}
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">

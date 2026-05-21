@@ -108,21 +108,13 @@ export default function PromoterCalendarPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Title row */}
-      <div className="bg-white border-b">
-        <div className="max-w-5xl mx-auto px-4 py-5 text-center">
-          <h1 className="text-2xl font-bold text-gray-900">Calendar</h1>
-          <p className="text-sm text-gray-500 mt-1">Your events at a glance</p>
+    <div className="bg-gray-50">
+      {/* Page Title Banner */}
+      <div className="bg-gradient-to-r from-purple-700 to-purple-500 px-4 py-6">
+        <div className="max-w-5xl mx-auto">
+          <h1 className="text-2xl font-bold text-white">Calendar</h1>
         </div>
       </div>
-
-      <nav className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center">
-          <Link href="/dashboard/promoter" className="text-sm text-gray-500 hover:text-gray-700">← Dashboard</Link>
-        </div>
-      </nav>
-
       <div className="p-6 max-w-5xl mx-auto">
 
       {error && (

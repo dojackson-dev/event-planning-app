@@ -85,36 +85,27 @@ export default function PromoterEventsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Title row */}
-      <div className="bg-white border-b">
-        <div className="max-w-5xl mx-auto px-4 py-5 text-center">
-          <h1 className="text-2xl font-bold text-gray-900">My Events</h1>
+    <div className="bg-gray-50">
+      {/* Page Title Banner */}
+      <div className="bg-gradient-to-r from-purple-700 to-purple-500 px-4 py-6">
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-white">My Events</h1>
         </div>
       </div>
-
-      {/* Sticky nav bar */}
-      <nav className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link href="/dashboard/promoter" className="text-sm text-gray-500 hover:text-gray-700">← Dashboard</Link>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="flex border border-gray-200 rounded-lg overflow-hidden">
-              <button onClick={() => setView('list')}
-                className={`px-3 py-1.5 text-xs font-medium flex items-center gap-1 ${view === 'list' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
-                <List className="w-3.5 h-3.5" /> List
-              </button>
-              <button onClick={() => setView('calendar')}
-                className={`px-3 py-1.5 text-xs font-medium flex items-center gap-1 ${view === 'calendar' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
-                <Calendar className="w-3.5 h-3.5" /> Calendar
-              </button>
-            </div>
+      <div className="max-w-5xl mx-auto px-4 py-6 space-y-5">
+        {/* View toggle */}
+        <div className="flex justify-end">
+          <div className="flex border border-gray-200 rounded-lg overflow-hidden">
+            <button onClick={() => setView('list')}
+              className={`px-3 py-1.5 text-xs font-medium flex items-center gap-1 ${view === 'list' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+              <List className="w-3.5 h-3.5" /> List
+            </button>
+            <button onClick={() => setView('calendar')}
+              className={`px-3 py-1.5 text-xs font-medium flex items-center gap-1 ${view === 'calendar' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+              <Calendar className="w-3.5 h-3.5" /> Calendar
+            </button>
           </div>
         </div>
-      </nav>
-
-      <div className="max-w-5xl mx-auto px-4 py-6 space-y-5">
         {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">{error}</div>}
 
         {/* Stats */}

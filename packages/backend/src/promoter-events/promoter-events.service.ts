@@ -386,7 +386,7 @@ export class PromoterEventsService {
     return raw.startsWith('+') ? raw : '+' + digits;
   }
 
-  async createTicketCheckout(eventId: string, tierId: string, quantity: number, buyerPhone: string, buyerEmail?: string, returnUrl?: string) {
+  async createTicketCheckout(eventId: string, tierId: string, quantity: number, buyerPhone: string, buyerEmail?: string, returnUrl?: string, buyerName?: string) {
     const baseUrl = returnUrl || this.frontendUrl;
     const admin = this.supabaseService.getAdminClient();
     buyerPhone = this.normalizePhone(buyerPhone);
@@ -422,6 +422,7 @@ export class PromoterEventsService {
         ticket_tier_id: tierId,
         buyer_email: buyerEmail || null,
         buyer_phone: buyerPhone,
+        buyer_name: buyerName || null,
         stripe_checkout_session_id: null,
         amount_paid: 0,
         status: 'valid',
@@ -507,6 +508,7 @@ export class PromoterEventsService {
         quantity: String(quantity),
         buyer_email: buyerEmail || '',
         buyer_phone: buyerPhone,
+        buyer_name: buyerName || '',
       },
     };
 
@@ -531,6 +533,7 @@ export class PromoterEventsService {
     buyerPhone: string,
     buyerEmail?: string,
     returnUrl?: string,
+    buyerName?: string,
   ) {
     const baseUrl = returnUrl || this.frontendUrl;
     const admin = this.supabaseService.getAdminClient();
@@ -571,6 +574,7 @@ export class PromoterEventsService {
           ticket_tier_id: tier.id,
           buyer_email: buyerEmail || null,
           buyer_phone: buyerPhone,
+          buyer_name: buyerName || null,
           stripe_checkout_session_id: null,
           amount_paid: 0,
           status: 'valid',
@@ -650,6 +654,7 @@ export class PromoterEventsService {
         items_json: JSON.stringify(items),
         buyer_email: buyerEmail || '',
         buyer_phone: buyerPhone,
+        buyer_name: buyerName || '',
       },
     };
 
@@ -678,11 +683,12 @@ export class PromoterEventsService {
       return;
     }
 
-    const { public_event_id, ticket_tier_id, quantity, buyer_email, buyer_phone, items_json } = session.metadata || {};
+    const { public_event_id, ticket_tier_id, quantity, buyer_email, buyer_phone, buyer_name, items_json } = session.metadata || {};
     if (!public_event_id) return;
 
     const phone = (buyer_phone || (session.customer_details?.phone ?? '')).trim() || null;
     const email = buyer_email ?? session.customer_email ?? session.customer_details?.email ?? null;
+    const name = buyer_name || session.customer_details?.name || null;
 
     // idempotency check
     const { data: existing } = await admin
@@ -705,6 +711,7 @@ export class PromoterEventsService {
           ticket_tier_id: item.tier_id,
           buyer_email: email,
           buyer_phone: phone,
+          buyer_name: name,
           stripe_checkout_session_id: sessionId,
           amount_paid: totalTickets > 0 ? amountTotal / totalTickets : 0,
           status: 'valid',
@@ -744,6 +751,7 @@ export class PromoterEventsService {
       ticket_tier_id,
       buyer_email: email,
       buyer_phone: phone,
+      buyer_name: name,
       stripe_checkout_session_id: sessionId,
       amount_paid: qty > 0 ? amountTotal / qty : 0,
       status: 'valid',
@@ -1168,6 +1176,7 @@ export class PromoterEventsService {
         ticket_tier_id: tierId,
         buyer_email: recipientEmail,
         buyer_phone: recipientPhone ? this.normalizePhone(recipientPhone) : null,
+        buyer_name: recipientName || null,
         amount_paid: 0,
         status: 'valid',
         is_comp: true,
@@ -1222,5 +1231,89 @@ export class PromoterEventsService {
     }
 
     return { ticket };
+  }
+
+  // ── Resend Ticket Confirmation ────────────────────────────────
+
+  /**
+   * Re-sends the purchase confirmation (email + SMS) for a ticket.
+   * Looks up the full session to send consolidated notifications if
+   * the original purchase included multiple tiers.
+   */
+  async resendTicketConfirmation(userId: string, eventId: string, ticketId: string): Promise<void> {
+    const admin = this.supabaseService.getAdminClient();
+    const promoter = await this.getPromoterAccount(userId);
+
+    // Verify promoter owns this event
+    const { data: event } = await admin
+      .from('public_events')
+      .select('id')
+      .eq('id', eventId)
+      .eq('promoter_account_id', promoter.id)
+      .maybeSingle();
+    if (!event) throw new ForbiddenException('Event not found');
+
+    // Get the ticket
+    const { data: ticket } = await admin
+      .from('tickets')
+      .select('id, buyer_email, buyer_phone, ticket_tier_id, stripe_checkout_session_id, amount_paid, public_event_id')
+      .eq('id', ticketId)
+      .eq('public_event_id', eventId)
+      .maybeSingle();
+    if (!ticket) throw new NotFoundException('Ticket not found');
+
+    if (!ticket.buyer_email && !ticket.buyer_phone) {
+      throw new BadRequestException('No contact information on file for this ticket');
+    }
+
+    const sessionId = ticket.stripe_checkout_session_id;
+
+    if (sessionId) {
+      // Group all tickets in the session by tier to reconstruct the purchase
+      const { data: sessionTickets } = await admin
+        .from('tickets')
+        .select('ticket_tier_id, amount_paid')
+        .eq('stripe_checkout_session_id', sessionId);
+
+      const tierGroups = new Map<string, number>();
+      let totalAmount = 0;
+      for (const t of (sessionTickets || [])) {
+        tierGroups.set(t.ticket_tier_id, (tierGroups.get(t.ticket_tier_id) || 0) + 1);
+        totalAmount += Number(t.amount_paid);
+      }
+
+      const items = Array.from(tierGroups.entries()).map(([tier_id, quantity]) => ({ tier_id, quantity }));
+
+      if (items.length > 1) {
+        await this.sendConsolidatedTicketNotifications({
+          eventId,
+          items,
+          totalAmount,
+          buyerPhone: ticket.buyer_phone || undefined,
+          buyerEmail: ticket.buyer_email || undefined,
+          sessionId,
+        });
+      } else {
+        await this.sendTicketNotifications({
+          eventId,
+          tierId: ticket.ticket_tier_id,
+          quantity: items[0]?.quantity || 1,
+          amountTotal: totalAmount,
+          buyerPhone: ticket.buyer_phone || undefined,
+          buyerEmail: ticket.buyer_email || undefined,
+          sessionId,
+        });
+      }
+    } else {
+      // Free or comp ticket — send single notification
+      await this.sendTicketNotifications({
+        eventId,
+        tierId: ticket.ticket_tier_id,
+        quantity: 1,
+        amountTotal: Number(ticket.amount_paid),
+        buyerPhone: ticket.buyer_phone || undefined,
+        buyerEmail: ticket.buyer_email || undefined,
+      });
+    }
   }
 }

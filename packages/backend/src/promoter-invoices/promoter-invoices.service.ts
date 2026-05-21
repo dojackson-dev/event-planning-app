@@ -16,7 +16,13 @@ import {
   PromoterInvoiceItemDto,
 } from './dto/promoter-invoice.dto';
 
-const APP_FEE_RATE = 0.03; // 3% platform fee
+// Direct-payment platform fee by plan (ticket sales are always 3% regardless of plan)
+const DIRECT_PAYMENT_FEE_BY_PLAN: Record<string, number> = {
+  free:    0.03,
+  pro:     0.015,
+  premium: 0.01,
+};
+const DEFAULT_FEE_RATE = 0.03; // fallback if plan is unknown
 
 @Injectable()
 export class PromoterInvoicesService {
@@ -407,7 +413,7 @@ export class PromoterInvoicesService {
 
     const { data: invoice, error } = await admin
       .from('promoter_invoices')
-      .select('*, promoter_accounts(stripe_account_id, stripe_connect_status, company_name, contact_name)')
+      .select('*, promoter_accounts(stripe_account_id, stripe_connect_status, company_name, contact_name, plan)')
       .eq('public_token', token)
       .single();
 
@@ -426,7 +432,8 @@ export class PromoterInvoicesService {
     }
 
     const promoterName = promoter?.company_name || promoter?.contact_name || 'Promoter';
-    const feeCents = Math.round(amountCents * APP_FEE_RATE);
+    const feeRate = DIRECT_PAYMENT_FEE_BY_PLAN[promoter?.plan] ?? DEFAULT_FEE_RATE;
+    const feeCents = Math.round(amountCents * feeRate);
 
     const session = await this.stripe.checkout.sessions.create({
       mode: 'payment',

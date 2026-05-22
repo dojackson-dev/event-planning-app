@@ -16,6 +16,8 @@ import {
   RefreshCw,
   Link2,
   XCircle,
+  Megaphone,
+  Loader2,
 } from 'lucide-react'
 
 interface SubscriptionStatus {
@@ -144,6 +146,9 @@ export default function BillingPage() {
   const [portalLoading, setPortalLoading] = useState(false)
   const [connectLoading, setConnectLoading] = useState(false)
   const [ownerAccountId, setOwnerAccountId] = useState<string | null>(null)
+  const [promoterPlan, setPromoterPlan] = useState<string | null>(null)
+  const [promoterPlanUpdating, setPromoterPlanUpdating] = useState<string | null>(null)
+  const [promoterPlanMsg, setPromoterPlanMsg] = useState<string | null>(null)
 
   useEffect(() => {
     if (activeRole === 'associate') router.replace('/dashboard')
@@ -165,6 +170,13 @@ export default function BillingPage() {
         setOwnerAccountId(String(accountId))
         const subRes = await api.get(`/stripe/subscription?ownerAccountId=${accountId}`)
         setSubscription(subRes.data)
+      }
+      // Fetch promoter plan if they have promoter mode enabled
+      try {
+        const proRes = await api.get('/promoter/profile')
+        if (proRes.data?.plan) setPromoterPlan(proRes.data.plan)
+      } catch {
+        // Not a promoter — that's fine
       }
     } catch (err) {
       console.error('Failed to fetch billing data:', err)
@@ -230,6 +242,27 @@ export default function BillingPage() {
 
   const isSubscribed = subscription?.status === 'active' || subscription?.status === 'trialing'
   const planId = process.env.NEXT_PUBLIC_STRIPE_PLAN_ID || ''
+
+  const PROMOTER_PLANS = [
+    { id: 'free',    label: 'Free',    price: '$0/mo',    directFee: '3%' },
+    { id: 'pro',     label: 'Pro',     price: '$149/mo',  directFee: '1.5%' },
+    { id: 'premium', label: 'Premium', price: '$299/mo',  directFee: '1%' },
+  ]
+
+  const handlePromoterPlan = async (planId: string) => {
+    if (planId === promoterPlan) return
+    setPromoterPlanUpdating(planId)
+    setPromoterPlanMsg(null)
+    try {
+      await api.patch('/promoter/plan', { plan: planId })
+      setPromoterPlan(planId)
+      setPromoterPlanMsg(`Promoter plan updated to ${planId.charAt(0).toUpperCase() + planId.slice(1)}`)
+    } catch (err: any) {
+      setPromoterPlanMsg(err?.response?.data?.message || 'Failed to update plan')
+    } finally {
+      setPromoterPlanUpdating(null)
+    }
+  }
 
   if (loading) {
     return (
@@ -440,6 +473,65 @@ export default function BillingPage() {
           </button>
         </div>
       </div>
+
+      {/* ── Promoter Plan Section (only shown if owner has promoter mode) ── */}
+      {promoterPlan !== null && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="bg-purple-100 p-2 rounded-lg">
+              <Megaphone className="h-5 w-5 text-purple-600" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900">Promoter Plan</h3>
+              <p className="text-sm text-gray-500">Affects platform fee on direct payments (invoices & bookings)</p>
+            </div>
+          </div>
+
+          {promoterPlanMsg && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4 text-green-800 text-sm flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 shrink-0" /> {promoterPlanMsg}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {PROMOTER_PLANS.map(plan => {
+              const isActive = promoterPlan === plan.id
+              const isLoading = promoterPlanUpdating === plan.id
+              return (
+                <button
+                  key={plan.id}
+                  onClick={() => handlePromoterPlan(plan.id)}
+                  disabled={isActive || isLoading || promoterPlanUpdating !== null}
+                  className={`relative p-4 rounded-xl border-2 text-left transition-all disabled:opacity-70 ${
+                    isActive
+                      ? 'border-purple-500 bg-purple-50'
+                      : 'border-gray-200 hover:border-purple-300 bg-white'
+                  }`}
+                >
+                  {isActive && (
+                    <span className="absolute top-2 right-2">
+                      <CheckCircle className="h-4 w-4 text-purple-500" />
+                    </span>
+                  )}
+                  <p className="font-semibold text-gray-900">{plan.label}</p>
+                  <p className="text-sm text-gray-500">{plan.price}</p>
+                  <p className="text-xs text-purple-700 font-medium mt-1">
+                    Direct fee: {plan.directFee}
+                  </p>
+                  {isLoading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-white/70 rounded-xl">
+                      <Loader2 className="h-4 w-4 animate-spin text-purple-600" />
+                    </div>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+          <p className="text-xs text-gray-400 mt-3">
+            Ticket sales fees are always 3% (paid by buyer) regardless of plan.
+          </p>
+        </div>
+      )}
 
       {/* ── Feature Highlights ── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

@@ -147,4 +147,27 @@ export class AdminController {
     await this.verifyAdmin(req);
     return this.adminService.updateOwnerTrial(id, body.action, body.days);
   }
+
+  // ─── Promoter plan management ─────────────────────────────────────────────
+
+  @Get('promoters')
+  async getPromoters(
+    @Req() req: Request,
+    @Query('page') page = '1',
+    @Query('limit') limit = '20',
+    @Query('search') search = '',
+  ) {
+    await this.verifyAdmin(req);
+    return this.adminService.getPromoters(parseInt(page), parseInt(limit), search);
+  }
+
+  @Patch('promoters/:id/plan')
+  async updatePromoterPlan(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() body: { plan: string },
+  ) {
+    await this.verifyAdmin(req);
+    return this.adminService.updatePromoterPlan(id, body.plan);
+  }
 }

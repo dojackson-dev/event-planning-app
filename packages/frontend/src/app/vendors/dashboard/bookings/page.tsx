@@ -135,6 +135,11 @@ export default function BookingsPage() {
       ? bookings.filter(b => b.status === 'paid' || b.status === 'completed')
       : bookings.filter(b => b.status === statusFilter)
   ).slice().sort((a, b) => {
+    // Pending always first
+    const aPending = a.status === 'pending' ? 0 : 1
+    const bPending = b.status === 'pending' ? 0 : 1
+    if (aPending !== bPending) return aPending - bPending
+
     const aDate = new Date(a.event_date)
     const bDate = new Date(b.event_date)
     const aFuture = aDate >= today

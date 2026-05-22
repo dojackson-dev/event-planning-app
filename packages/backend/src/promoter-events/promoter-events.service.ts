@@ -312,7 +312,7 @@ export class PromoterEventsService {
 
   // ── STRIPE CHECKOUT for tickets ───────────────────────────────
 
-  async createTicketCheckout(eventId: string, tierId: string, quantity: number, buyerPhone?: string, buyerEmail?: string, returnUrl?: string) {
+  async createTicketCheckout(eventId: string, tierId: string, quantity: number, buyerPhone?: string, buyerEmail?: string, returnUrl?: string, buyerName?: string) {
     const admin = this.supabaseService.getAdminClient();
 
     const { data: event } = await admin
@@ -394,6 +394,7 @@ export class PromoterEventsService {
         quantity: String(quantity),
         ...(buyerEmail ? { buyer_email: buyerEmail } : {}),
         ...(buyerPhone ? { buyer_phone: buyerPhone } : {}),
+        ...(buyerName ? { buyer_name: buyerName } : {}),
       },
     });
 
@@ -546,6 +547,7 @@ export class PromoterEventsService {
     buyerPhone?: string,
     buyerEmail?: string,
     returnUrl?: string,
+    buyerName?: string,
   ) {
     const admin = this.supabaseService.getAdminClient();
 
@@ -714,5 +716,49 @@ export class PromoterEventsService {
     if (error) throw new BadRequestException(error.message);
 
     return { success: true, ticket: newTicket };
+  }
+
+  async resendTicketConfirmation(userId: string, eventId: string, ticketId: string): Promise<void> {
+    const admin = this.supabaseService.getAdminClient();
+    const promoter = await this.getPromoterAccount(userId);
+
+    // Verify event belongs to this promoter
+    const { data: event } = await admin
+      .from('public_events')
+      .select('id, title, event_date, venue_name, promoter_account_id')
+      .eq('id', eventId)
+      .eq('promoter_account_id', promoter.id)
+      .maybeSingle();
+    if (!event) throw new ForbiddenException('Event not found');
+
+    const { data: ticket } = await admin
+      .from('tickets')
+      .select('id, buyer_email, buyer_name, stripe_checkout_session_id, ticket_tiers(name, price), amount_paid')
+      .eq('id', ticketId)
+      .eq('public_event_id', eventId)
+      .maybeSingle();
+    if (!ticket) throw new NotFoundException('Ticket not found');
+
+    const toEmail = ticket.buyer_email;
+    if (!toEmail || !process.env.RESEND_API_KEY) {
+      this.logger.warn(`[resendTicketConfirmation] No email or RESEND_API_KEY for ticket ${ticketId}`);
+      return;
+    }
+
+    try {
+      const { Resend } = await import('resend');
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      const tierName = (ticket.ticket_tiers as any)?.name || 'General Admission';
+      const eventUrl = `${this.frontendUrl}/events/${eventId}`;
+      await resend.emails.send({
+        from: `Eventecos Tickets <${process.env.RESEND_FROM || 'noreply@eventecos.com'}>`,
+        to: toEmail,
+        subject: `Your ticket to ${event.title} (resent)`,
+        html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;"><h2>Your Ticket</h2><p>Here is your ticket for <strong>${event.title}</strong>.</p><table style="font-size:14px;"><tr><td style="color:#6b7280;padding:4px 12px 4px 0">Event</td><td><strong>${event.title}</strong></td></tr><tr><td style="color:#6b7280;padding:4px 12px 4px 0">Date</td><td>${event.event_date || 'TBD'}</td></tr><tr><td style="color:#6b7280;padding:4px 12px 4px 0">Venue</td><td>${event.venue_name || 'TBD'}</td></tr><tr><td style="color:#6b7280;padding:4px 12px 4px 0">Ticket</td><td>${tierName}</td></tr></table><br/><a href="${eventUrl}" style="display:inline-block;background:#7c3aed;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">View Event</a></div>`,
+      });
+      this.logger.log(`[resendTicketConfirmation] Resent confirmation to ${toEmail} for ticket ${ticketId}`);
+    } catch (err) {
+      this.logger.error(`[resendTicketConfirmation] Failed to resend for ticket ${ticketId}:`, err);
+    }
   }
 }

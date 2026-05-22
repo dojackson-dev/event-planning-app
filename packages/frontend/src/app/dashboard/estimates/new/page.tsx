@@ -87,7 +87,10 @@ function NewEstimatePageInner() {
         setLockedEvent({ id: eventIdParam, name: evName, date: ev.date || '' })
         if (clientId) return // clientId will handle client info below
         // Use embedded clientName if available
-        if (ev.clientName) setClientName(ev.clientName)
+        if (ev.clientName) {
+          setClientName(ev.clientName)
+          setAutofilledFromBooking(true)
+        }
         // Fetch the intake form to also get clientPhone and other fields
         const formId = ev.intakeFormId || ev.intake_form_id
         if (formId) {
@@ -97,6 +100,7 @@ function NewEstimatePageInner() {
             setClientPhone(formRes.data.contact_phone || '')
             setClientEventDate(formRes.data.event_date || null)
             setClientEventType(formRes.data.event_type || null)
+            setAutofilledFromBooking(true)
           }).catch(() => {})
         }
       }).catch(() => {})
@@ -138,9 +142,13 @@ function NewEstimatePageInner() {
   }, [searchParams])
 
   // When an event is selected, autofill client info:
-  // 1. Try linked booking (deposit_paid / completed)
-  // 2. Fall back to the event's linked intake form
+  // 1. Skip if event was locked via URL param (already fetched directly)
+  // 2. Try linked booking (deposit_paid / completed)
+  // 3. Fall back to the event's linked intake form
   useEffect(() => {
+    // If this event was pre-selected from a URL param, the URL-param effect
+    // already did a direct fetch — don't overwrite with potentially-stale list data
+    if (lockedEvent && lockedEvent.id === selectedEvent) return
     if (!selectedEvent) {
       setBookingId(null)
       setAutofilledFromBooking(false)
@@ -174,7 +182,7 @@ function NewEstimatePageInner() {
       setClientName('')
       setClientPhone('')
     }
-  }, [selectedEvent, allBookings, events])
+  }, [selectedEvent, allBookings, events, lockedEvent])
 
   const fetchEvents = async () => {
     try {

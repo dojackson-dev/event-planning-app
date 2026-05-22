@@ -56,11 +56,23 @@ function NewEstimatePageInner() {
     fetchEvents()
     fetchServiceItems()
     api.get('/bookings').then(res => setAllBookings(res.data || [])).catch(() => {})
-    api.get('/vendors/bookings/owner').then(res => {
-      const confirmed = (res.data || []).filter((b: any) => b.status === 'confirmed' || b.status === 'completed')
-      setVendorBookings(confirmed)
-    }).catch(() => {})
   }, [])
+
+  // Fetch vendor bookings for the selected event (server-side scoped)
+  useEffect(() => {
+    if (!selectedEvent) {
+      setVendorBookings([])
+      return
+    }
+    api.get(`/vendors/bookings/by-event/${selectedEvent}`)
+      .then(res => {
+        const relevant = (res.data || []).filter((b: any) =>
+          b.status === 'confirmed' || b.status === 'completed' || b.status === 'paid'
+        )
+        setVendorBookings(relevant)
+      })
+      .catch(() => setVendorBookings([]))
+  }, [selectedEvent])
 
   // Pre-fill from client workflow (clientId + optional eventId URL params)
   useEffect(() => {
@@ -420,11 +432,11 @@ function NewEstimatePageInner() {
         </div>
 
         {/* Confirmed Vendor Bookings — scoped to the selected event */}
-        {vendorBookings.filter((vb: any) => !selectedEvent || vb.event_id === selectedEvent).length > 0 && (
+        {vendorBookings.length > 0 && (
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700 mb-2">Vendor Bookings</label>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {vendorBookings.filter((vb: any) => !selectedEvent || vb.event_id === selectedEvent).map((vb: any) => {
+              {vendorBookings.map((vb: any) => {
                 const vendor = vb.vendor_accounts
                 const amount = Number(vb.agreed_amount) || 0
                 const alreadyAdded = lineItems.some(li => li.id === `vendor-${vb.id}`)

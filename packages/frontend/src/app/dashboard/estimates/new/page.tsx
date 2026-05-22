@@ -68,19 +68,32 @@ function NewEstimatePageInner() {
     const eventIdParam = searchParams?.get('eventId')
     if (eventIdParam) {
       setSelectedEvent(eventIdParam)
-      // Lock the event and fetch its details for display
+      // Lock the event and fetch its details + prefill client info
       api.get(`/events/${eventIdParam}`).then(res => {
         const ev = res.data
         const evName = ev.intakeEventName || ev.name || 'Event'
         setLockedEvent({ id: eventIdParam, name: evName, date: ev.date || '' })
-        // Also use clientName from event if no clientId provided
-        if (!clientId && ev.clientName) setClientName(ev.clientName)
+        if (clientId) return // clientId will handle client info below
+        // Use embedded clientName if available
+        if (ev.clientName) setClientName(ev.clientName)
+        // Fetch the intake form to also get clientPhone and other fields
+        const formId = ev.intakeFormId || ev.intake_form_id
+        if (formId) {
+          setIntakeFormId(formId)
+          api.get(`/intake-forms/${formId}`).then(formRes => {
+            setClientName(formRes.data.contact_name || ev.clientName || '')
+            setClientPhone(formRes.data.contact_phone || '')
+            setClientEventDate(formRes.data.event_date || null)
+            setClientEventType(formRes.data.event_type || null)
+          }).catch(() => {})
+        }
       }).catch(() => {})
     }
     if (!clientId) return
     setIntakeFormId(clientId)
     api.get(`/intake-forms/${clientId}`).then(res => {
       setClientName(res.data.contact_name || '')
+      setClientPhone(res.data.contact_phone || '')
       setClientEventDate(res.data.event_date || null)
       setClientEventType(res.data.event_type || null)
     }).catch(() => {})
@@ -154,11 +167,9 @@ function NewEstimatePageInner() {
   const fetchEvents = async () => {
     try {
       const res = await api.get('/events')
-      const today = new Date().toISOString().split('T')[0]
-      const upcoming = (res.data || []).filter((e: any) =>
-        e.status !== 'cancelled' && e.date >= today
-      )
-      setEvents(upcoming)
+      // Include all non-cancelled events (past + future) so URL-prefilled past events are found
+      const active = (res.data || []).filter((e: any) => e.status !== 'cancelled')
+      setEvents(active)
     } catch (err) {
       console.error('Failed to fetch events:', err)
     }
@@ -408,12 +419,12 @@ function NewEstimatePageInner() {
           </div>
         </div>
 
-        {/* Confirmed Vendor Bookings */}
-        {vendorBookings.length > 0 && (
+        {/* Confirmed Vendor Bookings — scoped to the selected event */}
+        {vendorBookings.filter((vb: any) => !selectedEvent || vb.event_id === selectedEvent).length > 0 && (
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700 mb-2">Vendor Bookings</label>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {vendorBookings.map((vb: any) => {
+              {vendorBookings.filter((vb: any) => !selectedEvent || vb.event_id === selectedEvent).map((vb: any) => {
                 const vendor = vb.vendor_accounts
                 const amount = Number(vb.agreed_amount) || 0
                 const alreadyAdded = lineItems.some(li => li.id === `vendor-${vb.id}`)

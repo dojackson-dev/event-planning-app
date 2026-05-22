@@ -1084,4 +1084,68 @@ export class MailService {
     if (error) throw new Error(error.message);
     console.log('[MailService] Rider email sent via Resend to', to);
   }
+
+  /**
+   * Notify the venue owner by email when a new public intake form is submitted.
+   */
+  async sendNewLeadNotification(params: {
+    ownerEmail: string;
+    clientName: string;
+    eventType: string;
+    eventDate: string;
+    clientEmail: string;
+    clientPhone?: string | null;
+    budget?: string | null;
+    guestCount?: number | null;
+  }): Promise<void> {
+    const { ownerEmail, clientName, eventType, eventDate, clientEmail, clientPhone, budget, guestCount } = params;
+    const dashboardUrl = `${process.env.FRONTEND_URL || 'https://eventecos.com'}/dashboard/clients`;
+
+    const row = (label: string, value: string | null | undefined) =>
+      value ? `<tr><td style="color:#6b7280;font-size:13px;padding:6px 0;width:130px;">${label}</td><td style="color:#111827;font-size:13px;padding:6px 0;font-weight:600;">${value}</td></tr>` : '';
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f9fafb;">
+        <div style="max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.1);">
+          ${this.getEmailHeader('New Lead Submitted', 'Someone just filled out your intake form')}
+          <div style="padding:32px;">
+            <p style="color:#374151;font-size:15px;margin:0 0 20px;line-height:1.5;">
+              Great news! <strong>${clientName}</strong> has submitted an inquiry through your intake form. Here are the details:
+            </p>
+            <table style="width:100%;border-collapse:collapse;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;padding:12px 0;margin-bottom:24px;">
+              ${row('Client Name', clientName)}
+              ${row('Email', clientEmail)}
+              ${row('Phone', clientPhone)}
+              ${row('Event Type', eventType)}
+              ${row('Event Date', eventDate)}
+              ${row('Guest Count', guestCount ? String(guestCount) : null)}
+              ${row('Budget', budget)}
+            </table>
+            <a href="${dashboardUrl}" style="display:inline-block;background:#7c3aed;color:white;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:600;font-size:14px;">View in Dashboard →</a>
+            <p style="color:#9ca3af;font-size:12px;margin:24px 0 0;border-top:1px solid #f3f4f6;padding-top:16px;">Sent by EventEcos · Log in to convert this lead to a booking.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    if (!process.env.RESEND_API_KEY) {
+      console.warn('[MailService] RESEND_API_KEY not set — skipping new lead email');
+      return;
+    }
+    try {
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      await resend.emails.send({
+        from: `EventEcos <${process.env.RESEND_FROM || 'noreply@eventecos.com'}>`,
+        to: ownerEmail,
+        subject: `New Lead: ${clientName} — ${eventType} on ${eventDate}`,
+        html,
+      });
+      console.log('[MailService] New lead notification sent to', ownerEmail);
+    } catch (err) {
+      console.error('[MailService] New lead notification failed:', err);
+    }
+  }
 }

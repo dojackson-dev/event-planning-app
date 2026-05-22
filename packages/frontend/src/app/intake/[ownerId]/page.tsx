@@ -217,7 +217,13 @@ export default function PublicIntakePage({ params }: { params: { ownerId: string
           <p className="text-gray-600 mb-4">
             Your event inquiry has been submitted to {businessName || 'us'}. We'll be in touch with you soon!
           </p>
-          <p className="text-sm text-gray-500">Typically within 24 hours.</p>
+          <p className="text-sm text-gray-500 mb-6">Typically within 24 hours.</p>
+          <a
+            href="https://www.eventecos.com"
+            className="inline-block px-6 py-3 bg-purple-600 text-white font-semibold rounded-xl hover:bg-purple-700 text-sm"
+          >
+            Back to Homepage
+          </a>
         </div>
       </div>
     )

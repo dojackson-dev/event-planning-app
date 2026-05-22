@@ -609,27 +609,44 @@ export class IntakeFormsService {
     // Auto-create an event for this intake form
     await this.autoCreateEvent(data, ownerId);
 
-    // Notify the owner via SMS
+    // Notify the owner via SMS + email
     try {
       const { data: owner } = await supabaseAdmin
         .from('users')
-        .select('phone')
+        .select('phone_number, email')
         .eq('id', ownerId)
         .maybeSingle();
-      const ownerPhone = (owner as any)?.phone ?? null;
+      const ownerPhone = (owner as any)?.phone_number ?? null;
+      const ownerEmail = (owner as any)?.email ?? null;
       const eventDate = safeDto.event_date
         ? new Date(safeDto.event_date + 'T12:00:00').toLocaleDateString('en-US', {
             month: 'short', day: 'numeric', year: 'numeric',
           })
         : 'TBD';
+
+      // SMS
       await this.smsNotifications.newIntakeFormSubmission(
         ownerPhone,
         safeDto.contact_name || 'A client',
         safeDto.event_type || 'event',
         eventDate,
       );
+
+      // Email
+      if (ownerEmail) {
+        await this.mailService.sendNewLeadNotification({
+          ownerEmail,
+          clientName: safeDto.contact_name || 'A client',
+          eventType: safeDto.event_type || 'event',
+          eventDate,
+          clientEmail: safeDto.contact_email || '',
+          clientPhone: safeDto.contact_phone || null,
+          budget: safeDto.budget_range || null,
+          guestCount: safeDto.guest_count || null,
+        });
+      }
     } catch (smsErr) {
-      console.warn('[IntakeFormsService.createPublic] Owner SMS failed:', smsErr);
+      console.warn('[IntakeFormsService.createPublic] Owner notification failed:', smsErr);
     }
 
     return data;

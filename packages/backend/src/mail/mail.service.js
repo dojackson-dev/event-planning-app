@@ -382,6 +382,45 @@ var MailService = function () {
                 });
             });
         };
+        MailService_1.prototype.sendNewLeadNotification = function (params) {
+            return __awaiter(this, void 0, void 0, function () {
+                var ownerEmail, clientName, eventType, eventDate, clientEmail, clientPhone, budget, guestCount, dashboardUrl, row, html, resend, err_new_lead;
+                return __generator(this, function (_a) {
+                    switch (_a.label) {
+                        case 0:
+                            ownerEmail = params.ownerEmail, clientName = params.clientName, eventType = params.eventType, eventDate = params.eventDate, clientEmail = params.clientEmail, clientPhone = params.clientPhone, budget = params.budget, guestCount = params.guestCount;
+                            dashboardUrl = (process.env.FRONTEND_URL || 'https://eventecos.com') + '/dashboard/clients';
+                            row = function (label, value) {
+                                return value ? "<tr><td style=\"color:#6b7280;font-size:13px;padding:6px 0;width:130px;\">" + label + "</td><td style=\"color:#111827;font-size:13px;padding:6px 0;font-weight:600;\">" + value + "</td></tr>" : '';
+                            };
+                            html = "<!DOCTYPE html><html><body style=\"margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f9fafb;\"><div style=\"max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.1);\"><div style=\"background:linear-gradient(135deg,#7c3aed 0%,#a855f7 100%);padding:32px;text-align:center;\"><h1 style=\"color:white;margin:0;font-size:24px;\">New Lead Submitted</h1><p style=\"color:rgba(255,255,255,.8);margin:8px 0 0;\">Someone just filled out your intake form</p></div><div style=\"padding:32px;\"><p style=\"color:#374151;font-size:15px;margin:0 0 20px;line-height:1.5;\">Great news! <strong>" + clientName + "</strong> has submitted an inquiry through your intake form.</p><table style=\"width:100%;border-collapse:collapse;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;padding:12px 0;margin-bottom:24px;\">" + row('Client Name', clientName) + row('Email', clientEmail) + row('Phone', clientPhone) + row('Event Type', eventType) + row('Event Date', eventDate) + row('Guest Count', guestCount ? String(guestCount) : null) + row('Budget', budget) + "</table><a href=\"" + dashboardUrl + "\" style=\"display:inline-block;background:#7c3aed;color:white;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:600;font-size:14px;\">View in Dashboard \u2192</a><p style=\"color:#9ca3af;font-size:12px;margin:24px 0 0;border-top:1px solid #f3f4f6;padding-top:16px;\">Sent by EventEcos</p></div></div></body></html>";
+                            if (!process.env.RESEND_API_KEY) {
+                                console.warn('[MailService] RESEND_API_KEY not set — skipping new lead email');
+                                return [2 /*return*/];
+                            }
+                            _a.label = 1;
+                        case 1:
+                            _a.trys.push([1, 3, , 4]);
+                            resend = new resend_1.Resend(process.env.RESEND_API_KEY);
+                            return [4 /*yield*/, resend.emails.send({
+                                    from: "EventEcos <" + (process.env.RESEND_FROM || 'noreply@eventecos.com') + ">",
+                                    to: ownerEmail,
+                                    subject: "New Lead: " + clientName + " \u2014 " + eventType + " on " + eventDate,
+                                    html: html,
+                                })];
+                        case 2:
+                            _a.sent();
+                            console.log('[MailService] New lead notification sent to', ownerEmail);
+                            return [3 /*break*/, 4];
+                        case 3:
+                            err_new_lead = _a.sent();
+                            console.error('[MailService] New lead notification failed:', err_new_lead);
+                            return [3 /*break*/, 4];
+                        case 4: return [2 /*return*/];
+                    }
+                });
+            });
+        };
         return MailService_1;
     }());
     __setFunctionName(_classThis, "MailService");

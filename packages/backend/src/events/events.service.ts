@@ -94,9 +94,7 @@ export class EventsService {
       .select('*, intake_form:intake_forms!intake_form_id(contact_name, event_name, event_type, status, guest_count, budget_range, event_date, event_time, special_requests, venue_preference, contact_email, contact_phone)')
       .eq('owner_id', userId)
       .order('date', { ascending: true });
-    // When filtering by venue, also include events with no venue_id assigned yet
-    // so newly-created events from intake forms are always visible.
-    if (venueId) query = query.or(`venue_id.eq.${venueId},venue_id.is.null`);
+    if (venueId) query = query.eq('venue_id', venueId);
     const { data, error } = await query;
 
     if (error) {
@@ -106,7 +104,7 @@ export class EventsService {
         .select('*')
         .eq('owner_id', userId)
         .order('date', { ascending: true });
-      if (venueId) basicQuery = basicQuery.or(`venue_id.eq.${venueId},venue_id.is.null`);
+      if (venueId) basicQuery = basicQuery.eq('venue_id', venueId);
       const { data: basicData, error: basicError } = await basicQuery;
       if (basicError) {
         // venue_id column may not exist yet — return unfiltered results

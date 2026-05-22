@@ -148,7 +148,7 @@ export class EventsService {
     const adminClient = this.supabaseService.getAdminClient();
     const { data, error } = await adminClient
       .from('event')
-      .select('*, intake_form:intake_forms!intake_form_id(contact_name, event_name, event_type, status, guest_count, budget_range, event_date, event_time, special_requests, venue_preference, contact_email, contact_phone)')
+      .select('*, intake_form:intake_forms!intake_form_id(contact_name, contact_phone, contact_email, event_name, event_type, status, guest_count, budget_range, event_date, event_time, special_requests, venue_preference)')
       .eq('id', id)
       .eq('owner_id', userId)
       .single();
@@ -171,6 +171,7 @@ export class EventsService {
       converted.clientName = data.intake_form.contact_name || null;
       converted.clientEmail = data.intake_form.contact_email || null;
       converted.clientPhone = data.intake_form.contact_phone || null;
+      converted.clientEventDate = data.intake_form.event_date || null;
       converted.intakeEventName = data.intake_form.event_name || null;
       converted.intakeFormStatus = data.intake_form.status || null;
       converted.guestCount = data.intake_form.guest_count || null;

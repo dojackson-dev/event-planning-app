@@ -328,7 +328,7 @@ export default function ClientsPage() {
             {paginatedClients.map((client) => (
               <div
                 key={client.id}
-                className="bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col"
+                className="bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col touch-manipulation pointer-events-auto"
               >
                 {/* Status stripe */}
                 <div className={`h-1 w-full ${
@@ -414,7 +414,7 @@ export default function ClientsPage() {
                       <button
                         onClick={() => handleActivateLead(client)}
                         disabled={activatingId === client.id}
-                        className="flex items-center justify-center gap-2 h-11 px-3 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white text-sm font-semibold rounded-xl transition-colors col-span-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center justify-center gap-2 h-11 px-3 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white text-sm font-semibold rounded-xl transition-colors col-span-2 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation pointer-events-auto"
                       >
                         <Zap className="h-4 w-4" />
                         {activatingId === client.id ? 'Activating...' : 'Activate Lead'}

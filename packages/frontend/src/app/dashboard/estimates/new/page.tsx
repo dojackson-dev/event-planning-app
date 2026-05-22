@@ -86,23 +86,16 @@ function NewEstimatePageInner() {
         const evName = ev.intakeEventName || ev.name || 'Event'
         setLockedEvent({ id: eventIdParam, name: evName, date: ev.date || '' })
         if (clientId) return // clientId will handle client info below
-        // Use embedded clientName if available
-        if (ev.clientName) {
-          setClientName(ev.clientName)
+        // The event response now includes clientName, clientPhone, clientEventDate from the joined intake form
+        if (ev.clientName || ev.clientPhone) {
+          setClientName(ev.clientName || '')
+          setClientPhone(ev.clientPhone || '')
+          setClientEventDate(ev.clientEventDate || null)
           setAutofilledFromBooking(true)
         }
-        // Fetch the intake form to also get clientPhone and other fields
+        // Also set intakeFormId if available (for reference / edge cases)
         const formId = ev.intakeFormId || ev.intake_form_id
-        if (formId) {
-          setIntakeFormId(formId)
-          api.get(`/intake-forms/${formId}`).then(formRes => {
-            setClientName(formRes.data.contact_name || ev.clientName || '')
-            setClientPhone(formRes.data.contact_phone || '')
-            setClientEventDate(formRes.data.event_date || null)
-            setClientEventType(formRes.data.event_type || null)
-            setAutofilledFromBooking(true)
-          }).catch(() => {})
-        }
+        if (formId) setIntakeFormId(formId)
       }).catch(() => {})
     }
     if (!clientId) return
@@ -142,13 +135,14 @@ function NewEstimatePageInner() {
   }, [searchParams])
 
   // When an event is selected, autofill client info:
-  // 1. Skip if event was locked via URL param (already fetched directly)
+  // 1. Skip if event came from URL param — the URL-param effect handles it directly
   // 2. Try linked booking (deposit_paid / completed)
   // 3. Fall back to the event's linked intake form
   useEffect(() => {
-    // If this event was pre-selected from a URL param, the URL-param effect
-    // already did a direct fetch — don't overwrite with potentially-stale list data
-    if (lockedEvent && lockedEvent.id === selectedEvent) return
+    // If the URL has ?eventId=, the URL-param effect does a direct API fetch.
+    // Skip this effect entirely for that event — lockedEvent may not be set yet
+    // when this fires (async race), so check searchParams directly.
+    if (searchParams?.get('eventId') === selectedEvent && selectedEvent) return
     if (!selectedEvent) {
       setBookingId(null)
       setAutofilledFromBooking(false)

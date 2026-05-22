@@ -142,8 +142,7 @@ export class EventsService {
     const adminClient = this.supabaseService.getAdminClient();
     const { data, error } = await adminClient
       .from('event')
-      .select('*, intake_form:intake_forms!intake_form_id(contact_name, event_name, event_type, status)')
-      .eq('id', id)
+      .select('*, intake_form:intake_forms!intake_form_id(contact_name, contact_phone, event_name, event_type, event_date, status)')
       .eq('owner_id', userId)
       .single();
 
@@ -163,6 +162,8 @@ export class EventsService {
     const converted = this.snakeToCamelCase(data);
     if (data.intake_form) {
       converted.clientName = data.intake_form.contact_name || null;
+      converted.clientPhone = data.intake_form.contact_phone || null;
+      converted.clientEventDate = data.intake_form.event_date || null;
       converted.intakeEventName = data.intake_form.event_name || null;
       converted.intakeFormStatus = data.intake_form.status || null;
       if (!converted.intakeEventName && data.intake_form.event_type) {

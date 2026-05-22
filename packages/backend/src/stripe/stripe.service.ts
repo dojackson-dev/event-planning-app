@@ -114,7 +114,90 @@ export class StripeService {
     return session.url!;
   }
 
-  // ─── Billing Portal ────────────────────────────────────────────────────────
+  // ─── Promoter Subscription Checkout ───────────────────────────────────────
+
+  /**
+   * Create a Stripe Checkout session for a promoter subscribing to Pro or Premium.
+   * On success, the webhook sets promoter_accounts.plan to the chosen value.
+   */
+  async createPromoterCheckoutSession(
+    promoterAccountId: string,
+    plan: 'pro' | 'premium',
+    email: string,
+    name: string,
+  ): Promise<string> {
+    const priceIdKey = plan === 'pro'
+      ? 'STRIPE_PROMOTER_PRO_PRICE_ID'
+      : 'STRIPE_PROMOTER_PREMIUM_PRICE_ID';
+    const priceId = this.configService.get<string>(priceIdKey);
+    if (!priceId) {
+      throw new Error(`${priceIdKey} is not configured. Add it to .env and Stripe Dashboard.`);
+    }
+
+    const admin = this.supabaseService.getAdminClient();
+
+    // Reuse or create a Stripe customer keyed on promoter_accounts.stripe_customer_id
+    let { data: promoter } = await admin
+      .from('promoter_accounts')
+      .select('stripe_customer_id')
+      .eq('id', promoterAccountId)
+      .maybeSingle();
+
+    let customerId: string;
+    if (promoter?.stripe_customer_id) {
+      customerId = promoter.stripe_customer_id;
+    } else {
+      const customer = await this.stripe.customers.create({
+        email,
+        name,
+        metadata: { promoter_account_id: promoterAccountId },
+      });
+      customerId = customer.id;
+      await admin
+        .from('promoter_accounts')
+        .update({ stripe_customer_id: customerId })
+        .eq('id', promoterAccountId);
+    }
+
+    const session = await this.stripe.checkout.sessions.create({
+      customer: customerId,
+      payment_method_types: ['card'],
+      line_items: [{ price: priceId, quantity: 1 }],
+      mode: 'subscription',
+      success_url: `${this.frontendUrl}/dashboard/promoter/billing?subscribed=true`,
+      cancel_url: `${this.frontendUrl}/dashboard/promoter/billing?canceled=true`,
+      client_reference_id: promoterAccountId,
+      subscription_data: {
+        metadata: { promoter_account_id: promoterAccountId, promoter_plan: plan },
+      },
+    });
+
+    this.logger.log(`Created promoter checkout session ${session.id} for promoter ${promoterAccountId} plan=${plan}`);
+    return session.url!;
+  }
+
+  /**
+   * Create a Stripe Billing Portal session for a promoter to manage/cancel their subscription.
+   */
+  async createPromoterBillingPortalSession(promoterAccountId: string): Promise<string> {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: promoter } = await admin
+      .from('promoter_accounts')
+      .select('stripe_customer_id')
+      .eq('id', promoterAccountId)
+      .maybeSingle();
+
+    if (!promoter?.stripe_customer_id) {
+      throw new Error('No Stripe customer found for this promoter. Complete a checkout first.');
+    }
+
+    const session = await this.stripe.billingPortal.sessions.create({
+      customer: promoter.stripe_customer_id,
+      return_url: `${this.frontendUrl}/dashboard/promoter/billing`,
+    });
+
+    return session.url;
+  }
 
   /**
    * Create a Stripe Customer Portal session for managing subscriptions.
@@ -360,6 +443,34 @@ export class StripeService {
       return;
     }
 
+    // ── Promoter subscription checkout ───────────────────────────────────────
+    // The subscription_data.metadata carries promoter_account_id + promoter_plan.
+    // We also get it from client_reference_id, but we check subscription metadata first.
+    if (session.mode === 'subscription') {
+      const subId = typeof session.subscription === 'string'
+        ? session.subscription
+        : (session.subscription as Stripe.Subscription | null)?.id ?? null;
+
+      if (subId) {
+        try {
+          const sub = await this.stripe.subscriptions.retrieve(subId);
+          const promoterAccountId = sub.metadata?.promoter_account_id;
+          const plan = sub.metadata?.promoter_plan as string | undefined;
+          if (promoterAccountId && plan) {
+            const admin = this.supabaseService.getAdminClient();
+            await admin
+              .from('promoter_accounts')
+              .update({ plan, stripe_subscription_id: subId })
+              .eq('id', promoterAccountId);
+            this.logger.log(`Promoter ${promoterAccountId} subscribed to plan=${plan}`);
+            return;
+          }
+        } catch (err) {
+          this.logger.warn('Could not retrieve subscription for promoter plan check', (err as Error).message);
+        }
+      }
+    }
+
     // ── Owner subscription checkout ──────────────────────────────────────────
     const ownerAccountId = session.client_reference_id;
     if (!ownerAccountId) return;
@@ -499,6 +610,22 @@ export class StripeService {
   }
 
   private async handleSubscriptionUpdate(subscription: Stripe.Subscription): Promise<void> {
+    // Promoter subscription update
+    const promoterAccountId = subscription.metadata?.promoter_account_id;
+    if (promoterAccountId) {
+      const plan = subscription.metadata?.promoter_plan as string | undefined;
+      if (plan) {
+        const admin = this.supabaseService.getAdminClient();
+        await admin
+          .from('promoter_accounts')
+          .update({ plan, stripe_subscription_id: subscription.id })
+          .eq('id', promoterAccountId);
+        this.logger.log(`Promoter ${promoterAccountId} subscription updated to plan=${plan}`);
+      }
+      return;
+    }
+
+    // Owner subscription update
     const ownerAccountId = subscription.metadata?.owner_account_id;
     const priceId = subscription.items.data[0]?.price?.id ?? null;
 
@@ -513,6 +640,19 @@ export class StripeService {
   }
 
   private async handleSubscriptionCanceled(subscription: Stripe.Subscription): Promise<void> {
+    // Promoter subscription canceled → revert to free
+    const promoterAccountId = subscription.metadata?.promoter_account_id;
+    if (promoterAccountId) {
+      const admin = this.supabaseService.getAdminClient();
+      await admin
+        .from('promoter_accounts')
+        .update({ plan: 'free', stripe_subscription_id: null })
+        .eq('id', promoterAccountId);
+      this.logger.log(`Promoter ${promoterAccountId} subscription canceled — reverted to free`);
+      return;
+    }
+
+    // Owner subscription canceled
     const ownerAccountId = subscription.metadata?.owner_account_id;
     if (ownerAccountId) {
       await this.syncSubscriptionToDb(ownerAccountId, subscription.id, 'canceled');

@@ -105,7 +105,68 @@ export class StripeController {
     return { url };
   }
 
-  // ─── Subscription Status (authenticated) ─────────────────────────────────
+  // ─── Promoter Subscription Checkout (authenticated) ─────────────────────
+
+  /**
+   * POST /stripe/promoter-checkout
+   * Body: { plan: 'pro' | 'premium' }
+   * Requires Bearer token (promoter's own JWT).
+   */
+  @Post('promoter-checkout')
+  async createPromoterCheckoutSession(
+    @Headers('authorization') authorization: string,
+    @Body() body: { plan: 'pro' | 'premium' },
+  ): Promise<{ url: string }> {
+    if (!body.plan || !['pro', 'premium'].includes(body.plan)) {
+      throw new BadRequestException("plan must be 'pro' or 'premium'");
+    }
+    const userId = await this.getUserIdFromAuth(authorization);
+
+    // Look up promoter account for this user
+    const admin = this.supabaseService.getAdminClient();
+    const { data: promoter } = await admin
+      .from('promoter_accounts')
+      .select('id, email, name')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!promoter) {
+      throw new BadRequestException('No promoter account found for this user');
+    }
+
+    const url = await this.stripeService.createPromoterCheckoutSession(
+      promoter.id,
+      body.plan,
+      promoter.email,
+      promoter.name,
+    );
+    return { url };
+  }
+
+  /**
+   * POST /stripe/promoter-billing-portal
+   * Requires Bearer token. Returns URL for Stripe Billing Portal.
+   */
+  @Post('promoter-billing-portal')
+  async createPromoterBillingPortal(
+    @Headers('authorization') authorization: string,
+  ): Promise<{ url: string }> {
+    const userId = await this.getUserIdFromAuth(authorization);
+
+    const admin = this.supabaseService.getAdminClient();
+    const { data: promoter } = await admin
+      .from('promoter_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!promoter) {
+      throw new BadRequestException('No promoter account found for this user');
+    }
+
+    const url = await this.stripeService.createPromoterBillingPortalSession(promoter.id);
+    return { url };
+  }
 
   /**
    * GET /stripe/subscription?ownerAccountId=xxx

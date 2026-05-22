@@ -81,6 +81,7 @@ const PLAN_LABELS: Record<string, string> = { free: 'Free', pro: 'Pro', premium:
 
 export default function PromoterBillingPage() {
   const [currentPlan, setCurrentPlan] = useState<string | null>(null)
+  const [hasSubscription, setHasSubscription] = useState(false)
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
@@ -90,6 +91,7 @@ export default function PromoterBillingPage() {
     try {
       const res = await api.get('/promoter/profile')
       setCurrentPlan(res.data?.plan ?? 'free')
+      setHasSubscription(!!(res.data?.stripe_subscription_id))
     } catch {
       setErrorMsg('Failed to load plan information')
     } finally {
@@ -97,7 +99,16 @@ export default function PromoterBillingPage() {
     }
   }, [])
 
-  useEffect(() => { fetchProfile() }, [fetchProfile])
+  useEffect(() => {
+    fetchProfile()
+    // Show success/canceled message from Stripe redirect
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('subscribed') === 'true') {
+      setSuccessMsg('Subscription activated! Your plan will update momentarily.')
+    } else if (params.get('canceled') === 'true') {
+      setErrorMsg('Checkout canceled — no changes were made.')
+    }
+  }, [fetchProfile])
 
   const handleSelectPlan = async (planId: string) => {
     if (planId === currentPlan) return
@@ -105,12 +116,32 @@ export default function PromoterBillingPage() {
     setSuccessMsg(null)
     setErrorMsg(null)
     try {
-      await api.patch('/promoter/plan', { plan: planId })
-      setCurrentPlan(planId)
-      setSuccessMsg(`Plan updated to ${PLAN_LABELS[planId]}!`)
+      if (planId === 'free') {
+        // Downgrade: direct PATCH (no payment needed)
+        await api.patch('/promoter/plan', { plan: 'free' })
+        setCurrentPlan('free')
+        setHasSubscription(false)
+        setSuccessMsg('Downgraded to Free plan.')
+      } else {
+        // Upgrade: redirect to Stripe Checkout
+        const res = await api.post('/stripe/promoter-checkout', { plan: planId })
+        window.location.href = res.data.url
+        return // don't clear updating — page is navigating away
+      }
     } catch (err: any) {
       setErrorMsg(err?.response?.data?.message || 'Failed to update plan')
     } finally {
+      setUpdating(null)
+    }
+  }
+
+  const handleBillingPortal = async () => {
+    setUpdating('portal')
+    try {
+      const res = await api.post('/stripe/promoter-billing-portal')
+      window.location.href = res.data.url
+    } catch (err: any) {
+      setErrorMsg(err?.response?.data?.message || 'Failed to open billing portal')
       setUpdating(null)
     }
   }
@@ -135,18 +166,30 @@ export default function PromoterBillingPage() {
 
       {/* Current plan banner */}
       {currentPlan && (
-        <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 mb-8 flex items-center gap-3">
-          <CheckCircle className="h-5 w-5 text-purple-600 shrink-0" />
-          <div>
-            <p className="text-sm font-semibold text-purple-900">
-              Current plan: <span className="capitalize">{PLAN_LABELS[currentPlan]}</span>
-              {currentPlan === 'free' ? ' — $0/month' : ` — $${PLANS.find(p => p.id === currentPlan)?.price}/month`}
-            </p>
-            <p className="text-xs text-purple-700 mt-0.5">
-              Direct payment fee:{' '}
-              <strong>{PLANS.find(p => p.id === currentPlan)?.directFee}</strong>
-            </p>
+        <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 mb-8 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <CheckCircle className="h-5 w-5 text-purple-600 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-purple-900">
+                Current plan: <span className="capitalize">{PLAN_LABELS[currentPlan]}</span>
+                {currentPlan === 'free' ? ' — $0/month' : ` — $${PLANS.find(p => p.id === currentPlan)?.price}/month`}
+              </p>
+              <p className="text-xs text-purple-700 mt-0.5">
+                Direct payment fee:{' '}
+                <strong>{PLANS.find(p => p.id === currentPlan)?.directFee}</strong>
+              </p>
+            </div>
           </div>
+          {hasSubscription && (
+            <button
+              onClick={handleBillingPortal}
+              disabled={updating === 'portal'}
+              className="text-sm text-purple-700 border border-purple-300 rounded-lg px-3 py-1.5 hover:bg-purple-100 transition-colors flex items-center gap-2 shrink-0"
+            >
+              {updating === 'portal' ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+              Manage Subscription
+            </button>
+          )}
         </div>
       )}
 
@@ -290,7 +333,7 @@ export default function PromoterBillingPage() {
                 ) : isActive ? (
                   <><CheckCircle className="h-4 w-4" /> Current Plan</>
                 ) : (
-                  plan.price === 0 ? 'Downgrade to Free' : `Select ${plan.name}`
+                  plan.price === 0 ? 'Downgrade to Free' : `Upgrade to ${plan.name} — $${plan.price}/mo`
                 )}
               </button>
             </div>
@@ -299,7 +342,8 @@ export default function PromoterBillingPage() {
       </div>
 
       <p className="text-xs text-gray-400 text-center">
-        Plan changes take effect immediately. Contact support to discuss billing for paid plans.
+        Pro and Premium plans are billed monthly via Stripe. Cancel anytime through "Manage Subscription".
+        Downgrading to Free takes effect immediately.
       </p>
     </div>
   )

@@ -203,4 +203,25 @@ export class PromoterService {
     const promoterAccount = await this.createPromoterAccount(userId, dto, ownerAccountId);
     return { promoterAccount, alreadyExisted: false };
   }
+
+  // ─────────────────────────────────────────────
+  // PLAN
+  // ─────────────────────────────────────────────
+
+  async updatePlan(userId: string, plan: string) {
+    const VALID_PLANS = ['free', 'pro', 'premium'];
+    if (!VALID_PLANS.includes(plan)) {
+      throw new BadRequestException(`Invalid plan "${plan}". Must be one of: ${VALID_PLANS.join(', ')}`);
+    }
+    const admin = this.supabaseService.getAdminClient();
+    const { data, error } = await admin
+      .from('promoter_accounts')
+      .update({ plan, updated_at: new Date().toISOString() })
+      .eq('user_id', userId)
+      .select('id, plan')
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException('Promoter account not found');
+    return data;
+  }
 }

@@ -699,7 +699,7 @@ export class ClientPortalService {
     const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
 
     // Verify client has access to this estimate
-    const { data, error } = await supabase.from('estimates').select('id, client_phone, intake_form_id').eq('id', id).single();
+    const { data, error } = await supabase.from('estimates').select('id, client_phone, intake_form_id, owner_id').eq('id', id).single();
     if (error) {
       this.logger.error(`[respondToEstimate] Error fetching estimate: ${error.message}`);
       throw new NotFoundException('Estimate not found');
@@ -711,9 +711,26 @@ export class ClientPortalService {
 
     this.logger.log(`[respondToEstimate] Estimate phone=${data.client_phone}, intakeFormId=${data.intake_form_id}, allowed phones=${phoneVariants}, allowed intakeFormIds=${intakeFormIds}`);
     
-    const hasAccess =
-      phoneVariants.includes(data.client_phone ?? '') ||
+    // Check if client has access via phone match or intake form match
+    let hasAccess =
+      (data.client_phone && phoneVariants.includes(data.client_phone)) ||
       (data.intake_form_id && intakeFormIds.includes(data.intake_form_id));
+    
+    // If no direct match, check if any of the client's intake forms are related to this estimate's owner
+    if (!hasAccess && intakeFormIds.length > 0 && data.owner_id) {
+      this.logger.log(`[respondToEstimate] No direct phone/intake_form match, checking event relationships...`);
+      const { data: relatedEvents } = await supabase
+        .from('event')
+        .select('id')
+        .eq('owner_id', data.owner_id)
+        .in('intake_form_id', intakeFormIds);
+      
+      if (relatedEvents && relatedEvents.length > 0) {
+        this.logger.log(`[respondToEstimate] Found related events, granting access`);
+        hasAccess = true;
+      }
+    }
+    
     if (!hasAccess) {
       this.logger.error(`[respondToEstimate] Access denied - client phone/intake form does not match estimate`);
       throw new NotFoundException('Estimate not found');

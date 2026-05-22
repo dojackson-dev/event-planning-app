@@ -280,7 +280,7 @@ export class PromoterEventsService {
 
   // ── PUBLIC ROUTES (no auth) ───────────────────────────────────
 
-  async listPublicEvents(city?: string, category?: string) {
+  async listPublicEvents(city?: string, category?: string, _radius?: number) {
     const admin = this.supabaseService.getAdminClient();
     let query = admin
       .from('public_events')
@@ -312,7 +312,7 @@ export class PromoterEventsService {
 
   // ── STRIPE CHECKOUT for tickets ───────────────────────────────
 
-  async createTicketCheckout(eventId: string, tierId: string, quantity: number, buyerEmail: string) {
+  async createTicketCheckout(eventId: string, tierId: string, quantity: number, buyerPhone?: string, buyerEmail?: string, returnUrl?: string) {
     const admin = this.supabaseService.getAdminClient();
 
     const { data: event } = await admin
@@ -341,16 +341,23 @@ export class PromoterEventsService {
       throw new BadRequestException('Payments not enabled for this event');
     }
 
-    const unitAmount   = Math.round(Number(tier.price) * 100); // face value per ticket (cents)
+    const unitAmount   = Math.round(Number(tier.price) * 100);
     const ticketTotal  = unitAmount * quantity;
-    const totalCharge  = grossUp(ticketTotal);                  // what buyer pays
-    const serviceFee   = totalCharge - ticketTotal;             // fee line item amount
-    const appFeeAmount = Math.round(totalCharge * APP_FEE_RATE); // our 3% cut
+    const totalCharge  = grossUp(ticketTotal);
+    const serviceFee   = totalCharge - ticketTotal;
+    const appFeeAmount = Math.round(totalCharge * APP_FEE_RATE);
+
+    const successUrl = returnUrl
+      ? `${returnUrl}${returnUrl.includes('?') ? '&' : '?'}session_id={CHECKOUT_SESSION_ID}`
+      : `${this.frontendUrl}/events/${eventId}?paid=true&session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = returnUrl
+      ? `${returnUrl}${returnUrl.includes('?') ? '&' : '?'}canceled=true`
+      : `${this.frontendUrl}/events/${eventId}?canceled=true`;
 
     const session = await this.stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'payment',
-      customer_email: buyerEmail,
+      ...(buyerEmail ? { customer_email: buyerEmail } : {}),
       line_items: [
         {
           price_data: {
@@ -379,13 +386,14 @@ export class PromoterEventsService {
         application_fee_amount: appFeeAmount,
         transfer_data: { destination: promoter.stripe_account_id },
       },
-      success_url: `${this.frontendUrl}/events/${eventId}?paid=true&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${this.frontendUrl}/events/${eventId}?canceled=true`,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
       metadata: {
         public_event_id: eventId,
         ticket_tier_id: tierId,
         quantity: String(quantity),
-        buyer_email: buyerEmail,
+        ...(buyerEmail ? { buyer_email: buyerEmail } : {}),
+        ...(buyerPhone ? { buyer_phone: buyerPhone } : {}),
       },
     });
 
@@ -471,5 +479,240 @@ export class PromoterEventsService {
 
     if (error) throw new BadRequestException(error.message);
     return data || [];
+  }
+
+  // ── TICKET LOOKUP ─────────────────────────────────────────────
+
+  async getTicketsBySession(sessionId: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const { data, error } = await admin
+      .from('tickets')
+      .select('*, ticket_tiers(name, price), public_events(title, event_date, venue_name, city, state)')
+      .eq('stripe_checkout_session_id', sessionId);
+    if (error) throw new BadRequestException(error.message);
+    return data || [];
+  }
+
+  async getTicketById(ticketId: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const { data, error } = await admin
+      .from('tickets')
+      .select('*, ticket_tiers(name, price), public_events(title, event_date, venue_name, city, state, promoter_accounts(company_name))')
+      .eq('id', ticketId)
+      .maybeSingle();
+    if (error || !data) throw new NotFoundException('Ticket not found');
+    return data;
+  }
+
+  async forwardTicket(ticketId: string, recipientPhone?: string, recipientEmail?: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: ticket } = await admin
+      .from('tickets')
+      .select('id, status')
+      .eq('id', ticketId)
+      .maybeSingle();
+    if (!ticket) throw new NotFoundException('Ticket not found');
+    if (ticket.status === 'used') throw new BadRequestException('Ticket has already been used');
+
+    const forwardCode = crypto.randomUUID();
+    const { error } = await admin
+      .from('tickets')
+      .update({
+        forward_code: forwardCode,
+        ...(recipientPhone ? { forward_recipient_phone: recipientPhone } : {}),
+        ...(recipientEmail ? { forward_recipient_email: recipientEmail } : {}),
+      })
+      .eq('id', ticketId);
+    if (error) throw new BadRequestException(error.message);
+    return { forwardCode };
+  }
+
+  async getTicketByForwardCode(code: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const { data, error } = await admin
+      .from('tickets')
+      .select('*, ticket_tiers(name, price), public_events(title, event_date, venue_name, city, state)')
+      .eq('forward_code', code)
+      .maybeSingle();
+    if (error || !data) throw new NotFoundException('Invalid or expired forward code');
+    return data;
+  }
+
+  // ── MULTI-TIER CHECKOUT ───────────────────────────────────────
+
+  async createMultiTierCheckout(
+    eventId: string,
+    items: { tier_id: string; quantity: number }[],
+    buyerPhone?: string,
+    buyerEmail?: string,
+    returnUrl?: string,
+  ) {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: event } = await admin
+      .from('public_events')
+      .select('*, promoter_accounts(stripe_account_id, stripe_connect_status, company_name)')
+      .eq('id', eventId)
+      .eq('status', 'published')
+      .maybeSingle();
+    if (!event) throw new NotFoundException('Event not found');
+
+    const promoter = event.promoter_accounts;
+    if (!promoter?.stripe_account_id || promoter.stripe_connect_status !== 'active') {
+      throw new BadRequestException('Payments not enabled for this event');
+    }
+
+    // Validate all tiers and build line items
+    let ticketTotal = 0;
+    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
+
+    for (const item of items) {
+      const { data: tier } = await admin
+        .from('ticket_tiers')
+        .select('*')
+        .eq('id', item.tier_id)
+        .eq('public_event_id', eventId)
+        .maybeSingle();
+      if (!tier) throw new NotFoundException(`Ticket tier ${item.tier_id} not found`);
+
+      const available = tier.quantity - tier.quantity_sold;
+      if (item.quantity > available) throw new BadRequestException(`Only ${available} tickets remaining for ${tier.name}`);
+
+      const unitAmount = Math.round(Number(tier.price) * 100);
+      ticketTotal += unitAmount * item.quantity;
+      lineItems.push({
+        price_data: {
+          currency: 'usd',
+          product_data: {
+            name: `${event.title} — ${tier.name}`,
+            description: event.venue_name ? `${event.event_date} at ${event.venue_name}` : event.event_date,
+          },
+          unit_amount: unitAmount,
+        },
+        quantity: item.quantity,
+      });
+    }
+
+    const totalCharge  = grossUp(ticketTotal);
+    const serviceFee   = totalCharge - ticketTotal;
+    const appFeeAmount = Math.round(totalCharge * APP_FEE_RATE);
+
+    lineItems.push({
+      price_data: {
+        currency: 'usd',
+        product_data: { name: 'Service fee', description: 'Covers payment processing and platform fee' },
+        unit_amount: serviceFee,
+      },
+      quantity: 1,
+    });
+
+    const successUrl = returnUrl
+      ? `${returnUrl}${returnUrl.includes('?') ? '&' : '?'}session_id={CHECKOUT_SESSION_ID}`
+      : `${this.frontendUrl}/events/${eventId}?paid=true&session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = returnUrl
+      ? `${returnUrl}${returnUrl.includes('?') ? '&' : '?'}canceled=true`
+      : `${this.frontendUrl}/events/${eventId}?canceled=true`;
+
+    const session = await this.stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      mode: 'payment',
+      ...(buyerEmail ? { customer_email: buyerEmail } : {}),
+      line_items: lineItems,
+      payment_intent_data: {
+        application_fee_amount: appFeeAmount,
+        transfer_data: { destination: promoter.stripe_account_id },
+      },
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      metadata: {
+        public_event_id: eventId,
+        items: JSON.stringify(items),
+        ...(buyerEmail ? { buyer_email: buyerEmail } : {}),
+        ...(buyerPhone ? { buyer_phone: buyerPhone } : {}),
+      },
+    });
+
+    return { url: session.url, sessionId: session.id };
+  }
+
+  // ── DOOR SCAN ─────────────────────────────────────────────────
+
+  async scanTicket(userId: string, eventId: string, ticketId: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const promoter = await this.getPromoterAccount(userId);
+
+    // Verify the event belongs to this promoter
+    const { data: event } = await admin
+      .from('public_events')
+      .select('id')
+      .eq('id', eventId)
+      .eq('promoter_account_id', promoter.id)
+      .maybeSingle();
+    if (!event) throw new ForbiddenException('Event not found');
+
+    const { data: ticket } = await admin
+      .from('tickets')
+      .select('id, status, public_event_id')
+      .eq('id', ticketId)
+      .eq('public_event_id', eventId)
+      .maybeSingle();
+    if (!ticket) throw new NotFoundException('Ticket not found for this event');
+    if (ticket.status === 'used') throw new BadRequestException('Ticket has already been scanned');
+
+    const { error } = await admin
+      .from('tickets')
+      .update({ status: 'used', scanned_at: new Date().toISOString() })
+      .eq('id', ticketId);
+    if (error) throw new BadRequestException(error.message);
+
+    return { success: true, message: 'Ticket scanned successfully' };
+  }
+
+  // ── COMP TICKETS ──────────────────────────────────────────────
+
+  async sendCompTicket(
+    userId: string,
+    eventId: string,
+    tierId: string,
+    recipientEmail: string,
+    recipientPhone?: string,
+    recipientName?: string,
+  ) {
+    const admin = this.supabaseService.getAdminClient();
+    const promoter = await this.getPromoterAccount(userId);
+
+    const { data: event } = await admin
+      .from('public_events')
+      .select('id, title')
+      .eq('id', eventId)
+      .eq('promoter_account_id', promoter.id)
+      .maybeSingle();
+    if (!event) throw new ForbiddenException('Event not found');
+
+    const { data: tier } = await admin
+      .from('ticket_tiers')
+      .select('id, name')
+      .eq('id', tierId)
+      .eq('public_event_id', eventId)
+      .maybeSingle();
+    if (!tier) throw new NotFoundException('Ticket tier not found');
+
+    const { data: newTicket, error } = await admin
+      .from('tickets')
+      .insert({
+        public_event_id: eventId,
+        ticket_tier_id: tierId,
+        buyer_email: recipientEmail,
+        ...(recipientPhone ? { buyer_phone: recipientPhone } : {}),
+        ...(recipientName ? { buyer_name: recipientName } : {}),
+        amount_paid: 0,
+        status: 'valid',
+        is_comp: true,
+      })
+      .select()
+      .single();
+    if (error) throw new BadRequestException(error.message);
+
+    return { success: true, ticket: newTicket };
   }
 }

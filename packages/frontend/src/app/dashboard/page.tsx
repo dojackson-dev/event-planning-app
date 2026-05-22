@@ -41,7 +41,7 @@ export default function DashboardPage() {
   const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([])
   const [recentClients, setRecentClients] = useState<IntakeForm[]>([])
   const [loading, setLoading] = useState(true)
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState<string | null>(null)
   const [intakeSlug, setIntakeSlug] = useState<string | null>(null)
 
   useEffect(() => {
@@ -333,21 +333,50 @@ export default function DashboardPage() {
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl shadow-sm p-5 mb-6 sm:mb-8 text-white">
         <h2 className="text-base font-bold mb-1">Share Your Client Intake Form</h2>
         <p className="text-blue-100 text-sm mb-3">Send this link to clients to collect event details automatically.</p>
-        <div className="flex items-center gap-2 bg-white/10 border border-white/30 rounded-lg px-3 py-2">
-          <span className="flex-1 text-sm font-mono truncate select-all">
-            eventecos.com/intake/{intakeSlug ?? user?.id}
-          </span>
-          <button
-            onClick={() => {
-              navigator.clipboard.writeText(`https://eventecos.com/intake/${intakeSlug ?? user?.id}`)
-              setCopied(true)
-              setTimeout(() => setCopied(false), 2000)
-            }}
-            className="flex-shrink-0 px-4 py-1.5 bg-white text-blue-700 rounded-md font-semibold text-sm hover:bg-blue-50 transition-colors"
-          >
-            {copied ? '✓ Copied!' : 'Copy'}
-          </button>
-        </div>
+        {venues.length > 0 ? (
+          <div className="space-y-2">
+            {venues.map(venue => {
+              const link = `https://eventecos.com/intake/${intakeSlug ?? user?.id}?venueId=${venue.id}`
+              const display = `eventecos.com/intake/${intakeSlug ?? user?.id}?venueId=${venue.id}`
+              return (
+                <div key={venue.id}>
+                  {venues.length > 1 && (
+                    <p className="text-blue-100 text-xs font-medium mb-1">{venue.name}</p>
+                  )}
+                  <div className="flex items-center gap-2 bg-white/10 border border-white/30 rounded-lg px-3 py-2">
+                    <span className="flex-1 text-xs font-mono truncate select-all">{display}</span>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(link)
+                        setCopied(venue.id)
+                        setTimeout(() => setCopied(null), 2000)
+                      }}
+                      className="flex-shrink-0 px-3 py-1.5 bg-white text-blue-700 rounded-md font-semibold text-xs hover:bg-blue-50 transition-colors"
+                    >
+                      {copied === venue.id ? '✓ Copied!' : 'Copy'}
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 bg-white/10 border border-white/30 rounded-lg px-3 py-2">
+            <span className="flex-1 text-sm font-mono truncate select-all">
+              eventecos.com/intake/{intakeSlug ?? user?.id}
+            </span>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(`https://eventecos.com/intake/${intakeSlug ?? user?.id}`)
+                setCopied('default')
+                setTimeout(() => setCopied(null), 2000)
+              }}
+              className="flex-shrink-0 px-4 py-1.5 bg-white text-blue-700 rounded-md font-semibold text-sm hover:bg-blue-50 transition-colors"
+            >
+              {copied === 'default' ? '✓ Copied!' : 'Copy'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Quick Vendor Booking Link */}

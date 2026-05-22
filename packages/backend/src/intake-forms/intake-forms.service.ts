@@ -26,9 +26,12 @@ export class IntakeFormsService {
   private async autoCreateEvent(
     intakeForm: any,
     ownerId: string,
+    venueId?: string | null,
   ): Promise<void> {
     try {
       const supabaseAdmin = this.supabaseService.getAdminClient();
+      // Resolve venue: use explicitly provided venueId first, then fall back to owner's primary venue
+      const resolvedVenueId = venueId || await this.resolveOwnerVenueId(ownerId, supabaseAdmin);
       await supabaseAdmin.from('event').insert([{
         name: intakeForm.event_name || `${intakeForm.event_type || 'Event'} - ${intakeForm.contact_name || 'Client'}`,
         date: intakeForm.event_date || new Date().toISOString().split('T')[0],
@@ -40,6 +43,8 @@ export class IntakeFormsService {
         status: 'scheduled',
         owner_id: ownerId,
         client_id: intakeForm.id,
+        intake_form_id: intakeForm.id,
+        ...(resolvedVenueId ? { venue_id: resolvedVenueId } : {}),
       }]);
       console.log(`[IntakeFormsService] Auto-created event for intake form ${intakeForm.id}`);
     } catch (err) {
@@ -606,8 +611,9 @@ export class IntakeFormsService {
 
     if (error) throw new Error(`Public intake form insert failed: ${error.message}`);
 
-    // Auto-create an event for this intake form
-    await this.autoCreateEvent(data, ownerId);
+    // Auto-create an event — use the venue_id from the submission if provided
+    const venueId = safeDto.venue_id || null;
+    await this.autoCreateEvent(data, ownerId, venueId);
 
     // Notify the owner via SMS + email
     try {

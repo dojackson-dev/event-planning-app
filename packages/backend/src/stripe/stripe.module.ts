@@ -8,6 +8,7 @@ import { PromoterInvoicesModule } from '../promoter-invoices/promoter-invoices.m
 import { PromoterEventsModule } from '../promoter-events/promoter-events.module';
 import { AffiliatesModule } from '../affiliates/affiliates.module';
 import { MessagingModule } from '../messaging/messaging.module';
+import { VipModule } from '../vip/vip.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { MessagingModule } from '../messaging/messaging.module';
     PromoterEventsModule,
     forwardRef(() => AffiliatesModule),
     MessagingModule,
+    VipModule,
   ],
   controllers: [StripeController],
   providers: [StripeService],

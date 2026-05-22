@@ -6,7 +6,7 @@ import Link from 'next/link'
 import api from '@/lib/api'
 import {
   Loader2, Trash2, Plus, Save, ExternalLink, Copy,
-  Users, DollarSign, Tag, MapPin, Clock, ChevronDown, CheckCircle, QrCode, Gift, X, Send, Globe,
+  Users, DollarSign, Tag, MapPin, Clock, ChevronDown, CheckCircle, QrCode, Gift, X, Send, Globe, Crown,
 } from 'lucide-react'
 import ImageUpload from '@/components/ImageUpload'
 
@@ -388,6 +388,20 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
             {copied ? <CheckCircle className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
             {copied ? 'Copied!' : 'Copy link'}
           </button>
+        </div>
+
+        {/* VIP Quick Access */}
+        <div className="grid grid-cols-2 gap-3">
+          <Link href={`/dashboard/promoter/events/${id}/vip`}
+            className="flex items-center justify-center gap-2 py-3 bg-yellow-50 border border-yellow-200 rounded-xl text-sm font-semibold text-yellow-800 hover:bg-yellow-100">
+            <Crown className="w-4 h-4 text-yellow-600" />
+            VIP Concierge Suite
+          </Link>
+          <Link href={`/dashboard/promoter/events/${id}/vip/orders`}
+            className="flex items-center justify-center gap-2 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-100">
+            <Users className="w-4 h-4 text-gray-500" />
+            VIP Orders
+          </Link>
         </div>
 
         {/* Tabs */}

@@ -220,30 +220,47 @@ export class EstimatesService {
       .single();
     if (error) throw new NotFoundException('Estimate not found');
 
-    // Enrich with owner info (business name for "Your Company Name")
+    // Enrich with owner info (business name, address, phone for letterhead)
     const estimate = data as any;
     if (estimate.owner_id) {
       const { data: ownerAcc } = await supabase
         .from('owner_accounts')
-        .select('business_name, address, city, state, zip')
+        .select('id, business_name')
         .eq('primary_owner_id', estimate.owner_id)
         .single();
+
+      estimate.owner_business_name = (ownerAcc as any)?.business_name || null;
+
+      // Pull address + phone from the owner's first venue
       if (ownerAcc) {
-        estimate.owner_business_name = (ownerAcc as any).business_name || null;
-        estimate.owner_address = (ownerAcc as any).address || null;
-        estimate.owner_city = (ownerAcc as any).city || null;
-        estimate.owner_state = (ownerAcc as any).state || null;
-        estimate.owner_zip = (ownerAcc as any).zip || null;
-      } else {
-        // Fall back to user's name
+        const { data: venues } = await supabase
+          .from('venues')
+          .select('address, city, state, zip_code, phone')
+          .eq('owner_account_id', (ownerAcc as any).id)
+          .eq('is_active', true)
+          .order('created_at', { ascending: true })
+          .limit(1);
+        const venue = (venues as any)?.[0];
+        if (venue) {
+          estimate.owner_address = venue.address || null;
+          estimate.owner_city = venue.city || null;
+          estimate.owner_state = venue.state || null;
+          estimate.owner_zip = venue.zip_code || null;
+          estimate.owner_phone = venue.phone || null;
+        }
+      }
+
+      // Fall back to user's name if no business name
+      if (!estimate.owner_business_name) {
         const { data: ownerUser } = await supabase
           .from('users')
-          .select('first_name, last_name, email')
+          .select('first_name, last_name, phone_number')
           .eq('id', estimate.owner_id)
           .single();
         if (ownerUser) {
           const u = ownerUser as any;
           estimate.owner_business_name = [u.first_name, u.last_name].filter(Boolean).join(' ') || null;
+          if (!estimate.owner_phone) estimate.owner_phone = u.phone_number || null;
         }
       }
     }

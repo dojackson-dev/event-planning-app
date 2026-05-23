@@ -82,6 +82,8 @@ interface VendorBooking {
   deposit_amount: number
   notes: string
   created_at: string
+  invoiceId?: string | null
+  invoiceStatus?: string | null
   vendor_accounts?: {
     business_name: string
     category: string
@@ -288,22 +290,26 @@ function BookingRow({ booking, onCancel }: { booking: VendorBooking; onCancel: (
         >
           View <ChevronRight className="w-3 h-3" />
         </Link>
-        {(booking.status === 'confirmed' || booking.status === 'completed') && (
-          <>
-            <Link
-              href={`/dashboard/estimates/new?vendorBookingId=${booking.id}`}
-              className="text-xs px-2 py-1 bg-amber-50 border border-amber-200 text-amber-700 rounded hover:bg-amber-100"
-            >
-              + Estimate
-            </Link>
-            <Link
-              href={`/dashboard/invoices/new?vendorBookingId=${booking.id}`}
-              className="text-xs px-2 py-1 bg-accent-50 border border-accent-200 text-accent-700 rounded hover:bg-accent-100 transition-colors"
-            >
-              + Invoice
-            </Link>
-          </>
-        )}
+        {booking.invoiceId ? (
+          <Link
+            href="/dashboard/vendors/payments"
+            className={`text-xs px-2 py-1 rounded border font-medium ${
+              booking.invoiceStatus === 'paid'
+                ? 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100'
+                : booking.invoiceStatus === 'sent'
+                ? 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100'
+                : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            <CreditCard className="w-3 h-3 inline mr-1" />
+            Invoice: {booking.invoiceStatus === 'paid' ? 'Paid' : booking.invoiceStatus === 'sent' ? 'Sent' : (booking.invoiceStatus ?? 'Draft')}
+          </Link>
+        ) : (booking.status === 'confirmed' || booking.status === 'completed') ? (
+          <span className="text-xs px-2 py-1 bg-gray-50 border border-gray-200 text-gray-400 rounded">
+            <CreditCard className="w-3 h-3 inline mr-1" />
+            No Invoice
+          </span>
+        ) : null}
         {(booking.status === 'pending' || booking.status === 'confirmed') && (
           <button
             onClick={() => onCancel(booking.id)}

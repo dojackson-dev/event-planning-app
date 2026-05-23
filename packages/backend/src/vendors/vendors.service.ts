@@ -538,8 +538,18 @@ export class VendorsService {
         })().catch(() => {});
       }
 
+      // Surface the owner_booking invoice so the owner can see status/id
+      const ownerInvoice = invoices.find(
+        (inv: any) => inv.invoice_type === 'owner_booking' && inv.vendor_booking_id === b.id,
+      );
+
       const { vendor_invoices: _inv, ...rest } = b;
-      return { ...rest, status: effectiveStatus };
+      return {
+        ...rest,
+        status: effectiveStatus,
+        invoiceId: ownerInvoice?.id ?? null,
+        invoiceStatus: ownerInvoice?.status ?? null,
+      };
     });
 
     return rows;

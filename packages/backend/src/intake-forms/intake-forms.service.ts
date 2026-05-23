@@ -614,22 +614,39 @@ export class IntakeFormsService {
 
   async createPublic(ownerId: string, dto: any) {
     const supabaseAdmin = this.supabaseService.getAdminClient();
-    const { accessibility_requirements, preferred_contact, ...safeDto } = dto;
+    // Strip columns not in intake_forms schema; venue_id is handled separately
+    const { accessibility_requirements, preferred_contact, venue_id, ...safeDto } = dto;
+    const venueId: string | null = venue_id || null;
 
     if (safeDto.contact_phone) {
       safeDto.contact_phone = normalizePhone(safeDto.contact_phone);
     }
 
-    const { data, error } = await supabaseAdmin
+    // Try inserting with venue_id first (requires migration); fall back without it
+    let data: any;
+    const withVenue = venueId ? { ...safeDto, venue_id: venueId, user_id: ownerId } : { ...safeDto, user_id: ownerId };
+    const { data: d1, error: e1 } = await supabaseAdmin
       .from('intake_forms')
-      .insert([{ ...safeDto, user_id: ownerId }])
+      .insert([withVenue])
       .select()
       .single();
 
-    if (error) throw new Error(`Public intake form insert failed: ${error.message}`);
-
-    // Auto-create an event — use the venue_id from the submission if provided
-    const venueId = safeDto.venue_id || null;
+    if (e1) {
+      if (venueId && (e1.code === 'PGRST204' || e1.message?.includes('venue_id'))) {
+        // venue_id column doesn't exist yet — insert without it
+        const { data: d2, error: e2 } = await supabaseAdmin
+          .from('intake_forms')
+          .insert([{ ...safeDto, user_id: ownerId }])
+          .select()
+          .single();
+        if (e2) throw new Error(`Public intake form insert failed: ${e2.message}`);
+        data = d2;
+      } else {
+        throw new Error(`Public intake form insert failed: ${e1.message}`);
+      }
+    } else {
+      data = d1;
+    }
     await this.autoCreateEvent(data, ownerId, venueId);
 
     // Notify the owner via SMS + email

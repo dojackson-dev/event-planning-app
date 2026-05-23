@@ -1,12 +1,10 @@
 // Enums
 export enum UserRole {
   ADMIN = 'admin',
-  ARTIST = 'artist',
   ASSOCIATE = 'associate',
   CUSTOMER = 'customer',
   OWNER = 'owner',
   PLANNER = 'planner',
-  PROMOTER = 'promoter',
   VENDOR = 'vendor',
 }
 
@@ -64,6 +62,7 @@ export enum ContractStatus {
   SENT = 'sent',
   SIGNED = 'signed',
   CANCELLED = 'cancelled',
+  VOIDED = 'voided',
 }
 
 export enum InsuranceStatus {
@@ -370,9 +369,7 @@ export interface Contract {
   booking?: Booking
   title: string
   description?: string
-  body?: string
-  contractType?: string
-  fileUrl?: string
+  fileUrl: string
   fileName?: string
   fileSize?: number
   status: ContractStatus
@@ -480,7 +477,6 @@ export interface Guest {
   phone: string
   plusOneCount: number
   hasArrived: boolean
-  isVip: boolean
   arrivedAt?: string
   createdAt: string
   updatedAt: string

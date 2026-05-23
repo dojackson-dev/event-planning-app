@@ -1,6 +1,7 @@
 // Enums
 export enum UserRole {
   ADMIN = 'admin',
+  ARTIST = 'artist',
   ASSOCIATE = 'associate',
   CUSTOMER = 'customer',
   OWNER = 'owner',

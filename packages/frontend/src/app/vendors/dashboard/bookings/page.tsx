@@ -51,6 +51,8 @@ export default function BookingsPage() {
   // Invoice modal
   const [invoiceModal, setInvoiceModal] = useState<Booking | null>(null)
   const [invoiceChoice, setInvoiceChoice] = useState<'deposit' | 'full'>('full')
+  const [invoiceClientName, setInvoiceClientName] = useState('')
+  const [invoiceClientEmail, setInvoiceClientEmail] = useState('')
   const [sendingInvoice, setSendingInvoice] = useState(false)
 
   useEffect(() => {
@@ -131,6 +133,8 @@ export default function BookingsPage() {
     const { depositPaid, deposit } = getInvoiceState(booking)
     // Pre-select deposit if it's available and not yet paid; otherwise full
     setInvoiceChoice(deposit > 0 && !depositPaid ? 'deposit' : 'full')
+    setInvoiceClientName(booking.client_name || '')
+    setInvoiceClientEmail(booking.client_email || '')
     setInvoiceModal(booking)
   }
 
@@ -141,6 +145,11 @@ export default function BookingsPage() {
     const amount = depositPaid ? balance : (invoiceChoice === 'deposit' ? deposit : booking.agreed_amount)
     if (!amount || amount <= 0) {
       alert('Invalid invoice amount.')
+      return
+    }
+    const clientName = invoiceClientName.trim()
+    if (!clientName) {
+      alert('Client name is required to send an invoice.')
       return
     }
     const fmt = (d: Date) => d.toISOString().split('T')[0]
@@ -159,8 +168,8 @@ export default function BookingsPage() {
     setSendingInvoice(true)
     try {
       const { data: created } = await api.post('/vendor-invoices', {
-        client_name: booking.client_name,
-        client_email: booking.client_email || null,
+        client_name: clientName,
+        client_email: invoiceClientEmail.trim() || null,
         issue_date: fmt(today),
         due_date: fmt(due),
         vendor_booking_id: booking.id,
@@ -259,9 +268,28 @@ export default function BookingsPage() {
               </button>
             </div>
             <div className="px-5 py-4 space-y-4">
-              <div className="bg-gray-50 rounded-lg px-4 py-3 text-sm space-y-1">
-                <p className="text-gray-700">👤 <span className="font-medium">{invoiceModal.client_name}</span></p>
-                {invoiceModal.client_email && <p className="text-gray-500">✉ {invoiceModal.client_email}</p>}
+              {/* Client info — editable */}
+              <div className="space-y-2">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Client Name <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    value={invoiceClientName}
+                    onChange={e => setInvoiceClientName(e.target.value)}
+                    placeholder="Client name"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Client Email</label>
+                  <input
+                    type="email"
+                    value={invoiceClientEmail}
+                    onChange={e => setInvoiceClientEmail(e.target.value)}
+                    placeholder="client@email.com"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
               </div>
               {(() => {
                 const { depositPaid, balance, deposit } = getInvoiceState(invoiceModal)

@@ -101,7 +101,7 @@ export class VendorInvoicesService {
       .select()
       .single();
 
-    if (invErr || !invoice) throw new Error(invErr?.message ?? 'Failed to create invoice');
+    if (invErr || !invoice) throw new BadRequestException(invErr?.message ?? 'Failed to create invoice');
 
     if (dto.items.length > 0) {
       const lineItems = dto.items.map(item => ({

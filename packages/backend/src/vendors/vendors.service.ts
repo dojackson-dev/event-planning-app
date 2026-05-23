@@ -462,7 +462,7 @@ export class VendorsService {
 
     let query = admin
       .from('vendor_bookings')
-      .select('*, vendor_invoices(id, status, invoice_type, vendor_booking_id, total_amount, amount_paid)')
+      .select('*, vendor_invoices(id, status, invoice_type, vendor_booking_id, total_amount, amount_paid), owner_accounts!owner_account_id(id, business_name)')
       .eq('vendor_account_id', vendor.id)
       .order('event_date', { ascending: true });
 
@@ -472,6 +472,20 @@ export class VendorsService {
 
     const { data, error } = await query;
     if (error) throw new BadRequestException(error.message);
+
+    // Bulk-resolve booked_by_user emails for platform bookings that have no client_email
+    const bookerIds = [...new Set(
+      (data || [])
+        .filter((b: any) => !b.client_email && b.booked_by_user_id)
+        .map((b: any) => b.booked_by_user_id as string)
+    )];
+    const bookerEmailMap: Record<string, string> = {};
+    for (const uid of bookerIds) {
+      try {
+        const { data: u } = await admin.auth.admin.getUserById(uid);
+        if (u?.user?.email) bookerEmailMap[uid] = u.user.email;
+      } catch { /* ignore */ }
+    }
 
     // Derive effective status: if any linked owner_booking invoice is paid → show as paid
     const rows = (data || []).map((b: any) => {
@@ -490,7 +504,17 @@ export class VendorsService {
         })().catch(() => {});
       }
 
-      const { vendor_invoices: _inv, ...rest } = b;
+      const { vendor_invoices: _inv, owner_accounts: ownerAcc, ...rest } = b;
+
+      // For platform bookings (owner booked vendor), resolve owner info as client fallback
+      const resolvedClientName: string | null =
+        rest.client_name ||
+        (ownerAcc as any)?.business_name ||
+        null;
+      const resolvedClientEmail: string | null =
+        rest.client_email ||
+        (rest.booked_by_user_id ? bookerEmailMap[rest.booked_by_user_id] : null) ||
+        null;
 
       // Surface all vendor-created invoices (not owner_booking type) for this booking
       const vendorInvoices = invoices
@@ -504,6 +528,8 @@ export class VendorsService {
 
       return {
         ...rest,
+        client_name: resolvedClientName,
+        client_email: resolvedClientEmail,
         status: effectiveStatus,
         vendorInvoices,
       };

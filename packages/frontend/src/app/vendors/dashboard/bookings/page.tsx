@@ -262,6 +262,10 @@ export default function BookingsPage() {
               <div>
                 <h3 className="font-bold text-gray-900 text-base">Send Invoice</h3>
                 <p className="text-xs text-gray-500 mt-0.5">{invoiceModal.event_name}</p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  📅 {new Date(invoiceModal.event_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                  {invoiceModal.venue_name ? ` · ${invoiceModal.venue_name}` : ''}
+                </p>
               </div>
               <button onClick={() => setInvoiceModal(null)} className="text-gray-400 hover:text-gray-600">
                 <X className="h-5 w-5" />

@@ -64,6 +64,7 @@ export enum ContractStatus {
   SENT = 'sent',
   SIGNED = 'signed',
   CANCELLED = 'cancelled',
+  VOIDED = 'voided',
 }
 
 export enum InsuranceStatus {
@@ -370,9 +371,7 @@ export interface Contract {
   booking?: Booking
   title: string
   description?: string
-  body?: string
-  contractType?: string
-  fileUrl?: string
+  fileUrl: string
   fileName?: string
   fileSize?: number
   status: ContractStatus

@@ -495,6 +495,31 @@ export class ContractsService {
     return contract;
   }
 
+  async voidContract(supabase: SupabaseClient, id: string, ownerId: string): Promise<any> {
+    const admin = this.supabaseService.getAdminClient();
+
+    // Verify the contract belongs to this owner
+    const { data: contract, error: fetchError } = await admin
+      .from('contracts')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !contract) throw new Error('Contract not found');
+    if (contract.owner_id !== ownerId) throw new Error('Unauthorized');
+    if (contract.status === 'signed') throw new Error('Cannot void a signed contract');
+
+    const { data, error } = await admin
+      .from('contracts')
+      .update({ status: 'voided', sent_date: null })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
   async delete(supabase: SupabaseClient, id: string): Promise<void> {
     const { error } = await supabase
       .from('contracts')

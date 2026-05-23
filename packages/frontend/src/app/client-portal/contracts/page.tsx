@@ -10,6 +10,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
   sent:      { label: 'Sent',      color: 'bg-blue-100 text-blue-700 border-blue-200',        icon: <Send className="h-4 w-4" /> },
   signed:    { label: 'Signed',    color: 'bg-green-100 text-green-700 border-green-200',     icon: <CheckCircle2 className="h-4 w-4" /> },
   cancelled: { label: 'Cancelled', color: 'bg-red-100 text-red-700 border-red-200',           icon: <XCircle className="h-4 w-4" /> },
+  voided:    { label: 'Voided (Contract Waived)', color: 'bg-orange-100 text-orange-700 border-orange-200', icon: <XCircle className="h-4 w-4" /> },
 }
 
 export default function ClientContractsPage() {
@@ -43,7 +44,7 @@ export default function ClientContractsPage() {
 
       {/* Filter */}
       <div className="flex gap-2 flex-wrap">
-        {['all', 'draft', 'sent', 'signed', 'cancelled'].map((s) => (
+        {['all', 'draft', 'sent', 'signed', 'cancelled', 'voided'].map((s) => (
           <button
             key={s}
             onClick={() => setFilter(s)}

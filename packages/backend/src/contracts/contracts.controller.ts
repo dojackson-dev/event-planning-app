@@ -248,6 +248,15 @@ export class ContractsController {
     return this.contractsService.sendContractAsVendor(userId, id, body.sendTo);
   }
 
+  @Post(':id/void')
+  async voidContract(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+  ): Promise<any> {
+    const userId = await this.getUserId(authorization);
+    return this.contractsService.voidContract(null as any, id, userId);
+  }
+
   @Delete(':id')
   async remove(
     @Headers('authorization') authorization: string,

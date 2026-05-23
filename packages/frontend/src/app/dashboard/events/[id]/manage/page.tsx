@@ -177,6 +177,7 @@ const contractStatusLabels: Record<ContractStatus, string> = {
   [ContractStatus.SENT]: 'Sent to Client',
   [ContractStatus.SIGNED]: 'Signed',
   [ContractStatus.CANCELLED]: 'Cancelled',
+  [ContractStatus.VOIDED]: 'Voided',
 };
 
 const contractStatusColors: Record<ContractStatus, string> = {
@@ -184,6 +185,7 @@ const contractStatusColors: Record<ContractStatus, string> = {
   [ContractStatus.SENT]: 'bg-blue-100 text-blue-800',
   [ContractStatus.SIGNED]: 'bg-green-100 text-green-800',
   [ContractStatus.CANCELLED]: 'bg-red-100 text-red-800',
+  [ContractStatus.VOIDED]: 'bg-orange-100 text-orange-700',
 };
 
 const insuranceStatusLabels: Record<InsuranceStatus, string> = {
@@ -239,6 +241,7 @@ export default function EventManagementPage() {
   const [eventInvoices, setEventInvoices] = useState<any[]>([]);
   const [eventEstimates, setEventEstimates] = useState<any[]>([]);
   const [eventContracts, setEventContracts] = useState<any[]>([]);
+  const [voidingContractId, setVoidingContractId] = useState<string | null>(null);
   const [intakeFormActivated, setIntakeFormActivated] = useState(false);
   const [intakeFormId, setIntakeFormId] = useState<string | null>(null);
   const [guestListId, setGuestListId] = useState<number | null>(null);
@@ -352,7 +355,7 @@ export default function EventManagementPage() {
       setIntakeFormId(event.intakeFormId || null);
       // Activate step is done when the intake form has been converted (lead activated),
       // or if this event has no linked intake form (created directly)
-      setIntakeFormActivated(!event.intakeFormId || event.intakeFormStatus === 'converted');
+      setIntakeFormActivated(!event.intakeFormId || ['converted', 'confirmed', 'accepted'].includes(event.intakeFormStatus));
       loadEventInvoices(event.bookingId, event.clientName, event.intakeFormId);
       loadEventEstimates(event.intakeFormId);
       loadEventContracts(event.intakeFormId);
@@ -383,6 +386,7 @@ export default function EventManagementPage() {
       const res = await api.get('/estimates');
       const all: any[] = res.data || [];
       setEventEstimates(all.filter((e: any) =>
+        e.event_id === eventId ||
         e.booking?.event_id === eventId ||
         (intakeFormId && e.intake_form_id === intakeFormId)
       ));
@@ -404,8 +408,26 @@ export default function EventManagementPage() {
     }
   };
 
-  const loadEventInvoices = async (bookingId?: string, clientName?: string, intakeFormId?: string) => {
+  const handleVoidContract = async (contractId: string) => {
+    if (!confirm('Void this contract? The client will no longer need to sign it and the booking can proceed to the invoice step.')) return;
+    setVoidingContractId(contractId);
     try {
+      await api.post(`/contracts/${contractId}/void`);
+      // Refresh contracts
+      const res = await api.get('/contracts');
+      const all: any[] = res.data || [];
+      const matched = all.filter((c: any) =>
+        c.event_id === eventId || (intakeFormId && c.intake_form_id === intakeFormId)
+      );
+      setEventContracts(matched);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to void contract');
+    } finally {
+      setVoidingContractId(null);
+    }
+  };
+
+  const loadEventInvoices = async (bookingId?: string, clientName?: string, intakeFormId?: string) => {    try {
       const res = await api.get('/invoices');
       const all: any[] = res.data || [];
       let matched: any[] = [];
@@ -775,36 +797,40 @@ export default function EventManagementPage() {
 
         {/* Booking Progress Bar */}
         {(() => {
-          const estimateAccepted = eventEstimates.some(e => ['sent', 'approved', 'converted'].includes(e.status));
-          const hasContracts = eventContracts.length > 0;
+          // Estimate is accepted only when client explicitly approves (not just 'sent')
+          const estimateAccepted = eventEstimates.some(e => ['approved', 'converted'].includes(e.status));
+
+          // Contract logic: voided contracts count as skipped (owner waived contract requirement)
+          const hasActiveContract = eventContracts.some((c: any) => c.status !== 'voided');
           const contractSigned =
             formData.contractStatus === ContractStatus.SIGNED ||
             eventContracts.some((c: any) => c.status === 'signed');
-          // Contract is optional — skipped (neutral) when no contracts exist and none signed
-          const contractSkipped = !hasContracts && !contractSigned;
+          const contractVoided = !hasActiveContract && eventContracts.some((c: any) => c.status === 'voided');
+          // Contract is optional — skipped when no active contracts exist and none signed
+          const contractSkipped = !hasActiveContract && !contractSigned;
+
+          // Invoice step: requires the invoice to be fully PAID (not just sent)
           const invoiceSent = eventInvoices.some(inv => ['sent', 'partial', 'paid', 'overdue'].includes(inv.status));
           const invoicePaid = eventInvoices.some(inv => inv.status === 'paid');
-          const depositPaid = eventInvoices.some(inv => inv.status === 'partial' || inv.paid_amount > 0);
-          const booked = formData.depositPaid ||
-            depositPaid ||
-            invoicePaid ||
-            [ClientStatus.BOOKED, ClientStatus.DEPOSIT_PAID, ClientStatus.COMPLETED].includes(formData.clientStatus);
+
+          // Booked ONLY when invoice is fully paid
+          const booked = invoicePaid;
 
           const steps = [
-            { label: 'Activate',  done: intakeFormActivated,  skipped: false },
-            { label: 'Estimate',  done: estimateAccepted,      skipped: false },
-            { label: 'Contract',  done: contractSigned,        skipped: contractSkipped },
-            { label: 'Invoice',   done: invoiceSent,           skipped: false },
-            { label: 'Booked',    done: booked,                skipped: false },
+            { label: 'Activate',  done: intakeFormActivated,  skipped: false,         voided: false },
+            { label: 'Estimate',  done: estimateAccepted,      skipped: false,         voided: false },
+            { label: 'Contract',  done: contractSigned,        skipped: contractSkipped, voided: contractVoided },
+            { label: 'Invoice',   done: invoicePaid,           skipped: false,         voided: false },
+            { label: 'Booked',    done: booked,                skipped: false,         voided: false },
           ];
 
-          // Skip optional steps when finding the current active step
-          const currentStepIndex = steps.findIndex((s, i) => !s.done && !s.skipped);
+          // Skip optional/voided steps when finding the current active step
+          const currentStepIndex = steps.findIndex((s) => !s.done && !s.skipped && !s.voided);
 
           const handleProgressAction = () => {
             if (!estimateAccepted) {
               router.push(`/dashboard/estimates/new?eventId=${eventId}${intakeFormId ? `&clientId=${intakeFormId}` : ''}`);
-            } else if (!contractSigned && hasContracts) {
+            } else if (!contractSigned && !contractSkipped) {
               router.push(`/dashboard/contracts/new${intakeFormId ? `?intakeFormId=${intakeFormId}` : ''}`);
             } else if (!invoiceSent) {
               router.push(`/dashboard/invoices/new?eventId=${eventId}${intakeFormId ? `&clientId=${intakeFormId}` : ''}`);
@@ -812,9 +838,13 @@ export default function EventManagementPage() {
           };
 
           const actionLabels = ['', 'Send Estimate', 'Send Contract', 'Send Invoice', ''];
-          const actionLabel = currentStepIndex > 0 && currentStepIndex < 4 && !steps[currentStepIndex]?.skipped
-            ? actionLabels[currentStepIndex]
-            : null;
+          // Show "Awaiting Payment" if invoice sent but not paid (at Invoice step)
+          const isAwaitingPayment = invoiceSent && !invoicePaid;
+          const actionLabel = isAwaitingPayment
+            ? null
+            : currentStepIndex > 0 && currentStepIndex < 4 && !steps[currentStepIndex]?.skipped && !steps[currentStepIndex]?.voided
+              ? actionLabels[currentStepIndex]
+              : null;
 
           return (
             <React.Fragment key="progress-bar">
@@ -824,25 +854,26 @@ export default function EventManagementPage() {
                   {steps.map((step, i) => {
                     const isLast = i === steps.length - 1;
                     const isCurrent = i === currentStepIndex;
+                    const isNeutral = step.skipped || step.voided;
                     return (
                       <React.Fragment key={step.label}>
                         <div className="flex flex-col items-center min-w-0">
                           <div className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0
-                            ${step.done ? 'bg-green-500 text-white' : step.skipped ? 'bg-gray-100 text-gray-300 border border-dashed border-gray-300' : isCurrent ? 'bg-primary-600 text-white ring-4 ring-primary-100' : 'bg-gray-200 text-gray-400'}`}>
+                            ${step.done ? 'bg-green-500 text-white' : isNeutral ? 'bg-gray-100 text-gray-300 border border-dashed border-gray-300' : isCurrent ? 'bg-primary-600 text-white ring-4 ring-primary-100' : 'bg-gray-200 text-gray-400'}`}>
                             {step.done
                               ? <CheckCircle className="h-4 w-4" />
-                              : step.skipped
-                              ? <span className="text-xs">—</span>
+                              : isNeutral
+                              ? <span className="text-xs">{step.voided ? '✕' : '—'}</span>
                               : <span className="text-xs font-bold">{i + 1}</span>}
                           </div>
                           <span className={`text-xs mt-1.5 font-medium text-center leading-tight
-                            ${step.done ? 'text-green-600' : step.skipped ? 'text-gray-300' : isCurrent ? 'text-primary-600' : 'text-gray-400'}`}>
-                            {step.label}{step.skipped ? ' (opt)' : ''}
+                            ${step.done ? 'text-green-600' : isNeutral ? 'text-gray-300' : isCurrent ? 'text-primary-600' : 'text-gray-400'}`}>
+                            {step.label}{step.voided ? ' (voided)' : step.skipped ? ' (opt)' : ''}
                           </span>
                         </div>
                         {!isLast && (
                           <div className={`flex-1 h-1 mx-1 rounded-full mb-4
-                            ${step.done ? 'bg-green-400' : step.skipped ? 'bg-gray-100' : 'bg-gray-200'}`} />
+                            ${step.done ? 'bg-green-400' : isNeutral ? 'bg-gray-100' : 'bg-gray-200'}`} />
                         )}
                       </React.Fragment>
                     );
@@ -858,10 +889,10 @@ export default function EventManagementPage() {
                     </button>
                   </div>
                 )}
-                {currentStepIndex === 4 && !booked && (
+                {isAwaitingPayment && (
                   <div className="mt-4 flex justify-center">
                     <span className="inline-flex items-center px-4 py-1.5 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800">
-                      <Clock className="h-3.5 w-3.5 mr-1.5" /> Awaiting Deposit Payment
+                      <Clock className="h-3.5 w-3.5 mr-1.5" /> Awaiting Invoice Payment
                     </span>
                   </div>
                 )}
@@ -1667,6 +1698,7 @@ export default function EventManagementPage() {
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
                           c.status === 'signed' ? 'bg-green-100 text-green-800' :
                           c.status === 'sent' ? 'bg-blue-100 text-blue-800' :
+                          c.status === 'voided' ? 'bg-orange-100 text-orange-700' :
                           c.status === 'cancelled' ? 'bg-red-100 text-red-800' :
                           'bg-gray-100 text-gray-800'
                         }`}>
@@ -1678,6 +1710,15 @@ export default function EventManagementPage() {
                         >
                           View
                         </button>
+                        {(c.status === 'draft' || c.status === 'sent') && (
+                          <button
+                            onClick={() => handleVoidContract(c.id)}
+                            disabled={voidingContractId === c.id}
+                            className="text-orange-600 hover:text-orange-700 text-xs font-medium disabled:opacity-50"
+                          >
+                            {voidingContractId === c.id ? '...' : 'Void'}
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}

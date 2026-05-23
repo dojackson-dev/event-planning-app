@@ -29,48 +29,45 @@ function computeProgress(event: any, allEstimates: any[], allInvoices: any[], al
   const eId: string = event.id
   const ifId: string | undefined = event.intakeFormId
 
+  // Estimate accepted only when client explicitly approves (not just 'sent')
   const estimateAccepted = allEstimates.some(e =>
-    ['sent', 'approved', 'converted'].includes(e.status) &&
-    (e.booking?.event_id === eId || (ifId && e.intake_form_id === ifId))
+    ['approved', 'converted'].includes(e.status) &&
+    (e.event_id === eId || e.booking?.event_id === eId || (ifId && e.intake_form_id === ifId))
   )
 
-  // Check actual contracts data — management_data.contractStatus is only set manually
+  // Contract logic: voided contracts count as skipped (optional step waived)
+  const eventContracts = allContracts.filter(c =>
+    c.intake_form_id === ifId || c.event_id === eId
+  )
+  const hasActiveContract = eventContracts.some(c => c.status !== 'voided')
   const contractSigned =
     mgmt.contractStatus === 'signed' ||
-    allContracts.some(c =>
-      c.status === 'signed' &&
-      (c.intake_form_id === ifId || c.event_id === eId)
-    )
+    eventContracts.some(c => c.status === 'signed')
+  const contractSkipped = !hasActiveContract && !contractSigned
 
-  const invoiceSent = allInvoices.some(i =>
-    ['sent', 'partial', 'paid', 'overdue'].includes(i.status) &&
-    (i.event_id === eId || (ifId && i.intake_form_id === ifId))
-  )
+  // Activate step: done when intake form is converted/confirmed/accepted, or if there's no intake form (event created directly)
+  const activated = !event.intakeFormId || ['converted', 'confirmed', 'accepted'].includes((event as any).intakeFormStatus)
 
-  // Activate step: done when intake form status is 'converted', or if there's no intake form (event created directly)
-  const activated = !event.intakeFormId || (event as any).intakeFormStatus === 'converted'
-
+  // Invoice fully paid — not just sent
   const invoicePaid = allInvoices.some(i =>
     i.status === 'paid' &&
     (i.event_id === eId || (ifId && i.intake_form_id === ifId))
   )
 
-  const booked =
-    !!mgmt.depositPaid ||
-    invoicePaid ||
-    ['booked', 'deposit_paid', 'completed'].includes(mgmt.clientStatus ?? '')
+  // Booked ONLY when invoice is fully paid
+  const booked = invoicePaid
 
   return [
-    { label: 'Activate', done: activated },
-    { label: 'Estimate', done: estimateAccepted },
-    { label: 'Contract', done: contractSigned },
-    { label: 'Invoice',  done: invoiceSent },
-    { label: 'Booked',   done: booked },
+    { label: 'Activate', done: activated,         skipped: false },
+    { label: 'Estimate', done: estimateAccepted,   skipped: false },
+    { label: 'Contract', done: contractSigned,     skipped: contractSkipped },
+    { label: 'Invoice',  done: invoicePaid,         skipped: false },
+    { label: 'Booked',   done: booked,              skipped: false },
   ]
 }
 
-const EventProgressBar = React.memo(function EventProgressBar({ steps }: { steps: { label: string; done: boolean }[] }) {
-  const currentIdx = steps.findIndex(s => !s.done)
+const EventProgressBar = React.memo(function EventProgressBar({ steps }: { steps: { label: string; done: boolean; skipped?: boolean }[] }) {
+  const currentIdx = steps.findIndex(s => !s.done && !s.skipped)
   const pct = currentIdx === -1 ? 100 : Math.round((currentIdx / steps.length) * 100)
 
   return (
@@ -85,17 +82,21 @@ const EventProgressBar = React.memo(function EventProgressBar({ steps }: { steps
               <div className={`h-6 w-6 rounded-full flex items-center justify-center flex-shrink-0 transition-colors
                 ${step.done
                   ? 'bg-green-500 text-white'
+                  : step.skipped
+                  ? 'bg-gray-100 text-gray-300 border border-dashed border-gray-300'
                   : isCurrent
                   ? 'bg-primary-600 text-white ring-2 ring-primary-200'
                   : 'bg-gray-200 text-gray-400'
                 }`}>
                 {step.done
                   ? <CheckCircle2 className="h-3.5 w-3.5" />
+                  : step.skipped
+                  ? <span className="text-[10px]">—</span>
                   : <span className="text-[10px] font-bold">{i + 1}</span>
                 }
               </div>
               {!isLast && (
-                <div className={`flex-1 h-0.5 mx-0.5 transition-colors ${step.done ? 'bg-green-400' : 'bg-gray-200'}`} />
+                <div className={`flex-1 h-0.5 mx-0.5 transition-colors ${step.done ? 'bg-green-400' : step.skipped ? 'bg-gray-100' : 'bg-gray-200'}`} />
               )}
             </div>
           )
@@ -109,9 +110,9 @@ const EventProgressBar = React.memo(function EventProgressBar({ steps }: { steps
             <span
               key={step.label}
               className={`text-[10px] font-medium leading-tight text-center flex-1
-                ${step.done ? 'text-green-600' : isCurrent ? 'text-primary-600' : 'text-gray-400'}`}
+                ${step.done ? 'text-green-600' : step.skipped ? 'text-gray-300' : isCurrent ? 'text-primary-600' : 'text-gray-400'}`}
             >
-              {step.label}
+              {step.label}{step.skipped ? '*' : ''}
             </span>
           )
         })}
@@ -262,8 +263,8 @@ export default function EventsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {paginatedEvents.map((event) => {
           const steps = computeProgress(event, allEstimates, allInvoices, allContracts)
-          const isComplete = steps.every(s => s.done)
-          const currentIdx = steps.findIndex(s => !s.done)
+          const isComplete = steps.every(s => s.done || s.skipped)
+          const currentIdx = steps.findIndex(s => !s.done && !s.skipped)
 
           return (
             <div key={event.id} className="relative group">

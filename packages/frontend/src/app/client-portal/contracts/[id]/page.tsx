@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import clientApi from '@/lib/clientApi'
 import {
   ArrowLeft, FileText, Download, CheckCircle2, Clock, Send,
-  PenLine, X, Loader2,
+  PenLine, X, XCircle, Loader2,
 } from 'lucide-react'
 
 export default function ClientContractDetailPage() {
@@ -136,6 +136,7 @@ export default function ClientContractDetailPage() {
 
   const isSent = contract.status === 'sent'
   const isSigned = contract.status === 'signed'
+  const isVoided = contract.status === 'voided'
   const fileUrl = contract.file_url ?? contract.fileUrl
 
   return (
@@ -222,6 +223,21 @@ export default function ClientContractDetailPage() {
               />
             </div>
           )}
+        </div>
+      )}
+
+      {/* Voided notice */}
+      {isVoided && (
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-5">
+          <div className="flex items-start gap-3">
+            <XCircle className="h-6 w-6 text-orange-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-orange-900">Contract Waived</p>
+              <p className="text-sm text-orange-700 mt-1">
+                Your coordinator has waived the contract requirement. You can proceed to the next step without signing.
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -349,6 +365,7 @@ function StatusBadge({ status }: { status: string }) {
     sent:      { label: 'Awaiting Signature', className: 'bg-blue-100 text-blue-700 border-blue-200', icon: <Clock className="h-3.5 w-3.5" /> },
     signed:    { label: 'Signed',    className: 'bg-green-100 text-green-700 border-green-200', icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
     cancelled: { label: 'Cancelled', className: 'bg-red-100 text-red-700 border-red-200',       icon: <X className="h-3.5 w-3.5" /> },
+    voided:    { label: 'Waived',    className: 'bg-orange-100 text-orange-700 border-orange-200', icon: <X className="h-3.5 w-3.5" /> },
   }
   const cfg = configs[status] ?? configs.draft
   return (

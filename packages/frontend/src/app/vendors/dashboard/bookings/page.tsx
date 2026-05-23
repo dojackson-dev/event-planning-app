@@ -53,6 +53,7 @@ export default function BookingsPage() {
   const [invoiceChoice, setInvoiceChoice] = useState<'deposit' | 'full'>('full')
   const [invoiceClientName, setInvoiceClientName] = useState('')
   const [invoiceClientEmail, setInvoiceClientEmail] = useState('')
+  const [invoiceClientPhone, setInvoiceClientPhone] = useState('')
   const [sendingInvoice, setSendingInvoice] = useState(false)
 
   useEffect(() => {
@@ -135,6 +136,7 @@ export default function BookingsPage() {
     setInvoiceChoice(deposit > 0 && !depositPaid ? 'deposit' : 'full')
     setInvoiceClientName(booking.client_name || '')
     setInvoiceClientEmail(booking.client_email || '')
+    setInvoiceClientPhone(booking.client_phone || '')
     setInvoiceModal(booking)
   }
 
@@ -170,6 +172,7 @@ export default function BookingsPage() {
       const { data: created } = await api.post('/vendor-invoices', {
         client_name: clientName,
         client_email: invoiceClientEmail.trim() || null,
+        client_phone: invoiceClientPhone.trim() || null,
         issue_date: fmt(today),
         due_date: fmt(due),
         vendor_booking_id: booking.id,
@@ -291,6 +294,16 @@ export default function BookingsPage() {
                     value={invoiceClientEmail}
                     onChange={e => setInvoiceClientEmail(e.target.value)}
                     placeholder="client@email.com"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Phone <span className="text-gray-400 font-normal">(for SMS)</span></label>
+                  <input
+                    type="tel"
+                    value={invoiceClientPhone}
+                    onChange={e => setInvoiceClientPhone(e.target.value)}
+                    placeholder="+1 (555) 000-0000"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>

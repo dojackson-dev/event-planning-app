@@ -473,18 +473,21 @@ export class VendorsService {
     const { data, error } = await query;
     if (error) throw new BadRequestException(error.message);
 
-    // Bulk-resolve booked_by_user emails for platform bookings that have no client_email
+    // Bulk-resolve booked_by_user emails and phones for platform bookings that have no client_email
     const bookerIds = [...new Set(
       (data || [])
-        .filter((b: any) => !b.client_email && b.booked_by_user_id)
+        .filter((b: any) => (!b.client_email || !b.client_phone) && b.booked_by_user_id)
         .map((b: any) => b.booked_by_user_id as string)
     )];
-    const bookerEmailMap: Record<string, string> = {};
-    for (const uid of bookerIds) {
-      try {
-        const { data: u } = await admin.auth.admin.getUserById(uid);
-        if (u?.user?.email) bookerEmailMap[uid] = u.user.email;
-      } catch { /* ignore */ }
+    const bookerInfoMap: Record<string, { email?: string; phone?: string }> = {};
+    if (bookerIds.length > 0) {
+      const { data: bookerRows } = await admin
+        .from('users')
+        .select('id, email, phone_number')
+        .in('id', bookerIds);
+      for (const row of bookerRows ?? []) {
+        bookerInfoMap[row.id] = { email: row.email ?? undefined, phone: row.phone_number ?? undefined };
+      }
     }
 
     // Derive effective status: if any linked owner_booking invoice is paid → show as paid
@@ -513,7 +516,11 @@ export class VendorsService {
         null;
       const resolvedClientEmail: string | null =
         rest.client_email ||
-        (rest.booked_by_user_id ? bookerEmailMap[rest.booked_by_user_id] : null) ||
+        (rest.booked_by_user_id ? bookerInfoMap[rest.booked_by_user_id]?.email : null) ||
+        null;
+      const resolvedClientPhone: string | null =
+        rest.client_phone ||
+        (rest.booked_by_user_id ? bookerInfoMap[rest.booked_by_user_id]?.phone : null) ||
         null;
 
       // Surface all vendor-created invoices (not owner_booking type) for this booking
@@ -530,6 +537,7 @@ export class VendorsService {
         ...rest,
         client_name: resolvedClientName,
         client_email: resolvedClientEmail,
+        client_phone: resolvedClientPhone,
         status: effectiveStatus,
         vendorInvoices,
       };

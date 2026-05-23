@@ -53,6 +53,7 @@ export interface Booking {
   venue_name: string
   client_name: string
   client_email?: string
+  client_phone?: string
   status: string
   agreed_amount: number
   deposit_amount: number

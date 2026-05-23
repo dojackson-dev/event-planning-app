@@ -279,6 +279,7 @@ function NewEstimatePageInner() {
       const body = {
         estimate: {
           owner_id: user?.id,
+          event_id: selectedEvent || null,
           booking_id: bookingId || null,
           intake_form_id: intakeFormId || null,
           client_name: clientName || null,

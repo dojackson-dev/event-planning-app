@@ -6,6 +6,7 @@ export interface Estimate {
   id?: string;
   estimate_number: string;
   owner_id?: string;
+  event_id?: string;
   booking_id?: string;
   intake_form_id?: string;
   created_by?: string;
@@ -314,6 +315,7 @@ export class EstimatesService {
         estimate_number: estimateNumber,
         owner_id: ownerId,
         created_by: userId,
+        event_id: estimateData.event_id || null,
         intake_form_id: estimateData.intake_form_id || null,
         client_name: estimateData.client_name || null,
         client_phone: clientPhone,

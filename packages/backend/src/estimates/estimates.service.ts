@@ -226,7 +226,7 @@ export class EstimatesService {
       const { data: ownerAcc } = await supabase
         .from('owner_accounts')
         .select('business_name, address, city, state, zip')
-        .eq('user_id', estimate.owner_id)
+        .eq('primary_owner_id', estimate.owner_id)
         .single();
       if (ownerAcc) {
         estimate.owner_business_name = (ownerAcc as any).business_name || null;

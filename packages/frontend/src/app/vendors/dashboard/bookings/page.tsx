@@ -160,7 +160,7 @@ export default function BookingsPage() {
     try {
       const { data: created } = await api.post('/vendor-invoices', {
         client_name: booking.client_name,
-        client_email: booking.client_email ?? '',
+        client_email: booking.client_email || null,
         issue_date: fmt(today),
         due_date: fmt(due),
         vendor_booking_id: booking.id,

@@ -82,7 +82,7 @@ export class VendorInvoicesService {
         vendor_account_id: vendorAccountId,
         invoice_number: invoiceNumber,
         client_name: dto.client_name,
-        client_email: dto.client_email,
+        client_email: dto.client_email ?? null,
         client_phone: dto.client_phone ?? null,
         issue_date: dto.issue_date,
         due_date: dto.due_date,

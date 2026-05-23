@@ -462,7 +462,7 @@ export class VendorsService {
 
     let query = admin
       .from('vendor_bookings')
-      .select('*, vendor_invoices(id, status, invoice_type, vendor_booking_id)')
+      .select('*, vendor_invoices(id, status, invoice_type, vendor_booking_id, total_amount, amount_paid)')
       .eq('vendor_account_id', vendor.id)
       .order('event_date', { ascending: true });
 
@@ -491,7 +491,22 @@ export class VendorsService {
       }
 
       const { vendor_invoices: _inv, ...rest } = b;
-      return { ...rest, status: effectiveStatus };
+
+      // Surface all vendor-created invoices (not owner_booking type) for this booking
+      const vendorInvoices = invoices
+        .filter((inv: any) => inv.invoice_type !== 'owner_booking' && inv.vendor_booking_id === b.id)
+        .map((inv: any) => ({
+          id: inv.id,
+          status: inv.status,
+          total_amount: inv.total_amount,
+          amount_paid: inv.amount_paid,
+        }));
+
+      return {
+        ...rest,
+        status: effectiveStatus,
+        vendorInvoices,
+      };
     });
 
     // Apply paid filter after derivation

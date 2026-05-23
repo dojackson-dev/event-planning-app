@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { AlertCircle, CheckCircle2, XCircle, DollarSign, Pencil, X } from 'lucide-react'
-import type { VendorProfile, Booking } from '@/lib/vendorTypes'
+import { AlertCircle, CheckCircle2, XCircle, DollarSign, Pencil, X, Send } from 'lucide-react'
+import type { VendorProfile, Booking, VendorInvoiceSummary } from '@/lib/vendorTypes'
 
 interface BookingRequest {
   id: string
@@ -48,6 +48,10 @@ export default function BookingsPage() {
   const [saved, setSaved] = useState(false)
   const [bookingRequests, setBookingRequests] = useState<BookingRequest[]>([])
   const [updatingRequest, setUpdatingRequest] = useState<string | null>(null)
+  // Invoice modal
+  const [invoiceModal, setInvoiceModal] = useState<Booking | null>(null)
+  const [invoiceChoice, setInvoiceChoice] = useState<'deposit' | 'full'>('full')
+  const [sendingInvoice, setSendingInvoice] = useState(false)
 
   useEffect(() => {
     const token = localStorage.getItem('access_token')
@@ -102,6 +106,79 @@ export default function BookingsPage() {
       console.error(err)
     } finally {
       setUpdatingRequest(null)
+    }
+  }
+
+  // ── Invoice helpers ──────────────────────────────────────────────────────────
+  const getInvoiceState = (booking: Booking) => {
+    const invoices = booking.vendorInvoices ?? []
+    const agreed = booking.agreed_amount || 0
+    const deposit = booking.deposit_amount || 0
+    const totalInvoiced = invoices.reduce((s, i) => s + i.total_amount, 0)
+    const totalPaid = invoices.filter(i => i.status === 'paid').reduce((s, i) => s + i.total_amount, 0)
+    const fullyPaid = agreed > 0 && totalPaid >= agreed
+    const depositPaid = deposit > 0 && totalPaid >= deposit && !fullyPaid
+    const balance = agreed - totalPaid
+    const hasPending = invoices.some(i => i.status === 'sent' || i.status === 'viewed' || i.status === 'draft')
+    return { invoices, agreed, deposit, totalPaid, fullyPaid, depositPaid, balance, hasPending, totalInvoiced }
+  }
+
+  const openInvoiceModal = (booking: Booking) => {
+    if (!booking.agreed_amount || booking.agreed_amount <= 0) {
+      alert('Set an agreed amount on this booking before sending an invoice.')
+      return
+    }
+    const { depositPaid, deposit } = getInvoiceState(booking)
+    // Pre-select deposit if it's available and not yet paid; otherwise full
+    setInvoiceChoice(deposit > 0 && !depositPaid ? 'deposit' : 'full')
+    setInvoiceModal(booking)
+  }
+
+  const confirmSendInvoice = async () => {
+    if (!invoiceModal) return
+    const booking = invoiceModal
+    const { deposit, balance, depositPaid, invoices } = getInvoiceState(booking)
+    const amount = depositPaid ? balance : (invoiceChoice === 'deposit' ? deposit : booking.agreed_amount)
+    if (!amount || amount <= 0) {
+      alert('Invalid invoice amount.')
+      return
+    }
+    const fmt = (d: Date) => d.toISOString().split('T')[0]
+    const today = new Date()
+    const due = new Date(); due.setDate(due.getDate() + 14)
+    const isDeposit = !depositPaid && invoiceChoice === 'deposit'
+    const isBalance = depositPaid
+    const descSuffix = booking.event_date
+      ? ' · ' + new Date(booking.event_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      : ''
+    const description = isDeposit
+      ? `Deposit — ${booking.event_name}${descSuffix}`
+      : isBalance
+      ? `Balance Due — ${booking.event_name}${descSuffix}`
+      : `${booking.event_name}${descSuffix}`
+    setSendingInvoice(true)
+    try {
+      const { data: created } = await api.post('/vendor-invoices', {
+        client_name: booking.client_name,
+        client_email: booking.client_email ?? '',
+        issue_date: fmt(today),
+        due_date: fmt(due),
+        vendor_booking_id: booking.id,
+        items: [{ description, quantity: 1, unit_price: amount }],
+      })
+      await api.post(`/vendor-invoices/${created.id}/send`)
+      const newInv: VendorInvoiceSummary = { id: created.id, status: 'sent', total_amount: amount, amount_paid: 0 }
+      const updater = (b: Booking) => b.id === booking.id
+        ? { ...b, vendorInvoices: [...(b.vendorInvoices ?? []), newInv] }
+        : b
+      setBookings(prev => prev.map(updater))
+      if (selectedBooking?.id === booking.id)
+        setSelectedBooking(prev => prev ? updater(prev) : prev)
+      setInvoiceModal(null)
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'Failed to send invoice')
+    } finally {
+      setSendingInvoice(false)
     }
   }
 
@@ -168,6 +245,84 @@ export default function BookingsPage() {
 
   return (
     <div className="bg-gray-50">
+      {/* ── Send Invoice Modal ── */}
+      {invoiceModal && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <div>
+                <h3 className="font-bold text-gray-900 text-base">Send Invoice</h3>
+                <p className="text-xs text-gray-500 mt-0.5">{invoiceModal.event_name}</p>
+              </div>
+              <button onClick={() => setInvoiceModal(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-4">
+              <div className="bg-gray-50 rounded-lg px-4 py-3 text-sm space-y-1">
+                <p className="text-gray-700">👤 <span className="font-medium">{invoiceModal.client_name}</span></p>
+                {invoiceModal.client_email && <p className="text-gray-500">✉ {invoiceModal.client_email}</p>}
+              </div>
+              {(() => {
+                const { depositPaid, balance, deposit } = getInvoiceState(invoiceModal)
+                if (depositPaid) {
+                  return (
+                    <div className="bg-indigo-50 border border-indigo-100 rounded-lg px-4 py-3">
+                      <p className="text-sm font-medium text-indigo-800">Balance Due</p>
+                      <p className="text-2xl font-bold text-indigo-900 mt-0.5">${balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                      <p className="text-xs text-indigo-600 mt-1">Deposit of ${deposit.toLocaleString()} already paid</p>
+                    </div>
+                  )
+                }
+                return (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-gray-700">Invoice amount</p>
+                    {deposit > 0 && (
+                      <label className={`flex items-center justify-between px-4 py-3 rounded-lg border-2 cursor-pointer transition-colors ${
+                        invoiceChoice === 'deposit' ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'
+                      }`}>
+                        <div className="flex items-center gap-2">
+                          <input type="radio" name="inv_choice" value="deposit" checked={invoiceChoice === 'deposit'} onChange={() => setInvoiceChoice('deposit')} className="accent-indigo-600" />
+                          <span className="text-sm text-gray-700">Deposit</span>
+                        </div>
+                        <span className="font-semibold text-gray-900">${deposit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                      </label>
+                    )}
+                    <label className={`flex items-center justify-between px-4 py-3 rounded-lg border-2 cursor-pointer transition-colors ${
+                      invoiceChoice === 'full' ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        <input type="radio" name="inv_choice" value="full" checked={invoiceChoice === 'full'} onChange={() => setInvoiceChoice('full')} className="accent-indigo-600" />
+                        <span className="text-sm text-gray-700">Full Amount</span>
+                      </div>
+                      <span className="font-semibold text-gray-900">${invoiceModal.agreed_amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                    </label>
+                  </div>
+                )
+              })()}
+            </div>
+            <div className="px-5 pb-5 flex gap-3">
+              <button
+                onClick={() => setInvoiceModal(null)}
+                className="flex-1 py-2.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmSendInvoice}
+                disabled={sendingInvoice}
+                className="flex-1 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {sendingInvoice
+                  ? <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Sending…</>
+                  : <><Send className="w-4 h-4" /> Send Invoice</>
+                }
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Booking Detail / Edit Modal ── */}
       {selectedBooking && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center overflow-y-auto p-4">
@@ -272,7 +427,7 @@ export default function BookingsPage() {
               </div>
             )}
             {selectedBooking.status === 'confirmed' && (
-              <div className="px-6 pb-5">
+              <div className="px-6 pb-5 flex flex-col gap-2">
                 <button
                   onClick={() => updateBookingStatus(selectedBooking.id, 'completed')}
                   disabled={updating === selectedBooking.id}
@@ -280,6 +435,40 @@ export default function BookingsPage() {
                 >
                   Mark as Paid
                 </button>
+                {(() => {
+                  const { fullyPaid, depositPaid, balance, hasPending } = getInvoiceState(selectedBooking)
+                  if (fullyPaid) return (
+                    <span className="w-full py-2 text-center text-sm font-medium bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg flex items-center justify-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4" /> Fully Paid
+                    </span>
+                  )
+                  if (depositPaid) return (
+                    <>
+                      <span className="w-full py-2 text-center text-sm font-medium bg-blue-50 border border-blue-200 text-blue-700 rounded-lg flex items-center justify-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4" /> Deposit Paid
+                      </span>
+                      <button
+                        onClick={() => openInvoiceModal(selectedBooking)}
+                        className="w-full py-2 flex items-center justify-center gap-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700"
+                      >
+                        <Send className="w-4 h-4" /> Send Balance Invoice (${balance.toLocaleString()})
+                      </button>
+                    </>
+                  )
+                  if (hasPending) return (
+                    <span className="w-full py-2 text-center text-sm font-medium bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg flex items-center justify-center gap-1.5">
+                      <Send className="w-4 h-4" /> Invoice Sent
+                    </span>
+                  )
+                  return (
+                    <button
+                      onClick={() => openInvoiceModal(selectedBooking)}
+                      className="w-full py-2 flex items-center justify-center gap-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700"
+                    >
+                      <Send className="w-4 h-4" /> Send Invoice
+                    </button>
+                  )
+                })()}
               </div>
             )}
           </div>
@@ -412,6 +601,40 @@ export default function BookingsPage() {
                             Mark Paid
                           </button>
                         )}
+                        {(booking.status === 'confirmed' || booking.status === 'completed' || booking.status === 'paid') && (() => {
+                          const { fullyPaid, depositPaid, balance, hasPending, deposit, invoices } = getInvoiceState(booking)
+                          if (fullyPaid) return (
+                            <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 font-medium">
+                              <CheckCircle2 className="w-3.5 h-3.5" /> Fully Paid
+                            </span>
+                          )
+                          if (depositPaid) return (
+                            <>
+                              <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 font-medium">
+                                <CheckCircle2 className="w-3.5 h-3.5" /> Deposit Paid
+                              </span>
+                              <button
+                                onClick={() => openInvoiceModal(booking)}
+                                className="flex items-center gap-1.5 bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-indigo-700"
+                              >
+                                <Send className="w-3.5 h-3.5" /> Balance ${balance.toLocaleString()}
+                              </button>
+                            </>
+                          )
+                          if (hasPending) return (
+                            <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 font-medium">
+                              <Send className="w-3.5 h-3.5" /> Invoice Sent
+                            </span>
+                          )
+                          return (
+                            <button
+                              onClick={() => openInvoiceModal(booking)}
+                              className="flex items-center gap-1.5 bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-indigo-700"
+                            >
+                              <Send className="w-3.5 h-3.5" /> Send Invoice
+                            </button>
+                          )
+                        })()}
                       </div>
                     </div>
                   </div>

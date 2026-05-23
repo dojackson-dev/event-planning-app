@@ -15,6 +15,7 @@ export class CreateVendorInvoiceDto {
   notes?: string;
   terms?: string;
   items!: VendorInvoiceItemDto[];
+  vendor_booking_id?: string;
 }
 
 export class UpdateVendorInvoiceDto {

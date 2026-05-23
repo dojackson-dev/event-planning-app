@@ -96,6 +96,7 @@ export class VendorInvoicesService {
         notes: dto.notes ?? null,
         terms: dto.terms ?? null,
         status: 'draft',
+        vendor_booking_id: dto.vendor_booking_id ?? null,
       })
       .select()
       .single();

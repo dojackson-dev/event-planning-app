@@ -219,7 +219,36 @@ export class EstimatesService {
       .eq('id', id)
       .single();
     if (error) throw new NotFoundException('Estimate not found');
-    return data;
+
+    // Enrich with owner info (business name for "Your Company Name")
+    const estimate = data as any;
+    if (estimate.owner_id) {
+      const { data: ownerAcc } = await supabase
+        .from('owner_accounts')
+        .select('business_name, address, city, state, zip')
+        .eq('user_id', estimate.owner_id)
+        .single();
+      if (ownerAcc) {
+        estimate.owner_business_name = (ownerAcc as any).business_name || null;
+        estimate.owner_address = (ownerAcc as any).address || null;
+        estimate.owner_city = (ownerAcc as any).city || null;
+        estimate.owner_state = (ownerAcc as any).state || null;
+        estimate.owner_zip = (ownerAcc as any).zip || null;
+      } else {
+        // Fall back to user's name
+        const { data: ownerUser } = await supabase
+          .from('users')
+          .select('first_name, last_name, email')
+          .eq('id', estimate.owner_id)
+          .single();
+        if (ownerUser) {
+          const u = ownerUser as any;
+          estimate.owner_business_name = [u.first_name, u.last_name].filter(Boolean).join(' ') || null;
+        }
+      }
+    }
+
+    return estimate;
   }
 
   // ─── Create ──────────────────────────────────────────────────────────────────
@@ -269,6 +298,7 @@ export class EstimatesService {
         owner_id: ownerId,
         created_by: userId,
         intake_form_id: estimateData.intake_form_id || null,
+        client_name: estimateData.client_name || null,
         client_phone: clientPhone,
         client_email: clientEmail,
         subtotal,

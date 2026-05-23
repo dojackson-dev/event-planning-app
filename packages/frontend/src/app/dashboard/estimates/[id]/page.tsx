@@ -382,9 +382,17 @@ export default function EstimateDetailPage() {
             </span>
           </div>
           <div className="text-right">
-            <p className="font-semibold">Your Company Name</p>
-            <p className="text-sm text-gray-500">123 Business St</p>
-            <p className="text-sm text-gray-500">City, State 12345</p>
+            {(estimate as any).owner_business_name ? (
+              <p className="font-semibold">{(estimate as any).owner_business_name}</p>
+            ) : null}
+            {(estimate as any).owner_address && (
+              <p className="text-sm text-gray-500">{(estimate as any).owner_address}</p>
+            )}
+            {((estimate as any).owner_city || (estimate as any).owner_state) && (
+              <p className="text-sm text-gray-500">
+                {[(estimate as any).owner_city, (estimate as any).owner_state, (estimate as any).owner_zip].filter(Boolean).join(', ')}
+              </p>
+            )}
           </div>
         </div>
 
@@ -392,12 +400,14 @@ export default function EstimateDetailPage() {
         <div className="grid grid-cols-2 gap-8 mb-8">
           <div>
             <h3 className="font-semibold text-gray-700 mb-2">Prepared For:</h3>
-            {(estimate as any).booking?.user && (
-              <div className="text-gray-600 text-sm">
-                <p>{(estimate as any).booking.user.firstName} {(estimate as any).booking.user.lastName}</p>
-                <p>{(estimate as any).booking.user.email}</p>
-              </div>
-            )}
+            <div className="text-gray-600 text-sm">
+              {(estimate as any).client_name && <p className="font-medium text-gray-800">{(estimate as any).client_name}</p>}
+              {(estimate as any).client_email && <p>{(estimate as any).client_email}</p>}
+              {(estimate as any).client_phone && <p>{(estimate as any).client_phone}</p>}
+              {!(estimate as any).client_name && !(estimate as any).client_email && !(estimate as any).client_phone && (
+                <p className="text-gray-400 italic">No client info</p>
+              )}
+            </div>
           </div>
           <div className="text-right text-sm">
             <div className="mb-1">

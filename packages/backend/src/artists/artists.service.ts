@@ -224,7 +224,11 @@ export class ArtistsService {
       .eq('artist_account_id', artist.id)
       .maybeSingle();
 
-    const payload = { ...dto, artist_account_id: artist.id, updated_at: new Date().toISOString() };
+    // Strip empty strings to null so numeric/boolean columns don't fail type checks
+    const sanitized = Object.fromEntries(
+      Object.entries(dto).map(([k, v]) => [k, v === '' ? null : v])
+    );
+    const payload = { ...sanitized, artist_account_id: artist.id, updated_at: new Date().toISOString() };
 
     if (existing) {
       const { data, error } = await admin

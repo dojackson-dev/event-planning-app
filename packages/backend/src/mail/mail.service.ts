@@ -903,4 +903,67 @@ export class MailService {
       // Non-fatal — webhook must not throw
     }
   }
+
+  async sendNewLeadNotification(params: {
+    ownerEmail: string;
+    clientName: string;
+    eventType: string;
+    eventDate: string | null;
+    clientEmail: string;
+    clientPhone: string | null;
+    budget: string | null;
+    guestCount: number | null;
+  }): Promise<void> {
+    try {
+      const mailOptions = {
+        from: `"EventEcos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
+        to: params.ownerEmail,
+        subject: `New Lead: ${params.clientName} — ${params.eventType}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            ${this.getEmailHeader('New Lead Received', 'Someone submitted an intake form')}
+            <div style="padding: 24px;">
+              <p><strong>Name:</strong> ${params.clientName}</p>
+              <p><strong>Email:</strong> ${params.clientEmail}</p>
+              ${params.clientPhone ? `<p><strong>Phone:</strong> ${params.clientPhone}</p>` : ''}
+              <p><strong>Event Type:</strong> ${params.eventType}</p>
+              ${params.eventDate ? `<p><strong>Event Date:</strong> ${params.eventDate}</p>` : ''}
+              ${params.guestCount ? `<p><strong>Guest Count:</strong> ${params.guestCount}</p>` : ''}
+              ${params.budget ? `<p><strong>Budget:</strong> ${params.budget}</p>` : ''}
+            </div>
+          </div>
+        `,
+      };
+      await this.transporter.sendMail(mailOptions);
+    } catch (error) {
+      console.error('[MailService] sendNewLeadNotification failed:', error);
+    }
+  }
+
+  async sendRiderEmail(params: {
+    to: string;
+    artistName: string;
+    eventName: string;
+    eventDate: string | null;
+    rider: Record<string, any>;
+  }): Promise<void> {
+    const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+    const mailOptions = {
+      from: `"EventEcos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
+      to: params.to,
+      subject: `Rider from ${params.artistName}${params.eventName ? ` for ${params.eventName}` : ''}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          ${this.getEmailHeader(`Rider from ${params.artistName}`, params.eventName || '')}
+          <div style="padding: 24px;">
+            <p>${params.artistName} has shared their rider${params.eventName ? ` for <strong>${params.eventName}</strong>` : ''}${params.eventDate ? ` on ${params.eventDate}` : ''}.</p>
+            ${params.rider.technical_requirements ? `<h3>Technical Requirements</h3><p style="white-space: pre-wrap;">${params.rider.technical_requirements}</p>` : ''}
+            ${params.rider.hospitality_requirements ? `<h3>Hospitality Requirements</h3><p style="white-space: pre-wrap;">${params.rider.hospitality_requirements}</p>` : ''}
+            ${params.rider.notes ? `<h3>Additional Notes</h3><p style="white-space: pre-wrap;">${params.rider.notes}</p>` : ''}
+          </div>
+        </div>
+      `,
+    };
+    await this.transporter.sendMail(mailOptions);
+  }
 }

@@ -291,86 +291,8 @@ export default function BookingsPage() {
           ← Back to Dashboard
         </Link>
 
-        {/* ── Booking Link Requests ── */}
-        {bookingRequests.length > 0 && (
-          <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-4">
-              📩 Booking Link Requests
-              {bookingRequests.filter(r => r.status === 'pending').length > 0 && (
-                <span className="ml-2 bg-yellow-100 text-yellow-700 text-sm px-2 py-0.5 rounded-full font-medium">
-                  {bookingRequests.filter(r => r.status === 'pending').length} new
-                </span>
-              )}
-            </h2>
-            <div className="space-y-3">
-              {bookingRequests.map(req => {
-                const isPending = req.status === 'pending'
-                const isConfirmed = req.status === 'confirmed'
-                const borderClass = isPending
-                  ? 'border-yellow-200 bg-yellow-50'
-                  : isConfirmed
-                  ? 'border-green-200 bg-green-50'
-                  : 'border-gray-200 bg-gray-50'
-                return (
-                  <div key={req.id} className={`border rounded-xl p-4 ${borderClass}`}>
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                          <p className="font-semibold text-gray-900">{req.event_name || 'Booking Request'}</p>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${
-                            isPending ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
-                            isConfirmed ? 'bg-green-100 text-green-700 border-green-200' :
-                            'bg-red-100 text-red-700 border-red-200'
-                          }`}>
-                            {isPending ? '⏳ Pending' : isConfirmed ? '✓ Confirmed' : '✗ Declined'}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-600">👤 {req.client_name}</p>
-                        {req.client_email && <p className="text-sm text-gray-500">{req.client_email}</p>}
-                        {req.client_phone && <p className="text-sm text-gray-500">📞 {req.client_phone}</p>}
-                        {req.event_date && (
-                          <p className="text-sm text-gray-500 mt-1">
-                            📅 {new Date(req.event_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
-                            {req.start_time && ` · ${req.start_time}`}
-                            {req.end_time && ` – ${req.end_time}`}
-                          </p>
-                        )}
-                        {req.venue_name && <p className="text-sm text-gray-500">📍 {req.venue_name}</p>}
-                        {req.quoted_amount != null && req.quoted_amount > 0 && (
-                          <p className="text-sm font-medium text-gray-700 mt-1">💰 ${req.quoted_amount.toLocaleString()}</p>
-                        )}
-                        {req.notes && <p className="text-sm text-gray-500 italic mt-1">&ldquo;{req.notes}&rdquo;</p>}
-                        <p className="text-xs text-gray-400 mt-1">
-                          Submitted {new Date(req.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </p>
-                      </div>
-                      {isPending && (
-                        <div className="flex flex-col gap-2 flex-shrink-0">
-                          <button
-                            onClick={() => updateRequestStatus(req.id, 'confirmed')}
-                            disabled={updatingRequest === req.id}
-                            className="bg-green-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50"
-                          >
-                            ✓ Accept
-                          </button>
-                          <button
-                            onClick={() => updateRequestStatus(req.id, 'declined')}
-                            disabled={updatingRequest === req.id}
-                            className="border border-red-300 text-red-600 px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-red-50 disabled:opacity-50"
-                          >
-                            ✗ Decline
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        <div className="bg-white rounded-xl shadow-sm p-6">
+        {/* ── Booking Requests (main) ── */}
+        <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
           <div className="flex items-center justify-between mb-5">
             <h1 className="text-lg font-bold text-gray-900">Booking Requests</h1>
             <select
@@ -498,6 +420,85 @@ export default function BookingsPage() {
             </div>
           )}
         </div>
+
+        {/* ── Booking Link Requests ── */}
+        {bookingRequests.length > 0 && (
+          <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-4">
+              📩 Booking Link Requests
+              {bookingRequests.filter(r => r.status === 'pending').length > 0 && (
+                <span className="ml-2 bg-yellow-100 text-yellow-700 text-sm px-2 py-0.5 rounded-full font-medium">
+                  {bookingRequests.filter(r => r.status === 'pending').length} new
+                </span>
+              )}
+            </h2>
+            <div className="space-y-3">
+              {bookingRequests.map(req => {
+                const isPending = req.status === 'pending'
+                const isConfirmed = req.status === 'confirmed'
+                const borderClass = isPending
+                  ? 'border-yellow-200 bg-yellow-50'
+                  : isConfirmed
+                  ? 'border-green-200 bg-green-50'
+                  : 'border-gray-200 bg-gray-50'
+                return (
+                  <div key={req.id} className={`border rounded-xl p-4 ${borderClass}`}>
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                          <p className="font-semibold text-gray-900">{req.event_name || 'Booking Request'}</p>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${
+                            isPending ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
+                            isConfirmed ? 'bg-green-100 text-green-700 border-green-200' :
+                            'bg-red-100 text-red-700 border-red-200'
+                          }`}>
+                            {isPending ? '⏳ Pending' : isConfirmed ? '✓ Confirmed' : '✗ Declined'}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600">👤 {req.client_name}</p>
+                        {req.client_email && <p className="text-sm text-gray-500">{req.client_email}</p>}
+                        {req.client_phone && <p className="text-sm text-gray-500">📞 {req.client_phone}</p>}
+                        {req.event_date && (
+                          <p className="text-sm text-gray-500 mt-1">
+                            📅 {new Date(req.event_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                            {req.start_time && ` · ${req.start_time}`}
+                            {req.end_time && ` – ${req.end_time}`}
+                          </p>
+                        )}
+                        {req.venue_name && <p className="text-sm text-gray-500">📍 {req.venue_name}</p>}
+                        {req.quoted_amount != null && req.quoted_amount > 0 && (
+                          <p className="text-sm font-medium text-gray-700 mt-1">💰 ${req.quoted_amount.toLocaleString()}</p>
+                        )}
+                        {req.notes && <p className="text-sm text-gray-500 italic mt-1">&ldquo;{req.notes}&rdquo;</p>}
+                        <p className="text-xs text-gray-400 mt-1">
+                          Submitted {new Date(req.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </p>
+                      </div>
+                      {isPending && (
+                        <div className="flex flex-col gap-2 flex-shrink-0">
+                          <button
+                            onClick={() => updateRequestStatus(req.id, 'confirmed')}
+                            disabled={updatingRequest === req.id}
+                            className="bg-green-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+                          >
+                            ✓ Accept
+                          </button>
+                          <button
+                            onClick={() => updateRequestStatus(req.id, 'declined')}
+                            disabled={updatingRequest === req.id}
+                            className="border border-red-300 text-red-600 px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-red-50 disabled:opacity-50"
+                          >
+                            ✗ Decline
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

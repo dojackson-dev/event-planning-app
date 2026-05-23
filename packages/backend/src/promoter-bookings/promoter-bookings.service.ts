@@ -1,12 +1,18 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { MailService } from '../mail/mail.service';
+import { TwilioService } from '../messaging/twilio.service';
 import { CreatePromoterBookingDto, UpdatePromoterBookingDto } from './dto/promoter-booking.dto';
 
 @Injectable()
 export class PromoterBookingsService {
   private readonly logger = new Logger(PromoterBookingsService.name);
 
-  constructor(private readonly supabaseService: SupabaseService) {}
+  constructor(
+    private readonly supabaseService: SupabaseService,
+    private readonly mailService: MailService,
+    private readonly twilioService: TwilioService,
+  ) {}
 
   async getPromoterAccountId(userId: string): Promise<string> {
     const admin = this.supabaseService.getAdminClient();
@@ -53,7 +59,12 @@ export class PromoterBookingsService {
 
   async listBookings(userId: string) {
     const admin = this.supabaseService.getAdminClient();
-    const promoterAccountId = await this.getPromoterAccountId(userId);
+    let promoterAccountId: string;
+    try {
+      promoterAccountId = await this.getPromoterAccountId(userId);
+    } catch {
+      return [];
+    }
 
     const { data, error } = await admin
       .from('promoter_bookings')
@@ -67,16 +78,33 @@ export class PromoterBookingsService {
 
   async getBooking(userId: string, bookingId: string) {
     const admin = this.supabaseService.getAdminClient();
-    const promoterAccountId = await this.getPromoterAccountId(userId);
 
+    // Fetch the booking first without user filtering
     const { data, error } = await admin
       .from('promoter_bookings')
-      .select('*, promoter_invoices(id, invoice_number, total_amount, amount_due, status, public_token), artist_accounts(id, artist_name, stage_name, artist_type, booking_email, booking_phone, performance_fee_min, performance_fee_max)')
+      .select('*, promoter_invoices(id, invoice_number, total_amount, amount_due, status, public_token), artist_accounts(id, artist_name, stage_name, artist_type, booking_email, booking_phone, performance_fee_min, performance_fee_max), promoter_accounts(company_name, contact_name, email, phone)')
       .eq('id', bookingId)
-      .eq('promoter_account_id', promoterAccountId)
-      .single();
+      .maybeSingle();
 
     if (error || !data) throw new NotFoundException('Booking not found');
+
+    // Allow access if user is the promoter who owns it
+    const { data: promoterAccount } = await admin
+      .from('promoter_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    const isPromoter = promoterAccount && promoterAccount.id === data.promoter_account_id;
+
+    // Allow access if user is the artist on this booking
+    const { data: artistAccount } = await admin
+      .from('artist_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    const isArtist = artistAccount && artistAccount.id === data.artist_account_id;
+
+    if (!isPromoter && !isArtist) throw new ForbiddenException('Access denied');
 
     // Fetch artist invoices sent by the booked artist (payable by the promoter)
     let artistInvoices: any[] = [];
@@ -210,5 +238,70 @@ export class PromoterBookingsService {
 
     if (error) throw new Error(error.message);
     return data;
+  }
+
+  async sendRiderToPromoter(artistUserId: string, bookingId: string) {
+    const admin = this.supabaseService.getAdminClient();
+
+    // Verify artist owns an account
+    const { data: artistAccount } = await admin
+      .from('artist_accounts')
+      .select('id, artist_name, stage_name')
+      .eq('user_id', artistUserId)
+      .maybeSingle();
+    if (!artistAccount) throw new ForbiddenException('No artist account found');
+
+    // Verify booking & promoter — also fetch phone
+    const { data: booking } = await admin
+      .from('promoter_bookings')
+      .select('id, event_name, event_date, promoter_accounts(contact_name, company_name, email, phone)')
+      .eq('id', bookingId)
+      .eq('artist_account_id', artistAccount.id)
+      .maybeSingle();
+    if (!booking) throw new NotFoundException('Booking not found or not assigned to you');
+
+    const promoter = (booking as any).promoter_accounts;
+    const toEmail = promoter?.email;
+    if (!toEmail) throw new BadRequestException('No promoter email on file for this booking');
+
+    // Fetch rider
+    const { data: rider } = await admin
+      .from('artist_riders')
+      .select('*')
+      .eq('artist_account_id', artistAccount.id)
+      .maybeSingle();
+    if (!rider) throw new BadRequestException('You have not set up a rider yet. Go to your rider page to create one.');
+
+    const artistName = (artistAccount as any).stage_name || (artistAccount as any).artist_name || 'Artist';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+    const riderUrl = `${frontendUrl}/artists/${artistAccount.id}/rider`;
+
+    try {
+      await this.mailService.sendRiderEmail({
+        to: toEmail,
+        artistName,
+        eventName: (booking as any).event_name,
+        eventDate: (booking as any).event_date,
+        rider,
+      });
+    } catch (err: any) {
+      this.logger.error('sendRiderEmail failed', err);
+      throw new BadRequestException(
+        `Failed to send rider email: ${err?.message ?? 'SMTP error'}. Check your email configuration.`,
+      );
+    }
+
+    // SMS to promoter if they have a phone number
+    const promoterPhone = promoter?.phone;
+    if (promoterPhone) {
+      const smsBody = `Hi${promoter?.contact_name ? ' ' + promoter.contact_name : ''}, ${artistName} has shared their rider for "${(booking as any).event_name}". View it here: ${riderUrl}`;
+      try {
+        await this.twilioService.sendSMS(promoterPhone, smsBody);
+      } catch (smsErr: any) {
+        this.logger.warn(`Rider SMS failed (non-fatal): ${smsErr?.message}`);
+      }
+    }
+
+    return { success: true, sentTo: toEmail, smsSent: !!promoterPhone };
   }
 }

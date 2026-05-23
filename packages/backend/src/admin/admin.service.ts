@@ -1,5 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+
+const VALID_PLANS = ['free', 'pro', 'premium'] as const;
 
 @Injectable()
 export class AdminService {
@@ -447,5 +449,42 @@ export class AdminService {
       .single();
     if (error) throw error;
     return { trialDays };
+  }
+
+  // ─── Promoter plan management ─────────────────────────────────────────────
+
+  async getPromoters(page = 1, limit = 20, search = '') {
+    const supabase = this.supabaseService.getAdminClient();
+    const offset = (page - 1) * limit;
+
+    let query = supabase
+      .from('promoter_accounts')
+      .select('id, company_name, contact_name, email, phone, city, state, plan, stripe_connect_status, created_at', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (search) {
+      query = query.or(`company_name.ilike.%${search}%,contact_name.ilike.%${search}%,email.ilike.%${search}%`);
+    }
+
+    const { data, count, error } = await query;
+    if (error) throw error;
+    return { promoters: data || [], total: count || 0, page, limit };
+  }
+
+  async updatePromoterPlan(promoterAccountId: string, plan: string) {
+    if (!(VALID_PLANS as readonly string[]).includes(plan)) {
+      throw new BadRequestException(`Invalid plan "${plan}". Must be one of: ${VALID_PLANS.join(', ')}`);
+    }
+    const supabase = this.supabaseService.getAdminClient();
+    const { data, error } = await supabase
+      .from('promoter_accounts')
+      .update({ plan })
+      .eq('id', promoterAccountId)
+      .select('id, company_name, contact_name, email, plan')
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) throw new NotFoundException(`Promoter account ${promoterAccountId} not found`);
+    return data;
   }
 }

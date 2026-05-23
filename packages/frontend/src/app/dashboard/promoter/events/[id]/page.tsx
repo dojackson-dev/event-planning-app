@@ -6,7 +6,7 @@ import Link from 'next/link'
 import api from '@/lib/api'
 import {
   Loader2, Trash2, Plus, Save, ExternalLink, Copy,
-  Users, DollarSign, Tag, MapPin, Clock, ChevronDown, CheckCircle, QrCode, Gift, X, Send,
+  Users, DollarSign, Tag, MapPin, Clock, ChevronDown, CheckCircle, QrCode, Gift, X, Send, Globe,
 } from 'lucide-react'
 import ImageUpload from '@/components/ImageUpload'
 
@@ -21,7 +21,9 @@ interface TicketTier {
 
 interface Attendee {
   id: string
-  buyer_email: string
+  buyer_name: string | null
+  buyer_email: string | null
+  buyer_phone: string | null
   amount_paid: number
   status: string
   created_at: string
@@ -101,6 +103,9 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
   const [activeTab, setActiveTab] = useState<'details' | 'tiers' | 'attendees'>('details')
   const [copied, setCopied] = useState(false)
   const [stripeReady, setStripeReady] = useState<boolean | null>(null)
+  const [publishing, setPublishing] = useState(false)
+  const [resendingId, setResendingId] = useState<string | null>(null)
+  const [resendSuccess, setResendSuccess] = useState<string | null>(null)
 
   // Edit fields
   const [title, setTitle] = useState('')
@@ -237,6 +242,54 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
     setTimeout(() => setCopied(false), 2000)
   }
 
+  const handlePublish = async () => {
+    setError(''); setSuccess(''); setPublishing(true)
+    try {
+      const res = await api.put(`/promoter-events/${id}`, {
+        title, description: description || undefined,
+        event_date: eventDate, start_time: startTime || undefined,
+        end_time: endTime || undefined, venue_name: venueName || undefined,
+        venue_address: venueAddress || undefined, city: city || undefined,
+        state: state || undefined, zip_code: zipCode || undefined,
+        category: category || undefined, venue_type: venueType || undefined,
+        age_restriction: ageRestriction || undefined, image_url: imageUrl || undefined,
+        status: 'published',
+      })
+      setStatus('published')
+      setEvent(prev => ({ ...res.data, ticket_tiers: prev?.ticket_tiers ?? [] }))
+      setSuccess('Event published! It\'s now live.')
+      setTimeout(() => setSuccess(''), 4000)
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to publish')
+    } finally {
+      setPublishing(false)
+    }
+  }
+
+  const handleUnpublish = async () => {
+    setError(''); setSuccess(''); setPublishing(true)
+    try {
+      const res = await api.put(`/promoter-events/${id}`, {
+        title, description: description || undefined,
+        event_date: eventDate, start_time: startTime || undefined,
+        end_time: endTime || undefined, venue_name: venueName || undefined,
+        venue_address: venueAddress || undefined, city: city || undefined,
+        state: state || undefined, zip_code: zipCode || undefined,
+        category: category || undefined, venue_type: venueType || undefined,
+        age_restriction: ageRestriction || undefined, image_url: imageUrl || undefined,
+        status: 'draft',
+      })
+      setStatus('draft')
+      setEvent(prev => ({ ...res.data, ticket_tiers: prev?.ticket_tiers ?? [] }))
+      setSuccess('Event unpublished and set back to draft.')
+      setTimeout(() => setSuccess(''), 4000)
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to unpublish')
+    } finally {
+      setPublishing(false)
+    }
+  }
+
   const handleSendComp = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!compTierId) { setCompError('Please select a ticket tier'); return }
@@ -271,9 +324,24 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
     setCompRecipientName('')
   }
 
+  const handleResendConfirmation = async (ticketId: string) => {
+    setResendingId(ticketId)
+    setResendSuccess(null)
+    try {
+      await api.post(`/promoter-events/${id}/attendees/${ticketId}/resend-confirmation`)
+      setResendSuccess(ticketId)
+      setTimeout(() => setResendSuccess(null), 3000)
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to resend confirmation')
+      setTimeout(() => setError(''), 4000)
+    } finally {
+      setResendingId(null)
+    }
+  }
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="flex items-center justify-center py-24 bg-gray-50">
         <Loader2 className="w-6 h-6 animate-spin text-purple-500" />
       </div>
     )
@@ -281,7 +349,7 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
 
   if (!event) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="flex items-center justify-center py-24 bg-gray-50">
         <p className="text-gray-500">Event not found</p>
       </div>
     )
@@ -293,29 +361,14 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
 
   return (
     <>
-    <div className="min-h-screen bg-gray-50">
-      {/* Title row */}
-      <div className="bg-white border-b">
-        <div className="max-w-4xl mx-auto px-4 py-5 text-center">
-          <h1 className="text-2xl font-bold text-gray-900 truncate">{event.title}</h1>
+    <div className="bg-gray-50">
+      {/* Page Title Banner */}
+      <div className="bg-gradient-to-r from-purple-700 to-purple-500 px-4 py-6">
+        <div className="max-w-4xl mx-auto flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-white truncate">{event.title}</h1>
+          <span className={`shrink-0 ml-3 text-xs font-medium px-2.5 py-1 rounded-full ${STATUS_COLORS[event.status]}`}>{event.status}</span>
         </div>
       </div>
-
-      <nav className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Link href="/dashboard/promoter/events" className="text-sm text-gray-500 hover:text-gray-700">← Events</Link>
-          <div className="flex items-center gap-2">
-            <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${STATUS_COLORS[event.status]}`}>{event.status}</span>
-            {event.status === 'published' && (
-              <a href={`/events/${id}`} target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-1 text-xs text-purple-600 hover:underline">
-                <ExternalLink className="w-3.5 h-3.5" /> View Public
-              </a>
-            )}
-          </div>
-        </div>
-      </nav>
-
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-5">
 
 
@@ -499,12 +552,26 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
                 className="px-4 py-2 text-red-600 border border-red-200 rounded-xl text-sm hover:bg-red-50">
                 Delete Event
               </button>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 {error && <span className="text-sm text-red-600 font-medium">{error}</span>}
                 {success && (
                   <span className="flex items-center gap-1.5 text-sm text-green-700 font-medium">
                     <CheckCircle className="w-4 h-4" /> {success}
                   </span>
+                )}
+                {status === 'draft' && (
+                  <button type="button" onClick={handlePublish} disabled={publishing || saving}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white font-semibold rounded-xl hover:bg-green-700 disabled:opacity-60">
+                    {publishing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Globe className="w-4 h-4" />}
+                    Publish Event
+                  </button>
+                )}
+                {status === 'published' && (
+                  <button type="button" onClick={handleUnpublish} disabled={publishing || saving}
+                    className="flex items-center gap-2 px-4 py-2 text-orange-600 border border-orange-200 rounded-xl text-sm hover:bg-orange-50 disabled:opacity-60">
+                    {publishing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                    Unpublish
+                  </button>
                 )}
                 <button type="submit" disabled={saving}
                   className="flex items-center gap-2 px-5 py-2.5 bg-purple-600 text-white font-semibold rounded-xl hover:bg-purple-700 disabled:opacity-60">
@@ -519,6 +586,15 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
         {/* TIERS TAB */}
         {activeTab === 'tiers' && (
           <div className="space-y-4">
+            {event.ticket_tiers.length > 0 && (
+              <button
+                onClick={() => setShowCompModal(true)}
+                className="flex items-center justify-center gap-2 w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-sm"
+              >
+                <Gift className="w-4 h-4" />
+                Send Comp Ticket
+              </button>
+            )}
             {event.ticket_tiers.length === 0 && !showAddTier ? (
               <div className="bg-white border border-dashed border-gray-300 rounded-xl p-10 text-center">
                 <Tag className="w-8 h-8 text-gray-300 mx-auto mb-2" />
@@ -642,17 +718,22 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b">
                   <tr>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Email</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Contact</th>
                     <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Tier</th>
                     <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Paid</th>
                     <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Status</th>
                     <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Date</th>
+                    <th className="px-4 py-3"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {attendees.map(a => (
                     <tr key={a.id} className="border-b last:border-0 hover:bg-gray-50">
-                      <td className="px-4 py-3 text-gray-800 font-medium">{a.buyer_email}</td>
+                      <td className="px-4 py-3">
+                        <p className="text-gray-800 font-medium">{a.buyer_name || a.buyer_email || '—'}</p>
+                        {a.buyer_name && <p className="text-gray-500 text-xs">{a.buyer_email}</p>}
+                        {a.buyer_phone && <p className="text-gray-400 text-xs">{a.buyer_phone}</p>}
+                      </td>
                       <td className="px-4 py-3 text-gray-600">{a.ticket_tiers?.name || '—'}</td>
                       <td className="px-4 py-3 text-gray-800">${Number(a.amount_paid).toFixed(2)}</td>
                       <td className="px-4 py-3">
@@ -664,6 +745,21 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
                       </td>
                       <td className="px-4 py-3 text-gray-500 text-xs">
                         {new Date(a.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {resendSuccess === a.id ? (
+                          <span className="text-xs text-green-600 font-medium">Sent!</span>
+                        ) : (
+                          <button
+                            onClick={() => handleResendConfirmation(a.id)}
+                            disabled={resendingId === a.id || (!a.buyer_email && !a.buyer_phone)}
+                            title={!a.buyer_email && !a.buyer_phone ? 'No contact info on file' : 'Resend confirmation'}
+                            className="text-xs text-purple-600 hover:text-purple-800 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                          >
+                            {resendingId === a.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                            Resend
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}

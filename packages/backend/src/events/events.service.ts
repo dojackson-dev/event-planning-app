@@ -91,7 +91,7 @@ export class EventsService {
     const adminClient = this.supabaseService.getAdminClient();
     let query = adminClient
       .from('event')
-      .select('*, intake_form:intake_forms!intake_form_id(contact_name, event_name, event_type, status)')
+      .select('*, intake_form:intake_forms!intake_form_id(contact_name, event_name, event_type, status, guest_count, budget_range, event_date, event_time, special_requests, venue_preference, contact_email, contact_phone)')
       .eq('owner_id', userId)
       .order('date', { ascending: true });
     if (venueId) query = query.eq('venue_id', venueId);
@@ -123,8 +123,16 @@ export class EventsService {
       // Flatten intake form fields onto the event
       if (event.intake_form) {
         converted.clientName = event.intake_form.contact_name || null;
+        converted.clientEmail = event.intake_form.contact_email || null;
+        converted.clientPhone = event.intake_form.contact_phone || null;
         converted.intakeEventName = event.intake_form.event_name || null;
         converted.intakeFormStatus = event.intake_form.status || null;
+        converted.guestCount = event.intake_form.guest_count || null;
+        converted.budgetRange = event.intake_form.budget_range || null;
+        converted.specialRequests = event.intake_form.special_requests || null;
+        converted.intakeEventDate = event.intake_form.event_date || null;
+        converted.intakeEventTime = event.intake_form.event_time || null;
+        converted.venuePreference = event.intake_form.venue_preference || null;
         // If no explicit event_name, derive a readable title from event_type
         if (!converted.intakeEventName && event.intake_form.event_type) {
           converted.intakeEventName = this.formatEventType(event.intake_form.event_type);
@@ -140,7 +148,7 @@ export class EventsService {
     const adminClient = this.supabaseService.getAdminClient();
     const { data, error } = await adminClient
       .from('event')
-      .select('*, intake_form:intake_forms!intake_form_id(contact_name, event_name, event_type, status)')
+      .select('*, intake_form:intake_forms!intake_form_id(contact_name, contact_phone, contact_email, event_name, event_type, status, guest_count, budget_range, event_date, event_time, special_requests, venue_preference)')
       .eq('id', id)
       .eq('owner_id', userId)
       .single();
@@ -161,8 +169,17 @@ export class EventsService {
     const converted = this.snakeToCamelCase(data);
     if (data.intake_form) {
       converted.clientName = data.intake_form.contact_name || null;
+      converted.clientEmail = data.intake_form.contact_email || null;
+      converted.clientPhone = data.intake_form.contact_phone || null;
+      converted.clientEventDate = data.intake_form.event_date || null;
       converted.intakeEventName = data.intake_form.event_name || null;
       converted.intakeFormStatus = data.intake_form.status || null;
+      converted.guestCount = data.intake_form.guest_count || null;
+      converted.budgetRange = data.intake_form.budget_range || null;
+      converted.specialRequests = data.intake_form.special_requests || null;
+      converted.intakeEventDate = data.intake_form.event_date || null;
+      converted.intakeEventTime = data.intake_form.event_time || null;
+      converted.venuePreference = data.intake_form.venue_preference || null;
       if (!converted.intakeEventName && data.intake_form.event_type) {
         converted.intakeEventName = this.formatEventType(data.intake_form.event_type);
       }

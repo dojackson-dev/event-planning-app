@@ -4,8 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { ChevronLeft, ChevronRight, X, LogOut } from 'lucide-react'
-import RoleSwitcher from '@/components/RoleSwitcher'
+import { ChevronLeft, ChevronRight, X } from 'lucide-react'
 import {
   format,
   startOfMonth,
@@ -83,11 +82,6 @@ export default function ArtistCalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selected, setSelected] = useState<ArtistBooking | null>(null)
 
-  const handleLogout = () => {
-    ;['access_token','refresh_token','user_role','user_roles','active_role'].forEach(k => localStorage.removeItem(k))
-    router.push('/artist/login')
-  }
-
   useEffect(() => {
     const token = localStorage.getItem('access_token')
     if (!token) { router.replace('/artist/login'); return }
@@ -119,24 +113,7 @@ export default function ArtistCalendarPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Nav */}
-      <nav className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 h-14 flex items-center gap-3">
-          <Link href="/artist/dashboard" className="text-sm text-gray-500 hover:text-gray-700">← Dashboard</Link>
-          <span className="text-sm font-semibold text-gray-800">Calendar</span>
-        </div>
-        <div className="border-t border-gray-100 bg-gray-50">
-          <div className="max-w-4xl mx-auto px-4 h-11 flex items-center gap-2">
-            <RoleSwitcher variant="banner" />
-            <div className="flex-1" />
-            <button onClick={handleLogout} className="flex items-center gap-1.5 text-sm font-medium text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 px-3 py-1.5 rounded-lg transition-colors">
-              <LogOut className="h-4 w-4" /> Sign Out
-            </button>
-          </div>
-        </div>
-      </nav>
-
+    <div className="bg-gray-50">
       <div className="max-w-4xl mx-auto px-4 py-6">
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg mb-4">{error}</div>

@@ -100,6 +100,12 @@ function ArtistPayContent() {
   const artist = invoice.artist_accounts
   const displayName = artist?.stage_name || artist?.artist_name
 
+  // Fee breakdown — fees are passed to client, derived from stored subtotal fields
+  const invoiceBase = Number(invoice.subtotal) + Number(invoice.tax_amount) - Number(invoice.discount_amount)
+  const platformFee = Math.round(invoiceBase * 0.03 * 100) / 100
+  // Correct pass-through formula so artist receives exactly invoiceBase
+  const processingFee = Math.round((Number(invoice.total_amount) - invoiceBase - platformFee) * 100) / 100
+
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
       <div className="max-w-lg mx-auto">
@@ -164,6 +170,12 @@ function ArtistPayContent() {
               {Number(invoice.discount_amount) > 0 && (
                 <div className="flex justify-between text-green-600"><span>Discount</span><span>-${Number(invoice.discount_amount).toFixed(2)}</span></div>
               )}
+              {invoiceBase > 0 && (
+                <>
+                  <div className="flex justify-between text-orange-500 text-xs"><span>Platform fee (3%)</span><span>+${platformFee.toFixed(2)}</span></div>
+                  <div className="flex justify-between text-orange-500 text-xs"><span>Processing fee (2.9% + $0.30)</span><span>+${processingFee.toFixed(2)}</span></div>
+                </>
+              )}
               <div className="flex justify-between font-bold text-gray-900 text-base pt-2 border-t border-gray-100">
                 <span>Total</span><span>${Number(invoice.total_amount).toFixed(2)}</span>
               </div>
@@ -205,7 +217,7 @@ function ArtistPayContent() {
                   {paying ? 'Redirecting…' : `Pay $${Number(invoice.total_amount).toFixed(2)}`}
                 </button>
                 <div className="flex items-center justify-center gap-1.5 mt-3 text-xs text-gray-400">
-                  <Lock className="w-3 h-3" /> Secured by Stripe. 3% platform fee applies.
+                  <Lock className="w-3 h-3" /> Secured by Stripe. Fees included in total.
                 </div>
               </>
             )}

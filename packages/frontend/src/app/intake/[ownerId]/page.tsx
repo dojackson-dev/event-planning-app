@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { EventType } from '@/types'
 import { Calendar, Users, Clock, DollarSign, FileText, ArrowLeft, ArrowRight, CheckCircle } from 'lucide-react'
 
@@ -53,8 +54,10 @@ const mapEventTypeToDb = (eventType: EventType): string => {
   return mapping[eventType] || 'other'
 }
 
-export default function PublicIntakePage({ params }: { params: { ownerId: string } }) {
+function PublicIntakeForm({ params }: { params: { ownerId: string } }) {
   const { ownerId } = params
+  const searchParams = useSearchParams()
+  const venueId = searchParams.get('venueId')
   const [currentStep, setCurrentStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
@@ -184,6 +187,7 @@ export default function PublicIntakePage({ params }: { params: { ownerId: string
         budget_range: formData.estimatedBudget || null,
         how_did_you_hear: formData.referralSource || null,
         preferred_contact: formData.preferredContact || 'phone',
+        ...(venueId ? { venue_id: venueId } : {}),
       }
 
       const res = await fetch(`${API_URL}/intake-forms/public/${ownerId}`, {
@@ -217,7 +221,13 @@ export default function PublicIntakePage({ params }: { params: { ownerId: string
           <p className="text-gray-600 mb-4">
             Your event inquiry has been submitted to {businessName || 'us'}. We'll be in touch with you soon!
           </p>
-          <p className="text-sm text-gray-500">Typically within 24 hours.</p>
+          <p className="text-sm text-gray-500 mb-6">Typically within 24 hours.</p>
+          <a
+            href="https://www.eventecos.com"
+            className="inline-block px-6 py-3 bg-purple-600 text-white font-semibold rounded-xl hover:bg-purple-700 text-sm"
+          >
+            Back to Homepage
+          </a>
         </div>
       </div>
     )
@@ -816,5 +826,13 @@ export default function PublicIntakePage({ params }: { params: { ownerId: string
         </form>
       </div>
     </div>
+  )
+}
+
+export default function PublicIntakePage({ params }: { params: { ownerId: string } }) {
+  return (
+    <Suspense>
+      <PublicIntakeForm params={params} />
+    </Suspense>
   )
 }

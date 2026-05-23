@@ -86,11 +86,30 @@ function NewArtistInvoiceForm() {
     if (bookings.length > 0) return
     setBookingsLoading(true)
     try {
-      const res = await api.get('/artist-bookings/mine')
-      const active = (res.data || []).filter(
-        (b: ArtistBooking) => b.status !== 'cancelled'
-      )
-      setBookings(active)
+      const [ownRes, promoterRes] = await Promise.allSettled([
+        api.get('/artist-bookings/mine'),
+        api.get('/promoter-bookings/for-artist'),
+      ])
+      const ownBookings: ArtistBooking[] = ownRes.status === 'fulfilled'
+        ? (ownRes.value.data || []).filter((b: ArtistBooking) => b.status !== 'cancelled')
+        : []
+      const promoterBookings: ArtistBooking[] = promoterRes.status === 'fulfilled'
+        ? (promoterRes.value.data || [])
+            .filter((b: any) => b.status !== 'cancelled')
+            .map((b: any) => ({
+              id: b.id,
+              event_name: b.event_name,
+              client_name: b.promoter_accounts?.contact_name || b.promoter_accounts?.company_name || b.artist_name || '',
+              client_email: b.promoter_accounts?.email || '',
+              client_phone: b.promoter_accounts?.phone || '',
+              event_date: b.event_date,
+              venue_name: b.venue_name,
+              agreed_amount: b.agreed_amount,
+              status: b.status,
+              _source: 'promoter',
+            }))
+        : []
+      setBookings([...ownBookings, ...promoterBookings])
     } catch {
       // silently fail — user can still type manually
     } finally {
@@ -114,7 +133,11 @@ function NewArtistInvoiceForm() {
 
   const subtotal = items.reduce((s, i) => s + i.quantity * i.unit_price, 0)
   const taxAmount = subtotal * (taxRate / 100)
-  const total = Math.max(0, subtotal + taxAmount - discountAmount)
+  const baseAmount = Math.max(0, subtotal + taxAmount - discountAmount)
+  const platformFee = Math.round(baseAmount * 0.03 * 100) / 100
+  // Correct pass-through: total = (base + platformFee + $0.30) / (1 - 0.029)
+  const total = Math.round(((baseAmount + platformFee + 0.30) / 0.971) * 100) / 100
+  const processingFee = Math.round((total - baseAmount - platformFee) * 100) / 100
 
   const addItem = () => setItems(prev => [...prev, newItem()])
   const removeItem = (id: string) => setItems(prev => prev.filter(i => i.id !== id))
@@ -160,15 +183,7 @@ function NewArtistInvoiceForm() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-3">
-          <Link href="/artist/dashboard/invoices" className="text-sm text-gray-500 hover:text-gray-700">← Invoices</Link>
-          <span className="text-gray-300">/</span>
-          <span className="text-sm font-semibold text-gray-800">New Invoice</span>
-        </div>
-      </nav>
-
+    <div className="bg-gray-50">
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-5">
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">{error}</div>
@@ -239,23 +254,31 @@ function NewArtistInvoiceForm() {
         {/* Line Items */}
         <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-3">
           <h2 className="font-semibold text-gray-900">Line Items</h2>
-          <div className="space-y-2">
+          <div className="space-y-3">
             {items.map(item => (
-              <div key={item.id} className="flex gap-2 items-start">
+              <div key={item.id} className="flex flex-col gap-2">
                 <input value={item.description} onChange={e => updateItem(item.id, 'description', e.target.value)}
-                  placeholder="Description" className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm" />
-                <input type="number" value={item.quantity} min="0" step="0.01"
-                  onChange={e => updateItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
-                  className="w-16 border border-gray-300 rounded-lg px-2 py-2 text-sm text-center" />
-                <input type="number" value={item.unit_price} min="0" step="0.01"
-                  onChange={e => updateItem(item.id, 'unit_price', parseFloat(e.target.value) || 0)}
-                  placeholder="0.00" className="w-24 border border-gray-300 rounded-lg px-2 py-2 text-sm text-right" />
-                <div className="w-20 py-2 text-sm text-right text-gray-700 font-medium">
-                  ${(item.quantity * item.unit_price).toFixed(2)}
+                  placeholder="Description" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                <div className="flex gap-2 items-center">
+                  <div className="flex-1 flex items-center gap-1">
+                    <label className="text-xs text-gray-500 whitespace-nowrap">Qty</label>
+                    <input type="number" value={item.quantity} min="0" step="0.01"
+                      onChange={e => updateItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
+                      className="w-16 border border-gray-300 rounded-lg px-2 py-2 text-sm text-center" />
+                  </div>
+                  <div className="flex-1 flex items-center gap-1">
+                    <label className="text-xs text-gray-500 whitespace-nowrap">Price</label>
+                    <input type="number" value={item.unit_price} min="0" step="0.01"
+                      onChange={e => updateItem(item.id, 'unit_price', parseFloat(e.target.value) || 0)}
+                      placeholder="0.00" className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm text-right" />
+                  </div>
+                  <div className="text-sm text-right text-gray-700 font-medium whitespace-nowrap min-w-[64px]">
+                    ${(item.quantity * item.unit_price).toFixed(2)}
+                  </div>
+                  <button onClick={() => removeItem(item.id)} className="p-2 text-red-400 hover:text-red-600 flex-shrink-0">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
-                <button onClick={() => removeItem(item.id)} className="p-2 text-red-400 hover:text-red-600">
-                  <Trash2 className="w-4 h-4" />
-                </button>
               </div>
             ))}
           </div>
@@ -288,9 +311,28 @@ function NewArtistInvoiceForm() {
               </label>
               <span>-${Number(discountAmount).toFixed(2)}</span>
             </div>
+            {baseAmount > 0 && (
+              <>
+                <div className="flex justify-between text-gray-500 border-t pt-1">
+                  <span>Subtotal after adjustments</span><span>${baseAmount.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-orange-600">
+                  <span>Platform fee (3%)</span><span>+${platformFee.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-orange-600">
+                  <span>Stripe processing (2.9% + $0.30)</span><span>+${processingFee.toFixed(2)}</span>
+                </div>
+              </>
+            )}
             <div className="flex justify-between font-bold text-gray-900 text-base pt-1 border-t">
-              <span>Total</span><span>${total.toFixed(2)}</span>
+              <span>Client pays</span><span>${total.toFixed(2)}</span>
             </div>
+            {baseAmount > 0 && (
+              <div className="flex justify-between text-green-700 text-xs">
+                <span>You receive (approx.)</span>
+                <span>${baseAmount.toFixed(2)}</span>
+              </div>
+            )}
           </div>
         </div>
 

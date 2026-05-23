@@ -45,8 +45,10 @@ export default function ClientEstimateDetailPage() {
     try {
       await clientApi.post(`/estimates/${estimateId}/respond`, { action })
       setEstimate((prev: any) => ({ ...prev, status: action }))
-    } catch {
-      alert('Something went wrong. Please try again or contact your coordinator.')
+    } catch (err: any) {
+      console.error('Estimate response error:', err)
+      const errorMsg = err?.response?.data?.message || err?.message || 'Unknown error'
+      alert(`Failed to ${label} estimate: ${errorMsg}. Please try again or contact your coordinator.`)
     } finally {
       setResponding(false)
     }

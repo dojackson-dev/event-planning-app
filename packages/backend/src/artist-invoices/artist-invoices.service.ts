@@ -54,8 +54,13 @@ export class ArtistInvoicesService {
   ) {
     const subtotal = items.reduce((sum, i) => sum + i.quantity * i.unit_price, 0);
     const taxAmount = subtotal * (taxRate / 100);
-    const totalAmount = Math.max(0, subtotal + taxAmount - discountAmount);
-    return { subtotal, taxAmount, totalAmount, amountDue: totalAmount };
+    const baseAmount = Math.max(0, subtotal + taxAmount - discountAmount);
+    // Pass fees to client so artist receives exactly baseAmount.
+    // Correct Stripe pass-through formula: total = (base + platformFee + 0.30) / (1 - 0.029)
+    const platformFeeAmount = Math.round(baseAmount * APP_FEE_RATE * 100) / 100;
+    const totalAmount = Math.round(((baseAmount + platformFeeAmount + 0.30) / 0.971) * 100) / 100;
+    const processingFeeAmount = Math.round((totalAmount - baseAmount - platformFeeAmount) * 100) / 100;
+    return { subtotal, taxAmount, baseAmount, platformFeeAmount, processingFeeAmount, totalAmount, amountDue: totalAmount };
   }
 
   // ─── Artist account helper ────────────────────────────────────────────────
@@ -128,7 +133,12 @@ export class ArtistInvoicesService {
 
   async listInvoices(userId: string) {
     const admin = this.supabaseService.getAdminClient();
-    const artistAccountId = await this.getArtistAccountId(userId);
+    let artistAccountId: string;
+    try {
+      artistAccountId = await this.getArtistAccountId(userId);
+    } catch {
+      return [];
+    }
 
     const { data, error } = await admin
       .from('artist_invoices')
@@ -140,18 +150,47 @@ export class ArtistInvoicesService {
     return data ?? [];
   }
 
+
   async getInvoice(userId: string, invoiceId: string) {
     const admin = this.supabaseService.getAdminClient();
-    const artistAccountId = await this.getArtistAccountId(userId);
 
+    // Fetch the invoice first (no artist filter yet)
     const { data, error } = await admin
       .from('artist_invoices')
       .select('*, artist_invoice_items(*), artist_accounts(artist_name, stage_name, booking_email, booking_phone, location)')
       .eq('id', invoiceId)
-      .eq('artist_account_id', artistAccountId)
-      .single();
+      .maybeSingle();
 
     if (error || !data) throw new NotFoundException('Invoice not found');
+
+    // Allow if caller is the artist who owns this invoice
+    const { data: artistAccount } = await admin
+      .from('artist_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (artistAccount && artistAccount.id === data.artist_account_id) {
+      return data;
+    }
+
+    // Allow if caller is a promoter whose account is linked to a booking that has this invoice
+    // (the promoter is effectively the client being billed)
+    const { data: promoterAccount } = await admin
+      .from('promoter_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (promoterAccount) {
+      const { data: booking } = await admin
+        .from('promoter_bookings')
+        .select('id')
+        .eq('promoter_account_id', promoterAccount.id)
+        .eq('artist_account_id', data.artist_account_id)
+        .maybeSingle();
+      if (booking) return data;
+    }
+
+    throw new ForbiddenException('Access denied');
     return data;
   }
 
@@ -480,7 +519,11 @@ export class ArtistInvoicesService {
     }
 
     const artistName = artist?.stage_name || artist?.artist_name || 'Artist';
-    const feeCents = Math.round(amountCents * APP_FEE_RATE);
+    // Platform fee is 3% of the base (subtotal + tax - discount), NOT of the gross total
+    const baseCents = Math.round(
+      (Number(invoice.subtotal) + Number(invoice.tax_amount) - Number(invoice.discount_amount)) * 100
+    );
+    const feeCents = Math.round(baseCents * APP_FEE_RATE);
 
     const session = await this.stripe.checkout.sessions.create({
       mode: 'payment',

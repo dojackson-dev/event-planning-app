@@ -3,9 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
-import { useRouter } from 'next/navigation'
-import { Plus, Loader2, Calendar, User, Music, Building2, LogOut } from 'lucide-react'
-import RoleSwitcher from '@/components/RoleSwitcher'
+import { Plus, Loader2, Calendar, User, Music, Building2 } from 'lucide-react'
 
 interface ArtistBooking {
   id: string
@@ -43,15 +41,9 @@ const STATUS_LABELS: Record<string, string> = {
 }
 
 export default function ArtistBookingsPage() {
-  const router = useRouter()
   const [bookings, setBookings] = useState<ArtistBooking[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-
-  const handleLogout = () => {
-    ;['access_token','refresh_token','user_role','user_roles','active_role'].forEach(k => localStorage.removeItem(k))
-    router.push('/artist/login')
-  }
 
   useEffect(() => {
     Promise.allSettled([
@@ -92,30 +84,15 @@ export default function ArtistBookingsPage() {
   const past = bookings.filter(b => b.status === 'completed' || b.status === 'cancelled')
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link href="/artist/dashboard" className="text-sm text-gray-500 hover:text-gray-700">← Dashboard</Link>
-            <span className="text-sm font-semibold text-gray-800">Bookings</span>
-          </div>
+    <div className="bg-gray-50">
+      <div className="max-w-4xl mx-auto px-4 py-6 space-y-5">
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-bold text-gray-900">Bookings</h1>
           <Link href="/artist/dashboard/bookings/new"
             className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
             <Plus className="w-4 h-4" /> New Booking
           </Link>
         </div>
-        <div className="border-t border-gray-100 bg-gray-50">
-          <div className="max-w-4xl mx-auto px-4 h-11 flex items-center gap-2">
-            <RoleSwitcher variant="banner" />
-            <div className="flex-1" />
-            <button onClick={handleLogout} className="flex items-center gap-1.5 text-sm font-medium text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 px-3 py-1.5 rounded-lg transition-colors">
-              <LogOut className="h-4 w-4" /> Sign Out
-            </button>
-          </div>
-        </div>
-      </nav>
-
-      <div className="max-w-4xl mx-auto px-4 py-6 space-y-5">
         {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">{error}</div>}
 
         {loading ? (
@@ -197,9 +174,10 @@ function BookingCard({ booking }: { booking: ArtistBooking }) {
 
   if (booking._source === 'promoter') {
     return (
-      <div className="bg-white border border-gray-200 rounded-xl p-4">
+      <Link href={`/artist/dashboard/bookings/promoter/${booking.id}`}
+        className="block bg-white border border-gray-200 rounded-xl p-4 hover:shadow-sm transition-shadow">
         {inner}
-      </div>
+      </Link>
     )
   }
 

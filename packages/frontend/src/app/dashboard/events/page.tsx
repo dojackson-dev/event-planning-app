@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
 import { Event } from '@/types'
@@ -69,7 +69,7 @@ function computeProgress(event: any, allEstimates: any[], allInvoices: any[], al
   ]
 }
 
-function EventProgressBar({ steps }: { steps: { label: string; done: boolean }[] }) {
+const EventProgressBar = React.memo(function EventProgressBar({ steps }: { steps: { label: string; done: boolean }[] }) {
   const currentIdx = steps.findIndex(s => !s.done)
   const pct = currentIdx === -1 ? 100 : Math.round((currentIdx / steps.length) * 100)
 
@@ -125,7 +125,7 @@ function EventProgressBar({ steps }: { steps: { label: string; done: boolean }[]
       </div>
     </div>
   )
-}
+})
 
 export default function EventsPage() {
   const { venues, activeVenue, setActiveVenue } = useVenue()

@@ -693,24 +693,59 @@ export class ClientPortalService {
 
   /** Client approves or rejects an estimate */
   async respondToEstimate(id: string, clientId: string, clientPhone: string, action: 'approved' | 'rejected') {
+    this.logger.log(`[respondToEstimate] estimateId=${id}, action=${action}, phone=${clientPhone}`);
     const supabase = this.supabaseService.getAdminClient();
     const phoneVariants = buildPhoneVariants(clientPhone);
     const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
 
     // Verify client has access to this estimate
-    const { data, error } = await supabase.from('estimates').select('id, client_phone, intake_form_id').eq('id', id).single();
-    if (error || !data) throw new NotFoundException('Estimate not found');
-    const hasAccess =
-      phoneVariants.includes(data.client_phone ?? '') ||
+    const { data, error } = await supabase.from('estimates').select('id, client_phone, intake_form_id, owner_id').eq('id', id).single();
+    if (error) {
+      this.logger.error(`[respondToEstimate] Error fetching estimate: ${error.message}`);
+      throw new NotFoundException('Estimate not found');
+    }
+    if (!data) {
+      this.logger.error(`[respondToEstimate] Estimate ${id} not found`);
+      throw new NotFoundException('Estimate not found');
+    }
+
+    this.logger.log(`[respondToEstimate] Estimate phone=${data.client_phone}, intakeFormId=${data.intake_form_id}, allowed phones=${phoneVariants}, allowed intakeFormIds=${intakeFormIds}`);
+    
+    // Check if client has access via phone match or intake form match
+    let hasAccess =
+      (data.client_phone && phoneVariants.includes(data.client_phone)) ||
       (data.intake_form_id && intakeFormIds.includes(data.intake_form_id));
-    if (!hasAccess) throw new NotFoundException('Estimate not found');
+    
+    // If no direct match, check if any of the client's intake forms are related to this estimate's owner
+    if (!hasAccess && intakeFormIds.length > 0 && data.owner_id) {
+      this.logger.log(`[respondToEstimate] No direct phone/intake_form match, checking event relationships...`);
+      const { data: relatedEvents } = await supabase
+        .from('event')
+        .select('id')
+        .eq('owner_id', data.owner_id)
+        .in('intake_form_id', intakeFormIds);
+      
+      if (relatedEvents && relatedEvents.length > 0) {
+        this.logger.log(`[respondToEstimate] Found related events, granting access`);
+        hasAccess = true;
+      }
+    }
+    
+    if (!hasAccess) {
+      this.logger.error(`[respondToEstimate] Access denied - client phone/intake form does not match estimate`);
+      throw new NotFoundException('Estimate not found');
+    }
 
     const { error: updateError } = await supabase
       .from('estimates')
       .update({ status: action, responded_at: new Date().toISOString() })
       .eq('id', id);
-    if (updateError) throw new Error(updateError.message);
+    if (updateError) {
+      this.logger.error(`[respondToEstimate] Update error: ${updateError.message}`);
+      throw new Error(updateError.message);
+    }
 
+    this.logger.log(`[respondToEstimate] Successfully updated estimate ${id} to ${action}`);
     return { success: true, status: action };
   }
 

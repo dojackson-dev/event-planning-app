@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
-import { Plus, Loader2, Calendar, User, Megaphone, Mic2 } from 'lucide-react'
+import { Plus, Loader2, Calendar, User, Megaphone, Mic2, CheckCircle2 } from 'lucide-react'
 
 interface PromoterBooking {
   id: string
@@ -18,6 +18,7 @@ interface PromoterBooking {
   status: 'inquiry' | 'estimate_sent' | 'deposit_paid' | 'confirmed' | 'completed' | 'cancelled'
   notes?: string
   promoter_invoice_id?: string
+  promoter_invoices?: { invoice_number: string; total_amount: number; status: string } | null
   artist_account_id?: string
   artist_name?: string
   artist_accounts?: { id: string; artist_name: string; stage_name: string | null; artist_type: string } | null
@@ -57,24 +58,13 @@ export default function PromoterBookingsPage() {
   const past = bookings.filter(b => b.status === 'completed' || b.status === 'cancelled')
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Title row */}
-      <div className="bg-white border-b">
-        <div className="max-w-4xl mx-auto px-4 py-5 text-center">
-          <h1 className="text-2xl font-bold text-gray-900">Bookings</h1>
+    <div className="bg-gray-50">
+      {/* Page Title Banner */}
+      <div className="bg-gradient-to-r from-purple-700 to-purple-500 px-4 py-6">
+        <div className="max-w-4xl mx-auto">
+          <h1 className="text-2xl font-bold text-white">Bookings</h1>
         </div>
       </div>
-
-      <nav className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Link href="/dashboard/promoter" className="text-sm text-gray-500 hover:text-gray-700">← Dashboard</Link>
-          <Link href="/dashboard/promoter/bookings/new"
-            className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
-            <Plus className="w-4 h-4" /> New Booking
-          </Link>
-        </div>
-      </nav>
-
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-5">
         {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">{error}</div>}
 
@@ -106,6 +96,11 @@ export default function PromoterBookingsPage() {
                             <span className={`flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[b.status]}`}>
                               {STATUS_LABELS[b.status]}
                             </span>
+                            {b.promoter_invoices?.status === 'paid' && (
+                              <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                                <CheckCircle2 className="w-3 h-3" /> Paid
+                              </span>
+                            )}
                           </div>
                           {(b.artist_accounts?.artist_name || b.artist_name) && (
                             <div className="flex items-center gap-1 mb-1">
@@ -151,6 +146,11 @@ export default function PromoterBookingsPage() {
                             <span className={`flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[b.status]}`}>
                               {STATUS_LABELS[b.status]}
                             </span>
+                            {b.promoter_invoices?.status === 'paid' && (
+                              <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                                <CheckCircle2 className="w-3 h-3" /> Paid
+                              </span>
+                            )}
                           </div>
                           {(b.artist_accounts?.artist_name || b.artist_name) && (
                             <div className="flex items-center gap-1 mb-1">

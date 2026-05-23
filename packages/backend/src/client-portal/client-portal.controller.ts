@@ -227,16 +227,21 @@ export class ClientPortalController {
     @Param('id') id: string,
     @Body() body: { action: 'approved' | 'rejected' },
   ) {
-    const session = this.requireSession(token);
-    if (body.action !== 'approved' && body.action !== 'rejected') {
-      throw new BadRequestException('action must be "approved" or "rejected"');
+    try {
+      const session = this.requireSession(token);
+      if (body.action !== 'approved' && body.action !== 'rejected') {
+        throw new BadRequestException('action must be "approved" or "rejected"');
+      }
+      return await this.clientPortalService.respondToEstimate(
+        id,
+        session.clientId,
+        session.phone,
+        body.action,
+      );
+    } catch (err: any) {
+      this.logger.error(`[respondToEstimate] Error: ${err?.message || 'Unknown error'}`);
+      throw err;
     }
-    return this.clientPortalService.respondToEstimate(
-      id,
-      session.clientId,
-      session.phone,
-      body.action,
-    );
   }
 
   @Post('contracts/:id/viewed')

@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { performTokenRefresh } from './refreshAuth'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
@@ -24,15 +25,22 @@ api.interceptors.request.use(
 )
 
 let isRefreshing = false
-let refreshSubscribers: ((token: string) => void)[] = []
+let refreshSubscribers: Array<{ resolve: (token: string) => void; reject: (err: any) => void }> = []
 
-function subscribeTokenRefresh(cb: (token: string) => void) {
-  refreshSubscribers.push(cb)
+function subscribeTokenRefresh(resolve: (token: string) => void, reject: (err: any) => void) {
+  refreshSubscribers.push({ resolve, reject })
 }
 
 function onRefreshed(token: string) {
-  refreshSubscribers.forEach(cb => cb(token))
+  refreshSubscribers.forEach(({ resolve }) => resolve(token))
   refreshSubscribers = []
+  isRefreshing = false
+}
+
+function onRefreshFailed(err: any) {
+  refreshSubscribers.forEach(({ reject }) => reject(err))
+  refreshSubscribers = []
+  isRefreshing = false
 }
 
 // Response interceptor to handle errors
@@ -42,16 +50,25 @@ api.interceptors.response.use(
     const originalRequest = error.config
 
     if (error.response?.status === 401 && !originalRequest._retry) {
+      // Don't intercept login/auth endpoints — 401 there means bad credentials
+      const url: string = originalRequest.url || ''
+      if (url.includes('/auth/flow/unified/login') || url.includes('/auth/login') || url.includes('/auth/refresh')) {
+        return Promise.reject(error)
+      }
+
       const refreshToken = localStorage.getItem('refresh_token')
 
       if (refreshToken) {
         if (isRefreshing) {
           // Queue the request until refresh is done
-          return new Promise((resolve) => {
-            subscribeTokenRefresh((newToken: string) => {
-              originalRequest.headers.Authorization = `Bearer ${newToken}`
-              resolve(api(originalRequest))
-            })
+          return new Promise((resolve, reject) => {
+            subscribeTokenRefresh(
+              (newToken: string) => {
+                originalRequest.headers.Authorization = `Bearer ${newToken}`
+                resolve(api(originalRequest))
+              },
+              (err) => reject(err)
+            )
           })
         }
 
@@ -59,31 +76,26 @@ api.interceptors.response.use(
         isRefreshing = true
 
         try {
-          const res = await axios.post(`${API_URL}/auth/refresh`, { refresh_token: refreshToken })
-          const { access_token, refresh_token: newRefreshToken } = res.data
-
-          localStorage.setItem('access_token', access_token)
-          if (newRefreshToken) {
-            localStorage.setItem('refresh_token', newRefreshToken)
-          }
+          const { access_token } = await performTokenRefresh(refreshToken)
 
           api.defaults.headers.common.Authorization = `Bearer ${access_token}`
           originalRequest.headers.Authorization = `Bearer ${access_token}`
 
           onRefreshed(access_token)
-          isRefreshing = false
 
           return api(originalRequest)
-        } catch (refreshError) {
-          isRefreshing = false
-          refreshSubscribers = []
-          // Refresh failed - clear ALL auth storage and redirect to appropriate login
-          const isAffiliate = !!localStorage.getItem('affiliate_data')
-          const isVendor = localStorage.getItem('user_role') === 'vendor'
-          const isPromoter = localStorage.getItem('user_role') === 'promoter'
-          ;['access_token','refresh_token','user','user_roles','active_role','user_role',
-            'affiliate_token','affiliate_refresh_token','affiliate_data'].forEach(k => localStorage.removeItem(k))
-          window.location.href = isAffiliate ? '/sales-portal/login' : isPromoter ? '/promoter/login' : isVendor ? '/vendors/login' : '/login'
+        } catch (refreshError: any) {
+          onRefreshFailed(refreshError)
+          // Only force logout on actual auth rejections, not network errors
+          const status = (refreshError as any)?.response?.status
+          if (status === 401 || status === 403) {
+            const isAffiliate = !!localStorage.getItem('affiliate_data')
+            const isVendor = localStorage.getItem('user_role') === 'vendor'
+            const isPromoter = localStorage.getItem('user_role') === 'promoter'
+            ;['access_token','refresh_token','user','user_roles','active_role','user_role',
+              'affiliate_token','affiliate_refresh_token','affiliate_data'].forEach(k => localStorage.removeItem(k))
+            window.location.href = isAffiliate ? '/sales-portal/login' : isPromoter ? '/promoter/login' : isVendor ? '/vendors/login' : '/login'
+          }
           return Promise.reject(refreshError)
         }
       } else {

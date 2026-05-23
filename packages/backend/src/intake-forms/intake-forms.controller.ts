@@ -76,6 +76,15 @@ export class IntakeFormsController {
     return { businessName: data.business_name, logoUrl: data.logo_url, intakeSlug: data.intake_slug };
   }
 
+  /** Public: submit a client intake form.
+   *  Accepts either a UUID or an intake_slug as :ownerId.
+   *  No authentication required. */
+  @Post('public/:ownerId')
+  async createPublic(@Param('ownerId') ownerId: string, @Body() dto: any) {
+    const resolvedId = await this.resolveOwnerIdentifier(ownerId);
+    return this.intakeFormsService.createPublic(resolvedId, dto);
+  }
+
   @Post()
   async create(@Headers('authorization') authorization: string, @Body() createDto: any) {
     try {
@@ -165,5 +174,47 @@ export class IntakeFormsController {
     const userId = await this.getUserId(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
     return this.intakeFormsService.resendInvitation(supabaseWithAuth, userId, id);
+  }
+}
+
+/**
+ * Legacy alias controller: handles POST /intake-forms-public/:ownerId
+ * (the path used by the currently-deployed production frontend).
+ * Delegates directly to IntakeFormsService.createPublic.
+ */
+@Controller('intake-forms-public')
+export class IntakeFormsPublicController {
+  constructor(
+    private readonly intakeFormsService: IntakeFormsService,
+    private readonly supabaseService: SupabaseService,
+  ) {}
+
+  private async resolveOwnerIdentifier(identifier: string): Promise<string> {
+    const admin = this.supabaseService.getAdminClient();
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+
+    if (isUuid) {
+      const { data, error } = await admin
+        .from('owner_accounts')
+        .select('primary_owner_id')
+        .eq('primary_owner_id', identifier)
+        .single();
+      if (error || !data) throw new NotFoundException('Owner not found');
+      return data.primary_owner_id;
+    }
+
+    const { data, error } = await admin
+      .from('owner_accounts')
+      .select('primary_owner_id')
+      .eq('intake_slug', identifier)
+      .single();
+    if (error || !data) throw new NotFoundException('Owner not found');
+    return data.primary_owner_id;
+  }
+
+  @Post(':ownerId')
+  async createPublic(@Param('ownerId') ownerId: string, @Body() dto: any) {
+    const resolvedId = await this.resolveOwnerIdentifier(ownerId);
+    return this.intakeFormsService.createPublic(resolvedId, dto);
   }
 }

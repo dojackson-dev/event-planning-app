@@ -775,7 +775,7 @@ var IntakeFormsService = function () {
         };
         IntakeFormsService_1.prototype.createPublic = function (ownerId, dto) {
             return __awaiter(this, void 0, void 0, function () {
-                var supabaseAdmin, accessibility_requirements, preferred_contact, safeDto, _a, data, error, owner, ownerPhone, eventDate, smsErr_4;
+                var supabaseAdmin, accessibility_requirements, preferred_contact, safeDto, _a, data, error, owner, ownerPhone, ownerEmail, eventDate, smsErr_4;
                 var _b;
                 return __generator(this, function (_c) {
                     switch (_c.label) {
@@ -801,15 +801,16 @@ var IntakeFormsService = function () {
                             _c.sent();
                             _c.label = 3;
                         case 3:
-                            _c.trys.push([3, 6, , 7]);
+                            _c.trys.push([3, 8, , 9]);
                             return [4 /*yield*/, supabaseAdmin
                                     .from('users')
-                                    .select('phone')
+                                    .select('phone_number, email')
                                     .eq('id', ownerId)
                                     .maybeSingle()];
                         case 4:
                             owner = (_c.sent()).data;
-                            ownerPhone = (_b = owner === null || owner === void 0 ? void 0 : owner.phone) !== null && _b !== void 0 ? _b : null;
+                            ownerPhone = (_b = owner === null || owner === void 0 ? void 0 : owner.phone_number) !== null && _b !== void 0 ? _b : null;
+                            ownerEmail = (owner === null || owner === void 0 ? void 0 : owner.email) || null;
                             eventDate = safeDto.event_date
                                 ? new Date(safeDto.event_date + 'T12:00:00').toLocaleDateString('en-US', {
                                     month: 'short', day: 'numeric', year: 'numeric',
@@ -818,12 +819,26 @@ var IntakeFormsService = function () {
                             return [4 /*yield*/, this.smsNotifications.newIntakeFormSubmission(ownerPhone, safeDto.contact_name || 'A client', safeDto.event_type || 'event', eventDate)];
                         case 5:
                             _c.sent();
-                            return [3 /*break*/, 7];
+                            if (!ownerEmail) return [3 /*break*/, 7];
+                            return [4 /*yield*/, this.mailService.sendNewLeadNotification({
+                                    ownerEmail: ownerEmail,
+                                    clientName: safeDto.contact_name || 'A client',
+                                    eventType: safeDto.event_type || 'event',
+                                    eventDate: eventDate,
+                                    clientEmail: safeDto.contact_email || '',
+                                    clientPhone: safeDto.contact_phone || null,
+                                    budget: safeDto.budget_range || null,
+                                    guestCount: safeDto.guest_count || null,
+                                })];
                         case 6:
-                            smsErr_4 = _c.sent();
-                            console.warn('[IntakeFormsService.createPublic] Owner SMS failed:', smsErr_4);
+                            _c.sent();
                             return [3 /*break*/, 7];
-                        case 7: return [2 /*return*/, data];
+                        case 7: return [3 /*break*/, 9];
+                        case 8:
+                            smsErr_4 = _c.sent();
+                            console.warn('[IntakeFormsService.createPublic] Owner notification failed:', smsErr_4);
+                            return [3 /*break*/, 9];
+                        case 9: return [2 /*return*/, data];
                     }
                 });
             });

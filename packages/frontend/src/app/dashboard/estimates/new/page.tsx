@@ -56,11 +56,23 @@ function NewEstimatePageInner() {
     fetchEvents()
     fetchServiceItems()
     api.get('/bookings').then(res => setAllBookings(res.data || [])).catch(() => {})
-    api.get('/vendors/bookings/owner').then(res => {
-      const confirmed = (res.data || []).filter((b: any) => b.status === 'confirmed' || b.status === 'completed')
-      setVendorBookings(confirmed)
-    }).catch(() => {})
   }, [])
+
+  // Fetch vendor bookings for the selected event (server-side scoped)
+  useEffect(() => {
+    if (!selectedEvent) {
+      setVendorBookings([])
+      return
+    }
+    api.get(`/vendors/bookings/by-event/${selectedEvent}`)
+      .then(res => {
+        const relevant = (res.data || []).filter((b: any) =>
+          b.status === 'confirmed' || b.status === 'completed' || b.status === 'paid'
+        )
+        setVendorBookings(relevant)
+      })
+      .catch(() => setVendorBookings([]))
+  }, [selectedEvent])
 
   // Pre-fill from client workflow (clientId + optional eventId URL params)
   useEffect(() => {
@@ -68,19 +80,29 @@ function NewEstimatePageInner() {
     const eventIdParam = searchParams?.get('eventId')
     if (eventIdParam) {
       setSelectedEvent(eventIdParam)
-      // Lock the event and fetch its details for display
+      // Lock the event and fetch its details + prefill client info
       api.get(`/events/${eventIdParam}`).then(res => {
         const ev = res.data
         const evName = ev.intakeEventName || ev.name || 'Event'
         setLockedEvent({ id: eventIdParam, name: evName, date: ev.date || '' })
-        // Also use clientName from event if no clientId provided
-        if (!clientId && ev.clientName) setClientName(ev.clientName)
+        if (clientId) return // clientId will handle client info below
+        // The event response now includes clientName, clientPhone, clientEventDate from the joined intake form
+        if (ev.clientName || ev.clientPhone) {
+          setClientName(ev.clientName || '')
+          setClientPhone(ev.clientPhone || '')
+          setClientEventDate(ev.clientEventDate || null)
+          setAutofilledFromBooking(true)
+        }
+        // Also set intakeFormId if available (for reference / edge cases)
+        const formId = ev.intakeFormId || ev.intake_form_id
+        if (formId) setIntakeFormId(formId)
       }).catch(() => {})
     }
     if (!clientId) return
     setIntakeFormId(clientId)
     api.get(`/intake-forms/${clientId}`).then(res => {
       setClientName(res.data.contact_name || '')
+      setClientPhone(res.data.contact_phone || '')
       setClientEventDate(res.data.event_date || null)
       setClientEventType(res.data.event_type || null)
     }).catch(() => {})
@@ -113,9 +135,14 @@ function NewEstimatePageInner() {
   }, [searchParams])
 
   // When an event is selected, autofill client info:
-  // 1. Try linked booking (deposit_paid / completed)
-  // 2. Fall back to the event's linked intake form
+  // 1. Skip if event came from URL param — the URL-param effect handles it directly
+  // 2. Try linked booking (deposit_paid / completed)
+  // 3. Fall back to the event's linked intake form
   useEffect(() => {
+    // If the URL has ?eventId=, the URL-param effect does a direct API fetch.
+    // Skip this effect entirely for that event — lockedEvent may not be set yet
+    // when this fires (async race), so check searchParams directly.
+    if (searchParams?.get('eventId') === selectedEvent && selectedEvent) return
     if (!selectedEvent) {
       setBookingId(null)
       setAutofilledFromBooking(false)
@@ -149,16 +176,14 @@ function NewEstimatePageInner() {
       setClientName('')
       setClientPhone('')
     }
-  }, [selectedEvent, allBookings, events])
+  }, [selectedEvent, allBookings, events, lockedEvent])
 
   const fetchEvents = async () => {
     try {
       const res = await api.get('/events')
-      const today = new Date().toISOString().split('T')[0]
-      const upcoming = (res.data || []).filter((e: any) =>
-        e.status !== 'cancelled' && e.date >= today
-      )
-      setEvents(upcoming)
+      // Include all non-cancelled events (past + future) so URL-prefilled past events are found
+      const active = (res.data || []).filter((e: any) => e.status !== 'cancelled')
+      setEvents(active)
     } catch (err) {
       console.error('Failed to fetch events:', err)
     }
@@ -408,7 +433,7 @@ function NewEstimatePageInner() {
           </div>
         </div>
 
-        {/* Confirmed Vendor Bookings */}
+        {/* Confirmed Vendor Bookings — scoped to the selected event */}
         {vendorBookings.length > 0 && (
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700 mb-2">Vendor Bookings</label>

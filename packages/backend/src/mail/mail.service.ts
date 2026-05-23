@@ -511,9 +511,8 @@ export class MailService {
       const amountStr = isFree ? 'Free' : `$${params.amountTotal.toFixed(2)}`;
       const fromName = params.promoterName ? `${params.promoterName} via Eventecos` : 'Eventecos Tickets';
 
-      // Fetch tickets by session ID if available
-      let ticketQRCodes: Array<{ id: string; buffer: Buffer; cid: string }> = [];
-      let attachments: any[] = [];
+      // Fetch tickets by session ID if available and generate QR codes as base64
+      let ticketQRItems: Array<{ id: string; base64: string }> = [];
       if (params.sessionId) {
         try {
           const admin = this.supabaseService.getAdminClient();
@@ -524,7 +523,6 @@ export class MailService {
             .order('created_at', { ascending: true });
 
           if (!error && tickets && tickets.length > 0) {
-            // Generate QR code for each ticket
             for (const ticket of tickets) {
               const ticketUrl = `${frontendUrl}/ticket/${ticket.id}`;
               const qrBuffer = await QRCode.toBuffer(ticketUrl, {
@@ -533,13 +531,7 @@ export class MailService {
                 margin: 1,
                 width: 300,
               });
-              const cid = `qr-${ticket.id}@eventecos`;
-              ticketQRCodes.push({ id: ticket.id, buffer: qrBuffer, cid });
-              attachments.push({
-                filename: `ticket-qr-${ticket.id.substring(0, 8)}.png`,
-                content: qrBuffer,
-                cid: cid,
-              });
+              ticketQRItems.push({ id: ticket.id, base64: qrBuffer.toString('base64') });
             }
           }
         } catch (ticketError) {
@@ -547,15 +539,15 @@ export class MailService {
         }
       }
 
-      // Build QR codes HTML
-      const qrCodesHtml = ticketQRCodes.length > 0
+      // Build QR codes HTML using base64 data URIs (works with Resend)
+      const qrCodesHtml = ticketQRItems.length > 0
         ? `
             <div style="margin: 32px 0;">
               <h3 style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0 0 16px;">Your Tickets</h3>
-              ${ticketQRCodes.map((ticket, index) => `
+              ${ticketQRItems.map((ticket, index) => `
                 <div style="background: white; border: 2px dashed #e5e7eb; border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 16px;">
                   <p style="color: #6b7280; font-size: 12px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: 0.5px;">Ticket ${index + 1}</p>
-                  <img src="cid:${ticket.cid}" alt="QR Code" style="width: 200px; height: 200px; display: block; margin: 0 auto 12px;" />
+                  <img src="data:image/png;base64,${ticket.base64}" alt="QR Code" style="width: 200px; height: 200px; display: block; margin: 0 auto 12px;" />
                   <p style="color: #9ca3af; font-size: 11px; margin: 0; font-family: monospace; word-break: break-all;">${ticket.id}</p>
                 </div>
               `).join('')}
@@ -566,11 +558,12 @@ export class MailService {
           `
         : '';
 
-      const mailOptions = {
-        from: `"${fromName}" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
-        to: params.toEmail,
-        subject: `Your tickets to ${params.eventTitle} are confirmed`,
-        html: `
+      if (!process.env.RESEND_API_KEY) {
+        console.warn('[MailService] RESEND_API_KEY not set — skipping ticket confirmation email');
+        return;
+      }
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      const html = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb; padding: 32px 16px;">
             <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08);">
               ${this.getEmailHeader('You\'re going!', 'Your tickets are confirmed')}
@@ -607,13 +600,16 @@ export class MailService {
               </div>
             </div>
           </div>
-        `,
-        text: `Your tickets are confirmed!\n\n${params.eventTitle}\nDate: ${formattedDate}${params.eventTime ? `\nTime: ${params.eventTime}` : ''}${params.venueName ? `\nVenue: ${params.venueName}` : ''}\nTicket: ${params.tierName}\nQuantity: ${params.quantity}\nTotal: ${amountStr}\n\nShow the QR code above at the door. Each code can only be scanned once.\n\nIMPORTANT: Eventecos is not responsible for event cancellations, postponements, or refunds. The event organizer is solely liable for these matters.\n\nView event: ${eventUrl}`,
-        attachments: attachments,
-      };
+        `;
 
-      const info = await this.transporter.sendMail(mailOptions);
-      console.log('[MailService] Ticket confirmation sent to', params.toEmail, '—', info.messageId);
+      await resend.emails.send({
+        from: `${fromName} <${process.env.RESEND_FROM || 'noreply@eventecos.com'}>`,
+        to: params.toEmail,
+        subject: `Your tickets to ${params.eventTitle} are confirmed`,
+        html,
+        text: `Your tickets are confirmed!\n\n${params.eventTitle}\nDate: ${formattedDate}${params.eventTime ? `\nTime: ${params.eventTime}` : ''}${params.venueName ? `\nVenue: ${params.venueName}` : ''}\nTicket: ${params.tierName}\nQuantity: ${params.quantity}\nTotal: ${amountStr}\n\nIMPORTANT: Eventecos is not responsible for event cancellations, postponements, or refunds.\n\nView event: ${eventUrl}`,
+      });
+      console.log('[MailService] Ticket confirmation sent via Resend to', params.toEmail);
     } catch (error) {
       console.error('[MailService] Ticket confirmation email failed:', error);
       // Non-fatal — webhook must not throw
@@ -627,9 +623,14 @@ export class MailService {
     code: string;
     claimUrl: string;
   }): Promise<void> {
+    if (!process.env.RESEND_API_KEY) {
+      console.warn('[MailService] RESEND_API_KEY not set — skipping ticket forward email');
+      return;
+    }
     try {
-      const mailOptions = {
-        from: `"Eventecos Tickets" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      await resend.emails.send({
+        from: `Eventecos Tickets <${process.env.RESEND_FROM || 'noreply@eventecos.com'}>`,
         to: params.toEmail,
         subject: `You've received a ticket to ${params.eventTitle}`,
         html: `
@@ -670,10 +671,8 @@ export class MailService {
           </div>
         `,
         text: `You've received a ticket to ${params.eventTitle}!\n\nYour access code: ${params.code}\n\nClaim your ticket at: ${params.claimUrl}\n\nThis code expires in 7 days.`,
-      };
-
-      const info = await this.transporter.sendMail(mailOptions);
-      console.log('[MailService] Ticket forward email sent to', params.toEmail, '—', info.messageId);
+      });
+      console.log('[MailService] Ticket forward email sent via Resend to', params.toEmail);
     } catch (error) {
       console.error('[MailService] Ticket forward email failed:', error);
     }
@@ -684,63 +683,97 @@ export class MailService {
     toName: string;
     eventTitle: string;
     eventDate?: string;
+    eventTime?: string | null;
     venueName?: string;
     tierName: string;
     ticketUrl: string;
+    ticketId: string;
     promoterName: string;
     eventId: string;
   }): Promise<void> {
     try {
-      const dateStr = params.eventDate
-        ? new Date(params.eventDate + 'T12:00:00').toLocaleDateString('en-US', {
-            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-          })
-        : '';
+      const frontendUrl = process.env.FRONTEND_URL || 'https://dovenuesuite.com';
+      const formattedDate = params.eventDate
+        ? new Date(params.eventDate + (params.eventDate.includes('T') ? '' : 'T12:00:00'))
+            .toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+        : 'TBD';
+      const fromName = `${params.promoterName} via Eventecos`;
 
-      const mailOptions = {
-        from: `"Eventecos" <${this.senderEmail}>`,
+      // Generate QR code as base64 data URI (works with Resend)
+      let qrHtml = '';
+      try {
+        const qrBuffer = await QRCode.toBuffer(params.ticketUrl, {
+          errorCorrectionLevel: 'H',
+          type: 'png',
+          margin: 1,
+          width: 300,
+        });
+        const base64 = qrBuffer.toString('base64');
+        qrHtml = `
+          <div style="margin: 32px 0;">
+            <h3 style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0 0 16px;">Your Ticket</h3>
+            <div style="background: white; border: 2px dashed #e5e7eb; border-radius: 12px; padding: 20px; text-align: center;">
+              <img src="data:image/png;base64,${base64}" alt="QR Code" style="width: 200px; height: 200px; display: block; margin: 0 auto 12px;" />
+              <p style="color: #9ca3af; font-size: 11px; margin: 0; font-family: monospace; word-break: break-all;">${params.ticketId}</p>
+            </div>
+            <p style="color: #6b7280; font-size: 13px; background: #f3f4f6; border-radius: 8px; padding: 12px; margin: 16px 0 0; line-height: 1.5;">
+              📱 <strong>Show this QR code at the door.</strong> You can also view your ticket anytime at the link below.
+            </p>
+          </div>
+        `;
+      } catch (qrErr) {
+        console.warn('[MailService] QR generation failed for comp ticket:', qrErr);
+      }
+
+      if (!process.env.RESEND_API_KEY) {
+        console.warn('[MailService] RESEND_API_KEY not set — skipping comp ticket email');
+        return;
+      }
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      await resend.emails.send({
+        from: `${fromName} <${process.env.RESEND_FROM || 'noreply@eventecos.com'}>`,
         to: params.toEmail,
-        subject: `You've received a complimentary ticket to ${params.eventTitle}!`,
+        subject: `Your complimentary ticket to ${params.eventTitle} is confirmed`,
         html: `
-          <div style="background: #f0f4f8; padding: 32px; font-family: 'Segoe UI', Arial, sans-serif;">
-            <div style="max-width: 560px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.10);">
-              ${this.getEmailHeader()}
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb; padding: 32px 16px;">
+            <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08);">
+              ${this.getEmailHeader("You've got a comp ticket! 🎟️", 'Your complimentary ticket is confirmed')}
               <div style="padding: 32px;">
-                <h2 style="color: #1a202c; font-size: 22px; margin: 0 0 8px;">You've got a comp ticket! 🎟️</h2>
-                <p style="color: #4a5568; font-size: 15px; margin: 0 0 24px;">
+                <h2 style="margin: 0 0 16px; color: #1f2937; font-size: 20px;">${params.eventTitle}</h2>
+                <p style="color: #374151; font-size: 15px; margin: 0 0 20px;">
                   Hi ${params.toName}, <strong>${params.promoterName}</strong> has sent you a complimentary ticket.
                 </p>
-
-                <div style="background: linear-gradient(135deg, #008bea 0%, #35c178 100%); border-radius: 12px; padding: 20px; margin-bottom: 24px; color: white;">
-                  <div style="font-size: 13px; opacity: 0.85; margin-bottom: 4px;">EVENT</div>
-                  <div style="font-size: 20px; font-weight: 700; margin-bottom: 12px;">${params.eventTitle}</div>
-                  ${dateStr ? `<div style="font-size: 13px; opacity: 0.9; margin-bottom: 4px;">📅 ${dateStr}</div>` : ''}
-                  ${params.venueName ? `<div style="font-size: 13px; opacity: 0.9; margin-bottom: 4px;">📍 ${params.venueName}</div>` : ''}
-                  <div style="font-size: 13px; opacity: 0.9;">🎫 ${params.tierName} — Complimentary</div>
+                <div style="background: #f5f3ff; border-left: 4px solid #7c3aed; border-radius: 8px; padding: 20px 24px; margin: 0 0 24px;">
+                  <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #374151;">
+                    <tr><td style="padding: 4px 0; color: #6b7280; width: 110px;">Date</td><td style="padding: 4px 0; font-weight: 600;">${formattedDate}</td></tr>
+                    ${params.eventTime ? `<tr><td style="padding: 4px 0; color: #6b7280;">Time</td><td style="padding: 4px 0; font-weight: 600;">${params.eventTime}</td></tr>` : ''}
+                    ${params.venueName ? `<tr><td style="padding: 4px 0; color: #6b7280;">Venue</td><td style="padding: 4px 0; font-weight: 600;">${params.venueName}</td></tr>` : ''}
+                    <tr><td style="padding: 4px 0; color: #6b7280;">Ticket</td><td style="padding: 4px 0; font-weight: 600;">${params.tierName}</td></tr>
+                    <tr><td style="padding: 4px 0; color: #6b7280;">Total</td><td style="padding: 4px 0; font-weight: 700; color: #059669;">Complimentary</td></tr>
+                  </table>
                 </div>
 
-                <a href="${params.ticketUrl}" style="display: block; background: #008bea; color: white; text-decoration: none; font-weight: 700; font-size: 15px; padding: 14px 24px; border-radius: 10px; text-align: center; margin-bottom: 20px;">
-                  View My Ticket
-                </a>
+                ${qrHtml}
 
-                <p style="color: #718096; font-size: 13px; margin: 0;">
-                  Keep this email — your ticket QR code will be available at the link above. Present it at the door for entry.
-                </p>
-
-                <div style="background: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 8px; padding: 16px; margin: 24px 0 0;">
-                  <p style="color: #92400e; font-size: 13px; margin: 0;">
-                    <strong>Note:</strong> This is a complimentary ticket issued by the event organizer. Eventecos is not responsible for event cancellations or changes.
+                <div style="background: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 8px; padding: 16px; margin: 24px 0;">
+                  <p style="color: #92400e; font-size: 13px; margin: 0; line-height: 1.6;">
+                    <strong>Important Notice:</strong> Eventecos is not responsible for event cancellations, postponements, or refunds. The event organizer is solely liable for these matters.
                   </p>
+                </div>
+
+                <div style="text-align: center; margin: 28px 0;">
+                  <a href="${params.ticketUrl}"
+                     style="display: inline-block; background: #7c3aed; color: white; padding: 14px 36px; text-decoration: none; border-radius: 8px; font-size: 15px; font-weight: 600;">
+                    View My Ticket
+                  </a>
                 </div>
               </div>
             </div>
           </div>
         `,
-        text: `You've received a complimentary ticket to ${params.eventTitle}!\n\nIssued by: ${params.promoterName}\nTier: ${params.tierName}${dateStr ? `\nDate: ${dateStr}` : ''}${params.venueName ? `\nVenue: ${params.venueName}` : ''}\n\nView your ticket: ${params.ticketUrl}`,
-      };
-
-      const info = await this.transporter.sendMail(mailOptions);
-      console.log('[MailService] Comp ticket email sent to', params.toEmail, '—', info.messageId);
+        text: `Your complimentary ticket to ${params.eventTitle} is confirmed!\n\nIssued by: ${params.promoterName}\nDate: ${formattedDate}${params.eventTime ? `\nTime: ${params.eventTime}` : ''}${params.venueName ? `\nVenue: ${params.venueName}` : ''}\nTier: ${params.tierName}\nTotal: Complimentary\n\nView your ticket: ${params.ticketUrl}`,
+      });
+      console.log('[MailService] Comp ticket email sent via Resend to', params.toEmail);
     } catch (error) {
       console.error('[MailService] Comp ticket email failed:', error);
     }
@@ -900,6 +933,219 @@ export class MailService {
     } catch (error) {
       console.error('[MailService] Consolidated ticket confirmation email failed:', error);
       // Non-fatal — webhook must not throw
+    }
+  }
+
+  async sendRiderEmail(params: {
+    to: string;
+    artistName: string;
+    eventName: string;
+    eventDate?: string;
+    rider: Record<string, any>;
+  }): Promise<void> {
+    const { to, artistName, eventName, eventDate, rider } = params;
+    const formattedDate = eventDate
+      ? new Date(eventDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+      : null;
+
+    const section = (title: string, content: string) =>
+      `<div style="margin-bottom:20px;">
+        <h3 style="color:#1f2937;font-size:14px;font-weight:700;margin:0 0 8px;text-transform:uppercase;letter-spacing:0.05em;">${title}</h3>
+        <p style="color:#374151;font-size:14px;margin:0;white-space:pre-wrap;line-height:1.6;">${content}</p>
+      </div>`;
+
+    const boolItem = (label: string, val: boolean) =>
+      val ? `<li style="color:#374151;font-size:14px;margin:0 0 4px;">${label}</li>` : '';
+
+    const sections: string[] = [];
+
+    // Contacts
+    const contactLines: string[] = [];
+    if (rider.artist_manager) contactLines.push(`Manager: ${rider.artist_manager}${rider.manager_phone ? ` · ${rider.manager_phone}` : ''}${rider.manager_email ? ` · ${rider.manager_email}` : ''}`);
+    if (rider.tour_manager) contactLines.push(`Tour Manager: ${rider.tour_manager}${rider.tour_manager_phone ? ` · ${rider.tour_manager_phone}` : ''}${rider.tour_manager_email ? ` · ${rider.tour_manager_email}` : ''}`);
+    if (rider.production_manager) contactLines.push(`Production Manager: ${rider.production_manager}${rider.production_manager_phone ? ` · ${rider.production_manager_phone}` : ''}${rider.production_manager_email ? ` · ${rider.production_manager_email}` : ''}`);
+    if (contactLines.length) sections.push(section('Contacts', contactLines.join('\n')));
+
+    // Travel
+    const travelLines: string[] = [];
+    if (rider.traveling_party_size) travelLines.push(`Party size: ${rider.traveling_party_size}`);
+    if (rider.transport_required) travelLines.push(`Transport: ${rider.transport_required}`);
+    if (rider.hotel_requirements) travelLines.push(`Hotel: ${rider.hotel_requirements}`);
+    if (travelLines.length) sections.push(section('Travel & Accommodation', travelLines.join('\n')));
+
+    // Dressing Room
+    const dressingItems: string[] = [];
+    if (rider.dressing_rooms_count) dressingItems.push(`Rooms required: ${rider.dressing_rooms_count}`);
+    if (rider.dressing_room_notes) dressingItems.push(rider.dressing_room_notes);
+    const dressingBools = [
+      boolItem('Private access required', rider.requires_private_access),
+      boolItem('Mirrors required', rider.requires_mirrors),
+      boolItem('Clothing rack', rider.requires_clothing_rack),
+      boolItem('Seating', rider.requires_seating),
+      boolItem('Wi-Fi', rider.requires_wifi),
+      boolItem('Climate control', rider.requires_climate_control),
+    ].filter(Boolean);
+    if (dressingItems.length || dressingBools.length) {
+      const content = [...dressingItems].join('\n') + (dressingBools.length ? `\n<ul style="margin:8px 0 0;padding-left:18px;">${dressingBools.join('')}</ul>` : '');
+      sections.push(section('Dressing Room', content));
+    }
+
+    // Hospitality
+    const hospLines: string[] = [];
+    if (rider.bottled_water) hospLines.push(`Water: ${rider.bottled_water}`);
+    if (rider.soft_drinks) hospLines.push(`Soft drinks: ${rider.soft_drinks}`);
+    if (rider.snacks) hospLines.push(`Snacks: ${rider.snacks}`);
+    if (rider.hot_meal) hospLines.push(`Hot meal required${rider.hot_meal_notes ? `: ${rider.hot_meal_notes}` : ''}`);
+    if (rider.dietary_restrictions) hospLines.push(`Dietary restrictions: ${rider.dietary_restrictions}`);
+    if (hospLines.length) sections.push(section('Hospitality', hospLines.join('\n')));
+
+    // Technical
+    const techLines: string[] = [];
+    if (rider.stage_size_min) techLines.push(`Stage size: ${rider.stage_size_min}`);
+    if (rider.power_requirements) techLines.push(`Power: ${rider.power_requirements}`);
+    if (rider.sound_system) techLines.push(`Sound: ${rider.sound_system}`);
+    if (rider.dj_setup) techLines.push(`DJ setup: ${rider.dj_setup}`);
+    if (rider.microphones) techLines.push(`Microphones: ${rider.microphones}`);
+    if (rider.monitors) techLines.push(`Monitors: ${rider.monitors}`);
+    if (rider.lighting) techLines.push(`Lighting: ${rider.lighting}`);
+    if (rider.video_playback) techLines.push(`Video/playback: ${rider.video_playback}`);
+    if (rider.technical_notes) techLines.push(rider.technical_notes);
+    if (techLines.length) sections.push(section('Technical Requirements', techLines.join('\n')));
+
+    // Schedule
+    const schedLines: string[] = [];
+    if (rider.load_in_time) schedLines.push(`Load-in: ${rider.load_in_time}`);
+    if (rider.soundcheck_time) schedLines.push(`Soundcheck: ${rider.soundcheck_time}`);
+    if (rider.performance_duration) schedLines.push(`Performance duration: ${rider.performance_duration}`);
+    if (rider.load_out_time) schedLines.push(`Load-out: ${rider.load_out_time}`);
+    if (schedLines.length) sections.push(section('Schedule', schedLines.join('\n')));
+
+    // Security
+    const secLines: string[] = [];
+    if (rider.backstage_access_control) secLines.push(`Access control: ${rider.backstage_access_control}`);
+    if (rider.crowd_barrier) secLines.push('Crowd barrier required');
+    if (rider.stage_escort) secLines.push('Stage escort required');
+    if (rider.security_notes) secLines.push(rider.security_notes);
+    if (secLines.length) sections.push(section('Security', secLines.join('\n')));
+
+    // Merch
+    const merchLines: string[] = [];
+    if (rider.merch_table_required) merchLines.push('Merch table required');
+    if (rider.merch_staffing) merchLines.push(`Staffing: ${rider.merch_staffing}`);
+    if (rider.merch_split_percentage) merchLines.push(`Merch split: ${rider.merch_split_percentage}%`);
+    if (rider.merch_settlement) merchLines.push(`Settlement: ${rider.merch_settlement}`);
+    if (merchLines.length) sections.push(section('Merchandise', merchLines.join('\n')));
+
+    // Special Notes
+    const specialLines: string[] = [];
+    if (rider.photography_policy) specialLines.push(`Photography: ${rider.photography_policy}`);
+    if (rider.recording_policy) specialLines.push(`Recording: ${rider.recording_policy}`);
+    if (rider.guest_list_comps) specialLines.push(`Guest list comps: ${rider.guest_list_comps}`);
+    if (rider.promoter_obligations) specialLines.push(`Promoter obligations: ${rider.promoter_obligations}`);
+    if (rider.special_notes) specialLines.push(rider.special_notes);
+    if (specialLines.length) sections.push(section('Special Notes', specialLines.join('\n')));
+
+    if (!sections.length) sections.push('<p style="color:#6b7280;font-size:14px;">No specific requirements listed.</p>');
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f9fafb;">
+        <div style="max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.1);">
+          ${this.getEmailHeader(`Artist Rider — ${artistName}`, `For: ${eventName}${formattedDate ? ` · ${formattedDate}` : ''}`)}
+          <div style="padding:32px;">
+            <p style="color:#374151;font-size:15px;margin:0 0 24px;line-height:1.5;">
+              <strong>${artistName}</strong> has sent you their artist rider for <strong>${eventName}</strong>${formattedDate ? ` on <strong>${formattedDate}</strong>` : ''}.
+              Please review the requirements below and confirm all arrangements are in place.
+            </p>
+            <div style="border-top:1px solid #e5e7eb;padding-top:24px;">
+              ${sections.join('<hr style="border:none;border-top:1px solid #f3f4f6;margin:16px 0;">')}
+            </div>
+            <p style="color:#9ca3af;font-size:12px;margin:24px 0 0;border-top:1px solid #f3f4f6;padding-top:16px;">
+              Sent via EventEcos · If you have questions, reply directly to ${artistName}.
+            </p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    if (!process.env.RESEND_API_KEY) {
+      console.warn('[MailService] RESEND_API_KEY not set — skipping rider email');
+      throw new Error('Email service not configured. Please set RESEND_API_KEY in your environment.');
+    }
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const { error } = await resend.emails.send({
+      from: `EventEcos <${process.env.RESEND_FROM || 'noreply@eventecos.com'}>`,
+      to,
+      subject: `Artist Rider: ${artistName} — ${eventName}`,
+      html,
+    });
+    if (error) throw new Error(error.message);
+    console.log('[MailService] Rider email sent via Resend to', to);
+  }
+
+  /**
+   * Notify the venue owner by email when a new public intake form is submitted.
+   */
+  async sendNewLeadNotification(params: {
+    ownerEmail: string;
+    clientName: string;
+    eventType: string;
+    eventDate: string;
+    clientEmail: string;
+    clientPhone?: string | null;
+    budget?: string | null;
+    guestCount?: number | null;
+  }): Promise<void> {
+    const { ownerEmail, clientName, eventType, eventDate, clientEmail, clientPhone, budget, guestCount } = params;
+    const dashboardUrl = `${process.env.FRONTEND_URL || 'https://eventecos.com'}/dashboard/clients`;
+
+    const row = (label: string, value: string | null | undefined) =>
+      value ? `<tr><td style="color:#6b7280;font-size:13px;padding:6px 0;width:130px;">${label}</td><td style="color:#111827;font-size:13px;padding:6px 0;font-weight:600;">${value}</td></tr>` : '';
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f9fafb;">
+        <div style="max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.1);">
+          ${this.getEmailHeader('New Lead Submitted', 'Someone just filled out your intake form')}
+          <div style="padding:32px;">
+            <p style="color:#374151;font-size:15px;margin:0 0 20px;line-height:1.5;">
+              Great news! <strong>${clientName}</strong> has submitted an inquiry through your intake form. Here are the details:
+            </p>
+            <table style="width:100%;border-collapse:collapse;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;padding:12px 0;margin-bottom:24px;">
+              ${row('Client Name', clientName)}
+              ${row('Email', clientEmail)}
+              ${row('Phone', clientPhone)}
+              ${row('Event Type', eventType)}
+              ${row('Event Date', eventDate)}
+              ${row('Guest Count', guestCount ? String(guestCount) : null)}
+              ${row('Budget', budget)}
+            </table>
+            <a href="${dashboardUrl}" style="display:inline-block;background:#7c3aed;color:white;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:600;font-size:14px;">View in Dashboard →</a>
+            <p style="color:#9ca3af;font-size:12px;margin:24px 0 0;border-top:1px solid #f3f4f6;padding-top:16px;">Sent by EventEcos · Log in to convert this lead to a booking.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    if (!process.env.RESEND_API_KEY) {
+      console.warn('[MailService] RESEND_API_KEY not set — skipping new lead email');
+      return;
+    }
+    try {
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      await resend.emails.send({
+        from: `EventEcos <${process.env.RESEND_FROM || 'noreply@eventecos.com'}>`,
+        to: ownerEmail,
+        subject: `New Lead: ${clientName} — ${eventType} on ${eventDate}`,
+        html,
+      });
+      console.log('[MailService] New lead notification sent to', ownerEmail);
+    } catch (err) {
+      console.error('[MailService] New lead notification failed:', err);
     }
   }
 }

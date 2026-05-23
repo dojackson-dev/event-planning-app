@@ -122,6 +122,7 @@ interface EventManagementData {
   
   // Guest Info
   estimatedGuests: number;
+  budgetRange: string;
   
   // Contract & Legal
   contractStatus: ContractStatus;
@@ -254,6 +255,7 @@ export default function EventManagementPage() {
     clientPhone: '',
     clientStatus: ClientStatus.CONTACTED_BY_PHONE,
     estimatedGuests: 0,
+    budgetRange: '',
     contractStatus: ContractStatus.DRAFT,
     contractSignedDate: '',
     contractAmount: '',
@@ -315,6 +317,7 @@ export default function EventManagementPage() {
         clientPhone: mgmt.clientPhone || '',
         clientStatus: mgmt.clientStatus || ClientStatus.CONTACTED_BY_PHONE,
         estimatedGuests: mgmt.estimatedGuests || event.guestCount || 0,
+        budgetRange: mgmt.budgetRange || event.budgetRange || '',
         contractStatus: mgmt.contractStatus || ContractStatus.DRAFT,
         contractSignedDate: mgmt.contractSignedDate || '',
         contractAmount: mgmt.contractAmount || '',
@@ -814,61 +817,63 @@ export default function EventManagementPage() {
             : null;
 
           return (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-6">
-              <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-4">Booking Progress</h2>
-              <div className="flex items-center w-full">
-                {steps.map((step, i) => {
-                  const isLast = i === steps.length - 1;
-                  const isCurrent = i === currentStepIndex;
-                  return (
-                    <React.Fragment key={step.label}>
-                      <div className="flex flex-col items-center min-w-0">
-                        <div className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0
-                          ${step.done ? 'bg-green-500 text-white' : step.skipped ? 'bg-gray-100 text-gray-300 border border-dashed border-gray-300' : isCurrent ? 'bg-primary-600 text-white ring-4 ring-primary-100' : 'bg-gray-200 text-gray-400'}`}>
-                          {step.done
-                            ? <CheckCircle className="h-4 w-4" />
-                            : step.skipped
-                            ? <span className="text-xs">—</span>
-                            : <span className="text-xs font-bold">{i + 1}</span>}
+            <React.Fragment key="progress-bar">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-6">
+                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-4">Booking Progress</h2>
+                <div className="flex items-center w-full">
+                  {steps.map((step, i) => {
+                    const isLast = i === steps.length - 1;
+                    const isCurrent = i === currentStepIndex;
+                    return (
+                      <React.Fragment key={step.label}>
+                        <div className="flex flex-col items-center min-w-0">
+                          <div className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0
+                            ${step.done ? 'bg-green-500 text-white' : step.skipped ? 'bg-gray-100 text-gray-300 border border-dashed border-gray-300' : isCurrent ? 'bg-primary-600 text-white ring-4 ring-primary-100' : 'bg-gray-200 text-gray-400'}`}>
+                            {step.done
+                              ? <CheckCircle className="h-4 w-4" />
+                              : step.skipped
+                              ? <span className="text-xs">—</span>
+                              : <span className="text-xs font-bold">{i + 1}</span>}
+                          </div>
+                          <span className={`text-xs mt-1.5 font-medium text-center leading-tight
+                            ${step.done ? 'text-green-600' : step.skipped ? 'text-gray-300' : isCurrent ? 'text-primary-600' : 'text-gray-400'}`}>
+                            {step.label}{step.skipped ? ' (opt)' : ''}
+                          </span>
                         </div>
-                        <span className={`text-xs mt-1.5 font-medium text-center leading-tight
-                          ${step.done ? 'text-green-600' : step.skipped ? 'text-gray-300' : isCurrent ? 'text-primary-600' : 'text-gray-400'}`}>
-                          {step.label}{step.skipped ? ' (opt)' : ''}
-                        </span>
-                      </div>
-                      {!isLast && (
-                        <div className={`flex-1 h-1 mx-1 rounded-full mb-4
-                          ${step.done ? 'bg-green-400' : step.skipped ? 'bg-gray-100' : 'bg-gray-200'}`} />
-                      )}
-                    </React.Fragment>
-                  );
-                })}
+                        {!isLast && (
+                          <div className={`flex-1 h-1 mx-1 rounded-full mb-4
+                            ${step.done ? 'bg-green-400' : step.skipped ? 'bg-gray-100' : 'bg-gray-200'}`} />
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
+                {actionLabel && (
+                  <div className="mt-4 flex justify-center">
+                    <button
+                      onClick={handleProgressAction}
+                      className="inline-flex items-center px-5 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium text-sm shadow-sm"
+                    >
+                      {actionLabel} →
+                    </button>
+                  </div>
+                )}
+                {currentStepIndex === 4 && !booked && (
+                  <div className="mt-4 flex justify-center">
+                    <span className="inline-flex items-center px-4 py-1.5 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800">
+                      <Clock className="h-3.5 w-3.5 mr-1.5" /> Awaiting Deposit Payment
+                    </span>
+                  </div>
+                )}
+                {booked && (
+                  <div className="mt-4 flex justify-center">
+                    <span className="inline-flex items-center px-4 py-1.5 rounded-full text-sm font-medium bg-green-100 text-green-700">
+                      <CheckCircle className="h-3.5 w-3.5 mr-1.5" /> Booked!
+                    </span>
+                  </div>
+                )}
               </div>
-              {actionLabel && (
-                <div className="mt-4 flex justify-center">
-                  <button
-                    onClick={handleProgressAction}
-                    className="inline-flex items-center px-5 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium text-sm shadow-sm"
-                  >
-                    {actionLabel} →
-                  </button>
-                </div>
-              )}
-              {currentStepIndex === 4 && !booked && (
-                <div className="mt-4 flex justify-center">
-                  <span className="inline-flex items-center px-4 py-1.5 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800">
-                    <Clock className="h-3.5 w-3.5 mr-1.5" /> Awaiting Deposit Payment
-                  </span>
-                </div>
-              )}
-              {booked && (
-                <div className="mt-4 flex justify-center">
-                  <span className="inline-flex items-center px-4 py-1.5 rounded-full text-sm font-medium bg-green-100 text-green-700">
-                    <CheckCircle className="h-3.5 w-3.5 mr-1.5" /> Booked!
-                  </span>
-                </div>
-              )}
-            </div>
+            </React.Fragment>
           );
         })()}
 
@@ -1025,6 +1030,22 @@ export default function EventManagementPage() {
                 </div>
 
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Budget Range</label>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      name="budgetRange"
+                      placeholder="e.g., $10,000 - $20,000"
+                      value={formData.budgetRange}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    />
+                  ) : (
+                    <p className="text-gray-900">{formData.budgetRange || '-'}</p>
+                  )}
+                </div>
+
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Setup Time</label>
                   {isEditing ? (
                     <input
@@ -1056,23 +1077,25 @@ export default function EventManagementPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Venue</label>
-                  {isEditing ? (
-                    <select
-                      name="venueId"
-                      value={formData.venueId}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                    >
-                      <option value="">— No venue assigned —</option>
-                      {venues.map(v => (
-                        <option key={v.id} value={v.id}>{v.name}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <p className="text-gray-900">
-                      {venues.find(v => v.id === formData.venueId)?.name || formData.venueId || 'Not assigned'}
-                    </p>
-                  )}
+                  <select
+                    name="venueId"
+                    value={formData.venueId}
+                    onChange={async e => {
+                      const newVenueId = e.target.value;
+                      setFormData(prev => ({ ...prev, venueId: newVenueId }));
+                      try {
+                        await api.patch(`/events/${eventId}`, { venueId: newVenueId || null });
+                      } catch {
+                        // non-fatal — change still reflected locally
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white"
+                  >
+                    <option value="">— No venue assigned —</option>
+                    {venues.map(v => (
+                      <option key={v.id} value={v.id}>{v.name}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="sm:col-span-2">

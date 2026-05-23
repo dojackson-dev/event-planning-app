@@ -4,8 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { Plus, FileText, Send, Eye, Loader2, LogOut } from 'lucide-react'
-import RoleSwitcher from '@/components/RoleSwitcher'
+import { Plus, FileText, Eye, Loader2, CheckCircle2 } from 'lucide-react'
 
 interface ArtistInvoice {
   id: string
@@ -29,16 +28,20 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: 'bg-gray-100 text-gray-500',
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  draft: 'Draft',
+  sent: 'Sent',
+  viewed: 'Viewed',
+  paid: 'Paid',
+  overdue: 'Overdue',
+  cancelled: 'Cancelled',
+}
+
 export default function ArtistInvoicesPage() {
   const router = useRouter()
   const [invoices, setInvoices] = useState<ArtistInvoice[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-
-  const handleLogout = () => {
-    ;['access_token','refresh_token','user_role','user_roles','active_role'].forEach(k => localStorage.removeItem(k))
-    router.push('/artist/login')
-  }
 
   useEffect(() => {
     api.get('/artist-invoices/mine')
@@ -55,24 +58,7 @@ export default function ArtistInvoicesPage() {
     .reduce((s, i) => s + Number(i.total_amount), 0)
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 h-14 flex items-center gap-3">
-          <Link href="/artist/dashboard" className="text-sm text-gray-500 hover:text-gray-700">← Dashboard</Link>
-          <span className="text-gray-300">/</span>
-          <span className="text-sm font-semibold text-gray-800">Invoices</span>
-        </div>
-        <div className="border-t border-gray-100 bg-gray-50">
-          <div className="max-w-4xl mx-auto px-4 h-11 flex items-center gap-2">
-            <RoleSwitcher variant="banner" />
-            <div className="flex-1" />
-            <button onClick={handleLogout} className="flex items-center gap-1.5 text-sm font-medium text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 px-3 py-1.5 rounded-lg transition-colors">
-              <LogOut className="h-4 w-4" /> Sign Out
-            </button>
-          </div>
-        </div>
-      </nav>
-
+    <div className="bg-gray-50">
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-5">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold text-gray-900">Invoices</h1>
@@ -113,8 +99,36 @@ export default function ArtistInvoicesPage() {
             </Link>
           </div>
         ) : (
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="space-y-3 md:space-y-0 md:bg-white md:border md:border-gray-200 md:rounded-xl md:overflow-hidden">
+            {/* Mobile cards */}
+            <div className="md:hidden space-y-3">
+              {invoices.map(inv => (
+                <div
+                  key={inv.id}
+                  className={`bg-white border rounded-xl p-4 cursor-pointer hover:shadow-md transition-shadow ${inv.status === 'paid' ? 'border-green-200' : 'border-gray-200'}`}
+                  onClick={() => router.push(`/artist/dashboard/invoices/${inv.id}`)}
+                >
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-blue-600 text-sm">{inv.invoice_number}</p>
+                      <p className="font-medium text-gray-900 truncate">{inv.client_name}</p>
+                      <p className="text-xs text-gray-400 truncate">{inv.client_email}</p>
+                    </div>
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium flex-shrink-0 ${STATUS_COLORS[inv.status] || 'bg-gray-100 text-gray-700'}`}>
+                      {inv.status === 'paid' && <CheckCircle2 className="w-3 h-3" />}
+                      {STATUS_LABELS[inv.status] ?? inv.status}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-500 text-xs">Due {inv.due_date}</span>
+                    <span className="font-bold text-gray-900">${Number(inv.total_amount).toFixed(2)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop table */}
+            <table className="hidden md:table w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-4 py-3 text-left font-semibold text-gray-600">Invoice #</th>
@@ -142,8 +156,9 @@ export default function ArtistInvoicesPage() {
                       ${Number(inv.total_amount).toFixed(2)}
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[inv.status] || 'bg-gray-100 text-gray-700'}`}>
-                        {inv.status}
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[inv.status] || 'bg-gray-100 text-gray-700'}`}>
+                        {inv.status === 'paid' && <CheckCircle2 className="w-3 h-3" />}
+                        {STATUS_LABELS[inv.status] ?? inv.status}
                       </span>
                     </td>
                     <td className="px-4 py-3">

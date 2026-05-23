@@ -32,7 +32,7 @@ function computeProgress(event: any, allEstimates: any[], allInvoices: any[], al
   // Estimate accepted only when client explicitly approves (not just 'sent')
   const estimateAccepted = allEstimates.some(e =>
     ['approved', 'converted'].includes(e.status) &&
-    (e.booking?.event_id === eId || (ifId && e.intake_form_id === ifId))
+    (e.event_id === eId || e.booking?.event_id === eId || (ifId && e.intake_form_id === ifId))
   )
 
   // Contract logic: voided contracts count as skipped (optional step waived)
@@ -45,8 +45,8 @@ function computeProgress(event: any, allEstimates: any[], allInvoices: any[], al
     eventContracts.some(c => c.status === 'signed')
   const contractSkipped = !hasActiveContract && !contractSigned
 
-  // Activate step: done when intake form status is 'converted', or if there's no intake form (event created directly)
-  const activated = !event.intakeFormId || (event as any).intakeFormStatus === 'converted'
+  // Activate step: done when intake form is converted/confirmed/accepted, or if there's no intake form (event created directly)
+  const activated = !event.intakeFormId || ['converted', 'confirmed', 'accepted'].includes((event as any).intakeFormStatus)
 
   // Invoice fully paid — not just sent
   const invoicePaid = allInvoices.some(i =>
@@ -263,8 +263,8 @@ export default function EventsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {paginatedEvents.map((event) => {
           const steps = computeProgress(event, allEstimates, allInvoices, allContracts)
-          const isComplete = steps.every(s => s.done)
-          const currentIdx = steps.findIndex(s => !s.done)
+          const isComplete = steps.every(s => s.done || s.skipped)
+          const currentIdx = steps.findIndex(s => !s.done && !s.skipped)
 
           return (
             <div key={event.id} className="relative group">

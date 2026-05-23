@@ -355,7 +355,7 @@ export default function EventManagementPage() {
       setIntakeFormId(event.intakeFormId || null);
       // Activate step is done when the intake form has been converted (lead activated),
       // or if this event has no linked intake form (created directly)
-      setIntakeFormActivated(!event.intakeFormId || event.intakeFormStatus === 'converted');
+      setIntakeFormActivated(!event.intakeFormId || ['converted', 'confirmed', 'accepted'].includes(event.intakeFormStatus));
       loadEventInvoices(event.bookingId, event.clientName, event.intakeFormId);
       loadEventEstimates(event.intakeFormId);
       loadEventContracts(event.intakeFormId);
@@ -386,6 +386,7 @@ export default function EventManagementPage() {
       const res = await api.get('/estimates');
       const all: any[] = res.data || [];
       setEventEstimates(all.filter((e: any) =>
+        e.event_id === eventId ||
         e.booking?.event_id === eventId ||
         (intakeFormId && e.intake_form_id === intakeFormId)
       ));

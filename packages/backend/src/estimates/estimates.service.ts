@@ -133,40 +133,68 @@ export class EstimatesService {
     try {
       const { data, error } = await supabase
         .from('estimates')
-        .select('*, intake_form:intake_forms(*), items:estimate_items(*)')
+        .select('*, intake_form:intake_forms!intake_form_id(*), items:estimate_items!estimate_id(*)')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
     } catch {
-      return [];
+      // Fallback without joins
+      try {
+        const { data, error } = await supabase
+          .from('estimates')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        return (data || []).map((e: any) => ({ ...e, items: [], intake_form: null }));
+      } catch {
+        return [];
+      }
     }
   }
 
   async findByOwner(supabase: SupabaseClient, ownerId: string, venueId?: string): Promise<Estimate[]> {
+    const buildVenueFilter = async (q: any) => {
+      if (!venueId) return q;
+      const { data: venueEvents } = await supabase.from('event').select('id, intake_form_id').eq('venue_id', venueId);
+      if (!venueEvents || venueEvents.length === 0) return null; // no events → return empty
+      const intakeIds = venueEvents.map((e: any) => e.intake_form_id).filter(Boolean);
+      const eventIds = venueEvents.map((e: any) => e.id);
+      if (intakeIds.length > 0) return q.in('intake_form_id', intakeIds);
+      return q.in('event_id', eventIds);
+    };
+
+    // Attempt 1: full query with FK-hinted joins
     try {
       let query = supabase
         .from('estimates')
-        .select('*, intake_form:intake_forms(*), items:estimate_items(*)')
+        .select('*, intake_form:intake_forms!intake_form_id(*), items:estimate_items!estimate_id(*)')
         .eq('owner_id', ownerId)
         .order('created_at', { ascending: false });
 
-      if (venueId) {
-        const { data: venueEvents } = await supabase.from('event').select('id, intake_form_id').eq('venue_id', venueId);
-        if (!venueEvents || venueEvents.length === 0) return [];
-        const intakeIds = venueEvents.map((e: any) => e.intake_form_id).filter(Boolean);
-        const eventIds = venueEvents.map((e: any) => e.id);
-        if (intakeIds.length > 0) {
-          query = query.in('intake_form_id', intakeIds);
-        } else {
-          query = query.in('event_id', eventIds);
-        }
-      }
+      const filtered = await buildVenueFilter(query);
+      if (filtered === null) return [];
 
-      const { data, error } = await query;
+      const { data, error } = await filtered;
       if (error) throw error;
       return data || [];
-    } catch {
-      return [];
+    } catch (e1) {
+      // Attempt 2: simpler query without joins (still returns estimates, just without nested data)
+      try {
+        let query = supabase
+          .from('estimates')
+          .select('*')
+          .eq('owner_id', ownerId)
+          .order('created_at', { ascending: false });
+
+        const filtered = await buildVenueFilter(query);
+        if (filtered === null) return [];
+
+        const { data, error } = await filtered;
+        if (error) throw error;
+        return (data || []).map((e: any) => ({ ...e, items: [], intake_form: null }));
+      } catch {
+        return [];
+      }
     }
   }
 

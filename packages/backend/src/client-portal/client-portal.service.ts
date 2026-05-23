@@ -736,14 +736,24 @@ export class ClientPortalService {
       throw new NotFoundException('Estimate not found');
     }
 
-    const { error: updateError } = await supabase
+    // Step 1: Update status (critical — must succeed regardless of schema state)
+    const { error: statusError } = await supabase
       .from('estimates')
-      .update({ status: action, responded_at: new Date().toISOString() })
+      .update({ status: action })
       .eq('id', id);
-    if (updateError) {
-      this.logger.error(`[respondToEstimate] Update error: ${updateError.message}`);
-      throw new Error(updateError.message);
+    if (statusError) {
+      this.logger.error(`[respondToEstimate] Status update error: ${statusError.message}`);
+      throw new Error(statusError.message);
     }
+
+    // Step 2: Update responded_at timestamp (optional — column may not exist yet if migration is pending)
+    supabase
+      .from('estimates')
+      .update({ responded_at: new Date().toISOString() })
+      .eq('id', id)
+      .then(({ error }) => {
+        if (error) this.logger.warn(`[respondToEstimate] responded_at update skipped (migration pending?): ${error.message}`);
+      });
 
     this.logger.log(`[respondToEstimate] Successfully updated estimate ${id} to ${action}`);
     return { success: true, status: action };

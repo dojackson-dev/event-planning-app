@@ -413,6 +413,9 @@ export default function EstimateDetailPage() {
                 {[(estimate as any).owner_city, (estimate as any).owner_state, (estimate as any).owner_zip].filter(Boolean).join(', ')}
               </p>
             )}
+            {(estimate as any).owner_phone && (
+              <p className="text-sm text-gray-500">{(estimate as any).owner_phone}</p>
+            )}
           </div>
         </div>
 

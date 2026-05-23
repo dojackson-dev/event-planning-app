@@ -30,11 +30,28 @@ export class IntakeFormsService {
   ): Promise<void> {
     try {
       const supabaseAdmin = this.supabaseService.getAdminClient();
+
+      // Deduplicate: skip if an event with the same owner, date, and name already exists
+      const eventName = intakeForm.event_name || `${intakeForm.event_type || 'Event'} - ${intakeForm.contact_name || 'Client'}`;
+      const eventDate = intakeForm.event_date || new Date().toISOString().split('T')[0];
+      const { data: existing } = await supabaseAdmin
+        .from('event')
+        .select('id')
+        .eq('owner_id', ownerId)
+        .eq('date', eventDate)
+        .eq('name', eventName)
+        .limit(1)
+        .maybeSingle();
+      if (existing) {
+        console.log(`[IntakeFormsService] Skipping auto-create — event already exists (${existing.id})`);
+        return;
+      }
+
       // Resolve venue: use explicitly provided venueId first, then fall back to owner's primary venue
       const resolvedVenueId = venueId || await this.resolveOwnerVenueId(ownerId, supabaseAdmin);
       await supabaseAdmin.from('event').insert([{
-        name: intakeForm.event_name || `${intakeForm.event_type || 'Event'} - ${intakeForm.contact_name || 'Client'}`,
-        date: intakeForm.event_date || new Date().toISOString().split('T')[0],
+        name: eventName,
+        date: eventDate,
         start_time: intakeForm.event_time || null,
         end_time: intakeForm.event_end_time || null,
         venue: intakeForm.venue_preference || null,

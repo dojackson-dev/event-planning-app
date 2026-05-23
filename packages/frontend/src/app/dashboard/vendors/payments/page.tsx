@@ -147,8 +147,8 @@ function VendorPaymentsPageContent() {
       <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-6 text-sm text-blue-700 flex items-start gap-2">
         <DollarSign className="w-4 h-4 mt-0.5 flex-shrink-0" />
         <span>
-          A <strong>1.5% platform fee</strong> is added on top of Stripe&apos;s processing fee when paying vendor invoices.
-          The fee is collected at checkout — no surprises at payment.
+          Stripe&apos;s processing fee (2.9% + $0.30) is added to your total at checkout.
+          A <strong>3% platform fee</strong> is deducted from the vendor&apos;s payout.
         </span>
       </div>
 
@@ -264,6 +264,11 @@ function InvoiceRow({
         <p className={`text-base font-bold ${isPaid ? 'text-green-600' : 'text-gray-900'}`}>
           ${Number(invoice.total_amount).toFixed(2)}
         </p>
+        {!isPaid && !isCancelled && (
+          <p className="text-xs text-gray-400">
+            +Stripe fee at checkout
+          </p>
+        )}
         {isPaid ? (
           <span className="text-xs text-green-600 flex items-center gap-1">
             <CheckCircle className="w-3.5 h-3.5" /> Paid

@@ -37,6 +37,13 @@ export interface VendorProfile {
   reviewCount?: number
 }
 
+export interface VendorInvoiceSummary {
+  id: string
+  status: string
+  total_amount: number
+  amount_paid: number
+}
+
 export interface Booking {
   id: string
   event_name: string
@@ -45,11 +52,13 @@ export interface Booking {
   end_time: string
   venue_name: string
   client_name: string
+  client_email?: string
   status: string
   agreed_amount: number
   deposit_amount: number
   payment_status: string
   notes: string
+  vendorInvoices?: VendorInvoiceSummary[]
 }
 
 export interface VendorInvoice {

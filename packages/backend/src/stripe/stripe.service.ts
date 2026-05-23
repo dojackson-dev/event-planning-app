@@ -227,9 +227,20 @@ export class StripeService {
 
   // ─── Client Invoice Payment ────────────────────────────────────────────────
 
+  /** Maps owner subscription plan to platform fee rate. */
+  private resolveOwnerPlatformFeeRate(owner: any): number {
+    if (owner?.subscription_status !== 'active') return 0.03; // free / trialing
+    const planName = (owner?.plan_name ?? '').toLowerCase();
+    if (planName.includes('premium')) return 0.01;
+    if (planName.includes('pro')) return 0.015;
+    return 0.03; // starter / no recognised plan
+  }
+
   /**
    * Create a Stripe Checkout session for a client paying a specific invoice.
    * Funds route to the owner's Connect account (if connected), or directly to platform.
+   * Client absorbs Stripe's processing fee (grossed-up line item).
+   * Owner pays the platform fee (3% free, 1.5% pro, 1% premium) via application_fee_amount.
    * On checkout.session.completed the webhook calls markInvoicePaid automatically.
    */
   async createInvoiceCheckoutSession(
@@ -250,48 +261,71 @@ export class StripeService {
     const amountCents = Math.round(Number(invoice.amount_due) * 100);
     if (amountCents < 50) throw new Error('Amount too small to process');
 
-    // Resolve owner's Stripe Connect ID (if any) for transfer_data
+    // Gross up so the client absorbs Stripe's processing fee (2.9% + $0.30)
+    const grossCents = Math.round((amountCents + 30) / 0.971);
+    const stripeFeeCents = grossCents - amountCents;
+
+    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
+      {
+        price_data: {
+          currency: 'usd',
+          unit_amount: amountCents,
+          product_data: {
+            name: `Invoice #${invoice.invoice_number}`,
+            description: `Payment from ${clientName || invoice.client_name || 'Client'}`,
+          },
+        },
+        quantity: 1,
+      },
+      {
+        price_data: {
+          currency: 'usd',
+          unit_amount: stripeFeeCents,
+          product_data: {
+            name: 'Stripe Processing Fee',
+            description: 'Credit/debit card processing fee (2.9% + $0.30)',
+          },
+        },
+        quantity: 1,
+      },
+    ];
+
+    // Resolve owner's Stripe Connect ID and plan for fee calculation
     let transferData: Stripe.Checkout.SessionCreateParams['payment_intent_data'] | undefined;
     if (invoice.owner_id) {
-      const owner = await this.getOwnerAccountByUserId(invoice.owner_id, admin);
-      if (!owner) {
-        // Try direct owner_accounts lookup by id
+      let ownerAccount: any = await this.getOwnerAccountByUserId(invoice.owner_id, admin);
+      if (!ownerAccount) {
         const { data: ownerById } = await admin
           .from('owner_accounts')
-          .select('stripe_connect_id, stripe_connect_status')
+          .select('stripe_connect_id, stripe_connect_status, subscription_status, plan_id')
           .eq('id', invoice.owner_id)
           .maybeSingle();
-        if (ownerById?.stripe_connect_id && ownerById.stripe_connect_status === 'active') {
-          const feeCents = Math.round(amountCents * this.APP_FEE_RATE);
-          transferData = {
-            application_fee_amount: feeCents,
-            transfer_data: { destination: ownerById.stripe_connect_id },
-          };
+        ownerAccount = ownerById;
+      }
+
+      const connectId = ownerAccount?.stripe_connect_id ?? ownerAccount?.stripe_account_id;
+      const connectActive = ownerAccount?.stripe_connect_status === 'active';
+
+      if (connectId && connectActive) {
+        // Resolve plan name from Stripe if we have a plan_id
+        if (ownerAccount?.plan_id) {
+          try {
+            const price = await this.stripe.prices.retrieve(ownerAccount.plan_id, { expand: ['product'] });
+            ownerAccount.plan_name = (price.product as Stripe.Product)?.name ?? '';
+          } catch { /* non-fatal */ }
         }
-      } else if (owner.stripe_connect_id && owner.stripe_connect_status === 'active') {
-        const feeCents = Math.round(amountCents * this.APP_FEE_RATE);
+        const feeRate = this.resolveOwnerPlatformFeeRate(ownerAccount);
+        const platformFeeCents = Math.round(amountCents * feeRate);
         transferData = {
-          application_fee_amount: feeCents,
-          transfer_data: { destination: owner.stripe_connect_id },
+          application_fee_amount: platformFeeCents,
+          transfer_data: { destination: connectId },
         };
       }
     }
 
     const session = await this.stripe.checkout.sessions.create({
       payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: {
-            currency: 'usd',
-            unit_amount: amountCents,
-            product_data: {
-              name: `Invoice #${invoice.invoice_number}`,
-              description: `Payment from ${clientName || invoice.client_name || 'Client'}`,
-            },
-          },
-          quantity: 1,
-        },
-      ],
+      line_items: lineItems,
       mode: 'payment',
       success_url: `${this.frontendUrl}/client-portal/invoices?paid=true&invoice=${invoice.invoice_number}&iid=${invoiceId}&sid={CHECKOUT_SESSION_ID}`,
       cancel_url: `${this.frontendUrl}/client-portal/invoices?canceled=true`,

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
+import { useVenue } from '@/contexts/VenueContext'
 import {
   ArrowLeft,
   Star,
@@ -71,6 +72,7 @@ interface OwnerEvent {
   startTime?: string
   endTime?: string
   venue?: string
+  venueId?: string
   location?: string
 }
 
@@ -106,6 +108,7 @@ function StarDisplay({ rating }: { rating: number }) {
 export default function OwnerVendorProfile({ params }: { params: { id: string } }) {
   const { id } = params
   const router = useRouter()
+  const { venues } = useVenue()
   const [vendor, setVendor] = useState<VendorProfile | null>(null)
   const [reviews, setReviews] = useState<Review[]>([])
   const [events, setEvents] = useState<OwnerEvent[]>([])
@@ -151,7 +154,7 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
         const today = new Date().toISOString().split('T')[0]
         const realEvents: OwnerEvent[] = (eventsRes.data || []).filter((ev: any) =>
           ev.status !== 'cancelled' && ev.date >= today
-        )
+        ).map((ev: any) => ({ ...ev, venueId: ev.venueId || ev.venue_id || undefined }))
 
         // Intake forms that haven't been converted yet (same as calendar)
         const intakeForms: OwnerEvent[] = (intakeRes.data || [])
@@ -204,7 +207,7 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
         eventDate: ev.date ? ev.date.split('T')[0] : prev.eventDate,
         startTime: ev.startTime || '',
         endTime: ev.endTime || '',
-        venueName: ev.venue || '',
+        venueName: (ev.venueId ? venues.find((v: any) => v.id === ev.venueId)?.name : null) || ev.venue || '',
         venueAddress: ev.location || '',
         clientName: client?.name || prev.clientName,
         clientEmail: client?.email || prev.clientEmail,

@@ -6,8 +6,8 @@ import Stripe from 'stripe';
 import * as nodemailer from 'nodemailer';
 import { CreateVendorInvoiceDto, UpdateVendorInvoiceDto, VendorInvoiceItemDto } from './dto/vendor-invoice.dto';
 
-const APP_FEE_RATE = 0.03;           // 3% platform fee — vendor-to-client invoices
-const OWNER_BOOKING_FEE_RATE = 0.015; // 1.5% platform fee — owner-to-vendor invoices (1.5% above Stripe's processing fee)
+const APP_FEE_RATE = 0.03;            // 3% platform fee — vendor-to-client invoices
+const OWNER_BOOKING_FEE_RATE = 0.03;  // 3% platform fee — owner-to-vendor invoices (waived for Pro/Premium subscribers)
 
 @Injectable()
 export class VendorInvoicesService {
@@ -82,7 +82,7 @@ export class VendorInvoicesService {
         vendor_account_id: vendorAccountId,
         invoice_number: invoiceNumber,
         client_name: dto.client_name,
-        client_email: dto.client_email,
+        client_email: dto.client_email ?? null,
         client_phone: dto.client_phone ?? null,
         issue_date: dto.issue_date,
         due_date: dto.due_date,
@@ -96,6 +96,7 @@ export class VendorInvoicesService {
         notes: dto.notes ?? null,
         terms: dto.terms ?? null,
         status: 'draft',
+        vendor_booking_id: dto.vendor_booking_id ?? null,
       })
       .select()
       .single();
@@ -629,11 +630,43 @@ export class VendorInvoicesService {
       );
     }
 
-    const feeRate = invoice.invoice_type === 'owner_booking' ? OWNER_BOOKING_FEE_RATE : APP_FEE_RATE;
-    const feeCents = Math.round(amountCents * feeRate);
+    const platformFeeCents = Math.round(amountCents * OWNER_BOOKING_FEE_RATE);
+
+    // Gross up the charge so the payer absorbs Stripe's processing fee (2.9% + $0.30).
+    // Formula: gross = (amount + 0.30) / (1 - 0.029)
+    const grossCents = Math.round((amountCents + 30) / 0.971);
+    const stripeFeeCents = grossCents - amountCents;
+
+    // Replace the base line item with the grossed-up amount
+    sessionParams.line_items = [
+      {
+        price_data: {
+          currency: 'usd',
+          unit_amount: amountCents,
+          product_data: {
+            name: `Invoice ${invoice.invoice_number}`,
+            description: `Payment to ${vendor?.business_name ?? 'Vendor'}`,
+          },
+        },
+        quantity: 1,
+      },
+      {
+        price_data: {
+          currency: 'usd',
+          unit_amount: stripeFeeCents,
+          product_data: {
+            name: 'Stripe Processing Fee',
+            description: 'Credit/debit card processing fee (2.9% + $0.30)',
+          },
+        },
+        quantity: 1,
+      },
+    ];
+
+    // Platform fee (3%) deducted from vendor's payout
     sessionParams.payment_intent_data = {
-      application_fee_amount: feeCents,
       transfer_data: { destination: vendor.stripe_account_id },
+      application_fee_amount: platformFeeCents,
     };
 
     const session = await this.stripe.checkout.sessions.create(sessionParams);
@@ -645,7 +678,7 @@ export class VendorInvoicesService {
       .eq('id', invoice.id);
 
     this.logger.log(`Vendor invoice checkout: ${session.id} for invoice ${invoice.id}`);
-    return { url: session.url!, feeCents };
+    return { url: session.url!, feeCents: stripeFeeCents };
   }
 
   // ─── Called from webhook when payment succeeds ──────────────────────────────

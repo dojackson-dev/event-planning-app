@@ -209,8 +209,8 @@ function PublicIntakeForm({ params }: { params: { ownerId: string } }) {
     }
   }
 
-  const nextStep = () => setCurrentStep(prev => Math.min(prev + 1, 5))
-  const prevStep = () => setCurrentStep(prev => Math.max(prev - 1, 1))
+  const nextStep = () => { setCurrentStep(prev => Math.min(prev + 1, 5)); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+  const prevStep = () => { setCurrentStep(prev => Math.max(prev - 1, 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }
 
   if (submitted) {
     return (

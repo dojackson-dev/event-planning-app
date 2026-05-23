@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import clientApi from '@/lib/clientApi'
 import {
   ArrowLeft, FileText, Download, CheckCircle2, Clock, Send,
-  PenLine, X, Loader2,
+  PenLine, X, XCircle, Loader2,
 } from 'lucide-react'
 
 export default function ClientContractDetailPage() {

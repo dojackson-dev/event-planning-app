@@ -32,7 +32,7 @@ export default function EstimateDetailPage() {
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
   const [editMode, setEditMode] = useState(false)
-  const [editData, setEditData] = useState({ issue_date: '', expiration_date: '', tax_rate: 0, discount_amount: 0, notes: '', terms: '' })
+  const [editData, setEditData] = useState({ client_name: '', client_phone: '', issue_date: '', expiration_date: '', tax_rate: 0, discount_amount: 0, notes: '', terms: '' })
   const [editItems, setEditItems] = useState<EditItem[]>([])
   const [deletedItemIds, setDeletedItemIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
@@ -97,6 +97,8 @@ export default function EstimateDetailPage() {
   const enterEditMode = () => {
     if (!estimate) return
     setEditData({
+      client_name: (estimate as any).client_name || '',
+      client_phone: (estimate as any).client_phone || '',
       issue_date: estimate.issue_date,
       expiration_date: estimate.expiration_date,
       tax_rate: estimate.tax_rate || 0,
@@ -238,6 +240,24 @@ export default function EstimateDetailPage() {
       {editMode ? (
         <div className="bg-white shadow-lg rounded-lg p-8">
           <h2 className="text-xl font-bold text-gray-900 mb-6">Edit Estimate</h2>
+
+          {/* Client Info */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Client Name <span className="text-red-500">*</span></label>
+              <input type="text" value={editData.client_name}
+                onChange={e => setEditData(d => ({ ...d, client_name: e.target.value }))}
+                placeholder="Enter client name"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Client Phone</label>
+              <input type="tel" value={editData.client_phone}
+                onChange={e => setEditData(d => ({ ...d, client_phone: e.target.value }))}
+                placeholder="e.g. 555-867-5309"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
+            </div>
+          </div>
 
           {/* Dates */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">

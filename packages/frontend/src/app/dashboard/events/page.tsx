@@ -330,7 +330,7 @@ export default function EventsPage() {
                     )}
                     {(event.startTime || event.endTime) && (
                       <p className="text-xs text-gray-400 pt-0.5">
-                        {formatTime(event.startTime)} â€“ {formatTime(event.endTime)}
+                        {formatTime(event.startTime)} – {formatTime(event.endTime)}
                       </p>
                     )}
                   </div>

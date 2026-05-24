@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Contract, ContractStatus } from '@/types'
 import SignatureCanvas from 'react-signature-canvas'
-import { Download, Send, FileText, Check, X as XIcon, Eye, Pencil } from 'lucide-react'
+import { Download, Send, FileText, Check, X as XIcon, Eye, Pencil, Printer } from 'lucide-react'
 
 export default function ContractDetailPage() {
   const params = useParams()
@@ -233,6 +233,30 @@ export default function ContractDetailPage() {
     }
   }
 
+  const handlePrint = () => {
+    const c = contract as any
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) return
+    const body = c.body || ''
+    const title = contract?.title || 'Contract'
+    printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${title}</title>
+  <style>
+    @page { margin: 1in; }
+    body { font-family: Georgia, serif; color: #111; line-height: 1.75; margin: 0; padding: 0; }
+    @media print { body { -webkit-print-color-adjust: exact; } }
+  </style>
+</head>
+<body>${body}</body>
+</html>`)
+    printWindow.document.close()
+    printWindow.focus()
+    setTimeout(() => { printWindow.print(); printWindow.close() }, 400)
+  }
+
   const getStatusColor = (status: ContractStatus) => {
     switch (status) {
       case ContractStatus.SIGNED:
@@ -305,6 +329,12 @@ export default function ContractDetailPage() {
           <p className="text-gray-600 mt-1">Contract #{c.contract_number ?? contract.contractNumber}</p>
         </div>
         <div className="flex items-center gap-3">
+          {c.body && !editMode && (
+            <button onClick={handlePrint}
+              className="flex items-center gap-1.5 bg-gray-600 text-white px-3 py-1.5 rounded-md hover:bg-gray-700 text-sm font-medium">
+              <Printer className="h-3.5 w-3.5" /> Print
+            </button>
+          )}
           {isOwner && c.status !== 'signed' && c.status !== 'voided' && !editMode && (
             <button onClick={enterEditMode}
               className="flex items-center gap-1.5 bg-amber-500 text-white px-3 py-1.5 rounded-md hover:bg-amber-600 text-sm font-medium">

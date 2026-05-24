@@ -316,12 +316,19 @@ export default function EventsPage() {
                       <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
                       <span>{format(parseLocalDate(event.date), 'PPP')}</span>
                     </div>
-                    {event.venue && (
-                      <div className="flex items-center gap-2">
-                        <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
-                        <span className="truncate">{event.venue}</span>
-                      </div>
-                    )}
+                    {(() => {
+                      const linkedVenue = venues.find((v: any) => v.id === (event as any).venueId)
+                      const addrParts = linkedVenue
+                        ? [linkedVenue.address, linkedVenue.city, linkedVenue.state].filter(Boolean)
+                        : []
+                      const displayAddr = addrParts.length > 0 ? addrParts.join(', ') : null
+                      return displayAddr ? (
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
+                          <span className="truncate">{displayAddr}</span>
+                        </div>
+                      ) : null
+                    })()}
                     {event.maxGuests && (
                       <div className="flex items-center gap-2">
                         <Users className="h-3.5 w-3.5 flex-shrink-0" />
@@ -330,7 +337,7 @@ export default function EventsPage() {
                     )}
                     {(event.startTime || event.endTime) && (
                       <p className="text-xs text-gray-400 pt-0.5">
-                        {formatTime(event.startTime)} â€“ {formatTime(event.endTime)}
+                        {formatTime(event.startTime)} – {formatTime(event.endTime)}
                       </p>
                     )}
                   </div>

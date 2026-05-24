@@ -755,6 +755,17 @@ export default function EventManagementPage() {
           )}
           <p className="text-xs font-medium text-gray-400 uppercase tracking-widest text-center mt-1">Event</p>
           <h1 className="text-2xl font-bold text-gray-900 text-center">{formData.eventName || 'Event Management'}</h1>
+          {(() => {
+            const linkedVenue = venues.find(v => v.id === formData.venueId)
+            const addrParts = linkedVenue ? [linkedVenue.address, linkedVenue.city, linkedVenue.state].filter(Boolean) : []
+            const displayAddr = addrParts.length > 0 ? addrParts.join(', ') : null
+            return displayAddr ? (
+              <p className="flex items-center justify-center gap-1.5 text-sm text-gray-500 mt-1">
+                <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
+                {displayAddr}
+              </p>
+            ) : null
+          })()}
           <div className="flex justify-center gap-2 mt-4">
             {!isEditing ? (
               <>

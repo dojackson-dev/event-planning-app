@@ -155,6 +155,7 @@ export interface Event {
   startTime?: string
   endTime?: string
   venue?: string
+  venueId?: string
   location?: string
   maxGuests?: number
   ownerId: string

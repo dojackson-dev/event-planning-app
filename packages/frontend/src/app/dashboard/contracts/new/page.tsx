@@ -379,17 +379,29 @@ function NewContractForm() {
 
   const fetchEstimateForClient = async (intakeFormId: string) => {
     try {
+      // Look up the intake form's contact name so we can also match estimates by client_name
+      const clientRecord = clients.find(c => c.id === intakeFormId)
+      const contactName = clientRecord?.contact_name || null
+
       const res = await api.get('/estimates')
       const all: any[] = res.data || []
-      const clientEstimates = all.filter((e: any) =>
-        e.intake_form_id === intakeFormId && ['sent', 'approved', 'draft', 'converted'].includes(e.status)
-      )
-      // Use the most recent estimate's total
+      const clientEstimates = all.filter((e: any) => {
+        const matchesIntake = e.intake_form_id === intakeFormId
+        const matchesName = contactName && e.client_name &&
+          e.client_name.toLowerCase().trim() === contactName.toLowerCase().trim()
+        return (matchesIntake || matchesName) && ['sent', 'approved', 'draft', 'converted'].includes(e.status)
+      })
+
       if (clientEstimates.length > 0) {
-        const latest = clientEstimates.sort((a: any, b: any) =>
-          new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
-        )[0]
-        const total = latest.total_amount ?? latest.total ?? latest.subtotal
+        // Prioritize: approved > converted > sent > draft, then most recent
+        const statusPriority: Record<string, number> = { approved: 0, converted: 1, sent: 2, draft: 3 }
+        const best = clientEstimates.sort((a: any, b: any) => {
+          const pa = statusPriority[a.status] ?? 9
+          const pb = statusPriority[b.status] ?? 9
+          if (pa !== pb) return pa - pb
+          return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+        })[0]
+        const total = best.total_amount ?? best.total ?? best.subtotal
         if (total != null) {
           const totalStr = Number(total).toFixed(2)
           setEstimateAmountFromClient(totalStr)
@@ -726,7 +738,7 @@ function NewContractForm() {
                 <input type="number" value={venueTotalAmount} onChange={e => setVenueTotalAmount(e.target.value)} required min="0" step="0.01" className={inputCls} placeholder="0.00" />
                 {estimateAmountFromClient && (
                   <p className="text-xs text-blue-600 mt-1">
-                    Auto-filled from estimate (${estimateAmountFromClient})
+                    ✓ Auto-filled from approved estimate (${estimateAmountFromClient})
                   </p>
                 )}
                 <p className="text-xs text-gray-400 mt-1">Subject to change based on added services.</p>

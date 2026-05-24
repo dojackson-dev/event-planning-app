@@ -36,6 +36,12 @@ export default function EstimateDetailPage() {
   const [editItems, setEditItems] = useState<EditItem[]>([])
   const [deletedItemIds, setDeletedItemIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
+  const [toast, setToast] = useState('')
+
+  const showToast = (msg: string) => {
+    setToast(msg)
+    setTimeout(() => setToast(''), 4000)
+  }
 
   useEffect(() => {
     if (params.id) fetchEstimate()
@@ -57,7 +63,11 @@ export default function EstimateDetailPage() {
     setActionLoading(true)
     try {
       await api.put(`/estimates/${estimate.id}/status`, { status })
-      fetchEstimate()
+      await fetchEstimate()
+      if (status === EstimateStatus.SENT) showToast('Estimate sent to client!')
+      else if (status === EstimateStatus.APPROVED) showToast('Estimate marked as approved.')
+      else if (status === EstimateStatus.REJECTED) showToast('Estimate marked as rejected.')
+      else if (status === EstimateStatus.EXPIRED) showToast('Estimate marked as expired.')
     } catch (err) {
       console.error('Failed to update status:', err)
       alert('Failed to update status')
@@ -199,6 +209,13 @@ export default function EstimateDetailPage() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed top-4 right-4 z-50 bg-green-600 text-white px-5 py-3 rounded-lg shadow-lg text-sm font-medium print:hidden">
+          {toast}
+        </div>
+      )}
 
       {/* Action Bar */}
       <div className="flex justify-between items-center mb-6 print:hidden">

@@ -406,14 +406,19 @@ function NewContractForm() {
   const fetchClients = async () => {
     try {
       const res = await api.get<IntakeFormClient[]>('/intake-forms')
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const upcoming = res.data.filter((c) => {
-        if (!c.event_date) return false
+      const cutoff = new Date()
+      cutoff.setDate(cutoff.getDate() - 90) // include clients from past 90 days
+      const recent = res.data.filter((c) => {
+        if (!c.event_date) return true
         const [y, m, d] = c.event_date.split('-').map(Number)
-        return new Date(y, m - 1, d) >= today
+        return new Date(y, m - 1, d) >= cutoff
       })
-      setClients(upcoming)
+      recent.sort((a, b) => {
+        if (!a.event_date) return 1
+        if (!b.event_date) return -1
+        return a.event_date < b.event_date ? 1 : -1
+      })
+      setClients(recent)
       const intakeFormId = searchParams.get('intakeFormId')
       if (intakeFormId) {
         const match = upcoming.find(c => c.id === intakeFormId)
@@ -445,7 +450,7 @@ function NewContractForm() {
 
   const handleSubmitUpload = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedClient || !title || !file) { alert('Please select a client and upload a contract file'); return }
+    if (!title || !file) { alert('Please enter a title and upload a contract file'); return }
     setLoading(true)
     try {
       setUploading(true)
@@ -596,11 +601,10 @@ function NewContractForm() {
       {mode === 'upload' && (
         <div className="bg-white shadow-md rounded-lg p-6 mb-5">
           <div className="mb-4">
-            <label className={labelCls}>Select Client *</label>
+            <label className={labelCls}>Link to Client <span className="font-normal text-gray-400">(optional)</span></label>
             <select
               value={selectedClient}
               onChange={e => setSelectedClient(e.target.value)}
-              required
               className={inputCls}
             >
               <option value="">-- Select a client --</option>
@@ -612,7 +616,7 @@ function NewContractForm() {
                 </option>
               ))}
             </select>
-            {clients.length === 0 && <p className="text-xs text-gray-400 mt-1">No upcoming clients found.</p>}
+            {clients.length === 0 && <p className="text-xs text-gray-400 mt-1">No clients found.</p>}
           </div>
 
           {selectedClientData && (

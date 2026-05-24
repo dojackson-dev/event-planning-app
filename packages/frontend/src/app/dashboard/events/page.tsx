@@ -306,7 +306,7 @@ export default function EventsPage() {
                         ? 'bg-gray-100 text-gray-500'
                         : 'bg-primary-50 text-primary-700'
                     }`}>
-                      {isComplete ? 'âœ“ Booked' : currentIdx === 0 ? 'New' : `Step ${currentIdx + 1}/5`}
+                      {isComplete ? '✓ Booked' : currentIdx === 0 ? 'New' : `Step ${currentIdx + 1}/5`}
                     </span>
                   </div>
 

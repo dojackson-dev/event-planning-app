@@ -1119,25 +1119,37 @@ export default function EventManagementPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Venue</label>
-                  <select
-                    name="venueId"
-                    value={formData.venueId}
-                    onChange={async e => {
-                      const newVenueId = e.target.value;
-                      setFormData(prev => ({ ...prev, venueId: newVenueId }));
-                      try {
-                        await api.patch(`/events/${eventId}`, { venueId: newVenueId || null });
-                      } catch {
-                        // non-fatal — change still reflected locally
-                      }
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white"
-                  >
-                    <option value="">— No venue assigned —</option>
-                    {venues.map(v => (
-                      <option key={v.id} value={v.id}>{v.name}</option>
-                    ))}
-                  </select>
+                  {isEditing ? (
+                    <select
+                      name="venueId"
+                      value={formData.venueId}
+                      onChange={async e => {
+                        const newVenueId = e.target.value;
+                        setFormData(prev => ({ ...prev, venueId: newVenueId }));
+                        try {
+                          await api.patch(`/events/${eventId}`, { venueId: newVenueId || null });
+                        } catch {
+                          // non-fatal — change still reflected locally
+                        }
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white"
+                    >
+                      <option value="">— No venue assigned —</option>
+                      {venues.map(v => (
+                        <option key={v.id} value={v.id}>{v.name}</option>
+                      ))}
+                    </select>
+                  ) : (() => {
+                    const lv = venues.find(v => v.id === formData.venueId)
+                    if (!lv) return <p className="text-gray-900">—</p>
+                    const addrParts = [lv.address, lv.city, lv.state].filter(Boolean)
+                    return (
+                      <div>
+                        <p className="text-gray-900 font-medium">{lv.name}</p>
+                        {addrParts.length > 0 && <p className="text-gray-500 text-sm">{addrParts.join(', ')}</p>}
+                      </div>
+                    )
+                  })()}
                 </div>
 
                 <div className="sm:col-span-2">

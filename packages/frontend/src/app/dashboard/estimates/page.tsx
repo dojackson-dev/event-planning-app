@@ -9,6 +9,7 @@ import { Search, Eye } from 'lucide-react'
 import { useVenue } from '@/contexts/VenueContext'
 
 function getClientName(estimate: Estimate): string {
+  if ((estimate as any).client_name) return (estimate as any).client_name
   const booking = (estimate.booking as any)
   if (booking?.contact_name) return booking.contact_name
   // legacy: user join

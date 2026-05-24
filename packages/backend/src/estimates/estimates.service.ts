@@ -161,8 +161,12 @@ export class EstimatesService {
       if (!venueEvents || venueEvents.length === 0) return null; // no events → return empty
       const intakeIds = venueEvents.map((e: any) => e.intake_form_id).filter(Boolean);
       const eventIds = venueEvents.map((e: any) => e.id);
-      if (intakeIds.length > 0) return q.in('intake_form_id', intakeIds);
-      return q.in('event_id', eventIds);
+      // OR both conditions so estimates matched by either intake_form_id or event_id show up
+      const filters: string[] = [];
+      if (intakeIds.length > 0) filters.push(`intake_form_id.in.(${intakeIds.join(',')})`);
+      if (eventIds.length > 0) filters.push(`event_id.in.(${eventIds.join(',')})`);
+      if (filters.length === 0) return null;
+      return q.or(filters.join(','));
     };
 
     // Attempt 1: full query with FK-hinted joins

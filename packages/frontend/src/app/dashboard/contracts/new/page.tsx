@@ -379,17 +379,29 @@ function NewContractForm() {
 
   const fetchEstimateForClient = async (intakeFormId: string) => {
     try {
+      // Look up the intake form's contact name so we can also match estimates by client_name
+      const clientRecord = clients.find(c => c.id === intakeFormId)
+      const contactName = clientRecord?.contact_name || null
+
       const res = await api.get('/estimates')
       const all: any[] = res.data || []
-      const clientEstimates = all.filter((e: any) =>
-        e.intake_form_id === intakeFormId && ['sent', 'approved', 'draft', 'converted'].includes(e.status)
-      )
-      // Use the most recent estimate's total
+      const clientEstimates = all.filter((e: any) => {
+        const matchesIntake = e.intake_form_id === intakeFormId
+        const matchesName = contactName && e.client_name &&
+          e.client_name.toLowerCase().trim() === contactName.toLowerCase().trim()
+        return (matchesIntake || matchesName) && ['sent', 'approved', 'draft', 'converted'].includes(e.status)
+      })
+
       if (clientEstimates.length > 0) {
-        const latest = clientEstimates.sort((a: any, b: any) =>
-          new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
-        )[0]
-        const total = latest.total_amount ?? latest.total ?? latest.subtotal
+        // Prioritize: approved > converted > sent > draft, then most recent
+        const statusPriority: Record<string, number> = { approved: 0, converted: 1, sent: 2, draft: 3 }
+        const best = clientEstimates.sort((a: any, b: any) => {
+          const pa = statusPriority[a.status] ?? 9
+          const pb = statusPriority[b.status] ?? 9
+          if (pa !== pb) return pa - pb
+          return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+        })[0]
+        const total = best.total_amount ?? best.total ?? best.subtotal
         if (total != null) {
           const totalStr = Number(total).toFixed(2)
           setEstimateAmountFromClient(totalStr)
@@ -406,14 +418,19 @@ function NewContractForm() {
   const fetchClients = async () => {
     try {
       const res = await api.get<IntakeFormClient[]>('/intake-forms')
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const upcoming = res.data.filter((c) => {
-        if (!c.event_date) return false
+      const cutoff = new Date()
+      cutoff.setDate(cutoff.getDate() - 90) // include clients from past 90 days
+      const recent = res.data.filter((c) => {
+        if (!c.event_date) return true
         const [y, m, d] = c.event_date.split('-').map(Number)
-        return new Date(y, m - 1, d) >= today
+        return new Date(y, m - 1, d) >= cutoff
       })
-      setClients(upcoming)
+      recent.sort((a, b) => {
+        if (!a.event_date) return 1
+        if (!b.event_date) return -1
+        return a.event_date < b.event_date ? 1 : -1
+      })
+      setClients(recent)
       const intakeFormId = searchParams.get('intakeFormId')
       if (intakeFormId) {
         const match = upcoming.find(c => c.id === intakeFormId)
@@ -445,7 +462,7 @@ function NewContractForm() {
 
   const handleSubmitUpload = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedClient || !title || !file) { alert('Please select a client and upload a contract file'); return }
+    if (!title || !file) { alert('Please enter a title and upload a contract file'); return }
     setLoading(true)
     try {
       setUploading(true)
@@ -497,6 +514,12 @@ function NewContractForm() {
         contract_type: 'vendor_template',
         body,
         status: 'draft',
+        template_data: {
+          companyName, companyState, vendorName, vendorState, vendorEntityType,
+          servicesDescription, eventLocation, eventDates, totalFee, paymentTerms,
+          depositAmount, depositDueDate, balanceDueDate, cancelRefundTerms,
+          noticeDays, startDate, endDate, governingState,
+        },
       }
       const response = await api.post('/contracts', contractData)
       router.push(`/dashboard/contracts/${response.data.id}`)
@@ -537,6 +560,13 @@ function NewContractForm() {
         client_name: venueClientName,
         client_email: venueClientEmail || undefined,
         status: 'draft',
+        template_data: {
+          venueOwnerName, venueName, venueClientName, venueClientEmail,
+          venueEventType, venueEventDate, venueEventTime, venueAccessWindow, venueGuestCount,
+          venueTotalAmount, venueDeposit,
+          venueCancelMoreThan, venueCancelMoreThanPolicy, venueCancelWithin, venueCancelWithinPolicy,
+          venueGoverningState,
+        },
       }
       const response = await api.post('/contracts', contractData)
       router.push(`/dashboard/contracts/${response.data.id}`)
@@ -596,11 +626,10 @@ function NewContractForm() {
       {mode === 'upload' && (
         <div className="bg-white shadow-md rounded-lg p-6 mb-5">
           <div className="mb-4">
-            <label className={labelCls}>Select Client *</label>
+            <label className={labelCls}>Link to Client <span className="font-normal text-gray-400">(optional)</span></label>
             <select
               value={selectedClient}
               onChange={e => setSelectedClient(e.target.value)}
-              required
               className={inputCls}
             >
               <option value="">-- Select a client --</option>
@@ -612,7 +641,7 @@ function NewContractForm() {
                 </option>
               ))}
             </select>
-            {clients.length === 0 && <p className="text-xs text-gray-400 mt-1">No upcoming clients found.</p>}
+            {clients.length === 0 && <p className="text-xs text-gray-400 mt-1">No clients found.</p>}
           </div>
 
           {selectedClientData && (
@@ -722,7 +751,7 @@ function NewContractForm() {
                 <input type="number" value={venueTotalAmount} onChange={e => setVenueTotalAmount(e.target.value)} required min="0" step="0.01" className={inputCls} placeholder="0.00" />
                 {estimateAmountFromClient && (
                   <p className="text-xs text-blue-600 mt-1">
-                    Auto-filled from estimate (${estimateAmountFromClient})
+                    ✓ Auto-filled from approved estimate (${estimateAmountFromClient})
                   </p>
                 )}
                 <p className="text-xs text-gray-400 mt-1">Subject to change based on added services.</p>
@@ -1024,7 +1053,7 @@ function NewContractForm() {
           </div>
           <div className="flex justify-end gap-3">
             <button type="button" onClick={() => router.push('/dashboard/contracts')} className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Cancel</button>
-            <button type="submit" disabled={loading || uploading || !selectedClient} className="px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed">
+            <button type="submit" disabled={loading || uploading} className="px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed">
               {uploading ? 'Uploading...' : loading ? 'Creating...' : 'Create Contract'}
             </button>
           </div>

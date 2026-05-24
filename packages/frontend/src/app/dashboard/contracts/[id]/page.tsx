@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Contract, ContractStatus } from '@/types'
 import SignatureCanvas from 'react-signature-canvas'
-import { Download, Send, FileText, Check, X as XIcon, Eye } from 'lucide-react'
+import { Download, Send, FileText, Check, X as XIcon, Eye, Pencil } from 'lucide-react'
 
 export default function ContractDetailPage() {
   const params = useParams()
@@ -23,6 +23,12 @@ export default function ContractDetailPage() {
   const [ownerSigning, setOwnerSigning] = useState(false)
   const signatureRef = useRef<SignatureCanvas>(null)
   const ownerSignatureRef = useRef<SignatureCanvas>(null)
+  const [editMode, setEditMode] = useState(false)
+  const [editData, setEditData] = useState({ title: '', description: '', notes: '', client_name: '', client_email: '', body: '' })
+  const [saving, setSaving] = useState(false)
+  const [toast, setToast] = useState('')
+
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 4000) }
 
   useEffect(() => {
     if (params.id) {
@@ -129,6 +135,37 @@ export default function ContractDetailPage() {
     }
   }
 
+  const enterEditMode = () => {
+    if (!contract) return
+    const c = contract as any
+    setEditData({
+      title: contract.title || '',
+      description: contract.description || '',
+      notes: contract.notes || '',
+      client_name: c.client_name || '',
+      client_email: c.client_email || '',
+      body: c.body || '',
+    })
+    setEditMode(true)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!contract) return
+    if (!editData.title.trim()) { alert('Title is required'); return }
+    setSaving(true)
+    try {
+      await api.put(`/contracts/${(contract as any).id ?? (contract as any).id}`, editData)
+      await fetchContract()
+      setEditMode(false)
+      showToast('Contract saved!')
+    } catch (err) {
+      console.error('Failed to save contract:', err)
+      alert('Failed to save contract')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleDownload = () => {
     const url = (contract as any)?.file_url ?? contract?.fileUrl
     if (url) {
@@ -177,6 +214,14 @@ export default function ContractDetailPage() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed top-4 right-4 z-50 bg-green-600 text-white px-5 py-3 rounded-lg shadow-lg text-sm font-medium">
+          {toast}
+        </div>
+      )}
+
       {/* Back navigation */}
       <div className="mb-4 flex flex-col gap-1">
         <button
@@ -199,16 +244,71 @@ export default function ContractDetailPage() {
           <h1 className="text-2xl font-bold text-gray-900">{contract.title}</h1>
           <p className="text-gray-600 mt-1">Contract #{c.contract_number ?? contract.contractNumber}</p>
         </div>
-        <span
-          className={`px-3 py-1 text-sm font-semibold rounded-full capitalize ${getStatusColor(
-            contract.status
-          )}`}
-        >
-          {contract.status}
-        </span>
+        <div className="flex items-center gap-3">
+          {isOwner && c.status !== 'signed' && c.status !== 'voided' && !editMode && (
+            <button onClick={enterEditMode}
+              className="flex items-center gap-1.5 bg-amber-500 text-white px-3 py-1.5 rounded-md hover:bg-amber-600 text-sm font-medium">
+              <Pencil className="h-3.5 w-3.5" /> Edit
+            </button>
+          )}
+          <span className={`px-3 py-1 text-sm font-semibold rounded-full capitalize ${getStatusColor(contract.status)}`}>
+            {contract.status}
+          </span>
+        </div>
       </div>
 
+      {/* Edit Mode */}
+      {editMode && (
+        <div className="bg-white shadow-md rounded-lg p-6 mb-6 space-y-4">
+          <h2 className="text-lg font-semibold text-gray-900">Edit Contract</h2>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+            <input type="text" value={editData.title} onChange={e => setEditData(d => ({ ...d, title: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Client Name</label>
+              <input type="text" value={editData.client_name} onChange={e => setEditData(d => ({ ...d, client_name: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Client Email</label>
+              <input type="email" value={editData.client_email} onChange={e => setEditData(d => ({ ...d, client_email: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <textarea value={editData.description} onChange={e => setEditData(d => ({ ...d, description: e.target.value }))}
+              rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Internal Notes</label>
+            <textarea value={editData.notes} onChange={e => setEditData(d => ({ ...d, notes: e.target.value }))}
+              rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+          </div>
+          {editData.body && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Contract Body (HTML)</label>
+              <textarea value={editData.body} onChange={e => setEditData(d => ({ ...d, body: e.target.value }))}
+                rows={20} className="w-full px-3 py-2 border border-gray-300 rounded-md text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              <p className="text-xs text-gray-400 mt-1">HTML content — edit carefully. Changes will appear in the contract document.</p>
+            </div>
+          )}
+          <div className="flex justify-end gap-3 pt-2">
+            <button onClick={() => setEditMode(false)}
+              className="px-5 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 text-sm">Cancel</button>
+            <button onClick={handleSaveEdit} disabled={saving}
+              className="px-5 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 text-sm font-medium">
+              {saving ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Contract Details */}
+      {!editMode && (
       <div className="bg-white shadow-md rounded-lg p-6 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
@@ -328,6 +428,7 @@ export default function ContractDetailPage() {
           <p className="text-sm text-gray-400 italic">No document attached to this contract.</p>
         )}
       </div>
+      )} {/* end !editMode */}
 
       {/* Signature Section */}
       {contract.status === ContractStatus.SIGNED && (c.signature_data ?? contract.signatureData) && (

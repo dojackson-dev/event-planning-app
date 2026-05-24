@@ -157,6 +157,10 @@ function NewEstimatePageInner() {
       setClientName(booking.contact_name || '')
       setClientPhone(booking.contact_phone || '')
       setAutofilledFromBooking(true)
+      // Also set intakeFormId from the linked event so the estimate is properly linked
+      const ev = events.find((e: any) => e.id === selectedEvent)
+      const formId = ev?.intakeFormId || ev?.intake_form_id
+      if (formId) setIntakeFormId(formId)
       return
     }
     // No paid booking — look up the event's linked intake form

@@ -24,7 +24,9 @@ export default function ContractDetailPage() {
   const signatureRef = useRef<SignatureCanvas>(null)
   const ownerSignatureRef = useRef<SignatureCanvas>(null)
   const [editMode, setEditMode] = useState(false)
-  const [editData, setEditData] = useState({ title: '', description: '', notes: '', client_name: '', client_email: '', body: '' })
+  const [editData, setEditData] = useState({ title: '', description: '', notes: '', client_name: '', client_email: '' })
+  const [venueEditData, setVenueEditData] = useState<any>({})
+  const [vendorEditData, setVendorEditData] = useState<any>({})
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState('')
 
@@ -144,17 +146,75 @@ export default function ContractDetailPage() {
       notes: contract.notes || '',
       client_name: c.client_name || '',
       client_email: c.client_email || '',
-      body: c.body || '',
     })
+    if (c.contract_type === 'venue_booking') {
+      const td = c.template_data || {}
+      setVenueEditData({
+        venueOwnerName: td.venueOwnerName || '',
+        venueName: td.venueName || '',
+        venueClientName: td.venueClientName || c.client_name || '',
+        venueClientEmail: td.venueClientEmail || c.client_email || '',
+        venueEventType: td.venueEventType || '',
+        venueEventDate: td.venueEventDate || '',
+        venueEventTime: td.venueEventTime || '',
+        venueAccessWindow: td.venueAccessWindow || '',
+        venueGuestCount: td.venueGuestCount || '',
+        venueTotalAmount: td.venueTotalAmount || '',
+        venueDeposit: td.venueDeposit || '',
+        venueCancelMoreThan: td.venueCancelMoreThan || '30',
+        venueCancelMoreThanPolicy: td.venueCancelMoreThanPolicy || 'Full refund minus processing fee',
+        venueCancelWithin: td.venueCancelWithin || '30',
+        venueCancelWithinPolicy: td.venueCancelWithinPolicy || 'Deposit non-refundable; remaining balance refunded',
+        venueGoverningState: td.venueGoverningState || 'Mississippi',
+      })
+    } else if (c.contract_type === 'vendor_template') {
+      const td = c.template_data || {}
+      setVendorEditData({
+        companyName: td.companyName || '',
+        companyState: td.companyState || 'Mississippi',
+        vendorName: td.vendorName || '',
+        vendorState: td.vendorState || 'Mississippi',
+        vendorEntityType: td.vendorEntityType || 'LLC',
+        servicesDescription: td.servicesDescription || '',
+        eventLocation: td.eventLocation || '',
+        eventDates: td.eventDates || '',
+        totalFee: td.totalFee || '',
+        paymentTerms: td.paymentTerms || 'full',
+        depositAmount: td.depositAmount || '',
+        depositDueDate: td.depositDueDate || '',
+        balanceDueDate: td.balanceDueDate || '',
+        cancelRefundTerms: td.cancelRefundTerms || 'Non-refundable deposit; balance refunded if cancelled 14+ days before event',
+        noticeDays: td.noticeDays || '7',
+        startDate: td.startDate || '',
+        endDate: td.endDate || '',
+        governingState: td.governingState || 'Mississippi',
+      })
+    }
     setEditMode(true)
   }
 
   const handleSaveEdit = async () => {
     if (!contract) return
+    const c = contract as any
     if (!editData.title.trim()) { alert('Title is required'); return }
     setSaving(true)
     try {
-      await api.put(`/contracts/${(contract as any).id ?? (contract as any).id}`, editData)
+      let payload: any = { ...editData }
+      if (c.contract_type === 'venue_booking') {
+        const agreementDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+        // Dynamically import generator from new page module isn't feasible here — inline the call via API
+        payload.template_data = venueEditData
+        payload.client_name = venueEditData.venueClientName
+        payload.client_email = venueEditData.venueClientEmail
+        // Regenerate body by calling the backend regenerate endpoint
+        const regenRes = await api.post(`/contracts/${c.id}/regenerate`, { template_data: venueEditData, contract_type: 'venue_booking' })
+        payload.body = regenRes.data.body
+      } else if (c.contract_type === 'vendor_template') {
+        payload.template_data = vendorEditData
+        const regenRes = await api.post(`/contracts/${c.id}/regenerate`, { template_data: vendorEditData, contract_type: 'vendor_template' })
+        payload.body = regenRes.data.body
+      }
+      await api.put(`/contracts/${c.id}`, payload)
       await fetchContract()
       setEditMode(false)
       showToast('Contract saved!')
@@ -259,49 +319,127 @@ export default function ContractDetailPage() {
 
       {/* Edit Mode */}
       {editMode && (
-        <div className="bg-white shadow-md rounded-lg p-6 mb-6 space-y-4">
+        <div className="bg-white shadow-md rounded-lg p-6 mb-6 space-y-5">
           <h2 className="text-lg font-semibold text-gray-900">Edit Contract</h2>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
-            <input type="text" value={editData.title} onChange={e => setEditData(d => ({ ...d, title: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-          </div>
+
+          {/* Always-visible fields */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Client Name</label>
-              <input type="text" value={editData.client_name} onChange={e => setEditData(d => ({ ...d, client_name: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+              <input type="text" value={editData.title} onChange={e => setEditData(d => ({ ...d, title: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Client Email</label>
-              <input type="email" value={editData.client_email} onChange={e => setEditData(d => ({ ...d, client_email: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <input type="text" value={editData.description} onChange={e => setEditData(d => ({ ...d, description: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Internal Notes</label>
+              <input type="text" value={editData.notes} onChange={e => setEditData(d => ({ ...d, notes: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
             </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-            <textarea value={editData.description} onChange={e => setEditData(d => ({ ...d, description: e.target.value }))}
-              rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Internal Notes</label>
-            <textarea value={editData.notes} onChange={e => setEditData(d => ({ ...d, notes: e.target.value }))}
-              rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-          </div>
-          {editData.body && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Contract Body (HTML)</label>
-              <textarea value={editData.body} onChange={e => setEditData(d => ({ ...d, body: e.target.value }))}
-                rows={20} className="w-full px-3 py-2 border border-gray-300 rounded-md text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary-500" />
-              <p className="text-xs text-gray-400 mt-1">HTML content — edit carefully. Changes will appear in the contract document.</p>
+
+          {/* Venue Booking form fields */}
+          {(contract as any).contract_type === 'venue_booking' && (
+            <div className="space-y-4 border-t pt-4">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Venue Booking Details</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[
+                  ['Venue Owner / Operator Name', 'venueOwnerName'],
+                  ['Venue Name', 'venueName'],
+                  ['Client Name', 'venueClientName'],
+                  ['Client Email', 'venueClientEmail'],
+                  ['Event Type', 'venueEventType'],
+                  ['Event Date', 'venueEventDate'],
+                  ['Event Time', 'venueEventTime'],
+                  ['Access Window', 'venueAccessWindow'],
+                  ['Guest Count', 'venueGuestCount'],
+                  ['Total Booking Amount ($)', 'venueTotalAmount'],
+                  ['Deposit ($)', 'venueDeposit'],
+                  ['Governing State', 'venueGoverningState'],
+                ].map(([label, key]) => (
+                  <div key={key}>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+                    <input type="text" value={venueEditData[key] || ''}
+                      onChange={e => setVenueEditData((d: any) => ({ ...d, [key]: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
+                  </div>
+                ))}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cancellation — More than ___ days: policy</label>
+                  <div className="flex gap-2">
+                    <input type="number" value={venueEditData.venueCancelMoreThan || ''}
+                      onChange={e => setVenueEditData((d: any) => ({ ...d, venueCancelMoreThan: e.target.value }))}
+                      className="w-20 px-2 py-2 border border-gray-300 rounded-md text-sm" placeholder="days" />
+                    <input type="text" value={venueEditData.venueCancelMoreThanPolicy || ''}
+                      onChange={e => setVenueEditData((d: any) => ({ ...d, venueCancelMoreThanPolicy: e.target.value }))}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm" placeholder="policy" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cancellation — Within ___ days: policy</label>
+                  <div className="flex gap-2">
+                    <input type="number" value={venueEditData.venueCancelWithin || ''}
+                      onChange={e => setVenueEditData((d: any) => ({ ...d, venueCancelWithin: e.target.value }))}
+                      className="w-20 px-2 py-2 border border-gray-300 rounded-md text-sm" placeholder="days" />
+                    <input type="text" value={venueEditData.venueCancelWithinPolicy || ''}
+                      onChange={e => setVenueEditData((d: any) => ({ ...d, venueCancelWithinPolicy: e.target.value }))}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm" placeholder="policy" />
+                  </div>
+                </div>
+              </div>
             </div>
           )}
-          <div className="flex justify-end gap-3 pt-2">
+
+          {/* Vendor Template form fields */}
+          {(contract as any).contract_type === 'vendor_template' && (
+            <div className="space-y-4 border-t pt-4">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Vendor Agreement Details</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[
+                  ['Company Name', 'companyName'],
+                  ['Company State', 'companyState'],
+                  ['Vendor Legal Name', 'vendorName'],
+                  ['Vendor State', 'vendorState'],
+                  ['Event Location', 'eventLocation'],
+                  ['Date(s) of Service', 'eventDates'],
+                  ['Total Fee ($)', 'totalFee'],
+                  ['Notice Days (cancellation)', 'noticeDays'],
+                  ['Start Date', 'startDate'],
+                  ['End Date', 'endDate'],
+                  ['Governing State', 'governingState'],
+                ].map(([label, key]) => (
+                  <div key={key}>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+                    <input type="text" value={vendorEditData[key] || ''}
+                      onChange={e => setVendorEditData((d: any) => ({ ...d, [key]: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
+                  </div>
+                ))}
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Services Description</label>
+                  <textarea value={vendorEditData.servicesDescription || ''}
+                    onChange={e => setVendorEditData((d: any) => ({ ...d, servicesDescription: e.target.value }))}
+                    rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cancellation / Refund Terms</label>
+                  <input type="text" value={vendorEditData.cancelRefundTerms || ''}
+                    onChange={e => setVendorEditData((d: any) => ({ ...d, cancelRefundTerms: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-2 border-t">
             <button onClick={() => setEditMode(false)}
               className="px-5 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 text-sm">Cancel</button>
             <button onClick={handleSaveEdit} disabled={saving}
               className="px-5 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 text-sm font-medium">
-              {saving ? 'Saving...' : 'Save Changes'}
+              {saving ? 'Regenerating & Saving...' : 'Save & Regenerate Contract'}
             </button>
           </div>
         </div>

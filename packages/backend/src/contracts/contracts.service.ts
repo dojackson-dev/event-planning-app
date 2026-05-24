@@ -153,7 +153,95 @@ export class ContractsService {
     return data;
   }
 
-  async signContract(
+  generateBody(contractType: string, td: any): string {
+    const agreementDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    if (contractType === 'venue_booking') {
+      const totalAmount = td.venueTotalAmount || '';
+      const deposit = td.venueDeposit || '';
+      const remaining = totalAmount && deposit
+        ? (parseFloat(totalAmount) - parseFloat(deposit)).toFixed(2)
+        : '__________';
+      return `<div style="font-family:Georgia,serif;max-width:780px;margin:0 auto;color:#111;line-height:1.75;padding:16px;">
+  <h1 style="text-align:center;font-size:1.35rem;text-transform:uppercase;letter-spacing:.06em;border-bottom:2px solid #111;padding-bottom:14px;margin-bottom:28px;">Venue Listing &amp; Booking Agreement</h1>
+  <p style="text-align:center;font-style:italic;color:#555;margin-top:-16px;margin-bottom:28px;">EventEcos Platform</p>
+  <p>This Agreement is entered into as of <strong>${agreementDate}</strong>, by and between:</p>
+  <p style="margin-left:16px;"><strong>Venue Owner / Operator:</strong> ${td.venueOwnerName || ''}<br/><strong>Venue Name:</strong> ${td.venueName || ''}</p>
+  <p style="margin-left:16px;">and</p>
+  <p style="margin-left:16px;"><strong>Client / Event Host:</strong> ${td.venueClientName || ''}</p>
+  <hr style="border:none;border-top:1px solid #ccc;margin:28px 0;"/>
+  <h2 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.05em;margin-top:0;">1. Platform Overview</h2>
+  <p>This booking is facilitated through EventEcos ("Platform"), which provides listing, booking, and payment processing services.</p>
+  <h2 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.05em;margin-top:24px;">2. Event Booking Details</h2>
+  <ul style="margin:0;padding-left:20px;">
+    <li><strong>Event Type:</strong> ${td.venueEventType || '____________________________'}</li>
+    <li><strong>Event Date:</strong> ${td.venueEventDate || '____________________________'}</li>
+    <li><strong>Event Time:</strong> ${td.venueEventTime || '____________________________'}</li>
+    <li><strong>Access Window:</strong> ${td.venueAccessWindow || '____________________________'}</li>
+    <li><strong>Guest Count:</strong> ${td.venueGuestCount || '____________________________'}</li>
+  </ul>
+  <h2 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.05em;margin-top:24px;">3. Fees &amp; Payment</h2>
+  <ul style="margin:0;padding-left:20px;">
+    <li><strong>Total Booking Amount:</strong> $${totalAmount || '__________'}</li>
+    <li><strong>Deposit:</strong> $${deposit || '__________'}</li>
+    <li><strong>Remaining Balance Due:</strong> $${remaining}</li>
+  </ul>
+  <h2 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.05em;margin-top:24px;">4. Cancellation &amp; Refund Policy</h2>
+  <ul style="margin:0;padding-left:20px;">
+    <li>More than <strong>${td.venueCancelMoreThan || '____'} days</strong> prior: ${td.venueCancelMoreThanPolicy || ''}</li>
+    <li>Within <strong>${td.venueCancelWithin || '____'} days</strong>: ${td.venueCancelWithinPolicy || ''}</li>
+  </ul>
+  <h2 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.05em;margin-top:24px;">5. Venue Responsibilities</h2>
+  <p>Venue Owner agrees to provide the venue as described in the listing, maintain safe and clean premises, and honor all confirmed bookings.</p>
+  <h2 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.05em;margin-top:24px;">6. Client Responsibilities</h2>
+  <p>Client agrees to use the venue only as described and comply with all laws. Client is responsible for any damages during the event.</p>
+  <h2 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.05em;margin-top:24px;">7. Governing Law</h2>
+  <p>This Agreement shall be governed by the laws of <strong>${td.venueGoverningState || 'Mississippi'}</strong>.</p>
+  <h2 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.05em;margin-top:32px;">Signatures</h2>
+  <div style="margin-top:20px;display:flex;gap:48px;flex-wrap:wrap;">
+    <div style="flex:1;min-width:220px;"><p style="margin:0 0 4px;font-weight:bold;">Client / Event Host</p><p style="margin:0;font-size:.9rem;color:#444;">${td.venueClientName || ''}</p><div style="border-bottom:1px solid #333;height:52px;margin:12px 0;"></div><p style="margin:0;font-size:.8rem;color:#666;">Signature &amp; Date</p></div>
+    <div style="flex:1;min-width:220px;"><p style="margin:0 0 4px;font-weight:bold;">Venue Owner / Operator</p><p style="margin:0;font-size:.9rem;color:#444;">${td.venueOwnerName || ''} — ${td.venueName || ''}</p><div style="border-bottom:1px solid #333;height:52px;margin:12px 0;"></div><p style="margin:0;font-size:.8rem;color:#666;">Signature &amp; Date</p></div>
+  </div>
+</div>`;
+    } else if (contractType === 'vendor_template') {
+      const paymentSection = td.paymentTerms === 'full'
+        ? `<li>Full payment of <strong>$${td.totalFee}</strong> due upfront prior to services.</li>`
+        : `<li>Deposit: <strong>$${td.depositAmount || '___'}</strong> due on <strong>${td.depositDueDate || '___'}</strong></li>
+           <li>Balance: <strong>$${(parseFloat(td.totalFee || '0') - parseFloat(td.depositAmount || '0')).toFixed(2)}</strong> due on <strong>${td.balanceDueDate || '___'}</strong></li>`;
+      return `<div style="font-family:Georgia,serif;max-width:780px;margin:0 auto;color:#111;line-height:1.75;padding:16px;">
+  <h1 style="text-align:center;font-size:1.35rem;text-transform:uppercase;letter-spacing:.06em;border-bottom:2px solid #111;padding-bottom:14px;margin-bottom:28px;">Vendor Services Agreement</h1>
+  <p>This Agreement is entered into as of <strong>${agreementDate}</strong>, by and between:</p>
+  <p style="margin-left:16px;"><strong>Company:</strong> ${td.companyName || ''}, a ${td.companyState || ''} company ("Company")<br/>and<br/><strong>Vendor:</strong> ${td.vendorName || ''}, a ${td.vendorState || ''} ${td.vendorEntityType || 'LLC'} ("Vendor")</p>
+  <hr style="border:none;border-top:1px solid #ccc;margin:28px 0;"/>
+  <h2 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.05em;margin-top:0;">1. Scope of Services</h2>
+  <p>Vendor agrees to provide: <em>${td.servicesDescription || ''}</em></p>
+  <p>Location: <strong>${td.eventLocation || ''}</strong> | Dates: <strong>${td.eventDates || ''}</strong></p>
+  <h2 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.05em;margin-top:24px;">2. Compensation</h2>
+  <ul style="margin:0;padding-left:20px;">
+    <li>Total Fee: <strong>$${td.totalFee || ''}</strong></li>
+    ${paymentSection}
+  </ul>
+  <h2 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.05em;margin-top:24px;">3. Independent Contractor</h2>
+  <p>Vendor is an independent contractor, not an employee or partner of Company.</p>
+  <h2 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.05em;margin-top:24px;">4. Cancellation Policy</h2>
+  <ul style="margin:0;padding-left:20px;">
+    <li>Vendor must provide <strong>${td.noticeDays || '7'} days</strong> written notice to cancel.</li>
+    <li>Refund terms: ${td.cancelRefundTerms || ''}</li>
+  </ul>
+  <h2 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.05em;margin-top:24px;">5. Term</h2>
+  <p>Effective from <strong>${td.startDate || ''}</strong> through <strong>${td.endDate || 'completion of services'}</strong>.</p>
+  <h2 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.05em;margin-top:24px;">6. Governing Law</h2>
+  <p>Governed by the laws of <strong>${td.governingState || 'Mississippi'}</strong>.</p>
+  <h2 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.05em;margin-top:32px;">Signatures</h2>
+  <div style="margin-top:20px;display:flex;gap:48px;flex-wrap:wrap;">
+    <div style="flex:1;min-width:220px;"><p style="margin:0 0 4px;font-weight:bold;">Company Representative</p><p style="margin:0;font-size:.9rem;color:#444;">${td.companyName || ''}</p><div style="border-bottom:1px solid #333;height:52px;margin:12px 0;"></div><p style="margin:0;font-size:.8rem;color:#666;">Signature &amp; Date</p></div>
+    <div style="flex:1;min-width:220px;"><p style="margin:0 0 4px;font-weight:bold;">Vendor</p><p style="margin:0;font-size:.9rem;color:#444;">${td.vendorName || ''}</p><div style="border-bottom:1px solid #333;height:52px;margin:12px 0;"></div><p style="margin:0;font-size:.8rem;color:#666;">Signature &amp; Date</p></div>
+  </div>
+</div>`;
+    }
+    return '';
+  }
+
+
     supabase: SupabaseClient,
     id: string,
     signatureData: { signatureData: string; signerName: string; ipAddress?: string },

@@ -514,6 +514,12 @@ function NewContractForm() {
         contract_type: 'vendor_template',
         body,
         status: 'draft',
+        template_data: {
+          companyName, companyState, vendorName, vendorState, vendorEntityType,
+          servicesDescription, eventLocation, eventDates, totalFee, paymentTerms,
+          depositAmount, depositDueDate, balanceDueDate, cancelRefundTerms,
+          noticeDays, startDate, endDate, governingState,
+        },
       }
       const response = await api.post('/contracts', contractData)
       router.push(`/dashboard/contracts/${response.data.id}`)
@@ -554,6 +560,13 @@ function NewContractForm() {
         client_name: venueClientName,
         client_email: venueClientEmail || undefined,
         status: 'draft',
+        template_data: {
+          venueOwnerName, venueName, venueClientName, venueClientEmail,
+          venueEventType, venueEventDate, venueEventTime, venueAccessWindow, venueGuestCount,
+          venueTotalAmount, venueDeposit,
+          venueCancelMoreThan, venueCancelMoreThanPolicy, venueCancelWithin, venueCancelWithinPolicy,
+          venueGoverningState,
+        },
       }
       const response = await api.post('/contracts', contractData)
       router.push(`/dashboard/contracts/${response.data.id}`)

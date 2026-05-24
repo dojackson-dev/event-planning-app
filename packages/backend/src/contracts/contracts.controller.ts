@@ -196,6 +196,17 @@ export class ContractsController {
     return this.contractsService.sendContract(supabase, id);
   }
 
+  @Post(':id/regenerate')
+  async regenerateBody(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+    @Body() body: { template_data: any; contract_type: string },
+  ): Promise<{ body: string }> {
+    await this.getUserId(authorization);
+    const html = this.contractsService.generateBody(body.contract_type, body.template_data);
+    return { body: html };
+  }
+
   // Public endpoint — no auth required. Marks a contract as viewed by the client (first open only).
   @Post(':id/viewed')
   async markViewed(@Param('id') id: string): Promise<void> {

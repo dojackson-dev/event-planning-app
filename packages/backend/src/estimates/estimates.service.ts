@@ -6,9 +6,11 @@ export interface Estimate {
   id?: string;
   estimate_number: string;
   owner_id?: string;
+  event_id?: string;
   booking_id?: string;
   intake_form_id?: string;
   created_by?: string;
+  client_name?: string;
   client_phone?: string;
   client_email?: string;
   subtotal: number;

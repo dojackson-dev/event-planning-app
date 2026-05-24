@@ -138,7 +138,7 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-6">
               <div className="flex flex-col items-center text-center">
                 <div className="inline-block bg-white rounded-xl p-2 mb-2">
-                  <img src="/lib/EventEcos-Logo.jpg" alt="EventEcos" style={{ height: '60px', width: 'auto' }} />
+                  <img src="/lib/EventEcos-Logo-Only.jpg" alt="EventEcos" style={{ height: '60px', width: 'auto' }} />
                 </div>
                 <p className="text-gray-400 text-xs">The complete event management platform.</p>
               </div>

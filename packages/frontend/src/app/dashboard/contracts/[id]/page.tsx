@@ -309,6 +309,7 @@ export default function ContractDetailPage() {
 
       {/* Contract Details */}
       {!editMode && (
+        <>
       <div className="bg-white shadow-md rounded-lg p-6 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
@@ -428,6 +429,7 @@ export default function ContractDetailPage() {
           <p className="text-sm text-gray-400 italic">No document attached to this contract.</p>
         )}
       </div>
+        </>
       )} {/* end !editMode */}
 
       {/* Signature Section */}

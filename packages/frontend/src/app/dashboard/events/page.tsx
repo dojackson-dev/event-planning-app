@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
 import { Event } from '@/types'
@@ -145,32 +145,32 @@ export default function EventsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
 
-  const fetchAll = useCallback(async () => {
+  useEffect(() => {
     if (!venuesLoaded) return
+    let cancelled = false
     setLoading(true)
     setEvents([])
-    try {
-      const params = activeVenue ? { venueId: activeVenue.id } : {}
-      const [evRes, estRes, invRes, conRes] = await Promise.all([
-        api.get<Event[]>('/events', { params }),
-        api.get('/estimates').catch(() => ({ data: [] })),
-        api.get('/invoices').catch(() => ({ data: [] })),
-        api.get('/contracts').catch(() => ({ data: [] })),
-      ])
+    const params = activeVenue ? { venueId: activeVenue.id } : {}
+    console.log('[Events] fetching, venueId:', activeVenue?.id ?? 'ALL')
+    Promise.all([
+      api.get<Event[]>('/events', { params }),
+      api.get('/estimates').catch(() => ({ data: [] })),
+      api.get('/invoices').catch(() => ({ data: [] })),
+      api.get('/contracts').catch(() => ({ data: [] })),
+    ]).then(([evRes, estRes, invRes, conRes]) => {
+      if (cancelled) return
+      console.log('[Events] got', evRes.data.length, 'events for venueId:', activeVenue?.id ?? 'ALL')
       setEvents(evRes.data)
       setAllEstimates(estRes.data || [])
       setAllInvoices(invRes.data || [])
       setAllContracts(conRes.data || [])
-    } catch (error) {
-      console.error('Failed to fetch events:', error)
-    } finally {
-      setLoading(false)
-    }
+    }).catch(error => {
+      if (!cancelled) console.error('Failed to fetch events:', error)
+    }).finally(() => {
+      if (!cancelled) setLoading(false)
+    })
+    return () => { cancelled = true }
   }, [activeVenue, venuesLoaded])
-
-  useEffect(() => {
-    fetchAll()
-  }, [fetchAll])
 
   const now = new Date()
   const filteredEvents = events.filter(event => {

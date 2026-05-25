@@ -147,10 +147,12 @@ export default function EventsPage() {
 
   const fetchAll = useCallback(async () => {
     if (!venuesLoaded) return
+    console.log('[Events] fetchAll called, activeVenue:', activeVenue?.id ?? 'null (All Venues)')
     setLoading(true)
     setEvents([])
     try {
       const params = activeVenue ? { venueId: activeVenue.id } : {}
+      console.log('[Events] API params:', params)
       const [evRes, estRes, invRes, conRes] = await Promise.all([
         api.get<Event[]>('/events', { params }),
         api.get('/estimates').catch(() => ({ data: [] })),
@@ -158,6 +160,7 @@ export default function EventsPage() {
         api.get('/contracts').catch(() => ({ data: [] })),
       ])
       setEvents(evRes.data)
+      console.log('[Events] received', evRes.data.length, 'events for venueId:', activeVenue?.id ?? 'ALL')
       setAllEstimates(estRes.data || [])
       setAllInvoices(invRes.data || [])
       setAllContracts(conRes.data || [])

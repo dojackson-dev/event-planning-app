@@ -38,36 +38,34 @@ export function VenueProvider({ children }: { children: React.ReactNode }) {
   const [venuesLoaded, setVenuesLoaded] = useState(false)
 
   useEffect(() => {
+    console.log('[VenueCtx] effect fired — authLoading:', authLoading, 'user.role:', user?.role)
     if (authLoading) return  // wait for auth to finish initialising
     if (!user || user.role !== 'owner') {
+      console.log('[VenueCtx] not owner — setting venuesLoaded=true, activeVenue stays null')
       setVenuesLoaded(true)
       return
     }
     api.get('/owner/venues').then(res => {
-      // Normalize ids to strings so localStorage comparisons work regardless
-      // of whether Postgres returns integers or strings
       const rows: VenueData[] = (res.data.venues || []).map((v: any) => ({
         ...v,
         id: String(v.id),
       }))
-      setVenues(rows)
-
       const savedId = localStorage.getItem('activeVenueId')
       const saved = savedId ? rows.find(v => v.id === savedId) : null
-
+      console.log('[VenueCtx] venues loaded:', rows.length, '| savedId:', savedId, '| matched:', saved?.name ?? 'none')
+      setVenues(rows)
       if (saved) {
         setActiveVenueState(saved)
       } else if (rows.length === 1) {
-        // Auto-select when owner has exactly one venue
         setActiveVenueState(rows[0])
         localStorage.setItem('activeVenueId', String(rows[0].id))
       }
-      // If multiple venues and no saved preference, default to All (null)
       setVenuesLoaded(true)
     }).catch(() => setVenuesLoaded(true))
   }, [user, authLoading])
 
   const setActiveVenue = (v: VenueData | null) => {
+    console.log('[VenueCtx] setActiveVenue called with:', v?.name ?? 'null')
     setActiveVenueState(v)
     if (v) {
       localStorage.setItem('activeVenueId', String(v.id))

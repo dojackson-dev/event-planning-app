@@ -32,18 +32,24 @@ const VenueContext = createContext<VenueContextType>({
 })
 
 export function VenueProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const [venues, setVenues] = useState<VenueData[]>([])
   const [activeVenue, setActiveVenueState] = useState<VenueData | null>(null)
   const [venuesLoaded, setVenuesLoaded] = useState(false)
 
   useEffect(() => {
+    if (authLoading) return  // wait for auth to finish initialising
     if (!user || user.role !== 'owner') {
       setVenuesLoaded(true)
       return
     }
     api.get('/owner/venues').then(res => {
-      const rows: VenueData[] = res.data.venues || []
+      // Normalize ids to strings so localStorage comparisons work regardless
+      // of whether Postgres returns integers or strings
+      const rows: VenueData[] = (res.data.venues || []).map((v: any) => ({
+        ...v,
+        id: String(v.id),
+      }))
       setVenues(rows)
 
       const savedId = localStorage.getItem('activeVenueId')
@@ -59,7 +65,7 @@ export function VenueProvider({ children }: { children: React.ReactNode }) {
       // If multiple venues and no saved preference, default to All (null)
       setVenuesLoaded(true)
     }).catch(() => setVenuesLoaded(true))
-  }, [user])
+  }, [user, authLoading])
 
   const setActiveVenue = (v: VenueData | null) => {
     setActiveVenueState(v)

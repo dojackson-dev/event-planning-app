@@ -600,7 +600,7 @@ export class ArtistInvoicesService {
 
     try {
       const artistAccount = invoice.artist_accounts as any;
-      const artistPhone: string | null = artistAccount?.phone ?? null;
+      const artistPhone: string | null = artistAccount?.booking_phone ?? null;
       const artistName: string = artistAccount?.stage_name || artistAccount?.artist_name || 'Artist';
       await this.smsNotifications.vendorInvoicePaid(
         artistPhone,
@@ -666,7 +666,7 @@ export class ArtistInvoicesService {
 
     try {
       const artistAccount = invoice.artist_accounts as any;
-      const artistPhone: string | null = artistAccount?.phone ?? null;
+      const artistPhone: string | null = artistAccount?.booking_phone ?? null;
       const artistName: string =
         artistAccount?.stage_name || artistAccount?.artist_name || 'Artist';
       await this.smsNotifications.vendorInvoicePaid(

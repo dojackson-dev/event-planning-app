@@ -3,12 +3,13 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import api from '@/lib/api'
+import { useAuth } from '@/contexts/AuthContext'
 import { Mic2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 export default function ArtistLogin() {
   const router = useRouter()
+  const { login } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -39,34 +40,9 @@ export default function ArtistLogin() {
     setLoading(true)
     setError('')
     try {
-      const res = await api.post('/auth/flow/unified/login', { email, password })
-      const token = res.data?.session?.access_token || res.data?.access_token
-      const dbUser = res.data?.user
-      const roles: string[] = res.data?.roles || ['artist']
-      if (token) {
-        localStorage.setItem('access_token', token)
-        localStorage.setItem('refresh_token', res.data?.session?.refresh_token || res.data?.refresh_token || '')
-        localStorage.setItem('user_role', 'artist')
-        localStorage.setItem('active_role', 'artist')
-        localStorage.setItem('user_roles', JSON.stringify(roles))
-      }
-      if (dbUser) {
-        const userObj = {
-          id: dbUser.id,
-          email: dbUser.email || email,
-          firstName: dbUser.first_name || dbUser.user_metadata?.first_name || '',
-          lastName: dbUser.last_name || dbUser.user_metadata?.last_name || '',
-          phone: dbUser.phone_number || dbUser.user_metadata?.phone || '',
-          role: 'artist',
-          roles,
-          createdAt: dbUser.created_at || new Date().toISOString(),
-          updatedAt: dbUser.updated_at || new Date().toISOString(),
-        }
-        localStorage.setItem('user', JSON.stringify(userObj))
-      }
-      router.push('/artist/dashboard')
+      await login({ email, password })
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Invalid email or password')
+      setError(err.response?.data?.message || err.message || 'Invalid email or password')
     } finally {
       setLoading(false)
     }

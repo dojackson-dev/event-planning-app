@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { Event, Booking } from '@/types'
@@ -103,18 +103,19 @@ export default function CalendarPage() {
   const [createStatus, setCreateStatus] = useState<'draft' | 'scheduled'>('scheduled')
   const [creating, setCreating] = useState(false)
 
-  const fetchAllEntries = useCallback(async () => {
+  useEffect(() => {
     if (!venuesLoaded) return
+    let cancelled = false
     setLoading(true)
     setEntries([])
-    try {
-      const venueParams = activeVenue ? { venueId: activeVenue.id } : {}
-      const [eventsRes, bookingsRes, intakeRes, apptRes] = await Promise.allSettled([
-        api.get<Event[]>('/events', { params: venueParams }),
-        api.get<Booking[]>('/bookings', { params: venueParams }),
-        api.get<any[]>('/intake-forms'),
-        api.get<any[]>('/appointments'),
-      ])
+    const venueParams = activeVenue ? { venueId: activeVenue.id } : {}
+    Promise.allSettled([
+      api.get<Event[]>('/events', { params: venueParams }),
+      api.get<Booking[]>('/bookings', { params: venueParams }),
+      api.get<any[]>('/intake-forms'),
+      api.get<any[]>('/appointments'),
+    ]).then(([eventsRes, bookingsRes, intakeRes, apptRes]) => {
+      if (cancelled) return
 
       // Debug logs — visible in browser console
       if (eventsRes.status === 'fulfilled') {
@@ -228,17 +229,14 @@ export default function CalendarPage() {
             }))
         : []
 
-      setEntries([...unbookedEventEntries, ...bookingEntries, ...intakeEntries, ...appointmentEntries])
-    } catch (error) {
-      console.error('Failed to fetch calendar data:', error)
-    } finally {
-      setLoading(false)
-    }
-  }, [currentDate, activeVenue, venuesLoaded])
-
-  useEffect(() => {
-    fetchAllEntries()
-  }, [fetchAllEntries])
+      if (!cancelled) setEntries([...unbookedEventEntries, ...bookingEntries, ...intakeEntries, ...appointmentEntries])
+    }).catch(error => {
+      if (!cancelled) console.error('Failed to fetch calendar data:', error)
+    }).finally(() => {
+      if (!cancelled) setLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [activeVenue, venuesLoaded, currentDate])
 
   useEffect(() => {
     api.get('/intake-forms').then(res => {

@@ -182,6 +182,15 @@ function NewInvoicePageContent() {
     }).catch(() => {})
   }, [lockedEvent, intakeFormId])
 
+  // Auto-apply estimate when estimateId is passed in the URL (e.g. from manage page "Send Invoice")
+  useEffect(() => {
+    const estimateId = searchParams?.get('estimateId')
+    if (!estimateId) return
+    api.get(`/estimates/${estimateId}`).then(res => {
+      applyFromEstimate(res.data)
+    }).catch(() => {})
+  }, [searchParams])
+
   // Auto-load vendor bookings for this event as expense items
   useEffect(() => {
     const eventId = lockedEvent?.id
@@ -481,7 +490,7 @@ function NewInvoicePageContent() {
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="px-4 py-6 sm:px-6 max-w-6xl mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">
           {invoiceType === 'estimate' ? 'Create New Estimate' : 'Create New Invoice'}
@@ -706,8 +715,8 @@ function NewInvoicePageContent() {
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Invoice Items *
           </label>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
+          <div className="overflow-x-auto -mx-4 sm:mx-0">
+            <table className="min-w-[700px] w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
@@ -848,8 +857,8 @@ function NewInvoicePageContent() {
             </button>
           </div>
           {expenseItems.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-amber-100">
+            <div className="overflow-x-auto -mx-4 sm:mx-0">
+              <table className="min-w-[500px] w-full divide-y divide-amber-100">
                 <thead className="bg-amber-50">
                   <tr>
                     <th className="px-4 py-2 text-left text-xs font-medium text-amber-700 uppercase">Description</th>
@@ -907,7 +916,7 @@ function NewInvoicePageContent() {
 
         {/* Calculations */}
         <div className="mb-6 flex justify-end">
-          <div className="w-96">
+          <div className="w-full sm:w-96">
             <div className="mb-3">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Subtotal
@@ -1018,7 +1027,7 @@ function NewInvoicePageContent() {
         </div>
 
         {/* Actions */}
-        <div className="flex gap-4 justify-end">
+        <div className="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4 justify-end">
           <button
             type="button"
             onClick={() => router.push('/dashboard/invoices')}

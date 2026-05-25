@@ -26,6 +26,11 @@ export class MailService {
     });
   }
 
+  /** Sender address used for all Resend emails. Set RESEND_FROM in .env (must be a verified domain in Resend). */
+  private get resendFrom(): string {
+    return process.env.RESEND_FROM || 'EventEcos <noreply@eventecos.com>';
+  }
+
   /**
    * Generate a consistent email header with EventEcos logo and branding
    */
@@ -404,7 +409,7 @@ export class MailService {
       `;
 
       await resend.emails.send({
-        from: `DoVenue Suites <noreply@dovenue.com>`,
+        from: this.resendFrom,
         to: params.clientEmail,
         subject: `Contract Ready for Signature – ${params.contractNumber}`,
         html,
@@ -424,33 +429,46 @@ export class MailService {
     ownerName: string;
     businessName: string;
   }): Promise<void> {
+    if (!process.env.RESEND_API_KEY) {
+      console.warn('[MailService] RESEND_API_KEY not set — team invite email not sent to', params.toEmail);
+      return;
+    }
     try {
-      const mailOptions = {
-        from: `"DoVenueSuite" <${process.env.SMTP_FROM || 'noreply@dovenue.com'}>`,
-        to: params.toEmail,
-        subject: `You've been invited to join ${params.businessName} on DoVenueSuite`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #333;">You're Invited!</h2>
-            <p>${params.ownerName} has invited you to join <strong>${params.businessName}</strong> as an associate on DoVenueSuite.</p>
-            <p>As an associate, you'll be able to view events, clients, calendars, and more.</p>
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${params.inviteUrl}"
-                 style="background-color: #6366f1; color: white; padding: 14px 32px; text-decoration: none; border-radius: 6px; display: inline-block; font-size: 16px;">
-                Accept Invitation
-              </a>
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      const html = `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f9fafb;padding:32px 16px;">
+          <div style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+            ${this.getEmailHeader("You're Invited!", `Join ${params.businessName} on EventEcos`)}
+            <div style="padding:32px;">
+              <p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 16px;">
+                <strong>${params.ownerName}</strong> has invited you to join <strong>${params.businessName}</strong> as an associate on EventEcos.
+              </p>
+              <p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 24px;">
+                As an associate, you'll be able to view events, clients, calendars, and more — without access to billing or account settings.
+              </p>
+              <div style="text-align:center;margin:28px 0;">
+                <a href="${params.inviteUrl}"
+                   style="display:inline-block;background:#2563eb;color:white;padding:14px 40px;text-decoration:none;border-radius:8px;font-size:16px;font-weight:600;">
+                  Accept Invitation
+                </a>
+              </div>
+              <p style="color:#6b7280;font-size:13px;text-align:center;">This invitation expires in 7 days. If you didn't expect this, you can safely ignore it.</p>
+              <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
+              <p style="color:#9ca3af;font-size:12px;text-align:center;margin:0;">EventEcos – Event Management Platform</p>
             </div>
-            <p style="color: #666; font-size: 14px;">This invitation expires in 7 days. If you didn't expect this email, you can safely ignore it.</p>
-            <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
-            <p style="color: #999; font-size: 12px; text-align: center;">DoVenueSuite – Venue Management Made Simple</p>
           </div>
-        `,
-      };
-      await this.transporter.sendMail(mailOptions);
-      console.log('[MailService] Team invite sent to', params.toEmail);
+        </div>
+      `;
+      await resend.emails.send({
+        from: this.resendFrom,
+        to: params.toEmail,
+        subject: `You've been invited to join ${params.businessName} on EventEcos`,
+        html,
+      });
+      console.log('[MailService] Team invite sent via Resend to', params.toEmail);
     } catch (error) {
       console.error('[MailService] Team invite email failed:', error);
-      // Non-fatal
+      throw error;
     }
   }
 

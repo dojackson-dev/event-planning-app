@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Security, Event } from '@/types'
-import { Plus, Search, Phone, Calendar, Clock, Check } from 'lucide-react'
+import { Plus, Search, Phone, Calendar, Clock, Check, ShieldCheck, ChevronRight } from 'lucide-react'
 import { parseLocalDate } from '@/lib/dateUtils'
 
 export default function SecurityPage() {
@@ -39,30 +39,6 @@ export default function SecurityPage() {
       setEvents(response.data)
     } catch (error) {
       console.error('Failed to fetch events:', error)
-    }
-  }
-
-  const handleRecordArrival = async (id: string) => {
-    if (!confirm('Record arrival time for this security personnel?')) return
-
-    try {
-      await api.post(`/security/${id}/arrival`)
-      fetchSecurity()
-    } catch (error) {
-      console.error('Failed to record arrival:', error)
-      alert('Failed to record arrival')
-    }
-  }
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this security record?')) return
-
-    try {
-      await api.delete(`/security/${id}`)
-      fetchSecurity()
-    } catch (error) {
-      console.error('Failed to delete security:', error)
-      alert('Failed to delete security record')
     }
   }
 
@@ -137,111 +113,76 @@ export default function SecurityPage() {
         </div>
       </div>
 
-      {/* Security List */}
-      <div className="bg-white shadow-md rounded-lg overflow-hidden">
-        {filteredSecurity.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-gray-500">No security personnel found</p>
+      {/* Security Cards */}
+      {filteredSecurity.length === 0 ? (
+        <div className="bg-white shadow-md rounded-lg text-center py-12">
+          <ShieldCheck className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-500">No security personnel found</p>
+          <button
+            onClick={() => router.push('/dashboard/security/new')}
+            className="mt-4 text-primary-600 hover:text-primary-700"
+          >
+            Add your first security personnel
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredSecurity.map((s) => (
             <button
-              onClick={() => router.push('/dashboard/security/new')}
-              className="mt-4 text-primary-600 hover:text-primary-700"
+              key={s.id}
+              onClick={() => router.push(`/dashboard/security/${s.id}`)}
+              className="bg-white shadow-md rounded-lg p-5 text-left hover:shadow-lg hover:border-primary-300 border border-transparent transition-all group"
             >
-              Add your first security personnel
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="bg-primary-100 rounded-full p-2">
+                    <ShieldCheck className="h-5 w-5 text-primary-600" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-900 group-hover:text-primary-700">{s.name}</p>
+                    <div className="flex items-center gap-1 text-sm text-gray-500 mt-0.5">
+                      <Phone className="h-3 w-3" />
+                      {s.phone}
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight className="h-4 w-4 text-gray-400 group-hover:text-primary-500 mt-1 shrink-0" />
+              </div>
+
+              {s.event ? (
+                <div className="border-t border-gray-100 pt-3 mt-3">
+                  <div className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
+                    <Calendar className="h-3.5 w-3.5 text-gray-400" />
+                    {s.event.name}
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs text-gray-500 mt-1">
+                    <Clock className="h-3 w-3" />
+                    {parseLocalDate(s.event.date).toLocaleDateString()}
+                    {s.event.startTime && ` at ${s.event.startTime}`}
+                  </div>
+                </div>
+              ) : (
+                <div className="border-t border-gray-100 pt-3 mt-3">
+                  <span className="text-xs text-gray-400">No event assigned</span>
+                </div>
+              )}
+
+              <div className="mt-3">
+                {s.arrivalTime ? (
+                  <div className="flex items-center gap-1.5 text-xs text-green-700 bg-green-50 rounded-md px-2 py-1 w-fit">
+                    <Check className="h-3 w-3" />
+                    Arrived {new Date(s.arrivalTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                ) : (
+                  <div className="text-xs text-amber-600 bg-amber-50 rounded-md px-2 py-1 w-fit">
+                    Not yet arrived
+                  </div>
+                )}
+              </div>
             </button>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Phone
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Event Assignment
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Arrival Time
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredSecurity.map((s) => (
-                  <tr key={s.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{s.name}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Phone className="h-4 w-4" />
-                        {s.phone}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      {s.event ? (
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">{s.event.name}</div>
-                          <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
-                            <Calendar className="h-3 w-3" />
-                            {parseLocalDate(s.event.date).toLocaleDateString()}
-                            {s.event.startTime && (
-                              <>
-                                <Clock className="h-3 w-3 ml-2" />
-                                {s.event.startTime}
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="text-sm text-gray-400">Not assigned</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {s.arrivalTime ? (
-                        <div className="flex items-center gap-2">
-                          <Check className="h-4 w-4 text-green-600" />
-                          <span className="text-sm text-gray-900">
-                            {new Date(s.arrivalTime).toLocaleString()}
-                          </span>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => handleRecordArrival(s.id)}
-                          className="text-sm bg-green-100 text-green-700 px-3 py-1 rounded-md hover:bg-green-200"
-                        >
-                          Record Arrival
-                        </button>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => router.push(`/dashboard/security/${s.id}`)}
-                          className="text-primary-600 hover:text-primary-900"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(s.id)}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

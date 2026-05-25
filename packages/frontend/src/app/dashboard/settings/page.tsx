@@ -853,10 +853,11 @@ function SettingsPageContent() {
               <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
                 <h4 className="text-sm font-semibold text-blue-800 mb-2">💰 How payouts work</h4>
                 <ul className="text-sm text-blue-700 space-y-1">
-                  <li>• Clients pay you directly through EventEcos</li>
-                  <li>• EventEcos collects a <strong>5% platform fee</strong> per transaction</li>
-                  <li>• Funds are deposited to your bank within 2 business days</li>
-                  <li>• Pay your vendors directly from your EventEcos balance</li>
+                  <li>• Clients pay invoices through EventEcos — <strong>Stripe processing fees paid by the client</strong></li>
+                  <li>• <strong>Vendors, Artists, Venue Owners, and Promoters</strong> pay a platform fee on received payments (3% free trial · 1.5% Pro · 1% Premium)</li>
+                  <li>• Whoever is paying always covers Stripe's processing fee</li>
+                  <li>• Funds deposited to your bank within 2 business days via Stripe Connect</li>
+                  <li>• Ticket sales carry a separate <strong>3% fee paid by the buyer</strong></li>
                 </ul>
               </div>
 

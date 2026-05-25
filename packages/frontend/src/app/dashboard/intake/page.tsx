@@ -1,11 +1,19 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
 import { EventType } from '@/types'
-import { Calendar, Users, Clock, DollarSign, FileText, ArrowLeft, ArrowRight } from 'lucide-react'
+import { Calendar, Users, Clock, DollarSign, FileText, ArrowLeft, ArrowRight, Building2 } from 'lucide-react'
 import { useOwnerBrand } from '@/contexts/OwnerBrandContext'
+
+interface Venue {
+  id: number | string
+  name: string
+  address?: string
+  city?: string
+  state?: string
+}
 
 const eventTypeLabels: Record<EventType, string> = {
   [EventType.WEDDING_RECEPTION]: 'Wedding Reception',
@@ -31,10 +39,26 @@ const eventTypeLabels: Record<EventType, string> = {
 
 export default function ClientIntakePage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { logoUrl, businessName } = useOwnerBrand()
   const [currentStep, setCurrentStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [venues, setVenues] = useState<Venue[]>([])
+  const [venueId, setVenueId] = useState<string>('')
+
+  useEffect(() => {
+    const paramVenueId = searchParams?.get('venueId') || ''
+    api.get('/owner/venues').then(r => {
+      const list: Venue[] = r.data?.venues || []
+      setVenues(list)
+      if (paramVenueId) {
+        setVenueId(paramVenueId)
+      } else if (list.length === 1) {
+        setVenueId(String(list[0].id))
+      }
+    }).catch(() => {})
+  }, [])
 
   // Map frontend event types to database enum values
   const mapEventTypeToDb = (eventType: EventType): string => {
@@ -198,6 +222,7 @@ export default function ClientIntakePage() {
         budget_range: formData.estimatedBudget || null,
         how_did_you_hear: formData.referralSource || null,
         preferred_contact: formData.preferredContact || 'phone',
+        ...(venueId ? { venue_id: venueId } : {}),
       }
 
       console.log('Submitting intake form data:', dbData)
@@ -292,6 +317,29 @@ export default function ClientIntakePage() {
         {error && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-800 rounded-lg text-sm">
             {error}
+          </div>
+        )}
+
+        {venues.length > 1 && (
+          <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg mb-6">
+            <Building2 className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-blue-900 mb-1">
+                Which venue is this intake for?
+              </label>
+              <select
+                value={venueId}
+                onChange={(e) => setVenueId(e.target.value)}
+                className="w-full px-4 py-2.5 border border-blue-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-sm"
+              >
+                <option value="">-- No specific venue --</option>
+                {venues.map((v) => (
+                  <option key={v.id} value={String(v.id)}>
+                    {v.name}{v.city ? ` · ${v.city}${v.state ? `, ${v.state}` : ''}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         )}
 

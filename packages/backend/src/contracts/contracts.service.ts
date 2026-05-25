@@ -241,7 +241,7 @@ export class ContractsService {
     return '';
   }
 
-
+  async signContract(
     supabase: SupabaseClient,
     id: string,
     signatureData: { signatureData: string; signerName: string; ipAddress?: string },

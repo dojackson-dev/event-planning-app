@@ -33,10 +33,12 @@ export class EstimatesController {
     @Query('ownerId') ownerId?: string,
     @Query('intakeFormId') intakeFormId?: string,
     @Query('venueId') venueId?: string,
+    @Query('eventId') eventId?: string,
   ): Promise<Estimate[]> {
     const userId = await this.getUserId(authorization);
     const supabaseAdmin = this.supabaseService.getAdminClient();
-    if (intakeFormId) return this.estimatesService.findByIntakeForm(supabaseAdmin, intakeFormId);
+    if (eventId) return this.estimatesService.findByEvent(supabaseAdmin, eventId);
+    if (intakeFormId) return this.estimatesService.findByIntakeForm(supabaseAdmin, intakeFormId, userId);
     if (ownerId) return this.estimatesService.findByOwner(supabaseAdmin, ownerId, venueId);
     return this.estimatesService.findByOwner(supabaseAdmin, userId, venueId);
   }

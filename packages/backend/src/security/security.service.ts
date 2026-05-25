@@ -13,7 +13,7 @@ export class SecurityService {
   async findAll(supabase: SupabaseClient, ownerId: string): Promise<any[]> {
     const { data, error } = await supabase
       .from('security')
-      .select('*, event:events(*)')
+      .select('*, event:event(*)')
       .eq('owner_id', ownerId)
       .order('created_at', { ascending: false });
     if (error) throw error;
@@ -23,7 +23,7 @@ export class SecurityService {
   async findOne(supabase: SupabaseClient, ownerId: string, id: string): Promise<any | null> {
     const { data, error } = await supabase
       .from('security')
-      .select('*, event:events(*)')
+      .select('*, event:event(*)')
       .eq('id', id)
       .eq('owner_id', ownerId)
       .single();
@@ -34,7 +34,7 @@ export class SecurityService {
   async findByEvent(supabase: SupabaseClient, ownerId: string, eventId: string): Promise<any[]> {
     const { data, error } = await supabase
       .from('security')
-      .select('*, event:events(*)')
+      .select('*, event:event(*)')
       .eq('event_id', eventId)
       .eq('owner_id', ownerId)
       .order('arrival_time', { ascending: true });
@@ -43,11 +43,31 @@ export class SecurityService {
   }
 
   async create(supabase: SupabaseClient, ownerId: string, securityData: any): Promise<any> {
+    // Normalise camelCase keys from the frontend to snake_case for Supabase
+    const { eventId, arrivalTime, ...rest } = securityData;
+    const row: any = {
+      ...rest,
+      owner_id: ownerId,
+      ...(eventId !== undefined && { event_id: eventId }),
+      ...(arrivalTime !== undefined && { arrival_time: arrivalTime }),
+    };
+
     const { data, error } = await supabase
       .from('security')
-      .insert([{ ...securityData, owner_id: ownerId }])
-      .select('*, event:events(*)')
+      .insert([row])
+      .select('*, event:event(*)')
       .single();
+    // If FK constraint fires (event_id references wrong table), retry without event_id
+    if (error?.code === '23503') {
+      delete row.event_id;
+      const { data: data2, error: err2 } = await supabase
+        .from('security')
+        .insert([row])
+        .select('*, event:event(*)')
+        .single();
+      if (err2) throw err2;
+      return data2;
+    }
     if (error) throw error;
 
     // Notify the security personnel of their assignment
@@ -71,12 +91,19 @@ export class SecurityService {
   }
 
   async update(supabase: SupabaseClient, ownerId: string, id: string, securityData: any): Promise<any | null> {
+    const { eventId, arrivalTime, owner_id: _ownerId, ...rest } = securityData;
+    const row: any = {
+      ...rest,
+      ...(eventId !== undefined && { event_id: eventId }),
+      ...(arrivalTime !== undefined && { arrival_time: arrivalTime }),
+    };
+
     const { data, error } = await supabase
       .from('security')
-      .update(securityData)
+      .update(row)
       .eq('id', id)
       .eq('owner_id', ownerId)
-      .select('*, event:events(*)')
+      .select('*, event:event(*)')
       .single();
     if (error) throw error;
 
@@ -99,7 +126,7 @@ export class SecurityService {
       .update({ arrival_time: new Date().toISOString() })
       .eq('id', id)
       .eq('owner_id', ownerId)
-      .select('*, event:events(*)')
+      .select('*, event:event(*)')
       .single();
     if (error) throw error;
 

@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { UserRole } from '@/types'
-import { Users, UserPlus, Trash2, X, Mail, CheckCircle, Clock, AlertCircle } from 'lucide-react'
+import { Users, UserPlus, Trash2, X, Mail, CheckCircle, Clock, AlertCircle, RefreshCw } from 'lucide-react'
 
 interface TeamMember {
   id: string              // membership id
@@ -41,6 +41,7 @@ export default function TeamPage() {
   const [inviteSuccess, setInviteSuccess] = useState<string | null>(null)
   const [removingId, setRemovingId]     = useState<string | null>(null)
   const [cancellingId, setCancellingId] = useState<string | null>(null)
+  const [resendingId, setResendingId]   = useState<string | null>(null)
 
   // Associates cannot manage team
   useEffect(() => {
@@ -108,6 +109,19 @@ export default function TeamPage() {
       alert(err?.response?.data?.message || 'Failed to cancel invitation')
     } finally {
       setCancellingId(null)
+    }
+  }
+
+  const handleResendInvite = async (inviteId: string, email: string) => {
+    try {
+      setResendingId(inviteId)
+      await api.post(`/team/invitations/${inviteId}/resend`)
+      setInviteSuccess(`Invitation resent to ${email}`)
+      load()
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'Failed to resend invitation')
+    } finally {
+      setResendingId(null)
     }
   }
 
@@ -243,6 +257,14 @@ export default function TeamPage() {
                     <span className="px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 rounded">
                       pending
                     </span>
+                    <button
+                      onClick={() => handleResendInvite(invite.id, invite.email)}
+                      disabled={resendingId === invite.id}
+                      className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors disabled:opacity-50"
+                      title="Resend invitation"
+                    >
+                      <RefreshCw className={`h-4 w-4 ${resendingId === invite.id ? 'animate-spin' : ''}`} />
+                    </button>
                     <button
                       onClick={() => handleCancelInvite(invite.id, invite.email)}
                       disabled={cancellingId === invite.id}

@@ -808,7 +808,7 @@ export class StripeService {
 
   // ─── Stripe Connect ────────────────────────────────────────────────────────
 
-  private readonly APP_FEE_RATE = 0.05; // 5% DoVenueSuite fee
+  // Platform fee rate is resolved per-payment via resolveOwnerPlatformFeeRate() (3% / 1.5% / 1%)
 
   /**
    * Resolves the owner_accounts row for a given auth user ID.
@@ -1210,9 +1210,10 @@ export class StripeService {
 
   /**
    * Charge a client and route funds to an owner's Connect account.
-   * DoVenueSuite takes 5% as application_fee_amount.
+   * EventEcos takes a platform fee (3% free · 1.5% Pro · 1% Premium) via application_fee_amount.
+   * The payer covers Stripe's processing fee.
    *
-   * Flow: Client card → Stripe → DoVenueSuite takes 5% → owner receives the rest
+   * Flow: Client card → Stripe → EventEcos takes platform fee → owner receives the rest
    * Returns a PaymentIntent client_secret for the frontend to complete payment.
    */
   async createClientPaymentIntent(
@@ -1228,7 +1229,8 @@ export class StripeService {
       throw new Error('Owner has not completed Stripe Connect onboarding');
     }
 
-    const feeCents = Math.round(amountCents * this.APP_FEE_RATE);
+    const feeRate = this.resolveOwnerPlatformFeeRate(owner);
+    const feeCents = Math.round(amountCents * feeRate);
 
     const paymentIntent = await this.stripe.paymentIntents.create({
       amount: amountCents,
@@ -1263,9 +1265,9 @@ export class StripeService {
 
   /**
    * Transfer funds from owner to vendor for a completed booking.
-   * DoVenueSuite takes 5% as fee (paid by vendor — deducted from transfer).
+   * EventEcos takes a platform fee (3% free · 1.5% Pro · 1% Premium) deducted from the vendor's payout.
    *
-   * Flow: Owner's balance → transfer to vendor → DoVenueSuite keeps 5%
+   * Flow: Owner's balance → transfer to vendor → EventEcos keeps platform fee
    */
   async payVendor(
     amountCents: number,
@@ -1288,7 +1290,8 @@ export class StripeService {
       throw new Error('Vendor has not completed Stripe Connect onboarding');
     }
 
-    const feeCents = Math.round(amountCents * this.APP_FEE_RATE);
+    const feeRate = this.resolveOwnerPlatformFeeRate(owner);
+    const feeCents = Math.round(amountCents * feeRate);
     const netCents = amountCents - feeCents;
 
     // Transfer net amount to vendor; fee stays on platform
@@ -1447,34 +1450,52 @@ export class StripeService {
     const safeCents = Math.min(amountCents, maxCents);
     if (safeCents < 50) throw new Error('Minimum payment is $0.50');
 
-    // Look up owner Connect account
+    // Look up owner Connect account + subscription plan for fee rate
     let owner: any = null;
     if (inv.owner_id) {
-      const { data } = await admin.from('owner_accounts').select('stripe_connect_id, stripe_connect_status').eq('id', inv.owner_id).maybeSingle();
+      const { data } = await admin.from('owner_accounts').select('stripe_connect_id, stripe_connect_status, subscription_status, plan_name, plan_id').eq('id', inv.owner_id).maybeSingle();
       owner = data;
     }
     const hasConnect = owner?.stripe_connect_id && owner?.stripe_connect_status === 'active';
 
     const description = `Invoice ${inv.invoice_number} — $${(safeCents / 100).toFixed(2)}`;
 
+    // Gross up so payer absorbs Stripe's processing fee (2.9% + $0.30)
+    const grossCents = Math.round((safeCents + 30) / 0.971);
+    const stripeFeeCents = grossCents - safeCents;
+
     const sessionParams: any = {
       mode: 'payment',
       payment_method_types: ['card'],
-      line_items: [{
-        price_data: {
-          currency: 'usd',
-          unit_amount: safeCents,
-          product_data: { name: description },
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            unit_amount: safeCents,
+            product_data: { name: description },
+          },
+          quantity: 1,
         },
-        quantity: 1,
-      }],
+        {
+          price_data: {
+            currency: 'usd',
+            unit_amount: stripeFeeCents,
+            product_data: {
+              name: 'Stripe Processing Fee',
+              description: 'Credit/debit card processing fee (2.9% + $0.30)',
+            },
+          },
+          quantity: 1,
+        },
+      ],
       success_url: `${this.frontendUrl}/pay/invoice/${token}?paid=true&sid={CHECKOUT_SESSION_ID}`,
       cancel_url: `${this.frontendUrl}/pay/invoice/${token}?canceled=true`,
       metadata: { invoice_id: inv.id },
     };
 
     if (hasConnect) {
-      const feeCents = Math.round(safeCents * this.APP_FEE_RATE);
+      const feeRate = this.resolveOwnerPlatformFeeRate(owner!);
+      const feeCents = Math.round(safeCents * feeRate);
       sessionParams.payment_intent_data = {
         application_fee_amount: feeCents,
         transfer_data: { destination: owner!.stripe_connect_id! },

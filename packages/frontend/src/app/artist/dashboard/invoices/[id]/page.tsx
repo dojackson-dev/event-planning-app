@@ -51,6 +51,7 @@ export default function ArtistInvoiceDetailPage() {
   const [deleting, setDeleting] = useState(false)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
+  const [sent, setSent] = useState(false)
 
   useEffect(() => {
     api.get(`/artist-invoices/${id}`)
@@ -62,11 +63,13 @@ export default function ArtistInvoiceDetailPage() {
   const payLink = invoice?.public_token ? `${FRONTEND_URL}/artist-pay/${invoice.public_token}` : ''
 
   const handleSend = async () => {
-    setSending(true); setError('')
+    setSending(true); setError(''); setSent(false)
     try {
       await api.post(`/artist-invoices/${id}/send`)
-      const r = await api.get(`/artist-invoices/${id}`)
-      setInvoice(r.data)
+      setSent(true)
+      setTimeout(() => setSent(false), 5000)
+      // Refresh invoice state in background — don't block the success message
+      api.get(`/artist-invoices/${id}`).then(r => setInvoice(r.data)).catch(() => {})
     } catch (e: any) {
       setError(e.response?.data?.message || 'Failed to send invoice. Make sure your Stripe account is connected.')
     } finally {
@@ -118,6 +121,11 @@ export default function ArtistInvoiceDetailPage() {
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-5">
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">{error}</div>
+        )}
+        {sent && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-green-700 text-sm flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4" /> Invoice sent successfully!
+          </div>
         )}
 
         {/* Actions */}

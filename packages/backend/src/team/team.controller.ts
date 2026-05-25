@@ -82,4 +82,14 @@ export class TeamController {
     const userId = await this.getUserId(auth);
     return this.teamService.cancelInvitation(userId, id);
   }
+
+  /** POST /team/invitations/:id/resend */
+  @Post('invitations/:id/resend')
+  async resendInvitation(
+    @Headers('authorization') auth: string,
+    @Param('id') id: string,
+  ) {
+    const userId = await this.getUserId(auth);
+    return this.teamService.resendInvite(userId, id);
+  }
 }

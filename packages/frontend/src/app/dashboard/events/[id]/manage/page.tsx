@@ -357,7 +357,7 @@ export default function EventManagementPage() {
       // or if this event has no linked intake form (created directly)
       setIntakeFormActivated(!event.intakeFormId || ['converted', 'confirmed', 'accepted'].includes(event.intakeFormStatus));
       loadEventInvoices(event.bookingId, event.clientName, event.intakeFormId);
-      loadEventEstimates(event.intakeFormId);
+      loadEventEstimates();
       loadEventContracts(event.intakeFormId);
       loadGuestList();
       fetchEventVendors(event.date || '', eventId);
@@ -378,18 +378,10 @@ export default function EventManagementPage() {
     }
   };
 
-  const loadEventEstimates = async (intakeFormId?: string) => {
+  const loadEventEstimates = async () => {
     try {
-      // Always fetch all estimates and filter client-side using the same dual-condition
-      // logic as the events list card — checking both booking.event_id AND intake_form_id
-      // so we never miss estimates regardless of which field was set on creation.
-      const res = await api.get('/estimates');
-      const all: any[] = res.data || [];
-      setEventEstimates(all.filter((e: any) =>
-        e.event_id === eventId ||
-        e.booking?.event_id === eventId ||
-        (intakeFormId && e.intake_form_id === intakeFormId)
-      ));
+      const res = await api.get('/estimates', { params: { eventId } });
+      setEventEstimates(res.data || []);
     } catch {
       // estimates are supplementary
     }
@@ -844,7 +836,9 @@ export default function EventManagementPage() {
             } else if (!contractSigned && !contractSkipped) {
               router.push(`/dashboard/contracts/new${intakeFormId ? `?intakeFormId=${intakeFormId}` : ''}`);
             } else if (!invoiceSent) {
-              router.push(`/dashboard/invoices/new?eventId=${eventId}${intakeFormId ? `&clientId=${intakeFormId}` : ''}`);
+              const approvedEstimate = eventEstimates.find(e => ['approved', 'converted'].includes(e.status));
+              const estimateParam = approvedEstimate ? `&estimateId=${approvedEstimate.id}` : '';
+              router.push(`/dashboard/invoices/new?eventId=${eventId}${intakeFormId ? `&clientId=${intakeFormId}` : ''}${estimateParam}`);
             }
           };
 

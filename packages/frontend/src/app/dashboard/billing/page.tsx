@@ -16,8 +16,6 @@ import {
   RefreshCw,
   Link2,
   XCircle,
-  Megaphone,
-  Loader2,
 } from 'lucide-react'
 
 interface SubscriptionStatus {
@@ -34,46 +32,39 @@ interface ConnectStatus {
 
 const PLANS = [
   {
-    id: 'starter',
-    name: 'Starter',
-    price: 49,
-    description: 'Perfect for small venues just getting started',
+    id: 'pro',
+    name: 'EventEcos Pro',
+    price: 149,
+    description: 'For growing venues & promoters',
     features: [
-      'Up to 50 events/month',
-      'Client management',
-      'Basic invoicing',
-      'Email support',
-    ],
-    priceIdEnvKey: 'starter',
-  },
-  {
-    id: 'professional',
-    name: 'Professional',
-    price: 99,
-    description: 'For growing venues with more complex needs',
-    features: [
-      'Unlimited events',
-      'Advanced invoicing',
-      'Contracts & estimates',
+      'Unlimited events & bookings',
+      'Client management & intake forms',
+      'Invoicing & online payments',
+      'Contracts & e-signatures',
       'Vendor management',
+      'Door list & security',
+      'SMS notifications',
+      '1.5% platform fee — Vendors, Artists, Venue Owners & Promoters',
       'Priority support',
     ],
-    priceIdEnvKey: 'professional',
-    highlighted: true,
+    priceId: 'price_1TZs56Q777mo7OFqwxVgp4dE',
+    highlighted: false,
   },
   {
-    id: 'enterprise',
-    name: 'Enterprise',
-    price: 199,
-    description: 'Full-featured solution for large operations',
+    id: 'premium',
+    name: 'EventEcos Premium',
+    price: 299,
+    description: 'Full-featured for high-volume operations',
     features: [
-      'Everything in Professional',
+      'Everything in Pro',
+      '1% platform fee — Vendors, Artists, Venue Owners & Promoters (lowest rate)',
       'Multi-venue support',
       'Custom branding',
+      'Ticket sales & promoter tools',
       'Dedicated account manager',
-      'API access',
     ],
-    priceIdEnvKey: 'enterprise',
+    priceId: 'price_1TZs57Q777mo7OFqU56SIUsu',
+    highlighted: true,
   },
 ]
 
@@ -146,9 +137,6 @@ export default function BillingPage() {
   const [portalLoading, setPortalLoading] = useState(false)
   const [connectLoading, setConnectLoading] = useState(false)
   const [ownerAccountId, setOwnerAccountId] = useState<string | null>(null)
-  const [promoterPlan, setPromoterPlan] = useState<string | null>(null)
-  const [promoterPlanUpdating, setPromoterPlanUpdating] = useState<string | null>(null)
-  const [promoterPlanMsg, setPromoterPlanMsg] = useState<string | null>(null)
 
   useEffect(() => {
     if (activeRole === 'associate') router.replace('/dashboard')
@@ -170,13 +158,6 @@ export default function BillingPage() {
         setOwnerAccountId(String(accountId))
         const subRes = await api.get(`/stripe/subscription?ownerAccountId=${accountId}`)
         setSubscription(subRes.data)
-      }
-      // Fetch promoter plan if they have promoter mode enabled
-      try {
-        const proRes = await api.get('/promoter/profile')
-        if (proRes.data?.plan) setPromoterPlan(proRes.data.plan)
-      } catch {
-        // Not a promoter — that's fine
       }
     } catch (err) {
       console.error('Failed to fetch billing data:', err)
@@ -241,28 +222,6 @@ export default function BillingPage() {
   }
 
   const isSubscribed = subscription?.status === 'active' || subscription?.status === 'trialing'
-  const planId = process.env.NEXT_PUBLIC_STRIPE_PLAN_ID || ''
-
-  const PROMOTER_PLANS = [
-    { id: 'free',    label: 'Free',    price: '$0/mo',    directFee: '3%' },
-    { id: 'pro',     label: 'Pro',     price: '$149/mo',  directFee: '1.5%' },
-    { id: 'premium', label: 'Premium', price: '$299/mo',  directFee: '1%' },
-  ]
-
-  const handlePromoterPlan = async (planId: string) => {
-    if (planId === promoterPlan) return
-    setPromoterPlanUpdating(planId)
-    setPromoterPlanMsg(null)
-    try {
-      await api.patch('/promoter/plan', { plan: planId })
-      setPromoterPlan(planId)
-      setPromoterPlanMsg(`Promoter plan updated to ${planId.charAt(0).toUpperCase() + planId.slice(1)}`)
-    } catch (err: any) {
-      setPromoterPlanMsg(err?.response?.data?.message || 'Failed to update plan')
-    } finally {
-      setPromoterPlanUpdating(null)
-    }
-  }
 
   if (loading) {
     return (
@@ -286,7 +245,7 @@ export default function BillingPage() {
             <p className="text-sm text-gray-500 mb-1">Current Plan</p>
             <div className="flex items-center gap-3">
               <p className="text-xl font-bold text-gray-900">
-                {subscription?.planId ? ((subscription as any).planName || 'MasterSuite') : 'Free Trial'}
+                {subscription?.planId ? ((subscription as any).planName || 'Free Trial').replace(/DoVenueSuite/gi, 'EventEcos') : 'Free Trial'}
               </p>
               {subscription ? statusBadge(subscription.status) : statusBadge('trial')}
             </div>
@@ -365,8 +324,8 @@ export default function BillingPage() {
             </div>
             <div className="flex-shrink-0 text-center">
               <p className="text-xs text-indigo-200 mb-2">Starting from</p>
-              <p className="text-4xl font-extrabold">$49<span className="text-lg font-normal">/mo</span></p>
-              <p className="text-xs text-indigo-200 mt-1">Pick a plan below ↓</p>
+              <p className="text-4xl font-extrabold">$149<span className="text-lg font-normal">/mo</span></p>
+              <p className="text-xs text-indigo-200 mt-1">Choose a plan below ↓</p>
             </div>
           </div>
         </div>
@@ -376,7 +335,7 @@ export default function BillingPage() {
       {!isSubscribed && (
         <div className="mb-10">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Choose a Plan</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
             {PLANS.map((plan) => (
               <div
                 key={plan.id}
@@ -410,7 +369,7 @@ export default function BillingPage() {
                   ))}
                 </ul>
                 <button
-                  onClick={() => handleSubscribe(planId || `price_test_${plan.id}`)}
+                  onClick={() => handleSubscribe(plan.priceId)}
                   disabled={!ownerAccountId || checkoutLoading === plan.id}
                   className={`w-full py-2.5 px-4 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50 ${
                     plan.highlighted
@@ -423,7 +382,7 @@ export default function BillingPage() {
                   ) : (
                     <CreditCard className="h-4 w-4" />
                   )}
-                  {!ownerAccountId ? 'Loading...' : `Subscribe — $${plan.price}/mo`}
+                  {!ownerAccountId ? 'Loading...' : `Subscribe — $${plan.price}/mo · Cancel Anytime`}
                 </button>
               </div>
             ))}
@@ -448,7 +407,7 @@ export default function BillingPage() {
               </div>
               <p className="text-sm text-gray-500">
                 Connect your Stripe account to accept payments from clients and pay vendors.
-                EventEcos takes a 5% platform fee on each transaction.
+                Vendors, Artists, Venue Owners, and Promoters pay a platform fee on received payments (3% free trial · 1.5% Pro · 1% Premium). Stripe processing fees are always paid by the payer.
               </p>
               {connectStatus?.connectId && (
                 <p className="text-xs text-gray-400 mt-1 font-mono">{connectStatus.connectId}</p>
@@ -473,65 +432,6 @@ export default function BillingPage() {
           </button>
         </div>
       </div>
-
-      {/* ── Promoter Plan Section (only shown if owner has promoter mode) ── */}
-      {promoterPlan !== null && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="bg-purple-100 p-2 rounded-lg">
-              <Megaphone className="h-5 w-5 text-purple-600" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-gray-900">Promoter Plan</h3>
-              <p className="text-sm text-gray-500">Affects platform fee on direct payments (invoices & bookings)</p>
-            </div>
-          </div>
-
-          {promoterPlanMsg && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4 text-green-800 text-sm flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 shrink-0" /> {promoterPlanMsg}
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {PROMOTER_PLANS.map(plan => {
-              const isActive = promoterPlan === plan.id
-              const isLoading = promoterPlanUpdating === plan.id
-              return (
-                <button
-                  key={plan.id}
-                  onClick={() => handlePromoterPlan(plan.id)}
-                  disabled={isActive || isLoading || promoterPlanUpdating !== null}
-                  className={`relative p-4 rounded-xl border-2 text-left transition-all disabled:opacity-70 ${
-                    isActive
-                      ? 'border-purple-500 bg-purple-50'
-                      : 'border-gray-200 hover:border-purple-300 bg-white'
-                  }`}
-                >
-                  {isActive && (
-                    <span className="absolute top-2 right-2">
-                      <CheckCircle className="h-4 w-4 text-purple-500" />
-                    </span>
-                  )}
-                  <p className="font-semibold text-gray-900">{plan.label}</p>
-                  <p className="text-sm text-gray-500">{plan.price}</p>
-                  <p className="text-xs text-purple-700 font-medium mt-1">
-                    Direct fee: {plan.directFee}
-                  </p>
-                  {isLoading && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-white/70 rounded-xl">
-                      <Loader2 className="h-4 w-4 animate-spin text-purple-600" />
-                    </div>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-          <p className="text-xs text-gray-400 mt-3">
-            Ticket sales fees are always 3% (paid by buyer) regardless of plan.
-          </p>
-        </div>
-      )}
 
       {/* ── Feature Highlights ── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

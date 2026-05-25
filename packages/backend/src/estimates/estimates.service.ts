@@ -131,6 +131,48 @@ export class EstimatesService {
 
   // ─── Finders ────────────────────────────────────────────────────────────────
 
+  async findByEvent(supabase: SupabaseClient, eventId: string): Promise<Estimate[]> {
+    try {
+      // Get event's intake_form_id, owner_id, and any booking IDs linked to this event
+      const [eventResult, bookingsResult] = await Promise.all([
+        supabase.from('event').select('id, intake_form_id, owner_id').eq('id', eventId).single(),
+        supabase.from('bookings').select('id').eq('event_id', eventId),
+      ]);
+
+      const filters: string[] = [`event_id.eq.${eventId}`];
+
+      if (eventResult.data?.intake_form_id) {
+        filters.push(`intake_form_id.eq.${eventResult.data.intake_form_id}`);
+      }
+
+      const bookingIds: string[] = (bookingsResult.data || []).map((b: any) => b.id);
+      if (bookingIds.length > 0) {
+        filters.push(`booking_id.in.(${bookingIds.join(',')})`);
+      }
+
+      const { data, error } = await supabase
+        .from('estimates')
+        .select('*, items:estimate_items(*)')
+        .or(filters.join(','))
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+
+      // Fall back to all owner estimates if none are linked to this event yet
+      if ((!data || data.length === 0) && eventResult.data?.owner_id) {
+        const { data: ownerData } = await supabase
+          .from('estimates')
+          .select('*, items:estimate_items(*)')
+          .eq('owner_id', eventResult.data.owner_id)
+          .order('created_at', { ascending: false });
+        return ownerData || [];
+      }
+
+      return data || [];
+    } catch {
+      return [];
+    }
+  }
+
   async findAll(supabase: SupabaseClient, userId: string): Promise<Estimate[]> {
     try {
       const { data, error } = await supabase
@@ -204,7 +246,7 @@ export class EstimatesService {
     }
   }
 
-  async findByIntakeForm(supabase: SupabaseClient, intakeFormId: string): Promise<Estimate[]> {
+  async findByIntakeForm(supabase: SupabaseClient, intakeFormId: string, ownerId?: string): Promise<Estimate[]> {
     try {
       const { data, error } = await supabase
         .from('estimates')
@@ -212,6 +254,14 @@ export class EstimatesService {
         .eq('intake_form_id', intakeFormId)
         .order('created_at', { ascending: false });
       if (error) throw error;
+      if ((!data || data.length === 0) && ownerId) {
+        const { data: ownerData } = await supabase
+          .from('estimates')
+          .select('*, items:estimate_items(*)')
+          .eq('owner_id', ownerId)
+          .order('created_at', { ascending: false });
+        return ownerData || [];
+      }
       return data || [];
     } catch {
       return [];

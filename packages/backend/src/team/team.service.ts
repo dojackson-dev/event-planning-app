@@ -130,14 +130,27 @@ export class TeamService {
     const ownerName = [owner?.first_name, owner?.last_name].filter(Boolean).join(' ') || 'Your venue owner';
     const businessName = ownerAccount?.business_name || 'DoVenueSuite';
 
-    await this.mailService.sendTeamInvitation({
-      toEmail: email,
-      inviteUrl,
-      ownerName,
-      businessName,
-    });
+    // Send invite email — non-fatal: invite is already saved
+    let emailError: string | null = null;
+    try {
+      await this.mailService.sendTeamInvitation({
+        toEmail: email,
+        inviteUrl,
+        ownerName,
+        businessName,
+      });
+    } catch (err: any) {
+      emailError = err?.message ?? 'Email delivery failed';
+      console.error('[TeamService] Invite email failed:', emailError);
+    }
 
-    return { success: true, message: `Invitation sent to ${email}` };
+    return {
+      success: true,
+      message: emailError
+        ? `Invitation created for ${email} but email delivery failed: ${emailError}`
+        : `Invitation sent to ${email}`,
+      emailDelivered: !emailError,
+    };
   }
 
   /** POST /team/accept — accept invite and create/link account */
@@ -296,5 +309,53 @@ export class TeamService {
 
     if (error) throw new BadRequestException(error.message);
     return { success: true };
+  }
+
+  /** POST /team/invitations/:id/resend — resend a pending invitation email */
+  async resendInvite(ownerUserId: string, invitationId: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const ownerAccountId = await this.getOwnerAccountId(ownerUserId);
+
+    const { data: invite, error } = await admin
+      .from('team_invitations')
+      .select('id, email, token, status')
+      .eq('id', invitationId)
+      .eq('owner_account_id', ownerAccountId)
+      .maybeSingle();
+
+    if (error || !invite) throw new NotFoundException('Invitation not found');
+    if (invite.status !== 'pending') throw new BadRequestException('Invitation is no longer pending');
+
+    // Refresh expiry by 7 days
+    const newExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    await admin
+      .from('team_invitations')
+      .update({ expires_at: newExpiresAt })
+      .eq('id', invite.id);
+
+    // Re-fetch owner info for email
+    const { data: owner } = await admin
+      .from('users')
+      .select('first_name, last_name')
+      .eq('id', ownerUserId)
+      .single();
+    const { data: ownerAccount } = await admin
+      .from('owner_accounts')
+      .select('business_name')
+      .eq('id', ownerAccountId)
+      .single();
+
+    const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+    const inviteUrl = `${frontendUrl}/team/accept?token=${invite.token}`;
+    const ownerName = [owner?.first_name, owner?.last_name].filter(Boolean).join(' ') || 'Your venue owner';
+    const businessName = ownerAccount?.business_name || 'EventEcos';
+
+    try {
+      await this.mailService.sendTeamInvitation({ toEmail: invite.email, inviteUrl, ownerName, businessName });
+    } catch (err: any) {
+      throw new BadRequestException(`Email delivery failed: ${err?.message ?? 'unknown error'}`);
+    }
+
+    return { success: true, message: `Invitation resent to ${invite.email}` };
   }
 }

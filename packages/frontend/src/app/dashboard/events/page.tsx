@@ -30,10 +30,16 @@ function computeProgress(event: any, allEstimates: any[], allInvoices: any[], al
   const ifId: string | undefined = event.intakeFormId
 
   // Estimate accepted only when client explicitly approves (not just 'sent')
-  const estimateAccepted = allEstimates.some(e =>
+  const linkedEstimate = allEstimates.some(e =>
     ['approved', 'converted'].includes(e.status) &&
     (e.event_id === eId || e.booking?.event_id === eId || (ifId && e.intake_form_id === ifId))
   )
+  // Fallback: unlinked approved estimates (no event/intake_form/booking set) count for any event
+  const unlinkedEstimate = !linkedEstimate && allEstimates.some(e =>
+    ['approved', 'converted'].includes(e.status) &&
+    !e.event_id && !e.intake_form_id && !e.booking_id
+  )
+  const estimateAccepted = linkedEstimate || unlinkedEstimate
 
   // Contract logic: voided contracts count as skipped (optional step waived)
   const eventContracts = allContracts.filter(c =>

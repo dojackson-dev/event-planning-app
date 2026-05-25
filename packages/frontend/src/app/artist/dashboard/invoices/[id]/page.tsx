@@ -66,10 +66,10 @@ export default function ArtistInvoiceDetailPage() {
     setSending(true); setError(''); setSent(false)
     try {
       await api.post(`/artist-invoices/${id}/send`)
-      const r = await api.get(`/artist-invoices/${id}`)
-      setInvoice(r.data)
       setSent(true)
       setTimeout(() => setSent(false), 5000)
+      // Refresh invoice state in background — don't block the success message
+      api.get(`/artist-invoices/${id}`).then(r => setInvoice(r.data)).catch(() => {})
     } catch (e: any) {
       setError(e.response?.data?.message || 'Failed to send invoice. Make sure your Stripe account is connected.')
     } finally {

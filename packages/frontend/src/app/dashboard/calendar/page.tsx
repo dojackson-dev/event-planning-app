@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { Event, Booking } from '@/types'
@@ -69,7 +69,7 @@ const formatTime = (timeString: string | undefined): string => {
 
 export default function CalendarPage() {
   const router = useRouter()
-  const { venues, activeVenue, setActiveVenue } = useVenue()
+  const { venues, activeVenue, setActiveVenue, venuesLoaded } = useVenue()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [viewType, setViewType] = useState<ViewType>('month')
   const [entries, setEntries] = useState<CalendarEntry[]>([])
@@ -103,21 +103,8 @@ export default function CalendarPage() {
   const [createStatus, setCreateStatus] = useState<'draft' | 'scheduled'>('scheduled')
   const [creating, setCreating] = useState(false)
 
-  useEffect(() => {
-    fetchAllEntries()
-  }, [currentDate, activeVenue])
-
-  useEffect(() => {
-    api.get('/intake-forms').then(res => {
-      setCalendarClients((res.data || []).map((f: any) => ({
-        id: f.id,
-        contact_name: f.contactName || f.contact_name || 'Unknown',
-        contact_phone: f.contactPhone || f.contact_phone || '',
-      })))
-    }).catch(() => {})
-  }, [])
-
-  const fetchAllEntries = async () => {
+  const fetchAllEntries = useCallback(async () => {
+    if (!venuesLoaded) return
     setLoading(true)
     setEntries([])
     try {
@@ -247,7 +234,21 @@ export default function CalendarPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [currentDate, activeVenue, venuesLoaded])
+
+  useEffect(() => {
+    fetchAllEntries()
+  }, [fetchAllEntries])
+
+  useEffect(() => {
+    api.get('/intake-forms').then(res => {
+      setCalendarClients((res.data || []).map((f: any) => ({
+        id: f.id,
+        contact_name: f.contactName || f.contact_name || 'Unknown',
+        contact_phone: f.contactPhone || f.contact_phone || '',
+      })))
+    }).catch(() => {})
+  }, [])
 
   // Month view calculations
   const monthStart = startOfMonth(currentDate)

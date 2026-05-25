@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
 import { Event } from '@/types'
@@ -135,7 +135,7 @@ const EventProgressBar = React.memo(function EventProgressBar({ steps }: { steps
 })
 
 export default function EventsPage() {
-  const { venues, activeVenue, setActiveVenue } = useVenue()
+  const { venues, activeVenue, setActiveVenue, venuesLoaded } = useVenue()
   const [events, setEvents] = useState<Event[]>([])
   const [allEstimates, setAllEstimates] = useState<any[]>([])
   const [allInvoices, setAllInvoices] = useState<any[]>([])
@@ -145,11 +145,8 @@ export default function EventsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
 
-  useEffect(() => {
-    fetchAll()
-  }, [activeVenue])
-
-  const fetchAll = async () => {
+  const fetchAll = useCallback(async () => {
+    if (!venuesLoaded) return
     setLoading(true)
     setEvents([])
     try {
@@ -169,7 +166,11 @@ export default function EventsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [activeVenue, venuesLoaded])
+
+  useEffect(() => {
+    fetchAll()
+  }, [fetchAll])
 
   const now = new Date()
   const filteredEvents = events.filter(event => {

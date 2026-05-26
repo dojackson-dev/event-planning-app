@@ -520,8 +520,19 @@ export class StripeService {
       ? session.subscription
       : (session.subscription as Stripe.Subscription | null)?.id ?? null;
 
-    await this.syncSubscriptionToDb(ownerAccountId, subscriptionId, 'active');
-    this.logger.log(`Checkout complete — owner ${ownerAccountId} is now active`);
+    // Retrieve the subscription to get the price ID so plan_name / limits are set correctly
+    let planPriceId: string | null = null;
+    if (subscriptionId) {
+      try {
+        const sub = await this.stripe.subscriptions.retrieve(subscriptionId);
+        planPriceId = sub.items.data[0]?.price?.id ?? null;
+      } catch (err) {
+        this.logger.warn('Could not retrieve subscription to resolve plan price', (err as Error).message);
+      }
+    }
+
+    await this.syncSubscriptionToDb(ownerAccountId, subscriptionId, 'active', planPriceId);
+    this.logger.log(`Checkout complete — owner ${ownerAccountId} is now active (plan price: ${planPriceId ?? 'unknown'})`);
 
     // ── Affiliate conversion commission ─────────────────────────────────────
     if (subscriptionId) {

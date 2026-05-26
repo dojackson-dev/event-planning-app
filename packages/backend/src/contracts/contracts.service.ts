@@ -35,7 +35,7 @@ export class ContractsService {
       const eventIds = venueEvents.map((e: any) => e.id);
       const intakeIds = venueEvents.map((e: any) => e.intake_form_id).filter(Boolean);
       // Filter by event_id or intake_form_id
-      const orParts = [];
+      const orParts: string[] = [];
       if (eventIds.length > 0) orParts.push(`event_id.in.(${eventIds.join(',')})`);
       if (intakeIds.length > 0) orParts.push(`intake_form_id.in.(${intakeIds.join(',')})`);
       if (orParts.length > 0) query = query.or(orParts.join(','));

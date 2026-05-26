@@ -142,7 +142,7 @@ export class InvoicesService {
         const eventIds = (venueEvents || []).map((e: any) => e.id);
         const formIds = (venueEvents || []).map((e: any) => e.intake_form_id).filter(Boolean);
         if (eventIds.length === 0 && formIds.length === 0) return [];
-        const orParts = [];
+        const orParts: string[] = [];
         if (eventIds.length > 0) orParts.push(`event_id.in.(${eventIds.join(',')})`);
         if (formIds.length > 0) orParts.push(`intake_form_id.in.(${formIds.join(',')})`);
         query = query.or(orParts.join(','));
@@ -178,7 +178,7 @@ export class InvoicesService {
         const eventIds = (venueEvents || []).map((e: any) => e.id);
         const formIds = (venueEvents || []).map((e: any) => e.intake_form_id).filter(Boolean);
         if (eventIds.length === 0 && formIds.length === 0) return [];
-        const orParts = [];
+        const orParts: string[] = [];
         if (eventIds.length > 0) orParts.push(`event_id.in.(${eventIds.join(',')})`);
         if (formIds.length > 0) orParts.push(`intake_form_id.in.(${formIds.join(',')})`);
         query = query.or(orParts.join(','));

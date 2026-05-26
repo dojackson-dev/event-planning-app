@@ -78,23 +78,32 @@ export default function ItemsPage() {
     image_url: '',
     is_active: true,
   })
-  const { activeVenue } = useVenue()
+  const { activeVenue, venuesLoaded } = useVenue()
 
   useEffect(() => {
-    fetchItems()
-  }, [activeVenue?.id])
+    if (!venuesLoaded) return
+    let cancelled = false
+    setLoading(true)
+    setItems([])
+    const headers: Record<string, string> = {}
+    if (activeVenue?.id) headers['x-venue-id'] = activeVenue.id
+    api.get<Item[]>('/service-items', { headers })
+      .then(res => { if (!cancelled) setItems(res.data) })
+      .catch(err => { if (!cancelled) console.error('Failed to fetch items:', err) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [activeVenue, venuesLoaded])
 
-  const fetchItems = async () => {
-    try {
-      const headers: Record<string, string> = {}
-      if (activeVenue?.id) headers['x-venue-id'] = activeVenue.id
-      const response = await api.get<Item[]>('/service-items', { headers })
-      setItems(response.data)
-    } catch (error) {
-      console.error('Failed to fetch items:', error)
-    } finally {
-      setLoading(false)
-    }
+  const fetchItems = () => {
+    if (!venuesLoaded) return
+    setLoading(true)
+    setItems([])
+    const headers: Record<string, string> = {}
+    if (activeVenue?.id) headers['x-venue-id'] = activeVenue.id
+    api.get<Item[]>('/service-items', { headers })
+      .then(res => setItems(res.data))
+      .catch(err => console.error('Failed to fetch items:', err))
+      .finally(() => setLoading(false))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {

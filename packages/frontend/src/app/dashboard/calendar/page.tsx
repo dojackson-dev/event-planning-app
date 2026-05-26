@@ -69,7 +69,7 @@ const formatTime = (timeString: string | undefined): string => {
 
 export default function CalendarPage() {
   const router = useRouter()
-  const { venues, activeVenue, setActiveVenue } = useVenue()
+  const { venues, activeVenue, setActiveVenue, venuesLoaded } = useVenue()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [viewType, setViewType] = useState<ViewType>('month')
   const [entries, setEntries] = useState<CalendarEntry[]>([])
@@ -104,30 +104,18 @@ export default function CalendarPage() {
   const [creating, setCreating] = useState(false)
 
   useEffect(() => {
-    fetchAllEntries()
-  }, [currentDate, activeVenue])
-
-  useEffect(() => {
-    api.get('/intake-forms').then(res => {
-      setCalendarClients((res.data || []).map((f: any) => ({
-        id: f.id,
-        contact_name: f.contactName || f.contact_name || 'Unknown',
-        contact_phone: f.contactPhone || f.contact_phone || '',
-      })))
-    }).catch(() => {})
-  }, [])
-
-  const fetchAllEntries = async () => {
+    if (!venuesLoaded) return
+    let cancelled = false
     setLoading(true)
     setEntries([])
-    try {
-      const venueParams = activeVenue ? { venueId: activeVenue.id } : {}
-      const [eventsRes, bookingsRes, intakeRes, apptRes] = await Promise.allSettled([
-        api.get<Event[]>('/events', { params: venueParams }),
-        api.get<Booking[]>('/bookings', { params: venueParams }),
-        api.get<any[]>('/intake-forms'),
-        api.get<any[]>('/appointments'),
-      ])
+    const venueParams = activeVenue ? { venueId: activeVenue.id } : {}
+    Promise.allSettled([
+      api.get<Event[]>('/events', { params: venueParams }),
+      api.get<Booking[]>('/bookings', { params: venueParams }),
+      api.get<any[]>('/intake-forms'),
+      api.get<any[]>('/appointments'),
+    ]).then(([eventsRes, bookingsRes, intakeRes, apptRes]) => {
+      if (cancelled) return
 
       // Debug logs — visible in browser console
       if (eventsRes.status === 'fulfilled') {
@@ -241,13 +229,24 @@ export default function CalendarPage() {
             }))
         : []
 
-      setEntries([...unbookedEventEntries, ...bookingEntries, ...intakeEntries, ...appointmentEntries])
-    } catch (error) {
-      console.error('Failed to fetch calendar data:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
+      if (!cancelled) setEntries([...unbookedEventEntries, ...bookingEntries, ...intakeEntries, ...appointmentEntries])
+    }).catch(error => {
+      if (!cancelled) console.error('Failed to fetch calendar data:', error)
+    }).finally(() => {
+      if (!cancelled) setLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [activeVenue, venuesLoaded, currentDate])
+
+  useEffect(() => {
+    api.get('/intake-forms').then(res => {
+      setCalendarClients((res.data || []).map((f: any) => ({
+        id: f.id,
+        contact_name: f.contactName || f.contact_name || 'Unknown',
+        contact_phone: f.contactPhone || f.contact_phone || '',
+      })))
+    }).catch(() => {})
+  }, [])
 
   // Month view calculations
   const monthStart = startOfMonth(currentDate)

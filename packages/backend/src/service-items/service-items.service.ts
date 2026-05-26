@@ -29,7 +29,7 @@ export class ServiceItemsService {
       .eq('is_active', true);
 
     if (venueId) {
-      query = query.eq('venue_id', venueId);
+      query = query.or(`venue_id.eq.${venueId},venue_id.is.null`);
     }
 
     const { data, error } = await query
@@ -49,7 +49,7 @@ export class ServiceItemsService {
       .eq('is_active', true);
 
     if (venueId) {
-      query = query.eq('venue_id', venueId);
+      query = query.or(`venue_id.eq.${venueId},venue_id.is.null`);
     }
 
     const { data, error } = await query

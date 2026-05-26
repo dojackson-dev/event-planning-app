@@ -135,7 +135,7 @@ const EventProgressBar = React.memo(function EventProgressBar({ steps }: { steps
 })
 
 export default function EventsPage() {
-  const { venues, activeVenue, setActiveVenue } = useVenue()
+  const { venues, activeVenue, setActiveVenue, venuesLoaded } = useVenue()
   const [events, setEvents] = useState<Event[]>([])
   const [allEstimates, setAllEstimates] = useState<any[]>([])
   const [allInvoices, setAllInvoices] = useState<any[]>([])
@@ -146,30 +146,31 @@ export default function EventsPage() {
   const [currentPage, setCurrentPage] = useState(1)
 
   useEffect(() => {
-    fetchAll()
-  }, [activeVenue])
-
-  const fetchAll = async () => {
+    if (!venuesLoaded) return
+    let cancelled = false
     setLoading(true)
     setEvents([])
-    try {
-      const params = activeVenue ? { venueId: activeVenue.id } : {}
-      const [evRes, estRes, invRes, conRes] = await Promise.all([
-        api.get<Event[]>('/events', { params }),
-        api.get('/estimates').catch(() => ({ data: [] })),
-        api.get('/invoices').catch(() => ({ data: [] })),
-        api.get('/contracts').catch(() => ({ data: [] })),
-      ])
+    const params = activeVenue ? { venueId: activeVenue.id } : {}
+    console.log('[Events] fetching, venueId:', activeVenue?.id ?? 'ALL')
+    Promise.all([
+      api.get<Event[]>('/events', { params }),
+      api.get('/estimates').catch(() => ({ data: [] })),
+      api.get('/invoices').catch(() => ({ data: [] })),
+      api.get('/contracts').catch(() => ({ data: [] })),
+    ]).then(([evRes, estRes, invRes, conRes]) => {
+      if (cancelled) return
+      console.log('[Events] got', evRes.data.length, 'events for venueId:', activeVenue?.id ?? 'ALL')
       setEvents(evRes.data)
       setAllEstimates(estRes.data || [])
       setAllInvoices(invRes.data || [])
       setAllContracts(conRes.data || [])
-    } catch (error) {
-      console.error('Failed to fetch events:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
+    }).catch(error => {
+      if (!cancelled) console.error('Failed to fetch events:', error)
+    }).finally(() => {
+      if (!cancelled) setLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [activeVenue, venuesLoaded])
 
   const now = new Date()
   const filteredEvents = events.filter(event => {

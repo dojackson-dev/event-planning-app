@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
 import { MapPin, Calendar, Tag, Search, Filter, Loader2, Ticket } from 'lucide-react'
@@ -48,6 +48,37 @@ export default function PublicEventsPage() {
   const [radiusMiles, setRadiusMiles] = useState('30')
   const [category, setCategory] = useState('')
   const [search, setSearch] = useState('')
+  const [locating, setLocating] = useState(false)
+  const [locationError, setLocationError] = useState('')
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+
+  const useMyLocation = useCallback(() => {
+    if (!navigator.geolocation) { setLocationError('Geolocation not supported.'); return }
+    setLocating(true)
+    setLocationError('')
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords
+          const res = await fetch(`${API_URL}/vendors/geocode/reverse?lat=${latitude}&lng=${longitude}`)
+          if (res.ok) {
+            const data = await res.json()
+            if (data?.zip) {
+              setZipCode(data.zip)
+              fetchEvents(data.zip, category, radiusMiles)
+            }
+          }
+        } catch {
+          setLocationError('Could not determine your location.')
+        } finally {
+          setLocating(false)
+        }
+      },
+      () => { setLocating(false); setLocationError('Location access denied. Enter a zip code instead.') },
+      { timeout: 10000 },
+    )
+  }, [category, radiusMiles])
 
   const fetchEvents = (zip?: string, cat?: string, radius?: string) => {
     setLoading(true)
@@ -113,7 +144,17 @@ export default function PublicEventsPage() {
           <p className="text-blue-200 text-lg">Find and buy tickets to events near you</p>
 
           {/* Search / Filter */}
-          <form onSubmit={handleSearch} className="mt-8 bg-white rounded-2xl p-2 flex flex-col md:flex-row gap-2 max-w-2xl mx-auto">
+          <div className="flex justify-center mt-4 mb-2">
+            <button
+              type="button"
+              onClick={useMyLocation}
+              disabled={locating}
+              className="px-4 py-2 border border-blue-300 rounded-lg text-blue-100 hover:bg-blue-600 disabled:opacity-50 transition-colors text-sm font-medium"
+            >
+              {locating ? 'Locating...' : '📍 Use My Location'}
+            </button>
+          </div>
+          <form onSubmit={handleSearch} className="mt-2 bg-white rounded-2xl p-2 flex flex-col md:flex-row gap-2 max-w-2xl mx-auto">
             <div className="flex items-center gap-2 flex-1 px-3 border-r border-gray-200">
               <Search className="w-4 h-4 text-gray-400 shrink-0" />
               <input value={search} onChange={e => setSearch(e.target.value)}
@@ -125,7 +166,7 @@ export default function PublicEventsPage() {
               <input value={zipCode} onChange={e => setZipCode(e.target.value)}
                 placeholder="Zip code"
                 maxLength={10}
-                className="w-28 text-sm text-gray-800 placeholder-gray-400 focus:outline-none" />
+                className="w-24 text-sm text-gray-800 placeholder-gray-400 focus:outline-none" />
             </div>
             <div className="flex items-center gap-2 px-3 border-r border-gray-200">
               <select value={radiusMiles} onChange={e => setRadiusMiles(e.target.value)}
@@ -151,6 +192,7 @@ export default function PublicEventsPage() {
               Search
             </button>
           </form>
+          {locationError && <p className="text-red-300 text-sm mt-2">{locationError}</p>}
         </div>
       </div>
 

@@ -8,6 +8,7 @@ import { PromoterInvoicesService } from '../promoter-invoices/promoter-invoices.
 import { PromoterEventsService } from '../promoter-events/promoter-events.service';
 import { AffiliatesService } from '../affiliates/affiliates.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
+import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class StripeService {
@@ -26,6 +27,7 @@ export class StripeService {
     @Inject(forwardRef(() => AffiliatesService))
     private readonly affiliatesService: AffiliatesService,
     private readonly smsNotifications: SmsNotificationsService,
+    private readonly mailService: MailService,
   ) {
     const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (!secretKey) {
@@ -600,6 +602,55 @@ export class StripeService {
       await this.smsNotifications.invoicePaid(clientPhone, clientName, invoiceNumber, paidAmount);
     } catch (smsErr) {
       this.logger.warn(`Failed to send client payment SMS for invoice ${invoiceId}`, (smsErr as Error).message);
+    }
+
+    // ── Email "You're Booked!" confirmation to client ──────────────────────
+    if (isFullyPaid) {
+      try {
+        // Look up client email
+        let clientEmail: string | null = (invoice as any).client_email ?? null;
+        if (!clientEmail && invoice.booking_id) {
+          const { data: booking } = await admin.from('event').select('contact_email').eq('id', invoice.booking_id).maybeSingle();
+          clientEmail = (booking as any)?.contact_email ?? null;
+        }
+        if (!clientEmail && invoice.intake_form_id) {
+          const { data: form } = await admin.from('intake_forms').select('contact_email').eq('id', invoice.intake_form_id).maybeSingle();
+          clientEmail = (form as any)?.contact_email ?? null;
+        }
+
+        if (clientEmail) {
+          const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+          let eventType: string | null = null;
+          let eventDate: string | null = null;
+          let venueName: string | undefined;
+          if (invoice.intake_form_id) {
+            const { data: form } = await admin.from('intake_forms').select('event_type, event_date').eq('id', invoice.intake_form_id).maybeSingle();
+            eventType = (form as any)?.event_type ?? null;
+            eventDate = (form as any)?.event_date ?? null;
+          }
+          if (invoice.owner_id) {
+            const { data: ownerAcct } = await admin.from('owner_accounts').select('business_name').eq('primary_owner_id', invoice.owner_id).maybeSingle();
+            if (!ownerAcct?.business_name) {
+              const { data: acct } = await admin.from('owner_accounts').select('business_name').eq('id', invoice.owner_id).maybeSingle();
+              if (acct?.business_name) venueName = acct.business_name;
+            } else {
+              venueName = ownerAcct.business_name;
+            }
+          }
+          await this.mailService.sendInvoicePaidConfirmation({
+            clientName,
+            clientEmail,
+            invoiceNumber,
+            totalAmount: total,
+            eventType,
+            eventDate,
+            venueName,
+            portalUrl: `${frontendUrl}/client-portal`,
+          });
+        }
+      } catch (emailErr) {
+        this.logger.warn(`Failed to send booking confirmation email for invoice ${invoiceId}`, (emailErr as Error).message);
+      }
     }
 
     // ── Notify owner via SMS ───────────────────────────────────────────────

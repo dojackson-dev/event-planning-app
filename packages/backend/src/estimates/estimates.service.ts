@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
+import { MailService } from '../mail/mail.service';
+import { SupabaseService } from '../supabase/supabase.service';
 
 export interface Estimate {
   id?: string;
@@ -50,7 +52,11 @@ export interface EstimateItem {
 
 @Injectable()
 export class EstimatesService {
-  constructor(private readonly smsNotifications: SmsNotificationsService) {}
+  constructor(
+    private readonly smsNotifications: SmsNotificationsService,
+    private readonly mailService: MailService,
+    private readonly supabaseService: SupabaseService,
+  ) {}
 
   /**
    * Look up the client phone + email from an estimate's linked booking or intake form.
@@ -467,7 +473,7 @@ export class EstimatesService {
 
     // ── Persist client contact + SMS notifications ──────────────────────────
     try {
-      const { phone } = await this.lookupAndPersistClientContact(supabase, updated);
+      const { phone, email } = await this.lookupAndPersistClientContact(supabase, updated);
       const clientName =
         (updated as any).intake_form?.contact_name || 'Valued Client';
       if (status === 'sent') {
@@ -477,6 +483,50 @@ export class EstimatesService {
           updated.estimate_number,
           updated.total_amount,
         );
+        // Email: send estimate-ready notification to client
+        if (email) {
+          try {
+            const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+            const estimateUrl = `${frontendUrl}/client-portal/estimates`;
+
+            // Look up event type & date from intake form
+            let eventType: string | null = null;
+            let eventDate: string | null = null;
+            if ((updated as any).intake_form_id) {
+              const admin = this.supabaseService.getAdminClient();
+              const { data: form } = await admin
+                .from('intake_forms')
+                .select('event_type, event_date')
+                .eq('id', (updated as any).intake_form_id)
+                .maybeSingle();
+              eventType = (form as any)?.event_type ?? null;
+              eventDate = (form as any)?.event_date ?? null;
+            }
+
+            // Look up owner/venue name
+            let venueName: string | undefined;
+            if (updated.owner_id) {
+              const admin = this.supabaseService.getAdminClient();
+              const { data: ownerAcct } = await admin
+                .from('owner_accounts')
+                .select('business_name')
+                .eq('primary_owner_id', updated.owner_id)
+                .maybeSingle();
+              if (ownerAcct?.business_name) venueName = ownerAcct.business_name;
+            }
+
+            await this.mailService.sendEstimateReady({
+              clientName,
+              clientEmail: email,
+              estimateNumber: updated.estimate_number,
+              totalAmount: updated.total_amount,
+              estimateUrl,
+              eventType,
+              eventDate,
+              venueName,
+            });
+          } catch { /* email errors are non-fatal */ }
+        }
       } else if (status === 'rejected') {
         await this.smsNotifications.estimateRejected(
           phone,

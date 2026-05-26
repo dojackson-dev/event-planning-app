@@ -96,6 +96,31 @@ export class InvoicesService {
     return null;
   }
 
+  private async lookupClientEmail(
+    supabase: SupabaseClient,
+    invoice: Invoice,
+  ): Promise<string | null> {
+    if ((invoice as any).client_email) return (invoice as any).client_email;
+    if (invoice.booking_id) {
+      const { data: booking } = await supabase
+        .from('event')
+        .select('contact_email')
+        .eq('id', invoice.booking_id)
+        .single();
+      const email = (booking as any)?.contact_email ?? null;
+      if (email) return email;
+    }
+    if ((invoice as any).intake_form_id) {
+      const { data: form } = await supabase
+        .from('intake_forms')
+        .select('contact_email')
+        .eq('id', (invoice as any).intake_form_id)
+        .single();
+      return (form as any)?.contact_email ?? null;
+    }
+    return null;
+  }
+
   private calculateInvoiceTotals(items: Partial<InvoiceItem>[], taxRate: number, discountAmount: number) {
     // Only revenue items count toward the client-facing invoice total
     const revenueItems = items.filter(i => !i.item_type || i.item_type === 'revenue');
@@ -744,6 +769,45 @@ event!event_id(id, name, date),
           updated.invoice_number,
           updated.total_amount,
         );
+        // Email: "You're Booked!" confirmation
+        try {
+          const clientEmail = await this.lookupClientEmail(supabase, updated);
+          if (clientEmail) {
+            const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+            let eventType: string | null = null;
+            let eventDate: string | null = null;
+            let venueName: string | undefined;
+            if ((updated as any).intake_form_id) {
+              const admin = this.supabaseService.getAdminClient();
+              const { data: form } = await admin
+                .from('intake_forms')
+                .select('event_type, event_date')
+                .eq('id', (updated as any).intake_form_id)
+                .maybeSingle();
+              eventType = (form as any)?.event_type ?? null;
+              eventDate = (form as any)?.event_date ?? null;
+            }
+            if ((updated as any).owner_id) {
+              const admin = this.supabaseService.getAdminClient();
+              const { data: ownerAcct } = await admin
+                .from('owner_accounts')
+                .select('business_name')
+                .eq('primary_owner_id', (updated as any).owner_id)
+                .maybeSingle();
+              if (ownerAcct?.business_name) venueName = ownerAcct.business_name;
+            }
+            await this.mailService.sendInvoicePaidConfirmation({
+              clientName,
+              clientEmail,
+              invoiceNumber: updated.invoice_number,
+              totalAmount: updated.total_amount,
+              eventType,
+              eventDate,
+              venueName,
+              portalUrl: `${frontendUrl}/client-portal`,
+            });
+          }
+        } catch { /* email errors are non-fatal */ }
       } else if (status === 'overdue') {
         await this.smsNotifications.invoiceOverdue(
           phone,
@@ -784,6 +848,45 @@ event!event_id(id, name, date),
           updated.invoice_number,
           updated.total_amount,
         );
+        // Email: "You're Booked!" confirmation
+        try {
+          const clientEmail = await this.lookupClientEmail(supabase, updated);
+          if (clientEmail) {
+            const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+            let eventType: string | null = null;
+            let eventDate: string | null = null;
+            let venueName: string | undefined;
+            if ((updated as any).intake_form_id) {
+              const admin = this.supabaseService.getAdminClient();
+              const { data: form } = await admin
+                .from('intake_forms')
+                .select('event_type, event_date')
+                .eq('id', (updated as any).intake_form_id)
+                .maybeSingle();
+              eventType = (form as any)?.event_type ?? null;
+              eventDate = (form as any)?.event_date ?? null;
+            }
+            if ((updated as any).owner_id) {
+              const admin = this.supabaseService.getAdminClient();
+              const { data: ownerAcct } = await admin
+                .from('owner_accounts')
+                .select('business_name')
+                .eq('primary_owner_id', (updated as any).owner_id)
+                .maybeSingle();
+              if (ownerAcct?.business_name) venueName = ownerAcct.business_name;
+            }
+            await this.mailService.sendInvoicePaidConfirmation({
+              clientName,
+              clientEmail,
+              invoiceNumber: updated.invoice_number,
+              totalAmount: updated.total_amount,
+              eventType,
+              eventDate,
+              venueName,
+              portalUrl: `${frontendUrl}/client-portal`,
+            });
+          }
+        } catch { /* email errors are non-fatal */ }
       } else {
         await this.smsNotifications.invoicePartialPayment(
           phone,

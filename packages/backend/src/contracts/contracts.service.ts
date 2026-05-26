@@ -283,6 +283,37 @@ export class ContractsService {
         signerName,
         contractNumber,
       );
+
+      // Email confirmation to client
+      const clientEmail: string | null = data.client_email ?? data.contact_email ?? null;
+      if (clientEmail) {
+        try {
+          const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+          const contractUrl = `${frontendUrl}/client-portal/contracts/${id}`;
+          const clientName: string = data.client_name ?? data.contact_name ?? signerName;
+
+          // Look up venue/owner name for the email
+          let venueName: string | undefined;
+          if (data.owner_id) {
+            const admin = this.supabaseService.getAdminClient();
+            const { data: ownerAcct } = await admin
+              .from('owner_accounts')
+              .select('business_name')
+              .eq('primary_owner_id', data.owner_id)
+              .maybeSingle();
+            if (ownerAcct?.business_name) venueName = ownerAcct.business_name;
+          }
+
+          await this.mailService.sendContractSignedToClient({
+            clientName,
+            clientEmail,
+            contractNumber,
+            contractTitle: data.title ?? 'Contract',
+            contractUrl,
+            venueName,
+          });
+        } catch { /* email errors are non-fatal */ }
+      }
     } catch {
       // SMS errors must never break the signing flow
     }

@@ -437,6 +437,7 @@ export class IntakeFormsService {
 
     // Send invitation email + SMS now that the lead has been activated
     let ownerName: string | undefined;
+    let venueName: string | undefined;
     try {
       const { data: owner } = await supabaseAdmin
         .from('users')
@@ -444,6 +445,28 @@ export class IntakeFormsService {
         .eq('id', userId)
         .maybeSingle();
       if (owner) ownerName = [owner.first_name, owner.last_name].filter(Boolean).join(' ');
+    } catch { /* ignore */ }
+
+    // Try to fetch the business/venue name from owner_accounts
+    try {
+      const { data: ownerAcct } = await supabaseAdmin
+        .from('owner_accounts')
+        .select('business_name')
+        .eq('primary_owner_id', userId)
+        .maybeSingle();
+      if (ownerAcct?.business_name) venueName = ownerAcct.business_name;
+      else {
+        // Fallback: find via memberships
+        const { data: membership } = await supabaseAdmin
+          .from('memberships')
+          .select('owner_account_id, owner_accounts(business_name)')
+          .eq('user_id', userId)
+          .eq('role', 'owner')
+          .limit(1)
+          .maybeSingle();
+        const bizName = (membership as any)?.owner_accounts?.business_name;
+        if (bizName) venueName = bizName;
+      }
     } catch { /* ignore */ }
 
     if (intakeForm.contact_email && intakeForm.invite_token) {
@@ -457,6 +480,7 @@ export class IntakeFormsService {
           eventTime: intakeForm.event_time ?? null,
           guestCount: intakeForm.guest_count ?? null,
           ownerName,
+          venueName,
         });
         await supabaseAdmin
           .from('intake_forms')

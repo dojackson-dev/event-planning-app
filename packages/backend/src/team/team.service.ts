@@ -61,6 +61,37 @@ export class TeamService {
     const admin = this.supabaseService.getAdminClient();
     const ownerAccountId = await this.getOwnerAccountId(userId);
 
+    // ── Plan limit check ────────────────────────────────────────────────────
+    const { data: ownerAccount } = await admin
+      .from('owner_accounts')
+      .select('team_member_limit, plan_name')
+      .eq('id', ownerAccountId)
+      .maybeSingle();
+
+    const limit: number | null = ownerAccount?.team_member_limit ?? null;
+
+    if (limit !== null) {
+      const { count: activeCount } = await admin
+        .from('memberships')
+        .select('id', { count: 'exact', head: true })
+        .eq('owner_account_id', ownerAccountId)
+        .eq('role', 'associate')
+        .eq('is_active', true);
+
+      if ((activeCount ?? 0) >= limit) {
+        const planName = (ownerAccount?.plan_name ?? 'free') as string;
+        if (planName === 'free') {
+          throw new BadRequestException(
+            `Your Free plan includes 0 team members. Add team members for $15/mo each, or upgrade to Pro (3 members) or Premium (5 members).`
+          );
+        }
+        throw new BadRequestException(
+          `Your ${planName.charAt(0).toUpperCase() + planName.slice(1)} plan includes up to ${limit} team member${limit !== 1 ? 's' : ''}. Upgrade to add more.`
+        );
+      }
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     // Check email isn't already a member
     const { data: existingUser } = await admin
       .from('users')
@@ -100,7 +131,7 @@ export class TeamService {
       .eq('id', userId)
       .single();
 
-    const { data: ownerAccount } = await admin
+    const { data: ownerAccountInfo } = await admin
       .from('owner_accounts')
       .select('business_name')
       .eq('id', ownerAccountId)
@@ -128,7 +159,7 @@ export class TeamService {
     const frontendUrl = process.env.FRONTEND_URL || 'https://dovenuesuite.com';
     const inviteUrl = `${frontendUrl}/team/accept?token=${token}`;
     const ownerName = [owner?.first_name, owner?.last_name].filter(Boolean).join(' ') || 'Your venue owner';
-    const businessName = ownerAccount?.business_name || 'DoVenueSuite';
+    const businessName = ownerAccountInfo?.business_name || 'DoVenueSuite';
 
     // Send invite email — non-fatal: invite is already saved
     let emailError: string | null = null;

@@ -394,6 +394,34 @@ export class OwnerController {
     const ownerAccountId = await this.getOwnerAccountId(userId, admin);
     if (!ownerAccountId) throw new BadRequestException('Owner account not found');
 
+    // ── Plan venue limit check ──────────────────────────────────────────────
+    const { data: ownerPlan } = await admin
+      .from('owner_accounts')
+      .select('venue_limit, plan_name')
+      .eq('id', ownerAccountId)
+      .maybeSingle();
+
+    const venueLimit: number | null = ownerPlan?.venue_limit ?? null;
+    if (venueLimit !== null) {
+      const { count: venueCount } = await admin
+        .from('venues')
+        .select('id', { count: 'exact', head: true })
+        .eq('owner_account_id', ownerAccountId);
+
+      if ((venueCount ?? 0) >= venueLimit) {
+        const planName = (ownerPlan?.plan_name ?? 'free') as string;
+        if (planName === 'free') {
+          throw new BadRequestException(
+            `Your Free plan supports 1 venue. Upgrade to Pro (3 venues) or Premium (5 venues) to add more.`
+          );
+        }
+        throw new BadRequestException(
+          `Your ${planName.charAt(0).toUpperCase() + planName.slice(1)} plan supports up to ${venueLimit} venue${venueLimit !== 1 ? 's' : ''}. Upgrade to add more.`
+        );
+      }
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     const { data, error } = await admin
       .from('venues')
       .insert({

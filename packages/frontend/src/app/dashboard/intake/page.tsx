@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
 import { EventType } from '@/types'
@@ -37,7 +37,7 @@ const eventTypeLabels: Record<EventType, string> = {
   [EventType.GRADUATION_PARTY]: 'Graduation Party',
 }
 
-export default function ClientIntakePage() {
+function ClientIntakePageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { logoUrl, businessName } = useOwnerBrand()
@@ -1254,5 +1254,13 @@ export default function ClientIntakePage() {
         </div>
       </form>
     </div>
+  )
+}
+
+export default function ClientIntakePage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>}>
+      <ClientIntakePageInner />
+    </Suspense>
   )
 }

@@ -124,9 +124,9 @@ export class InvoicesService {
     return { subtotal, discountAmount, amount };
   }
 
-  async findAll(supabase: SupabaseClient, userId: string): Promise<Invoice[]> {
+  async findAll(supabase: SupabaseClient, userId: string, venueId?: string): Promise<Invoice[]> {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('invoices')
         .select(`
           *,
@@ -137,6 +137,18 @@ export class InvoicesService {
         .eq('owner_id', userId)
         .order('created_at', { ascending: false });
 
+      if (venueId) {
+        const { data: venueEvents } = await supabase.from('event').select('id, intake_form_id').or(`venue_id.eq.${venueId},venue_id.is.null`).eq('owner_id', userId);
+        const eventIds = (venueEvents || []).map((e: any) => e.id);
+        const formIds = (venueEvents || []).map((e: any) => e.intake_form_id).filter(Boolean);
+        if (eventIds.length === 0 && formIds.length === 0) return [];
+        const orParts = [];
+        if (eventIds.length > 0) orParts.push(`event_id.in.(${eventIds.join(',')})`);
+        if (formIds.length > 0) orParts.push(`intake_form_id.in.(${formIds.join(',')})`);
+        query = query.or(orParts.join(','));
+      }
+
+      const { data, error } = await query;
       if (error) {
         console.error('InvoicesService.findAll error:', error);
         return [];
@@ -148,9 +160,9 @@ export class InvoicesService {
     }
   }
 
-  async findByOwner(supabase: SupabaseClient, userId: string, ownerId: string): Promise<Invoice[]> {
+  async findByOwner(supabase: SupabaseClient, userId: string, ownerId: string, venueId?: string): Promise<Invoice[]> {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('invoices')
         .select(`
           *,
@@ -161,6 +173,18 @@ export class InvoicesService {
         .eq('owner_id', ownerId)
         .order('created_at', { ascending: false });
 
+      if (venueId) {
+        const { data: venueEvents } = await supabase.from('event').select('id, intake_form_id').or(`venue_id.eq.${venueId},venue_id.is.null`).eq('owner_id', ownerId);
+        const eventIds = (venueEvents || []).map((e: any) => e.id);
+        const formIds = (venueEvents || []).map((e: any) => e.intake_form_id).filter(Boolean);
+        if (eventIds.length === 0 && formIds.length === 0) return [];
+        const orParts = [];
+        if (eventIds.length > 0) orParts.push(`event_id.in.(${eventIds.join(',')})`);
+        if (formIds.length > 0) orParts.push(`intake_form_id.in.(${formIds.join(',')})`);
+        query = query.or(orParts.join(','));
+      }
+
+      const { data, error } = await query;
       if (error) {
         console.error('InvoicesService.findByOwner error:', error);
         return [];

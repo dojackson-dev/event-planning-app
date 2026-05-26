@@ -42,6 +42,7 @@ export class InvoicesSupabaseController {
     @Headers('authorization') authorization: string,
     @Query('ownerId') ownerId?: string,
     @Query('intakeFormId') intakeFormId?: string,
+    @Query('venueId') venueId?: string,
   ): Promise<Invoice[]> {
     const userId = await this.getUserId(authorization);
     // Use admin client for reads to bypass RLS policy issues;
@@ -50,14 +51,14 @@ export class InvoicesSupabaseController {
 
     if (ownerId) {
       // Always filter by the authenticated userId for security, ignore passed ownerId
-      return this.invoicesService.findByOwner(supabaseAdmin, userId, userId);
+      return this.invoicesService.findByOwner(supabaseAdmin, userId, userId, venueId);
     }
     
     if (intakeFormId) {
       return this.invoicesService.findByIntakeForm(supabaseAdmin, userId, intakeFormId);
     }
 
-    return this.invoicesService.findAll(supabaseAdmin, userId);
+    return this.invoicesService.findAll(supabaseAdmin, userId, venueId);
   }
 
   @Get(':id')

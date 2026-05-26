@@ -227,13 +227,31 @@ export class StripeService {
 
   // ─── Client Invoice Payment ────────────────────────────────────────────────
 
+  // ─── Plan Metadata ────────────────────────────────────────────────────────
+
+  /** Maps a Stripe Price ID to canonical plan name and account limits. */
+  private priceIdToPlanMeta(priceId: string): {
+    planName: 'pro' | 'premium' | 'enterprise';
+    venueLimit: number | null;
+    teamMemberLimit: number | null;
+  } {
+    const proPriceId     = this.configService.get<string>('STRIPE_OWNER_PRO_PRICE_ID',     'price_1TZs56Q777mo7OFqwxVgp4dE');
+    const premiumPriceId = this.configService.get<string>('STRIPE_OWNER_PREMIUM_PRICE_ID', 'price_1TZs57Q777mo7OFqU56SIUsu');
+
+    if (priceId === premiumPriceId) return { planName: 'premium', venueLimit: 5,    teamMemberLimit: 5    };
+    if (priceId === proPriceId)     return { planName: 'pro',     venueLimit: 3,    teamMemberLimit: 3    };
+    // Unknown/enterprise price — treat as enterprise with no enforced limits
+    return                                 { planName: 'enterprise', venueLimit: null, teamMemberLimit: null };
+  }
+
   /** Maps owner subscription plan to platform fee rate. */
   private resolveOwnerPlatformFeeRate(owner: any): number {
     if (owner?.subscription_status !== 'active') return 0.03; // free / trialing
     const planName = (owner?.plan_name ?? '').toLowerCase();
-    if (planName.includes('premium')) return 0.01;
-    if (planName.includes('pro')) return 0.015;
-    return 0.03; // starter / no recognised plan
+    if (planName === 'premium') return 0.01;
+    if (planName === 'pro')     return 0.015;
+    if (planName === 'enterprise') return 0.01; // enterprise gets premium rate by default
+    return 0.03; // free / no recognised plan
   }
 
   /**
@@ -307,13 +325,7 @@ export class StripeService {
       const connectActive = ownerAccount?.stripe_connect_status === 'active';
 
       if (connectId && connectActive) {
-        // Resolve plan name from Stripe if we have a plan_id
-        if (ownerAccount?.plan_id) {
-          try {
-            const price = await this.stripe.prices.retrieve(ownerAccount.plan_id, { expand: ['product'] });
-            ownerAccount.plan_name = (price.product as Stripe.Product)?.name ?? '';
-          } catch { /* non-fatal */ }
-        }
+        // plan_name is now stored directly in owner_accounts — no Stripe API call needed
         const feeRate = this.resolveOwnerPlatformFeeRate(ownerAccount);
         const platformFeeCents = Math.round(amountCents * feeRate);
         transferData = {
@@ -398,36 +410,28 @@ export class StripeService {
     planName: string | null;
     stripeCustomerId: string | null;
     stripeSubscriptionId: string | null;
+    venueLimit: number | null;
+    teamMemberLimit: number | null;
   }> {
     const admin = this.supabaseService.getAdminClient();
     const { data: owner, error } = await admin
       .from('owner_accounts')
-      .select('subscription_status, plan_id, stripe_customer_id, stripe_subscription_id')
+      .select('subscription_status, plan_id, plan_name, stripe_customer_id, stripe_subscription_id, venue_limit, team_member_limit')
       .eq('id', ownerAccountId)
       .single();
 
     if (error || !owner) {
-      return { status: 'none', planId: null, planName: null, stripeCustomerId: null, stripeSubscriptionId: null };
-    }
-
-    // Look up the plan name from Stripe using the price ID
-    let planName: string | null = null;
-    if (owner.plan_id) {
-      try {
-        const price = await this.stripe.prices.retrieve(owner.plan_id, { expand: ['product'] });
-        const product = price.product as Stripe.Product;
-        planName = product?.name ?? null;
-      } catch {
-        // Non-fatal — just leave planName null
-      }
+      return { status: 'none', planId: null, planName: 'free', stripeCustomerId: null, stripeSubscriptionId: null, venueLimit: 1, teamMemberLimit: 0 };
     }
 
     return {
       status: owner.subscription_status ?? 'inactive',
       planId: owner.plan_id ?? null,
-      planName,
+      planName: owner.plan_name ?? 'free',
       stripeCustomerId: owner.stripe_customer_id ?? null,
       stripeSubscriptionId: owner.stripe_subscription_id ?? null,
+      venueLimit: owner.venue_limit ?? 1,
+      teamMemberLimit: owner.team_member_limit ?? 0,
     };
   }
 
@@ -516,8 +520,19 @@ export class StripeService {
       ? session.subscription
       : (session.subscription as Stripe.Subscription | null)?.id ?? null;
 
-    await this.syncSubscriptionToDb(ownerAccountId, subscriptionId, 'active');
-    this.logger.log(`Checkout complete — owner ${ownerAccountId} is now active`);
+    // Retrieve the subscription to get the price ID so plan_name / limits are set correctly
+    let planPriceId: string | null = null;
+    if (subscriptionId) {
+      try {
+        const sub = await this.stripe.subscriptions.retrieve(subscriptionId);
+        planPriceId = sub.items.data[0]?.price?.id ?? null;
+      } catch (err) {
+        this.logger.warn('Could not retrieve subscription to resolve plan price', (err as Error).message);
+      }
+    }
+
+    await this.syncSubscriptionToDb(ownerAccountId, subscriptionId, 'active', planPriceId);
+    this.logger.log(`Checkout complete — owner ${ownerAccountId} is now active (plan price: ${planPriceId ?? 'unknown'})`);
 
     // ── Affiliate conversion commission ─────────────────────────────────────
     if (subscriptionId) {
@@ -775,6 +790,21 @@ export class StripeService {
     if (subscriptionId) update.stripe_subscription_id = subscriptionId;
     if (planId !== undefined) update.plan_id = planId;
 
+    // When activating a paid plan, store canonical plan name + limits
+    if (planId && status === 'active') {
+      const meta = this.priceIdToPlanMeta(planId);
+      update.plan_name = meta.planName;
+      update.venue_limit = meta.venueLimit;
+      update.team_member_limit = meta.teamMemberLimit;
+    }
+
+    // When canceling, revert to free tier defaults
+    if (status === 'canceled') {
+      update.plan_name = 'free';
+      update.venue_limit = 1;
+      update.team_member_limit = 0;
+    }
+
     const { error } = await admin
       .from('owner_accounts')
       .update(update)
@@ -795,6 +825,19 @@ export class StripeService {
     const update: Record<string, unknown> = { subscription_status: status };
     if (subscriptionId) update.stripe_subscription_id = subscriptionId;
     if (planId) update.plan_id = planId;
+
+    if (planId && status === 'active') {
+      const meta = this.priceIdToPlanMeta(planId);
+      update.plan_name = meta.planName;
+      update.venue_limit = meta.venueLimit;
+      update.team_member_limit = meta.teamMemberLimit;
+    }
+
+    if (status === 'canceled') {
+      update.plan_name = 'free';
+      update.venue_limit = 1;
+      update.team_member_limit = 0;
+    }
 
     const { error } = await admin
       .from('owner_accounts')
@@ -928,12 +971,15 @@ export class StripeService {
    * Get the Connect account status for an owner.
    * If status is pending, does a live Stripe check so we don't need webhooks in dev.
    */
-  async getOwnerConnectStatus(userId: string): Promise<{ status: string; connectId: string | null }> {
+  async getOwnerConnectStatus(userId: string): Promise<{ status: string; connectId: string | null; accountCreatedAt: string | null; planName: string | null; subscriptionStatus: string | null }> {
     const admin = this.supabaseService.getAdminClient();
     const owner = await this.getOwnerAccountByUserId(userId, admin);
 
     let status = owner?.stripe_connect_status ?? 'not_connected';
     const connectId = owner?.stripe_connect_id ?? null;
+    const accountCreatedAt = owner?.created_at ?? null;
+    const planName = owner?.plan_name ?? 'free';
+    const subscriptionStatus = owner?.subscription_status ?? null;
 
     if (status === 'pending' && connectId) {
       try {
@@ -949,7 +995,7 @@ export class StripeService {
       }
     }
 
-    return { status, connectId };
+    return { status, connectId, accountCreatedAt, planName, subscriptionStatus };
   }
 
   /**

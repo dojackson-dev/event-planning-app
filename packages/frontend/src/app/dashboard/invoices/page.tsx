@@ -7,6 +7,7 @@ import api from '@/lib/api'
 import { Invoice, InvoiceStatus } from '@/types'
 import { Search } from 'lucide-react'
 import { useVenue } from '@/contexts/VenueContext'
+import StripeSetupBanner from '@/components/StripeSetupBanner'
 
 function getCustomerName(invoice: any): string {
   if (invoice.client_name) return invoice.client_name
@@ -102,6 +103,7 @@ export default function InvoicesPage() {
 
   return (
     <div className="min-w-0 w-full">
+      <StripeSetupBanner feature="Invoicing" />
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 text-center mb-3">
           {user?.role === 'owner' ? 'My Invoices' : 'Invoices'}

@@ -7,6 +7,7 @@ import api from '@/lib/api'
 import { Estimate, EstimateStatus } from '@/types'
 import { Search, Eye } from 'lucide-react'
 import { useVenue } from '@/contexts/VenueContext'
+import StripeSetupBanner from '@/components/StripeSetupBanner'
 
 function getClientName(estimate: Estimate): string {
   if ((estimate as any).client_name) return (estimate as any).client_name
@@ -94,6 +95,7 @@ export default function EstimatesPage() {
 
   return (
     <div className="p-6">
+      <StripeSetupBanner feature="Estimates" />
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 text-center mb-3">Estimates</h1>
         <p className="text-center text-sm text-gray-500">

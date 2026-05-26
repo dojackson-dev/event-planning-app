@@ -21,8 +21,11 @@ import {
 interface SubscriptionStatus {
   status: string
   planId: string | null
+  planName: string | null
   stripeCustomerId: string | null
   stripeSubscriptionId: string | null
+  venueLimit: number | null
+  teamMemberLimit: number | null
 }
 
 interface ConnectStatus {
@@ -32,39 +35,90 @@ interface ConnectStatus {
 
 const PLANS = [
   {
-    id: 'pro',
-    name: 'EventEcos Pro',
-    price: 149,
-    description: 'For growing venues & promoters',
+    id: 'free',
+    name: 'Free',
+    price: 0,
+    priceLabel: '$0',
+    description: 'Best for users getting started with EventEcos',
     features: [
-      'Unlimited events & bookings',
-      'Client management & intake forms',
-      'Invoicing & online payments',
-      'Contracts & e-signatures',
-      'Vendor management',
-      'Door list & security',
+      '1 venue',
+      'No team members included',
+      'Additional team members at $15/mo each',
+      'Ticket sales: customer pays 3% EventEcos fee + Stripe processing',
+      'Direct payments: payer pays Stripe processing; recipient pays 3% EventEcos fee',
+      'Invoices, estimates & contracts available with Stripe payments activated',
+      'Basic listing only without Stripe payments',
+    ],
+    limits: { venues: 1, team: 0 },
+    priceId: null,
+    highlighted: false,
+    cta: 'Current Free Plan',
+    ctaDisabled: true,
+  },
+  {
+    id: 'pro',
+    name: 'Pro',
+    price: 149,
+    priceLabel: '$149',
+    description: 'Best for growing promoters, venue owners & event businesses',
+    features: [
+      'Up to 3 venues',
+      'Up to 3 team members',
+      'Ticket sales: customer pays 3% EventEcos fee + Stripe processing',
+      'Direct payments: payer pays Stripe processing; recipient pays 1.5% EventEcos fee',
+      'Invoices, estimates, contracts & payment tools',
+      'Vendor management, door list & security',
       'SMS notifications',
-      '1.5% platform fee — Vendors, Artists, Venue Owners & Promoters',
       'Priority support',
     ],
+    limits: { venues: 3, team: 3 },
     priceId: 'price_1TZs56Q777mo7OFqwxVgp4dE',
     highlighted: false,
+    cta: 'Subscribe — $149/mo',
+    ctaDisabled: false,
   },
   {
     id: 'premium',
-    name: 'EventEcos Premium',
+    name: 'Premium',
     price: 299,
-    description: 'Full-featured for high-volume operations',
+    priceLabel: '$299',
+    description: 'Best for high-volume promoters, venues & event companies',
     features: [
-      'Everything in Pro',
-      '1% platform fee — Vendors, Artists, Venue Owners & Promoters (lowest rate)',
-      'Multi-venue support',
-      'Custom branding',
+      'Up to 5 venues',
+      'Up to 5 team members',
+      'Ticket sales: customer pays 3% EventEcos fee + Stripe processing',
+      'Direct payments: payer pays Stripe processing; recipient pays 1% EventEcos fee (lowest rate)',
+      'Invoices, estimates, contracts & advanced payment tools',
+      'Multi-venue support & custom branding',
       'Ticket sales & promoter tools',
       'Dedicated account manager',
     ],
+    limits: { venues: 5, team: 5 },
     priceId: 'price_1TZs57Q777mo7OFqU56SIUsu',
     highlighted: true,
+    cta: 'Subscribe — $299/mo',
+    ctaDisabled: false,
+  },
+  {
+    id: 'enterprise',
+    name: 'Enterprise',
+    price: null,
+    priceLabel: 'Custom',
+    description: 'Best for large organizations, multi-venue operators & agencies',
+    features: [
+      'Custom venue limits',
+      'Custom team member limits',
+      'Ticket sales: customer pays 3% EventEcos fee + Stripe processing (customizable)',
+      'Direct payments: payer pays Stripe processing; recipient pays EventEcos fee (rates customizable)',
+      'Invoices, estimates, contracts, payment tools & advanced reporting',
+      'Custom workflows, tailored pricing & premium support',
+      'Dedicated onboarding support',
+    ],
+    limits: { venues: null, team: null },
+    priceId: null,
+    highlighted: false,
+    cta: 'Contact Us',
+    ctaDisabled: false,
   },
 ]
 
@@ -178,13 +232,17 @@ export default function BillingPage() {
     }
   }, [fetchBillingData])
 
-  const handleSubscribe = async (priceId: string) => {
-    if (!ownerAccountId || !user) return
-    setCheckoutLoading(priceId)
+  const handleSubscribe = async (plan: typeof PLANS[number]) => {
+    if (plan.id === 'enterprise') {
+      window.location.href = 'mailto:hello@eventecos.com?subject=Enterprise%20Plan%20Inquiry'
+      return
+    }
+    if (!plan.priceId || !ownerAccountId || !user) return
+    setCheckoutLoading(plan.priceId)
     try {
       const res = await api.post('/stripe/checkout', {
         ownerAccountId,
-        priceId,
+        priceId: plan.priceId,
         email: user.email,
         businessName: user.firstName + ' ' + user.lastName,
       })
@@ -222,6 +280,7 @@ export default function BillingPage() {
   }
 
   const isSubscribed = subscription?.status === 'active' || subscription?.status === 'trialing'
+  const currentPlanId = subscription?.planName ?? 'free'
 
   if (loading) {
     return (
@@ -244,11 +303,19 @@ export default function BillingPage() {
           <div>
             <p className="text-sm text-gray-500 mb-1">Current Plan</p>
             <div className="flex items-center gap-3">
-              <p className="text-xl font-bold text-gray-900">
-                {subscription?.planId ? ((subscription as any).planName || 'Free Trial').replace(/DoVenueSuite/gi, 'EventEcos') : 'Free Trial'}
+              <p className="text-xl font-bold text-gray-900 capitalize">
+                {subscription?.planName
+                  ? `EventEcos ${subscription.planName.charAt(0).toUpperCase() + subscription.planName.slice(1)}`
+                  : 'EventEcos Free'}
               </p>
               {subscription ? statusBadge(subscription.status) : statusBadge('trial')}
             </div>
+            {subscription?.venueLimit != null && (
+              <p className="text-xs text-gray-400 mt-1">
+                {subscription.venueLimit} {subscription.venueLimit === 1 ? 'venue' : 'venues'} ·{' '}
+                {subscription.teamMemberLimit ?? 0} team {(subscription.teamMemberLimit ?? 0) === 1 ? 'member' : 'members'}
+              </p>
+            )}
             {subscription?.stripeSubscriptionId && (
               <p className="text-xs text-gray-400 mt-1 font-mono">
                 {subscription.stripeSubscriptionId}
@@ -296,21 +363,21 @@ export default function BillingPage() {
         </div>
       </div>
 
-      {/* ── Convert Demo Account Hero (trial users only) ── */}
+      {/* ── Upgrade Hero (free/trial users) ── */}
       {!isSubscribed && (
         <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-6 mb-8 text-white">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
             <div className="flex-1">
-              <h2 className="text-lg font-bold mb-1">Convert Your Demo Account</h2>
+              <h2 className="text-lg font-bold mb-1">Upgrade Your Plan</h2>
               <p className="text-sm text-indigo-100">
-                You're exploring EventEcos on a free trial. All your data, clients, and settings carry over
-                automatically when you subscribe — nothing is lost.
+                You're on the Free plan. Upgrade to reduce your platform fees, add venues, and unlock team management.
+                All your data, clients, and settings carry over automatically — nothing is lost.
               </p>
               <ul className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-1">
                 {[
-                  'All data preserved',
-                  'Clients pay online instantly',
-                  'Unlimited events & bookings',
+                  'Lower platform fees',
+                  'Multiple venues',
+                  'Team member access',
                   'E-signature contracts',
                   'Vendor management',
                   'Cancel anytime',
@@ -323,7 +390,7 @@ export default function BillingPage() {
               </ul>
             </div>
             <div className="flex-shrink-0 text-center">
-              <p className="text-xs text-indigo-200 mb-2">Starting from</p>
+              <p className="text-xs text-indigo-200 mb-2">Pro starts at</p>
               <p className="text-4xl font-extrabold">$149<span className="text-lg font-normal">/mo</span></p>
               <p className="text-xs text-indigo-200 mt-1">Choose a plan below ↓</p>
             </div>
@@ -332,66 +399,99 @@ export default function BillingPage() {
       )}
 
       {/* ── Plans Grid ── */}
-      {!isSubscribed && (
-        <div className="mb-10">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Choose a Plan</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
-            {PLANS.map((plan) => (
+      <div className="mb-10">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Plans</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+          {PLANS.map((plan) => {
+            const isCurrent = currentPlanId === plan.id
+            const isLoading = plan.priceId !== null && checkoutLoading === plan.priceId
+            return (
               <div
                 key={plan.id}
-                className={`relative bg-white rounded-xl border-2 p-6 flex flex-col ${
-                  plan.highlighted
+                className={`relative bg-white rounded-xl border-2 p-5 flex flex-col ${
+                  isCurrent
+                    ? 'border-indigo-500 shadow-md'
+                    : plan.highlighted
                     ? 'border-primary-500 shadow-lg'
                     : 'border-gray-200 shadow-sm'
                 }`}
               >
-                {plan.highlighted && (
+                {isCurrent && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                    <span className="bg-primary-600 text-white text-xs font-bold px-3 py-1 rounded-full">
+                    <span className="bg-indigo-600 text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
+                      Current Plan
+                    </span>
+                  </div>
+                )}
+                {plan.highlighted && !isCurrent && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                    <span className="bg-primary-600 text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
                       Most Popular
                     </span>
                   </div>
                 )}
                 <div className="mb-4">
-                  <h3 className="text-lg font-bold text-gray-900">{plan.name}</h3>
-                  <p className="text-gray-500 text-sm mt-1">{plan.description}</p>
+                  <h3 className="text-base font-bold text-gray-900">{plan.name}</h3>
+                  <p className="text-gray-500 text-xs mt-1">{plan.description}</p>
                   <div className="mt-3">
-                    <span className="text-3xl font-bold text-gray-900">${plan.price}</span>
-                    <span className="text-gray-500 text-sm">/month</span>
+                    <span className="text-2xl font-bold text-gray-900">{plan.priceLabel}</span>
+                    {plan.price !== null && (
+                      <span className="text-gray-500 text-sm">/month</span>
+                    )}
+                    {plan.price === null && (
+                      <span className="text-gray-500 text-sm"> pricing</span>
+                    )}
+                  </div>
+                  <div className="mt-2 flex gap-3 text-xs text-gray-500">
+                    <span>
+                      {plan.limits.venues !== null ? `${plan.limits.venues} venue${plan.limits.venues !== 1 ? 's' : ''}` : 'Custom venues'}
+                    </span>
+                    <span>·</span>
+                    <span>
+                      {plan.limits.team !== null ? `${plan.limits.team} team member${plan.limits.team !== 1 ? 's' : ''}` : 'Custom team'}
+                    </span>
                   </div>
                 </div>
-                <ul className="space-y-2 mb-6 flex-1">
+                <ul className="space-y-1.5 mb-5 flex-1">
                   {plan.features.map((f) => (
-                    <li key={f} className="flex items-center gap-2 text-sm text-gray-600">
-                      <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+                    <li key={f} className="flex items-start gap-2 text-xs text-gray-600">
+                      <CheckCircle className="h-3.5 w-3.5 text-green-500 flex-shrink-0 mt-0.5" />
                       {f}
                     </li>
                   ))}
                 </ul>
                 <button
-                  onClick={() => handleSubscribe(plan.priceId)}
-                  disabled={!ownerAccountId || checkoutLoading === plan.id}
-                  className={`w-full py-2.5 px-4 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50 ${
-                    plan.highlighted
+                  onClick={() => handleSubscribe(plan)}
+                  disabled={plan.ctaDisabled || isCurrent || (!plan.priceId && plan.id !== 'enterprise') || isLoading}
+                  className={`w-full py-2 px-4 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50 ${
+                    isCurrent
+                      ? 'bg-indigo-50 text-indigo-700 cursor-default'
+                      : plan.highlighted
                       ? 'bg-primary-600 text-white hover:bg-primary-700'
+                      : plan.id === 'enterprise'
+                      ? 'bg-gray-900 text-white hover:bg-gray-800'
                       : 'bg-gray-900 text-white hover:bg-gray-800'
                   }`}
                 >
-                  {checkoutLoading === plan.id ? (
+                  {isLoading ? (
                     <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : isCurrent ? (
+                    <CheckCircle className="h-4 w-4" />
+                  ) : plan.id === 'enterprise' ? (
+                    <ExternalLink className="h-4 w-4" />
                   ) : (
                     <CreditCard className="h-4 w-4" />
                   )}
-                  {!ownerAccountId ? 'Loading...' : `Subscribe — $${plan.price}/mo · Cancel Anytime`}
+                  {isCurrent ? 'Current Plan' : plan.cta}
                 </button>
               </div>
-            ))}
-          </div>
-          <p className="text-xs text-gray-400 mt-3 text-center">
-            All plans include a 30-day free trial. Cancel anytime. No contracts.
-          </p>
+            )
+          })}
         </div>
-      )}
+        <p className="text-xs text-gray-400 mt-3 text-center">
+          Cancel anytime. Stripe processing fees apply to all transactions. Platform fees shown are EventEcos fees on direct payments only.
+        </p>
+      </div>
 
       {/* ── Stripe Connect Section ── */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
@@ -407,7 +507,7 @@ export default function BillingPage() {
               </div>
               <p className="text-sm text-gray-500">
                 Connect your Stripe account to accept payments from clients and pay vendors.
-                Vendors, Artists, Venue Owners, and Promoters pay a platform fee on received payments (3% free trial · 1.5% Pro · 1% Premium). Stripe processing fees are always paid by the payer.
+                For direct payments, the payer covers Stripe processing and the recipient pays the EventEcos platform fee: <strong>3%</strong> Free · <strong>1.5%</strong> Pro · <strong>1%</strong> Premium &amp; Enterprise.
               </p>
               {connectStatus?.connectId && (
                 <p className="text-xs text-gray-400 mt-1 font-mono">{connectStatus.connectId}</p>

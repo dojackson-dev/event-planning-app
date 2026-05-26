@@ -433,7 +433,7 @@ function NewContractForm() {
       setClients(recent)
       const intakeFormId = searchParams.get('intakeFormId')
       if (intakeFormId) {
-        const match = upcoming.find(c => c.id === intakeFormId)
+        const match = recent.find((c: any) => c.id === intakeFormId)
         if (match) setSelectedClient(match.id)
       }
     } catch (error) {

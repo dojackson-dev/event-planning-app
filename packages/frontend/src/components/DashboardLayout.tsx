@@ -32,6 +32,7 @@ import {
   Check,
   Megaphone,
   Music,
+  ExternalLink,
 } from 'lucide-react'
 
 function getInitials(name: string): string {
@@ -319,16 +320,32 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {navigation.map((item) => {
               const isActive = pathname === item.href
               const Icon = item.icon
+              const cls = `flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+                isActive
+                  ? 'bg-primary-600 text-white shadow-sm'
+                  : 'text-gray-700 hover:bg-gray-100 active:bg-gray-200'
+              }`
+              if ((item as any).external) {
+                return (
+                  <a
+                    key={item.name}
+                    href={item.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={cls}
+                  >
+                    <Icon className="mr-3 h-5 w-5 flex-shrink-0" />
+                    <span className="flex-1">{item.name}</span>
+                  </a>
+                )
+              }
               return (
                 <Link
                   key={item.name}
                   href={item.href}
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
-                    isActive
-                      ? 'bg-primary-600 text-white shadow-sm'
-                      : 'text-gray-700 hover:bg-gray-100 active:bg-gray-200'
-                  }`}
+                  className={cls}
                 >
                   <Icon className="mr-3 h-5 w-5 flex-shrink-0" />
                   <span className="flex-1">{item.name}</span>

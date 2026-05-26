@@ -619,4 +619,43 @@ export class MailService {
       // Non-fatal — webhook must not throw
     }
   }
-}
+  async sendEnterpriseInquiry(params: {
+    name: string;
+    email: string;
+    company: string;
+    phone?: string;
+    message: string;
+  }): Promise<void> {
+    const mailOptions = {
+      from: `"EventEcos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
+      to: 'sales@eventecos.com',
+      replyTo: params.email,
+      subject: `Enterprise Inquiry — ${params.company} (${params.name})`,
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f9fafb;padding:32px 16px;">
+          <div style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+            ${this.getEmailHeader('Enterprise Inquiry', 'A prospective customer wants to learn more')}
+            <div style="padding:32px;">
+              <table style="width:100%;border-collapse:collapse;font-size:14px;color:#374151;">
+                <tr><td style="padding:8px 0;color:#6b7280;width:120px;">Name</td><td style="padding:8px 0;font-weight:600;">${params.name}</td></tr>
+                <tr><td style="padding:8px 0;color:#6b7280;">Email</td><td style="padding:8px 0;font-weight:600;"><a href="mailto:${params.email}" style="color:#7c3aed;">${params.email}</a></td></tr>
+                <tr><td style="padding:8px 0;color:#6b7280;">Company</td><td style="padding:8px 0;font-weight:600;">${params.company}</td></tr>
+                ${params.phone ? `<tr><td style="padding:8px 0;color:#6b7280;">Phone</td><td style="padding:8px 0;font-weight:600;">${params.phone}</td></tr>` : ''}
+              </table>
+              <div style="margin-top:24px;background:#f3f4f6;border-radius:8px;padding:20px;">
+                <p style="margin:0;color:#6b7280;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Message</p>
+                <p style="margin:12px 0 0;color:#1f2937;white-space:pre-wrap;">${params.message}</p>
+              </div>
+              <p style="margin-top:24px;color:#6b7280;font-size:13px;">Reply directly to this email to respond to ${params.name}.</p>
+            </div>
+          </div>
+        </div>
+      `,
+    };
+    try {
+      await this.transporter.sendMail(mailOptions);
+      console.log('[MailService] Enterprise inquiry sent from', params.email);
+    } catch (error) {
+      console.error('[MailService] sendEnterpriseInquiry failed:', error);
+    }
+  }}

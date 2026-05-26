@@ -2,14 +2,16 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { Users, Store, Calendar, Zap, BarChart3, Shield, ArrowRight } from 'lucide-react'
+import { Users, Store, Calendar, Zap, BarChart3, Shield, ArrowRight, MapPin, Ticket } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import EnterpriseContactModal from '@/components/EnterpriseContactModal'
 
 export default function Home() {
   const { isAuthenticated, loading, user } = useAuth()
   const router = useRouter()
+  const [showEnterpriseModal, setShowEnterpriseModal] = useState(false)
 
   const taglines = [
     '"Events, vendors, venues — all in one ecosystem."',
@@ -106,6 +108,36 @@ export default function Home() {
           </div>
         </div>
       </nav>
+
+      {/* Browse Bar - mobile only */}
+      <div className="md:hidden bg-white border-b border-gray-200 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-center gap-1 py-2 overflow-x-auto scrollbar-hide">
+            <span className="text-gray-500 font-medium text-sm mr-2 shrink-0">Browse:</span>
+            <Link
+              href="/vendors"
+              className="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-accent-600 hover:bg-accent-50 px-4 py-2 rounded-full border border-gray-200 hover:border-accent-300 transition-colors shrink-0"
+            >
+              <Store className="h-4 w-4" />
+              Vendors
+            </Link>
+            <Link
+              href="/venues"
+              className="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-accent-600 hover:bg-accent-50 px-4 py-2 rounded-full border border-gray-200 hover:border-accent-300 transition-colors shrink-0"
+            >
+              <MapPin className="h-4 w-4" />
+              Venues
+            </Link>
+            <Link
+              href="/events"
+              className="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-accent-600 hover:bg-accent-50 px-4 py-2 rounded-full border border-gray-200 hover:border-accent-300 transition-colors shrink-0"
+            >
+              <Ticket className="h-4 w-4" />
+              Events
+            </Link>
+          </div>
+        </div>
+      </div>
 
       {/* Tagline row */}
       <div className="bg-accent-50 border-b border-accent-100 py-3 text-center">
@@ -365,6 +397,98 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Pricing Section */}
+      <section id="pricing" className="py-20 px-4 sm:px-6 lg:px-8 bg-white">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-14">
+            <h2 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-4">
+              Simple, Transparent <span className="text-accent-500">Pricing</span>
+            </h2>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              Start free. Upgrade as you grow. No hidden fees.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-start">
+            {/* Free */}
+            <div className="rounded-2xl border border-gray-200 p-7 flex flex-col">
+              <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">Free</p>
+              <div className="flex items-end gap-1 mb-1">
+                <span className="text-4xl font-bold text-gray-900">$0</span>
+                <span className="text-gray-500 mb-1">/mo</span>
+              </div>
+              <p className="text-gray-500 text-sm mb-6">Get started at no cost</p>
+              <ul className="space-y-2.5 text-sm text-gray-600 mb-8 flex-1">
+                {['1 venue', 'No team members', '3% platform fee on direct payments', 'Ticket sales (customer pays 3% + Stripe)', 'Basic listing', 'Invoices, estimates & contracts (Stripe required)'].map(f => (
+                  <li key={f} className="flex items-start gap-2"><span className="text-accent-500 mt-0.5">✓</span>{f}</li>
+                ))}
+              </ul>
+              <Link href="/signup" className="block text-center bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold py-2.5 rounded-lg transition-colors text-sm">
+                Get Started
+              </Link>
+            </div>
+
+            {/* Pro */}
+            <div className="rounded-2xl border-2 border-accent-500 p-7 flex flex-col relative shadow-lg">
+              <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-accent-500 text-white text-xs font-bold px-3 py-1 rounded-full">Most Popular</span>
+              <p className="text-sm font-semibold text-accent-600 uppercase tracking-wide mb-2">Pro</p>
+              <div className="flex items-end gap-1 mb-1">
+                <span className="text-4xl font-bold text-gray-900">$149</span>
+                <span className="text-gray-500 mb-1">/mo</span>
+              </div>
+              <p className="text-gray-500 text-sm mb-6">For growing event businesses</p>
+              <ul className="space-y-2.5 text-sm text-gray-600 mb-8 flex-1">
+                {['3 venues', '3 team members', '1.5% platform fee on direct payments', 'Ticket sales (customer pays 3% + Stripe)', 'Invoices, estimates & contracts + payment tools', 'Vendor management, door list & SMS', 'Priority support'].map(f => (
+                  <li key={f} className="flex items-start gap-2"><span className="text-accent-500 mt-0.5">✓</span>{f}</li>
+                ))}
+              </ul>
+              <Link href="/signup" className="block text-center bg-accent-500 hover:bg-accent-600 text-white font-semibold py-2.5 rounded-lg transition-colors text-sm">
+                Start Pro
+              </Link>
+            </div>
+
+            {/* Premium */}
+            <div className="rounded-2xl border border-gray-200 p-7 flex flex-col">
+              <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">Premium</p>
+              <div className="flex items-end gap-1 mb-1">
+                <span className="text-4xl font-bold text-gray-900">$299</span>
+                <span className="text-gray-500 mb-1">/mo</span>
+              </div>
+              <p className="text-gray-500 text-sm mb-6">For high-volume operators</p>
+              <ul className="space-y-2.5 text-sm text-gray-600 mb-8 flex-1">
+                {['5 venues', '5 team members', '1% platform fee on direct payments', 'Ticket sales (customer pays 3% + Stripe)', 'All Pro features', 'Multi-venue management', 'Custom branding', 'Dedicated account manager'].map(f => (
+                  <li key={f} className="flex items-start gap-2"><span className="text-accent-500 mt-0.5">✓</span>{f}</li>
+                ))}
+              </ul>
+              <Link href="/signup" className="block text-center bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold py-2.5 rounded-lg transition-colors text-sm">
+                Start Premium
+              </Link>
+            </div>
+
+            {/* Enterprise */}
+            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-7 flex flex-col">
+              <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">Enterprise</p>
+              <div className="flex items-end gap-1 mb-1">
+                <span className="text-4xl font-bold text-gray-900">Custom</span>
+              </div>
+              <p className="text-gray-500 text-sm mb-6">Tailored for large operations</p>
+              <ul className="space-y-2.5 text-sm text-gray-600 mb-8 flex-1">
+                {['Unlimited venues & team members', 'Custom platform fee rates', 'Advanced reporting & analytics', 'Dedicated onboarding & support', 'Custom integrations', 'SLA guarantee'].map(f => (
+                  <li key={f} className="flex items-start gap-2"><span className="text-accent-500 mt-0.5">✓</span>{f}</li>
+                ))}
+              </ul>
+              <button onClick={() => setShowEnterpriseModal(true)} className="block w-full text-center border border-gray-300 hover:border-gray-400 hover:bg-gray-100 text-gray-800 font-semibold py-2.5 rounded-lg transition-colors text-sm">
+                Contact Sales
+              </button>
+            </div>
+          </div>
+
+          <p className="text-center text-gray-500 text-sm mt-8">
+            All plans include a 30-day free trial. No credit card required to start.
+          </p>
+        </div>
+      </section>
+
       {/* Final CTA */}
       <section className="py-24 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-primary-600 to-secondary-500">
         <div className="max-w-4xl mx-auto text-center">
@@ -425,6 +549,8 @@ export default function Home() {
           </div>
         </div>
       </footer>
+
+      <EnterpriseContactModal isOpen={showEnterpriseModal} onClose={() => setShowEnterpriseModal(false)} />
     </div>
   )
 }

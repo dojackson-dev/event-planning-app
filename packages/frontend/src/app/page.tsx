@@ -86,13 +86,13 @@ export default function Home() {
             <div className="flex items-center gap-2">
               <Link
                 href="/client-login"
-                className="text-white font-medium text-sm bg-primary-600 hover:bg-primary-700 md:bg-transparent md:border md:border-white/40 md:hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors"
+                className="text-gray-700 md:text-white font-medium text-sm border border-gray-300 md:border-white/40 hover:border-gray-400 md:hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors"
               >
                 Client Portal
               </Link>
               <Link
                 href="/login"
-                className="text-white font-medium text-sm bg-primary-600 hover:bg-primary-700 md:bg-transparent md:border md:border-white/40 md:hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors"
+                className="text-gray-700 md:text-white font-medium text-sm border border-gray-300 md:border-white/40 hover:border-gray-400 md:hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors"
               >
                 Login
               </Link>

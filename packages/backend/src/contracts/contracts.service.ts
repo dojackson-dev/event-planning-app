@@ -30,7 +30,7 @@ export class ContractsService {
 
     if (venueId) {
       const admin = this.supabaseService.getAdminClient();
-      const { data: venueEvents } = await admin.from('event').select('id, intake_form_id').or(`venue_id.eq.${venueId},venue_id.is.null`).eq('owner_id', ownerId);
+      const { data: venueEvents } = await admin.from('event').select('id, intake_form_id').eq('venue_id', venueId).eq('owner_id', ownerId);
       if (!venueEvents || venueEvents.length === 0) return [];
       const eventIds = venueEvents.map((e: any) => e.id);
       const intakeIds = venueEvents.map((e: any) => e.intake_form_id).filter(Boolean);

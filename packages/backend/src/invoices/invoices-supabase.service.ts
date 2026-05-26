@@ -138,7 +138,7 @@ export class InvoicesService {
         .order('created_at', { ascending: false });
 
       if (venueId) {
-        const { data: venueEvents } = await supabase.from('event').select('id, intake_form_id').or(`venue_id.eq.${venueId},venue_id.is.null`).eq('owner_id', userId);
+        const { data: venueEvents } = await supabase.from('event').select('id, intake_form_id').eq('venue_id', venueId).eq('owner_id', userId);
         const eventIds = (venueEvents || []).map((e: any) => e.id);
         const formIds = (venueEvents || []).map((e: any) => e.intake_form_id).filter(Boolean);
         if (eventIds.length === 0 && formIds.length === 0) return [];
@@ -174,7 +174,7 @@ export class InvoicesService {
         .order('created_at', { ascending: false });
 
       if (venueId) {
-        const { data: venueEvents } = await supabase.from('event').select('id, intake_form_id').or(`venue_id.eq.${venueId},venue_id.is.null`).eq('owner_id', ownerId);
+        const { data: venueEvents } = await supabase.from('event').select('id, intake_form_id').eq('venue_id', venueId).eq('owner_id', ownerId);
         const eventIds = (venueEvents || []).map((e: any) => e.id);
         const formIds = (venueEvents || []).map((e: any) => e.intake_form_id).filter(Boolean);
         if (eventIds.length === 0 && formIds.length === 0) return [];

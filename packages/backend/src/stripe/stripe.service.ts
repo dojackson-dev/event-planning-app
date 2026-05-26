@@ -971,12 +971,15 @@ export class StripeService {
    * Get the Connect account status for an owner.
    * If status is pending, does a live Stripe check so we don't need webhooks in dev.
    */
-  async getOwnerConnectStatus(userId: string): Promise<{ status: string; connectId: string | null }> {
+  async getOwnerConnectStatus(userId: string): Promise<{ status: string; connectId: string | null; accountCreatedAt: string | null; planName: string | null; subscriptionStatus: string | null }> {
     const admin = this.supabaseService.getAdminClient();
     const owner = await this.getOwnerAccountByUserId(userId, admin);
 
     let status = owner?.stripe_connect_status ?? 'not_connected';
     const connectId = owner?.stripe_connect_id ?? null;
+    const accountCreatedAt = owner?.created_at ?? null;
+    const planName = owner?.plan_name ?? 'free';
+    const subscriptionStatus = owner?.subscription_status ?? null;
 
     if (status === 'pending' && connectId) {
       try {
@@ -992,7 +995,7 @@ export class StripeService {
       }
     }
 
-    return { status, connectId };
+    return { status, connectId, accountCreatedAt, planName, subscriptionStatus };
   }
 
   /**

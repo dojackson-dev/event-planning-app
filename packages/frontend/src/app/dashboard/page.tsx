@@ -69,7 +69,7 @@ export default function DashboardPage() {
       const events = eventsRes.data
 
       // Fetch invoices for unpaid count
-      const invoicesRes = await api.get<Invoice[]>('/invoices').catch(() => ({ data: [] as Invoice[] }))
+      const invoicesRes = await api.get<Invoice[]>('/invoices', { params: venueParams }).catch(() => ({ data: [] as Invoice[] }))
       const invoices = invoicesRes.data
       // Count all invoices where money is still owed (any status except paid/cancelled)
       const unpaidInvoices = invoices.filter(inv =>

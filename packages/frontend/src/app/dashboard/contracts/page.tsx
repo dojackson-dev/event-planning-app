@@ -7,6 +7,7 @@ import api from '@/lib/api'
 import { Contract, ContractStatus } from '@/types'
 import { FileText, Search, ChevronDown, Eye } from 'lucide-react'
 import { useVenue } from '@/contexts/VenueContext'
+import StripeSetupBanner from '@/components/StripeSetupBanner'
 
 export default function ContractsPage() {
   const [contracts, setContracts] = useState<Contract[]>([])
@@ -144,6 +145,7 @@ export default function ContractsPage() {
 
   return (
     <div className="p-6">
+      <StripeSetupBanner feature="Contracts" />
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 text-center mb-3">
           {user?.role === 'owner' ? 'My Contracts' : 'Contracts'}

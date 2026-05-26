@@ -39,15 +39,15 @@ const PLANS = [
     name: 'Free',
     price: 0,
     priceLabel: '$0',
-    description: 'Get started with basic event management',
+    description: 'Best for users getting started with EventEcos',
     features: [
       '1 venue',
-      '0 included team members',
+      'No team members included',
       'Additional team members at $15/mo each',
-      '3% EventEcos fee on all payments',
-      'Basic event & client management',
-      'Invoicing & intake forms',
-      'Stripe processing fees apply',
+      'Ticket sales: customer pays 3% EventEcos fee + Stripe processing',
+      'Direct payments: payer pays Stripe processing; recipient pays 3% EventEcos fee',
+      'Invoices, estimates & contracts available with Stripe payments activated',
+      'Basic listing only without Stripe payments',
     ],
     limits: { venues: 1, team: 0 },
     priceId: null,
@@ -60,19 +60,15 @@ const PLANS = [
     name: 'Pro',
     price: 149,
     priceLabel: '$149',
-    description: 'For growing promoters, venue owners & event businesses',
+    description: 'Best for growing promoters, venue owners & event businesses',
     features: [
       'Up to 3 venues',
-      '3 team members included',
-      'Unlimited events & bookings',
-      'Client management & intake forms',
-      'Invoicing & online payments',
-      'Contracts & e-signatures',
-      'Vendor management',
-      'Door list & security',
+      'Up to 3 team members',
+      'Ticket sales: customer pays 3% EventEcos fee + Stripe processing',
+      'Direct payments: payer pays Stripe processing; recipient pays 1.5% EventEcos fee',
+      'Invoices, estimates, contracts & payment tools',
+      'Vendor management, door list & security',
       'SMS notifications',
-      '1.5% platform fee on direct payments',
-      '3% platform fee on ticket sales',
       'Priority support',
     ],
     limits: { venues: 3, team: 3 },
@@ -86,15 +82,14 @@ const PLANS = [
     name: 'Premium',
     price: 299,
     priceLabel: '$299',
-    description: 'For high-volume promoters, venues & event companies',
+    description: 'Best for high-volume promoters, venues & event companies',
     features: [
       'Up to 5 venues',
-      '5 team members included',
-      'Everything in Pro',
-      '1% platform fee on direct payments (lowest rate)',
-      '3% platform fee on ticket sales',
-      'Multi-venue support',
-      'Custom branding',
+      'Up to 5 team members',
+      'Ticket sales: customer pays 3% EventEcos fee + Stripe processing',
+      'Direct payments: payer pays Stripe processing; recipient pays 1% EventEcos fee (lowest rate)',
+      'Invoices, estimates, contracts & advanced payment tools',
+      'Multi-venue support & custom branding',
       'Ticket sales & promoter tools',
       'Dedicated account manager',
     ],
@@ -109,16 +104,15 @@ const PLANS = [
     name: 'Enterprise',
     price: null,
     priceLabel: 'Custom',
-    description: 'For multi-venue operators, agencies & large organizations',
+    description: 'Best for large organizations, multi-venue operators & agencies',
     features: [
       'Custom venue limits',
-      'Custom team member access',
-      'Tailored transaction pricing',
-      '3% platform fee on ticket sales',
-      'Advanced reporting',
+      'Custom team member limits',
+      'Ticket sales: customer pays 3% EventEcos fee + Stripe processing (customizable)',
+      'Direct payments: payer pays Stripe processing; recipient pays EventEcos fee (rates customizable)',
+      'Invoices, estimates, contracts, payment tools & advanced reporting',
+      'Custom workflows, tailored pricing & premium support',
       'Dedicated onboarding support',
-      'Custom platform features',
-      'SLA & priority engineering support',
     ],
     limits: { venues: null, team: null },
     priceId: null,
@@ -410,7 +404,7 @@ export default function BillingPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
           {PLANS.map((plan) => {
             const isCurrent = currentPlanId === plan.id
-            const isLoading = checkoutLoading === plan.priceId
+            const isLoading = plan.priceId !== null && checkoutLoading === plan.priceId
             return (
               <div
                 key={plan.id}
@@ -495,7 +489,7 @@ export default function BillingPage() {
           })}
         </div>
         <p className="text-xs text-gray-400 mt-3 text-center">
-          Cancel anytime. Stripe processing fees apply to all transactions. Platform fees shown are EventEcos fees only.
+          Cancel anytime. Stripe processing fees apply to all transactions. Platform fees shown are EventEcos fees on direct payments only.
         </p>
       </div>
 
@@ -513,7 +507,7 @@ export default function BillingPage() {
               </div>
               <p className="text-sm text-gray-500">
                 Connect your Stripe account to accept payments from clients and pay vendors.
-                Platform fees on direct payments: <strong>3%</strong> Free · <strong>1.5%</strong> Pro · <strong>1%</strong> Premium &amp; Enterprise. Stripe processing fees are always paid by the payer.
+                For direct payments, the payer covers Stripe processing and the recipient pays the EventEcos platform fee: <strong>3%</strong> Free · <strong>1.5%</strong> Pro · <strong>1%</strong> Premium &amp; Enterprise.
               </p>
               {connectStatus?.connectId && (
                 <p className="text-xs text-gray-400 mt-1 font-mono">{connectStatus.connectId}</p>

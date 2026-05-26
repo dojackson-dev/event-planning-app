@@ -238,7 +238,7 @@ export class StripeController {
   @Get('connect/owner/status')
   async ownerConnectStatus(
     @Headers('authorization') authorization: string,
-  ): Promise<{ status: string; connectId: string | null }> {
+  ): Promise<{ status: string; connectId: string | null; accountCreatedAt: string | null; planName: string | null; subscriptionStatus: string | null }> {
     const userId = await this.getUserIdFromAuth(authorization);
     return this.stripeService.getOwnerConnectStatus(userId);
   }

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import Pagination from '@/components/Pagination'
+import { formatTime } from '@/lib/dateUtils'
 import { User, Calendar, Mail, Phone, Clock, Eye, CheckCircle, Search, MessageSquare, Clock as ClockIcon, Trash2, Zap, PhoneCall } from 'lucide-react'
 
 interface IntakeForm {
@@ -382,7 +383,7 @@ export default function ClientsPage() {
                     <div className="flex items-center gap-2 text-sm text-gray-600">
                       <Calendar className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
                       <span>{formatDate(client.event_date)}</span>
-                      {client.event_time && <span className="text-gray-400">· {client.event_time}</span>}
+                      {client.event_time && <span className="text-gray-400">· {formatTime(client.event_time)}</span>}
                     </div>
                     <div className="flex items-center gap-4 text-sm text-gray-600">
                       <span className="flex items-center gap-1">
@@ -403,13 +404,6 @@ export default function ClientsPage() {
 
                   {/* Action buttons — spacious touch targets with labels */}
                   <div className="mt-auto grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => router.push(`/dashboard/clients/${client.id}`)}
-                      className="flex items-center justify-center gap-2 h-11 px-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-sm font-semibold rounded-xl transition-colors col-span-2"
-                    >
-                      <Eye className="h-4 w-4" />
-                      View Details
-                    </button>
                     {client.status !== 'converted' && (
                       <button
                         onClick={() => handleActivateLead(client)}

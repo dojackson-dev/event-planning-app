@@ -49,10 +49,10 @@ export class MailService {
 
   async sendContractNotification(contract: Contract, client: User, owner: User): Promise<void> {
     try {
-      const contractUrl = `${process.env.FRONTEND_URL || 'https://dovenuesuite.com'}/dashboard/contracts/${contract.id}`;
+      const contractUrl = `${process.env.FRONTEND_URL || 'https://eventecos.com'}/dashboard/contracts/${contract.id}`;
       
       const mailOptions = {
-        from: `"${owner.firstName} ${owner.lastName}" <${process.env.SMTP_FROM || 'noreply@dovenue.com'}>`,
+        from: `"${owner.firstName} ${owner.lastName}" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
         to: client.email,
         subject: `New Contract Ready for Signature - ${contract.title}`,
         html: `
@@ -97,7 +97,7 @@ export class MailService {
             <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
             
             <p style="color: #999; font-size: 12px; text-align: center;">
-              This is an automated email from DoVenueSuite. Please do not reply to this email.
+              This is an automated email from Eventecos. Please do not reply to this email.
             </p>
           </div>
         `,
@@ -158,7 +158,7 @@ export class MailService {
     ownerName?: string;
   }): Promise<void> {
     try {
-      const frontendUrl = process.env.FRONTEND_URL || 'https://dovenuesuite.com';
+      const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
       const inviteUrl = `${frontendUrl}/invite?token=${params.inviteToken}`;
       const formattedDate = params.eventDate
         ? new Date(params.eventDate + 'T12:00:00').toLocaleDateString('en-US', {
@@ -167,9 +167,9 @@ export class MailService {
         : 'TBD';
 
       const mailOptions = {
-        from: `"DoVenue Suites" <${process.env.SMTP_FROM || 'noreply@dovenue.com'}>`,
+        from: `"Eventecos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
         to: params.clientEmail,
-        subject: `You're Invited – Confirm Your Event at DoVenue Suites`,
+        subject: `You're Invited – Confirm Your Event`,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb; padding: 32px 16px;">
             <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08);">
@@ -210,7 +210,7 @@ export class MailService {
             </div>
           </div>
         `,
-        text: `Hello ${params.clientName},\n\nYou have been invited to confirm your event at DoVenue Suites.\n\nEvent: ${params.eventType}\nDate: ${formattedDate}${params.eventTime ? `\nTime: ${params.eventTime}` : ''}\n\nConfirm here: ${inviteUrl}\n\nDoVenue Suites`,
+        text: `Hello ${params.clientName},\n\nYou have been invited to confirm your event.\n\nEvent: ${params.eventType}\nDate: ${formattedDate}${params.eventTime ? `\nTime: ${params.eventTime}` : ''}\n\nConfirm here: ${inviteUrl}\n\nEventecos`,
       };
 
       const info = await this.transporter.sendMail(mailOptions);
@@ -239,7 +239,7 @@ export class MailService {
       const formattedDue = new Date(params.dueDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
       const mailOptions = {
-        from: `"DoVenue Suites" <${process.env.SMTP_FROM || 'noreply@dovenue.com'}>`,
+        from: `"Eventecos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
         to: params.clientEmail,
         subject: `Invoice ${params.invoiceNumber} is Ready – View & Pay Online`,
         html: `
@@ -270,7 +270,7 @@ export class MailService {
             </div>
           </div>
         `,
-        text: `Hi ${params.clientName},\n\nYour invoice ${params.invoiceNumber} for ${formattedAmount} is ready.\nDue: ${formattedDue}\n\nView and pay here: ${params.invoiceUrl}\n\nDoVenue Suites`,
+        text: `Hi ${params.clientName},\n\nYour invoice ${params.invoiceNumber} for ${formattedAmount} is ready.\nDue: ${formattedDue}\n\nView and pay here: ${params.invoiceUrl}\n\nEventecos`,
       };
 
       const info = await this.transporter.sendMail(mailOptions);
@@ -283,10 +283,10 @@ export class MailService {
 
   async sendContractSignedNotification(contract: Contract, client: User, owner: User): Promise<void> {
     try {
-      const contractUrl = `${process.env.FRONTEND_URL || 'https://dovenuesuite.com'}/dashboard/contracts/${contract.id}`;
+      const contractUrl = `${process.env.FRONTEND_URL || 'https://eventecos.com'}/dashboard/contracts/${contract.id}`;
       
       const mailOptions = {
-        from: `"DoVenueSuite" <${process.env.SMTP_FROM || 'noreply@dovenue.com'}>`,
+        from: `"Eventecos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,`
         to: owner.email,
         subject: `Contract Signed - ${contract.title}`,
         html: `
@@ -316,7 +316,7 @@ export class MailService {
             <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
             
             <p style="color: #999; font-size: 12px; text-align: center;">
-              This is an automated email from DoVenueSuite. Please do not reply to this email.
+              This is an automated email from Eventecos. Please do not reply to this email.
             </p>
           </div>
         `,
@@ -401,7 +401,7 @@ export class MailService {
               </p>
               <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
               <p style="color:#9ca3af;font-size:12px;text-align:center;margin:0;">
-                This is an automated message from DoVenue Suites. Please do not reply to this email.
+                This is an automated message from Eventecos. Please do not reply to this email.
               </p>
             </div>
           </div>
@@ -480,14 +480,14 @@ export class MailService {
   }): Promise<void> {
     const htmlBody = params.body.replace(/\n/g, '<br>');
     const mailOptions = {
-      from: `"DoVenueSuite" <${process.env.SMTP_FROM || 'noreply@dovenue.com'}>`,
+      from: `"Eventecos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
       to: params.toEmail,
       subject: params.subject,
       html: `
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1f2937;">
           <p>Hi ${params.toName},</p>
           <p>${htmlBody}</p>
-          <p style="margin-top:32px;color:#6b7280;font-size:13px;">— The DoVenueSuite Team</p>
+          <p style="margin-top:32px;color:#6b7280;font-size:13px;">— The Eventecos Team</p>
         </div>
       `,
     };
@@ -519,7 +519,7 @@ export class MailService {
     sessionId?: string;
   }): Promise<void> {
     try {
-      const frontendUrl = process.env.FRONTEND_URL || 'https://dovenuesuite.com';
+      const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
       const eventUrl = `${frontendUrl}/events/${params.eventId}`;
       const formattedDate = params.eventDate
         ? new Date(params.eventDate + (params.eventDate.includes('T') ? '' : 'T12:00:00'))
@@ -781,7 +781,7 @@ export class MailService {
     sessionId?: string;
   }): Promise<void> {
     try {
-      const frontendUrl = process.env.FRONTEND_URL || 'https://dovenuesuite.com';
+      const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
       const eventUrl = `${frontendUrl}/events/${params.eventId}`;
       const formattedDate = params.eventDate
         ? new Date(params.eventDate + (params.eventDate.includes('T') ? '' : 'T12:00:00'))

@@ -319,7 +319,7 @@ export default function EventManagementPage() {
         clientEmail: mgmt.clientEmail || '',
         clientPhone: mgmt.clientPhone || '',
         clientStatus: mgmt.clientStatus || ClientStatus.CONTACTED_BY_PHONE,
-        estimatedGuests: mgmt.estimatedGuests || event.guestCount || 0,
+        estimatedGuests: mgmt.estimatedGuests || event.maxGuests || 0,
         budgetRange: mgmt.budgetRange || event.budgetRange || '',
         contractStatus: mgmt.contractStatus || ContractStatus.DRAFT,
         contractSignedDate: mgmt.contractSignedDate || '',
@@ -614,6 +614,7 @@ export default function EventManagementPage() {
         startTime: formData.startTime,
         endTime: formData.endTime,
         venueId: formData.venueId || null,
+        maxGuests: formData.estimatedGuests || null,
       });
       // Save management data
       await api.put(`/events/${eventId}/management`, formData);

@@ -36,6 +36,7 @@ interface VipOrderInfo {
   vip_service_orders: {
     quantity: number
     status: string
+    special_request: string | null
     vip_service_items: { name: string; category: string } | null
   }[]
 }
@@ -270,14 +271,19 @@ export default function VipScannerPage() {
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Add-ons</p>
                     <div className="space-y-1">
                       {orderInfo.vip_service_orders.map((so, i) => (
-                        <div key={i} className="flex items-center justify-between text-sm">
-                          <span className="flex items-center gap-2">
-                            <Wine className="w-3 h-3 text-purple-400" />
-                            {so.vip_service_items?.name} ×{so.quantity}
-                          </span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${so.status === 'delivered' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                            {so.status}
-                          </span>
+                        <div key={i} className="text-sm">
+                          <div className="flex items-center justify-between">
+                            <span className="flex items-center gap-2">
+                              <Wine className="w-3 h-3 text-purple-400" />
+                              {so.vip_service_items?.name} ×{so.quantity}
+                            </span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${so.status === 'delivered' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                              {so.status}
+                            </span>
+                          </div>
+                          {so.special_request && (
+                            <p className="mt-0.5 ml-5 text-xs text-blue-700 bg-blue-50 rounded px-2 py-0.5">Request: {so.special_request}</p>
+                          )}
                         </div>
                       ))}
                     </div>

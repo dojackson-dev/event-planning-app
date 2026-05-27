@@ -50,6 +50,7 @@ interface VipOrder {
     id: string
     quantity: number
     status: string
+    special_request: string | null
     vip_service_items: { name: string; price: number } | null
   }[]
 }
@@ -224,25 +225,30 @@ export default function VipOrdersPage() {
                       <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">Service Items</div>
                       <div className="space-y-2">
                         {order.vip_service_orders.map(so => (
-                          <div key={so.id} className="flex items-center justify-between bg-white rounded-lg p-3 border border-gray-200">
-                            <div className="flex items-center gap-2">
-                              <Wine className="w-4 h-4 text-purple-400" />
-                              <span className="text-sm font-medium">{so.vip_service_items?.name}</span>
-                              <span className="text-xs text-gray-400">×{so.quantity}</span>
+                          <div key={so.id} className="bg-white rounded-lg p-3 border border-gray-200">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Wine className="w-4 h-4 text-purple-400" />
+                                <span className="text-sm font-medium">{so.vip_service_items?.name}</span>
+                                <span className="text-xs text-gray-400">×{so.quantity}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${SERVICE_STATUS_COLORS[so.status] || 'bg-gray-100 text-gray-600'}`}>
+                                  {so.status}
+                                </span>
+                                <select
+                                  value={so.status}
+                                  disabled={updatingService === so.id}
+                                  onChange={e => updateServiceOrder(so.id, e.target.value)}
+                                  className="text-xs border border-gray-200 rounded px-2 py-1 text-gray-600"
+                                >
+                                  {SERVICE_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${SERVICE_STATUS_COLORS[so.status] || 'bg-gray-100 text-gray-600'}`}>
-                                {so.status}
-                              </span>
-                              <select
-                                value={so.status}
-                                disabled={updatingService === so.id}
-                                onChange={e => updateServiceOrder(so.id, e.target.value)}
-                                className="text-xs border border-gray-200 rounded px-2 py-1 text-gray-600"
-                              >
-                                {SERVICE_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                              </select>
-                            </div>
+                            {so.special_request && (
+                              <p className="mt-1 text-xs text-blue-700 bg-blue-50 rounded px-2 py-1">Request: {so.special_request}</p>
+                            )}
                           </div>
                         ))}
                       </div>

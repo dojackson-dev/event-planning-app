@@ -46,13 +46,16 @@ export class CreateVipServiceItemDto {
   inventory?: number;
   requires_approval?: boolean;
   department?: string;
+  allow_special_request?: boolean;
+  special_request_prompt?: string;
+  notes?: string;
 }
 
 export class VipCheckoutDto {
   buyer_name?: string;
   buyer_email: string;
   buyer_phone?: string;
-  service_items?: { service_item_id: string; quantity: number }[];
+  service_items?: { service_item_id: string; quantity: number; special_request?: string }[];
   return_url?: string;
 }
 
@@ -63,6 +66,11 @@ export class ScanVipDto {
 
 export class AssignConciergeDto {
   concierge_user_id: string;
+}
+
+export class CreateVipConciergeDto {
+  name: string;
+  phone: string;
 }
 
 export class UpdateServiceOrderDto {

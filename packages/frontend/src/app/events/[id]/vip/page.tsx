@@ -42,6 +42,9 @@ interface ServiceItem {
   category: string
   price: number
   requires_approval: boolean
+  allow_special_request: boolean
+  special_request_prompt: string | null
+  notes: string | null
 }
 
 interface Layout {
@@ -63,6 +66,7 @@ export default function EventVipPage({ params }: { params: Promise<{ id: string 
 
   const [selectedPkg, setSelectedPkg] = useState<VipPackage | null>(null)
   const [selectedServices, setSelectedServices] = useState<Record<string, number>>({})
+  const [serviceRequests, setServiceRequests] = useState<Record<string, string>>({})
   const [buyerName, setBuyerName] = useState('')
   const [buyerEmail, setBuyerEmail] = useState('')
   const [buyerPhone, setBuyerPhone] = useState('')
@@ -125,6 +129,7 @@ export default function EventVipPage({ params }: { params: Promise<{ id: string 
       const serviceItemsPayload = Object.entries(selectedServices).map(([service_item_id, quantity]) => ({
         service_item_id,
         quantity,
+        ...(serviceRequests[service_item_id] ? { special_request: serviceRequests[service_item_id] } : {}),
       }))
       const res = await api.post(
         `/vip/public/events/${eventId}/packages/${selectedPkg.id}/checkout`,
@@ -282,28 +287,40 @@ export default function EventVipPage({ params }: { params: Promise<{ id: string 
                   const qty = selectedServices[item.id] ?? 0
                   const Icon = CATEGORY_ICONS[item.category] || Package
                   return (
-                    <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
-                      <div className="flex items-center gap-3">
-                        <Icon className="w-4 h-4 text-gray-400" />
-                        <div>
-                          <div className="text-sm font-medium text-gray-800">{item.name}</div>
-                          <div className="text-xs text-gray-500">
-                            ${Number(item.price).toFixed(0)} each
-                            {item.requires_approval && ' · Approval required'}
+                    <div key={item.id} className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Icon className="w-4 h-4 text-gray-400" />
+                          <div>
+                            <div className="text-sm font-medium text-gray-800">{item.name}</div>
+                            <div className="text-xs text-gray-500">
+                              ${Number(item.price).toFixed(0)} each
+                              {item.requires_approval && ' · Approval required'}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {qty > 0 && (
-                          <button onClick={() => adjustService(item.id, -1)} className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center hover:bg-gray-300">
-                            <Minus className="w-3 h-3" />
+                        <div className="flex items-center gap-2">
+                          {qty > 0 && (
+                            <button onClick={() => adjustService(item.id, -1)} className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center hover:bg-gray-300">
+                              <Minus className="w-3 h-3" />
+                            </button>
+                          )}
+                          {qty > 0 && <span className="w-6 text-center text-sm font-medium">{qty}</span>}
+                          <button onClick={() => adjustService(item.id, 1)} className="w-7 h-7 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center hover:bg-purple-200">
+                            <Plus className="w-3 h-3" />
                           </button>
-                        )}
-                        {qty > 0 && <span className="w-6 text-center text-sm font-medium">{qty}</span>}
-                        <button onClick={() => adjustService(item.id, 1)} className="w-7 h-7 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center hover:bg-purple-200">
-                          <Plus className="w-3 h-3" />
-                        </button>
+                        </div>
                       </div>
+                      {qty > 0 && item.allow_special_request && (
+                        <div className="mt-2">
+                          <input
+                            value={serviceRequests[item.id] || ''}
+                            onChange={e => setServiceRequests(prev => ({ ...prev, [item.id]: e.target.value }))}
+                            placeholder={item.special_request_prompt || 'Special request...'}
+                            className="w-full border border-purple-200 rounded-lg px-3 py-1.5 text-xs text-gray-700 bg-purple-50 placeholder-gray-400"
+                          />
+                        </div>
+                      )}
                     </div>
                   )
                 })}

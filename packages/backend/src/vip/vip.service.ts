@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
 import Stripe from 'stripe';
+import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import {
   CreateVipSectionDto,
   CreateVipPackageDto,
@@ -17,6 +18,7 @@ import {
   ScanVipDto,
   AssignConciergeDto,
   UpdateServiceOrderDto,
+  CreateVipConciergeDto,
 } from './dto/vip.dto';
 
 const APP_FEE_RATE = 0.03;
@@ -36,6 +38,7 @@ export class VipService {
   constructor(
     private readonly supabaseService: SupabaseService,
     private readonly configService: ConfigService,
+    private readonly smsNotifications: SmsNotificationsService,
   ) {
     this.stripe = new Stripe(this.configService.get<string>('STRIPE_SECRET_KEY') || '', {
       apiVersion: '2024-04-10' as any,
@@ -410,12 +413,13 @@ export class VipService {
     // Create service orders
     if (service_items) {
       try {
-        const items: { service_item_id: string; quantity: number }[] = JSON.parse(service_items);
+        const items: { service_item_id: string; quantity: number; special_request?: string }[] = JSON.parse(service_items);
         if (items.length > 0) {
           const serviceOrders = items.map(i => ({
             vip_order_id: order.id,
             service_item_id: i.service_item_id,
             quantity: i.quantity,
+            ...(i.special_request ? { special_request: i.special_request } : {}),
           }));
           await admin.from('vip_service_orders').insert(serviceOrders);
         }
@@ -447,7 +451,7 @@ export class VipService {
         *,
         vip_packages(name, package_type, capacity, included_tickets, table_label),
         vip_guest_passes(id, guest_name, status, checked_in_at),
-        vip_service_orders(id, quantity, status, vip_service_items(name, price))
+        vip_service_orders(id, quantity, status, special_request, vip_service_items(name, price))
       `)
       .eq('public_event_id', eventId)
       .order('created_at', { ascending: false });
@@ -464,7 +468,7 @@ export class VipService {
         vip_packages(name, package_type, capacity, included_tickets, table_label, section_id,
           vip_sections(name)),
         vip_guest_passes(id, guest_name, guest_email, qr_code, status, checked_in_at),
-        vip_service_orders(id, quantity, status, assigned_to, notes, vip_service_items(name, price, category))
+        vip_service_orders(id, quantity, status, assigned_to, notes, special_request, vip_service_items(name, price, category))
       `)
       .eq('id', orderId)
       .maybeSingle();
@@ -481,7 +485,7 @@ export class VipService {
         vip_packages(name, package_type, capacity, included_tickets, table_label,
           vip_sections(name)),
         vip_guest_passes(id, guest_name, status, checked_in_at),
-        vip_service_orders(id, quantity, status, vip_service_items(name, category))
+        vip_service_orders(id, quantity, status, special_request, vip_service_items(name, category))
       `)
       .eq('qr_code', qrCode)
       .maybeSingle();
@@ -497,7 +501,7 @@ export class VipService {
 
     const { data: order } = await admin
       .from('vip_orders')
-      .select('*, vip_packages(capacity, included_tickets), vip_guest_passes(id, status)')
+      .select('*, vip_packages(name, capacity, included_tickets, table_label), vip_guest_passes(id, status)')
       .eq('qr_code', dto.qr_code)
       .eq('public_event_id', eventId)
       .maybeSingle();
@@ -508,24 +512,21 @@ export class VipService {
     const capacity = order.vip_packages?.capacity ?? 1;
     const alreadyIn = order.guests_checked_in ?? 0;
 
+    let checkInResult: { success: boolean; guests_checked_in: number; total_capacity: number; message: string };
+
     if (dto.check_in_mode === 'full') {
-      // Check in entire group
       const newCount = capacity;
       await admin
         .from('vip_orders')
         .update({ check_in_status: 'checked_in', guests_checked_in: newCount })
         .eq('id', order.id);
-
-      // Mark all passes used
       await admin
         .from('vip_guest_passes')
         .update({ status: 'used', checked_in_at: new Date().toISOString() })
         .eq('vip_order_id', order.id)
         .eq('status', 'valid');
-
-      return { success: true, guests_checked_in: newCount, total_capacity: capacity, message: `Full group checked in (${newCount})` };
+      checkInResult = { success: true, guests_checked_in: newCount, total_capacity: capacity, message: `Full group checked in (${newCount})` };
     } else {
-      // +1 check-in
       if (alreadyIn >= capacity) {
         throw new BadRequestException(`All ${capacity} guests have already checked in`);
       }
@@ -535,8 +536,6 @@ export class VipService {
         .from('vip_orders')
         .update({ check_in_status: newStatus, guests_checked_in: newCount })
         .eq('id', order.id);
-
-      // Mark one pass used
       const validPass = (order.vip_guest_passes as any[]).find((p: any) => p.status === 'valid');
       if (validPass) {
         await admin
@@ -544,17 +543,129 @@ export class VipService {
           .update({ status: 'used', checked_in_at: new Date().toISOString() })
           .eq('id', validPass.id);
       }
+      checkInResult = { success: true, guests_checked_in: newCount, total_capacity: capacity, message: `Guest checked in (${newCount} of ${capacity})` };
+    }
 
-      return {
-        success: true,
-        guests_checked_in: newCount,
-        total_capacity: capacity,
-        message: `Guest checked in (${newCount} of ${capacity})`,
-      };
+    // Notify all concierges assigned to this event via SMS
+    this.notifyConciergesOnArrival(eventId, order).catch(err =>
+      this.logger.error('Concierge SMS notification failed', err),
+    );
+
+    return checkInResult;
+  }
+
+  private async notifyConciergesOnArrival(eventId: string, order: any) {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: concierges } = await admin
+      .from('vip_concierges')
+      .select('name, phone, access_code')
+      .eq('public_event_id', eventId);
+    if (!concierges || concierges.length === 0) return;
+
+    const guestName = order.buyer_name || 'Your VIP Guest';
+    const pkgName   = order.vip_packages?.name || 'VIP Package';
+    const tableInfo = order.vip_packages?.table_label ? ` · ${order.vip_packages.table_label}` : '';
+    const party     = order.vip_packages?.capacity ? ` · Party of ${order.vip_packages.capacity}` : '';
+
+    for (const concierge of concierges) {
+      const portalUrl = `${this.frontendUrl}/vip/concierge/${concierge.access_code}`;
+      const message = `🎉 VIP Arrival!\nGuest: ${guestName}\nPackage: ${pkgName}${tableInfo}${party}\nView details: ${portalUrl}`;
+      await this.smsNotifications.send(concierge.phone, message);
     }
   }
 
-  // ── CONCIERGE ASSIGNMENT ──────────────────────────────────────
+  // ── CONCIERGE PHONE ACCESS ────────────────────────────────────
+
+  private generateAccessCode(): string {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous chars
+    return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  }
+
+  async createConcierge(userId: string, eventId: string, dto: CreateVipConciergeDto) {
+    await this.assertEventOwner(userId, eventId);
+    const admin = this.supabaseService.getAdminClient();
+    let access_code: string;
+    // Ensure uniqueness
+    for (let i = 0; i < 10; i++) {
+      access_code = this.generateAccessCode();
+      const { data: existing } = await admin
+        .from('vip_concierges')
+        .select('id')
+        .eq('access_code', access_code)
+        .maybeSingle();
+      if (!existing) break;
+    }
+    const { data, error } = await admin
+      .from('vip_concierges')
+      .insert({ public_event_id: eventId, name: dto.name, phone: dto.phone, access_code })
+      .select()
+      .single();
+    if (error) throw new BadRequestException(error.message);
+    return data;
+  }
+
+  async listConcierges(userId: string, eventId: string) {
+    await this.assertEventOwner(userId, eventId);
+    const admin = this.supabaseService.getAdminClient();
+    const { data, error } = await admin
+      .from('vip_concierges')
+      .select('*')
+      .eq('public_event_id', eventId)
+      .order('created_at', { ascending: true });
+    if (error) throw new BadRequestException(error.message);
+    return data || [];
+  }
+
+  async deleteConcierge(userId: string, conciergeId: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: concierge } = await admin
+      .from('vip_concierges')
+      .select('public_event_id')
+      .eq('id', conciergeId)
+      .maybeSingle();
+    if (!concierge) throw new NotFoundException('Concierge not found');
+    await this.assertEventOwner(userId, concierge.public_event_id);
+    const { error } = await admin.from('vip_concierges').delete().eq('id', conciergeId);
+    if (error) throw new BadRequestException(error.message);
+    return { success: true };
+  }
+
+  async getConciergePortal(accessCode: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: concierge, error } = await admin
+      .from('vip_concierges')
+      .select('id, name, public_event_id')
+      .eq('access_code', accessCode)
+      .maybeSingle();
+    if (error || !concierge) throw new NotFoundException('Invalid access code');
+
+    // Fetch event info and all VIP orders for the event
+    const [eventRes, ordersRes] = await Promise.all([
+      admin
+        .from('public_events')
+        .select('id, title, event_date, venue_name, city')
+        .eq('id', concierge.public_event_id)
+        .maybeSingle(),
+      admin
+        .from('vip_orders')
+        .select(`
+          id, buyer_name, buyer_email, buyer_phone, check_in_status, guests_checked_in, created_at,
+          vip_packages(name, package_type, capacity, table_label, vip_sections(name)),
+          vip_service_orders(quantity, status, special_request, vip_service_items(name))
+        `)
+        .eq('public_event_id', concierge.public_event_id)
+        .eq('payment_status', 'paid')
+        .order('created_at', { ascending: false }),
+    ]);
+
+    return {
+      concierge: { id: concierge.id, name: concierge.name },
+      event: eventRes.data,
+      orders: ordersRes.data || [],
+    };
+  }
+
+  // ── CONCIERGE ASSIGNMENT (legacy: user-account based) ─────────
 
   async assignConcierge(userId: string, orderId: string, dto: AssignConciergeDto) {
     const admin = this.supabaseService.getAdminClient();

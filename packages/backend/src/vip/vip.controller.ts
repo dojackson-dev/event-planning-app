@@ -20,6 +20,7 @@ import {
   ScanVipDto,
   AssignConciergeDto,
   UpdateServiceOrderDto,
+  CreateVipConciergeDto,
 } from './dto/vip.dto';
 
 @Controller('vip')
@@ -205,7 +206,43 @@ export class VipController {
     return this.service.scanVip(userId, eventId, dto);
   }
 
-  // ── CONCIERGE ─────────────────────────────────────────────────
+  // ── CONCIERGE PHONE ACCESS ────────────────────────────────────
+
+  /** Public: concierge accesses their event portal via access code (no login) */
+  @Get('public/concierge/:accessCode')
+  getConciergePortal(@Param('accessCode') accessCode: string) {
+    return this.service.getConciergePortal(accessCode);
+  }
+
+  @Post('events/:eventId/concierges')
+  async createConcierge(
+    @Headers('authorization') auth: string,
+    @Param('eventId') eventId: string,
+    @Body() dto: CreateVipConciergeDto,
+  ) {
+    const userId = await this.getUserId(auth);
+    return this.service.createConcierge(userId, eventId, dto);
+  }
+
+  @Get('events/:eventId/concierges')
+  async listConcierges(
+    @Headers('authorization') auth: string,
+    @Param('eventId') eventId: string,
+  ) {
+    const userId = await this.getUserId(auth);
+    return this.service.listConcierges(userId, eventId);
+  }
+
+  @Delete('concierges/:conciergeId')
+  async deleteConcierge(
+    @Headers('authorization') auth: string,
+    @Param('conciergeId') conciergeId: string,
+  ) {
+    const userId = await this.getUserId(auth);
+    return this.service.deleteConcierge(userId, conciergeId);
+  }
+
+  // ── CONCIERGE ASSIGNMENT (legacy) ─────────────────────────────
 
   @Put('orders/:orderId/concierge')
   async assignConcierge(

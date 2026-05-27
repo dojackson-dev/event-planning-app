@@ -7,7 +7,7 @@ import api from '@/lib/api'
 import {
   Plus, Trash2, Save, Loader2, Crown, Users, DollarSign,
   Package, ChevronDown, ChevronUp, ImageIcon, X, Star,
-  LayoutGrid, Wine, Utensils, Shield, Headphones, Settings,
+  LayoutGrid, Wine, Utensils, Shield, Headphones, Settings, Copy, Phone,
 } from 'lucide-react'
 
 const PACKAGE_TYPES = [
@@ -52,6 +52,7 @@ interface VipPackage {
   inventory_sold: number
   requires_concierge: boolean
   guest_names_required: boolean
+  guests_arrive_separately: boolean
   section_id: string | null
   service_notes: string | null
   status: string
@@ -66,6 +67,9 @@ interface ServiceItem {
   inventory: number | null
   requires_approval: boolean
   department: string | null
+  allow_special_request: boolean
+  special_request_prompt: string | null
+  notes: string | null
 }
 
 interface Layout {
@@ -83,8 +87,9 @@ export default function VipManagePage() {
   const [packages, setPackages] = useState<VipPackage[]>([])
   const [serviceItems, setServiceItems] = useState<ServiceItem[]>([])
   const [layouts, setLayouts] = useState<Layout[]>([])
+  const [concierges, setConcierges] = useState<VipConcierge[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'packages' | 'service' | 'layout' | 'orders'>('packages')
+  const [activeTab, setActiveTab] = useState<'packages' | 'service' | 'layout' | 'concierges'>('packages')
 
   // Package form
   const [showPkgForm, setShowPkgForm] = useState(false)
@@ -106,6 +111,7 @@ export default function VipManagePage() {
   const [showServiceForm, setShowServiceForm] = useState(false)
   const [serviceForm, setServiceForm] = useState({
     name: '', category: 'bar', price: '0', inventory: '', requires_approval: false, department: '',
+    allow_special_request: false, special_request_prompt: '', notes: '',
   })
   const [serviceSaving, setServiceSaving] = useState(false)
 
@@ -113,6 +119,12 @@ export default function VipManagePage() {
   const [layoutUrl, setLayoutUrl] = useState('')
   const [layoutDesc, setLayoutDesc] = useState('')
   const [layoutSaving, setLayoutSaving] = useState(false)
+
+  // Concierge form
+  const [conciergeForm, setConciergeForm] = useState({ name: '', phone: '' })
+  const [conciergeSaving, setConciergeSaving] = useState(false)
+  const [showConciergeForm, setShowConciergeForm] = useState(false)
+  const [newConciergeCode, setNewConciergeCode] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -127,6 +139,10 @@ export default function VipManagePage() {
       setSections(secRes.data)
       setServiceItems(svcRes.data)
       setLayouts(layoutRes.data)
+      // Load concierges separately (non-blocking)
+      api.get(`/vip/events/${eventId}/concierges`)
+        .then(r => setConcierges(r.data))
+        .catch(() => {})
     } catch (err) {
       console.error(err)
     } finally {
@@ -160,7 +176,7 @@ export default function VipManagePage() {
       inventory: String(pkg.inventory),
       requires_concierge: pkg.requires_concierge,
       guest_names_required: pkg.guest_names_required,
-      guests_arrive_separately: false,
+      guests_arrive_separately: pkg.guests_arrive_separately ?? false,
       service_notes: pkg.service_notes || '',
       section_id: pkg.section_id || '',
     })
@@ -206,6 +222,26 @@ export default function VipManagePage() {
     load()
   }
 
+  const duplicatePackage = (pkg: VipPackage) => {
+    setEditingPkg(null)
+    setPkgForm({
+      name: pkg.name + ' (Copy)',
+      package_type: pkg.package_type,
+      description: pkg.description || '',
+      price: String(pkg.price),
+      capacity: String(pkg.capacity),
+      included_tickets: String(pkg.included_tickets),
+      table_label: '',
+      inventory: String(pkg.inventory),
+      requires_concierge: pkg.requires_concierge,
+      guest_names_required: pkg.guest_names_required,
+      guests_arrive_separately: pkg.guests_arrive_separately,
+      service_notes: pkg.service_notes || '',
+      section_id: pkg.section_id || '',
+    })
+    setShowPkgForm(true)
+  }
+
   const saveSection = async () => {
     if (!sectionForm.name) return
     setSectionSaving(true)
@@ -240,8 +276,11 @@ export default function VipManagePage() {
         inventory: serviceForm.inventory ? parseInt(serviceForm.inventory) : undefined,
         requires_approval: serviceForm.requires_approval,
         department: serviceForm.department || undefined,
+        allow_special_request: serviceForm.allow_special_request,
+        special_request_prompt: serviceForm.allow_special_request ? (serviceForm.special_request_prompt || undefined) : undefined,
+        notes: serviceForm.notes || undefined,
       })
-      setServiceForm({ name: '', category: 'bar', price: '0', inventory: '', requires_approval: false, department: '' })
+      setServiceForm({ name: '', category: 'bar', price: '0', inventory: '', requires_approval: false, department: '', allow_special_request: false, special_request_prompt: '', notes: '' })
       setShowServiceForm(false)
       load()
     } finally {
@@ -253,6 +292,29 @@ export default function VipManagePage() {
     if (!confirm('Delete this service item?')) return
     await api.delete(`/vip/service-items/${id}`)
     load()
+  }
+
+  const saveConcierge = async () => {
+    if (!conciergeForm.name || !conciergeForm.phone) return
+    setConciergeSaving(true)
+    try {
+      const res = await api.post(`/vip/events/${eventId}/concierges`, {
+        name: conciergeForm.name,
+        phone: conciergeForm.phone,
+      })
+      setNewConciergeCode(res.data.access_code)
+      setConciergeForm({ name: '', phone: '' })
+      setShowConciergeForm(false)
+      load()
+    } finally {
+      setConciergeSaving(false)
+    }
+  }
+
+  const deleteConcierge = async (id: string) => {
+    if (!confirm('Remove this concierge?')) return
+    await api.delete(`/vip/concierges/${id}`)
+    setConcierges(prev => prev.filter(c => c.id !== id))
   }
 
   const saveLayout = async () => {
@@ -315,6 +377,7 @@ export default function VipManagePage() {
           { key: 'packages', label: 'VIP Packages', icon: Crown },
           { key: 'service', label: 'Service Menu', icon: Wine },
           { key: 'layout', label: 'Floor Plan', icon: LayoutGrid },
+          { key: 'concierges', label: 'Concierges', icon: Phone },
         ].map(tab => (
           <button
             key={tab.key}
@@ -585,10 +648,17 @@ export default function VipManagePage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 ml-4">
-                      <button onClick={() => openEditPkg(pkg)} className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg">
+                      <button onClick={() => openEditPkg(pkg)} title="Edit" className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg">
                         <Settings className="w-4 h-4" />
                       </button>
-                      <button onClick={() => deletePackage(pkg.id)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg">
+                      <button
+                        onClick={() => duplicatePackage(pkg)}
+                        title="Duplicate this package"
+                        className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 border border-blue-200 rounded-lg"
+                      >
+                        <Copy className="w-3 h-3" /> Dup
+                      </button>
+                      <button onClick={() => deletePackage(pkg.id)} title="Delete" className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -677,6 +747,40 @@ export default function VipManagePage() {
                   <label htmlFor="req_approval" className="text-sm text-gray-700 cursor-pointer">Requires Approval</label>
                 </div>
               </div>
+              {/* Special request & notes */}
+              <div className="space-y-3 border-t border-purple-100 pt-3">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="allow_special_request"
+                    checked={serviceForm.allow_special_request}
+                    onChange={e => setServiceForm(p => ({ ...p, allow_special_request: e.target.checked }))}
+                    className="w-4 h-4 text-purple-600 rounded"
+                  />
+                  <label htmlFor="allow_special_request" className="text-sm text-gray-700 cursor-pointer">Allow Special Request from Guest</label>
+                </div>
+                {serviceForm.allow_special_request && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Request Prompt <span className="text-gray-400 font-normal">(shown to guest)</span></label>
+                    <input
+                      value={serviceForm.special_request_prompt}
+                      onChange={e => setServiceForm(p => ({ ...p, special_request_prompt: e.target.value }))}
+                      placeholder="e.g. Which flavor? Buffalo / Lemon Pepper / Garlic Parmesan"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    />
+                  </div>
+                )}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Staff Notes <span className="text-gray-400 font-normal">(internal — not shown to guest)</span></label>
+                  <textarea
+                    value={serviceForm.notes}
+                    onChange={e => setServiceForm(p => ({ ...p, notes: e.target.value }))}
+                    placeholder="e.g. Comes in a basket, served with ranch, ask for allergy info"
+                    rows={2}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none"
+                  />
+                </div>
+              </div>
               <div className="flex gap-2">
                 <button onClick={saveServiceItem} disabled={serviceSaving} className="px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:opacity-50">
                   {serviceSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add to Menu'}
@@ -704,18 +808,22 @@ export default function VipManagePage() {
                     </div>
                     <div className="space-y-2">
                       {items.map(item => (
-                        <div key={item.id} className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg">
-                          <div>
-                            <span className="text-sm font-medium text-gray-800">{item.name}</span>
-                            {item.requires_approval && <span className="ml-2 text-xs text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded">Approval Required</span>}
+                        <div key={item.id} className="px-3 py-2 bg-gray-50 rounded-lg">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className="text-sm font-medium text-gray-800">{item.name}</span>
+                              {item.requires_approval && <span className="ml-2 text-xs text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded">Approval Required</span>}
+                              {item.allow_special_request && <span className="ml-2 text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">Special Request</span>}
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="text-sm font-semibold text-gray-700">${Number(item.price).toFixed(0)}</span>
+                              {item.inventory != null && <span className="text-xs text-gray-400">{item.inventory} avail</span>}
+                              <button onClick={() => deleteServiceItem(item.id)} className="text-gray-400 hover:text-red-500">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-3">
-                            <span className="text-sm font-semibold text-gray-700">${Number(item.price).toFixed(0)}</span>
-                            {item.inventory != null && <span className="text-xs text-gray-400">{item.inventory} avail</span>}
-                            <button onClick={() => deleteServiceItem(item.id)} className="text-gray-400 hover:text-red-500">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
+                          {item.notes && <p className="text-xs text-gray-500 mt-1 italic">{item.notes}</p>}
                         </div>
                       ))}
                     </div>
@@ -781,6 +889,102 @@ export default function VipManagePage() {
                   )}
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* CONCIERGES TAB */}
+      {activeTab === 'concierges' && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="font-semibold text-gray-800">Concierge Staff</h2>
+              <p className="text-xs text-gray-500 mt-0.5">Add staff by name &amp; phone. They receive an access code to view the VIP portal and get SMS alerts when guests arrive.</p>
+            </div>
+            <button
+              onClick={() => { setShowConciergeForm(!showConciergeForm); setNewConciergeCode(null) }}
+              className="flex items-center gap-1 text-sm text-purple-600 hover:text-purple-700 font-medium"
+            >
+              <Plus className="w-4 h-4" /> Add Concierge
+            </button>
+          </div>
+
+          {showConciergeForm && (
+            <div className="mb-5 p-4 bg-purple-50 rounded-xl border border-purple-100 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Full Name *</label>
+                  <input
+                    value={conciergeForm.name}
+                    onChange={e => setConciergeForm(p => ({ ...p, name: e.target.value }))}
+                    placeholder="e.g. Marcus Williams"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Phone Number *</label>
+                  <input
+                    type="tel"
+                    value={conciergeForm.phone}
+                    onChange={e => setConciergeForm(p => ({ ...p, phone: e.target.value }))}
+                    placeholder="+1 (555) 000-0000"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={saveConcierge} disabled={conciergeSaving || !conciergeForm.name || !conciergeForm.phone} className="px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2">
+                  {conciergeSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Phone className="w-4 h-4" />}
+                  Add &amp; Generate Code
+                </button>
+                <button onClick={() => setShowConciergeForm(false)} className="px-4 py-2 text-sm text-gray-600">Cancel</button>
+              </div>
+            </div>
+          )}
+
+          {newConciergeCode && (
+            <div className="mb-5 p-4 bg-green-50 border border-green-200 rounded-xl">
+              <p className="text-sm font-medium text-green-800 mb-1">✅ Concierge added! Share this access code:</p>
+              <div className="flex items-center gap-3">
+                <code className="text-2xl font-mono font-bold text-green-700 tracking-widest">{newConciergeCode}</code>
+                <button
+                  onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/vip/concierge/${newConciergeCode}`); }}
+                  className="text-xs text-green-700 underline"
+                >Copy portal link</button>
+              </div>
+              <p className="text-xs text-green-600 mt-1">Portal: {typeof window !== 'undefined' ? window.location.origin : ''}/vip/concierge/{newConciergeCode}</p>
+            </div>
+          )}
+
+          {concierges.length === 0 ? (
+            <div className="text-center py-10 text-gray-400">
+              <Phone className="w-10 h-10 mx-auto mb-2 opacity-30" />
+              <p className="text-sm">No concierges yet. Add staff to enable SMS arrival alerts.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {concierges.map(c => {
+                const portalLink = `/vip/concierge/${c.access_code}`
+                return (
+                  <div key={c.id} className="py-3 flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-800 text-sm">{c.name}</span>
+                        <span className="text-xs text-gray-500">{c.phone}</span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <code className="text-xs font-mono bg-gray-100 px-2 py-0.5 rounded tracking-widest text-gray-700">{c.access_code}</code>
+                        <a href={portalLink} target="_blank" rel="noopener noreferrer" className="text-xs text-purple-600 hover:underline">Open portal ↗</a>
+                        <button onClick={() => navigator.clipboard.writeText(`${typeof window !== 'undefined' ? window.location.origin : ''}${portalLink}`)} className="text-xs text-gray-400 hover:text-gray-600">Copy link</button>
+                      </div>
+                    </div>
+                    <button onClick={() => deleteConcierge(c.id)} className="text-gray-400 hover:text-red-500 p-1">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>

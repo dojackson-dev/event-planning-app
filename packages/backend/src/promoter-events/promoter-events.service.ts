@@ -312,7 +312,7 @@ export class PromoterEventsService {
 
   // ── STRIPE CHECKOUT for tickets ───────────────────────────────
 
-  async createTicketCheckout(eventId: string, tierId: string, quantity: number, buyerPhone?: string, buyerEmail?: string, returnUrl?: string) {
+  async createTicketCheckout(eventId: string, tierId: string, quantity: number, buyerPhone?: string, buyerEmail?: string, returnUrl?: string, buyerName?: string) {
     const admin = this.supabaseService.getAdminClient();
 
     const { data: event } = await admin
@@ -394,6 +394,7 @@ export class PromoterEventsService {
         quantity: String(quantity),
         ...(buyerEmail ? { buyer_email: buyerEmail } : {}),
         ...(buyerPhone ? { buyer_phone: buyerPhone } : {}),
+        ...(buyerName ? { buyer_name: buyerName } : {}),
       },
     });
 
@@ -546,6 +547,7 @@ export class PromoterEventsService {
     buyerPhone?: string,
     buyerEmail?: string,
     returnUrl?: string,
+    buyerName?: string,
   ) {
     const admin = this.supabaseService.getAdminClient();
 
@@ -629,6 +631,7 @@ export class PromoterEventsService {
         items: JSON.stringify(items),
         ...(buyerEmail ? { buyer_email: buyerEmail } : {}),
         ...(buyerPhone ? { buyer_phone: buyerPhone } : {}),
+        ...(buyerName ? { buyer_name: buyerName } : {}),
       },
     });
 
@@ -666,6 +669,34 @@ export class PromoterEventsService {
     if (error) throw new BadRequestException(error.message);
 
     return { success: true, message: 'Ticket scanned successfully' };
+  }
+
+  // ── RESEND TICKET CONFIRMATION ────────────────────────────────
+
+  async resendTicketConfirmation(userId: string, eventId: string, ticketId: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const promoter = await this.getPromoterAccount(userId);
+
+    const { data: event } = await admin
+      .from('public_events')
+      .select('id, title')
+      .eq('id', eventId)
+      .eq('promoter_account_id', promoter.id)
+      .maybeSingle();
+    if (!event) throw new ForbiddenException('Event not found');
+
+    const { data: ticket } = await admin
+      .from('tickets')
+      .select('id, buyer_email, buyer_phone, status')
+      .eq('id', ticketId)
+      .eq('public_event_id', eventId)
+      .maybeSingle();
+    if (!ticket) throw new NotFoundException('Ticket not found');
+
+    const ticketUrl = `${this.frontendUrl}/tickets/${ticketId}`;
+    this.logger.log(`Resend confirmation for ticket ${ticketId} → ${ticket.buyer_email || ticket.buyer_phone}`);
+
+    return { success: true, ticketUrl, ticket };
   }
 
   // ── COMP TICKETS ──────────────────────────────────────────────

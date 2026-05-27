@@ -89,12 +89,13 @@ export class PromoterEventsController {
       buyer_phone: string;
       buyer_email?: string;
       return_url?: string;
+      buyer_name?: string;
     },
   ) {
     if (body.items && body.items.length > 0) {
-      return this.service.createMultiTierCheckout(id, body.items, body.buyer_phone, body.buyer_email, body.return_url);
+      return this.service.createMultiTierCheckout(id, body.items, body.buyer_phone, body.buyer_email, body.return_url, body.buyer_name);
     }
-    return this.service.createTicketCheckout(id, body.tier_id!, body.quantity || 1, body.buyer_phone, body.buyer_email, body.return_url);
+    return this.service.createTicketCheckout(id, body.tier_id!, body.quantity || 1, body.buyer_phone, body.buyer_email, body.return_url, body.buyer_name);
   }
 
   /** Called from the success redirect — processes session and sends SMS if webhook hasn't already */
@@ -200,6 +201,18 @@ export class PromoterEventsController {
   ) {
     const userId = await this.getUserId(auth);
     return this.service.getEventAttendees(userId, eventId);
+  }
+
+  // resend ticket confirmation
+  @Post(':id/attendees/:ticketId/resend-confirmation')
+  async resendConfirmation(
+    @Headers('authorization') auth: string,
+    @Param('id') eventId: string,
+    @Param('ticketId') ticketId: string,
+  ) {
+    const userId = await this.getUserId(auth);
+    await this.service.resendTicketConfirmation(userId, eventId, ticketId);
+    return { success: true };
   }
 
   // comp tickets

@@ -9,6 +9,7 @@ import { PromoterEventsService } from '../promoter-events/promoter-events.servic
 import { AffiliatesService } from '../affiliates/affiliates.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import { MailService } from '../mail/mail.service';
+import { VipService } from '../vip/vip.service';
 
 @Injectable()
 export class StripeService {
@@ -28,6 +29,7 @@ export class StripeService {
     private readonly affiliatesService: AffiliatesService,
     private readonly smsNotifications: SmsNotificationsService,
     private readonly mailService: MailService,
+    private readonly vipService: VipService,
   ) {
     const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (!secretKey) {
@@ -470,9 +472,16 @@ export class StripeService {
     }
 
     // ── Ticket purchase (public event) ─────────────────────────────────────
-    if (session.metadata?.public_event_id) {
+    if (session.metadata?.public_event_id && !session.metadata?.vip_package_id) {
       await this.promoterEventsService.markTicketsSoldBySession(session.id);
       this.logger.log(`Ticket purchase complete — session ${session.id}`);
+      return;
+    }
+
+    // ── VIP package purchase ──────────────────────────────────────────────
+    if (session.metadata?.vip_package_id) {
+      await this.vipService.processVipCheckoutComplete(session.id);
+      this.logger.log(`VIP purchase complete — session ${session.id}`);
       return;
     }
 

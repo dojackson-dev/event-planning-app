@@ -357,6 +357,16 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
               </form>
             )}
           </div>
+
+          {/* VIP upsell */}
+          <Link href={`/events/${id}/vip`}
+            className="block mt-3 p-4 bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-200 rounded-2xl text-center hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <span className="text-yellow-600 text-lg">👑</span>
+              <span className="font-bold text-yellow-800 text-sm">VIP Concierge Experience</span>
+            </div>
+            <p className="text-xs text-yellow-700">Tables, booths, bottle service &amp; more</p>
+          </Link>
         </div>
       </div>
     </div>

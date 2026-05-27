@@ -584,7 +584,7 @@ export class VipService {
   async createConcierge(userId: string, eventId: string, dto: CreateVipConciergeDto) {
     await this.assertEventOwner(userId, eventId);
     const admin = this.supabaseService.getAdminClient();
-    let access_code: string;
+    let access_code!: string;
     // Ensure uniqueness
     for (let i = 0; i < 10; i++) {
       access_code = this.generateAccessCode();

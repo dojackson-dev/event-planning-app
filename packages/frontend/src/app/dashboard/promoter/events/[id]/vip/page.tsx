@@ -79,6 +79,14 @@ interface Layout {
   description: string | null
 }
 
+interface VipConcierge {
+  id: string
+  name: string
+  phone: string
+  access_code: string
+  created_at: string
+}
+
 export default function VipManagePage() {
   const { id: eventId } = useParams<{ id: string }>()
   const router = useRouter()

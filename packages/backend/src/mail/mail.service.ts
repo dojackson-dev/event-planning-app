@@ -52,7 +52,7 @@ export class MailService {
       const contractUrl = `${process.env.FRONTEND_URL || 'https://eventecos.com'}/dashboard/contracts/${contract.id}`;
       
       const mailOptions = {
-        from: `"${owner.firstName} ${owner.lastName}" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
+        from: `"EventEcos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
         to: client.email,
         subject: `New Contract Ready for Signature - ${contract.title}`,
         html: `
@@ -97,7 +97,7 @@ export class MailService {
             <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
             
             <p style="color: #999; font-size: 12px; text-align: center;">
-              This is an automated email from Eventecos. Please do not reply to this email.
+              This is an automated email from EventEcos. Please do not reply to this email.
             </p>
           </div>
         `,
@@ -144,8 +144,9 @@ export class MailService {
   }
 
   /**
-   * Send a client intake-form invitation email.
-   * The link directs the client to the invite page where they confirm their event via SMS OTP.
+   * Send a lead-activation / booking-received email to the client.
+   * Sent when the owner activates a lead (convertToBooking). The link
+   * takes the client through SMS-OTP verification into their client portal.
    */
   async sendClientInvitation(params: {
     clientName: string;
@@ -156,10 +157,12 @@ export class MailService {
     eventTime?: string | null;
     guestCount?: number | null;
     ownerName?: string;
+    venueName?: string;
   }): Promise<void> {
     try {
       const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
       const inviteUrl = `${frontendUrl}/invite?token=${params.inviteToken}`;
+      const displayName = params.venueName || params.ownerName || 'Your event coordinator';
       const formattedDate = params.eventDate
         ? new Date(params.eventDate + 'T12:00:00').toLocaleDateString('en-US', {
             weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -167,62 +170,292 @@ export class MailService {
         : 'TBD';
 
       const mailOptions = {
-        from: `"Eventecos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
+        from: `"EventEcos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
         to: params.clientEmail,
-        subject: `You're Invited – Confirm Your Event`,
+        subject: `${displayName} has received your booking request`,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb; padding: 32px 16px;">
             <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08);">
-              ${this.getEmailHeader('EventEcos', 'Client Portal Invitation')}
+              ${this.getEmailHeader('Booking Received!', 'Your event is in the works')}
 
               <div style="padding: 32px;">
-                <p style="color: #374151; font-size: 16px; margin-bottom: 8px;">Hello <strong>${params.clientName}</strong>,</p>
-                <p style="color: #374151; font-size: 15px; line-height: 1.6;">
-                  ${params.ownerName ? `<strong>${params.ownerName}</strong> has` : 'Your event planner has'} submitted your event details and is requesting your confirmation.
-                  Please review the information below and confirm your event.
+                <p style="color: #374151; font-size: 16px; margin: 0 0 12px;">Hello <strong>${params.clientName}</strong>,</p>
+
+                <p style="color: #374151; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">
+                  <strong>${displayName}</strong> has received your booking request and is now reviewing your event details.
+                  Your coordinator will prepare a personalized estimate and reach out with next steps shortly.
                 </p>
 
-                <div style="background: #f0f4ff; border-left: 4px solid #2563eb; border-radius: 8px; padding: 20px 24px; margin: 24px 0;">
-                  <h3 style="margin: 0 0 12px; color: #1e3a5f; font-size: 16px;">Event Details</h3>
+                <div style="background: #f0fdf4; border-left: 4px solid #16a34a; border-radius: 8px; padding: 16px 20px; margin: 0 0 24px;">
+                  <p style="color: #15803d; font-size: 14px; margin: 0; font-weight: 600;">What happens next?</p>
+                  <ol style="color: #374151; font-size: 14px; margin: 8px 0 0; padding-left: 20px; line-height: 1.8;">
+                    <li>Your coordinator reviews your request and prepares a custom estimate</li>
+                    <li>You review and approve the estimate through your portal</li>
+                    <li>A contract is sent for your electronic signature</li>
+                    <li>Invoice is issued and your event is officially booked!</li>
+                  </ol>
+                </div>
+
+                <div style="background: #f0f4ff; border-left: 4px solid #2563eb; border-radius: 8px; padding: 20px 24px; margin: 0 0 28px;">
+                  <h3 style="margin: 0 0 12px; color: #1e3a5f; font-size: 15px; font-weight: 700;">Your Event Details</h3>
                   <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #374151;">
-                    <tr><td style="padding: 4px 0; color: #6b7280; width: 110px;">Event Type</td><td style="padding: 4px 0; font-weight: 600;">${params.eventType}</td></tr>
-                    <tr><td style="padding: 4px 0; color: #6b7280;">Date</td><td style="padding: 4px 0; font-weight: 600;">${formattedDate}</td></tr>
-                    ${params.eventTime ? `<tr><td style="padding: 4px 0; color: #6b7280;">Time</td><td style="padding: 4px 0; font-weight: 600;">${params.eventTime}</td></tr>` : ''}
-                    ${params.guestCount ? `<tr><td style="padding: 4px 0; color: #6b7280;">Guests</td><td style="padding: 4px 0; font-weight: 600;">${params.guestCount}</td></tr>` : ''}
+                    <tr><td style="padding: 5px 0; color: #6b7280; width: 110px;">Event Type</td><td style="padding: 5px 0; font-weight: 600;">${params.eventType}</td></tr>
+                    <tr><td style="padding: 5px 0; color: #6b7280;">Date</td><td style="padding: 5px 0; font-weight: 600;">${formattedDate}</td></tr>
+                    ${params.eventTime ? `<tr><td style="padding: 5px 0; color: #6b7280;">Time</td><td style="padding: 5px 0; font-weight: 600;">${params.eventTime}</td></tr>` : ''}
+                    ${params.guestCount ? `<tr><td style="padding: 5px 0; color: #6b7280;">Guests</td><td style="padding: 5px 0; font-weight: 600;">${params.guestCount}</td></tr>` : ''}
                   </table>
                 </div>
 
-                <p style="color: #374151; font-size: 14px; line-height: 1.6;">
-                  Click the button below to confirm your event. You will be asked to verify your identity via a text message sent to your phone number on file.
+                <p style="color: #374151; font-size: 14px; line-height: 1.6; margin: 0 0 28px;">
+                  Access your client portal to track every step of your booking in real time. You'll be asked to verify your identity via a quick text message to your phone.
                 </p>
 
-                <div style="text-align: center; margin: 32px 0;">
+                <div style="text-align: center; margin: 0 0 28px;">
                   <a href="${inviteUrl}"
-                     style="display: inline-block; background: #2563eb; color: white; padding: 14px 40px; text-decoration: none; border-radius: 8px; font-size: 16px; font-weight: 600; letter-spacing: 0.3px;">
-                    Confirm My Event
+                     style="display: inline-block; background: linear-gradient(135deg, #00BFA5, #1E3A7F); color: white; padding: 16px 44px; text-decoration: none; border-radius: 8px; font-size: 16px; font-weight: 700; letter-spacing: 0.3px;">
+                    Access Client Portal
                   </a>
                 </div>
 
-                <p style="color: #9ca3af; font-size: 12px; text-align: center; margin-top: 24px;">
-                  If you did not expect this email, please disregard it. This link is unique to you.
+                <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 0;">
+                  This link is unique to you and expires in 7 days. If you did not expect this email, please disregard it.
                 </p>
               </div>
             </div>
           </div>
         `,
-        text: `Hello ${params.clientName},\n\nYou have been invited to confirm your event.\n\nEvent: ${params.eventType}\nDate: ${formattedDate}${params.eventTime ? `\nTime: ${params.eventTime}` : ''}\n\nConfirm here: ${inviteUrl}\n\nEventecos`,
+        text: `Hello ${params.clientName},\n\n${displayName} has received your booking request and is now reviewing your event details.\n\nEvent: ${params.eventType}\nDate: ${formattedDate}${params.eventTime ? `\nTime: ${params.eventTime}` : ''}${params.guestCount ? `\nGuests: ${params.guestCount}` : ''}\n\nAccess your client portal here: ${inviteUrl}\n\nEventEcos`,
       };
 
       const info = await this.transporter.sendMail(mailOptions);
-      console.log('Client invitation sent:', info.messageId);
-
-      if (process.env.NODE_ENV !== 'production' && process.env.SMTP_HOST?.includes('ethereal')) {
-        const nodemailer = await import('nodemailer');
-        console.log('[DEV] Invite email preview URL:', nodemailer.getTestMessageUrl(info));
-      }
+      console.log('[MailService] Lead activation email sent:', info.messageId);
     } catch (error) {
-      console.error('Failed to send client invitation email:', error);
-      // Non-fatal — don't break the intake form submission
+      console.error('[MailService] Failed to send lead activation email:', error);
+      // Non-fatal — don't break the booking flow
+    }
+  }
+
+  /** Send an email to the client when their estimate is ready to review. */
+  async sendEstimateReady(params: {
+    clientName: string;
+    clientEmail: string;
+    estimateNumber: string;
+    totalAmount: number;
+    estimateUrl: string;
+    eventType?: string | null;
+    eventDate?: string | null;
+    ownerName?: string;
+    venueName?: string;
+  }): Promise<void> {
+    try {
+      const displayName = params.venueName || params.ownerName || 'Your event coordinator';
+      const formattedAmount = `$${Number(params.totalAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      const formattedDate = params.eventDate
+        ? new Date(params.eventDate + 'T12:00:00').toLocaleDateString('en-US', {
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+          })
+        : null;
+
+      const mailOptions = {
+        from: `"EventEcos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
+        to: params.clientEmail,
+        subject: `Your Estimate from ${displayName} is Ready to Review`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb; padding: 32px 16px;">
+            <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08);">
+              ${this.getEmailHeader('Estimate Ready', 'Please review and approve')}
+              <div style="padding: 32px;">
+                <p style="color: #374151; font-size: 16px; margin: 0 0 12px;">Hi <strong>${params.clientName}</strong>,</p>
+                <p style="color: #374151; font-size: 15px; line-height: 1.7; margin: 0 0 24px;">
+                  <strong>${displayName}</strong> has prepared a custom estimate for your event.
+                  Please review the details and approve it through your client portal to move forward.
+                </p>
+
+                <div style="background: #f0f4ff; border-left: 4px solid #2563eb; border-radius: 8px; padding: 20px 24px; margin: 0 0 28px;">
+                  <h3 style="margin: 0 0 14px; color: #1e3a5f; font-size: 15px; font-weight: 700;">Estimate Summary</h3>
+                  <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #374151;">
+                    <tr><td style="padding: 6px 0; color: #6b7280; width: 140px;">Estimate #</td><td style="padding: 6px 0; font-weight: 600;">${params.estimateNumber}</td></tr>
+                    <tr><td style="padding: 6px 0; color: #6b7280;">Estimated Total</td><td style="padding: 6px 0; font-weight: 700; font-size: 18px; color: #2563eb;">${formattedAmount}</td></tr>
+                    ${params.eventType ? `<tr><td style="padding: 6px 0; color: #6b7280;">Event</td><td style="padding: 6px 0; font-weight: 600;">${params.eventType}</td></tr>` : ''}
+                    ${formattedDate ? `<tr><td style="padding: 6px 0; color: #6b7280;">Date</td><td style="padding: 6px 0; font-weight: 600;">${formattedDate}</td></tr>` : ''}
+                  </table>
+                </div>
+
+                <div style="background: #fffbeb; border-left: 4px solid #f59e0b; border-radius: 8px; padding: 14px 18px; margin: 0 0 28px;">
+                  <p style="color: #92400e; font-size: 13px; margin: 0; line-height: 1.6;">
+                    <strong>Action required:</strong> This estimate requires your approval before a contract can be issued. Log in to your portal to review the full breakdown and approve or request changes.
+                  </p>
+                </div>
+
+                <div style="text-align: center; margin: 0 0 28px;">
+                  <a href="${params.estimateUrl}"
+                     style="display: inline-block; background: #2563eb; color: white; padding: 16px 44px; text-decoration: none; border-radius: 8px; font-size: 16px; font-weight: 700; letter-spacing: 0.3px;">
+                    Review My Estimate
+                  </a>
+                </div>
+
+                <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 0;">
+                  If you have questions, reply to this email and ${displayName} will get back to you.
+                </p>
+              </div>
+            </div>
+          </div>
+        `,
+        text: `Hi ${params.clientName},\n\n${displayName} has sent you an estimate for ${formattedAmount}.\nEstimate #: ${params.estimateNumber}\n${formattedDate ? `Event Date: ${formattedDate}\n` : ''}\nReview and approve here: ${params.estimateUrl}\n\nEventEcos`,
+      };
+
+      const info = await this.transporter.sendMail(mailOptions);
+      console.log('[MailService] Estimate ready email sent:', info.messageId);
+    } catch (error) {
+      console.error('[MailService] Failed to send estimate ready email:', error);
+    }
+  }
+
+  /** Confirm to the client that their contract signature has been received. */
+  async sendContractSignedToClient(params: {
+    clientName: string;
+    clientEmail: string;
+    contractNumber: string;
+    contractTitle: string;
+    contractUrl: string;
+    venueName?: string;
+    ownerName?: string;
+  }): Promise<void> {
+    try {
+      const displayName = params.venueName || params.ownerName || 'your event coordinator';
+
+      const mailOptions = {
+        from: `"EventEcos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
+        to: params.clientEmail,
+        subject: `Contract Signed – ${params.contractNumber}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb; padding: 32px 16px;">
+            <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08);">
+              ${this.getEmailHeader('Contract Signed!', 'Your signature has been received')}
+              <div style="padding: 32px;">
+                <p style="color: #374151; font-size: 16px; margin: 0 0 12px;">Hi <strong>${params.clientName}</strong>,</p>
+                <p style="color: #374151; font-size: 15px; line-height: 1.7; margin: 0 0 24px;">
+                  Thank you — your signature has been received and your contract is now on file.
+                  <strong>${displayName}</strong> will review the signed contract and you'll be notified once it's countersigned.
+                </p>
+
+                <div style="background: #f0fdf4; border-left: 4px solid #16a34a; border-radius: 8px; padding: 20px 24px; margin: 0 0 28px;">
+                  <h3 style="margin: 0 0 12px; color: #14532d; font-size: 15px; font-weight: 700;">Contract Details</h3>
+                  <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #374151;">
+                    <tr><td style="padding: 6px 0; color: #6b7280; width: 140px;">Contract #</td><td style="padding: 6px 0; font-weight: 600;">${params.contractNumber}</td></tr>
+                    <tr><td style="padding: 6px 0; color: #6b7280;">Title</td><td style="padding: 6px 0; font-weight: 600;">${params.contractTitle}</td></tr>
+                    <tr><td style="padding: 6px 0; color: #6b7280;">Status</td><td style="padding: 6px 0; font-weight: 700; color: #16a34a;">✓ Signed</td></tr>
+                  </table>
+                </div>
+
+                <p style="color: #374151; font-size: 14px; line-height: 1.6; margin: 0 0 28px;">
+                  You can view your signed contract and track the rest of your booking in your client portal.
+                  Next up: an invoice will be sent once the contract is fully executed.
+                </p>
+
+                <div style="text-align: center; margin: 0 0 28px;">
+                  <a href="${params.contractUrl}"
+                     style="display: inline-block; background: #16a34a; color: white; padding: 16px 44px; text-decoration: none; border-radius: 8px; font-size: 16px; font-weight: 700; letter-spacing: 0.3px;">
+                    View My Contract
+                  </a>
+                </div>
+
+                <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 0;">
+                  Keep this email for your records. If you have any questions, contact ${displayName}.
+                </p>
+              </div>
+            </div>
+          </div>
+        `,
+        text: `Hi ${params.clientName},\n\nYour signature for contract ${params.contractNumber} ("${params.contractTitle}") has been received.\n\nView your contract: ${params.contractUrl}\n\nEventEcos`,
+      };
+
+      const info = await this.transporter.sendMail(mailOptions);
+      console.log('[MailService] Contract signed confirmation sent to client:', info.messageId);
+    } catch (error) {
+      console.error('[MailService] Failed to send contract signed confirmation email:', error);
+    }
+  }
+
+  /** Send a "You're Booked!" confirmation email when an invoice is fully paid. */
+  async sendInvoicePaidConfirmation(params: {
+    clientName: string;
+    clientEmail: string;
+    invoiceNumber: string;
+    totalAmount: number;
+    eventType?: string | null;
+    eventDate?: string | null;
+    venueName?: string;
+    ownerName?: string;
+    portalUrl: string;
+  }): Promise<void> {
+    try {
+      const displayName = params.venueName || params.ownerName || 'Your event coordinator';
+      const formattedAmount = `$${Number(params.totalAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      const formattedDate = params.eventDate
+        ? new Date(params.eventDate + 'T12:00:00').toLocaleDateString('en-US', {
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+          })
+        : null;
+
+      const mailOptions = {
+        from: `"EventEcos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
+        to: params.clientEmail,
+        subject: `You're Booked! Payment Confirmed – ${params.invoiceNumber}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb; padding: 32px 16px;">
+            <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08);">
+              ${this.getEmailHeader("You're Booked! 🎉", 'Payment confirmed — your event is set')}
+              <div style="padding: 32px;">
+                <p style="color: #374151; font-size: 16px; margin: 0 0 12px;">Congratulations, <strong>${params.clientName}</strong>!</p>
+                <p style="color: #374151; font-size: 15px; line-height: 1.7; margin: 0 0 24px;">
+                  Your payment has been received and your event with <strong>${displayName}</strong> is now officially confirmed.
+                  We can't wait to make it an unforgettable experience!
+                </p>
+
+                <div style="background: linear-gradient(135deg, #f0fdf4, #ecfdf5); border: 1px solid #bbf7d0; border-radius: 12px; padding: 24px; margin: 0 0 28px; text-align: center;">
+                  <div style="font-size: 48px; margin-bottom: 8px;">✅</div>
+                  <p style="color: #15803d; font-size: 18px; font-weight: 700; margin: 0 0 4px;">Booking Confirmed</p>
+                  <p style="color: #6b7280; font-size: 13px; margin: 0;">Invoice ${params.invoiceNumber} — ${formattedAmount} paid</p>
+                </div>
+
+                ${(params.eventType || formattedDate) ? `
+                <div style="background: #f0f4ff; border-left: 4px solid #2563eb; border-radius: 8px; padding: 20px 24px; margin: 0 0 28px;">
+                  <h3 style="margin: 0 0 12px; color: #1e3a5f; font-size: 15px; font-weight: 700;">Your Event</h3>
+                  <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #374151;">
+                    ${params.eventType ? `<tr><td style="padding: 6px 0; color: #6b7280; width: 100px;">Event</td><td style="padding: 6px 0; font-weight: 600;">${params.eventType}</td></tr>` : ''}
+                    ${formattedDate ? `<tr><td style="padding: 6px 0; color: #6b7280;">Date</td><td style="padding: 6px 0; font-weight: 600;">${formattedDate}</td></tr>` : ''}
+                    <tr><td style="padding: 6px 0; color: #6b7280;">Venue</td><td style="padding: 6px 0; font-weight: 600;">${displayName}</td></tr>
+                  </table>
+                </div>
+                ` : ''}
+
+                <p style="color: #374151; font-size: 14px; line-height: 1.6; margin: 0 0 28px;">
+                  You can view your invoice, contract, and all booking details in your client portal at any time.
+                  Your coordinator will be in touch leading up to the event with any additional information.
+                </p>
+
+                <div style="text-align: center; margin: 0 0 28px;">
+                  <a href="${params.portalUrl}"
+                     style="display: inline-block; background: linear-gradient(135deg, #00BFA5, #1E3A7F); color: white; padding: 16px 44px; text-decoration: none; border-radius: 8px; font-size: 16px; font-weight: 700; letter-spacing: 0.3px;">
+                    View My Booking Portal
+                  </a>
+                </div>
+
+                <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 0;">
+                  Thank you for choosing ${displayName}. If you have any questions, reply to this email.
+                </p>
+              </div>
+            </div>
+          </div>
+        `,
+        text: `Congratulations ${params.clientName}!\n\nYour payment has been received and your event is confirmed.\n\nInvoice: ${params.invoiceNumber}\nAmount Paid: ${formattedAmount}\n${formattedDate ? `Event Date: ${formattedDate}\n` : ''}\nView your portal: ${params.portalUrl}\n\nEventEcos`,
+      };
+
+      const info = await this.transporter.sendMail(mailOptions);
+      console.log('[MailService] Invoice paid confirmation sent:', info.messageId);
+    } catch (error) {
+      console.error('[MailService] Failed to send invoice paid confirmation email:', error);
     }
   }
 
@@ -239,7 +472,7 @@ export class MailService {
       const formattedDue = new Date(params.dueDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
       const mailOptions = {
-        from: `"Eventecos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
+        from: `"EventEcos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
         to: params.clientEmail,
         subject: `Invoice ${params.invoiceNumber} is Ready – View & Pay Online`,
         html: `
@@ -270,7 +503,7 @@ export class MailService {
             </div>
           </div>
         `,
-        text: `Hi ${params.clientName},\n\nYour invoice ${params.invoiceNumber} for ${formattedAmount} is ready.\nDue: ${formattedDue}\n\nView and pay here: ${params.invoiceUrl}\n\nEventecos`,
+        text: `Hi ${params.clientName},\n\nYour invoice ${params.invoiceNumber} for ${formattedAmount} is ready.\nDue: ${formattedDue}\n\nView and pay here: ${params.invoiceUrl}\n\nEventEcos`,
       };
 
       const info = await this.transporter.sendMail(mailOptions);
@@ -286,7 +519,7 @@ export class MailService {
       const contractUrl = `${process.env.FRONTEND_URL || 'https://eventecos.com'}/dashboard/contracts/${contract.id}`;
       
       const mailOptions = {
-        from: `"Eventecos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,`
+        from: `"EventEcos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
         to: owner.email,
         subject: `Contract Signed - ${contract.title}`,
         html: `
@@ -316,7 +549,7 @@ export class MailService {
             <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
             
             <p style="color: #999; font-size: 12px; text-align: center;">
-              This is an automated email from Eventecos. Please do not reply to this email.
+              This is an automated email from EventEcos. Please do not reply to this email.
             </p>
           </div>
         `,
@@ -401,7 +634,7 @@ export class MailService {
               </p>
               <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
               <p style="color:#9ca3af;font-size:12px;text-align:center;margin:0;">
-                This is an automated message from Eventecos. Please do not reply to this email.
+                This is an automated message from EventEcos. Please do not reply to this email.
               </p>
             </div>
           </div>
@@ -480,14 +713,14 @@ export class MailService {
   }): Promise<void> {
     const htmlBody = params.body.replace(/\n/g, '<br>');
     const mailOptions = {
-      from: `"Eventecos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
+      from: `"EventEcos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
       to: params.toEmail,
       subject: params.subject,
       html: `
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1f2937;">
           <p>Hi ${params.toName},</p>
           <p>${htmlBody}</p>
-          <p style="margin-top:32px;color:#6b7280;font-size:13px;">— The Eventecos Team</p>
+          <p style="margin-top:32px;color:#6b7280;font-size:13px;">— The EventEcos Team</p>
         </div>
       `,
     };

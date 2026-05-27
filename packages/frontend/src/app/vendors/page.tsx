@@ -246,6 +246,16 @@ export default function VendorsPage() {
 
           {/* Search Bar */}
           <form onSubmit={searchDirectory} className="bg-white rounded-xl p-4 shadow-xl">
+            <div className="flex justify-center mb-3">
+              <button
+                type="button"
+                onClick={useMyLocation}
+                disabled={locating || loading}
+                className="px-4 py-2 border border-primary-300 rounded-lg text-primary-600 hover:bg-primary-50 disabled:opacity-50 transition-colors text-sm font-medium"
+              >
+                {locating ? 'Locating...' : '📍 Use My Location'}
+              </button>
+            </div>
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex flex-1 gap-2">
                 <input
@@ -255,20 +265,6 @@ export default function VendorsPage() {
                   onChange={e => setZipCode(e.target.value)}
                   className="flex-1 border border-gray-300 rounded-lg px-4 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
-                <button
-                  type="button"
-                  onClick={useMyLocation}
-                  disabled={locating || loading}
-                  title="Use my current location"
-                  className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 hover:border-primary-400 hover:text-primary-600 disabled:opacity-50 transition-colors whitespace-nowrap text-sm"
-                >
-                  {locating ? (
-                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                  ) : (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                  )}
-                  <span className="hidden sm:inline">{locating ? 'Locating...' : 'Near Me'}</span>
-                </button>
               </div>
               <select
                 value={radiusMiles}

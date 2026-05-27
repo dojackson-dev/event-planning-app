@@ -203,6 +203,7 @@ export class PromoterEventsController {
     return this.service.getEventAttendees(userId, eventId);
   }
 
+  // resend ticket confirmation
   @Post(':id/attendees/:ticketId/resend-confirmation')
   async resendConfirmation(
     @Headers('authorization') auth: string,

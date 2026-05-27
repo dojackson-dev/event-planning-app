@@ -38,6 +38,7 @@ import { RemindersModule } from './reminders/reminders.module';
 import { AuditModule } from './audit/audit.module';
 import { RsvpModule } from './rsvp/rsvp.module';
 import { ContactModule } from './contact/contact.module';
+import { VipModule } from './vip/vip.module';
 
 @Module({
   imports: [
@@ -80,6 +81,7 @@ import { ContactModule } from './contact/contact.module';
     AuditModule,
     RsvpModule,
     ContactModule,
+    VipModule,
   ],
   controllers: [AppController],
   providers: [AppService],

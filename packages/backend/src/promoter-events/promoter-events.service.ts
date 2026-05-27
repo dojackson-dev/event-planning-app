@@ -301,7 +301,7 @@ export class PromoterEventsService {
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('public_events')
-      .select('*, ticket_tiers(id, name, price, quantity, quantity_sold, description), promoter_accounts(company_name, contact_name, profile_image_url, city, state)')
+      .select('*, ticket_tiers(id, name, price, quantity, quantity_sold, description), promoter_accounts(company_name, contact_name, profile_image_url)')
       .eq('id', eventId)
       .eq('status', 'published')
       .maybeSingle();
@@ -631,6 +631,7 @@ export class PromoterEventsService {
         items: JSON.stringify(items),
         ...(buyerEmail ? { buyer_email: buyerEmail } : {}),
         ...(buyerPhone ? { buyer_phone: buyerPhone } : {}),
+        ...(buyerName ? { buyer_name: buyerName } : {}),
       },
     });
 

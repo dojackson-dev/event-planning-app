@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, use } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
@@ -54,8 +54,8 @@ interface Layout {
   description: string | null
 }
 
-export default function EventVipPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id: eventId } = use(params)
+export default function EventVipPage({ params }: { params: { id: string } }) {
+  const { id: eventId } = params
   const searchParams = useSearchParams()
 
   const [packages, setPackages] = useState<VipPackage[]>([])

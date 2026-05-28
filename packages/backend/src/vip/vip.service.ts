@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
 import Stripe from 'stripe';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
+import { MailService } from '../mail/mail.service';
 import {
   CreateVipSectionDto,
   CreateVipPackageDto,
@@ -39,6 +40,7 @@ export class VipService {
     private readonly supabaseService: SupabaseService,
     private readonly configService: ConfigService,
     private readonly smsNotifications: SmsNotificationsService,
+    private readonly mailService: MailService,
   ) {
     this.stripe = new Stripe(this.configService.get<string>('STRIPE_SECRET_KEY') || '', {
       apiVersion: '2024-04-10' as any,
@@ -436,6 +438,40 @@ export class VipService {
         ...(pkg.inventory_sold + 1 >= pkg.inventory ? { status: 'sold_out' } : {}),
       })
       .eq('id', vip_package_id);
+
+    // Send confirmation email with QR code
+    const toEmail = order.buyer_email || (buyer_email ?? session.customer_email ?? '');
+    if (toEmail) {
+      try {
+        const { data: event } = await admin
+          .from('public_events')
+          .select('title, event_date, start_time, venue_name, promoter_accounts(company_name)')
+          .eq('id', public_event_id)
+          .single();
+
+        const { data: pkgFull } = await admin
+          .from('vip_packages')
+          .select('table_label')
+          .eq('id', vip_package_id)
+          .single();
+
+        await this.mailService.sendVipOrderConfirmation({
+          toEmail,
+          eventTitle: event?.title ?? 'Your Event',
+          eventDate: event?.event_date ?? '',
+          eventTime: event?.start_time ?? null,
+          venueName: event?.venue_name ?? null,
+          packageName: pkg.name,
+          tableLabel: pkgFull?.table_label ?? null,
+          amountTotal: order.total_price,
+          eventId: public_event_id,
+          promoterName: (event?.promoter_accounts as any)?.company_name ?? null,
+          qrCode,
+        });
+      } catch (emailErr) {
+        this.logger.warn(`VIP confirmation email failed for order ${order.id}: ${emailErr}`);
+      }
+    }
 
     this.logger.log(`VIP order created: ${order.id} for event ${public_event_id}`);
   }

@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
 import Stripe from 'stripe';
+import { MailService } from '../mail/mail.service';
 import {
   CreatePromoterEventDto,
   UpdatePromoterEventDto,
@@ -37,6 +38,7 @@ export class PromoterEventsService {
   constructor(
     private readonly supabaseService: SupabaseService,
     private readonly configService: ConfigService,
+    private readonly mailService: MailService,
   ) {
     this.stripe = new Stripe(this.configService.get<string>('STRIPE_SECRET_KEY') || '', {
       apiVersion: '2024-04-10' as any,
@@ -444,7 +446,7 @@ export class PromoterEventsService {
     // increment quantity_sold on tier
     const { data: tier } = await admin
       .from('ticket_tiers')
-      .select('quantity_sold')
+      .select('quantity_sold, name')
       .eq('id', ticket_tier_id)
       .single();
 
@@ -453,6 +455,34 @@ export class PromoterEventsService {
         .from('ticket_tiers')
         .update({ quantity_sold: (tier.quantity_sold ?? 0) + qty })
         .eq('id', ticket_tier_id);
+    }
+
+    // Send confirmation email with QR codes
+    const toEmail = buyer_email ?? session.customer_email ?? '';
+    if (toEmail) {
+      try {
+        const { data: event } = await admin
+          .from('public_events')
+          .select('title, event_date, start_time, venue_name, promoter_accounts(company_name)')
+          .eq('id', public_event_id)
+          .single();
+
+        await this.mailService.sendTicketConfirmation({
+          toEmail,
+          eventTitle: event?.title ?? 'Your Event',
+          eventDate: event?.event_date ?? '',
+          eventTime: event?.start_time ?? null,
+          venueName: event?.venue_name ?? null,
+          tierName: tier?.name ?? 'General Admission',
+          quantity: qty,
+          amountTotal: session.amount_total ? session.amount_total / 100 : 0,
+          eventId: public_event_id,
+          promoterName: (event?.promoter_accounts as any)?.company_name ?? null,
+          sessionId,
+        });
+      } catch (emailErr) {
+        this.logger.warn(`Ticket confirmation email failed for session ${sessionId}: ${emailErr}`);
+      }
     }
 
     this.logger.log(`Recorded ${qty} ticket(s) sold for event ${public_event_id}`);

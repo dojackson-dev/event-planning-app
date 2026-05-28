@@ -163,16 +163,6 @@ export class EstimatesService {
         .order('created_at', { ascending: false });
       if (error) throw error;
 
-      // Fall back to all owner estimates if none are linked to this event yet
-      if ((!data || data.length === 0) && eventResult.data?.owner_id) {
-        const { data: ownerData } = await supabase
-          .from('estimates')
-          .select('*, items:estimate_items(*)')
-          .eq('owner_id', eventResult.data.owner_id)
-          .order('created_at', { ascending: false });
-        return ownerData || [];
-      }
-
       return data || [];
     } catch {
       return [];

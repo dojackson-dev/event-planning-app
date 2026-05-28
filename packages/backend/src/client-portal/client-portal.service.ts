@@ -51,7 +51,7 @@ export class ClientPortalService {
 
     // ── Events for this client (via intake_forms phone match + invoice client_phone fallback) ──
     const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
-    const eventSelect = 'id, status, total_amount, deposit_amount, payment_status, created_at, name, date, start_time, end_time, venue';
+    const eventSelect = 'id, status, total_amount, deposit_amount, payment_status, created_at, name, date, start_time, end_time, venue, max_guests';
     const eventIdSet = new Set<string>();
     const intakeFormIdSet = new Set<string>(intakeFormIds);
     const invFallback = await Promise.all(

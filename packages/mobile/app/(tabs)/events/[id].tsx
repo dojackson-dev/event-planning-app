@@ -125,7 +125,7 @@ export default function EventDetailScreen() {
           .eq('owner_id', user.id),
         supabase
           .from('estimates')
-          .select('id, estimate_number, status, total_amount, expiration_date, intake_form_id')
+          .select('id, estimate_number, status, total_amount, expiration_date, intake_form_id, event_id')
           .eq('owner_id', user.id),
       ]);
 
@@ -154,10 +154,11 @@ export default function EventDetailScreen() {
       );
       setInvoices(matched);
 
-      // Match estimates to this event via intake_form_id
+      // Match estimates to this event via event_id or intake_form_id
       const allEstimates: EstimateSummary[] = estimateRes.data || [];
-      const matchedEstimates = allEstimates.filter((est) =>
-        eventData.intake_form_id && est.intake_form_id === eventData.intake_form_id
+      const matchedEstimates = allEstimates.filter((est: any) =>
+        est.event_id === id ||
+        (eventData.intake_form_id && est.intake_form_id === eventData.intake_form_id)
       );
       setEstimates(matchedEstimates);
     } catch (err: any) {

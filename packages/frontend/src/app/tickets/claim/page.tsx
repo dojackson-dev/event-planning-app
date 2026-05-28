@@ -6,6 +6,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import Link from 'next/link'
 import { Ticket, Calendar, MapPin, Loader2, KeyRound } from 'lucide-react'
 import api from '@/lib/api'
+import { formatTime } from '@/lib/dateUtils'
 
 interface TicketData {
   id: string
@@ -124,7 +125,7 @@ function ClaimContent() {
                 {dateStr && (
                   <div className="flex items-start gap-2 text-sm text-gray-600">
                     <Calendar className="w-4 h-4 shrink-0 mt-0.5 text-purple-500" />
-                    <span>{dateStr}{event?.start_time ? ` at ${event.start_time}` : ''}</span>
+                    <span>{dateStr}{event?.start_time ? ` at ${formatTime(event.start_time)}` : ''}</span>
                   </div>
                 )}
                 {location && (

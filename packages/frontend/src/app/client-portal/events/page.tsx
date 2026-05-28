@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import clientApi from '@/lib/clientApi'
+import { formatTime } from '@/lib/dateUtils'
 import { Calendar, MapPin, Clock, Users, ChevronDown, ChevronUp, Phone, Mail, MessageSquare } from 'lucide-react'
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
@@ -117,7 +118,7 @@ export default function ClientEventsPage() {
                       {event.start_time && (
                         <span className="flex items-center gap-1">
                           <Clock className="h-3.5 w-3.5" />
-                          {event.start_time}{event.end_time ? ` – ${event.end_time}` : ''}
+                          {formatTime(event.start_time)}{event.end_time ? ` – ${formatTime(event.end_time)}` : ''}
                         </span>
                       )}
                       {event.venue && (

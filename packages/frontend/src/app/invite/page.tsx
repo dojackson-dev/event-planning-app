@@ -205,6 +205,15 @@ function InvitePage() {
       weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
     })
 
+  const formatTime = (timeStr: string | null) => {
+    if (!timeStr) return ''
+    const [hours, minutes] = timeStr.split(':').slice(0, 2)
+    const hour = parseInt(hours, 10)
+    const ampm = hour >= 12 ? 'PM' : 'AM'
+    const displayHour = hour % 12 || 12
+    return `${displayHour}:${minutes} ${ampm}`
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white flex flex-col">
       {/* Header */}
@@ -299,7 +308,7 @@ function InvitePage() {
                       <Clock className="h-5 w-5 text-primary-600 flex-shrink-0" />
                       <div>
                         <p className="text-xs text-gray-500 uppercase tracking-wide">Time</p>
-                        <p className="font-semibold text-gray-800">{form.event_time}</p>
+                        <p className="font-semibold text-gray-800">{formatTime(form.event_time)}</p>
                       </div>
                     </div>
                   )}

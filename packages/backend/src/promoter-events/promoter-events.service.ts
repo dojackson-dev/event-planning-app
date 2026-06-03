@@ -46,6 +46,22 @@ export class PromoterEventsService {
 
   // ── helpers ──────────────────────────────────────────────────
 
+  private async geocodeZip(zipCode: string): Promise<{ lat: number; lng: number } | null> {
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?postalcode=${encodeURIComponent(zipCode)}&country=US&format=json&limit=1`,
+        { headers: { 'User-Agent': 'DoVenueSuite/1.0' } },
+      );
+      const data = await response.json() as any[];
+      if (data && data.length > 0) {
+        return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+      }
+    } catch (err) {
+      this.logger.warn('Geocoding failed for zip:', zipCode);
+    }
+    return null;
+  }
+
   private async getPromoterAccount(userId: string) {
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
@@ -63,6 +79,13 @@ export class PromoterEventsService {
     const admin = this.supabaseService.getAdminClient();
     const promoter = await this.getPromoterAccount(userId);
 
+    let latitude: number | null = null;
+    let longitude: number | null = null;
+    if (dto.zip_code) {
+      const coords = await this.geocodeZip(dto.zip_code);
+      if (coords) { latitude = coords.lat; longitude = coords.lng; }
+    }
+
     const { data: event, error } = await admin
       .from('public_events')
       .insert({
@@ -76,10 +99,13 @@ export class PromoterEventsService {
         venue_address: dto.venue_address ?? null,
         city: dto.city ?? null,
         state: dto.state ?? null,
+        zip_code: dto.zip_code ?? null,
         category: dto.category ?? null,
         image_url: dto.image_url ?? null,
         age_restriction: dto.age_restriction ?? null,
         status: dto.status ?? 'draft',
+        latitude,
+        longitude,
       })
       .select()
       .single();
@@ -149,6 +175,16 @@ export class PromoterEventsService {
     if (dto.image_url !== undefined) updates.image_url = dto.image_url;
     if (dto.age_restriction !== undefined) updates.age_restriction = dto.age_restriction;
     if (dto.status !== undefined) updates.status = dto.status;
+    if (dto.zip_code !== undefined) {
+      updates.zip_code = dto.zip_code;
+      if (dto.zip_code) {
+        const coords = await this.geocodeZip(dto.zip_code);
+        if (coords) { updates.latitude = coords.lat; updates.longitude = coords.lng; }
+      } else {
+        updates.latitude = null;
+        updates.longitude = null;
+      }
+    }
 
     const { data, error } = await admin
       .from('public_events')
@@ -280,18 +316,59 @@ export class PromoterEventsService {
 
   // ── PUBLIC ROUTES (no auth) ───────────────────────────────────
 
-  async listPublicEvents(city?: string, category?: string, _radius?: number) {
+  async listPublicEvents(zipCode?: string, category?: string, radiusMiles?: number) {
     const admin = this.supabaseService.getAdminClient();
+
+    // If a zip code is provided, geocode it and use the radius RPC
+    if (zipCode) {
+      const coords = await this.geocodeZip(zipCode);
+      if (coords) {
+        const radius = radiusMiles ?? 30;
+        const { data: rpcData, error: rpcError } = await admin.rpc('search_events_by_location', {
+          search_lat: coords.lat,
+          search_lng: coords.lng,
+          radius_miles: radius,
+          filter_category: category ?? null,
+        });
+        if (rpcError) this.logger.error('search_events_by_location error:', rpcError);
+        if (rpcData && rpcData.length > 0) return rpcData;
+
+        // RPC returned nothing — fall back to exact zip match
+        let fallback = admin
+          .from('public_events')
+          .select('*, ticket_tiers(id, name, price, quantity, quantity_sold), promoter_accounts(company_name, contact_name, profile_image_url)')
+          .eq('status', 'published')
+          .gte('event_date', new Date().toISOString().split('T')[0])
+          .eq('zip_code', zipCode)
+          .order('event_date', { ascending: true });
+        if (category) fallback = fallback.eq('category', category);
+        const { data: fbData, error: fbError } = await fallback;
+        if (fbError) throw new BadRequestException(fbError.message);
+        return fbData || [];
+      }
+
+      // Geocoding failed — exact zip match only
+      let exactQuery = admin
+        .from('public_events')
+        .select('*, ticket_tiers(id, name, price, quantity, quantity_sold), promoter_accounts(company_name, contact_name, profile_image_url)')
+        .eq('status', 'published')
+        .gte('event_date', new Date().toISOString().split('T')[0])
+        .eq('zip_code', zipCode)
+        .order('event_date', { ascending: true });
+      if (category) exactQuery = exactQuery.eq('category', category);
+      const { data: exactData, error: exactError } = await exactQuery;
+      if (exactError) throw new BadRequestException(exactError.message);
+      return exactData || [];
+    }
+
+    // No zip — return all upcoming published events
     let query = admin
       .from('public_events')
       .select('*, ticket_tiers(id, name, price, quantity, quantity_sold), promoter_accounts(company_name, contact_name, profile_image_url)')
       .eq('status', 'published')
       .gte('event_date', new Date().toISOString().split('T')[0])
       .order('event_date', { ascending: true });
-
-    if (city) query = query.ilike('city', `%${city}%`);
     if (category) query = query.eq('category', category);
-
     const { data, error } = await query;
     if (error) throw new BadRequestException(error.message);
     return data || [];

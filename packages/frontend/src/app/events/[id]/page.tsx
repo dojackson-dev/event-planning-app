@@ -71,6 +71,7 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
   const [vipPackages, setVipPackages] = useState<VipPackage[]>([])
 
   const successSession = searchParams?.get('success')
+  const vipPaid = searchParams?.get('vip_paid') === 'true'
 
   useEffect(() => {
     if (!id) return
@@ -150,6 +151,17 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
             <div>
               <p className="text-green-800 font-semibold text-sm">Payment successful! Check your email for your ticket.</p>
               <p className="text-green-700 text-xs">Your ticket has been sent to your email address.</p>
+            </div>
+          </div>
+        </div>
+      )}
+      {vipPaid && (
+        <div className="bg-purple-50 border-b border-purple-200 px-4 py-3">
+          <div className="max-w-4xl mx-auto flex items-center gap-3">
+            <CheckCircle className="w-5 h-5 text-purple-600 shrink-0" />
+            <div>
+              <p className="text-purple-800 font-semibold text-sm">VIP Package Confirmed! Check your email for your confirmation and QR code.</p>
+              <p className="text-purple-700 text-xs">Your VIP experience has been booked.</p>
             </div>
           </div>
         </div>

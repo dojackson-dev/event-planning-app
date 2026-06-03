@@ -133,7 +133,7 @@ export default function EventVipPage({ params }: { params: { id: string } }) {
           buyer_email: buyerEmail,
           buyer_phone: buyerPhone || undefined,
           service_items: serviceItemsPayload.length > 0 ? serviceItemsPayload : undefined,
-          return_url: `${window.location.origin}/events/${eventId}/vip`,
+          return_url: `${window.location.origin}/events/${eventId}?vip_paid=true`,
         },
       )
       window.location.href = res.data.url

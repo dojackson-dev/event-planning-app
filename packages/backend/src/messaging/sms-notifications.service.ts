@@ -476,5 +476,21 @@ export class SmsNotificationsService {
   async send(phone: string | null | undefined, body: string): Promise<void> {
     await this.trySend(phone, body);
   }
+
+  async vipPurchaseConfirmed(
+    phone: string | null | undefined,
+    buyerName: string | null | undefined,
+    packageName: string,
+    eventTitle: string,
+    eventDate: string,
+    eventId: string,
+  ): Promise<void> {
+    const name = buyerName ? `Hi ${buyerName}, ` : '';
+    const link = this.url(`/events/${eventId}`);
+    await this.trySend(
+      phone,
+      `Eventecos VIP\n${name}your VIP package "${packageName}" for ${eventTitle} on ${eventDate} is confirmed! Show your QR code at the door. View event: ${link}`,
+    );
+  }
 }
 

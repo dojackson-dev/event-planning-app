@@ -8,6 +8,8 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
 import Stripe from 'stripe';
+import { MailService } from '../mail/mail.service';
+import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import {
   CreateVipSectionDto,
   CreateVipPackageDto,
@@ -36,6 +38,8 @@ export class VipService {
   constructor(
     private readonly supabaseService: SupabaseService,
     private readonly configService: ConfigService,
+    private readonly mailService: MailService,
+    private readonly smsNotifications: SmsNotificationsService,
   ) {
     this.stripe = new Stripe(this.configService.get<string>('STRIPE_SECRET_KEY') || '', {
       apiVersion: '2024-04-10' as any,
@@ -432,6 +436,54 @@ export class VipService {
         ...(pkg.inventory_sold + 1 >= pkg.inventory ? { status: 'sold_out' } : {}),
       })
       .eq('id', vip_package_id);
+
+    // ── Send email & SMS confirmation ──────────────────────────────────────
+    const { data: event } = await admin
+      .from('public_events')
+      .select('title, event_date, start_time, venue_name, promoter_accounts(company_name, contact_name)')
+      .eq('id', public_event_id)
+      .single();
+
+    const eventTitle = event?.title ?? 'Event';
+    const eventDate = event?.event_date ?? '';
+    const eventTime = event?.start_time ?? null;
+    const venueName = event?.venue_name ?? null;
+    const promoterName = (event?.promoter_accounts as any)?.company_name
+      || (event?.promoter_accounts as any)?.contact_name
+      || null;
+    const finalEmail = order.buyer_email || (buyer_email ?? session.customer_email ?? '');
+    const finalPhone = order.buyer_phone || (buyer_phone ?? '');
+    const formattedDate = eventDate
+      ? new Date(eventDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+      : 'TBD';
+
+    if (finalEmail) {
+      await this.mailService.sendVipConfirmation({
+        toEmail: finalEmail,
+        buyerName: order.buyer_name || null,
+        eventTitle,
+        eventDate,
+        eventTime,
+        venueName,
+        packageName: pkg.name,
+        totalAmount: order.total_price,
+        qrCode: qrCode,
+        orderId: order.id,
+        eventId: public_event_id,
+        promoterName,
+      });
+    }
+
+    if (finalPhone) {
+      await this.smsNotifications.vipPurchaseConfirmed(
+        finalPhone,
+        order.buyer_name || null,
+        pkg.name,
+        eventTitle,
+        formattedDate,
+        public_event_id,
+      );
+    }
 
     this.logger.log(`VIP order created: ${order.id} for event ${public_event_id}`);
   }

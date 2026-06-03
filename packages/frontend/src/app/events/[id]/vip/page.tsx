@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, use } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
@@ -51,8 +51,8 @@ interface Layout {
   description: string | null
 }
 
-export default function EventVipPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id: eventId } = use(params)
+export default function EventVipPage({ params }: { params: { id: string } }) {
+  const { id: eventId } = params
   const searchParams = useSearchParams()
 
   const [packages, setPackages] = useState<VipPackage[]>([])
@@ -187,8 +187,13 @@ export default function EventVipPage({ params }: { params: Promise<{ id: string 
       <div className="flex items-center gap-3 mb-8">
         <Crown className="w-8 h-8 text-yellow-500" />
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">VIP Concierge Suite</h1>
-          <p className="text-gray-500 text-sm">Select your premium experience</p>
+          <h1 className="text-2xl font-bold text-gray-900">VIP</h1>
+          <p className="text-gray-500 text-sm">
+            Select your premium experience &mdash;{' '}
+            <span className="inline-flex items-center gap-1 text-amber-600 font-semibold">
+              <Star className="w-3.5 h-3.5" /> VIP Concierge packages available
+            </span>
+          </p>
         </div>
       </div>
 
@@ -224,46 +229,65 @@ export default function EventVipPage({ params }: { params: Promise<{ id: string 
             {packages.map(pkg => {
               const soldOut = pkg.status === 'sold_out' || pkg.inventory_sold >= pkg.inventory
               const isSelected = selectedPkg?.id === pkg.id
+              const isConcierge = pkg.requires_concierge
               return (
                 <button
                   key={pkg.id}
                   onClick={() => !soldOut && setSelectedPkg(isSelected ? null : pkg)}
                   disabled={soldOut}
-                  className={`w-full text-left p-5 rounded-xl border-2 transition-all ${
+                  className={`w-full text-left rounded-xl border-2 transition-all overflow-hidden ${
                     soldOut
                       ? 'border-gray-100 bg-gray-50 opacity-60 cursor-not-allowed'
                       : isSelected
-                      ? 'border-purple-600 bg-purple-50 shadow-md'
+                      ? isConcierge ? 'border-amber-500 bg-amber-50 shadow-md' : 'border-purple-600 bg-purple-50 shadow-md'
+                      : isConcierge ? 'border-amber-200 bg-white hover:border-amber-400 hover:shadow-sm'
                       : 'border-gray-200 bg-white hover:border-purple-300 hover:shadow-sm'
                   }`}
                 >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isSelected ? 'bg-purple-600' : 'bg-purple-100'}`}>
-                        <Crown className={`w-5 h-5 ${isSelected ? 'text-white' : 'text-purple-600'}`} />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-gray-900">{pkg.name}</span>
-                          <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">
-                            {PACKAGE_TYPE_LABELS[pkg.package_type] || pkg.package_type}
-                          </span>
-                          {soldOut && <span className="text-xs px-2 py-0.5 bg-red-100 text-red-600 rounded-full">Sold Out</span>}
-                        </div>
-                        {pkg.vip_sections && <span className="text-xs text-gray-500">{pkg.vip_sections.name}</span>}
-                      </div>
+                  {isConcierge && (
+                    <div className="w-full px-5 py-2 bg-amber-400 flex items-center gap-2">
+                      <Star className="w-3.5 h-3.5 text-white" />
+                      <span className="text-xs font-bold tracking-widest uppercase text-white">VIP Concierge</span>
                     </div>
-                    <span className="text-2xl font-bold text-gray-900">${Number(pkg.price).toLocaleString()}</span>
-                  </div>
+                  )}
+                  <div className="p-5">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                          isSelected
+                            ? isConcierge ? 'bg-amber-500' : 'bg-purple-600'
+                            : isConcierge ? 'bg-amber-100' : 'bg-purple-100'
+                        }`}>
+                          <Crown className={`w-5 h-5 ${
+                            isSelected
+                              ? 'text-white'
+                              : isConcierge ? 'text-amber-600' : 'text-purple-600'
+                          }`} />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-gray-900">{pkg.name}</span>
+                            {!isConcierge && (
+                              <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">
+                                {PACKAGE_TYPE_LABELS[pkg.package_type] || pkg.package_type}
+                              </span>
+                            )}
+                            {soldOut && <span className="text-xs px-2 py-0.5 bg-red-100 text-red-600 rounded-full">Sold Out</span>}
+                          </div>
+                          {pkg.vip_sections && <span className="text-xs text-gray-500">{pkg.vip_sections.name}</span>}
+                        </div>
+                      </div>
+                      <span className="text-2xl font-bold text-gray-900">${Number(pkg.price).toLocaleString()}</span>
+                    </div>
 
-                  {pkg.description && <p className="text-sm text-gray-600 mb-3">{pkg.description}</p>}
+                    {pkg.description && <p className="text-sm text-gray-600 mb-3">{pkg.description}</p>}
 
-                  <div className="flex flex-wrap gap-3 text-xs text-gray-500">
-                    <span className="flex items-center gap-1"><Users className="w-3 h-3" /> Up to {pkg.capacity} guests</span>
-                    {pkg.included_tickets > 0 && <span className="flex items-center gap-1 text-green-600"><CheckCircle className="w-3 h-3" /> {pkg.included_tickets} admission tickets included</span>}
-                    {pkg.table_label && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {pkg.table_label}</span>}
-                    {pkg.requires_concierge && <span className="flex items-center gap-1 text-purple-600"><Star className="w-3 h-3" /> Dedicated concierge</span>}
-                    {!soldOut && <span className="text-gray-400">{pkg.inventory - pkg.inventory_sold} remaining</span>}
+                    <div className="flex flex-wrap gap-3 text-xs text-gray-500">
+                      <span className="flex items-center gap-1"><Users className="w-3 h-3" /> Up to {pkg.capacity} guests</span>
+                      {pkg.included_tickets > 0 && <span className="flex items-center gap-1 text-green-600"><CheckCircle className="w-3 h-3" /> {pkg.included_tickets} admission tickets included</span>}
+                      {pkg.table_label && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {pkg.table_label}</span>}
+                      {!soldOut && <span className="text-gray-400">{pkg.inventory - pkg.inventory_sold} remaining</span>}
+                    </div>
                   </div>
                 </button>
               )
@@ -278,15 +302,34 @@ export default function EventVipPage({ params }: { params: Promise<{ id: string 
                 Add to Your Experience
               </h3>
               <div className="space-y-3">
-                {serviceItems.map(item => {
+                {[...serviceItems].sort((a, b) => (b.category === 'concierge' ? 1 : 0) - (a.category === 'concierge' ? 1 : 0)).map(item => {
                   const qty = selectedServices[item.id] ?? 0
                   const Icon = CATEGORY_ICONS[item.category] || Package
+                  const isConcierge = item.category === 'concierge'
                   return (
-                    <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+                    <div
+                      key={item.id}
+                      className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
+                        isConcierge
+                          ? 'bg-amber-50 border-amber-200 shadow-sm'
+                          : 'bg-gray-50 border-gray-100'
+                      }`}
+                    >
                       <div className="flex items-center gap-3">
-                        <Icon className="w-4 h-4 text-gray-400" />
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          isConcierge ? 'bg-amber-100' : 'bg-gray-100'
+                        }`}>
+                          <Icon className={`w-4 h-4 ${isConcierge ? 'text-amber-600' : 'text-gray-400'}`} />
+                        </div>
                         <div>
-                          <div className="text-sm font-medium text-gray-800">{item.name}</div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-medium text-gray-800">{item.name}</span>
+                            {isConcierge && (
+                              <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full font-semibold tracking-wide">
+                                ✦ Concierge
+                              </span>
+                            )}
+                          </div>
                           <div className="text-xs text-gray-500">
                             ${Number(item.price).toFixed(0)} each
                             {item.requires_approval && ' · Approval required'}
@@ -300,7 +343,14 @@ export default function EventVipPage({ params }: { params: Promise<{ id: string 
                           </button>
                         )}
                         {qty > 0 && <span className="w-6 text-center text-sm font-medium">{qty}</span>}
-                        <button onClick={() => adjustService(item.id, 1)} className="w-7 h-7 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center hover:bg-purple-200">
+                        <button
+                          onClick={() => adjustService(item.id, 1)}
+                          className={`w-7 h-7 rounded-full flex items-center justify-center ${
+                            isConcierge
+                              ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                              : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                          }`}
+                        >
                           <Plus className="w-3 h-3" />
                         </button>
                       </div>

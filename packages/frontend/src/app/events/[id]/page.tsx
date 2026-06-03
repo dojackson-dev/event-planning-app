@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, use } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
@@ -16,6 +16,17 @@ interface TicketTier {
   quantity: number
   quantity_sold: number
   description: string | null
+}
+
+interface VipPackage {
+  id: string
+  name: string
+  package_type: string
+  price: number
+  capacity: number
+  inventory: number
+  inventory_sold: number
+  status: string
 }
 
 interface PromoterAccount {
@@ -43,8 +54,8 @@ interface PublicEvent {
   promoter_accounts: PromoterAccount | null
 }
 
-export default function PublicEventDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params)
+export default function PublicEventDetailPage({ params }: { params: { id: string } }) {
+  const { id } = params
   const searchParams = useSearchParams()
 
   const [event, setEvent] = useState<PublicEvent | null>(null)
@@ -57,6 +68,7 @@ export default function PublicEventDetailPage({ params }: { params: Promise<{ id
   const [buyerEmail, setBuyerEmail] = useState('')
   const [purchasing, setPurchasing] = useState(false)
   const [purchaseError, setPurchaseError] = useState('')
+  const [vipPackages, setVipPackages] = useState<VipPackage[]>([])
 
   const successSession = searchParams?.get('success')
 
@@ -69,6 +81,9 @@ export default function PublicEventDetailPage({ params }: { params: Promise<{ id
       })
       .catch(e => setError(e.response?.data?.message || 'Event not found'))
       .finally(() => setLoading(false))
+    api.get(`/vip/public/events/${id}`)
+      .then(r => setVipPackages((r.data.packages || []).filter((p: VipPackage) => p.status !== 'hidden' && p.inventory_sold < p.inventory)))
+      .catch(() => {})
   }, [id])
 
   const handlePurchase = async (e: React.FormEvent) => {
@@ -248,6 +263,33 @@ export default function PublicEventDetailPage({ params }: { params: Promise<{ id
           <div className="bg-white border border-gray-200 rounded-2xl p-5 sticky top-4 space-y-4">
             <h2 className="font-bold text-gray-900">Get Tickets</h2>
 
+            {/* VIP upsell - first option */}
+            <Link href={`/events/${id}/vip`}
+              className="block p-3 bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-200 rounded-xl hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-yellow-600 text-base">👑</span>
+                  <span className="font-bold text-yellow-800 text-sm">VIP Concierge</span>
+                </div>
+                <span className="text-xs text-yellow-600 font-medium">View packages →</span>
+              </div>
+              {vipPackages.length > 0 ? (
+                <div className="space-y-1">
+                  {vipPackages.slice(0, 3).map(pkg => (
+                    <div key={pkg.id} className="flex items-center justify-between text-xs">
+                      <span className="text-yellow-800 font-medium truncate pr-2">{pkg.name}</span>
+                      <span className="text-yellow-700 font-bold shrink-0">${Number(pkg.price).toLocaleString()}</span>
+                    </div>
+                  ))}
+                  {vipPackages.length > 3 && (
+                    <p className="text-xs text-yellow-600 pt-0.5">+{vipPackages.length - 3} more packages</p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-yellow-700">Tables, booths, bottle service &amp; more</p>
+              )}
+            </Link>
+
             {event.ticket_tiers.length === 0 ? (
               <div className="text-center py-6">
                 <Ticket className="w-8 h-8 text-gray-300 mx-auto mb-2" />
@@ -358,15 +400,7 @@ export default function PublicEventDetailPage({ params }: { params: Promise<{ id
             )}
           </div>
 
-          {/* VIP upsell */}
-          <Link href={`/events/${id}/vip`}
-            className="block mt-3 p-4 bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-200 rounded-2xl text-center hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-center gap-2 mb-1">
-              <span className="text-yellow-600 text-lg">👑</span>
-              <span className="font-bold text-yellow-800 text-sm">VIP Concierge Experience</span>
-            </div>
-            <p className="text-xs text-yellow-700">Tables, booths, bottle service &amp; more</p>
-          </Link>
+
         </div>
       </div>
     </div>

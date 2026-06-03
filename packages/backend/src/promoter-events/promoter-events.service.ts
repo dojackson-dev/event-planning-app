@@ -301,12 +301,12 @@ export class PromoterEventsService {
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('public_events')
-      .select('*, ticket_tiers(id, name, price, quantity, quantity_sold, description), promoter_accounts(company_name, contact_name, profile_image_url, city, state)')
+      .select('*, ticket_tiers(id, name, price, quantity, quantity_sold, description), promoter_accounts(company_name, contact_name, profile_image_url, location, instagram, website)')
       .eq('id', eventId)
-      .eq('status', 'published')
+      .neq('status', 'cancelled')
       .maybeSingle();
 
-    if (error || !data) throw new NotFoundException('Event not found or not published');
+    if (error || !data) throw new NotFoundException('Event not found');
     return data;
   }
 

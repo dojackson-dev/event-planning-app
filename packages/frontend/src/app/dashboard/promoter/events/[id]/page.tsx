@@ -395,7 +395,7 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
           <Link href={`/dashboard/promoter/events/${id}/vip`}
             className="flex items-center justify-center gap-2 py-3 bg-yellow-50 border border-yellow-200 rounded-xl text-sm font-semibold text-yellow-800 hover:bg-yellow-100">
             <Crown className="w-4 h-4 text-yellow-600" />
-            VIP Concierge Suite
+            VIP
           </Link>
           <Link href={`/dashboard/promoter/events/${id}/vip/orders`}
             className="flex items-center justify-center gap-2 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-100">

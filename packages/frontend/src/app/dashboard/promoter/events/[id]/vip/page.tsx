@@ -289,7 +289,7 @@ export default function VipManagePage() {
         <div className="flex items-center gap-3">
           <Crown className="w-7 h-7 text-purple-600" />
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">VIP Concierge Suite</h1>
+            <h1 className="text-2xl font-bold text-gray-900">VIP</h1>
             <p className="text-sm text-gray-500">Manage VIP packages, sections, and add-on services</p>
           </div>
         </div>

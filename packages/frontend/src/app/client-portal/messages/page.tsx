@@ -53,7 +53,7 @@ export default function ClientMessagesPage() {
   const contacts: Contact[] = []
   const ownerIds = new Set<string>()
   bookings.forEach((b: any) => {
-    const ownerId = b.event?.owner_id
+    const ownerId = b.owner_id ?? b.event?.owner_id
     if (ownerId && !ownerIds.has(ownerId)) {
       ownerIds.add(ownerId)
       contacts.push({ id: ownerId, name: 'Event Organizer', role: 'owner' })

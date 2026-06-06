@@ -14,6 +14,20 @@ import {
   CreateTicketTierDto,
   UpdateTicketTierDto,
 } from './dto/promoter-event.dto';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const zipcodes = require('zipcodes');
+
+function haversineDistanceMiles(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 3958.8; // Earth radius in miles
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 const APP_FEE_RATE   = 0.03;   // 3% platform fee → goes to our account
 const STRIPE_PCT     = 0.029;  // Stripe's % fee
@@ -76,6 +90,7 @@ export class PromoterEventsService {
         venue_address: dto.venue_address ?? null,
         city: dto.city ?? null,
         state: dto.state ?? null,
+        zip_code: dto.zip_code ?? null,
         category: dto.category ?? null,
         image_url: dto.image_url ?? null,
         age_restriction: dto.age_restriction ?? null,
@@ -145,6 +160,7 @@ export class PromoterEventsService {
     if (dto.venue_address !== undefined) updates.venue_address = dto.venue_address;
     if (dto.city !== undefined) updates.city = dto.city;
     if (dto.state !== undefined) updates.state = dto.state;
+    if (dto.zip_code !== undefined) updates.zip_code = dto.zip_code;
     if (dto.category !== undefined) updates.category = dto.category;
     if (dto.image_url !== undefined) updates.image_url = dto.image_url;
     if (dto.age_restriction !== undefined) updates.age_restriction = dto.age_restriction;
@@ -280,7 +296,7 @@ export class PromoterEventsService {
 
   // ── PUBLIC ROUTES (no auth) ───────────────────────────────────
 
-  async listPublicEvents(city?: string, category?: string, _radius?: number) {
+  async listPublicEvents(zipCode?: string, category?: string, radiusMiles = 30) {
     const admin = this.supabaseService.getAdminClient();
     let query = admin
       .from('public_events')
@@ -289,12 +305,31 @@ export class PromoterEventsService {
       .gte('event_date', new Date().toISOString().split('T')[0])
       .order('event_date', { ascending: true });
 
-    if (city) query = query.ilike('city', `%${city}%`);
     if (category) query = query.eq('category', category);
 
     const { data, error } = await query;
     if (error) throw new BadRequestException(error.message);
-    return data || [];
+    let events = data || [];
+
+    if (zipCode) {
+      const searchLoc = zipcodes.lookup(zipCode);
+      if (searchLoc) {
+        events = events.filter((event: any) => {
+          if (!event.zip_code) return false;
+          const eventLoc = zipcodes.lookup(event.zip_code);
+          if (!eventLoc) return false;
+          const dist = haversineDistanceMiles(
+            searchLoc.latitude, searchLoc.longitude,
+            eventLoc.latitude, eventLoc.longitude,
+          );
+          return dist <= radiusMiles;
+        });
+      } else {
+        this.logger.warn(`Zip code lookup failed for: ${zipCode}`);
+      }
+    }
+
+    return events;
   }
 
   async getPublicEvent(eventId: string) {

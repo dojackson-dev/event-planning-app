@@ -1,12 +1,6 @@
-import { useState, Fragment, useCallback } from 'react';
-import {
-  View, Text, ScrollView, StyleSheet, ActivityIndicator,
-  TouchableOpacity, Alert,
-} from 'react-native';
-import { Stack, useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '@/lib/supabase';
-import { Colors, Radius, Shadow } from '@/lib/theme';
+// EventEcos — attendee event detail screen (stub to avoid router conflict)
+// Real detail route is at /app/events/[eventId].tsx
+export { default } from '@/app/events/[eventId]';
 
 interface EventDetail {
   id: string;

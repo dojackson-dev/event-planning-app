@@ -2,6 +2,7 @@ import 'react-native-url-polyfill/auto';
 import { useEffect, useRef } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { supabase } from '@/lib/supabase';
+import { Colors } from '@/lib/theme';
 
 export default function RootLayout() {
   const router = useRouter();
@@ -32,6 +33,28 @@ export default function RootLayout() {
       <Stack.Screen name="index" />
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(tabs)" />
+      <Stack.Screen
+        name="events/[eventId]"
+        options={{
+          headerShown: true,
+          headerTitle: 'Event Details',
+          headerBackTitleVisible: false,
+          headerStyle: { backgroundColor: Colors.surface },
+          headerTintColor: Colors.textPrimary,
+          headerShadowVisible: false,
+        }}
+      />
+      <Stack.Screen
+        name="tickets/[ticketId]"
+        options={{
+          headerShown: true,
+          headerTitle: 'My Ticket',
+          headerBackTitleVisible: false,
+          headerStyle: { backgroundColor: Colors.surface },
+          headerTintColor: Colors.textPrimary,
+          headerShadowVisible: false,
+        }}
+      />
     </Stack>
   );
 }

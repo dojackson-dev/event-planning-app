@@ -62,12 +62,32 @@ export default function ProfileScreen() {
         <InfoRow icon="key-outline" label="User ID" value={user?.id ? `${user.id.slice(0, 8)}…` : '—'} mono />
       </View>
 
+      {/* Attendee quick links */}
+      <Text style={styles.sectionLabel}>My Activity</Text>
+      <View style={styles.card}>
+        <TouchableOpacity style={styles.infoRow} onPress={() => router.push('/(tabs)/tickets')}>
+          <View style={styles.infoLeft}>
+            <Ionicons name="ticket-outline" size={18} color={Colors.textMuted} />
+            <Text style={styles.infoLabel}>My Tickets</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+        </TouchableOpacity>
+        <View style={styles.rowDivider} />
+        <TouchableOpacity style={styles.infoRow} onPress={() => router.push('/(tabs)/favorites')}>
+          <View style={styles.infoLeft}>
+            <Ionicons name="heart-outline" size={18} color={Colors.textMuted} />
+            <Text style={styles.infoLabel}>Saved Events</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+        </TouchableOpacity>
+      </View>
+
       {/* App info */}
       <Text style={styles.sectionLabel}>App</Text>
       <View style={styles.card}>
         <InfoRow icon="information-circle-outline" label="Version" value="1.0.0" />
         <View style={styles.rowDivider} />
-        <InfoRow icon="server-outline" label="Environment" value="Production" />
+        <InfoRow icon="earth-outline" label="Platform" value="EventEcos" />
       </View>
 
       {/* Sign out */}

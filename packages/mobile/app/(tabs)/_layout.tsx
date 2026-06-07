@@ -79,7 +79,8 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* Hide legacy screens */}
+      {/* Hide legacy screens + dashboard (accessed directly, not via tab) */}
+      <Tabs.Screen name="dashboard" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="bookings" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="clients" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="invoices" options={{ href: null, headerShown: false }} />

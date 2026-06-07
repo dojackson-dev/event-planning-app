@@ -4,29 +4,61 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { Colors } from '@/lib/theme';
 
+// Roles that get the OwnerSuite dashboard instead of attendee home
+const OWNER_ROLES = ['owner', 'admin', 'promoter', 'venue_owner', 'concierge', 'vendor', 'artist'];
+
+async function getUserRole(userId: string): Promise<string> {
+  try {
+    // Try users table first (requires RLS policy allowing self-read)
+    const { data, error } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', userId)
+      .maybeSingle();
+    if (!error && data?.role) return data.role;
+
+    // Fallback: check user_metadata set at signup or by admin
+    const { data: { user } } = await supabase.auth.getUser();
+    const metaRole = user?.user_metadata?.role || user?.app_metadata?.role;
+    if (metaRole) return metaRole;
+
+    return 'attendee';
+  } catch {
+    return 'attendee';
+  }
+}
+
 export default function RootLayout() {
   const router = useRouter();
   const segments = useSegments();
-  // Use refs so the auth listener always has the latest values
-  // without being re-registered on every navigation
   const segmentsRef = useRef(segments);
   const routerRef = useRef(router);
   segmentsRef.current = segments;
   routerRef.current = router;
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const inAuthGroup = segmentsRef.current[0] === '(auth)';
       const onIndex = segmentsRef.current[0] === 'index' || segmentsRef.current.length === 0;
       if (!session && !inAuthGroup) {
         routerRef.current.replace('/(auth)/login');
       } else if (session && (inAuthGroup || onIndex)) {
-        routerRef.current.replace('/(tabs)/');
+        // Check user_metadata/app_metadata first (no RLS needed),
+        // then fall back to DB lookup
+        const metaRole =
+          session.user.user_metadata?.role ||
+          session.user.app_metadata?.role;
+        const role = metaRole || await getUserRole(session.user.id);
+        if (OWNER_ROLES.includes(role)) {
+          routerRef.current.replace('/(tabs)/dashboard');
+        } else {
+          routerRef.current.replace('/(tabs)/');
+        }
       }
     });
     return () => subscription.unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only register once on mount
+  }, []);
 
   return (
     <Stack screenOptions={{ headerShown: false }}>

@@ -62,15 +62,16 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  // Ticket purchase
-  const [selectedTier, setSelectedTier] = useState<TicketTier | null>(null)
-  const [quantity, setQuantity] = useState(1)
+  // Ticket purchase — per-tier quantities
+  const [tierQtys, setTierQtys] = useState<Record<string, number>>({})
   const [buyerEmail, setBuyerEmail] = useState('')
+  const [buyerPhone, setBuyerPhone] = useState('')
   const [purchasing, setPurchasing] = useState(false)
   const [purchaseError, setPurchaseError] = useState('')
   const [vipPackages, setVipPackages] = useState<VipPackage[]>([])
 
-  const successSession = searchParams?.get('success')
+  const successSession = searchParams?.get('session_id')
+  const paidParam = searchParams?.get('paid') === 'true'
   const vipPaid = searchParams?.get('vip_paid') === 'true'
 
   useEffect(() => {
@@ -78,7 +79,6 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
     api.get(`/promoter-events/public/${id}`)
       .then(r => {
         setEvent(r.data)
-        if (r.data.ticket_tiers?.length > 0) setSelectedTier(r.data.ticket_tiers[0])
       })
       .catch(e => setError(e.response?.data?.message || 'Event not found'))
       .finally(() => setLoading(false))
@@ -87,15 +87,25 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
       .catch(() => {})
   }, [id])
 
+  // Fire verify-payment on redirect back from Stripe to trigger email/SMS
+  useEffect(() => {
+    if (!id || !successSession || !paidParam) return
+    api.post(`/promoter-events/public/${id}/verify-payment`, { session_id: successSession })
+      .catch(() => {}) // non-fatal — webhook will handle it if this fails
+  }, [id, successSession, paidParam])
+
   const handlePurchase = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedTier || !buyerEmail) return
+    const items = Object.entries(tierQtys)
+      .filter(([, qty]) => qty > 0)
+      .map(([tier_id, quantity]) => ({ tier_id, quantity }))
+    if (items.length === 0 || !buyerEmail) return
     setPurchaseError(''); setPurchasing(true)
     try {
       const res = await api.post(`/promoter-events/public/${id}/checkout`, {
-        tier_id: selectedTier.id,
-        quantity,
+        items,
         buyer_email: buyerEmail,
+        ...(buyerPhone ? { buyer_phone: buyerPhone } : {}),
       })
       if (res.data?.url) {
         window.location.href = res.data.url
@@ -129,22 +139,35 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
   const promoterName = event.promoter_accounts?.company_name || event.promoter_accounts?.contact_name
   const isSoldOut = event.ticket_tiers.length > 0 &&
     event.ticket_tiers.every(t => t.quantity_sold >= t.quantity)
-  const tierAvail = selectedTier ? selectedTier.quantity - selectedTier.quantity_sold : 0
 
   // Fee breakdown (mirrors backend grossUp)
   const STRIPE_PCT   = 0.029
   const STRIPE_FIXED = 0.30
   const APP_FEE_RATE = 0.03
-  const faceValue    = selectedTier ? Number(selectedTier.price) * quantity : 0
-  const totalCharge  = faceValue > 0
+
+  const totalItems = Object.entries(tierQtys).filter(([, q]) => q > 0)
+  const faceValue = totalItems.reduce((sum, [tierId, qty]) => {
+    const tier = event.ticket_tiers.find(t => t.id === tierId)
+    return sum + (tier ? Number(tier.price) * qty : 0)
+  }, 0)
+  const totalTickets = totalItems.reduce((sum, [, qty]) => sum + qty, 0)
+  const totalCharge = faceValue > 0
     ? Math.ceil((faceValue * 100 + STRIPE_FIXED * 100) / (1 - STRIPE_PCT - APP_FEE_RATE)) / 100
     : 0
-  const serviceFee   = +(totalCharge - faceValue).toFixed(2)
+  const serviceFee = +(totalCharge - faceValue).toFixed(2)
+
+  const adjustQty = (tierId: string, delta: number, max: number) => {
+    setTierQtys(prev => {
+      const cur = prev[tierId] ?? 0
+      const next = Math.max(0, Math.min(max, Math.min(10, cur + delta)))
+      return { ...prev, [tierId]: next }
+    })
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Sucess state after Stripe redirect */}
-      {successSession && (
+      {/* Success state after Stripe redirect */}
+      {paidParam && successSession && (
         <div className="bg-green-50 border-b border-green-200 px-4 py-3">
           <div className="max-w-4xl mx-auto flex items-center gap-3">
             <CheckCircle className="w-5 h-5 text-green-600 shrink-0" />
@@ -314,82 +337,92 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
               </div>
             ) : (
               <form onSubmit={handlePurchase} className="space-y-4">
-                {/* Tier selection */}
+                {/* Per-tier quantity selection */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Ticket Type</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Select Tickets</label>
                   <div className="space-y-2">
                     {event.ticket_tiers.map(tier => {
                       const avail = tier.quantity - tier.quantity_sold
                       const soldOut = avail <= 0
+                      const qty = tierQtys[tier.id] ?? 0
                       return (
-                        <label key={tier.id} className={`flex items-center justify-between p-3 border-2 rounded-xl cursor-pointer transition ${
-                          soldOut ? 'opacity-50 cursor-not-allowed border-gray-200' :
-                          selectedTier?.id === tier.id ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-gray-300'
+                        <div key={tier.id} className={`flex items-center justify-between p-3 border-2 rounded-xl transition ${
+                          soldOut ? 'opacity-50 border-gray-200 bg-gray-50' :
+                          qty > 0 ? 'border-purple-500 bg-purple-50' : 'border-gray-200'
                         }`}>
-                          <div className="flex items-center gap-2">
-                            <input type="radio" className="sr-only" checked={selectedTier?.id === tier.id}
-                              disabled={soldOut} onChange={() => { setSelectedTier(tier); setQuantity(1) }} />
-                            <div>
-                              <p className="text-sm font-semibold text-gray-800">{tier.name}</p>
-                              {tier.description && <p className="text-xs text-gray-500">{tier.description}</p>}
-                              {soldOut ? (
-                                <p className="text-xs text-red-500 font-medium">Sold out</p>
-                              ) : (
-                                <p className="text-xs text-gray-400">{avail} remaining</p>
-                              )}
-                            </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-gray-800">{tier.name}</p>
+                            {tier.description && <p className="text-xs text-gray-500 truncate">{tier.description}</p>}
+                            <p className="text-xs text-gray-400">{soldOut ? 'Sold out' : `${avail} left`}</p>
                           </div>
-                          <span className="font-bold text-gray-900 shrink-0">
-                            {Number(tier.price) === 0 ? 'Free' : `$${Number(tier.price).toFixed(2)}`}
-                          </span>
-                        </label>
+                          <div className="flex items-center gap-2 shrink-0 ml-3">
+                            <span className="text-sm font-bold text-gray-800 w-14 text-right">
+                              {Number(tier.price) === 0 ? 'Free' : `$${Number(tier.price).toFixed(2)}`}
+                            </span>
+                            {!soldOut && (
+                              <div className="flex items-center gap-1">
+                                <button type="button" onClick={() => adjustQty(tier.id, -1, avail)}
+                                  className="w-7 h-7 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100 disabled:opacity-40"
+                                  disabled={qty === 0}>
+                                  <Minus className="w-3 h-3" />
+                                </button>
+                                <span className="w-6 text-center text-sm font-semibold tabular-nums">{qty}</span>
+                                <button type="button" onClick={() => adjustQty(tier.id, 1, avail)}
+                                  className="w-7 h-7 rounded-full border border-purple-400 bg-purple-50 text-purple-700 flex items-center justify-center hover:bg-purple-100 disabled:opacity-40"
+                                  disabled={qty >= Math.min(10, avail)}>
+                                  <Plus className="w-3 h-3" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       )
                     })}
                   </div>
+                  {totalTickets > 0 && (
+                    <p className="text-xs text-gray-400 mt-1.5">{totalTickets} ticket{totalTickets !== 1 ? 's' : ''} selected · max 10 per type</p>
+                  )}
                 </div>
 
-                {/* Quantity */}
-                {selectedTier && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
-                    <div className="flex items-center gap-3">
-                      <button type="button" onClick={() => setQuantity(q => Math.max(1, q - 1))}
-                        className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100">
-                        <Minus className="w-3.5 h-3.5" />
-                      </button>
-                      <span className="w-8 text-center font-semibold">{quantity}</span>
-                      <button type="button"
-                        onClick={() => setQuantity(q => Math.min(tierAvail, Math.min(10, q + 1)))}
-                        className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100">
-                        <Plus className="w-3.5 h-3.5" />
-                      </button>
-                      <span className="text-xs text-gray-500">max 10 per order</span>
+                {/* Email + Phone */}
+                {totalTickets > 0 && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                      <input type="email" value={buyerEmail} onChange={e => setBuyerEmail(e.target.value)} required
+                        placeholder="your@email.com"
+                        className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                      <p className="text-xs text-gray-400 mt-1">Your tickets will be sent here</p>
                     </div>
-                  </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Phone <span className="text-gray-400 font-normal">(optional)</span></label>
+                      <input type="tel" value={buyerPhone} onChange={e => setBuyerPhone(e.target.value)}
+                        placeholder="+1 (555) 000-0000"
+                        className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                      <p className="text-xs text-gray-400 mt-1">Get a text confirmation</p>
+                    </div>
+                  </>
                 )}
-
-                {/* Email */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
-                  <input type="email" value={buyerEmail} onChange={e => setBuyerEmail(e.target.value)} required
-                    placeholder="your@email.com"
-                    className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                  <p className="text-xs text-gray-400 mt-1">Your ticket will be sent here</p>
-                </div>
 
                 {purchaseError && (
                   <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-xs">{purchaseError}</div>
                 )}
 
-                {/* Total + checkout button */}
-                {selectedTier && (
+                {/* Order summary + checkout button */}
+                {totalTickets > 0 && (
                   <div className="border-t border-gray-100 pt-3 space-y-1.5">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">{quantity} × {selectedTier.name}</span>
-                      <span className="font-medium">
-                        {faceValue === 0 ? 'Free' : `$${faceValue.toFixed(2)}`}
-                      </span>
-                    </div>
+                    {totalItems.map(([tierId, qty]) => {
+                      const tier = event.ticket_tiers.find(t => t.id === tierId)
+                      if (!tier) return null
+                      return (
+                        <div key={tierId} className="flex justify-between text-sm">
+                          <span className="text-gray-600">{qty} × {tier.name}</span>
+                          <span className="font-medium">
+                            {Number(tier.price) === 0 ? 'Free' : `$${(Number(tier.price) * qty).toFixed(2)}`}
+                          </span>
+                        </div>
+                      )
+                    })}
                     {faceValue > 0 && (
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-500">Service fee</span>
@@ -400,10 +433,10 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
                       <span className="text-gray-800">Total</span>
                       <span>{faceValue === 0 ? 'Free' : `$${totalCharge.toFixed(2)}`}</span>
                     </div>
-                    <button type="submit" disabled={purchasing}
+                    <button type="submit" disabled={purchasing || !buyerEmail}
                       className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white font-bold py-3 rounded-xl hover:bg-purple-700 disabled:opacity-60 mt-2">
                       {purchasing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ticket className="w-4 h-4" />}
-                      {purchasing ? 'Redirecting...' : 'Buy Tickets'}
+                      {purchasing ? 'Redirecting...' : `Buy ${totalTickets} Ticket${totalTickets !== 1 ? 's' : ''}`}
                     </button>
                     <p className="text-xs text-center text-gray-400 mt-2">Secure checkout via Stripe</p>
                   </div>

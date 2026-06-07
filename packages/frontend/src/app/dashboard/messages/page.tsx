@@ -47,6 +47,20 @@ function ClientInitials({ name }: { name: string }) {
   )
 }
 
+function OwnerInitials({ name }: { name: string }) {
+  const initials = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('')
+  return (
+    <div className="h-9 w-9 rounded-full bg-primary-600 text-white font-semibold text-sm flex items-center justify-center flex-shrink-0">
+      {initials || 'Me'}
+    </div>
+  )
+}
+
 function ClientChatTab() {
   const [threads, setThreads] = useState<ClientThread[]>([])
   const [selectedThread, setSelectedThread] = useState<ClientThread | null>(null)
@@ -56,6 +70,7 @@ function ClientChatTab() {
   const [newMessage, setNewMessage] = useState('')
   const [sending, setSending] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const { user } = useAuth()
 
   const fetchThreads = useCallback(async () => {
     try {
@@ -263,34 +278,40 @@ function ClientChatTab() {
                 messages.map((msg) => {
                   const isMe = msg.sender_type === 'owner'
                   return (
-                    <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                    <div key={msg.id} className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'}`}>
                       {!isMe && (
-                        <div className="mr-2 self-end">
-                          <ClientInitials name={selectedThread.clientName} />
-                        </div>
+                        <ClientInitials name={selectedThread.clientName} />
                       )}
-                      <div
-                        className={`max-w-xs sm:max-w-md rounded-2xl px-4 py-2.5 ${
-                          isMe
-                            ? 'bg-primary-600 text-white rounded-br-sm'
-                            : 'bg-gray-100 text-gray-900 rounded-bl-sm'
-                        }`}
-                      >
-                        <p className="text-sm">{msg.content}</p>
-                        <p
-                          className={`text-xs mt-1 ${isMe ? 'text-primary-200' : 'text-gray-400'}`}
-                        >
-                          {new Date(msg.created_at).toLocaleTimeString('en-US', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                          {' · '}
-                          {new Date(msg.created_at).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                          })}
+                      <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                        <p className="text-xs text-gray-400 mb-1 px-1">
+                          {isMe ? (user?.email?.split('@')[0] || 'You') : selectedThread.clientName}
                         </p>
+                        <div
+                          className={`max-w-xs sm:max-w-md rounded-2xl px-4 py-2.5 ${
+                            isMe
+                              ? 'bg-primary-600 text-white rounded-br-sm'
+                              : 'bg-gray-100 text-gray-900 rounded-bl-sm'
+                          }`}
+                        >
+                          <p className="text-sm">{msg.content}</p>
+                          <p
+                            className={`text-xs mt-1 ${isMe ? 'text-primary-200' : 'text-gray-400'}`}
+                          >
+                            {new Date(msg.created_at).toLocaleTimeString('en-US', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                            {' · '}
+                            {new Date(msg.created_at).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                            })}
+                          </p>
+                        </div>
                       </div>
+                      {isMe && (
+                        <OwnerInitials name={user?.email?.split('@')[0] || 'Me'} />
+                      )}
                     </div>
                   )
                 })

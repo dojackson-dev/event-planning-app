@@ -96,6 +96,20 @@ export default function ClientMessagesPage() {
       .catch(() => {})
   }, [selectedContact?.eventId])
 
+  // Poll the active thread every 5s so owner replies appear in near-real-time
+  useEffect(() => {
+    if (!selectedContact) return
+    const interval = setInterval(async () => {
+      try {
+        const res = await clientApi.get<Message[]>(`/messages?eventId=${selectedContact.eventId}`)
+        setMessages(res.data || [])
+      } catch {
+        // non-fatal — keep existing messages visible
+      }
+    }, 5_000)
+    return () => clearInterval(interval)
+  }, [selectedContact?.eventId])
+
   // Scroll to bottom on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })

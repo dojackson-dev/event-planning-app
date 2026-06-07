@@ -89,6 +89,20 @@ function ClientChatTab() {
     )
   }, [selectedThread?.eventId])
 
+  // Poll the active thread every 5s so new client messages appear in near-real-time
+  useEffect(() => {
+    if (!selectedThread) return
+    const interval = setInterval(async () => {
+      try {
+        const res = await api.get<ClientMessage[]>(`/messages/client-inbox/${selectedThread.eventId}`)
+        setMessages(res.data || [])
+      } catch {
+        // non-fatal — keep existing messages visible
+      }
+    }, 5_000)
+    return () => clearInterval(interval)
+  }, [selectedThread?.eventId])
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])

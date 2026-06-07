@@ -166,31 +166,74 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Success state after Stripe redirect */}
+      {/* Full success state after Stripe redirect */}
       {paidParam && successSession && (
-        <div className="bg-green-50 border-b border-green-200 px-4 py-3">
-          <div className="max-w-4xl mx-auto flex items-center gap-3">
-            <CheckCircle className="w-5 h-5 text-green-600 shrink-0" />
-            <div>
-              <p className="text-green-800 font-semibold text-sm">Payment successful! Check your email for your ticket.</p>
-              <p className="text-green-700 text-xs">Your ticket has been sent to your email address.</p>
+        <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50 flex items-center justify-center px-4">
+          <div className="bg-white rounded-2xl shadow-lg border border-green-100 max-w-md w-full p-8 text-center">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle className="w-9 h-9 text-green-600" />
             </div>
-          </div>
-        </div>
-      )}
-      {vipPaid && (
-        <div className="bg-purple-50 border-b border-purple-200 px-4 py-3">
-          <div className="max-w-4xl mx-auto flex items-center gap-3">
-            <CheckCircle className="w-5 h-5 text-purple-600 shrink-0" />
-            <div>
-              <p className="text-purple-800 font-semibold text-sm">VIP Package Confirmed! Check your email for your confirmation and QR code.</p>
-              <p className="text-purple-700 text-xs">Your VIP experience has been booked.</p>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">You're in!</h1>
+            <p className="text-gray-600 mb-1">Payment confirmed.</p>
+            <p className="text-sm text-gray-500 mb-6">Check your email and phone for your tickets and QR codes.</p>
+            <div className="space-y-3">
+              <Link
+                href={`/tickets/${successSession}`}
+                className="flex items-center justify-center gap-2 w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-purple-700 transition"
+              >
+                <Ticket className="w-4 h-4" />
+                View My Tickets
+              </Link>
+              <Link
+                href={`/events/${id}`}
+                className="flex items-center justify-center gap-2 w-full bg-white border border-gray-200 text-gray-700 font-medium py-3 px-4 rounded-xl hover:bg-gray-50 transition"
+                onClick={() => { /* clear query params by navigating without them */ }}
+              >
+                <Calendar className="w-4 h-4" />
+                Back to Event
+              </Link>
+              <Link
+                href="/events"
+                className="block text-sm text-gray-400 hover:text-gray-600 pt-1"
+              >
+                Browse more events →
+              </Link>
             </div>
           </div>
         </div>
       )}
 
-      {/* Back nav */}
+      {/* VIP success state */}
+      {vipPaid && !paidParam && (
+        <div className="min-h-screen bg-gradient-to-br from-purple-50 to-amber-50 flex items-center justify-center px-4">
+          <div className="bg-white rounded-2xl shadow-lg border border-purple-100 max-w-md w-full p-8 text-center">
+            <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle className="w-9 h-9 text-amber-600" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">VIP Confirmed! 👑</h1>
+            <p className="text-gray-600 mb-1">Your VIP package is booked.</p>
+            <p className="text-sm text-gray-500 mb-6">Check your email and phone for your confirmation and QR code.</p>
+            <div className="space-y-3">
+              <Link
+                href={`/events/${id}`}
+                className="flex items-center justify-center gap-2 w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-purple-700 transition"
+              >
+                <Calendar className="w-4 h-4" />
+                Back to Event
+              </Link>
+              <Link
+                href="/events"
+                className="block text-sm text-gray-400 hover:text-gray-600 pt-1"
+              >
+                Browse more events →
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Normal event page (only shown when no success state) */}
+      {!paidParam && !vipPaid && (<>
       <div className="bg-white border-b">
         <div className="max-w-4xl mx-auto px-4 h-12 flex items-center">
           <Link href="/events" className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700">
@@ -448,6 +491,7 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
 
         </div>
       </div>
+    </>)}
     </div>
   )
 }

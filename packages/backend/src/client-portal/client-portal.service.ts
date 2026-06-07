@@ -914,7 +914,7 @@ export class ClientPortalService {
     // Fetch all events linked to this client's intake forms
     const { data: events, error: evError } = await supabase
       .from('event')
-      .select('id, name, date, owner_id')
+      .select('id, name, date, owner_id, intake_form_id')
       .in('intake_form_id', intakeFormIds)
       .order('date', { ascending: false });
 
@@ -924,6 +924,16 @@ export class ClientPortalService {
     }
 
     if (!events || events.length === 0) return [];
+
+    // Fetch client name from intake forms
+    const { data: intakeForms } = await supabase
+      .from('intake_forms')
+      .select('id, contact_name')
+      .in('id', intakeFormIds);
+    const intakeFormNameMap: Record<string, string> = {};
+    for (const f of intakeForms || []) {
+      intakeFormNameMap[f.id] = f.contact_name || '';
+    }
 
     // Deduplicate owner_ids
     const ownerIds = [...new Set((events as any[]).map((e: any) => e.owner_id).filter(Boolean))];
@@ -971,6 +981,7 @@ export class ClientPortalService {
         ownerId: ev.owner_id,
         ownerBusinessName: owner.businessName,
         ownerLogoUrl: owner.logoUrl,
+        clientName: intakeFormNameMap[ev.intake_form_id] || '',
         lastMessage: last?.content || null,
         lastMessageAt: last?.created_at || null,
         lastMessageSender: last?.sender_type || null,

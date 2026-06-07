@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { OwnerBrandProvider, useOwnerBrand } from '@/contexts/OwnerBrandContext'
+import api from '@/lib/api'
 import { NotificationProvider } from '@/contexts/NotificationContext'
 import { VenueProvider, useVenue } from '@/contexts/VenueContext'
 import NotificationPanel from '@/components/NotificationPanel'
@@ -235,6 +236,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
+  const [unreadChatCount, setUnreadChatCount] = useState(0)
+
+  const fetchUnreadCount = useCallback(async () => {
+    if (!user) return
+    try {
+      const res = await api.get<{ count: number }>('/messages/client-inbox/unread-count')
+      setUnreadChatCount(res.data?.count || 0)
+    } catch {
+      // non-fatal
+    }
+  }, [user])
+
+  useEffect(() => {
+    fetchUnreadCount()
+    const interval = setInterval(fetchUnreadCount, 60_000)
+    return () => clearInterval(interval)
+  }, [fetchUnreadCount])
 
   // Close user menu when clicking outside
   useEffect(() => {
@@ -344,11 +362,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <Link
                   key={item.name}
                   href={item.href}
-                  onClick={() => setMobileMenuOpen(false)}
+                  onClick={() => { setMobileMenuOpen(false); if (item.href === '/dashboard/messages') setUnreadChatCount(0) }}
                   className={cls}
                 >
                   <Icon className="mr-3 h-5 w-5 flex-shrink-0" />
                   <span className="flex-1">{item.name}</span>
+                  {item.href === '/dashboard/messages' && unreadChatCount > 0 && (
+                    <span className="ml-2 inline-flex items-center justify-center h-5 min-w-[20px] px-1 rounded-full bg-primary-600 text-white text-[10px] font-bold">
+                      {unreadChatCount > 99 ? '99+' : unreadChatCount}
+                    </span>
+                  )}
                 </Link>
               )
             })}

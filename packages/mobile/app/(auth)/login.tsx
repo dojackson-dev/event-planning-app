@@ -27,7 +27,9 @@ export default function LoginScreen() {
       if (error) throw error;
 
       if (data.session) {
-        router.replace('/(tabs)/events');
+        // Role-based routing handled by _layout.tsx onAuthStateChange
+        // Just navigate to tabs root — the layout will redirect based on role
+        router.replace('/(tabs)/');
       }
     } catch (error: any) {
       // Check if error is related to email verification
@@ -56,12 +58,13 @@ export default function LoginScreen() {
             <Ionicons name="earth" size={36} color={Colors.textWhite} />
           </View>
           <Text style={styles.brandName}>EventEcos</Text>
-          <Text style={styles.tagline}>Your event ecosystem</Text>
+          <Text style={styles.tagline}>Your event ecosystem — all roles welcome</Text>
         </View>
 
         {/* Form */}
         <View style={styles.form}>
-          <Text style={styles.formTitle}>Welcome back</Text>
+          <Text style={styles.formTitle}>Welcome Back</Text>
+          <Text style={styles.formSubtitle}>Sign in to your EventEcos account</Text>
 
           <TextInput
             style={styles.input}
@@ -153,6 +156,11 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: Colors.textPrimary,
+    marginBottom: 2,
+  },
+  formSubtitle: {
+    fontSize: 13,
+    color: Colors.textSecondary,
     marginBottom: 4,
   },
   input: {

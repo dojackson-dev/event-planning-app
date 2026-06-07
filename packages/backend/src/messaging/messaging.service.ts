@@ -294,41 +294,50 @@ export class MessagingService {
     const threads = Object.values(threadMap);
     const eventIds = [...new Set(threads.map(t => t.eventId))];
 
-    // Fetch event details
+    // Fetch event details — include intake_form_id to resolve the client's name
     const { data: events } = await supabase
       .from('event')
-      .select('id, name, date')
+      .select('id, name, date, intake_form_id')
       .in('id', eventIds);
 
-    const eventInfoMap: Record<string, { name: string; date: string }> = {};
+    const eventInfoMap: Record<string, { name: string; date: string; intakeFormId: string | null }> = {};
     for (const ev of events || []) {
-      eventInfoMap[ev.id] = { name: ev.name || 'Event', date: ev.date };
+      eventInfoMap[ev.id] = { name: ev.name || 'Event', date: ev.date, intakeFormId: ev.intake_form_id ?? null };
     }
 
-    // Fetch client info from intake_forms linked to these events
-    const { data: intakeForms } = await supabase
-      .from('intake_forms')
-      .select('id, contact_name, contact_email, contact_phone')
-      .in('id', threads.map(t => t.clientId));
+    // Fetch client names via each event's intake_form_id (client_id is a session UUID, not the intake form UUID)
+    const intakeFormIds = [...new Set(
+      Object.values(eventInfoMap).map(e => e.intakeFormId).filter(Boolean) as string[]
+    )];
 
     const clientInfoMap: Record<string, { name: string; email: string }> = {};
-    for (const f of intakeForms || []) {
-      clientInfoMap[f.id] = { name: f.contact_name || 'Client', email: f.contact_email || '' };
+    if (intakeFormIds.length > 0) {
+      const { data: intakeForms } = await supabase
+        .from('intake_forms')
+        .select('id, contact_name, contact_email')
+        .in('id', intakeFormIds);
+      for (const f of intakeForms || []) {
+        clientInfoMap[f.id] = { name: f.contact_name || 'Client', email: f.contact_email || '' };
+      }
     }
 
     return threads
-      .map(t => ({
-        eventId: t.eventId,
-        eventName: eventInfoMap[t.eventId]?.name || 'Event',
-        eventDate: eventInfoMap[t.eventId]?.date || null,
-        clientId: t.clientId,
-        clientName: clientInfoMap[t.clientId]?.name || 'Client',
-        clientEmail: clientInfoMap[t.clientId]?.email || '',
-        lastMessage: t.lastMessage,
-        lastMessageAt: t.lastMessageAt,
-        lastMessageSender: t.lastMessageSender,
-        unreadCount: t.unreadCount,
-      }))
+      .map(t => {
+        const intakeFormId = eventInfoMap[t.eventId]?.intakeFormId;
+        const clientInfo = intakeFormId ? (clientInfoMap[intakeFormId] ?? null) : null;
+        return {
+          eventId: t.eventId,
+          eventName: eventInfoMap[t.eventId]?.name || 'Event',
+          eventDate: eventInfoMap[t.eventId]?.date || null,
+          clientId: t.clientId,
+          clientName: clientInfo?.name || 'Client',
+          clientEmail: clientInfo?.email || '',
+          lastMessage: t.lastMessage,
+          lastMessageAt: t.lastMessageAt,
+          lastMessageSender: t.lastMessageSender,
+          unreadCount: t.unreadCount,
+        };
+      })
       .sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
   }
 

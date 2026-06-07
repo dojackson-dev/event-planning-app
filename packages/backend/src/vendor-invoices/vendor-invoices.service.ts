@@ -23,7 +23,7 @@ export class VendorInvoicesService {
     const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (!secretKey) throw new Error('STRIPE_SECRET_KEY is not set');
     this.stripe = new Stripe(secretKey);
-    this.frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://dovenuesuite.com');
+    this.frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://eventecos.com');
   }
 
   // ─── Invoice number generation ──────────────────────────────────────────────

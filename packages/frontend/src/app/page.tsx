@@ -58,15 +58,15 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Top Banner */}
-      <div className="w-full">
-        <img src="/lib/EventEcos-Web-Banner.jpg" alt="EventEcos Banner" className="w-full object-cover" />
-      </div>
-
       {/* Navigation */}
       <nav className="sticky top-0 z-50 bg-white md:bg-primary-600 border-b border-gray-200 md:border-primary-700 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-center md:justify-between h-16 gap-2">
+          <div className="flex items-center justify-between h-16 gap-2">
+
+            {/* Logo */}
+            <Link href="/" className="flex items-center shrink-0">
+              <img src="/lib/EventEcos-Logo.jpg" alt="EventEcos" className="h-10 w-auto object-contain rounded" />
+            </Link>
 
             {/* Center Nav Links - desktop only */}
             <div className="hidden md:flex items-center gap-2">

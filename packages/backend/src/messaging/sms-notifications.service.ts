@@ -22,7 +22,7 @@ export class SmsNotificationsService {
     private readonly twilioService: TwilioService,
     private readonly configService: ConfigService,
   ) {
-    this.frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://dovenuesuite.com');
+    this.frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://eventecos.com');
   }
 
   // ─── URL helpers ──────────────────────────────────────────────────────────
@@ -501,13 +501,16 @@ export class SmsNotificationsService {
     eventTitle: string,
     eventDate: string,
     eventId: string,
+    sessionId?: string | null,
   ): Promise<void> {
     const name = buyerName ? `Hi ${buyerName}, ` : '';
     const qty = quantity > 1 ? `${quantity} tickets` : '1 ticket';
-    const link = this.url(`/events/${eventId}`);
+    const link = sessionId
+      ? this.url(`/tickets/${sessionId}`)
+      : this.url(`/events/${eventId}`);
     await this.trySend(
       phone,
-      `Eventecos Tickets\n${name}you're in! ${qty} (${tierName}) for ${eventTitle} on ${eventDate} confirmed. Check your email for your QR codes. View event: ${link}`,
+      `Eventecos Tickets\n${name}you're in! ${qty} (${tierName}) for ${eventTitle} on ${eventDate} confirmed. View your tickets: ${link}`,
     );
   }
 }

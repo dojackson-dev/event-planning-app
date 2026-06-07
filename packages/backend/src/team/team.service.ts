@@ -156,7 +156,7 @@ export class TeamService {
     if (inviteError) throw new BadRequestException(inviteError.message);
 
     // Send invite email
-    const frontendUrl = process.env.FRONTEND_URL || 'https://dovenuesuite.com';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
     const inviteUrl = `${frontendUrl}/team/accept?token=${token}`;
     const ownerName = [owner?.first_name, owner?.last_name].filter(Boolean).join(' ') || 'Your venue owner';
     const businessName = ownerAccountInfo?.business_name || 'DoVenueSuite';

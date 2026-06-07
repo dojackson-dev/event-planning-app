@@ -1376,7 +1376,7 @@ export class MailService {
       return;
     }
     try {
-      const frontendUrl = process.env.FRONTEND_URL || 'https://dovenuesuite.com';
+      const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
       const eventUrl = `${frontendUrl}/events/${params.eventId}`;
       const qrData = `${frontendUrl}/vip/order/${params.orderId}`;
       const formattedDate = params.eventDate

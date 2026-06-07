@@ -568,6 +568,7 @@ export class PromoterEventsService {
             event.title,
             formattedDate,
             public_event_id,
+            sessionId,
           );
         }
       }

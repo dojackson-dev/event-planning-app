@@ -12,6 +12,7 @@ interface Contact {
   ownerId: string
   ownerBusinessName: string
   ownerLogoUrl: string | null
+  clientName: string
   lastMessage: string | null
   lastMessageAt: string | null
   lastMessageSender: string | null
@@ -48,6 +49,18 @@ function OwnerAvatar({ logoUrl, name, size = 'md' }: { logoUrl: string | null; n
   }
   return (
     <div className={`${dim} rounded-full bg-primary-100 text-primary-700 font-bold flex items-center justify-center flex-shrink-0`}>
+      {initials || '?'}
+    </div>
+  )
+}
+
+function ClientAvatar({ firstName, lastName }: { firstName: string; lastName: string }) {
+  const initials = [firstName, lastName]
+    .filter(Boolean)
+    .map((w) => w[0].toUpperCase())
+    .join('')
+  return (
+    <div className="h-8 w-8 text-xs rounded-full bg-gray-200 text-gray-600 font-bold flex items-center justify-center flex-shrink-0">
       {initials || '?'}
     </div>
   )
@@ -282,15 +295,13 @@ export default function ClientMessagesPage() {
                   messages.map((msg) => {
                     const isMe = msg.sender_type === 'client'
                     return (
-                      <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                      <div key={msg.id} className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'}`}>
                         {!isMe && (
-                          <div className="mr-2 flex-shrink-0 self-end">
-                            <OwnerAvatar
-                              logoUrl={selectedContact.ownerLogoUrl}
-                              name={selectedContact.ownerBusinessName}
-                              size="sm"
-                            />
-                          </div>
+                          <OwnerAvatar
+                            logoUrl={selectedContact.ownerLogoUrl}
+                            name={selectedContact.ownerBusinessName}
+                            size="sm"
+                          />
                         )}
                         <div
                           className={`max-w-xs sm:max-w-md rounded-2xl px-4 py-2.5 ${
@@ -314,6 +325,12 @@ export default function ClientMessagesPage() {
                             })}
                           </p>
                         </div>
+                        {isMe && (
+                          <ClientAvatar
+                            firstName={(selectedContact.clientName || '').split(' ')[0] || client?.firstName || ''}
+                            lastName={(selectedContact.clientName || '').split(' ').slice(1).join(' ') || client?.lastName || ''}
+                          />
+                        )}
                       </div>
                     )
                   })

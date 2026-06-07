@@ -327,8 +327,8 @@ export default function ClientMessagesPage() {
                         </div>
                         {isMe && (
                           <ClientAvatar
-                            firstName={selectedContact.clientName.split(' ')[0] || client?.firstName || ''}
-                            lastName={selectedContact.clientName.split(' ').slice(1).join(' ') || client?.lastName || ''}
+                            firstName={(selectedContact.clientName || '').split(' ')[0] || client?.firstName || ''}
+                            lastName={(selectedContact.clientName || '').split(' ').slice(1).join(' ') || client?.lastName || ''}
                           />
                         )}
                       </div>

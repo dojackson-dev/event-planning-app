@@ -10,7 +10,6 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { MailService } from '../mail/mail.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import Stripe from 'stripe';
-import { MailService } from '../mail/mail.service';
 import {
   CreatePromoterEventDto,
   UpdatePromoterEventDto,

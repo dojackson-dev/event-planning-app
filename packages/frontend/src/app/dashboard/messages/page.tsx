@@ -1,15 +1,319 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Message, Event } from '@/types'
-import { Plus, Search, MessageSquare, CheckCircle, XCircle, Clock, Filter, X } from 'lucide-react'
+import { Plus, Search, MessageSquare, CheckCircle, XCircle, Clock, Filter, X, Send, Users, Calendar, ChevronRight } from 'lucide-react'
+
+// ── Client Chat Types ──────────────────────────────────────────────────────
+
+interface ClientThread {
+  eventId: string
+  eventName: string
+  eventDate: string | null
+  clientId: string
+  clientName: string
+  clientEmail: string
+  lastMessage: string | null
+  lastMessageAt: string | null
+  lastMessageSender: string | null
+  unreadCount: number
+}
+
+interface ClientMessage {
+  id: string
+  event_id: string
+  owner_id: string
+  client_id: string
+  sender_type: 'owner' | 'client'
+  content: string
+  is_read: boolean
+  created_at: string
+}
+
+function ClientInitials({ name }: { name: string }) {
+  const initials = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('')
+  return (
+    <div className="h-9 w-9 rounded-full bg-gray-200 text-gray-600 font-semibold text-sm flex items-center justify-center flex-shrink-0">
+      {initials || '?'}
+    </div>
+  )
+}
+
+function ClientChatTab() {
+  const [threads, setThreads] = useState<ClientThread[]>([])
+  const [selectedThread, setSelectedThread] = useState<ClientThread | null>(null)
+  const [messages, setMessages] = useState<ClientMessage[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadingThread, setLoadingThread] = useState(false)
+  const [newMessage, setNewMessage] = useState('')
+  const [sending, setSending] = useState(false)
+  const bottomRef = useRef<HTMLDivElement>(null)
+
+  const fetchThreads = useCallback(async () => {
+    try {
+      const res = await api.get<ClientThread[]>('/messages/client-inbox')
+      setThreads(res.data || [])
+    } catch (err) {
+      console.error('Failed to load client inbox', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchThreads()
+    const interval = setInterval(fetchThreads, 30_000)
+    return () => clearInterval(interval)
+  }, [fetchThreads])
+
+  useEffect(() => {
+    if (!selectedThread) return
+    setLoadingThread(true)
+    setMessages([])
+    api
+      .get<ClientMessage[]>(`/messages/client-inbox/${selectedThread.eventId}`)
+      .then((res) => setMessages(res.data || []))
+      .catch((err) => console.error('Failed to load thread', err))
+      .finally(() => setLoadingThread(false))
+    // Update unread count in thread list
+    setThreads((prev) =>
+      prev.map((t) => (t.eventId === selectedThread.eventId ? { ...t, unreadCount: 0 } : t)),
+    )
+  }, [selectedThread?.eventId])
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedThread || !newMessage.trim()) return
+    setSending(true)
+    try {
+      const res = await api.post<ClientMessage>(
+        `/messages/client-inbox/${selectedThread.eventId}/reply`,
+        { content: newMessage.trim() },
+      )
+      setMessages((prev) => [...prev, res.data])
+      setNewMessage('')
+      setThreads((prev) =>
+        prev.map((t) =>
+          t.eventId === selectedThread.eventId
+            ? {
+                ...t,
+                lastMessage: newMessage.trim(),
+                lastMessageAt: new Date().toISOString(),
+                lastMessageSender: 'owner',
+              }
+            : t,
+        ),
+      )
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to send message.')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64 text-gray-500">
+        Loading client messages…
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex"
+      style={{ minHeight: '60vh' }}
+    >
+      {/* Thread list */}
+      <div className="w-72 border-r border-gray-200 flex flex-col flex-shrink-0">
+        <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Client Conversations</p>
+        </div>
+        {threads.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center p-6 text-center text-sm text-gray-400">
+            No client messages yet. Clients can message you from their portal.
+          </div>
+        ) : (
+          <ul className="flex-1 overflow-y-auto divide-y divide-gray-100">
+            {threads.map((thread) => {
+              const isSelected = selectedThread?.eventId === thread.eventId
+              return (
+                <li key={thread.eventId}>
+                  <button
+                    onClick={() => setSelectedThread(thread)}
+                    className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
+                      isSelected ? 'bg-primary-50' : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <ClientInitials name={thread.clientName} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1">
+                        <p
+                          className={`text-sm font-medium truncate ${
+                            isSelected ? 'text-primary-700' : 'text-gray-900'
+                          }`}
+                        >
+                          {thread.clientName}
+                        </p>
+                        {thread.unreadCount > 0 && (
+                          <span className="flex-shrink-0 inline-flex items-center justify-center h-5 w-5 rounded-full bg-primary-600 text-white text-[10px] font-bold">
+                            {thread.unreadCount > 9 ? '9+' : thread.unreadCount}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500 truncate flex items-center gap-1">
+                        <Calendar className="h-3 w-3 flex-shrink-0" />
+                        {thread.eventName}
+                        {thread.eventDate && (
+                          <span className="text-gray-400">
+                            {' · '}
+                            {new Date(thread.eventDate).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                            })}
+                          </span>
+                        )}
+                      </p>
+                      {thread.lastMessage && (
+                        <p className="text-xs text-gray-400 truncate mt-0.5">
+                          {thread.lastMessageSender === 'owner' ? 'You: ' : ''}
+                          {thread.lastMessage}
+                        </p>
+                      )}
+                    </div>
+                    {isSelected && <ChevronRight className="h-4 w-4 text-primary-400 flex-shrink-0" />}
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </div>
+
+      {/* Thread view */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {!selectedThread ? (
+          <div className="flex-1 flex items-center justify-center text-gray-400 text-sm p-8 text-center">
+            <div>
+              <MessageSquare className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+              <p>Select a conversation to reply.</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Header */}
+            <div className="px-5 py-3 border-b border-gray-200 flex items-center gap-3 bg-gray-50">
+              <ClientInitials name={selectedThread.clientName} />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-gray-900 truncate">{selectedThread.clientName}</p>
+                <p className="text-xs text-gray-500 flex items-center gap-1 truncate">
+                  <Calendar className="h-3 w-3 flex-shrink-0" />
+                  {selectedThread.eventName}
+                  {selectedThread.eventDate && (
+                    <span>
+                      {' · '}
+                      {new Date(selectedThread.eventDate).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })}
+                    </span>
+                  )}
+                </p>
+              </div>
+              <Users className="h-4 w-4 text-gray-400 flex-shrink-0" />
+            </div>
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-3">
+              {loadingThread ? (
+                <div className="text-center text-sm text-gray-400 mt-10">Loading…</div>
+              ) : messages.length === 0 ? (
+                <div className="text-center text-sm text-gray-400 mt-10">
+                  No messages yet. Send a message to start the conversation.
+                </div>
+              ) : (
+                messages.map((msg) => {
+                  const isMe = msg.sender_type === 'owner'
+                  return (
+                    <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                      {!isMe && (
+                        <div className="mr-2 self-end">
+                          <ClientInitials name={selectedThread.clientName} />
+                        </div>
+                      )}
+                      <div
+                        className={`max-w-xs sm:max-w-md rounded-2xl px-4 py-2.5 ${
+                          isMe
+                            ? 'bg-primary-600 text-white rounded-br-sm'
+                            : 'bg-gray-100 text-gray-900 rounded-bl-sm'
+                        }`}
+                      >
+                        <p className="text-sm">{msg.content}</p>
+                        <p
+                          className={`text-xs mt-1 ${isMe ? 'text-primary-200' : 'text-gray-400'}`}
+                        >
+                          {new Date(msg.created_at).toLocaleTimeString('en-US', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                          {' · '}
+                          {new Date(msg.created_at).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+              <div ref={bottomRef} />
+            </div>
+
+            {/* Compose */}
+            <div className="border-t border-gray-200 p-4">
+              <form onSubmit={handleSend} className="flex gap-3">
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  placeholder={`Reply to ${selectedThread.clientName}…`}
+                  className="flex-1 border border-gray-300 rounded-full px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                />
+                <button
+                  type="submit"
+                  disabled={sending || !newMessage.trim()}
+                  className="h-10 w-10 rounded-full bg-primary-600 text-white flex items-center justify-center hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                >
+                  <Send className="h-4 w-4" />
+                </button>
+              </form>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
 
 export default function MessagesPage() {
   const router = useRouter()
   const { user } = useAuth()
+  const [activeTab, setActiveTab] = useState<'sms' | 'chat'>('sms')
   const [messages, setMessages] = useState<Message[]>([])
   const [events, setEvents] = useState<Event[]>([])
   const [stats, setStats] = useState({ total: 0, sent: 0, delivered: 0, failed: 0, pending: 0 })
@@ -141,19 +445,51 @@ export default function MessagesPage() {
   return (
     <div className="p-6">
       {/* Header */}
-      <div className="mb-6 text-center">
-        <h1 className="text-2xl font-bold text-gray-900">Messages</h1>
-        <p className="text-gray-600 mt-1 mb-3">Send SMS reminders and updates via Twilio</p>
-        <div className="flex justify-center">
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-2xl font-bold text-gray-900">Messages</h1>
+          {activeTab === 'sms' && (
+            <button
+              onClick={() => router.push('/dashboard/messages/send')}
+              className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
+            >
+              <Plus className="h-5 w-5" />
+              Send SMS
+            </button>
+          )}
+        </div>
+        {/* Tab switcher */}
+        <div className="flex gap-1 p-1 bg-gray-100 rounded-lg w-fit">
           <button
-            onClick={() => router.push('/dashboard/messages/send')}
-            className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
+            onClick={() => setActiveTab('sms')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === 'sms'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
           >
-            <Plus className="h-5 w-5" />
-            Send Message
+            <MessageSquare className="h-4 w-4" />
+            SMS Log
+          </button>
+          <button
+            onClick={() => setActiveTab('chat')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === 'chat'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Users className="h-4 w-4" />
+            Client Chat
           </button>
         </div>
       </div>
+
+      {/* Client Chat Tab */}
+      {activeTab === 'chat' && <ClientChatTab />}
+
+      {/* SMS Log Tab */}
+      {activeTab === 'sms' && (<>
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
@@ -417,6 +753,7 @@ export default function MessagesPage() {
           </div>
         </div>
       )}
+      </>)}
     </div>
   )
 }

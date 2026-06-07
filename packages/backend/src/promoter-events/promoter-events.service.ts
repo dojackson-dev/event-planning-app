@@ -454,8 +454,16 @@ export class PromoterEventsService {
       return;
     }
 
-    const { public_event_id, ticket_tier_id, quantity, buyer_email, buyer_phone, buyer_name } = session.metadata || {};
-    if (!public_event_id || !ticket_tier_id) return;
+    const { public_event_id, ticket_tier_id, quantity, buyer_email, buyer_phone, buyer_name, items: itemsJson } = session.metadata || {};
+    if (!public_event_id) return;
+
+    // ── Multi-tier checkout path ──────────────────────────────
+    if (!ticket_tier_id && itemsJson) {
+      await this.markMultiTierTicketsSold(admin, session, sessionId, public_event_id, itemsJson, buyer_email, buyer_phone, buyer_name);
+      return;
+    }
+
+    if (!ticket_tier_id) return;
 
     const qty = parseInt(quantity || '1', 10);
 
@@ -574,6 +582,115 @@ export class PromoterEventsService {
       }
     } catch (notifyErr) {
       this.logger.warn(`Ticket confirmation notifications failed for session ${sessionId}: ${notifyErr}`);
+    }
+  }
+
+  // ── Multi-tier webhook handler ────────────────────────────────
+
+  private async markMultiTierTicketsSold(
+    admin: any,
+    session: Stripe.Checkout.Session,
+    sessionId: string,
+    public_event_id: string,
+    itemsJson: string,
+    buyer_email: string | undefined,
+    buyer_phone: string | undefined,
+    buyer_name: string | undefined,
+  ) {
+    // idempotency check
+    const { data: existing } = await admin
+      .from('tickets')
+      .select('id')
+      .eq('stripe_checkout_session_id', sessionId)
+      .limit(1);
+    if (existing && existing.length > 0) return;
+
+    let items: { tier_id: string; quantity: number }[] = [];
+    try { items = JSON.parse(itemsJson); } catch { return; }
+
+    const totalQty = items.reduce((s, i) => s + i.quantity, 0);
+    const perTicketAmount = session.amount_total ? session.amount_total / 100 / totalQty : 0;
+    const toEmail = buyer_email ?? session.customer_email ?? undefined;
+
+    // Insert tickets and update tier counts
+    const tierNames: string[] = [];
+    for (const item of items) {
+      const ticketRows = Array.from({ length: item.quantity }, () => ({
+        public_event_id,
+        ticket_tier_id: item.tier_id,
+        buyer_email: toEmail,
+        stripe_checkout_session_id: sessionId,
+        amount_paid: perTicketAmount,
+        status: 'valid',
+      }));
+      await admin.from('tickets').insert(ticketRows);
+
+      const { data: tier } = await admin
+        .from('ticket_tiers')
+        .select('quantity_sold, name')
+        .eq('id', item.tier_id)
+        .single();
+      if (tier) {
+        await admin
+          .from('ticket_tiers')
+          .update({ quantity_sold: (tier.quantity_sold ?? 0) + item.quantity })
+          .eq('id', item.tier_id);
+        tierNames.push(`${item.quantity}× ${tier.name}`);
+      }
+    }
+
+    this.logger.log(`Recorded ${totalQty} multi-tier ticket(s) for event ${public_event_id}`);
+
+    // Notifications
+    try {
+      const { data: event } = await admin
+        .from('public_events')
+        .select('title, event_date, start_time, venue_name, promoter_accounts(company_name, contact_name)')
+        .eq('id', public_event_id)
+        .single();
+
+      if (!event) return;
+
+      const promoterName = (event.promoter_accounts as any)?.company_name
+        || (event.promoter_accounts as any)?.contact_name
+        || null;
+      const formattedDate = event.event_date
+        ? new Date(event.event_date + 'T12:00:00').toLocaleDateString('en-US', {
+            weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+          })
+        : 'TBD';
+      const tierSummary = tierNames.join(', ');
+
+      if (toEmail) {
+        await this.mailService.sendTicketConfirmation({
+          toEmail,
+          eventTitle: event.title,
+          eventDate: event.event_date,
+          eventTime: event.start_time ?? null,
+          venueName: event.venue_name ?? null,
+          tierName: tierSummary,
+          quantity: totalQty,
+          amountTotal: session.amount_total ? session.amount_total / 100 : 0,
+          eventId: public_event_id,
+          promoterName,
+          sessionId,
+        });
+      }
+
+      if (buyer_phone) {
+        await this.smsNotifications.ticketPurchaseConfirmed(
+          buyer_phone,
+          buyer_name ?? null,
+          tierSummary,
+          totalQty,
+          event.title,
+          formattedDate,
+          public_event_id,
+          sessionId,
+        );
+      }
+    } catch (err) {
+      this.logger.warn(`Multi-tier notifications failed for session ${sessionId}: ${err}`);
     }
   }
 

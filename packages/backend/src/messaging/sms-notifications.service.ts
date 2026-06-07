@@ -492,5 +492,23 @@ export class SmsNotificationsService {
       `Eventecos VIP\n${name}your VIP package "${packageName}" for ${eventTitle} on ${eventDate} is confirmed! Show your QR code at the door. View event: ${link}`,
     );
   }
+
+  async ticketPurchaseConfirmed(
+    phone: string | null | undefined,
+    buyerName: string | null | undefined,
+    tierName: string,
+    quantity: number,
+    eventTitle: string,
+    eventDate: string,
+    eventId: string,
+  ): Promise<void> {
+    const name = buyerName ? `Hi ${buyerName}, ` : '';
+    const qty = quantity > 1 ? `${quantity} tickets` : '1 ticket';
+    const link = this.url(`/events/${eventId}`);
+    await this.trySend(
+      phone,
+      `Eventecos Tickets\n${name}you're in! ${qty} (${tierName}) for ${eventTitle} on ${eventDate} confirmed. Check your email for your QR codes. View event: ${link}`,
+    );
+  }
 }
 

@@ -7,6 +7,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
+import { MailService } from '../mail/mail.service';
+import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import Stripe from 'stripe';
 import { MailService } from '../mail/mail.service';
 import {
@@ -53,6 +55,7 @@ export class PromoterEventsService {
     private readonly supabaseService: SupabaseService,
     private readonly configService: ConfigService,
     private readonly mailService: MailService,
+    private readonly smsNotifications: SmsNotificationsService,
   ) {
     this.stripe = new Stripe(this.configService.get<string>('STRIPE_SECRET_KEY') || '', {
       apiVersion: '2024-04-10' as any,
@@ -452,7 +455,7 @@ export class PromoterEventsService {
       return;
     }
 
-    const { public_event_id, ticket_tier_id, quantity, buyer_email } = session.metadata || {};
+    const { public_event_id, ticket_tier_id, quantity, buyer_email, buyer_phone, buyer_name } = session.metadata || {};
     if (!public_event_id || !ticket_tier_id) return;
 
     const qty = parseInt(quantity || '1', 10);
@@ -521,6 +524,57 @@ export class PromoterEventsService {
     }
 
     this.logger.log(`Recorded ${qty} ticket(s) sold for event ${public_event_id}`);
+
+    // ── Send email + SMS confirmation ───────────────────────────
+    try {
+      const { data: event } = await admin
+        .from('public_events')
+        .select('title, event_date, start_time, venue_name, promoter_accounts(company_name, contact_name)')
+        .eq('id', public_event_id)
+        .single();
+
+      if (event) {
+        const promoterName = (event.promoter_accounts as any)?.company_name
+          || (event.promoter_accounts as any)?.contact_name
+          || null;
+        const toEmail = buyer_email ?? session.customer_email;
+        const formattedDate = event.event_date
+          ? new Date(event.event_date + 'T12:00:00').toLocaleDateString('en-US', {
+              weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+            })
+          : 'TBD';
+
+        if (toEmail) {
+          await this.mailService.sendTicketConfirmation({
+            toEmail,
+            eventTitle: event.title,
+            eventDate: event.event_date,
+            eventTime: event.start_time ?? null,
+            venueName: event.venue_name ?? null,
+            tierName: tier?.name ?? 'General Admission',
+            quantity: qty,
+            amountTotal: session.amount_total ? session.amount_total / 100 : 0,
+            eventId: public_event_id,
+            promoterName,
+            sessionId,
+          });
+        }
+
+        if (buyer_phone) {
+          await this.smsNotifications.ticketPurchaseConfirmed(
+            buyer_phone,
+            buyer_name ?? null,
+            tier?.name ?? 'General Admission',
+            qty,
+            event.title,
+            formattedDate,
+            public_event_id,
+          );
+        }
+      }
+    } catch (notifyErr) {
+      this.logger.warn(`Ticket confirmation notifications failed for session ${sessionId}: ${notifyErr}`);
+    }
   }
 
   // ── ATTENDEE LIST ─────────────────────────────────────────────

@@ -110,6 +110,7 @@ interface EventManagementData {
   eventId: string;
   eventType: EventType;
   eventName: string;
+  eventDescription: string;
   eventDate: string;
   startTime: string;
   endTime: string;
@@ -290,6 +291,7 @@ export default function EventManagementPage() {
     accessibility: '',
     internalNotes: '',
     invitationImages: [],
+    eventDescription: '',
   });
 
   useEffect(() => {
@@ -310,6 +312,7 @@ export default function EventManagementPage() {
         eventName: event.intakeEventName || event.name || '',
         clientName: event.clientName || prev.clientName || '',
         eventType: event.eventType || EventType.WEDDING_RECEPTION,
+        eventDescription: event.description || mgmt.eventDescription || '',
         eventDate: event.date || '',
         startTime: event.startTime || '',
         endTime: event.endTime || '',
@@ -1008,8 +1011,8 @@ export default function EventManagementPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Event Type</label>
-                  <p className="text-gray-900">{formData.eventType.replace(/_/g, ' ')}</p>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Event Description</label>
+                  <p className="text-gray-900 text-sm">{formData.eventDescription || <span className="text-gray-400 italic">No description</span>}</p>
                 </div>
 
                 <div>

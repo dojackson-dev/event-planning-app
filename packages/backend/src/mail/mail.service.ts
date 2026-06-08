@@ -155,6 +155,7 @@ export class MailService {
     eventType: string;
     eventDate: string;
     eventTime?: string | null;
+    endTime?: string | null;
     guestCount?: number | null;
     ownerName?: string;
     venueName?: string;
@@ -168,6 +169,17 @@ export class MailService {
             weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
           })
         : 'TBD';
+      const formatEmailTime = (t: string | null | undefined) => {
+        if (!t) return null;
+        const [h, m] = t.split(':').map(Number);
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${ampm}`;
+      };
+      const formattedStart = formatEmailTime(params.eventTime);
+      const formattedEnd = formatEmailTime(params.endTime);
+      const formattedTime = formattedStart
+        ? formattedEnd ? `${formattedStart} – ${formattedEnd}` : formattedStart
+        : null;
 
       const mailOptions = {
         from: `"EventEcos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
@@ -199,9 +211,8 @@ export class MailService {
                 <div style="background: #f0f4ff; border-left: 4px solid #2563eb; border-radius: 8px; padding: 20px 24px; margin: 0 0 28px;">
                   <h3 style="margin: 0 0 12px; color: #1e3a5f; font-size: 15px; font-weight: 700;">Your Event Details</h3>
                   <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #374151;">
-                    <tr><td style="padding: 5px 0; color: #6b7280; width: 110px;">Event Type</td><td style="padding: 5px 0; font-weight: 600;">${params.eventType}</td></tr>
-                    <tr><td style="padding: 5px 0; color: #6b7280;">Date</td><td style="padding: 5px 0; font-weight: 600;">${formattedDate}</td></tr>
-                    ${params.eventTime ? `<tr><td style="padding: 5px 0; color: #6b7280;">Time</td><td style="padding: 5px 0; font-weight: 600;">${params.eventTime}</td></tr>` : ''}
+                    <tr><td style="padding: 5px 0; color: #6b7280; width: 110px;">Date</td><td style="padding: 5px 0; font-weight: 600;">${formattedDate}</td></tr>
+                    ${formattedTime ? `<tr><td style="padding: 5px 0; color: #6b7280;">Time</td><td style="padding: 5px 0; font-weight: 600;">${formattedTime}</td></tr>` : ''}
                     ${params.guestCount ? `<tr><td style="padding: 5px 0; color: #6b7280;">Guests</td><td style="padding: 5px 0; font-weight: 600;">${params.guestCount}</td></tr>` : ''}
                   </table>
                 </div>
@@ -224,7 +235,7 @@ export class MailService {
             </div>
           </div>
         `,
-        text: `Hello ${params.clientName},\n\n${displayName} has received your booking request and is now reviewing your event details.\n\nEvent: ${params.eventType}\nDate: ${formattedDate}${params.eventTime ? `\nTime: ${params.eventTime}` : ''}${params.guestCount ? `\nGuests: ${params.guestCount}` : ''}\n\nAccess your client portal here: ${inviteUrl}\n\nEventEcos`,
+        text: `Hello ${params.clientName},\n\n${displayName} has received your booking request and is now reviewing your event details.\n\nDate: ${formattedDate}${formattedTime ? `\nTime: ${formattedTime}` : ''}${params.guestCount ? `\nGuests: ${params.guestCount}` : ''}\n\nAccess your client portal here: ${inviteUrl}\n\nEventEcos`,
       };
 
       const info = await this.transporter.sendMail(mailOptions);

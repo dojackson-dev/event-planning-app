@@ -97,7 +97,8 @@ function ClientIntakePageInner() {
     // Event Details
     eventType: EventType.BIRTHDAY_PARTY,
     eventName: '',
-    eventDate: '',
+    eventDescription: '',
+    eventDate: '',,
     alternateDate: '',
     isFlexibleDate: false,
     startTime: '',
@@ -192,6 +193,7 @@ function ClientIntakePageInner() {
       const dbData = {
         event_type: mapEventTypeToDb(formData.eventType),
         event_name: formData.eventName || eventTypeLabels[formData.eventType] || null,
+        event_description: formData.eventDescription || null,
         event_date: formData.eventDate,
         event_time: formData.startTime || null,
         event_end_time: formData.endTime || null,
@@ -503,6 +505,21 @@ function ClientIntakePageInner() {
                   value={formData.eventName}
                   onChange={handleChange}
                   placeholder="e.g., Sarah's 30th Birthday Celebration"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Event Description <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <p className="text-xs text-gray-500 mb-1">💡 Tip: A brief description helps your coordinator prepare a better estimate.</p>
+                <textarea
+                  name="eventDescription"
+                  rows={3}
+                  value={formData.eventDescription}
+                  onChange={handleChange}
+                  placeholder="Describe the event — theme, vision, special needs, atmosphere..."
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 />
               </div>
@@ -1167,6 +1184,7 @@ function ClientIntakePageInner() {
                 <div className="text-sm text-gray-600 space-y-1">
                   <p><strong>Type:</strong> {eventTypeLabels[formData.eventType]}</p>
                   {formData.eventName && <p><strong>Name:</strong> {formData.eventName}</p>}
+                  {formData.eventDescription && <p><strong>Description:</strong> {formData.eventDescription}</p>}
                   <p><strong>Date:</strong> {formData.eventDate}</p>
                   <p><strong>Time:</strong> {formData.startTime} - {formData.endTime}</p>
                   <p><strong>Guests:</strong> {formData.estimatedGuests} (estimated)</p>

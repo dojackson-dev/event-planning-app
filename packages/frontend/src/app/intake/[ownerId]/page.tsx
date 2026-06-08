@@ -84,7 +84,7 @@ function PublicIntakeForm({ params }: { params: { ownerId: string } }) {
     eventType: EventType.BIRTHDAY_PARTY,
     eventName: '',
     eventDescription: '',
-    eventDate: '',,
+    eventDate: '',
     alternateDate: '',
     isFlexibleDate: false,
     startTime: '',

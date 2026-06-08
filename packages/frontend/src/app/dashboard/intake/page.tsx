@@ -98,7 +98,7 @@ function ClientIntakePageInner() {
     eventType: EventType.BIRTHDAY_PARTY,
     eventName: '',
     eventDescription: '',
-    eventDate: '',,
+    eventDate: '',
     alternateDate: '',
     isFlexibleDate: false,
     startTime: '',

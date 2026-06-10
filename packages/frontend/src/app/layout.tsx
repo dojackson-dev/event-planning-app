@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   title: 'EventEcos - Event Management Platform',
   description: 'Powering the Event Ecosystem',
   icons: {
-    icon: '/favicon.svg',
+    icon: '/lib/EventEcos-Logo-Only.jpg',
   },
 }
 

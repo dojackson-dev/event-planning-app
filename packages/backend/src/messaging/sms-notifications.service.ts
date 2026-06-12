@@ -484,12 +484,15 @@ export class SmsNotificationsService {
     eventTitle: string,
     eventDate: string,
     eventId: string,
+    qrCode?: string | null,
   ): Promise<void> {
     const name = buyerName ? `Hi ${buyerName}, ` : '';
-    const link = this.url(`/events/${eventId}`);
+    const link = qrCode
+      ? this.url(`/vip/order/${qrCode}`)
+      : this.url(`/events/${eventId}`);
     await this.trySend(
       phone,
-      `Eventecos VIP\n${name}your VIP package "${packageName}" for ${eventTitle} on ${eventDate} is confirmed! Show your QR code at the door. View event: ${link}`,
+      `Eventecos VIP\n${name}your VIP package "${packageName}" for ${eventTitle} on ${eventDate} is confirmed! Show your QR code at the door. View your order: ${link}`,
     );
   }
 

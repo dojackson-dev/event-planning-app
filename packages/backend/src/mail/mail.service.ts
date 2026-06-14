@@ -1458,7 +1458,7 @@ export class MailService {
           {
             filename: 'vip-qr.png',
             content: qrBuffer,
-            content_id: qrCid,
+            contentId: qrCid,
           },
         ],
       });

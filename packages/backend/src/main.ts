@@ -14,6 +14,7 @@ async function bootstrap() {
     'https://eventecos.com',
     'https://www.eventecos.com',
     'https://dev.eventecos.com',
+    'https://demo.eventecos.com',
     'https://dovenuesuite.com',
     'https://www.dovenuesuite.com',
     'https://dev.dovenuesuite.com',

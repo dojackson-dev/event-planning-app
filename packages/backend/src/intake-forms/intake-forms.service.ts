@@ -56,7 +56,7 @@ export class IntakeFormsService {
         end_time: intakeForm.event_end_time || null,
         venue: intakeForm.venue_preference || null,
         guest_count: intakeForm.guest_count || null,
-        description: intakeForm.special_requests || null,
+        description: intakeForm.event_description || intakeForm.special_requests || null,
         status: 'scheduled',
         owner_id: ownerId,
         client_id: intakeForm.id,
@@ -103,7 +103,7 @@ export class IntakeFormsService {
 
   async create(supabase: SupabaseClient, userId: string, createDto: any) {
     // Remove columns that don't exist in the intake_forms table
-    const { accessibility_requirements, preferred_contact, event_name, event_end_time, ...rest } = createDto;
+    const { accessibility_requirements, preferred_contact, event_name, event_end_time, event_description, ...rest } = createDto;
 
     // Normalize phone to E.164 on the way in
     if (rest.contact_phone) {
@@ -119,6 +119,7 @@ export class IntakeFormsService {
       ...rest,
       user_id: userId,
       ...(event_name ? { event_name } : {}),
+      ...(event_description ? { event_description } : {}),
       ...(event_end_time ? { event_end_time } : {}),
     };
 
@@ -162,7 +163,7 @@ export class IntakeFormsService {
           date: data.event_date,
           start_time: data.event_time || '00:00',
           end_time: data.event_end_time || '23:59',
-          description: data.special_requests || '',
+          description: data.event_description || data.special_requests || '',
           status: 'scheduled',
           guest_count: data.guest_count || null,
           venue: 'TBD',
@@ -301,6 +302,7 @@ export class IntakeFormsService {
       eventType: form.event_type || 'Event',
       eventDate: form.event_date,
       eventTime: form.event_time ?? null,
+      endTime: form.event_end_time ?? null,
       guestCount: form.guest_count ?? null,
       ownerName,
     });
@@ -478,6 +480,7 @@ export class IntakeFormsService {
           eventType: intakeForm.event_type || 'Event',
           eventDate: intakeForm.event_date,
           eventTime: intakeForm.event_time ?? null,
+          endTime: intakeForm.event_end_time ?? null,
           guestCount: intakeForm.guest_count ?? null,
           ownerName,
           venueName,
@@ -639,35 +642,36 @@ export class IntakeFormsService {
   async createPublic(ownerId: string, dto: any) {
     const supabaseAdmin = this.supabaseService.getAdminClient();
     // Strip columns not in intake_forms schema; venue_id is handled separately
-    const { accessibility_requirements, preferred_contact, venue_id, ...safeDto } = dto;
+    const { accessibility_requirements, preferred_contact, venue_id, event_description, ...safeDto } = dto;
     const venueId: string | null = venue_id || null;
 
     if (safeDto.contact_phone) {
       safeDto.contact_phone = normalizePhone(safeDto.contact_phone);
     }
 
-    // Try inserting with venue_id first (requires migration); fall back without it
+    // Try inserting with venue_id and event_description first (requires migrations); fall back without them
     let data: any;
-    const withVenue = venueId ? { ...safeDto, venue_id: venueId, user_id: ownerId } : { ...safeDto, user_id: ownerId };
+    const extrasPayload = {
+      ...safeDto,
+      user_id: ownerId,
+      ...(venueId ? { venue_id: venueId } : {}),
+      ...(event_description ? { event_description } : {}),
+    };
     const { data: d1, error: e1 } = await supabaseAdmin
       .from('intake_forms')
-      .insert([withVenue])
+      .insert([extrasPayload])
       .select()
       .single();
 
     if (e1) {
-      if (venueId && (e1.code === 'PGRST204' || e1.message?.includes('venue_id'))) {
-        // venue_id column doesn't exist yet — insert without it
-        const { data: d2, error: e2 } = await supabaseAdmin
-          .from('intake_forms')
-          .insert([{ ...safeDto, user_id: ownerId }])
-          .select()
-          .single();
-        if (e2) throw new Error(`Public intake form insert failed: ${e2.message}`);
-        data = d2;
-      } else {
-        throw new Error(`Public intake form insert failed: ${e1.message}`);
-      }
+      // Fall back to base payload without optional columns
+      const { data: d2, error: e2 } = await supabaseAdmin
+        .from('intake_forms')
+        .insert([{ ...safeDto, user_id: ownerId }])
+        .select()
+        .single();
+      if (e2) throw new Error(`Public intake form insert failed: ${e2.message}`);
+      data = d2;
     } else {
       data = d1;
     }

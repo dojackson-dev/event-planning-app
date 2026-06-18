@@ -7,14 +7,29 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
-import Stripe from 'stripe';
 import { MailService } from '../mail/mail.service';
+import { SmsNotificationsService } from '../messaging/sms-notifications.service';
+import Stripe from 'stripe';
 import {
   CreatePromoterEventDto,
   UpdatePromoterEventDto,
   CreateTicketTierDto,
   UpdateTicketTierDto,
 } from './dto/promoter-event.dto';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const zipcodes = require('zipcodes');
+
+function haversineDistanceMiles(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 3958.8; // Earth radius in miles
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 const APP_FEE_RATE   = 0.03;   // 3% platform fee → goes to our account
 const STRIPE_PCT     = 0.029;  // Stripe's % fee
@@ -39,6 +54,7 @@ export class PromoterEventsService {
     private readonly supabaseService: SupabaseService,
     private readonly configService: ConfigService,
     private readonly mailService: MailService,
+    private readonly smsNotifications: SmsNotificationsService,
   ) {
     this.stripe = new Stripe(this.configService.get<string>('STRIPE_SECRET_KEY') || '', {
       apiVersion: '2024-04-10' as any,
@@ -78,6 +94,7 @@ export class PromoterEventsService {
         venue_address: dto.venue_address ?? null,
         city: dto.city ?? null,
         state: dto.state ?? null,
+        zip_code: dto.zip_code ?? null,
         category: dto.category ?? null,
         image_url: dto.image_url ?? null,
         age_restriction: dto.age_restriction ?? null,
@@ -147,6 +164,7 @@ export class PromoterEventsService {
     if (dto.venue_address !== undefined) updates.venue_address = dto.venue_address;
     if (dto.city !== undefined) updates.city = dto.city;
     if (dto.state !== undefined) updates.state = dto.state;
+    if (dto.zip_code !== undefined) updates.zip_code = dto.zip_code;
     if (dto.category !== undefined) updates.category = dto.category;
     if (dto.image_url !== undefined) updates.image_url = dto.image_url;
     if (dto.age_restriction !== undefined) updates.age_restriction = dto.age_restriction;
@@ -282,7 +300,7 @@ export class PromoterEventsService {
 
   // ── PUBLIC ROUTES (no auth) ───────────────────────────────────
 
-  async listPublicEvents(city?: string, category?: string, _radius?: number) {
+  async listPublicEvents(zipCode?: string, category?: string, radiusMiles = 30) {
     const admin = this.supabaseService.getAdminClient();
     let query = admin
       .from('public_events')
@@ -291,24 +309,43 @@ export class PromoterEventsService {
       .gte('event_date', new Date().toISOString().split('T')[0])
       .order('event_date', { ascending: true });
 
-    if (city) query = query.ilike('city', `%${city}%`);
     if (category) query = query.eq('category', category);
 
     const { data, error } = await query;
     if (error) throw new BadRequestException(error.message);
-    return data || [];
+    let events = data || [];
+
+    if (zipCode) {
+      const searchLoc = zipcodes.lookup(zipCode);
+      if (searchLoc) {
+        events = events.filter((event: any) => {
+          if (!event.zip_code) return false;
+          const eventLoc = zipcodes.lookup(event.zip_code);
+          if (!eventLoc) return false;
+          const dist = haversineDistanceMiles(
+            searchLoc.latitude, searchLoc.longitude,
+            eventLoc.latitude, eventLoc.longitude,
+          );
+          return dist <= radiusMiles;
+        });
+      } else {
+        this.logger.warn(`Zip code lookup failed for: ${zipCode}`);
+      }
+    }
+
+    return events;
   }
 
   async getPublicEvent(eventId: string) {
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('public_events')
-      .select('*, ticket_tiers(id, name, price, quantity, quantity_sold, description), promoter_accounts(company_name, contact_name, profile_image_url)')
+      .select('*, ticket_tiers(id, name, price, quantity, quantity_sold, description), promoter_accounts(company_name, contact_name, profile_image_url, location, instagram, website)')
       .eq('id', eventId)
-      .eq('status', 'published')
+      .neq('status', 'cancelled')
       .maybeSingle();
 
-    if (error || !data) throw new NotFoundException('Event not found or not published');
+    if (error || !data) throw new NotFoundException('Event not found');
     return data;
   }
 
@@ -417,8 +454,16 @@ export class PromoterEventsService {
       return;
     }
 
-    const { public_event_id, ticket_tier_id, quantity, buyer_email } = session.metadata || {};
-    if (!public_event_id || !ticket_tier_id) return;
+    const { public_event_id, ticket_tier_id, quantity, buyer_email, buyer_phone, buyer_name, items: itemsJson } = session.metadata || {};
+    if (!public_event_id) return;
+
+    // ── Multi-tier checkout path ──────────────────────────────
+    if (!ticket_tier_id && itemsJson) {
+      await this.markMultiTierTicketsSold(admin, session, sessionId, public_event_id, itemsJson, buyer_email, buyer_phone, buyer_name);
+      return;
+    }
+
+    if (!ticket_tier_id) return;
 
     const qty = parseInt(quantity || '1', 10);
 
@@ -486,6 +531,167 @@ export class PromoterEventsService {
     }
 
     this.logger.log(`Recorded ${qty} ticket(s) sold for event ${public_event_id}`);
+
+    // ── Send email + SMS confirmation ───────────────────────────
+    try {
+      const { data: event } = await admin
+        .from('public_events')
+        .select('title, event_date, start_time, venue_name, promoter_accounts(company_name, contact_name)')
+        .eq('id', public_event_id)
+        .single();
+
+      if (event) {
+        const promoterName = (event.promoter_accounts as any)?.company_name
+          || (event.promoter_accounts as any)?.contact_name
+          || null;
+        const toEmail = buyer_email ?? session.customer_email;
+        const formattedDate = event.event_date
+          ? new Date(event.event_date + 'T12:00:00').toLocaleDateString('en-US', {
+              weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+            })
+          : 'TBD';
+
+        if (toEmail) {
+          await this.mailService.sendTicketConfirmation({
+            toEmail,
+            eventTitle: event.title,
+            eventDate: event.event_date,
+            eventTime: event.start_time ?? null,
+            venueName: event.venue_name ?? null,
+            tierName: tier?.name ?? 'General Admission',
+            quantity: qty,
+            amountTotal: session.amount_total ? session.amount_total / 100 : 0,
+            eventId: public_event_id,
+            promoterName,
+            sessionId,
+          });
+        }
+
+        if (buyer_phone) {
+          await this.smsNotifications.ticketPurchaseConfirmed(
+            buyer_phone,
+            buyer_name ?? null,
+            tier?.name ?? 'General Admission',
+            qty,
+            event.title,
+            formattedDate,
+            public_event_id,
+            sessionId,
+          );
+        }
+      }
+    } catch (notifyErr) {
+      this.logger.warn(`Ticket confirmation notifications failed for session ${sessionId}: ${notifyErr}`);
+    }
+  }
+
+  // ── Multi-tier webhook handler ────────────────────────────────
+
+  private async markMultiTierTicketsSold(
+    admin: any,
+    session: Stripe.Checkout.Session,
+    sessionId: string,
+    public_event_id: string,
+    itemsJson: string,
+    buyer_email: string | undefined,
+    buyer_phone: string | undefined,
+    buyer_name: string | undefined,
+  ) {
+    // idempotency check
+    const { data: existing } = await admin
+      .from('tickets')
+      .select('id')
+      .eq('stripe_checkout_session_id', sessionId)
+      .limit(1);
+    if (existing && existing.length > 0) return;
+
+    let items: { tier_id: string; quantity: number }[] = [];
+    try { items = JSON.parse(itemsJson); } catch { return; }
+
+    const totalQty = items.reduce((s, i) => s + i.quantity, 0);
+    const perTicketAmount = session.amount_total ? session.amount_total / 100 / totalQty : 0;
+    const toEmail = buyer_email ?? session.customer_email ?? undefined;
+
+    // Insert tickets and update tier counts
+    const tierNames: string[] = [];
+    for (const item of items) {
+      const ticketRows = Array.from({ length: item.quantity }, () => ({
+        public_event_id,
+        ticket_tier_id: item.tier_id,
+        buyer_email: toEmail,
+        stripe_checkout_session_id: sessionId,
+        amount_paid: perTicketAmount,
+        status: 'valid',
+      }));
+      await admin.from('tickets').insert(ticketRows);
+
+      const { data: tier } = await admin
+        .from('ticket_tiers')
+        .select('quantity_sold, name')
+        .eq('id', item.tier_id)
+        .single();
+      if (tier) {
+        await admin
+          .from('ticket_tiers')
+          .update({ quantity_sold: (tier.quantity_sold ?? 0) + item.quantity })
+          .eq('id', item.tier_id);
+        tierNames.push(`${item.quantity}× ${tier.name}`);
+      }
+    }
+
+    this.logger.log(`Recorded ${totalQty} multi-tier ticket(s) for event ${public_event_id}`);
+
+    // Notifications
+    try {
+      const { data: event } = await admin
+        .from('public_events')
+        .select('title, event_date, start_time, venue_name, promoter_accounts(company_name, contact_name)')
+        .eq('id', public_event_id)
+        .single();
+
+      if (!event) return;
+
+      const promoterName = (event.promoter_accounts as any)?.company_name
+        || (event.promoter_accounts as any)?.contact_name
+        || null;
+      const formattedDate = event.event_date
+        ? new Date(event.event_date + 'T12:00:00').toLocaleDateString('en-US', {
+            weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+          })
+        : 'TBD';
+      const tierSummary = tierNames.join(', ');
+
+      if (toEmail) {
+        await this.mailService.sendTicketConfirmation({
+          toEmail,
+          eventTitle: event.title,
+          eventDate: event.event_date,
+          eventTime: event.start_time ?? null,
+          venueName: event.venue_name ?? null,
+          tierName: tierSummary,
+          quantity: totalQty,
+          amountTotal: session.amount_total ? session.amount_total / 100 : 0,
+          eventId: public_event_id,
+          promoterName,
+          sessionId,
+        });
+      }
+
+      if (buyer_phone) {
+        await this.smsNotifications.ticketPurchaseConfirmed(
+          buyer_phone,
+          buyer_name ?? null,
+          tierSummary,
+          totalQty,
+          event.title,
+          formattedDate,
+          public_event_id,
+          sessionId,
+        );
+      }
+    } catch (err) {
+      this.logger.warn(`Multi-tier notifications failed for session ${sessionId}: ${err}`);
+    }
   }
 
   // ── ATTENDEE LIST ─────────────────────────────────────────────

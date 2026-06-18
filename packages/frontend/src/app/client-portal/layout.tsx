@@ -63,7 +63,7 @@ function ClientPortalLayoutInner({ children }: { children: React.ReactNode }) {
       {/* Mobile top bar */}
       <div className="lg:hidden fixed top-0 inset-x-0 z-50 bg-white border-b border-gray-200 h-16 flex items-center justify-between px-4">
         <div className="flex items-center gap-2">
-          <img src="/lib/TransparentLogo.jpg" alt="EventEcos" style={{ height: '40px', width: 'auto' }} />
+          <img src="/lib/EventEcos-Logo-Only.jpg" alt="EventEcos" style={{ height: '40px', width: 'auto' }} />
           <span className="text-primary-600 text-[10px] font-semibold tracking-widest uppercase">ClientSuite</span>
         </div>
         <button
@@ -89,7 +89,7 @@ function ClientPortalLayoutInner({ children }: { children: React.ReactNode }) {
       >
         {/* Logo */}
         <div className="hidden lg:flex flex-col items-center justify-center h-20 px-4 bg-primary-600 gap-1">
-          <img src="/lib/TransparentLogo.jpg" alt="EventEcos" style={{ height: '48px', width: 'auto' }} />
+          <img src="/lib/EventEcos-Logo-Only.jpg" alt="EventEcos" style={{ height: '48px', width: 'auto' }} />
           <span className="text-white/60 text-[10px] font-semibold tracking-widest uppercase">ClientSuite</span>
         </div>
 

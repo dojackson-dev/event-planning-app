@@ -22,7 +22,7 @@ export class SmsNotificationsService {
     private readonly twilioService: TwilioService,
     private readonly configService: ConfigService,
   ) {
-    this.frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://dovenuesuite.com');
+    this.frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://eventecos.com');
   }
 
   // ─── URL helpers ──────────────────────────────────────────────────────────
@@ -475,6 +475,46 @@ export class SmsNotificationsService {
    */
   async send(phone: string | null | undefined, body: string): Promise<void> {
     await this.trySend(phone, body);
+  }
+
+  async vipPurchaseConfirmed(
+    phone: string | null | undefined,
+    buyerName: string | null | undefined,
+    packageName: string,
+    eventTitle: string,
+    eventDate: string,
+    eventId: string,
+    qrCode?: string | null,
+  ): Promise<void> {
+    const name = buyerName ? `Hi ${buyerName}, ` : '';
+    const link = qrCode
+      ? this.url(`/vip/order/${qrCode}`)
+      : this.url(`/events/${eventId}`);
+    await this.trySend(
+      phone,
+      `Eventecos VIP\n${name}your VIP package "${packageName}" for ${eventTitle} on ${eventDate} is confirmed! Show your QR code at the door. View your order: ${link}`,
+    );
+  }
+
+  async ticketPurchaseConfirmed(
+    phone: string | null | undefined,
+    buyerName: string | null | undefined,
+    tierName: string,
+    quantity: number,
+    eventTitle: string,
+    eventDate: string,
+    eventId: string,
+    sessionId?: string | null,
+  ): Promise<void> {
+    const name = buyerName ? `Hi ${buyerName}, ` : '';
+    const qty = quantity > 1 ? `${quantity} tickets` : '1 ticket';
+    const link = sessionId
+      ? this.url(`/tickets/${sessionId}`)
+      : this.url(`/events/${eventId}`);
+    await this.trySend(
+      phone,
+      `Eventecos Tickets\n${name}you're in! ${qty} (${tierName}) for ${eventTitle} on ${eventDate} confirmed. View your tickets: ${link}`,
+    );
   }
 }
 

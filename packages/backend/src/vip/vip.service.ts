@@ -439,38 +439,53 @@ export class VipService {
       })
       .eq('id', vip_package_id);
 
-    // Send confirmation email with QR code
-    const toEmail = order.buyer_email || (buyer_email ?? session.customer_email ?? '');
-    if (toEmail) {
-      try {
-        const { data: event } = await admin
-          .from('public_events')
-          .select('title, event_date, start_time, venue_name, promoter_accounts(company_name)')
-          .eq('id', public_event_id)
-          .single();
+    // ── Send email & SMS confirmation ──────────────────────────────────────
+    const { data: event } = await admin
+      .from('public_events')
+      .select('title, event_date, start_time, venue_name, promoter_accounts(company_name, contact_name)')
+      .eq('id', public_event_id)
+      .single();
 
-        const { data: pkgFull } = await admin
-          .from('vip_packages')
-          .select('table_label')
-          .eq('id', vip_package_id)
-          .single();
+    const eventTitle = event?.title ?? 'Event';
+    const eventDate = event?.event_date ?? '';
+    const eventTime = event?.start_time ?? null;
+    const venueName = event?.venue_name ?? null;
+    const promoterName = (event?.promoter_accounts as any)?.company_name
+      || (event?.promoter_accounts as any)?.contact_name
+      || null;
+    const finalEmail = order.buyer_email || (buyer_email ?? session.customer_email ?? '');
+    const finalPhone = order.buyer_phone || (buyer_phone ?? '');
+    const formattedDate = eventDate
+      ? new Date(eventDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+      : 'TBD';
 
-        await this.mailService.sendVipOrderConfirmation({
-          toEmail,
-          eventTitle: event?.title ?? 'Your Event',
-          eventDate: event?.event_date ?? '',
-          eventTime: event?.start_time ?? null,
-          venueName: event?.venue_name ?? null,
-          packageName: pkg.name,
-          tableLabel: pkgFull?.table_label ?? null,
-          amountTotal: order.total_price,
-          eventId: public_event_id,
-          promoterName: (event?.promoter_accounts as any)?.company_name ?? null,
-          qrCode,
-        });
-      } catch (emailErr) {
-        this.logger.warn(`VIP confirmation email failed for order ${order.id}: ${emailErr}`);
-      }
+    if (finalEmail) {
+      await this.mailService.sendVipConfirmation({
+        toEmail: finalEmail,
+        buyerName: order.buyer_name || null,
+        eventTitle,
+        eventDate,
+        eventTime,
+        venueName,
+        packageName: pkg.name,
+        totalAmount: order.total_price,
+        qrCode: qrCode,
+        orderId: order.id,
+        eventId: public_event_id,
+        promoterName,
+      });
+    }
+
+    if (finalPhone) {
+      await this.smsNotifications.vipPurchaseConfirmed(
+        finalPhone,
+        order.buyer_name || null,
+        pkg.name,
+        eventTitle,
+        formattedDate,
+        public_event_id,
+        qrCode,
+      );
     }
 
     this.logger.log(`VIP order created: ${order.id} for event ${public_event_id}`);

@@ -32,7 +32,7 @@ export class ArtistInvoicesService {
     const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (!secretKey) throw new Error('STRIPE_SECRET_KEY is not set');
     this.stripe = new Stripe(secretKey);
-    this.frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://dovenuesuite.com');
+    this.frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://eventecos.com');
   }
 
   // ─── Invoice number generation ────────────────────────────────────────────
@@ -55,11 +55,11 @@ export class ArtistInvoicesService {
     const subtotal = items.reduce((sum, i) => sum + i.quantity * i.unit_price, 0);
     const taxAmount = subtotal * (taxRate / 100);
     const baseAmount = Math.max(0, subtotal + taxAmount - discountAmount);
-    // Pass fees to client so artist receives exactly baseAmount.
-    // Correct Stripe pass-through formula: total = (base + platformFee + 0.30) / (1 - 0.029)
+    // Platform fee is charged to the artist (deducted from payout via application_fee_amount).
+    // Stripe processing fee is still passed through to the client.
     const platformFeeAmount = Math.round(baseAmount * APP_FEE_RATE * 100) / 100;
-    const totalAmount = Math.round(((baseAmount + platformFeeAmount + 0.30) / 0.971) * 100) / 100;
-    const processingFeeAmount = Math.round((totalAmount - baseAmount - platformFeeAmount) * 100) / 100;
+    const totalAmount = Math.round(((baseAmount + 0.30) / 0.971) * 100) / 100;
+    const processingFeeAmount = Math.round((totalAmount - baseAmount) * 100) / 100;
     return { subtotal, taxAmount, baseAmount, platformFeeAmount, processingFeeAmount, totalAmount, amountDue: totalAmount };
   }
 

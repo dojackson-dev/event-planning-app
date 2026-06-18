@@ -37,7 +37,7 @@ export class StripeService {
     }
     this.stripe = new Stripe(secretKey);
     this.webhookSecret = this.configService.get<string>('STRIPE_WEBHOOK_SECRET', '');
-    this.frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://dovenuesuite.com');
+    this.frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://eventecos.com');
   }
 
   /** Returns a public-facing URL Stripe will accept for business_profile.url (never localhost or bare IPs). */
@@ -45,7 +45,7 @@ export class StripeService {
     const isLocal = this.frontendUrl.startsWith('http://localhost') ||
       this.frontendUrl.startsWith('http://127.') ||
       /^https?:\/\/\d+\.\d+\.\d+\.\d+/.test(this.frontendUrl);
-    return isLocal ? 'https://dovenuesuite.com' : this.frontendUrl;
+    return isLocal ? 'https://eventecos.com' : this.frontendUrl;
   }
 
   // ─── Customer ─────────────────────────────────────────────────────────────

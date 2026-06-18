@@ -14,6 +14,7 @@ interface IntakeForm {
   event_name: string | null
   event_date: string
   event_time: string
+  event_end_time: string | null
   guest_count: number
   contact_name: string
   contact_email: string
@@ -375,15 +376,12 @@ export default function ClientsPage() {
 
                   {/* Event details */}
                   <div className="bg-gray-50 rounded-xl px-3 py-2.5 mb-3 space-y-1">
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="text-gray-400">🎉</span>
-                      <span className="font-medium text-gray-800">{formatEventType(client.event_type)}</span>
-                    </div>
-
                     <div className="flex items-center gap-2 text-sm text-gray-600">
                       <Calendar className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
                       <span>{formatDate(client.event_date)}</span>
-                      {client.event_time && <span className="text-gray-400">· {formatTime(client.event_time)}</span>}
+                      {client.event_time && (
+                        <span className="text-gray-400">·&nbsp;{formatTime(client.event_time)}{client.event_end_time ? ` – ${formatTime(client.event_end_time)}` : ''}</span>
+                      )}
                     </div>
                     <div className="flex items-center gap-4 text-sm text-gray-600">
                       <span className="flex items-center gap-1">

@@ -3,92 +3,142 @@
 import { useState, useEffect, useRef } from 'react'
 import clientApi from '@/lib/clientApi'
 import { useClientAuth } from '@/contexts/ClientAuthContext'
-import { MessageSquare, Send, Store, User, ChevronRight } from 'lucide-react'
+import { MessageSquare, Send, ChevronRight, Building2, Calendar } from 'lucide-react'
 
 interface Contact {
-  id: string
-  name: string
-  role: 'owner' | 'vendor'
-  vendorName?: string
+  eventId: string
+  eventName: string
+  eventDate: string | null
+  ownerId: string
+  ownerBusinessName: string
+  ownerLogoUrl: string | null
+  lastMessage: string | null
+  lastMessageAt: string | null
+  lastMessageSender: string | null
+  unreadCount: number
 }
 
 interface Message {
   id: string
-  sender_id: string
-  recipient_id: string
+  event_id: string
+  owner_id: string
+  client_id: string
+  sender_type: 'owner' | 'client'
   content: string
+  is_read: boolean
   created_at: string
-  message_type?: string
+}
+
+function OwnerAvatar({ logoUrl, name, size = 'md' }: { logoUrl: string | null; name: string; size?: 'sm' | 'md' }) {
+  const initials = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('')
+  const dim = size === 'sm' ? 'h-8 w-8 text-xs' : 'h-10 w-10 text-sm'
+  if (logoUrl) {
+    return (
+      <img
+        src={logoUrl}
+        alt={name}
+        className={`${dim} rounded-full object-cover flex-shrink-0`}
+      />
+    )
+  }
+  return (
+    <div className={`${dim} rounded-full bg-primary-100 text-primary-700 font-bold flex items-center justify-center flex-shrink-0`}>
+      {initials || '?'}
+    </div>
+  )
 }
 
 export default function ClientMessagesPage() {
   const { client } = useClientAuth()
+  const [contacts, setContacts] = useState<Contact[]>([])
   const [messages, setMessages] = useState<Message[]>([])
-  const [vendors, setVendors] = useState<any[]>([])
-  const [bookings, setBookings] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedRecipient, setSelectedRecipient] = useState<Contact | null>(null)
+  const [loadingThread, setLoadingThread] = useState(false)
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
   const [newMessage, setNewMessage] = useState('')
   const [sending, setSending] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
+  // Fetch contact list on mount
   useEffect(() => {
-    Promise.all([
-      clientApi.get('/messages'),
-      clientApi.get('/vendors'),
-      clientApi.get('/bookings'),
-    ]).then(([msgRes, vRes, bkRes]) => {
-      setMessages(msgRes.data)
-      setVendors(vRes.data)
-      setBookings(bkRes.data)
-    }).catch(console.error)
+    clientApi
+      .get<Contact[]>('/contacts')
+      .then((res) => setContacts(res.data || []))
+      .catch((err) => console.error('Failed to load contacts', err))
       .finally(() => setLoading(false))
   }, [])
 
+  // Fetch thread when a contact is selected
+  useEffect(() => {
+    if (!selectedContact) return
+    setLoadingThread(true)
+    setMessages([])
+
+    clientApi
+      .get<Message[]>(`/messages?eventId=${selectedContact.eventId}`)
+      .then((res) => setMessages(res.data || []))
+      .catch((err) => console.error('Failed to load messages', err))
+      .finally(() => setLoadingThread(false))
+
+    // Mark messages as read
+    clientApi
+      .patch('/messages/read', { eventId: selectedContact.eventId })
+      .then(() => {
+        setContacts((prev) =>
+          prev.map((c) => (c.eventId === selectedContact.eventId ? { ...c, unreadCount: 0 } : c)),
+        )
+      })
+      .catch(() => {})
+  }, [selectedContact?.eventId])
+
+  // Poll the active thread every 5s so owner replies appear in near-real-time
+  useEffect(() => {
+    if (!selectedContact) return
+    const interval = setInterval(async () => {
+      try {
+        const res = await clientApi.get<Message[]>(`/messages?eventId=${selectedContact.eventId}`)
+        setMessages(res.data || [])
+      } catch {
+        // non-fatal — keep existing messages visible
+      }
+    }, 5_000)
+    return () => clearInterval(interval)
+  }, [selectedContact?.eventId])
+
+  // Scroll to bottom on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, selectedRecipient])
-
-  // Build contact list: owner(s) + confirmed vendors
-  const contacts: Contact[] = []
-  const ownerIds = new Set<string>()
-  bookings.forEach((b: any) => {
-    const ownerId = b.event?.owner_id
-    if (ownerId && !ownerIds.has(ownerId)) {
-      ownerIds.add(ownerId)
-      contacts.push({ id: ownerId, name: 'Event Organizer', role: 'owner' })
-    }
-  })
-  vendors.forEach((vb: any) => {
-    if (vb.vendor_user_id) {
-      contacts.push({
-        id: vb.vendor_user_id,
-        name: vb.vendor?.business_name ?? 'Vendor',
-        role: 'vendor',
-        vendorName: vb.vendor?.business_name,
-      })
-    }
-  })
-
-  const thread = selectedRecipient
-    ? messages.filter(
-        (m) =>
-          (m.sender_id === client?.clientId && m.recipient_id === selectedRecipient.id) ||
-          (m.sender_id === selectedRecipient.id && m.recipient_id === client?.clientId),
-      ).sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-    : []
+  }, [messages])
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedRecipient || !newMessage.trim()) return
+    if (!selectedContact || !newMessage.trim()) return
     setSending(true)
     try {
-      const res = await clientApi.post('/messages', {
-        recipientId: selectedRecipient.id,
+      const res = await clientApi.post<Message>('/messages', {
+        recipientId: selectedContact.ownerId,
+        eventId: selectedContact.eventId,
         content: newMessage.trim(),
       })
       setMessages((prev) => [...prev, res.data])
       setNewMessage('')
+      setContacts((prev) =>
+        prev.map((c) =>
+          c.eventId === selectedContact.eventId
+            ? {
+                ...c,
+                lastMessage: newMessage.trim(),
+                lastMessageAt: new Date().toISOString(),
+                lastMessageSender: 'client',
+              }
+            : c,
+        ),
+      )
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to send message.')
     } finally {
@@ -97,7 +147,7 @@ export default function ClientMessagesPage() {
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64 text-gray-500">Loading messages...</div>
+    return <div className="flex items-center justify-center h-64 text-gray-500">Loading messages…</div>
   }
 
   return (
@@ -107,42 +157,68 @@ export default function ClientMessagesPage() {
         Messages
       </h1>
 
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex" style={{ minHeight: '60vh' }}>
+      <div
+        className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex"
+        style={{ minHeight: '60vh' }}
+      >
         {/* Contact list */}
-        <div className="w-64 border-r border-gray-200 flex flex-col flex-shrink-0">
+        <div className="w-72 border-r border-gray-200 flex flex-col flex-shrink-0">
           <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Contacts</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Your Events</p>
           </div>
 
           {contacts.length === 0 ? (
             <div className="flex-1 flex items-center justify-center p-6 text-center text-sm text-gray-400">
-              No contacts yet. Contacts appear once you have confirmed bookings.
+              No contacts yet. Contacts appear once your events are confirmed.
             </div>
           ) : (
             <ul className="flex-1 overflow-y-auto divide-y divide-gray-100">
               {contacts.map((contact) => {
-                const isSelected = selectedRecipient?.id === contact.id
-                const unreadCount = messages.filter(
-                  (m) => m.sender_id === contact.id && m.recipient_id === client?.clientId,
-                ).length // simplified unread indicator
+                const isSelected = selectedContact?.eventId === contact.eventId
                 return (
-                  <li key={contact.id}>
+                  <li key={contact.eventId}>
                     <button
-                      onClick={() => setSelectedRecipient(contact)}
+                      onClick={() => setSelectedContact(contact)}
                       className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
                         isSelected ? 'bg-primary-50' : 'hover:bg-gray-50'
                       }`}
                     >
-                      <div className={`h-9 w-9 rounded-full flex items-center justify-center flex-shrink-0 ${
-                        contact.role === 'owner' ? 'bg-primary-100 text-primary-600' : 'bg-orange-100 text-orange-600'
-                      }`}>
-                        {contact.role === 'owner' ? <User className="h-5 w-5" /> : <Store className="h-5 w-5" />}
-                      </div>
+                      <OwnerAvatar logoUrl={contact.ownerLogoUrl} name={contact.ownerBusinessName} />
                       <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-medium truncate ${isSelected ? 'text-primary-700' : 'text-gray-900'}`}>
-                          {contact.name}
+                        <div className="flex items-center justify-between gap-1">
+                          <p
+                            className={`text-sm font-medium truncate ${
+                              isSelected ? 'text-primary-700' : 'text-gray-900'
+                            }`}
+                          >
+                            {contact.ownerBusinessName}
+                          </p>
+                          {contact.unreadCount > 0 && (
+                            <span className="flex-shrink-0 inline-flex items-center justify-center h-5 w-5 rounded-full bg-primary-600 text-white text-[10px] font-bold">
+                              {contact.unreadCount > 9 ? '9+' : contact.unreadCount}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-500 truncate flex items-center gap-1">
+                          <Calendar className="h-3 w-3 flex-shrink-0" />
+                          {contact.eventName}
+                          {contact.eventDate && (
+                            <span className="text-gray-400">
+                              {' · '}
+                              {new Date(contact.eventDate).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                              })}
+                            </span>
+                          )}
                         </p>
-                        <p className="text-xs text-gray-400 capitalize">{contact.role}</p>
+                        {contact.lastMessage && (
+                          <p className="text-xs text-gray-400 truncate mt-0.5">
+                            {contact.lastMessageSender === 'client' ? 'You: ' : ''}
+                            {contact.lastMessage}
+                          </p>
+                        )}
                       </div>
                       {isSelected && <ChevronRight className="h-4 w-4 text-primary-400 flex-shrink-0" />}
                     </button>
@@ -155,50 +231,87 @@ export default function ClientMessagesPage() {
 
         {/* Message thread */}
         <div className="flex-1 flex flex-col min-w-0">
-          {!selectedRecipient ? (
+          {!selectedContact ? (
             <div className="flex-1 flex items-center justify-center text-gray-400 text-sm p-8 text-center">
               <div>
                 <MessageSquare className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-                <p>Select a contact to start messaging.</p>
-                <p className="text-xs mt-1 text-gray-300">You can only message the owner or vendors you are booked with.</p>
+                <p>Select an event to view your conversation.</p>
+                <p className="text-xs mt-1 text-gray-300">Each event has its own message thread.</p>
               </div>
             </div>
           ) : (
             <>
               {/* Thread header */}
               <div className="px-5 py-3 border-b border-gray-200 flex items-center gap-3 bg-gray-50">
-                <div className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                  selectedRecipient.role === 'owner' ? 'bg-primary-100 text-primary-600' : 'bg-orange-100 text-orange-600'
-                }`}>
-                  {selectedRecipient.role === 'owner' ? <User className="h-4 w-4" /> : <Store className="h-4 w-4" />}
+                <OwnerAvatar
+                  logoUrl={selectedContact.ownerLogoUrl}
+                  name={selectedContact.ownerBusinessName}
+                  size="sm"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 truncate">
+                    {selectedContact.ownerBusinessName}
+                  </p>
+                  <p className="text-xs text-gray-500 flex items-center gap-1 truncate">
+                    <Calendar className="h-3 w-3 flex-shrink-0" />
+                    {selectedContact.eventName}
+                    {selectedContact.eventDate && (
+                      <span>
+                        {' · '}
+                        {new Date(selectedContact.eventDate).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })}
+                      </span>
+                    )}
+                  </p>
                 </div>
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">{selectedRecipient.name}</p>
-                  <p className="text-xs text-gray-500 capitalize">{selectedRecipient.role}</p>
-                </div>
+                <Building2 className="h-4 w-4 text-gray-400 flex-shrink-0" />
               </div>
 
               {/* Messages */}
               <div className="flex-1 overflow-y-auto p-5 space-y-3">
-                {thread.length === 0 ? (
+                {loadingThread ? (
+                  <div className="text-center text-sm text-gray-400 mt-10">Loading…</div>
+                ) : messages.length === 0 ? (
                   <div className="text-center text-sm text-gray-400 mt-10">
                     No messages yet. Send your first message below!
                   </div>
                 ) : (
-                  thread.map((msg) => {
-                    const isMe = msg.sender_id === client?.clientId
+                  messages.map((msg) => {
+                    const isMe = msg.sender_type === 'client'
                     return (
                       <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-xs sm:max-w-md rounded-2xl px-4 py-2.5 ${
-                          isMe
-                            ? 'bg-primary-600 text-white rounded-br-sm'
-                            : 'bg-gray-100 text-gray-900 rounded-bl-sm'
-                        }`}>
+                        {!isMe && (
+                          <div className="mr-2 flex-shrink-0 self-end">
+                            <OwnerAvatar
+                              logoUrl={selectedContact.ownerLogoUrl}
+                              name={selectedContact.ownerBusinessName}
+                              size="sm"
+                            />
+                          </div>
+                        )}
+                        <div
+                          className={`max-w-xs sm:max-w-md rounded-2xl px-4 py-2.5 ${
+                            isMe
+                              ? 'bg-primary-600 text-white rounded-br-sm'
+                              : 'bg-gray-100 text-gray-900 rounded-bl-sm'
+                          }`}
+                        >
                           <p className="text-sm">{msg.content}</p>
-                          <p className={`text-xs mt-1 ${isMe ? 'text-primary-200' : 'text-gray-400'}`}>
-                            {new Date(msg.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                          <p
+                            className={`text-xs mt-1 ${isMe ? 'text-primary-200' : 'text-gray-400'}`}
+                          >
+                            {new Date(msg.created_at).toLocaleTimeString('en-US', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
                             {' · '}
-                            {new Date(msg.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            {new Date(msg.created_at).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                            })}
                           </p>
                         </div>
                       </div>
@@ -215,7 +328,7 @@ export default function ClientMessagesPage() {
                     type="text"
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder={`Message ${selectedRecipient.name}...`}
+                    placeholder={`Message ${selectedContact.ownerBusinessName}…`}
                     className="flex-1 border border-gray-300 rounded-full px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   />
                   <button

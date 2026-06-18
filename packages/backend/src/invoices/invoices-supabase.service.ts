@@ -475,7 +475,7 @@ event!event_id(id, name, date),
    * All errors are swallowed so notifications never break invoice creation.
    */
   private async sendInvoiceNotifications(supabase: SupabaseClient, invoice: Invoice): Promise<void> {
-    const frontendUrl = process.env.FRONTEND_URL || 'https://dovenuesuite.com';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
     // Link to the invoices list — no individual invoice detail page exists in the client portal
     const invoiceUrl = `${frontendUrl}/client-portal/invoices`;
 

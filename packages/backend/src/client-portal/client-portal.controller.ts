@@ -3,6 +3,7 @@ import {
   Post,
   Get,
   Delete,
+  Patch,
   Body,
   Headers,
   UnauthorizedException,
@@ -285,20 +286,29 @@ export class ClientPortalController {
 
   // ── Messages ──────────────────────────────────────────────────────────────
 
-  @Get('messages')
-  async getMessages(@Headers('x-client-token') token: string) {
+  @Get('contacts')
+  async getContacts(@Headers('x-client-token') token: string) {
     const session = this.requireSession(token);
-    return this.clientPortalService.getMessages(session.clientId);
+    return this.clientPortalService.getContacts(session.clientId, session.phone);
+  }
+
+  @Get('messages')
+  async getMessages(
+    @Headers('x-client-token') token: string,
+    @Query('eventId') eventId?: string,
+  ) {
+    const session = this.requireSession(token);
+    return this.clientPortalService.getMessages(session.clientId, eventId);
   }
 
   @Post('messages')
   async sendMessage(
     @Headers('x-client-token') token: string,
-    @Body() body: { recipientId: string; content: string; eventId?: string },
+    @Body() body: { recipientId: string; content: string; eventId: string },
   ) {
     const session = this.requireSession(token);
-    if (!body?.recipientId || !body?.content) {
-      throw new BadRequestException('recipientId and content are required');
+    if (!body?.recipientId || !body?.content || !body?.eventId) {
+      throw new BadRequestException('recipientId, eventId, and content are required');
     }
     return this.clientPortalService.sendMessage(
       session.clientId,
@@ -307,6 +317,16 @@ export class ClientPortalController {
       body.content,
       body.eventId,
     );
+  }
+
+  @Patch('messages/read')
+  async markMessagesRead(
+    @Headers('x-client-token') token: string,
+    @Body() body: { eventId: string },
+  ) {
+    const session = this.requireSession(token);
+    if (!body?.eventId) throw new BadRequestException('eventId is required');
+    return this.clientPortalService.markMessagesRead(session.clientId, body.eventId);
   }
 
   // ── Notifications ─────────────────────────────────────────────────────────

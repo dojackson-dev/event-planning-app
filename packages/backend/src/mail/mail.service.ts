@@ -155,6 +155,7 @@ export class MailService {
     eventType: string;
     eventDate: string;
     eventTime?: string | null;
+    endTime?: string | null;
     guestCount?: number | null;
     ownerName?: string;
     venueName?: string;
@@ -168,6 +169,17 @@ export class MailService {
             weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
           })
         : 'TBD';
+      const formatEmailTime = (t: string | null | undefined) => {
+        if (!t) return null;
+        const [h, m] = t.split(':').map(Number);
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${ampm}`;
+      };
+      const formattedStart = formatEmailTime(params.eventTime);
+      const formattedEnd = formatEmailTime(params.endTime);
+      const formattedTime = formattedStart
+        ? formattedEnd ? `${formattedStart} – ${formattedEnd}` : formattedStart
+        : null;
 
       const mailOptions = {
         from: `"EventEcos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
@@ -199,9 +211,8 @@ export class MailService {
                 <div style="background: #f0f4ff; border-left: 4px solid #2563eb; border-radius: 8px; padding: 20px 24px; margin: 0 0 28px;">
                   <h3 style="margin: 0 0 12px; color: #1e3a5f; font-size: 15px; font-weight: 700;">Your Event Details</h3>
                   <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #374151;">
-                    <tr><td style="padding: 5px 0; color: #6b7280; width: 110px;">Event Type</td><td style="padding: 5px 0; font-weight: 600;">${params.eventType}</td></tr>
-                    <tr><td style="padding: 5px 0; color: #6b7280;">Date</td><td style="padding: 5px 0; font-weight: 600;">${formattedDate}</td></tr>
-                    ${params.eventTime ? `<tr><td style="padding: 5px 0; color: #6b7280;">Time</td><td style="padding: 5px 0; font-weight: 600;">${params.eventTime}</td></tr>` : ''}
+                    <tr><td style="padding: 5px 0; color: #6b7280; width: 110px;">Date</td><td style="padding: 5px 0; font-weight: 600;">${formattedDate}</td></tr>
+                    ${formattedTime ? `<tr><td style="padding: 5px 0; color: #6b7280;">Time</td><td style="padding: 5px 0; font-weight: 600;">${formattedTime}</td></tr>` : ''}
                     ${params.guestCount ? `<tr><td style="padding: 5px 0; color: #6b7280;">Guests</td><td style="padding: 5px 0; font-weight: 600;">${params.guestCount}</td></tr>` : ''}
                   </table>
                 </div>
@@ -224,7 +235,7 @@ export class MailService {
             </div>
           </div>
         `,
-        text: `Hello ${params.clientName},\n\n${displayName} has received your booking request and is now reviewing your event details.\n\nEvent: ${params.eventType}\nDate: ${formattedDate}${params.eventTime ? `\nTime: ${params.eventTime}` : ''}${params.guestCount ? `\nGuests: ${params.guestCount}` : ''}\n\nAccess your client portal here: ${inviteUrl}\n\nEventEcos`,
+        text: `Hello ${params.clientName},\n\n${displayName} has received your booking request and is now reviewing your event details.\n\nDate: ${formattedDate}${formattedTime ? `\nTime: ${formattedTime}` : ''}${params.guestCount ? `\nGuests: ${params.guestCount}` : ''}\n\nAccess your client portal here: ${inviteUrl}\n\nEventEcos`,
       };
 
       const info = await this.transporter.sendMail(mailOptions);
@@ -1351,6 +1362,109 @@ export class MailService {
       console.log('[MailService] Enterprise inquiry sent from', params.email);
     } catch (error) {
       console.error('[MailService] sendEnterpriseInquiry failed:', error);
+    }
+  }
+
+  /**
+   * Sends a VIP package confirmation email with QR code after Stripe checkout.
+   */
+  async sendVipConfirmation(params: {
+    toEmail: string;
+    buyerName?: string | null;
+    eventTitle: string;
+    eventDate: string;
+    eventTime?: string | null;
+    venueName?: string | null;
+    packageName: string;
+    totalAmount: number;
+    qrCode: string;
+    orderId: string;
+    eventId: string;
+    promoterName?: string | null;
+  }): Promise<void> {
+    if (!process.env.RESEND_API_KEY) {
+      console.warn('[MailService] RESEND_API_KEY not set — skipping VIP confirmation email');
+      return;
+    }
+    try {
+      const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+      const eventUrl = `${frontendUrl}/events/${params.eventId}`;
+      const formattedDate = params.eventDate
+        ? new Date(params.eventDate + (params.eventDate.includes('T') ? '' : 'T12:00:00'))
+            .toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+        : 'TBD';
+      const amountStr = `$${Number(params.totalAmount).toFixed(2)}`;
+      const fromName = params.promoterName ? `${params.promoterName} via Eventecos` : 'Eventecos VIP';
+      const greeting = params.buyerName ? `Hi ${params.buyerName},` : 'Hello,';
+
+      const qrBuffer = await QRCode.toBuffer(params.qrCode, {
+        errorCorrectionLevel: 'H',
+        type: 'png',
+        margin: 1,
+        width: 300,
+      });
+      const qrCid = `vip-qr-${params.orderId}@eventecos`;
+
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      const html = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb; padding: 32px 16px;">
+          <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08);">
+            ${this.getEmailHeader('VIP Package Confirmed!', 'Your exclusive experience awaits')}
+            <div style="padding: 32px;">
+              <p style="color: #374151; font-size: 15px; margin: 0 0 20px;">${greeting}</p>
+              <p style="color: #374151; font-size: 15px; margin: 0 0 24px;">
+                Your VIP package for <strong>${params.eventTitle}</strong> is confirmed. Show the QR code below at the event entrance.
+              </p>
+              <div style="background: #f5f3ff; border-left: 4px solid #7c3aed; border-radius: 8px; padding: 20px 24px; margin: 0 0 24px;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #374151;">
+                  <tr><td style="padding: 4px 0; color: #6b7280; width: 110px;">Event</td><td style="padding: 4px 0; font-weight: 600;">${params.eventTitle}</td></tr>
+                  <tr><td style="padding: 4px 0; color: #6b7280;">Date</td><td style="padding: 4px 0; font-weight: 600;">${formattedDate}</td></tr>
+                  ${params.eventTime ? `<tr><td style="padding: 4px 0; color: #6b7280;">Time</td><td style="padding: 4px 0; font-weight: 600;">${params.eventTime}</td></tr>` : ''}
+                  ${params.venueName ? `<tr><td style="padding: 4px 0; color: #6b7280;">Venue</td><td style="padding: 4px 0; font-weight: 600;">${params.venueName}</td></tr>` : ''}
+                  <tr><td style="padding: 4px 0; color: #6b7280;">Package</td><td style="padding: 4px 0; font-weight: 600;">👑 ${params.packageName}</td></tr>
+                  <tr><td style="padding: 4px 0; color: #6b7280;">Total</td><td style="padding: 4px 0; font-weight: 700;">${amountStr}</td></tr>
+                </table>
+              </div>
+              <div style="background: white; border: 2px dashed #7c3aed; border-radius: 12px; padding: 24px; text-align: center; margin: 0 0 24px;">
+                <p style="color: #6b7280; font-size: 12px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: 0.5px;">Your VIP Access QR Code</p>
+                <img src="cid:${qrCid}" alt="VIP QR Code" style="width: 200px; height: 200px; display: block; margin: 0 auto 12px;" />
+                <p style="color: #9ca3af; font-size: 11px; margin: 0; font-family: monospace; word-break: break-all;">${params.orderId}</p>
+              </div>
+              <p style="color: #6b7280; font-size: 13px; background: #f3f4f6; border-radius: 8px; padding: 12px; margin: 0 0 24px; line-height: 1.5;">
+                📱 <strong>Show this QR code at the VIP entrance.</strong> It can only be scanned once. Keep this email safe.
+              </p>
+              <div style="background: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 8px; padding: 16px; margin: 0 0 24px;">
+                <p style="color: #92400e; font-size: 13px; margin: 0; line-height: 1.6;">
+                  <strong>Important Notice:</strong> Eventecos is not responsible for event cancellations, postponements, or refunds. The event organizer is solely liable for these matters.
+                </p>
+              </div>
+              <div style="text-align: center; margin: 28px 0;">
+                <a href="${eventUrl}" style="display: inline-block; background: #7c3aed; color: white; padding: 14px 36px; text-decoration: none; border-radius: 8px; font-size: 15px; font-weight: 600;">
+                  View Event Details
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      await resend.emails.send({
+        from: `${fromName} <${process.env.RESEND_FROM || 'noreply@eventecos.com'}>`,
+        to: params.toEmail,
+        subject: `Your VIP package for ${params.eventTitle} is confirmed`,
+        html,
+        text: `VIP Package Confirmed!\n\n${params.eventTitle}\nDate: ${formattedDate}${params.eventTime ? `\nTime: ${params.eventTime}` : ''}${params.venueName ? `\nVenue: ${params.venueName}` : ''}\nPackage: ${params.packageName}\nTotal: ${amountStr}\n\nIMPORTANT: Eventecos is not responsible for event cancellations, postponements, or refunds.\n\nView event: ${eventUrl}`,
+        attachments: [
+          {
+            filename: 'vip-qr.png',
+            content: qrBuffer,
+            contentId: qrCid,
+          },
+        ],
+      });
+      console.log('[MailService] VIP confirmation sent via Resend to', params.toEmail);
+    } catch (error) {
+      console.error('[MailService] VIP confirmation email failed:', error);
     }
   }
 }

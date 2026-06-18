@@ -903,17 +903,98 @@ export class ClientPortalService {
     return { url };
   }
 
-  /** Messages between this client and their owner/vendors */
-  async getMessages(clientId_unused: string) {
-    const clientId = clientId_unused;
+  /** Contacts the client can message: one entry per event, enriched with owner profile */
+  async getContacts(clientId: string, clientPhone: string) {
+    const supabase = this.supabaseService.getAdminClient();
+    const phoneVariants = buildPhoneVariants(clientPhone);
+    const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
+
+    if (!intakeFormIds.length) return [];
+
+    // Fetch all events linked to this client's intake forms
+    const { data: events, error: evError } = await supabase
+      .from('event')
+      .select('id, name, date, owner_id')
+      .in('intake_form_id', intakeFormIds)
+      .order('date', { ascending: false });
+
+    if (evError) {
+      this.logger.error('getContacts: event query error', evError);
+      return [];
+    }
+
+    if (!events || events.length === 0) return [];
+
+    // Deduplicate owner_ids
+    const ownerIds = [...new Set((events as any[]).map((e: any) => e.owner_id).filter(Boolean))];
+
+    // Fetch owner account info (business_name, logo_url)
+    const { data: ownerAccounts } = await supabase
+      .from('owner_accounts')
+      .select('primary_owner_id, business_name, logo_url')
+      .in('primary_owner_id', ownerIds);
+
+    const ownerMap: Record<string, { businessName: string; logoUrl: string | null }> = {};
+    for (const oa of ownerAccounts || []) {
+      ownerMap[oa.primary_owner_id] = {
+        businessName: oa.business_name || 'Event Organizer',
+        logoUrl: oa.logo_url || null,
+      };
+    }
+
+    // Fetch last message + unread count per event thread
+    const eventIds = (events as any[]).map((e: any) => e.id);
+    const { data: lastMsgs } = await supabase
+      .from('client_messages')
+      .select('event_id, content, sender_type, is_read, created_at')
+      .eq('client_id', clientId)
+      .in('event_id', eventIds)
+      .order('created_at', { ascending: false });
+
+    // Build per-event last message map
+    const lastMsgMap: Record<string, any> = {};
+    const unreadMap: Record<string, number> = {};
+    for (const msg of lastMsgs || []) {
+      if (!lastMsgMap[msg.event_id]) lastMsgMap[msg.event_id] = msg;
+      if (msg.sender_type === 'owner' && !msg.is_read) {
+        unreadMap[msg.event_id] = (unreadMap[msg.event_id] || 0) + 1;
+      }
+    }
+
+    return (events as any[]).map((ev: any) => {
+      const owner = ownerMap[ev.owner_id] || { businessName: 'Event Organizer', logoUrl: null };
+      const last = lastMsgMap[ev.id];
+      return {
+        eventId: ev.id,
+        eventName: ev.name || 'Event',
+        eventDate: ev.date,
+        ownerId: ev.owner_id,
+        ownerBusinessName: owner.businessName,
+        ownerLogoUrl: owner.logoUrl,
+        lastMessage: last?.content || null,
+        lastMessageAt: last?.created_at || null,
+        lastMessageSender: last?.sender_type || null,
+        unreadCount: unreadMap[ev.id] || 0,
+      };
+    });
+  }
+
+  /** In-app messages for a specific event thread */
+  async getMessages(clientId: string, eventId?: string) {
     const supabase = this.supabaseService.getAdminClient();
 
-    const { data, error } = await supabase
-      .from('messages')
-      .select('*')
-      .or(`recipient_id.eq.${clientId},sender_id.eq.${clientId}`)
-      .order('created_at', { ascending: false })
-      .limit(100);
+    let query = supabase
+      .from('client_messages')
+      .select('id, event_id, owner_id, client_id, sender_type, content, is_read, created_at')
+      .eq('client_id', clientId)
+      .order('created_at', { ascending: true })
+      .limit(200);
+
+    if (eventId) {
+      query = query.eq('event_id', eventId);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       this.logger.error('getMessages error', error);
@@ -922,47 +1003,57 @@ export class ClientPortalService {
     return data || [];
   }
 
-  /** Send a message from the client to the owner or a vendor */
+  /** Mark owner→client messages as read for a specific event thread */
+  async markMessagesRead(clientId: string, eventId: string) {
+    const supabase = this.supabaseService.getAdminClient();
+    const { error } = await supabase
+      .from('client_messages')
+      .update({ is_read: true })
+      .eq('client_id', clientId)
+      .eq('event_id', eventId)
+      .eq('sender_type', 'owner')
+      .eq('is_read', false);
+
+    if (error) {
+      this.logger.error('markMessagesRead error', error);
+    }
+    return { ok: true };
+  }
+
+  /** Send a message from the client to the event owner */
   async sendMessage(
     clientId: string,
     clientPhone: string,
-    recipientId: string,
+    ownerId: string,
     content: string,
-    eventId?: string,
+    eventId: string,
   ) {
+    if (!eventId) throw new Error('eventId is required to send a message.');
     const supabase = this.supabaseService.getAdminClient();
 
-    // Verify the recipient is an owner/vendor this client is connected to via intake forms
+    // Verify this event belongs to the stated owner and the client is linked to it
     const phoneVariants = buildPhoneVariants(clientPhone);
     const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
-    let ownerIds: string[] = [];
-    let eventIds: string[] = [];
-    if (intakeFormIds.length) {
-      const { data: evData } = await supabase.from('event').select('id, owner_id').in('intake_form_id', intakeFormIds);
-      ownerIds = (evData || []).map((e: any) => e.owner_id).filter(Boolean);
-      eventIds = (evData || []).map((e: any) => e.id).filter(Boolean);
-    }
 
-    const { data: vendorBookings } = await supabase
-      .from('vendor_bookings').select('vendor_user_id')
-      .in('event_id', eventIds).eq('status', 'confirmed');
-    const vendorUserIds = (vendorBookings || []).map((v: any) => v.vendor_user_id).filter(Boolean);
-    const allowedRecipients = [...new Set([...ownerIds, ...vendorUserIds])];
+    const { data: evData } = await supabase
+      .from('event')
+      .select('id, owner_id')
+      .eq('id', eventId)
+      .in('intake_form_id', intakeFormIds)
+      .maybeSingle();
 
-    if (!allowedRecipients.includes(recipientId)) {
-      throw new Error('You can only message the owner or vendors you are booked with.');
+    if (!evData || evData.owner_id !== ownerId) {
+      throw new Error('You can only message the owner of an event you are booked with.');
     }
 
     const { data, error } = await supabase
-      .from('messages')
+      .from('client_messages')
       .insert([{
-        sender_id: clientId,
-        recipient_id: recipientId,
+        event_id: eventId,
+        owner_id: ownerId,
+        client_id: clientId,
+        sender_type: 'client',
         content,
-        event_id: eventId || null,
-        message_type: 'client_message',
-        status: 'sent',
-        created_at: new Date().toISOString(),
       }])
       .select()
       .single();
@@ -1283,8 +1374,8 @@ export class ClientPortalService {
         name: `${form.event_type || 'Event'} - ${form.contact_name}`,
         date: form.event_date,
         start_time: form.event_time || '00:00',
-        end_time: '23:59',
-        description: form.special_requests || '',
+        end_time: form.event_end_time || '23:59',
+        description: form.event_description || form.special_requests || '',
         status: 'scheduled' as const,
         guest_count: form.guest_count,
         venue: form.venue_preference || 'TBD',

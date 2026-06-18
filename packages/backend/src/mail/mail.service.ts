@@ -1389,7 +1389,6 @@ export class MailService {
     try {
       const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
       const eventUrl = `${frontendUrl}/events/${params.eventId}`;
-      const qrData = `${frontendUrl}/vip/order/${params.orderId}`;
       const formattedDate = params.eventDate
         ? new Date(params.eventDate + (params.eventDate.includes('T') ? '' : 'T12:00:00'))
             .toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
@@ -1398,13 +1397,13 @@ export class MailService {
       const fromName = params.promoterName ? `${params.promoterName} via Eventecos` : 'Eventecos VIP';
       const greeting = params.buyerName ? `Hi ${params.buyerName},` : 'Hello,';
 
-      const qrBuffer = await QRCode.toBuffer(qrData, {
+      const qrBuffer = await QRCode.toBuffer(params.qrCode, {
         errorCorrectionLevel: 'H',
         type: 'png',
         margin: 1,
         width: 300,
       });
-      const qrBase64 = qrBuffer.toString('base64');
+      const qrCid = `vip-qr-${params.orderId}@eventecos`;
 
       const resend = new Resend(process.env.RESEND_API_KEY);
       const html = `
@@ -1428,7 +1427,7 @@ export class MailService {
               </div>
               <div style="background: white; border: 2px dashed #7c3aed; border-radius: 12px; padding: 24px; text-align: center; margin: 0 0 24px;">
                 <p style="color: #6b7280; font-size: 12px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: 0.5px;">Your VIP Access QR Code</p>
-                <img src="data:image/png;base64,${qrBase64}" alt="VIP QR Code" style="width: 200px; height: 200px; display: block; margin: 0 auto 12px;" />
+                <img src="cid:${qrCid}" alt="VIP QR Code" style="width: 200px; height: 200px; display: block; margin: 0 auto 12px;" />
                 <p style="color: #9ca3af; font-size: 11px; margin: 0; font-family: monospace; word-break: break-all;">${params.orderId}</p>
               </div>
               <p style="color: #6b7280; font-size: 13px; background: #f3f4f6; border-radius: 8px; padding: 12px; margin: 0 0 24px; line-height: 1.5;">
@@ -1455,6 +1454,13 @@ export class MailService {
         subject: `Your VIP package for ${params.eventTitle} is confirmed`,
         html,
         text: `VIP Package Confirmed!\n\n${params.eventTitle}\nDate: ${formattedDate}${params.eventTime ? `\nTime: ${params.eventTime}` : ''}${params.venueName ? `\nVenue: ${params.venueName}` : ''}\nPackage: ${params.packageName}\nTotal: ${amountStr}\n\nIMPORTANT: Eventecos is not responsible for event cancellations, postponements, or refunds.\n\nView event: ${eventUrl}`,
+        attachments: [
+          {
+            filename: 'vip-qr.png',
+            content: qrBuffer,
+            contentId: qrCid,
+          },
+        ],
       });
       console.log('[MailService] VIP confirmation sent via Resend to', params.toEmail);
     } catch (error) {

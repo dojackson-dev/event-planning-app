@@ -135,9 +135,9 @@ function NewArtistInvoiceForm() {
   const taxAmount = subtotal * (taxRate / 100)
   const baseAmount = Math.max(0, subtotal + taxAmount - discountAmount)
   const platformFee = Math.round(baseAmount * 0.03 * 100) / 100
-  // Correct pass-through: total = (base + platformFee + $0.30) / (1 - 0.029)
-  const total = Math.round(((baseAmount + platformFee + 0.30) / 0.971) * 100) / 100
-  const processingFee = Math.round((total - baseAmount - platformFee) * 100) / 100
+  // Platform fee is charged to artist (deducted from payout); processing fee still passed to client.
+  const total = Math.round(((baseAmount + 0.30) / 0.971) * 100) / 100
+  const processingFee = Math.round((total - baseAmount) * 100) / 100
 
   const addItem = () => setItems(prev => [...prev, newItem()])
   const removeItem = (id: string) => setItems(prev => prev.filter(i => i.id !== id))
@@ -313,12 +313,6 @@ function NewArtistInvoiceForm() {
             </div>
             {baseAmount > 0 && (
               <>
-                <div className="flex justify-between text-gray-500 border-t pt-1">
-                  <span>Subtotal after adjustments</span><span>${baseAmount.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-orange-600">
-                  <span>Platform fee (3%)</span><span>+${platformFee.toFixed(2)}</span>
-                </div>
                 <div className="flex justify-between text-orange-600">
                   <span>Stripe processing (2.9% + $0.30)</span><span>+${processingFee.toFixed(2)}</span>
                 </div>
@@ -330,7 +324,7 @@ function NewArtistInvoiceForm() {
             {baseAmount > 0 && (
               <div className="flex justify-between text-green-700 text-xs">
                 <span>You receive (approx.)</span>
-                <span>${baseAmount.toFixed(2)}</span>
+                <span>${(baseAmount - platformFee).toFixed(2)}</span>
               </div>
             )}
           </div>

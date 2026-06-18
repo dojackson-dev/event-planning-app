@@ -484,6 +484,7 @@ export class VipService {
         eventTitle,
         formattedDate,
         public_event_id,
+        qrCode,
       );
     }
 

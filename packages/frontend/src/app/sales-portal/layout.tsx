@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import { AffiliateAuthProvider } from '@/contexts/AffiliateAuthContext'
 
 export const metadata: Metadata = {
-  title: 'Sales Portal — DoVenueSuite',
-  description: 'Affiliate sales portal for DoVenueSuite',
+  title: 'Sales Portal — Eventecos',
+  description: 'Affiliate sales portal for Eventecos',
 }
 
 export default function SalesPortalLayout({

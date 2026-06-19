@@ -554,6 +554,66 @@ export class VipService {
 
   // ── CHECK-IN ──────────────────────────────────────────────────
 
+  /** Public scan using concierge access code — no promoter login required */
+  async scanVipByAccessCode(accessCode: string, qrCode: string, checkInMode: 'single' | 'full' = 'single') {
+    const admin = this.supabaseService.getAdminClient();
+
+    // Validate the access code and get the event it belongs to
+    const { data: concierge } = await admin
+      .from('vip_concierges')
+      .select('id, public_event_id')
+      .eq('access_code', accessCode)
+      .maybeSingle();
+    if (!concierge) throw new NotFoundException('Invalid concierge access code');
+
+    const eventId = concierge.public_event_id;
+
+    const { data: order } = await admin
+      .from('vip_orders')
+      .select('*, vip_packages(name, capacity, included_tickets, table_label), vip_guest_passes(id, status)')
+      .eq('qr_code', qrCode)
+      .eq('public_event_id', eventId)
+      .maybeSingle();
+
+    if (!order) throw new NotFoundException('VIP QR code not found for this event');
+    if (order.payment_status !== 'paid') throw new BadRequestException('VIP order not paid');
+
+    const capacity = order.vip_packages?.capacity ?? 1;
+    const alreadyIn = order.guests_checked_in ?? 0;
+
+    if (checkInMode === 'full') {
+      const newCount = capacity;
+      await admin
+        .from('vip_orders')
+        .update({ check_in_status: 'checked_in', guests_checked_in: newCount })
+        .eq('id', order.id);
+      await admin
+        .from('vip_guest_passes')
+        .update({ status: 'used', checked_in_at: new Date().toISOString() })
+        .eq('vip_order_id', order.id)
+        .eq('status', 'valid');
+      return { success: true, guests_checked_in: newCount, total_capacity: capacity, message: `Full group checked in (${newCount})`, order };
+    } else {
+      if (alreadyIn >= capacity) {
+        throw new BadRequestException(`All ${capacity} guests have already checked in`);
+      }
+      const newCount = alreadyIn + 1;
+      const newStatus = newCount >= capacity ? 'checked_in' : 'partial';
+      await admin
+        .from('vip_orders')
+        .update({ check_in_status: newStatus, guests_checked_in: newCount })
+        .eq('id', order.id);
+      const validPass = (order.vip_guest_passes as any[]).find((p: any) => p.status === 'valid');
+      if (validPass) {
+        await admin
+          .from('vip_guest_passes')
+          .update({ status: 'used', checked_in_at: new Date().toISOString() })
+          .eq('id', validPass.id);
+      }
+      return { success: true, guests_checked_in: newCount, total_capacity: capacity, message: `Guest checked in (${newCount} of ${capacity})`, order };
+    }
+  }
+
   async scanVip(userId: string, eventId: string, dto: ScanVipDto) {
     await this.assertEventOwner(userId, eventId);
     const admin = this.supabaseService.getAdminClient();

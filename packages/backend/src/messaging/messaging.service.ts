@@ -297,16 +297,6 @@ export class MessagingService {
     if (!msgs || msgs.length === 0) return [];
 
     // Build per-thread map (keyed by event_id+client_id)
-<<<<<<< HEAD
-    const threadMap: Record<string, {
-      eventId: string;
-      clientId: string;
-      lastMessage: string;
-      lastMessageAt: string;
-      lastMessageSender: string;
-      unreadCount: number;
-    }> = {};
-=======
     const threadMap: Record<
       string,
       {
@@ -318,7 +308,6 @@ export class MessagingService {
         unreadCount: number;
       }
     > = {};
->>>>>>> dda42a9cfc8d9d86cc93b99682129e7efc223f84
 
     for (const m of msgs) {
       const key = `${m.event_id}::${m.client_id}`;
@@ -338,34 +327,6 @@ export class MessagingService {
     }
 
     const threads = Object.values(threadMap);
-<<<<<<< HEAD
-    const eventIds = [...new Set(threads.map(t => t.eventId))];
-
-    // Fetch event details
-    const { data: events } = await supabase
-      .from('event')
-      .select('id, name, date')
-      .in('id', eventIds);
-
-    const eventInfoMap: Record<string, { name: string; date: string }> = {};
-    for (const ev of events || []) {
-      eventInfoMap[ev.id] = { name: ev.name || 'Event', date: ev.date };
-    }
-
-    // Fetch client info from intake_forms linked to these events
-    const { data: intakeForms } = await supabase
-      .from('intake_forms')
-      .select('id, contact_name, contact_email, contact_phone')
-      .in('id', threads.map(t => t.clientId));
-
-    const clientInfoMap: Record<string, { name: string; email: string }> = {};
-    for (const f of intakeForms || []) {
-      clientInfoMap[f.id] = { name: f.contact_name || 'Client', email: f.contact_email || '' };
-    }
-
-    return threads
-      .map(t => ({
-=======
     const eventIds = [...new Set(threads.map((t) => t.eventId))];
 
     // Step 1: Fetch events (without FK join — FK join is unreliable in this codebase)
@@ -412,32 +373,22 @@ export class MessagingService {
 
     return threads
       .map((t) => ({
->>>>>>> dda42a9cfc8d9d86cc93b99682129e7efc223f84
         eventId: t.eventId,
         eventName: eventInfoMap[t.eventId]?.name || 'Event',
         eventDate: eventInfoMap[t.eventId]?.date || null,
         clientId: t.clientId,
-<<<<<<< HEAD
-        clientName: clientInfoMap[t.clientId]?.name || 'Client',
-        clientEmail: clientInfoMap[t.clientId]?.email || '',
-=======
         clientName: eventInfoMap[t.eventId]?.clientName || 'Client',
         clientEmail: eventInfoMap[t.eventId]?.clientEmail || '',
->>>>>>> dda42a9cfc8d9d86cc93b99682129e7efc223f84
         lastMessage: t.lastMessage,
         lastMessageAt: t.lastMessageAt,
         lastMessageSender: t.lastMessageSender,
         unreadCount: t.unreadCount,
       }))
-<<<<<<< HEAD
-      .sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
-=======
       .sort(
         (a, b) =>
           new Date(b.lastMessageAt).getTime() -
           new Date(a.lastMessageAt).getTime(),
       );
->>>>>>> dda42a9cfc8d9d86cc93b99682129e7efc223f84
   }
 
   /** Returns the full message thread for one event and marks client messages as read. */
@@ -446,13 +397,9 @@ export class MessagingService {
 
     const { data, error } = await supabase
       .from('client_messages')
-<<<<<<< HEAD
-      .select('id, event_id, owner_id, client_id, sender_type, content, is_read, created_at')
-=======
       .select(
         'id, event_id, owner_id, client_id, sender_type, content, is_read, created_at',
       )
->>>>>>> dda42a9cfc8d9d86cc93b99682129e7efc223f84
       .eq('owner_id', ownerId)
       .eq('event_id', eventId)
       .order('created_at', { ascending: true });
@@ -500,27 +447,14 @@ export class MessagingService {
         .maybeSingle();
 
       if (!ev?.intake_form_id) {
-<<<<<<< HEAD
-        throw new BadRequestException('Event not found or does not belong to this owner.');
-=======
         throw new BadRequestException(
           'Event not found or does not belong to this owner.',
         );
->>>>>>> dda42a9cfc8d9d86cc93b99682129e7efc223f84
       }
 
       // Use intake_form id as client_id (consistent with client-auth.service derivation)
       const { data, error } = await supabase
         .from('client_messages')
-<<<<<<< HEAD
-        .insert([{
-          event_id: eventId,
-          owner_id: ownerId,
-          client_id: ev.intake_form_id,
-          sender_type: 'owner',
-          content,
-        }])
-=======
         .insert([
           {
             event_id: eventId,
@@ -530,19 +464,14 @@ export class MessagingService {
             content,
           },
         ])
->>>>>>> dda42a9cfc8d9d86cc93b99682129e7efc223f84
         .select()
         .single();
 
       if (error) {
-<<<<<<< HEAD
-        this.logger.error('sendClientMessage (new thread) error', error.message);
-=======
         this.logger.error(
           'sendClientMessage (new thread) error',
           error.message,
         );
->>>>>>> dda42a9cfc8d9d86cc93b99682129e7efc223f84
         throw new Error('Failed to send message.');
       }
       return data;
@@ -550,15 +479,6 @@ export class MessagingService {
 
     const { data, error } = await supabase
       .from('client_messages')
-<<<<<<< HEAD
-      .insert([{
-        event_id: eventId,
-        owner_id: ownerId,
-        client_id: existing.client_id,
-        sender_type: 'owner',
-        content,
-      }])
-=======
       .insert([
         {
           event_id: eventId,
@@ -568,7 +488,6 @@ export class MessagingService {
           content,
         },
       ])
->>>>>>> dda42a9cfc8d9d86cc93b99682129e7efc223f84
       .select()
       .single();
 

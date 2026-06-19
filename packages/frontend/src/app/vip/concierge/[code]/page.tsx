@@ -1,11 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { use } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import api from '@/lib/api'
 import {
   Crown, Users, Wine, Loader2, CheckCircle, Clock,
-  Phone, RefreshCw, Package, Star, MapPin,
+  Phone, RefreshCw, Package, Star, MapPin, Camera, XCircle, ScanLine,
 } from 'lucide-react'
 
 interface EventInfo {
@@ -46,14 +45,20 @@ const STATUS_COLORS: Record<string, string> = {
   checked_in: 'bg-green-100 text-green-700',
 }
 
-export default function ConciergePortalPage({ params }: { params: Promise<{ code: string }> }) {
-  const { code } = use(params)
+export default function ConciergePortalPage({ params }: { params: { code: string } }) {
+  const { code } = params
   const [conciergeName, setConciergeName] = useState('')
   const [event, setEvent] = useState<EventInfo | null>(null)
   const [orders, setOrders] = useState<VipOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
+  const [activeTab, setActiveTab] = useState<'list' | 'scan'>('list')
+  const [scanResult, setScanResult] = useState<{ success: boolean; message: string; buyerName?: string } | null>(null)
+  const [scanError, setScanError] = useState('')
+  const [scanning, setScanning] = useState(false)
+  const scannerRef = useRef<any>(null)
+  const scannerDivId = 'vip-concierge-qr-reader'
 
   const load = useCallback(async () => {
     try {
@@ -76,6 +81,58 @@ export default function ConciergePortalPage({ params }: { params: Promise<{ code
     const interval = setInterval(() => { load() }, 30000)
     return () => clearInterval(interval)
   }, [load])
+
+  const startScanner = useCallback(async () => {
+    setScanResult(null)
+    setScanError('')
+    setScanning(true)
+    const { Html5Qrcode } = await import('html5-qrcode')
+    const qr = new Html5Qrcode(scannerDivId)
+    scannerRef.current = qr
+    try {
+      await qr.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        async (decodedText) => {
+          await qr.stop()
+          setScanning(false)
+          scannerRef.current = null
+          try {
+            const res = await api.post(`/vip/public/concierge/${code}/scan`, {
+              qr_code: decodedText,
+              check_in_mode: 'single',
+            })
+            setScanResult({
+              success: true,
+              message: res.data.message,
+              buyerName: res.data.order?.buyer_name ?? undefined,
+            })
+            load()
+          } catch (err: any) {
+            const msg = err?.response?.data?.message || 'QR code not recognized'
+            setScanResult({ success: false, message: msg })
+          }
+        },
+        () => { /* qr errors silenced */ },
+      )
+    } catch {
+      setScanning(false)
+      setScanError('Camera access denied. Please allow camera permissions and try again.')
+    }
+  }, [code, load])
+
+  const stopScanner = useCallback(async () => {
+    if (scannerRef.current) {
+      try { await scannerRef.current.stop() } catch { /* ignore */ }
+      scannerRef.current = null
+    }
+    setScanning(false)
+  }, [])
+
+  // Stop scanner when switching away from scan tab
+  useEffect(() => {
+    if (activeTab !== 'scan') { stopScanner() }
+  }, [activeTab, stopScanner])
 
   if (loading) {
     return (
@@ -127,6 +184,68 @@ export default function ConciergePortalPage({ params }: { params: Promise<{ code
         </div>
       )}
 
+      {/* Tab switcher */}
+      <div className="flex gap-2 mb-6">
+        <button
+          onClick={() => setActiveTab('list')}
+          className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-colors ${activeTab === 'list' ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-gray-600 border-gray-200'}`}
+        >
+          <Users className="w-4 h-4 inline mr-1" />Guest List
+        </button>
+        <button
+          onClick={() => setActiveTab('scan')}
+          className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-colors ${activeTab === 'scan' ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-gray-600 border-gray-200'}`}
+        >
+          <ScanLine className="w-4 h-4 inline mr-1" />Scan QR
+        </button>
+      </div>
+
+      {activeTab === 'scan' && (
+        <div className="mb-6">
+          <div id={scannerDivId} className="rounded-xl overflow-hidden" />
+          {!scanning && !scanResult && (
+            <button
+              onClick={startScanner}
+              className="w-full mt-4 py-3 bg-purple-600 text-white rounded-xl font-medium flex items-center justify-center gap-2"
+            >
+              <Camera className="w-5 h-5" />Start Camera
+            </button>
+          )}
+          {scanning && (
+            <button
+              onClick={stopScanner}
+              className="w-full mt-4 py-2 border border-gray-300 text-gray-600 rounded-xl text-sm flex items-center justify-center gap-2"
+            >
+              <XCircle className="w-4 h-4" />Cancel
+            </button>
+          )}
+          {scanError && (
+            <p className="mt-3 text-sm text-red-600 text-center">{scanError}</p>
+          )}
+          {scanResult && (
+            <div className={`mt-4 p-4 rounded-xl border text-center ${scanResult.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+              {scanResult.success ? (
+                <CheckCircle className="w-8 h-8 text-green-600 mx-auto mb-2" />
+              ) : (
+                <XCircle className="w-8 h-8 text-red-600 mx-auto mb-2" />
+              )}
+              {scanResult.buyerName && <p className="font-semibold text-gray-900">{scanResult.buyerName}</p>}
+              <p className={`text-sm font-medium ${scanResult.success ? 'text-green-700' : 'text-red-700'}`}>
+                {scanResult.success ? 'CHECKED IN' : 'DENIED'}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">{scanResult.message}</p>
+              <button
+                onClick={() => { setScanResult(null); startScanner() }}
+                className="mt-3 px-4 py-1.5 bg-purple-600 text-white rounded-lg text-sm"
+              >
+                Scan Next
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'list' && (<>
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3 mb-6">
         <div className="bg-white border border-gray-200 rounded-xl p-3 text-center">
@@ -237,6 +356,8 @@ export default function ConciergePortalPage({ params }: { params: Promise<{ code
           })}
         </div>
       )}
+
+      </>)}
 
       <p className="text-center text-xs text-gray-300 mt-8">Auto-refreshes every 30 seconds · VIP Concierge Portal</p>
     </div>

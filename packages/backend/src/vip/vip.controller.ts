@@ -214,6 +214,15 @@ export class VipController {
     return this.service.getConciergePortal(accessCode);
   }
 
+  /** Public: concierge scans a VIP order QR code using their access code */
+  @Post('public/concierge/:accessCode/scan')
+  scanVipByConcierge(
+    @Param('accessCode') accessCode: string,
+    @Body() body: { qr_code: string; check_in_mode?: 'single' | 'full' },
+  ) {
+    return this.service.scanVipByAccessCode(accessCode, body.qr_code, body.check_in_mode ?? 'single');
+  }
+
   @Post('events/:eventId/concierges')
   async createConcierge(
     @Headers('authorization') auth: string,

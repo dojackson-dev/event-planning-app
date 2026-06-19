@@ -35,17 +35,43 @@ export default function DoorScannerPage() {
       .catch(() => {})
   }, [eventId])
 
-  const processTicket = useCallback(async (ticketId: string) => {
+  const processTicket = useCallback(async (decodedText: string) => {
     if (scanningRef.current) return
     scanningRef.current = true
     setLoading(true)
 
     try {
-      const { data } = await api.post<ScanResult>(
-        `/promoter-events/${eventId}/scan-ticket`,
-        { ticket_id: ticketId },
-      )
-      setResult(data)
+      // Try regular ticket first
+      try {
+        const { data } = await api.post<ScanResult>(
+          `/promoter-events/${eventId}/scan-ticket`,
+          { ticket_id: decodedText },
+        )
+        setResult(data)
+      } catch (ticketErr: any) {
+        const status = ticketErr.response?.status
+        const msg: string = ticketErr.response?.data?.message || ''
+        // Only fall through to VIP if it was actually "not found"
+        if (status !== 404 && !msg.toLowerCase().includes('not found')) throw ticketErr
+        // Fallback: try VIP scan (full group check-in)
+        try {
+          const { data: vipData } = await api.post(
+            `/vip/events/${eventId}/scan`,
+            { qr_code: decodedText, check_in_mode: 'full' },
+          )
+          setResult({
+            valid: true,
+            reason: vipData.message || 'VIP guest checked in',
+            ticket: null,
+          })
+        } catch (vipErr: any) {
+          setResult({
+            valid: false,
+            reason: vipErr.response?.data?.message || 'QR code not recognized',
+            ticket: null,
+          })
+        }
+      }
     } catch (e: any) {
       setResult({ valid: false, reason: e.response?.data?.message || 'Error scanning ticket', ticket: null })
     } finally {

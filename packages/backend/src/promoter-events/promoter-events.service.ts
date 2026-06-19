@@ -891,7 +891,7 @@ export class PromoterEventsService {
 
     const { data: ticket } = await admin
       .from('tickets')
-      .select('id, status, public_event_id')
+      .select('id, status, public_event_id, buyer_phone, buyer_email, amount_paid, ticket_tiers(name)')
       .eq('id', ticketId)
       .eq('public_event_id', eventId)
       .maybeSingle();
@@ -904,7 +904,18 @@ export class PromoterEventsService {
       .eq('id', ticketId);
     if (error) throw new BadRequestException(error.message);
 
-    return { success: true, message: 'Ticket scanned successfully' };
+    return {
+      valid: true,
+      reason: 'Ticket scanned successfully',
+      ticket: {
+        id: ticket.id,
+        status: 'used',
+        buyer_phone: ticket.buyer_phone ?? null,
+        buyer_email: ticket.buyer_email ?? null,
+        amount_paid: ticket.amount_paid ?? 0,
+        ticket_tiers: ticket.ticket_tiers ?? null,
+      },
+    };
   }
 
   // ── COMP TICKETS ──────────────────────────────────────────────

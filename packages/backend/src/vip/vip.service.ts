@@ -143,14 +143,23 @@ export class VipService {
     const admin = this.supabaseService.getAdminClient();
     const { data: pkg } = await admin
       .from('vip_packages')
-      .select('public_event_id')
+      .select('public_event_id, inventory_sold, status')
       .eq('id', packageId)
       .maybeSingle();
     if (!pkg) throw new NotFoundException('VIP package not found');
     await this.assertEventOwner(userId, pkg.public_event_id);
+
+    // Auto-restore status when inventory is increased past sold count
+    const updates: Record<string, any> = { ...dto };
+    if (dto.inventory !== undefined && pkg.status === 'sold_out') {
+      if (dto.inventory > (pkg.inventory_sold ?? 0)) {
+        updates.status = 'active';
+      }
+    }
+
     const { data, error } = await admin
       .from('vip_packages')
-      .update(dto)
+      .update(updates)
       .eq('id', packageId)
       .select()
       .single();

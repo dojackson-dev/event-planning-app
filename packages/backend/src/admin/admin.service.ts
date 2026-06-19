@@ -1,7 +1,5 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
-
-const VALID_PLANS = ['free', 'pro', 'premium'] as const;
 
 @Injectable()
 export class AdminService {
@@ -28,7 +26,7 @@ export class AdminService {
       supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'customer'),
       supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'customer').gte('created_at', startOfMonth),
       supabase.from('event').select('*', { count: 'exact', head: true }),
-      supabase.from('event').select('*', { count: 'exact', head: true }).not('intake_form_id', 'is', null),
+      supabase.from('booking').select('*', { count: 'exact', head: true }),
       supabase.from('users').select('id, email, first_name, last_name, created_at').eq('role', 'owner').order('created_at', { ascending: false }).limit(10),
       supabase.from('invoices').select('total_amount').eq('status', 'paid'),
       supabase.from('owner_accounts').select('*', { count: 'exact', head: true }).eq('subscription_status', 'trialing'),
@@ -133,26 +131,33 @@ export class AdminService {
     const offset = (page - 1) * limit;
 
     let query = supabase
-      .from('event')
+      .from('booking')
       .select(
-        'id, name, date, status, client_confirmation_status, payment_status, total_amount, deposit_amount, owner_id, intake_form_id, created_at, intake_form:intake_forms!intake_form_id(contact_name, contact_email, contact_phone)',
+        'id, event_id, user_id, owner_id, contact_name, contact_email, contact_phone, status, payment_status, total_amount, deposit_amount, booking_date, notes, created_at',
         { count: 'exact' },
       )
-      .not('intake_form_id', 'is', null)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (search) {
-      query = query.ilike('name', `%${search}%`);
+      query = query.or(`contact_name.ilike.%${search}%,contact_email.ilike.%${search}%`);
     }
     if (ownerId) {
-      query = query.eq('owner_id', ownerId);
+      query = query.eq('user_id', ownerId);
     }
 
     const { data, count, error } = await query;
     if (error) throw error;
 
-    const ownerIds = [...new Set((data || []).map((b: any) => b.owner_id).filter(Boolean))];
+    // Enrich with event name
+    const eventIds = [...new Set((data || []).map((b: any) => b.event_id).filter(Boolean))];
+    const { data: events } = eventIds.length
+      ? await supabase.from('event').select('id, name, date').in('id', eventIds)
+      : { data: [] };
+    const eventMap = new Map((events || []).map((e: any) => [e.id, e]));
+
+    // Enrich with owner info (user_id is the owner)
+    const ownerIds = [...new Set((data || []).map((b: any) => b.user_id).filter(Boolean))];
     const { data: owners } = ownerIds.length
       ? await supabase.from('users').select('id, email, first_name, last_name').in('id', ownerIds)
       : { data: [] };
@@ -160,7 +165,8 @@ export class AdminService {
 
     const enriched = (data || []).map((b: any) => ({
       ...b,
-      owner: ownerMap.get(b.owner_id) || null,
+      event: eventMap.get(b.event_id) || null,
+      owner: ownerMap.get(b.user_id) || null,
     }));
 
     return { bookings: enriched, total: count || 0, page, limit };
@@ -254,7 +260,7 @@ export class AdminService {
       supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'owner'),
       supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'customer'),
       supabase.from('event').select('*', { count: 'exact', head: true }),
-      supabase.from('event').select('*', { count: 'exact', head: true }).not('intake_form_id', 'is', null),
+      supabase.from('booking').select('*', { count: 'exact', head: true }),
       supabase.from('users').select('id, created_at').eq('role', 'owner').gte('created_at', sixMonthsAgo),
       supabase.from('users').select('id, created_at').eq('role', 'customer').gte('created_at', sixMonthsAgo),
       supabase.from('event').select('id, created_at').gte('created_at', sixMonthsAgo),
@@ -451,40 +457,95 @@ export class AdminService {
     return { trialDays };
   }
 
-  // ─── Promoter plan management ─────────────────────────────────────────────
-
-  async getPromoters(page = 1, limit = 20, search = '') {
+  async getUnconvertedAccounts(page = 1, limit = 50, search = '', statusFilter = '') {
     const supabase = this.supabaseService.getAdminClient();
     const offset = (page - 1) * limit;
 
-    let query = supabase
-      .from('promoter_accounts')
-      .select('id, company_name, contact_name, email, phone, city, state, plan, stripe_connect_status, created_at', { count: 'exact' })
+    // All accounts that are NOT 'active' (i.e. never paid)
+    let accountsQuery = supabase
+      .from('owner_accounts')
+      .select('id, primary_owner_id, business_name, subscription_status, trial_ends_at, created_at', { count: 'exact' })
+      .neq('subscription_status', 'active')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
+    if (statusFilter && statusFilter !== 'all') {
+      accountsQuery = supabase
+        .from('owner_accounts')
+        .select('id, primary_owner_id, business_name, subscription_status, trial_ends_at, created_at', { count: 'exact' })
+        .eq('subscription_status', statusFilter)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+    }
+
+    const { data: accounts, count, error } = await accountsQuery;
+    if (error) throw error;
+
+    const ownerIds = (accounts || []).map((a: any) => a.primary_owner_id).filter(Boolean);
+    const { data: users } = ownerIds.length
+      ? await supabase
+          .from('users')
+          .select('id, email, first_name, last_name, last_sign_in_at, created_at')
+          .in('id', ownerIds)
+      : { data: [] };
+
+    const userMap = new Map((users || []).map((u: any) => [u.id, u]));
+
+    let enriched = (accounts || []).map((a: any) => {
+      const user = userMap.get(a.primary_owner_id) || null;
+      const daysSinceSignup = a.created_at
+        ? Math.floor((Date.now() - new Date(a.created_at).getTime()) / 86400000)
+        : null;
+      return {
+        id: a.id,
+        owner_id: a.primary_owner_id,
+        email: user?.email || null,
+        first_name: user?.first_name || null,
+        last_name: user?.last_name || null,
+        business_name: a.business_name || null,
+        subscription_status: a.subscription_status,
+        trial_ends_at: a.trial_ends_at,
+        account_created_at: a.created_at,
+        last_login: user?.last_sign_in_at || null,
+        days_since_signup: daysSinceSignup,
+      };
+    });
+
     if (search) {
-      query = query.or(`company_name.ilike.%${search}%,contact_name.ilike.%${search}%,email.ilike.%${search}%`);
+      const s = search.toLowerCase();
+      enriched = enriched.filter(
+        (r: any) =>
+          r.email?.toLowerCase().includes(s) ||
+          r.first_name?.toLowerCase().includes(s) ||
+          r.last_name?.toLowerCase().includes(s) ||
+          r.business_name?.toLowerCase().includes(s),
+      );
     }
 
-    const { data, count, error } = await query;
-    if (error) throw error;
-    return { promoters: data || [], total: count || 0, page, limit };
-  }
+    // Summary counts (separate lightweight queries)
+    const [
+      { count: totalTrialing },
+      { count: totalNeverStarted },
+      { count: totalCancelled },
+      { count: totalPastDue },
+    ] = await Promise.all([
+      supabase.from('owner_accounts').select('*', { count: 'exact', head: true }).eq('subscription_status', 'trialing'),
+      supabase.from('owner_accounts').select('*', { count: 'exact', head: true }).eq('subscription_status', 'trial'),
+      supabase.from('owner_accounts').select('*', { count: 'exact', head: true }).eq('subscription_status', 'cancelled'),
+      supabase.from('owner_accounts').select('*', { count: 'exact', head: true }).eq('subscription_status', 'past_due'),
+    ]);
 
-  async updatePromoterPlan(promoterAccountId: string, plan: string) {
-    if (!(VALID_PLANS as readonly string[]).includes(plan)) {
-      throw new BadRequestException(`Invalid plan "${plan}". Must be one of: ${VALID_PLANS.join(', ')}`);
-    }
-    const supabase = this.supabaseService.getAdminClient();
-    const { data, error } = await supabase
-      .from('promoter_accounts')
-      .update({ plan })
-      .eq('id', promoterAccountId)
-      .select('id, company_name, contact_name, email, plan')
-      .maybeSingle();
-    if (error) throw error;
-    if (!data) throw new NotFoundException(`Promoter account ${promoterAccountId} not found`);
-    return data;
+    return {
+      accounts: enriched,
+      total: count || 0,
+      page,
+      limit,
+      summary: {
+        trialing: totalTrialing || 0,
+        neverStarted: totalNeverStarted || 0,
+        cancelled: totalCancelled || 0,
+        pastDue: totalPastDue || 0,
+      },
+    };
   }
 }

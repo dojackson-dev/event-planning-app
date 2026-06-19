@@ -17,7 +17,8 @@ import {
   Building2,
   Calendar,
   FileText,
-  BarChart3
+  BarChart3,
+  UserX
 } from 'lucide-react'
 
 const navigation = [
@@ -29,6 +30,7 @@ const navigation = [
   { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
   { name: 'Revenue', href: '/admin/revenue', icon: DollarSign },
   { name: 'Free Trials', href: '/admin/trials', icon: Gift },
+  { name: 'Unconverted', href: '/admin/unconverted', icon: UserX },
   { name: 'User Activity', href: '/admin/activity', icon: Activity },
   { name: 'Settings', href: '/admin/settings', icon: Settings },
 ]

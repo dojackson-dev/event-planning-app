@@ -456,4 +456,96 @@ export class AdminService {
     if (error) throw error;
     return { trialDays };
   }
+
+  async getUnconvertedAccounts(page = 1, limit = 50, search = '', statusFilter = '') {
+    const supabase = this.supabaseService.getAdminClient();
+    const offset = (page - 1) * limit;
+
+    // All accounts that are NOT 'active' (i.e. never paid)
+    let accountsQuery = supabase
+      .from('owner_accounts')
+      .select('id, primary_owner_id, business_name, subscription_status, trial_ends_at, created_at', { count: 'exact' })
+      .neq('subscription_status', 'active')
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (statusFilter && statusFilter !== 'all') {
+      accountsQuery = supabase
+        .from('owner_accounts')
+        .select('id, primary_owner_id, business_name, subscription_status, trial_ends_at, created_at', { count: 'exact' })
+        .eq('subscription_status', statusFilter)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+    }
+
+    const { data: accounts, count, error } = await accountsQuery;
+    if (error) throw error;
+
+    const ownerIds = (accounts || []).map((a: any) => a.primary_owner_id).filter(Boolean);
+    const { data: users } = ownerIds.length
+      ? await supabase
+          .from('users')
+          .select('id, email, first_name, last_name, last_sign_in_at, created_at')
+          .in('id', ownerIds)
+      : { data: [] };
+
+    const userMap = new Map((users || []).map((u: any) => [u.id, u]));
+
+    let enriched = (accounts || []).map((a: any) => {
+      const user = userMap.get(a.primary_owner_id) || null;
+      const daysSinceSignup = a.created_at
+        ? Math.floor((Date.now() - new Date(a.created_at).getTime()) / 86400000)
+        : null;
+      return {
+        id: a.id,
+        owner_id: a.primary_owner_id,
+        email: user?.email || null,
+        first_name: user?.first_name || null,
+        last_name: user?.last_name || null,
+        business_name: a.business_name || null,
+        subscription_status: a.subscription_status,
+        trial_ends_at: a.trial_ends_at,
+        account_created_at: a.created_at,
+        last_login: user?.last_sign_in_at || null,
+        days_since_signup: daysSinceSignup,
+      };
+    });
+
+    if (search) {
+      const s = search.toLowerCase();
+      enriched = enriched.filter(
+        (r: any) =>
+          r.email?.toLowerCase().includes(s) ||
+          r.first_name?.toLowerCase().includes(s) ||
+          r.last_name?.toLowerCase().includes(s) ||
+          r.business_name?.toLowerCase().includes(s),
+      );
+    }
+
+    // Summary counts (separate lightweight queries)
+    const [
+      { count: totalTrialing },
+      { count: totalNeverStarted },
+      { count: totalCancelled },
+      { count: totalPastDue },
+    ] = await Promise.all([
+      supabase.from('owner_accounts').select('*', { count: 'exact', head: true }).eq('subscription_status', 'trialing'),
+      supabase.from('owner_accounts').select('*', { count: 'exact', head: true }).eq('subscription_status', 'trial'),
+      supabase.from('owner_accounts').select('*', { count: 'exact', head: true }).eq('subscription_status', 'cancelled'),
+      supabase.from('owner_accounts').select('*', { count: 'exact', head: true }).eq('subscription_status', 'past_due'),
+    ]);
+
+    return {
+      accounts: enriched,
+      total: count || 0,
+      page,
+      limit,
+      summary: {
+        trialing: totalTrialing || 0,
+        neverStarted: totalNeverStarted || 0,
+        cancelled: totalCancelled || 0,
+        pastDue: totalPastDue || 0,
+      },
+    };
+  }
 }

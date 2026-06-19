@@ -147,4 +147,16 @@ export class AdminController {
     await this.verifyAdmin(req);
     return this.adminService.updateOwnerTrial(id, body.action, body.days);
   }
+
+  @Get('unconverted')
+  async getUnconverted(
+    @Req() req: Request,
+    @Query('page') page = '1',
+    @Query('limit') limit = '50',
+    @Query('search') search = '',
+    @Query('status') status = '',
+  ) {
+    await this.verifyAdmin(req);
+    return this.adminService.getUnconvertedAccounts(parseInt(page), parseInt(limit), search, status);
+  }
 }

@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
 import PhoneInput from '@/components/PhoneInput'
 import AddressAutocomplete from '@/components/AddressAutocomplete'
@@ -20,8 +20,10 @@ const CATEGORIES = [
 
 type Step = 'account' | 'category' | 'profile'
 
-export default function VendorRegisterPage() {
+function VendorRegisterForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const referralCode = searchParams.get('ref')
   const [step, setStep] = useState<Step>('account')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -66,6 +68,7 @@ export default function VendorRegisterPage() {
         lastName,
         phoneNumber: phone,
         smsOptIn,
+        referralCode: referralCode || undefined,
       })
       setSession(res.data.session)
       // Save token for subsequent requests
@@ -120,8 +123,8 @@ export default function VendorRegisterPage() {
       {/* Header */}
       <nav className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/" className="text-xl font-bold text-primary-600">DoVenueSuite</Link>
-          <Link href="/login" className="text-sm text-gray-500 hover:text-gray-700">Already have an account? Log in</Link>
+          <Link href="/" className="text-xl font-bold text-primary-600">Eventecos</Link>
+          <Link href="/register" className="text-sm text-gray-500 hover:text-indigo-600">← Select a different role</Link>
         </div>
       </nav>
 
@@ -368,5 +371,14 @@ export default function VendorRegisterPage() {
         )}
       </div>
     </div>
+  )
+}
+
+
+export default function VendorRegisterPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500" /></div>}>
+      <VendorRegisterForm />
+    </Suspense>
   )
 }

@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, Suspense } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
 import PhoneInput from '@/components/PhoneInput'
 import AddressAutocomplete from '@/components/AddressAutocomplete'
@@ -15,14 +15,15 @@ const CATEGORIES = [
   { value: 'photographer', label: 'Photographer', icon: '📷', desc: 'Photo & video services' },
   { value: 'musicians', label: 'Musicians', icon: '🎵', desc: 'Live music bands & performers' },
   { value: 'mc_host', label: 'MC / Host', icon: '🎤', desc: 'Master of ceremonies & hosting' },
-  { value: 'graphic_designer', label: 'Graphic Designer', icon: '🖌️', desc: 'Flyers, logos & event graphics' },
   { value: 'other', label: 'Other', icon: '⭐', desc: 'Other event services' },
 ]
 
 type Step = 'account' | 'category' | 'profile'
 
-export default function VendorRegisterPage() {
+function VendorRegisterForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const referralCode = searchParams.get('ref')
   const [step, setStep] = useState<Step>('account')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -36,7 +37,7 @@ export default function VendorRegisterPage() {
   const [smsOptIn, setSmsOptIn] = useState(false)
 
   // Category step
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
+  const [selectedCategory, setSelectedCategory] = useState('')
 
   // Profile step
   const [businessName, setBusinessName] = useState('')
@@ -55,23 +56,6 @@ export default function VendorRegisterPage() {
   // Saved session after signup
   const [session, setSession] = useState<any>(null)
 
-  // If already logged in, skip account creation step
-  useEffect(() => {
-    const token = localStorage.getItem('access_token')
-    if (token) {
-      const stored = localStorage.getItem('user')
-      if (stored) {
-        try {
-          const u = JSON.parse(stored)
-          if (u.email) setEmail(u.email)
-          if (u.firstName) setFirstName(u.firstName)
-          if (u.lastName) setLastName(u.lastName)
-        } catch {}
-      }
-      setStep('category')
-    }
-  }, [])
-
   const handleAccountSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -84,6 +68,7 @@ export default function VendorRegisterPage() {
         lastName,
         phoneNumber: phone,
         smsOptIn,
+        referralCode: referralCode || undefined,
       })
       setSession(res.data.session)
       // Save token for subsequent requests
@@ -99,13 +84,7 @@ export default function VendorRegisterPage() {
   }
 
   const handleCategorySelect = (cat: string) => {
-    setSelectedCategories(prev =>
-      prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
-    )
-  }
-
-  const handleCategoryContinue = () => {
-    if (selectedCategories.length === 0) return
+    setSelectedCategory(cat)
     setStep('profile')
   }
 
@@ -116,8 +95,7 @@ export default function VendorRegisterPage() {
     try {
       await api.post('/vendors/account', {
         businessName,
-        categories: selectedCategories,
-        category: selectedCategories[0] || undefined,
+        category: selectedCategory,
         bio,
         address,
         city,
@@ -145,8 +123,8 @@ export default function VendorRegisterPage() {
       {/* Header */}
       <nav className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/" className="text-xl font-bold text-primary-600">EventEcos</Link>
-          <Link href="/login" className="text-sm text-gray-500 hover:text-gray-700">Already have an account? Log in</Link>
+          <Link href="/" className="text-xl font-bold text-primary-600">Eventecos</Link>
+          <Link href="/register" className="text-sm text-gray-500 hover:text-indigo-600">← Select a different role</Link>
         </div>
       </nav>
 
@@ -236,28 +214,21 @@ export default function VendorRegisterPage() {
         {/* STEP 2: Category */}
         {step === 'category' && (
           <div className="bg-white rounded-xl shadow-sm p-8">
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">What do you offer?</h1>
-            <p className="text-gray-500 text-sm mb-6">Select the category that best describes your business.</p>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
-              <select
-                value={selectedCategories[0] || ''}
-                onChange={e => setSelectedCategories(e.target.value ? [e.target.value] : [])}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
-              >
-                <option value="">Select a category...</option>
-                {CATEGORIES.map(cat => (
-                  <option key={cat.value} value={cat.value}>{cat.icon} {cat.label}</option>
-                ))}
-              </select>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">What's your specialty?</h1>
+            <p className="text-gray-500 text-sm mb-6">Choose the category that best describes your business.</p>
+            <div className="grid grid-cols-2 gap-3">
+              {CATEGORIES.map(cat => (
+                <button
+                  key={cat.value}
+                  onClick={() => handleCategorySelect(cat.value)}
+                  className="flex flex-col items-start p-4 border-2 border-gray-200 rounded-xl hover:border-primary-500 hover:bg-primary-50 transition-all text-left group"
+                >
+                  <span className="text-3xl mb-2">{cat.icon}</span>
+                  <span className="font-semibold text-gray-900 group-hover:text-primary-600">{cat.label}</span>
+                  <span className="text-xs text-gray-500 mt-0.5">{cat.desc}</span>
+                </button>
+              ))}
             </div>
-            <button
-              onClick={handleCategoryContinue}
-              disabled={selectedCategories.length === 0}
-              className="mt-6 w-full bg-primary-600 text-white py-3 rounded-lg font-semibold hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Continue →
-            </button>
           </div>
         )}
 
@@ -400,5 +371,14 @@ export default function VendorRegisterPage() {
         )}
       </div>
     </div>
+  )
+}
+
+
+export default function VendorRegisterPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500" /></div>}>
+      <VendorRegisterForm />
+    </Suspense>
   )
 }

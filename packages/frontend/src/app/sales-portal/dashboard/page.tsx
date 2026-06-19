@@ -170,7 +170,7 @@ export default function SalesPortalDashboard() {
               </svg>
             </div>
             <span className="font-semibold text-gray-900 text-sm">
-              EventEcos <span className="text-indigo-600">Sales Portal</span>
+              Eventecos <span className="text-indigo-600">Sales Portal</span>
             </span>
           </div>
 

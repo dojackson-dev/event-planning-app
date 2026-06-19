@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { use } from 'react'
 import api from '@/lib/api'
 import {
   Crown, Users, Wine, Loader2, CheckCircle, Clock,
@@ -46,8 +45,8 @@ const STATUS_COLORS: Record<string, string> = {
   checked_in: 'bg-green-100 text-green-700',
 }
 
-export default function ConciergePortalPage({ params }: { params: Promise<{ code: string }> }) {
-  const { code } = use(params)
+export default function ConciergePortalPage({ params }: { params: { code: string } }) {
+  const { code } = params
   const [conciergeName, setConciergeName] = useState('')
   const [event, setEvent] = useState<EventInfo | null>(null)
   const [orders, setOrders] = useState<VipOrder[]>([])

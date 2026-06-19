@@ -660,6 +660,26 @@ export class VipService {
       .select()
       .single();
     if (error) throw new BadRequestException(error.message);
+
+    // Send SMS to concierge with portal URL and access code
+    if (dto.phone) {
+      try {
+        const { data: event } = await admin
+          .from('public_events')
+          .select('title')
+          .eq('id', eventId)
+          .single();
+        const portalUrl = `${this.frontendUrl}/vip/concierge/${access_code}`;
+        const eventTitle = event?.title ?? 'the event';
+        await this.smsNotifications.send(
+          dto.phone,
+          `Eventecos VIP Staff\nHi ${dto.name}, you've been added as a VIP concierge for "${eventTitle}".\n\nYour access code: ${access_code}\nPortal: ${portalUrl}`,
+        );
+      } catch (smsErr) {
+        this.logger.warn(`Concierge welcome SMS failed for ${dto.phone}: ${smsErr}`);
+      }
+    }
+
     return data;
   }
 

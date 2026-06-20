@@ -149,8 +149,7 @@ export default function SalesPortalDashboard() {
   const [commissions,     setCommissions]    = useState<Commission[]>([])
   const [managerUsers,    setManagerUsers]   = useState<ManagerUser[]>([])
   const [managerSummary,  setManagerSummary] = useState<ManagerSummary | null>(null)
-  const [userRoleFilter,  setUserRoleFilter]  useState('')
-  const [userStatusFilter,setUserStatusFilter] = useState('all')
+  const [userRoleFilter,  setUserRoleFilter]  = useState('all')
   const [loadingData,     setLoadingData]    = useState(true)
   const [loadingUsers,    setLoadingUsers]   = useState(false)
   const [copied,          setCopied]         = useState(false)
@@ -185,12 +184,12 @@ export default function SalesPortalDashboard() {
   useEffect(() => {
     if (isAuthenticated) fetchData()
   }, [isAuthenticated, fetchData])
-role = '') => {
+
+  const fetchManagerUsers = useCallback(async (search = '', role = '') => {
     setLoadingUsers(true)
     try {
       const res = await api.get('/affiliates/manager/users', {
-        params: { search, role'/affiliates/manager/users', {
-        params: { search, status },
+        params: { search, role },
       })
       setManagerUsers(res.data.users || [])
       setManagerSummary(res.data.summary || null)
@@ -203,14 +202,14 @@ role = '') => {
 
   // Load users tab on first visit
   useEffect(() => {
-    if (tab === 'users' && isManager && RoleFilter)
+    if (tab === 'users' && isManager && managerUsers.length === 0) {
+      fetchManagerUsers(userSearch, userRoleFilter)
     }
   }, [tab]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleUserSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    fetchManagerUsers(userSearch, userRole
-    fetchManagerUsers(userSearch, userStatusFilter)
+    fetchManagerUsers(userSearch, userRoleFilter)
   }
 
   const referralLink = dashboard

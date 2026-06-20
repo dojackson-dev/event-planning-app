@@ -5,6 +5,7 @@ import {
   Patch,
   Body,
   Req,
+  Query,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -67,5 +68,16 @@ export class AffiliatesController {
   @UseGuards(AffiliateGuard)
   async getCommissions(@Req() req: any) {
     return this.affiliatesService.getCommissions(req.affiliate.id);
+  }
+
+  /** Sales manager: all platform users with subscription status */
+  @Get('manager/users')
+  @UseGuards(AffiliateGuard)
+  async getManagerUsers(
+    @Req() req: any,
+    @Query('search') search = '',
+    @Query('role') role = '',
+  ) {
+    return this.affiliatesService.getManagerUsers(req.affiliate.email, search, role);
   }
 }

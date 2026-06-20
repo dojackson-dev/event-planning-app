@@ -3,6 +3,7 @@ import {
   BadRequestException,
   UnauthorizedException,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { RegisterAffiliateDto, UpdateAffiliateDto } from './dto/affiliate.dto';
@@ -406,6 +407,122 @@ export class AffiliatesService {
       period_end:             periodEnd.toISOString(),
       status:                 'pending',
     });
+  }
+
+  // ─── Sales Manager: All-users view ──────────────────────────────────────
+
+  /**
+   * Only available to the sales@eventecos.com manager account.
+   * Returns all owner accounts with subscription status, sign-up date,
+   * last login, and which affiliate (if any) referred them.
+   */
+  async getManagerUsers(affiliateEmail: string, search = '', roleFilter = '') {
+    if (affiliateEmail !== 'sales@eventecos.com') {
+      throw new ForbiddenException('Manager access only');
+    }
+
+    const admin = this.supabaseService.getAdminClient();
+
+    // Fetch all platform users (exclude customers and affiliates from main view)
+    const INCLUDED_ROLES = ['owner', 'promoter', 'artist', 'vendor'];
+
+    let usersQuery = admin
+      .from('users')
+      .select('id, email, first_name, last_name, role, roles, last_sign_in_at, created_at')
+      .in('role', INCLUDED_ROLES)
+      .order('created_at', { ascending: false });
+
+    if (roleFilter && roleFilter !== 'all') {
+      usersQuery = admin
+        .from('users')
+        .select('id, email, first_name, last_name, role, roles, last_sign_in_at, created_at')
+        .eq('role', roleFilter)
+        .order('created_at', { ascending: false });
+    }
+
+    const { data: allUsers, error } = await usersQuery;
+    if (error) throw new BadRequestException(error.message);
+
+    // For owners — fetch owner_accounts to get subscription info
+    const ownerIds = (allUsers || [])
+      .filter((u: any) => u.role === 'owner')
+      .map((u: any) => u.id);
+
+    const { data: accounts } = ownerIds.length
+      ? await admin
+          .from('owner_accounts')
+          .select('primary_owner_id, business_name, subscription_status, trial_ends_at, referred_by_affiliate_id')
+          .in('primary_owner_id', ownerIds)
+      : { data: [] };
+
+    const accountMap = new Map((accounts || []).map((a: any) => [a.primary_owner_id, a]));
+
+    // Load affiliate names for referred owners
+    const affiliateIds = [...new Set(
+      (accounts || []).map((a: any) => a.referred_by_affiliate_id).filter(Boolean),
+    )];
+    const { data: affiliates } = affiliateIds.length
+      ? await admin
+          .from('affiliates')
+          .select('id, first_name, last_name, referral_code')
+          .in('id', affiliateIds)
+      : { data: [] };
+    const affiliateMap = new Map((affiliates || []).map((a: any) => [a.id, a]));
+
+    let enriched = (allUsers || []).map((u: any) => {
+      const acct = accountMap.get(u.id) || null;
+      const ref  = acct ? affiliateMap.get(acct.referred_by_affiliate_id) || null : null;
+      return {
+        id:                  u.id,
+        email:               u.email ?? null,
+        first_name:          u.first_name ?? null,
+        last_name:           u.last_name ?? null,
+        role:                u.role,
+        business_name:       acct?.business_name ?? null,
+        subscription_status: acct?.subscription_status ?? null,
+        trial_ends_at:       acct?.trial_ends_at ?? null,
+        account_created_at:  u.created_at,
+        last_login:          u.last_sign_in_at ?? null,
+        referred_by:         ref
+          ? { name: `${ref.first_name} ${ref.last_name}`, code: ref.referral_code }
+          : null,
+      };
+    });
+
+    if (search) {
+      const s = search.toLowerCase();
+      enriched = enriched.filter(
+        (r: any) =>
+          r.email?.toLowerCase().includes(s) ||
+          r.first_name?.toLowerCase().includes(s) ||
+          r.last_name?.toLowerCase().includes(s) ||
+          r.business_name?.toLowerCase().includes(s),
+      );
+    }
+
+    // Summary counts by role
+    const [
+      { count: totalOwners },
+      { count: totalPromoters },
+      { count: totalArtists },
+      { count: totalVendors },
+    ] = await Promise.all([
+      admin.from('users').select('*', { count: 'exact', head: true }).eq('role', 'owner'),
+      admin.from('users').select('*', { count: 'exact', head: true }).eq('role', 'promoter'),
+      admin.from('users').select('*', { count: 'exact', head: true }).eq('role', 'artist'),
+      admin.from('users').select('*', { count: 'exact', head: true }).eq('role', 'vendor'),
+    ]);
+
+    return {
+      users: enriched,
+      summary: {
+        total:     (totalOwners ?? 0) + (totalPromoters ?? 0) + (totalArtists ?? 0) + (totalVendors ?? 0),
+        owners:    totalOwners    ?? 0,
+        promoters: totalPromoters ?? 0,
+        artists:   totalArtists   ?? 0,
+        vendors:   totalVendors   ?? 0,
+      },
+    };
   }
 
   // ─── Referral Code Lookup ─────────────────────────────────────────────────

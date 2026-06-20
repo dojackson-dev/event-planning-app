@@ -52,12 +52,12 @@ interface Commission {
 
 interface ManagerUser {
   id: string
-  owner_id: string
   email: string | null
   first_name: string | null
   last_name: string | null
+  role: string
   business_name: string | null
-  subscription_status: string
+  subscription_status: string | null
   trial_ends_at: string | null
   account_created_at: string
   last_login: string | null
@@ -66,9 +66,10 @@ interface ManagerUser {
 
 interface ManagerSummary {
   total: number
-  trialing: number
-  active: number
-  cancelled: number
+  owners: number
+  promoters: number
+  artists: number
+  vendors: number
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -148,7 +149,7 @@ export default function SalesPortalDashboard() {
   const [commissions,     setCommissions]    = useState<Commission[]>([])
   const [managerUsers,    setManagerUsers]   = useState<ManagerUser[]>([])
   const [managerSummary,  setManagerSummary] = useState<ManagerSummary | null>(null)
-  const [userSearch,      setUserSearch]     = useState('')
+  const [userRoleFilter,  setUserRoleFilter]  useState('')
   const [userStatusFilter,setUserStatusFilter] = useState('all')
   const [loadingData,     setLoadingData]    = useState(true)
   const [loadingUsers,    setLoadingUsers]   = useState(false)
@@ -184,11 +185,11 @@ export default function SalesPortalDashboard() {
   useEffect(() => {
     if (isAuthenticated) fetchData()
   }, [isAuthenticated, fetchData])
-
-  const fetchManagerUsers = useCallback(async (search = '', status = '') => {
+role = '') => {
     setLoadingUsers(true)
     try {
       const res = await api.get('/affiliates/manager/users', {
+        params: { search, role'/affiliates/manager/users', {
         params: { search, status },
       })
       setManagerUsers(res.data.users || [])
@@ -202,13 +203,13 @@ export default function SalesPortalDashboard() {
 
   // Load users tab on first visit
   useEffect(() => {
-    if (tab === 'users' && isManager && managerUsers.length === 0) {
-      fetchManagerUsers(userSearch, userStatusFilter)
+    if (tab === 'users' && isManager && RoleFilter)
     }
   }, [tab]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleUserSearch = (e: React.FormEvent) => {
     e.preventDefault()
+    fetchManagerUsers(userSearch, userRole
     fetchManagerUsers(userSearch, userStatusFilter)
   }
 
@@ -512,22 +513,26 @@ export default function SalesPortalDashboard() {
             <div className="space-y-5">
 
               {/* Summary cards */}
-              {managerSummary && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  <div className="bg-white rounded-xl border p-4">
-                    <p className="text-xs text-gray-500 mb-1">Total Accounts</p>
+              {managerSummary && (5 gap-3">
+                  <div className="bg-white rounded-xl border p-4 col-span-2 sm:col-span-1">
+                    <p className="text-xs text-gray-500 mb-1">All Users</p>
                     <p className="text-2xl font-bold text-gray-900">{managerSummary.total}</p>
                   </div>
-                  <div className="bg-green-50 rounded-xl border border-green-200 p-4">
-                    <p className="text-xs text-green-600 mb-1">Paid / Active</p>
-                    <p className="text-2xl font-bold text-green-700">{managerSummary.active}</p>
+                  <div className="bg-indigo-50 rounded-xl border border-indigo-200 p-4">
+                    <p className="text-xs text-indigo-600 mb-1">Owners</p>
+                    <p className="text-2xl font-bold text-indigo-700">{managerSummary.owners}</p>
                   </div>
-                  <div className="bg-blue-50 rounded-xl border border-blue-200 p-4">
-                    <p className="text-xs text-blue-600 mb-1">In Trial</p>
-                    <p className="text-2xl font-bold text-blue-700">{managerSummary.trialing}</p>
+                  <div className="bg-purple-50 rounded-xl border border-purple-200 p-4">
+                    <p className="text-xs text-purple-600 mb-1">Promoters</p>
+                    <p className="text-2xl font-bold text-purple-700">{managerSummary.promoters}</p>
                   </div>
-                  <div className="bg-red-50 rounded-xl border border-red-200 p-4">
-                    <p className="text-xs text-red-500 mb-1">Cancelled</p>
+                  <div className="bg-pink-50 rounded-xl border border-pink-200 p-4">
+                    <p className="text-xs text-pink-600 mb-1">Artists</p>
+                    <p className="text-2xl font-bold text-pink-700">{managerSummary.artists}</p>
+                  </div>
+                  <div className="bg-orange-50 rounded-xl border border-orange-200 p-4">
+                    <p className="text-xs text-orange-600 mb-1">Vendors</p>
+                    <p className="text-2xl font-bold text-orange-700">{managerSummary.vendors
                     <p className="text-2xl font-bold text-red-700">{managerSummary.cancelled}</p>
                   </div>
                 </div>
@@ -551,22 +556,21 @@ export default function SalesPortalDashboard() {
                   </button>
                 </form>
                 <div className="flex gap-2 items-center">
-                  <select
-                    value={userStatusFilter}
+                  <selectRoleFilter}
                     onChange={e => {
-                      setUserStatusFilter(e.target.value)
+                      setUserRoleFilter(e.target.value)
                       fetchManagerUsers(userSearch, e.target.value)
                     }}
                     className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   >
-                    <option value="all">All Statuses</option>
-                    <option value="active">Active (Paid)</option>
-                    <option value="trialing">In Trial</option>
-                    <option value="trial">Never Started</option>
-                    <option value="cancelled">Cancelled</option>
-                    <option value="past_due">Past Due</option>
+                    <option value="all">All Roles</option>
+                    <option value="owner">Owners</option>
+                    <option value="promoter">Promoters</option>
+                    <option value="artist">Artists</option>
+                    <option value="vendor">Vendors</option>
                   </select>
                   <button
+                    onClick={() => fetchManagerUsers(userSearch, userRole
                     onClick={() => fetchManagerUsers(userSearch, userStatusFilter)}
                     className="p-2 border rounded-lg hover:bg-gray-50"
                     title="Refresh"
@@ -587,7 +591,7 @@ export default function SalesPortalDashboard() {
                 ) : (
                   <table className="min-w-full divide-y divide-gray-100 text-sm">
                     <thead className="bg-gray-50">
-                      <tr>
+                      <tr>Role', '
                         {['User', 'Business', 'Subscription', 'Signed Up', 'Last Login', 'Referred By'].map(h => (
                           <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             {h}
@@ -605,13 +609,30 @@ export default function SalesPortalDashboard() {
                                 : <span className="text-gray-400 italic">No name</span>}
                             </p>
                             <p className="text-xs text-gray-400">{u.email ?? '—'}</p>
+                          </td>">
+                            <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium border ${
+                              u.role === 'owner'    ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                              u.role === 'promoter' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                              u.role === 'artist'   ? 'bg-pink-50 text-pink-700 border-pink-200' :
+                              u.role === 'vendor'   ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                              'bg-gray-50 text-gray-600 border-gray-200'
+                            }`}>
+                              {u.role.charAt(0).toUpperCase() + u.role.slice(1)}
+                            </span>
                           </td>
                           <td className="px-4 py-3 text-gray-600">{u.business_name ?? <span className="text-gray-300">—</span>}</td>
                           <td className="px-4 py-3">
-                            <span className={statusBadge(u.subscription_status)}>
-                              {SUB_STATUS_LABELS[u.subscription_status] ?? u.subscription_status}
-                            </span>
-                            {u.subscription_status === 'trialing' && u.trial_ends_at && (
+                            {u.subscription_status ? (
+                              <>
+                                <span className={statusBadge(u.subscription_status)}>
+                                  {SUB_STATUS_LABELS[u.subscription_status] ?? u.subscription_status}
+                                </span>
+                                {u.subscription_status === 'trialing' && u.trial_ends_at && (
+                                  <p className="text-xs text-gray-400 mt-0.5">ends {fmtDate(u.trial_ends_at)}</p>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-gray-300 text-xs">—</span
                               <p className="text-xs text-gray-400 mt-0.5">ends {fmtDate(u.trial_ends_at)}</p>
                             )}
                           </td>

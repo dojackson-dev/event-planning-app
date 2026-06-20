@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
 import { useAffiliateAuth } from '@/contexts/AffiliateAuthContext'
+import { Search, RefreshCw, Users, TrendingUp, CheckCircle, XCircle } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -49,9 +50,38 @@ interface Commission {
   owner_accounts: { business_name: string }
 }
 
+interface ManagerUser {
+  id: string
+  owner_id: string
+  email: string | null
+  first_name: string | null
+  last_name: string | null
+  business_name: string | null
+  subscription_status: string
+  trial_ends_at: string | null
+  account_created_at: string
+  last_login: string | null
+  referred_by: { name: string; code: string } | null
+}
+
+interface ManagerSummary {
+  total: number
+  trialing: number
+  active: number
+  cancelled: number
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://eventecos.com'
+
+const SUB_STATUS_LABELS: Record<string, string> = {
+  active:    'Active',
+  trialing:  'In Trial',
+  trial:     'Never Started',
+  cancelled: 'Cancelled',
+  past_due:  'Past Due',
+}
 
 function statusBadge(status: string) {
   const map: Record<string, string> = {
@@ -61,11 +91,24 @@ function statusBadge(status: string) {
     paid:      'bg-green-50 text-green-700 border-green-200',
     void:      'bg-red-50 text-red-500 border-red-200',
     active:    'bg-green-50 text-green-700 border-green-200',
-    trial:     'bg-blue-50 text-blue-700 border-blue-200',
+    trialing:  'bg-blue-50 text-blue-700 border-blue-200',
+    trial:     'bg-gray-50 text-gray-500 border-gray-200',
+    past_due:  'bg-orange-50 text-orange-700 border-orange-200',
+    cancelled: 'bg-red-50 text-red-500 border-red-200',
     inactive:  'bg-gray-50 text-gray-500 border-gray-200',
   }
   return `inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border
     ${map[status] ?? 'bg-gray-50 text-gray-600 border-gray-200'}`
+}
+
+function fmtRelative(iso: string | null) {
+  if (!iso) return 'Never'
+  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
+  if (diff === 0) return 'Today'
+  if (diff === 1) return 'Yesterday'
+  if (diff < 30) return `${diff}d ago`
+  if (diff < 365) return `${Math.floor(diff / 30)}mo ago`
+  return `${Math.floor(diff / 365)}y ago`
 }
 
 function fmt(n: number) {
@@ -93,18 +136,25 @@ function StatCard({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type Tab = 'overview' | 'referrals' | 'commissions'
+type Tab = 'overview' | 'referrals' | 'commissions' | 'users'
 
 export default function SalesPortalDashboard() {
   const { affiliate: authAffiliate, isAuthenticated, loading: authLoading, logout } = useAffiliateAuth()
   const router = useRouter()
 
-  const [tab,         setTab]         = useState<Tab>('overview')
-  const [dashboard,   setDashboard]   = useState<DashboardData | null>(null)
-  const [referrals,   setReferrals]   = useState<Referral[]>([])
-  const [commissions, setCommissions] = useState<Commission[]>([])
-  const [loadingData, setLoadingData] = useState(true)
-  const [copied,      setCopied]      = useState(false)
+  const [tab,             setTab]            = useState<Tab>('overview')
+  const [dashboard,       setDashboard]      = useState<DashboardData | null>(null)
+  const [referrals,       setReferrals]      = useState<Referral[]>([])
+  const [commissions,     setCommissions]    = useState<Commission[]>([])
+  const [managerUsers,    setManagerUsers]   = useState<ManagerUser[]>([])
+  const [managerSummary,  setManagerSummary] = useState<ManagerSummary | null>(null)
+  const [userSearch,      setUserSearch]     = useState('')
+  const [userStatusFilter,setUserStatusFilter] = useState('all')
+  const [loadingData,     setLoadingData]    = useState(true)
+  const [loadingUsers,    setLoadingUsers]   = useState(false)
+  const [copied,          setCopied]         = useState(false)
+
+  const isManager = authAffiliate?.email === 'sales@eventecos.com'
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -134,6 +184,33 @@ export default function SalesPortalDashboard() {
   useEffect(() => {
     if (isAuthenticated) fetchData()
   }, [isAuthenticated, fetchData])
+
+  const fetchManagerUsers = useCallback(async (search = '', status = '') => {
+    setLoadingUsers(true)
+    try {
+      const res = await api.get('/affiliates/manager/users', {
+        params: { search, status },
+      })
+      setManagerUsers(res.data.users || [])
+      setManagerSummary(res.data.summary || null)
+    } catch {
+      // not a manager or token expired
+    } finally {
+      setLoadingUsers(false)
+    }
+  }, [])
+
+  // Load users tab on first visit
+  useEffect(() => {
+    if (tab === 'users' && isManager && managerUsers.length === 0) {
+      fetchManagerUsers(userSearch, userStatusFilter)
+    }
+  }, [tab]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleUserSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    fetchManagerUsers(userSearch, userStatusFilter)
+  }
 
   const referralLink = dashboard
     ? `${FRONTEND_URL}/register?ref=${dashboard.affiliate.referral_code}`
@@ -233,12 +310,12 @@ export default function SalesPortalDashboard() {
 
         {/* Tabs */}
         <div>
-          <div className="flex gap-1 border-b border-gray-200 mb-6">
+          <div className="flex gap-1 border-b border-gray-200 mb-6 overflow-x-auto">
             {(['overview', 'referrals', 'commissions'] as Tab[]).map(t => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors capitalize
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors capitalize whitespace-nowrap
                   ${tab === t
                     ? 'border-indigo-600 text-indigo-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700'}`}
@@ -246,6 +323,17 @@ export default function SalesPortalDashboard() {
                 {t}
               </button>
             ))}
+            {isManager && (
+              <button
+                onClick={() => setTab('users')}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-1
+                  ${tab === 'users'
+                    ? 'border-indigo-600 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+              >
+                <Users className="w-3.5 h-3.5" />All Users
+              </button>
+            )}
           </div>
 
           {/* ── Overview ─── */}
@@ -416,6 +504,142 @@ export default function SalesPortalDashboard() {
                   </tbody>
                 </table>
               )}
+            </div>
+          )}
+
+          {/* ── Users (manager only) ─── */}
+          {tab === 'users' && isManager && (
+            <div className="space-y-5">
+
+              {/* Summary cards */}
+              {managerSummary && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="bg-white rounded-xl border p-4">
+                    <p className="text-xs text-gray-500 mb-1">Total Accounts</p>
+                    <p className="text-2xl font-bold text-gray-900">{managerSummary.total}</p>
+                  </div>
+                  <div className="bg-green-50 rounded-xl border border-green-200 p-4">
+                    <p className="text-xs text-green-600 mb-1">Paid / Active</p>
+                    <p className="text-2xl font-bold text-green-700">{managerSummary.active}</p>
+                  </div>
+                  <div className="bg-blue-50 rounded-xl border border-blue-200 p-4">
+                    <p className="text-xs text-blue-600 mb-1">In Trial</p>
+                    <p className="text-2xl font-bold text-blue-700">{managerSummary.trialing}</p>
+                  </div>
+                  <div className="bg-red-50 rounded-xl border border-red-200 p-4">
+                    <p className="text-xs text-red-500 mb-1">Cancelled</p>
+                    <p className="text-2xl font-bold text-red-700">{managerSummary.cancelled}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Search + filter */}
+              <div className="bg-white rounded-xl border p-4 flex flex-col sm:flex-row gap-3">
+                <form onSubmit={handleUserSearch} className="flex gap-2 flex-1">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={userSearch}
+                      onChange={e => setUserSearch(e.target.value)}
+                      placeholder="Search name, email, or business..."
+                      className="w-full pl-9 pr-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">
+                    Search
+                  </button>
+                </form>
+                <div className="flex gap-2 items-center">
+                  <select
+                    value={userStatusFilter}
+                    onChange={e => {
+                      setUserStatusFilter(e.target.value)
+                      fetchManagerUsers(userSearch, e.target.value)
+                    }}
+                    className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="active">Active (Paid)</option>
+                    <option value="trialing">In Trial</option>
+                    <option value="trial">Never Started</option>
+                    <option value="cancelled">Cancelled</option>
+                    <option value="past_due">Past Due</option>
+                  </select>
+                  <button
+                    onClick={() => fetchManagerUsers(userSearch, userStatusFilter)}
+                    className="p-2 border rounded-lg hover:bg-gray-50"
+                    title="Refresh"
+                  >
+                    <RefreshCw className="w-4 h-4 text-gray-500" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Table */}
+              <div className="bg-white rounded-xl border overflow-hidden">
+                {loadingUsers ? (
+                  <div className="flex items-center justify-center py-16">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+                  </div>
+                ) : managerUsers.length === 0 ? (
+                  <div className="text-center py-16 text-gray-400">No accounts found</div>
+                ) : (
+                  <table className="min-w-full divide-y divide-gray-100 text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        {['User', 'Business', 'Subscription', 'Signed Up', 'Last Login', 'Referred By'].map(h => (
+                          <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {managerUsers.map(u => (
+                        <tr key={u.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3">
+                            <p className="font-medium text-gray-900">
+                              {u.first_name || u.last_name
+                                ? `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim()
+                                : <span className="text-gray-400 italic">No name</span>}
+                            </p>
+                            <p className="text-xs text-gray-400">{u.email ?? '—'}</p>
+                          </td>
+                          <td className="px-4 py-3 text-gray-600">{u.business_name ?? <span className="text-gray-300">—</span>}</td>
+                          <td className="px-4 py-3">
+                            <span className={statusBadge(u.subscription_status)}>
+                              {SUB_STATUS_LABELS[u.subscription_status] ?? u.subscription_status}
+                            </span>
+                            {u.subscription_status === 'trialing' && u.trial_ends_at && (
+                              <p className="text-xs text-gray-400 mt-0.5">ends {fmtDate(u.trial_ends_at)}</p>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{fmtDate(u.account_created_at)}</td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className={u.last_login ? 'text-gray-700' : 'text-gray-300 italic'}>
+                              {fmtRelative(u.last_login)}
+                            </span>
+                            {u.last_login && (
+                              <p className="text-xs text-gray-400">{fmtDate(u.last_login)}</p>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            {u.referred_by ? (
+                              <div>
+                                <p className="text-gray-700 text-xs font-medium">{u.referred_by.name}</p>
+                                <p className="text-gray-400 text-xs font-mono">{u.referred_by.code}</p>
+                              </div>
+                            ) : (
+                              <span className="text-gray-300 text-xs">Organic</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
             </div>
           )}
         </div>

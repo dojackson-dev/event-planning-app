@@ -3,6 +3,7 @@ import {
   BadRequestException,
   UnauthorizedException,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { RegisterAffiliateDto, UpdateAffiliateDto } from './dto/affiliate.dto';
@@ -406,6 +407,113 @@ export class AffiliatesService {
       period_end:             periodEnd.toISOString(),
       status:                 'pending',
     });
+  }
+
+  // ─── Sales Manager: All-users view ──────────────────────────────────────
+
+  /**
+   * Only available to the sales@eventecos.com manager account.
+   * Returns all owner accounts with subscription status, sign-up date,
+   * last login, and which affiliate (if any) referred them.
+   */
+  async getManagerUsers(affiliateEmail: string, search = '', statusFilter = '') {
+    if (affiliateEmail !== 'sales@eventecos.com') {
+      throw new ForbiddenException('Manager access only');
+    }
+
+    const admin = this.supabaseService.getAdminClient();
+
+    let accountsQuery = admin
+      .from('owner_accounts')
+      .select('id, primary_owner_id, business_name, subscription_status, trial_ends_at, referred_by_affiliate_id, created_at')
+      .order('created_at', { ascending: false });
+
+    if (statusFilter && statusFilter !== 'all') {
+      accountsQuery = admin
+        .from('owner_accounts')
+        .select('id, primary_owner_id, business_name, subscription_status, trial_ends_at, referred_by_affiliate_id, created_at')
+        .eq('subscription_status', statusFilter)
+        .order('created_at', { ascending: false });
+    }
+
+    const { data: accounts, error } = await accountsQuery;
+    if (error) throw new BadRequestException(error.message);
+
+    const ownerIds = (accounts || []).map((a: any) => a.primary_owner_id).filter(Boolean);
+    const { data: users } = ownerIds.length
+      ? await admin
+          .from('users')
+          .select('id, email, first_name, last_name, last_sign_in_at, created_at')
+          .in('id', ownerIds)
+      : { data: [] };
+
+    const userMap = new Map((users || []).map((u: any) => [u.id, u]));
+
+    // Load affiliate names for referred accounts
+    const affiliateIds = [...new Set(
+      (accounts || []).map((a: any) => a.referred_by_affiliate_id).filter(Boolean),
+    )];
+    const { data: affiliates } = affiliateIds.length
+      ? await admin
+          .from('affiliates')
+          .select('id, first_name, last_name, referral_code')
+          .in('id', affiliateIds)
+      : { data: [] };
+    const affiliateMap = new Map((affiliates || []).map((a: any) => [a.id, a]));
+
+    let enriched = (accounts || []).map((a: any) => {
+      const user = userMap.get(a.primary_owner_id) || null;
+      const ref  = affiliateMap.get(a.referred_by_affiliate_id) || null;
+      return {
+        id:                  a.id,
+        owner_id:            a.primary_owner_id,
+        email:               user?.email ?? null,
+        first_name:          user?.first_name ?? null,
+        last_name:           user?.last_name ?? null,
+        business_name:       a.business_name ?? null,
+        subscription_status: a.subscription_status,
+        trial_ends_at:       a.trial_ends_at,
+        account_created_at:  a.created_at,
+        last_login:          user?.last_sign_in_at ?? null,
+        referred_by:         ref
+          ? { name: `${ref.first_name} ${ref.last_name}`, code: ref.referral_code }
+          : null,
+      };
+    });
+
+    if (search) {
+      const s = search.toLowerCase();
+      enriched = enriched.filter(
+        (r: any) =>
+          r.email?.toLowerCase().includes(s) ||
+          r.first_name?.toLowerCase().includes(s) ||
+          r.last_name?.toLowerCase().includes(s) ||
+          r.business_name?.toLowerCase().includes(s),
+      );
+    }
+
+    // Summary counts
+    const [
+      { count: totalTrialing },
+      { count: totalActive },
+      { count: totalCancelled },
+      { count: totalAll },
+    ] = await Promise.all([
+      admin.from('owner_accounts').select('*', { count: 'exact', head: true }).in('subscription_status', ['trialing', 'trial']),
+      admin.from('owner_accounts').select('*', { count: 'exact', head: true }).eq('subscription_status', 'active'),
+      admin.from('owner_accounts').select('*', { count: 'exact', head: true }).eq('subscription_status', 'cancelled'),
+      admin.from('owner_accounts').select('*', { count: 'exact', head: true }),
+    ]);
+
+    return {
+      users: enriched,
+      summary: {
+        total:     totalAll      ?? 0,
+        trialing:  totalTrialing ?? 0,
+        active:    totalActive   ?? 0,
+        cancelled: totalCancelled ?? 0,
+      },
+    };
   }
 
   // ─── Referral Code Lookup ─────────────────────────────────────────────────

@@ -76,8 +76,8 @@ export class AffiliatesController {
   async getManagerUsers(
     @Req() req: any,
     @Query('search') search = '',
-    @Query('status') status = '',
+    @Query('role') role = '',
   ) {
-    return this.affiliatesService.getManagerUsers(req.affiliate.email, search, status);
+    return this.affiliatesService.getManagerUsers(req.affiliate.email, search, role);
   }
 }

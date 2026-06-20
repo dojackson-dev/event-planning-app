@@ -416,40 +416,48 @@ export class AffiliatesService {
    * Returns all owner accounts with subscription status, sign-up date,
    * last login, and which affiliate (if any) referred them.
    */
-  async getManagerUsers(affiliateEmail: string, search = '', statusFilter = '') {
+  async getManagerUsers(affiliateEmail: string, search = '', roleFilter = '') {
     if (affiliateEmail !== 'sales@eventecos.com') {
       throw new ForbiddenException('Manager access only');
     }
 
     const admin = this.supabaseService.getAdminClient();
 
-    let accountsQuery = admin
-      .from('owner_accounts')
-      .select('id, primary_owner_id, business_name, subscription_status, trial_ends_at, referred_by_affiliate_id, created_at')
+    // Fetch all platform users (exclude customers and affiliates from main view)
+    const INCLUDED_ROLES = ['owner', 'promoter', 'artist', 'vendor'];
+
+    let usersQuery = admin
+      .from('users')
+      .select('id, email, first_name, last_name, role, roles, last_sign_in_at, created_at')
+      .in('role', INCLUDED_ROLES)
       .order('created_at', { ascending: false });
 
-    if (statusFilter && statusFilter !== 'all') {
-      accountsQuery = admin
-        .from('owner_accounts')
-        .select('id, primary_owner_id, business_name, subscription_status, trial_ends_at, referred_by_affiliate_id, created_at')
-        .eq('subscription_status', statusFilter)
+    if (roleFilter && roleFilter !== 'all') {
+      usersQuery = admin
+        .from('users')
+        .select('id, email, first_name, last_name, role, roles, last_sign_in_at, created_at')
+        .eq('role', roleFilter)
         .order('created_at', { ascending: false });
     }
 
-    const { data: accounts, error } = await accountsQuery;
+    const { data: allUsers, error } = await usersQuery;
     if (error) throw new BadRequestException(error.message);
 
-    const ownerIds = (accounts || []).map((a: any) => a.primary_owner_id).filter(Boolean);
-    const { data: users } = ownerIds.length
+    // For owners — fetch owner_accounts to get subscription info
+    const ownerIds = (allUsers || [])
+      .filter((u: any) => u.role === 'owner')
+      .map((u: any) => u.id);
+
+    const { data: accounts } = ownerIds.length
       ? await admin
-          .from('users')
-          .select('id, email, first_name, last_name, last_sign_in_at, created_at')
-          .in('id', ownerIds)
+          .from('owner_accounts')
+          .select('primary_owner_id, business_name, subscription_status, trial_ends_at, referred_by_affiliate_id')
+          .in('primary_owner_id', ownerIds)
       : { data: [] };
 
-    const userMap = new Map((users || []).map((u: any) => [u.id, u]));
+    const accountMap = new Map((accounts || []).map((a: any) => [a.primary_owner_id, a]));
 
-    // Load affiliate names for referred accounts
+    // Load affiliate names for referred owners
     const affiliateIds = [...new Set(
       (accounts || []).map((a: any) => a.referred_by_affiliate_id).filter(Boolean),
     )];
@@ -461,20 +469,20 @@ export class AffiliatesService {
       : { data: [] };
     const affiliateMap = new Map((affiliates || []).map((a: any) => [a.id, a]));
 
-    let enriched = (accounts || []).map((a: any) => {
-      const user = userMap.get(a.primary_owner_id) || null;
-      const ref  = affiliateMap.get(a.referred_by_affiliate_id) || null;
+    let enriched = (allUsers || []).map((u: any) => {
+      const acct = accountMap.get(u.id) || null;
+      const ref  = acct ? affiliateMap.get(acct.referred_by_affiliate_id) || null : null;
       return {
-        id:                  a.id,
-        owner_id:            a.primary_owner_id,
-        email:               user?.email ?? null,
-        first_name:          user?.first_name ?? null,
-        last_name:           user?.last_name ?? null,
-        business_name:       a.business_name ?? null,
-        subscription_status: a.subscription_status,
-        trial_ends_at:       a.trial_ends_at,
-        account_created_at:  a.created_at,
-        last_login:          user?.last_sign_in_at ?? null,
+        id:                  u.id,
+        email:               u.email ?? null,
+        first_name:          u.first_name ?? null,
+        last_name:           u.last_name ?? null,
+        role:                u.role,
+        business_name:       acct?.business_name ?? null,
+        subscription_status: acct?.subscription_status ?? null,
+        trial_ends_at:       acct?.trial_ends_at ?? null,
+        account_created_at:  u.created_at,
+        last_login:          u.last_sign_in_at ?? null,
         referred_by:         ref
           ? { name: `${ref.first_name} ${ref.last_name}`, code: ref.referral_code }
           : null,
@@ -492,26 +500,27 @@ export class AffiliatesService {
       );
     }
 
-    // Summary counts
+    // Summary counts by role
     const [
-      { count: totalTrialing },
-      { count: totalActive },
-      { count: totalCancelled },
-      { count: totalAll },
+      { count: totalOwners },
+      { count: totalPromoters },
+      { count: totalArtists },
+      { count: totalVendors },
     ] = await Promise.all([
-      admin.from('owner_accounts').select('*', { count: 'exact', head: true }).in('subscription_status', ['trialing', 'trial']),
-      admin.from('owner_accounts').select('*', { count: 'exact', head: true }).eq('subscription_status', 'active'),
-      admin.from('owner_accounts').select('*', { count: 'exact', head: true }).eq('subscription_status', 'cancelled'),
-      admin.from('owner_accounts').select('*', { count: 'exact', head: true }),
+      admin.from('users').select('*', { count: 'exact', head: true }).eq('role', 'owner'),
+      admin.from('users').select('*', { count: 'exact', head: true }).eq('role', 'promoter'),
+      admin.from('users').select('*', { count: 'exact', head: true }).eq('role', 'artist'),
+      admin.from('users').select('*', { count: 'exact', head: true }).eq('role', 'vendor'),
     ]);
 
     return {
       users: enriched,
       summary: {
-        total:     totalAll      ?? 0,
-        trialing:  totalTrialing ?? 0,
-        active:    totalActive   ?? 0,
-        cancelled: totalCancelled ?? 0,
+        total:     (totalOwners ?? 0) + (totalPromoters ?? 0) + (totalArtists ?? 0) + (totalVendors ?? 0),
+        owners:    totalOwners    ?? 0,
+        promoters: totalPromoters ?? 0,
+        artists:   totalArtists   ?? 0,
+        vendors:   totalVendors   ?? 0,
       },
     };
   }

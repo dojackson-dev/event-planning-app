@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { Users, Store, Calendar, Zap, BarChart3, Shield, ArrowRight, MapPin, Ticket } from 'lucide-react'
+import { Users, Store, Calendar, Zap, BarChart3, Shield, ArrowRight, MapPin, Ticket, Sparkles } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -81,6 +81,13 @@ export default function Home() {
               </Link>
               <Link href="#features" className="text-white hover:text-primary-100 font-medium text-sm border border-white/40 hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors">
                 Features
+              </Link>
+              <Link
+                href="/demo"
+                className="flex items-center gap-1.5 text-sm font-bold bg-white/20 hover:bg-white/30 text-white border border-white/50 hover:border-white/80 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                Live Demo
               </Link>
             </div>
 

@@ -64,11 +64,12 @@ export default function VipScannerPage() {
     setOrderInfo(null)
 
     try {
-      // First look up the order details
-      const orderRes = await api.get<VipOrderInfo>(`/vip/public/orders/qr/${encodeURIComponent(qrCode)}`)
-      setOrderInfo(orderRes.data)
+      // Look up order details (non-blocking — failure here won't prevent check-in)
+      api.get<VipOrderInfo>(`/vip/public/orders/qr/${encodeURIComponent(qrCode)}`)
+        .then(res => setOrderInfo(res.data))
+        .catch(() => {/* order info unavailable, check-in still proceeds */})
 
-      // Then scan (check in)
+      // Scan (check in)
       const scanRes = await api.post<VipScanResult>(`/vip/events/${eventId}/scan`, {
         qr_code: qrCode,
         check_in_mode: checkInMode,
@@ -208,7 +209,7 @@ export default function VipScannerPage() {
         </div>
       )}
 
-      {scanResult && orderInfo && !loading && (
+      {scanResult && !loading && (
         <div className={`rounded-2xl border-2 overflow-hidden ${scanResult.success ? 'border-green-400' : 'border-red-400'}`}>
           {/* Status banner */}
           <div className={`p-4 flex items-center gap-3 ${scanResult.success ? 'bg-green-500' : 'bg-red-500'}`}>
@@ -216,7 +217,7 @@ export default function VipScannerPage() {
               ? <CheckCircle className="w-6 h-6 text-white" />
               : <XCircle className="w-6 h-6 text-white" />}
             <div>
-              <p className="font-bold text-white text-lg">{scanResult.success ? 'ADMITTED' : 'DENIED'}</p>
+              <p className="font-bold text-white text-lg">{scanResult.success ? '✓ CHECK-IN SUCCESSFUL' : 'DENIED'}</p>
               <p className="text-white/80 text-sm">{scanResult.message}</p>
             </div>
             <div className="ml-auto text-right">
@@ -225,9 +226,10 @@ export default function VipScannerPage() {
             </div>
           </div>
 
-          {/* Guest details */}
-          <div className="bg-white p-5">
-            <div className="flex items-start justify-between mb-4">
+          {/* Guest details — only if order info loaded */}
+          {orderInfo && (
+            <div className="bg-white p-5">
+              <div className="flex items-start justify-between mb-4">
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <UserCheck className="w-5 h-5 text-purple-500" />
@@ -302,6 +304,16 @@ export default function VipScannerPage() {
               Scan Next Guest
             </button>
           </div>
+          )}
+
+          {/* Fallback scan-next button when order info not available */}
+          {!orderInfo && (
+            <div className="bg-white p-4">
+              <button onClick={resetScan} className="w-full py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200">
+                Scan Next Guest
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

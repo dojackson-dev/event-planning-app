@@ -149,7 +149,9 @@ export default function SalesPortalDashboard() {
   const [commissions,     setCommissions]    = useState<Commission[]>([])
   const [managerUsers,    setManagerUsers]   = useState<ManagerUser[]>([])
   const [managerSummary,  setManagerSummary] = useState<ManagerSummary | null>(null)
-  const [userRoleFilter,  setUserRoleFilter]  = useState('all')
+  const [userRoleFilter,  setUserRoleFilter]   = useState('all')
+  const [userSearch,      setUserSearch]       = useState('')
+  const [userStatusFilter, setUserStatusFilter] = useState('all')
   const [loadingData,     setLoadingData]    = useState(true)
   const [loadingUsers,    setLoadingUsers]   = useState(false)
   const [copied,          setCopied]         = useState(false)
@@ -555,7 +557,8 @@ export default function SalesPortalDashboard() {
                   </button>
                 </form>
                 <div className="flex gap-2 items-center">
-                  <selectRoleFilter}
+                  <select
+                    value={userRoleFilter}
                     onChange={e => {
                       setUserRoleFilter(e.target.value)
                       fetchManagerUsers(userSearch, e.target.value)
@@ -569,7 +572,6 @@ export default function SalesPortalDashboard() {
                     <option value="vendor">Vendors</option>
                   </select>
                   <button
-                    onClick={() => fetchManagerUsers(userSearch, userRole
                     onClick={() => fetchManagerUsers(userSearch, userStatusFilter)}
                     className="p-2 border rounded-lg hover:bg-gray-50"
                     title="Refresh"

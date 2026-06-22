@@ -751,28 +751,43 @@ export class PromoterEventsService {
     if (!ticket) throw new NotFoundException('Ticket not found');
     if (ticket.status === 'used') throw new BadRequestException('Ticket has already been used');
 
-    const forwardCode = crypto.randomUUID();
+    // Generate a short 8-char code to match the ticket_forward_codes table schema
+    const forwardCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+
+    // Delete any existing forward code for this ticket before creating a new one
+    await admin.from('ticket_forward_codes').delete().eq('ticket_id', ticketId);
+
     const { error } = await admin
-      .from('tickets')
-      .update({
-        forward_code: forwardCode,
-        ...(recipientPhone ? { forward_recipient_phone: recipientPhone } : {}),
-        ...(recipientEmail ? { forward_recipient_email: recipientEmail } : {}),
-      })
-      .eq('id', ticketId);
+      .from('ticket_forward_codes')
+      .insert({
+        ticket_id: ticketId,
+        code: forwardCode,
+        ...(recipientPhone ? { recipient_phone: recipientPhone } : {}),
+        ...(recipientEmail ? { recipient_email: recipientEmail } : {}),
+      });
     if (error) throw new BadRequestException(error.message);
     return { forwardCode };
   }
 
   async getTicketByForwardCode(code: string) {
     const admin = this.supabaseService.getAdminClient();
+    const { data: forwardRecord, error: fwErr } = await admin
+      .from('ticket_forward_codes')
+      .select('ticket_id, recipient_phone, recipient_email, expires_at, claimed_at')
+      .eq('code', code)
+      .maybeSingle();
+    if (fwErr || !forwardRecord) throw new NotFoundException('Invalid or expired forward code');
+    if (forwardRecord.expires_at && new Date(forwardRecord.expires_at) < new Date()) {
+      throw new BadRequestException('This forward link has expired');
+    }
+
     const { data, error } = await admin
       .from('tickets')
       .select('*, ticket_tiers(name, price), public_events(title, event_date, venue_name, city, state)')
-      .eq('forward_code', code)
+      .eq('id', forwardRecord.ticket_id)
       .maybeSingle();
-    if (error || !data) throw new NotFoundException('Invalid or expired forward code');
-    return data;
+    if (error || !data) throw new NotFoundException('Ticket not found');
+    return { ...data, forward_recipient_phone: forwardRecord.recipient_phone, forward_recipient_email: forwardRecord.recipient_email };
   }
 
   // ── MULTI-TIER CHECKOUT ───────────────────────────────────────

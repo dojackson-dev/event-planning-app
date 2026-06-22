@@ -665,7 +665,9 @@ export class VipService {
     }
 
     return { success: true, results };
-  }qrCode: string, recipientEmail: string, recipientName?: string) {
+  }
+
+  async transferVipOrder(qrCode: string, recipientEmail: string, recipientName?: string) {
     const admin = this.supabaseService.getAdminClient();
 
     // Validate email format
@@ -676,7 +678,7 @@ export class VipService {
     const { data: order } = await admin
       .from('vip_orders')
       .select(`
-        id, qr_code, buyer_email, payment_status, public_event_id,
+        id, qr_code, buyer_email, payment_status, check_in_status, public_event_id,
         vip_packages(name),
         public_events:public_event_id(title, event_date, start_time, venue_name)
       `)
@@ -792,6 +794,10 @@ export class VipService {
       return passResult;
     }
     if (order.payment_status !== 'paid') throw new BadRequestException('VIP order not paid');
+
+    const capacity = order.vip_packages?.capacity ?? 1;
+    const alreadyIn = order.guests_checked_in ?? 0;
+    if (checkInMode === 'full') {
       const newCount = capacity;
       await admin
         .from('vip_orders')
@@ -840,7 +846,11 @@ export class VipService {
       if (!passResult) throw new NotFoundException('VIP QR code not found for this event');
       return passResult;
     }
-    if (order.payment_status !== 'paid') throw new BadRequestException('VIP order not paid'); { success: boolean; guests_checked_in: number; total_capacity: number; message: string };
+    if (order.payment_status !== 'paid') throw new BadRequestException('VIP order not paid');
+
+    const capacity = order.vip_packages?.capacity ?? 1;
+    const alreadyIn = order.guests_checked_in ?? 0;
+    let checkInResult: { success: boolean; guests_checked_in: number; total_capacity: number; message: string };
 
     if (dto.check_in_mode === 'full') {
       const newCount = capacity;

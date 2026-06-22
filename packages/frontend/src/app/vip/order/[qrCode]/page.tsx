@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import Link from 'next/link'
-import { Crown, Calendar, MapPin, Loader2, CheckCircle, Clock, Users, Send, X } from 'lucide-react'
+import { Crown, Calendar, MapPin, Loader2, CheckCircle, Clock, Users, Send, X, Phone, Mail, UserPlus } from 'lucide-react'
 import api from '@/lib/api'
 
 interface VipOrder {
@@ -24,7 +24,7 @@ interface VipOrder {
     table_label: string | null
     vip_sections: { name: string } | null
   } | null
-  vip_guest_passes: { id: string; guest_name: string | null; status: string }[]
+  vip_guest_passes: { id: string; guest_name: string | null; guest_email: string | null; guest_phone: string | null; qr_code: string; status: string }[]
   vip_service_orders: {
     id: string
     quantity: number
@@ -45,6 +45,10 @@ export default function VipOrderPage({ params }: { params: { qrCode: string } })
   const [forwardLoading, setForwardLoading] = useState(false)
   const [forwardDone, setForwardDone] = useState(false)
   const [forwardError, setForwardError] = useState('')
+  // Guest pass assignment: index → { name, phone, email }
+  const [passAssign, setPassAssign] = useState<Record<number, { name: string; phone: string; email: string }>>({}) 
+  const [passSent, setPassSent] = useState<Record<number, 'sending' | 'sent' | 'error'>>({}) 
+  const [passExpanded, setPassExpanded] = useState<number | null>(null)
 
   useEffect(() => {
     if (!qrCode) return
@@ -73,6 +77,21 @@ export default function VipOrderPage({ params }: { params: { qrCode: string } })
     fetchOrder(0)
     return () => { cancelled = true }
   }, [qrCode])
+
+  const sendGuestPass = async (idx: number) => {
+    const form = passAssign[idx] || { name: '', phone: '', email: '' }
+    if (!form.phone && !form.email) return
+    setPassSent(prev => ({ ...prev, [idx]: 'sending' }))
+    try {
+      await api.post(`/vip/public/orders/qr/${encodeURIComponent(qrCode)}/passes/assign`, {
+        assignments: [{ pass_index: idx, guest_name: form.name || undefined, guest_phone: form.phone || undefined, guest_email: form.email || undefined }],
+      })
+      setPassSent(prev => ({ ...prev, [idx]: 'sent' }))
+      setPassExpanded(null)
+    } catch {
+      setPassSent(prev => ({ ...prev, [idx]: 'error' }))
+    }
+  }
 
   const handleForward = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -226,19 +245,83 @@ export default function VipOrderPage({ params }: { params: { qrCode: string } })
           </div>
         )}
 
-        {/* Guest passes */}
+        {/* Guest passes — individual ticket assignment */}
         {order.vip_guest_passes.length > 0 && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-            <h2 className="font-bold text-gray-900 mb-3 text-sm">Guest Passes ({order.vip_guest_passes.length})</h2>
-            <div className="space-y-1.5">
-              {order.vip_guest_passes.map(g => (
-                <div key={g.id} className="flex justify-between items-center text-sm">
-                  <span className="text-gray-700">{g.guest_name || 'Guest'}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                    g.status === 'checked_in' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-                  }`}>{g.status === 'checked_in' ? 'Checked in' : 'Not checked in'}</span>
-                </div>
-              ))}
+            <div className="flex items-center gap-2 mb-4">
+              <UserPlus className="w-4 h-4 text-purple-500" />
+              <h2 className="font-bold text-gray-900 text-sm">Guest Passes ({order.vip_guest_passes.length})</h2>
+              <span className="ml-auto text-xs text-gray-400">Tap a slot to send a ticket</span>
+            </div>
+            <div className="space-y-2">
+              {order.vip_guest_passes.map((g, idx) => {
+                const form   = passAssign[idx] || { name: '', phone: '', email: '' }
+                const status = passSent[idx]
+                const isOpen = passExpanded === idx
+                const used   = g.status === 'used' || g.status === 'checked_in'
+                return (
+                  <div key={g.id} className={`border rounded-xl overflow-hidden ${used ? 'border-gray-100 bg-gray-50' : 'border-purple-100 bg-purple-50/30'}`}>
+                    <button
+                      disabled={used}
+                      onClick={() => setPassExpanded(isOpen ? null : idx)}
+                      className="w-full flex items-center justify-between px-4 py-2.5 text-sm"
+                    >
+                      <span className={`font-medium ${used ? 'text-gray-400' : 'text-gray-800'}`}>
+                        {g.guest_name || `Pass ${idx + 1}`}
+                      </span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                        used            ? 'bg-green-100 text-green-700' :
+                        status === 'sent'  ? 'bg-blue-100 text-blue-700' :
+                        status === 'error' ? 'bg-red-100 text-red-600' :
+                        g.guest_phone || g.guest_email ? 'bg-purple-100 text-purple-700' :
+                        'bg-gray-100 text-gray-500'
+                      }`}>
+                        {used ? 'Checked in' : status === 'sent' ? '✓ Sent' : status === 'error' ? 'Failed' : (g.guest_phone || g.guest_email) ? 'Assigned' : 'Unassigned'}
+                      </span>
+                    </button>
+
+                    {isOpen && !used && (
+                      <div className="px-4 pb-4 space-y-2 border-t border-purple-100 pt-3">
+                        <input
+                          value={form.name}
+                          onChange={e => setPassAssign(p => ({ ...p, [idx]: { ...form, name: e.target.value } }))}
+                          placeholder="Guest name (optional)"
+                          className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+                        />
+                        <div className="relative">
+                          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                          <input
+                            type="tel"
+                            value={form.phone}
+                            onChange={e => setPassAssign(p => ({ ...p, [idx]: { ...form, phone: e.target.value } }))}
+                            placeholder="+1 555 000 0000 (SMS — preferred)"
+                            className="w-full pl-8 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+                          />
+                        </div>
+                        <div className="relative">
+                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                          <input
+                            type="email"
+                            value={form.email}
+                            onChange={e => setPassAssign(p => ({ ...p, [idx]: { ...form, email: e.target.value } }))}
+                            placeholder="Email (optional)"
+                            className="w-full pl-8 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+                          />
+                        </div>
+                        <button
+                          onClick={() => sendGuestPass(idx)}
+                          disabled={(!form.phone && !form.email) || status === 'sending'}
+                          className="w-full py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                          {status === 'sending'
+                            ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending…</>
+                            : <><Send className="w-4 h-4" /> Send Pass</>}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}

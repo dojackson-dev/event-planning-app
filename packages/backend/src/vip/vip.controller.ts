@@ -78,6 +78,21 @@ export class VipController {
     return this.service.transferVipOrder(qrCode, body.recipient_email, body.recipient_name);
   }
 
+  /** Send individual guest passes via SMS or email */
+  @Post('public/orders/qr/:qrCode/passes/assign')
+  assignGuestPasses(
+    @Param('qrCode') qrCode: string,
+    @Body() body: { assignments: { pass_index: number; guest_name?: string; guest_phone?: string; guest_email?: string }[] },
+  ) {
+    return this.service.assignGuestPasses(qrCode, body.assignments);
+  }
+
+  /** Get individual guest pass by its QR code (for guest view page) */
+  @Get('public/passes/:passQrCode')
+  getGuestPass(@Param('passQrCode') passQrCode: string) {
+    return this.service.getGuestPass(passQrCode);
+  }
+
   // ── SECTIONS ──────────────────────────────────────────────────
 
   @Post('events/:eventId/sections')

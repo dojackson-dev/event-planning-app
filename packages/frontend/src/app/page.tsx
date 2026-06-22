@@ -531,7 +531,10 @@ export default function Home() {
               <h4 className="text-white font-bold mb-4">Product</h4>
               <ul className="space-y-2 text-gray-400 text-sm">
                 <li><Link href="#features" className="hover:text-white">Features</Link></li>
+                <li><Link href="/login" className="hover:text-white">Venue Owners Login</Link></li>
                 <li><Link href="/client-login" className="hover:text-white">Client Portal</Link></li>
+                <li><Link href="/vendors/login" className="hover:text-white">Vendor Portal</Link></li>
+                <li><Link href="/sales-portal/login" className="hover:text-white">Sales Portal</Link></li>
               </ul>
             </div>
             <div>

@@ -64,11 +64,12 @@ export default function VipScannerPage() {
     setOrderInfo(null)
 
     try {
-      // First look up the order details
-      const orderRes = await api.get<VipOrderInfo>(`/vip/public/orders/qr/${encodeURIComponent(qrCode)}`)
-      setOrderInfo(orderRes.data)
+      // Look up order details (non-blocking — failure here won't prevent check-in)
+      api.get<VipOrderInfo>(`/vip/public/orders/qr/${encodeURIComponent(qrCode)}`)
+        .then(res => setOrderInfo(res.data))
+        .catch(() => {/* order info unavailable, check-in still proceeds */})
 
-      // Then scan (check in)
+      // Scan (check in)
       const scanRes = await api.post<VipScanResult>(`/vip/events/${eventId}/scan`, {
         qr_code: qrCode,
         check_in_mode: checkInMode,
@@ -208,7 +209,7 @@ export default function VipScannerPage() {
         </div>
       )}
 
-      {scanResult && orderInfo && !loading && (
+      {scanResult && !loading && (
         <div className={`rounded-2xl border-2 overflow-hidden ${scanResult.success ? 'border-green-400' : 'border-red-400'}`}>
           {/* Status banner */}
           <div className={`p-4 flex items-center gap-3 ${scanResult.success ? 'bg-green-500' : 'bg-red-500'}`}>
@@ -216,7 +217,7 @@ export default function VipScannerPage() {
               ? <CheckCircle className="w-6 h-6 text-white" />
               : <XCircle className="w-6 h-6 text-white" />}
             <div>
-              <p className="font-bold text-white text-lg">{scanResult.success ? 'ADMITTED' : 'DENIED'}</p>
+              <p className="font-bold text-white text-lg">{scanResult.success ? '✓ CHECK-IN SUCCESSFUL' : 'DENIED'}</p>
               <p className="text-white/80 text-sm">{scanResult.message}</p>
             </div>
             <div className="ml-auto text-right">
@@ -225,83 +226,94 @@ export default function VipScannerPage() {
             </div>
           </div>
 
-          {/* Guest details */}
-          <div className="bg-white p-5">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <UserCheck className="w-5 h-5 text-purple-500" />
-                  <span className="font-bold text-gray-900 text-lg">{orderInfo.buyer_name || orderInfo.buyer_email}</span>
-                </div>
-                {orderInfo.buyer_phone && <p className="text-sm text-gray-500">{orderInfo.buyer_phone}</p>}
-              </div>
-              <button
-                onClick={() => setShowDetails(!showDetails)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                {showDetails ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-              </button>
-            </div>
-
-            {showDetails && (
-              <div className="space-y-3">
-                {/* Package */}
-                <div className="p-3 bg-purple-50 rounded-xl border border-purple-100">
+          {/* Guest details — only if order info loaded */}
+          {orderInfo && (
+            <div className="bg-white p-5">
+              <div className="flex items-start justify-between mb-4">
+                <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <Crown className="w-4 h-4 text-yellow-500" />
-                    <span className="font-semibold text-gray-800">{orderInfo.vip_packages?.name}</span>
+                    <UserCheck className="w-5 h-5 text-purple-500" />
+                    <span className="font-bold text-gray-900 text-lg">{orderInfo.buyer_name || orderInfo.buyer_email}</span>
                   </div>
-                  <div className="flex flex-wrap gap-2 text-xs text-gray-500">
-                    {orderInfo.vip_packages?.table_label && (
-                      <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{orderInfo.vip_packages.table_label}</span>
-                    )}
-                    {orderInfo.vip_packages?.vip_sections?.name && (
-                      <span>{orderInfo.vip_packages.vip_sections.name}</span>
-                    )}
-                    <span className="flex items-center gap-1"><Users className="w-3 h-3" />{orderInfo.vip_packages?.capacity} guests max</span>
-                    {(orderInfo.vip_packages?.included_tickets ?? 0) > 0 && (
-                      <span className="flex items-center gap-1 text-green-600"><Star className="w-3 h-3" />{orderInfo.vip_packages?.included_tickets} passes</span>
-                    )}
-                  </div>
+                  {orderInfo.buyer_phone && <p className="text-sm text-gray-500">{orderInfo.buyer_phone}</p>}
                 </div>
+                <button
+                  onClick={() => setShowDetails(!showDetails)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  {showDetails ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                </button>
+              </div>
 
-                {/* Service items */}
-                {orderInfo.vip_service_orders.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Add-ons</p>
-                    <div className="space-y-1">
-                      {orderInfo.vip_service_orders.map((so, i) => (
-                        <div key={i} className="text-sm">
-                          <div className="flex items-center justify-between">
-                            <span className="flex items-center gap-2">
-                              <Wine className="w-3 h-3 text-purple-400" />
-                              {so.vip_service_items?.name} ×{so.quantity}
-                            </span>
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${so.status === 'delivered' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                              {so.status}
-                            </span>
-                          </div>
-                          {so.special_request && (
-                            <p className="mt-0.5 ml-5 text-xs text-blue-700 bg-blue-50 rounded px-2 py-0.5">Request: {so.special_request}</p>
-                          )}
-                        </div>
-                      ))}
+              {showDetails && (
+                <div className="space-y-3">
+                  {/* Package */}
+                  <div className="p-3 bg-purple-50 rounded-xl border border-purple-100">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Crown className="w-4 h-4 text-yellow-500" />
+                      <span className="font-semibold text-gray-800">{orderInfo.vip_packages?.name}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 text-xs text-gray-500">
+                      {orderInfo.vip_packages?.table_label && (
+                        <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{orderInfo.vip_packages.table_label}</span>
+                      )}
+                      {orderInfo.vip_packages?.vip_sections?.name && (
+                        <span>{orderInfo.vip_packages.vip_sections.name}</span>
+                      )}
+                      <span className="flex items-center gap-1"><Users className="w-3 h-3" />{orderInfo.vip_packages?.capacity} guests max</span>
+                      {(orderInfo.vip_packages?.included_tickets ?? 0) > 0 && (
+                        <span className="flex items-center gap-1 text-green-600"><Star className="w-3 h-3" />{orderInfo.vip_packages?.included_tickets} passes</span>
+                      )}
                     </div>
                   </div>
-                )}
 
-                {orderInfo.notes && (
-                  <div className="p-3 bg-yellow-50 border border-yellow-100 rounded-lg text-sm text-yellow-800">
-                    <span className="font-medium">Note: </span>{orderInfo.notes}
-                  </div>
-                )}
-              </div>
-            )}
+                  {/* Service items */}
+                  {orderInfo.vip_service_orders.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Add-ons</p>
+                      <div className="space-y-1">
+                        {orderInfo.vip_service_orders.map((so, i) => (
+                          <div key={i} className="text-sm">
+                            <div className="flex items-center justify-between">
+                              <span className="flex items-center gap-2">
+                                <Wine className="w-3 h-3 text-purple-400" />
+                                {so.vip_service_items?.name} ×{so.quantity}
+                              </span>
+                              <span className={`text-xs px-2 py-0.5 rounded-full ${so.status === 'delivered' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                {so.status}
+                              </span>
+                            </div>
+                            {so.special_request && (
+                              <p className="mt-0.5 ml-5 text-xs text-blue-700 bg-blue-50 rounded px-2 py-0.5">Request: {so.special_request}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
-            <button onClick={resetScan} className="mt-4 w-full py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200">
-              Scan Next Guest
-            </button>
-          </div>
+                  {orderInfo.notes && (
+                    <div className="p-3 bg-yellow-50 border border-yellow-100 rounded-lg text-sm text-yellow-800">
+                      <span className="font-medium">Note: </span>{orderInfo.notes}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <button onClick={resetScan} className="mt-4 w-full py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200">
+                Scan Next Guest
+              </button>
+            </div>
+          )}
+
+          {/* Fallback scan-next button when order info not available */}
+          {!orderInfo && (
+            <div className="bg-white p-4">
+              <button onClick={resetScan} className="w-full py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200">
+                Scan Next Guest
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

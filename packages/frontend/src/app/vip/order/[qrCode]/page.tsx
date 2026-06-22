@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import Link from 'next/link'
-import { Crown, Calendar, MapPin, Loader2, CheckCircle, Clock, Users } from 'lucide-react'
+import { Crown, Calendar, MapPin, Loader2, CheckCircle, Clock, Users, Send, X } from 'lucide-react'
 import api from '@/lib/api'
 
 interface VipOrder {
@@ -39,6 +39,12 @@ export default function VipOrderPage({ params }: { params: { qrCode: string } })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [retryCount, setRetryCount] = useState(0)
+  const [showForward, setShowForward] = useState(false)
+  const [forwardEmail, setForwardEmail] = useState('')
+  const [forwardName, setForwardName] = useState('')
+  const [forwardLoading, setForwardLoading] = useState(false)
+  const [forwardDone, setForwardDone] = useState(false)
+  const [forwardError, setForwardError] = useState('')
 
   useEffect(() => {
     if (!qrCode) return
@@ -67,6 +73,25 @@ export default function VipOrderPage({ params }: { params: { qrCode: string } })
     fetchOrder(0)
     return () => { cancelled = true }
   }, [qrCode])
+
+  const handleForward = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!forwardEmail) return
+    setForwardLoading(true)
+    setForwardError('')
+    try {
+      await api.post(`/vip/public/orders/qr/${encodeURIComponent(qrCode)}/transfer`, {
+        recipient_email: forwardEmail,
+        recipient_name:  forwardName || undefined,
+      })
+      setForwardDone(true)
+      setOrder(prev => prev ? { ...prev, buyer_email: forwardEmail, buyer_name: forwardName || null } : prev)
+    } catch (err: any) {
+      setForwardError(err.response?.data?.message || 'Transfer failed. Please try again.')
+    } finally {
+      setForwardLoading(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -218,6 +243,24 @@ export default function VipOrderPage({ params }: { params: { qrCode: string } })
           </div>
         )}
 
+        {/* Forward Ticket */}
+        {order.check_in_status !== 'checked_in' && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-semibold text-gray-900 text-sm">Forward this ticket</p>
+                <p className="text-xs text-gray-400 mt-0.5">Transfer your VIP access to someone else</p>
+              </div>
+              <button
+                onClick={() => { setShowForward(true); setForwardDone(false); setForwardError('') }}
+                className="flex items-center gap-1.5 px-4 py-2 bg-purple-600 text-white rounded-xl text-sm font-medium hover:bg-purple-700"
+              >
+                <Send className="w-4 h-4" /> Forward
+              </button>
+            </div>
+          </div>
+        )}
+
         <Link
           href={`/events/${event}`}
           className="block text-center text-sm text-purple-600 hover:text-purple-800 py-2"
@@ -226,5 +269,81 @@ export default function VipOrderPage({ params }: { params: { qrCode: string } })
         </Link>
       </div>
     </div>
+
+    {/* Forward Ticket Modal */}
+    {showForward && (
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 px-4">
+        <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-bold text-gray-900">Forward VIP Ticket</h2>
+            <button onClick={() => setShowForward(false)} className="text-gray-400 hover:text-gray-600">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {forwardDone ? (
+            <div className="text-center py-6">
+              <CheckCircle className="w-14 h-14 text-green-500 mx-auto mb-3" />
+              <p className="font-semibold text-gray-900">Ticket Forwarded!</p>
+              <p className="text-sm text-gray-500 mt-1">A confirmation with the QR code was sent to {forwardEmail}.</p>
+              <button
+                onClick={() => setShowForward(false)}
+                className="mt-5 w-full py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200"
+              >
+                Done
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleForward} className="space-y-4">
+              <p className="text-sm text-gray-500">
+                The recipient will receive an email with the QR code and event details.
+                <span className="block mt-1 text-amber-600 text-xs">Note: this action cannot be undone — you will lose access to this ticket.</span>
+              </p>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Recipient Email *</label>
+                <input
+                  type="email"
+                  required
+                  value={forwardEmail}
+                  onChange={e => setForwardEmail(e.target.value)}
+                  placeholder="friend@example.com"
+                  className="w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Recipient Name (optional)</label>
+                <input
+                  type="text"
+                  value={forwardName}
+                  onChange={e => setForwardName(e.target.value)}
+                  placeholder="Jane Smith"
+                  className="w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+              {forwardError && (
+                <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{forwardError}</p>
+              )}
+              <div className="flex gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowForward(false)}
+                  className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={forwardLoading || !forwardEmail}
+                  className="flex-1 py-2.5 bg-purple-600 text-white rounded-xl text-sm font-medium hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {forwardLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  {forwardLoading ? 'Sending…' : 'Forward Ticket'}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </div>
+    )}
   )
 }

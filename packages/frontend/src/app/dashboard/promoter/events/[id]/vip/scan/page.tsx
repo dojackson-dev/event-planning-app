@@ -54,6 +54,7 @@ export default function VipScannerPage() {
   const [checkInMode, setCheckInMode] = useState<'single' | 'full'>('single')
   const [showDetails, setShowDetails] = useState(true)
   const [manualQr, setManualQr] = useState('')
+  const [countdown, setCountdown] = useState(0)
 
   const processQr = useCallback(async (qrCode: string) => {
     if (scanningRef.current) return
@@ -79,7 +80,7 @@ export default function VipScannerPage() {
       setScanError(err.response?.data?.message || 'Invalid or unrecognized QR code')
     } finally {
       setLoading(false)
-      setTimeout(() => { scanningRef.current = false }, 3000)
+      // scanningRef.current is reset by resetScan() when the overlay countdown finishes
     }
   }, [eventId, checkInMode])
 
@@ -116,6 +117,19 @@ export default function VipScannerPage() {
     scanningRef.current = false
   }
 
+  // Auto-dismiss in-viewport overlay and resume scanning after 5 seconds
+  useEffect(() => {
+    if (!scanResult && !scanError) { setCountdown(0); return }
+    setCountdown(5)
+    const id = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) { clearInterval(id); resetScan(); return 0 }
+        return prev - 1
+      })
+    }, 1000)
+    return () => clearInterval(id)
+  }, [scanResult, scanError]) // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
       <div className="flex items-center justify-between mb-6">
@@ -150,7 +164,7 @@ export default function VipScannerPage() {
       </div>
 
       {/* Scanner */}
-      <div className="bg-gray-900 rounded-2xl overflow-hidden mb-5">
+      <div className="bg-gray-900 rounded-2xl overflow-hidden mb-5 relative">
         <div id="vip-scanner-container" className="w-full" style={{ minHeight: started ? '300px' : '0' }} />
         {!started && (
           <div className="flex flex-col items-center justify-center py-16 gap-4">
@@ -170,6 +184,63 @@ export default function VipScannerPage() {
           >
             Stop Camera
           </button>
+        )}
+
+        {/* ── In-viewport overlay — flashes immediately on scan ── */}
+        {started && (loading || scanResult || scanError) && (
+          <div className={`absolute inset-0 z-20 flex flex-col items-center justify-center rounded-2xl ${
+            loading             ? 'bg-black/80'
+            : scanResult?.success ? 'bg-green-900/92'
+            :                       'bg-red-900/92'
+          }`}>
+            {loading && (
+              <>
+                <Loader2 className="w-14 h-14 animate-spin text-white mb-3" />
+                <p className="text-white/70 text-sm">Processing…</p>
+              </>
+            )}
+
+            {scanResult && !loading && (
+              <div className="text-center px-6 py-2">
+                {scanResult.success
+                  ? <CheckCircle className="w-20 h-20 text-green-400 mx-auto mb-2" />
+                  : <XCircle    className="w-20 h-20 text-red-400   mx-auto mb-2" />}
+                <p className="text-3xl font-black text-white tracking-wider">
+                  {scanResult.success ? '✓ CHECK IN' : '✗ DENIED'}
+                </p>
+                {orderInfo && (
+                  <p className="text-white/90 text-xl font-semibold mt-2">
+                    {orderInfo.buyer_name || orderInfo.buyer_email}
+                  </p>
+                )}
+                <p className="text-white/70 text-sm mt-1">{scanResult.message}</p>
+                <div className="mt-3 text-5xl font-black text-white leading-none">
+                  {scanResult.guests_checked_in}/{scanResult.total_capacity}
+                </div>
+                <p className="text-white/60 text-xs mb-4">guests checked in</p>
+                <button
+                  onClick={resetScan}
+                  className="px-6 py-2 bg-white/20 text-white rounded-xl text-sm font-medium hover:bg-white/30"
+                >
+                  Scan Next ({countdown}s)
+                </button>
+              </div>
+            )}
+
+            {scanError && !loading && (
+              <div className="text-center px-6 py-2">
+                <XCircle className="w-20 h-20 text-red-400 mx-auto mb-2" />
+                <p className="text-2xl font-black text-white">Invalid QR Code</p>
+                <p className="text-white/70 text-sm mt-2 max-w-xs">{scanError}</p>
+                <button
+                  onClick={resetScan}
+                  className="mt-5 px-6 py-2 bg-white/20 text-white rounded-xl text-sm font-medium hover:bg-white/30"
+                >
+                  Retry ({countdown}s)
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </div>
 
@@ -191,14 +262,14 @@ export default function VipScannerPage() {
         </button>
       </div>
 
-      {/* Result */}
-      {loading && (
+      {/* Result — only shown in manual (no-camera) mode; camera mode uses the overlay above */}
+      {!started && loading && (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
         </div>
       )}
 
-      {scanError && !loading && (
+      {!started && scanError && !loading && (
         <div className="bg-red-50 border border-red-200 rounded-2xl p-5 text-center">
           <XCircle className="w-10 h-10 text-red-500 mx-auto mb-2" />
           <p className="font-semibold text-red-700 text-lg">Invalid QR Code</p>
@@ -209,7 +280,7 @@ export default function VipScannerPage() {
         </div>
       )}
 
-      {scanResult && !loading && (
+      {!started && scanResult && !loading && (
         <div className={`rounded-2xl border-2 overflow-hidden ${scanResult.success ? 'border-green-400' : 'border-red-400'}`}>
           {/* Status banner */}
           <div className={`p-4 flex items-center gap-3 ${scanResult.success ? 'bg-green-500' : 'bg-red-500'}`}>

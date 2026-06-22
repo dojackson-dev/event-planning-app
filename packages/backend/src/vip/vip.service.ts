@@ -553,6 +553,64 @@ export class VipService {
     return data;
   }
 
+  async transferVipOrder(qrCode: string, recipientEmail: string, recipientName?: string) {
+    const admin = this.supabaseService.getAdminClient();
+
+    // Validate email format
+    if (!recipientEmail || !/^[^@]+@[^@]+\.[^@]+$/.test(recipientEmail)) {
+      throw new BadRequestException('Invalid recipient email address');
+    }
+
+    const { data: order } = await admin
+      .from('vip_orders')
+      .select(`
+        id, qr_code, buyer_email, payment_status, public_event_id,
+        vip_packages(name),
+        public_events:public_event_id(title, event_date, start_time, venue_name)
+      `)
+      .eq('qr_code', qrCode)
+      .maybeSingle();
+
+    if (!order) throw new NotFoundException('VIP order not found');
+    if (order.payment_status !== 'paid') throw new BadRequestException('Only paid orders can be transferred');
+    if (order.check_in_status === 'checked_in') throw new BadRequestException('This ticket has already been used for check-in');
+
+    // Update buyer info
+    const { error: updateError } = await admin
+      .from('vip_orders')
+      .update({
+        buyer_email: recipientEmail,
+        buyer_name:  recipientName ?? null,
+      })
+      .eq('qr_code', qrCode);
+
+    if (updateError) throw new BadRequestException(updateError.message);
+
+    // Re-send VIP confirmation to new recipient
+    try {
+      const event = (order as any).public_events;
+      const pkg   = (order as any).vip_packages;
+      await this.mailService.sendVipConfirmation({
+        toEmail:      recipientEmail,
+        buyerName:    recipientName ?? null,
+        eventTitle:   event?.title    ?? 'Your Event',
+        eventDate:    event?.event_date ?? '',
+        eventTime:    event?.start_time ?? null,
+        venueName:    event?.venue_name ?? null,
+        packageName:  pkg?.name        ?? 'VIP Package',
+        totalAmount:  0,
+        qrCode,
+        orderId:      order.id,
+        eventId:      order.public_event_id,
+        promoterName: null,
+      });
+    } catch (e) {
+      this.logger.warn('VIP transfer email failed, order was updated', e);
+    }
+
+    return { success: true, message: 'Ticket transferred — confirmation sent to ' + recipientEmail };
+  }
+
   // ── CHECK-IN ──────────────────────────────────────────────────
 
   /** Public scan using concierge access code — no promoter login required */

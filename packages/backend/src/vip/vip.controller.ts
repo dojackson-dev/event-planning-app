@@ -69,6 +69,15 @@ export class VipController {
     return this.service.getOrderByQr(qrCode);
   }
 
+  /** Forward/transfer a VIP ticket to a new recipient */
+  @Post('public/orders/qr/:qrCode/transfer')
+  transferOrder(
+    @Param('qrCode') qrCode: string,
+    @Body() body: { recipient_email: string; recipient_name?: string },
+  ) {
+    return this.service.transferVipOrder(qrCode, body.recipient_email, body.recipient_name);
+  }
+
   // ── SECTIONS ──────────────────────────────────────────────────
 
   @Post('events/:eventId/sections')

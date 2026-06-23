@@ -71,6 +71,7 @@ export default function EventVipPage({ params }: { params: { id: string } }) {
 
   const [showLayout, setShowLayout] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [orderQrCode, setOrderQrCode] = useState<string | null>(null)
 
   useEffect(() => {
     const load = async () => {

@@ -139,6 +139,7 @@ export default function VipOrderPage({ params }: { params: { qrCode: string } })
   const services = order.vip_service_orders.filter(s => s.vip_service_items)
 
   return (
+    <>
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-amber-50">
       {/* Header */}
       <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
@@ -428,5 +429,6 @@ export default function VipOrderPage({ params }: { params: { qrCode: string } })
         </div>
       </div>
     )}
+    </>
   )
 }

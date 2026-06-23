@@ -545,6 +545,7 @@ export class VipService {
         vip_packages(name, package_type, capacity, included_tickets, table_label,
           vip_sections(name)),
         vip_guest_passes(id, guest_name, guest_email, guest_phone, qr_code, status, checked_in_at),
+        vip_service_orders(id, quantity, status, vip_service_items(name, category))
       `)
       .eq('qr_code', qrCode)
       .maybeSingle();

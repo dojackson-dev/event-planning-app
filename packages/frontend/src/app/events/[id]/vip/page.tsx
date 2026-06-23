@@ -92,7 +92,15 @@ export default function EventVipPage({ params }: { params: { id: string } }) {
   }, [eventId])
 
   useEffect(() => {
-    if (searchParams.get('vip_paid') === 'true') setSuccess(true)
+    const sessionId = searchParams.get('session_id')
+    if (searchParams.get('vip_paid') === 'true') {
+      setSuccess(true)
+      if (sessionId) {
+        api.get(`/vip/public/orders/session/${sessionId}`)
+          .then(res => { if (res.data?.qr_code) setOrderQrCode(res.data.qr_code) })
+          .catch(() => {})
+      }
+    }
   }, [searchParams])
 
   const serviceTotal = Object.entries(selectedServices).reduce((sum, [id, qty]) => {
@@ -155,12 +163,29 @@ export default function EventVipPage({ params }: { params: { id: string } }) {
   if (success) {
     return (
       <div className="max-w-lg mx-auto px-4 py-20 text-center">
-        <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">VIP Package Confirmed!</h1>
-        <p className="text-gray-600 mb-6">Your VIP experience has been booked. Check your email for your confirmation and QR code.</p>
-        <Link href={`/events/${eventId}`} className="px-6 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 text-sm font-medium">
-          Back to Event
-        </Link>
+        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <CheckCircle className="w-10 h-10 text-green-600" />
+        </div>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">VIP Package Confirmed! 👑</h1>
+        <p className="text-gray-600 mb-8">Your VIP experience has been booked. Check your email for your confirmation and QR code.</p>
+        <div className="space-y-3">
+          {orderQrCode ? (
+            <Link
+              href={`/vip/order/${encodeURIComponent(orderQrCode)}`}
+              className="flex items-center justify-center gap-2 w-full px-6 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 text-sm font-medium"
+            >
+              <Crown className="w-4 h-4" /> View My VIP Ticket
+            </Link>
+          ) : (
+            <p className="text-xs text-gray-400">Your ticket link will arrive in your confirmation email.</p>
+          )}
+          <Link
+            href={`/events/${eventId}`}
+            className="flex items-center justify-center gap-2 w-full px-6 py-3 bg-white border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 text-sm font-medium"
+          >
+            Back to Event
+          </Link>
+        </div>
       </div>
     )
   }

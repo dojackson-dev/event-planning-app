@@ -63,6 +63,7 @@ export default function NewPromoterEventPage() {
   const [venueAddress, setVenueAddress] = useState('')
   const [city, setCity] = useState('')
   const [state, setState] = useState('')
+  const [zipCode, setZipCode] = useState('')
   const [venueType, setVenueType] = useState('')
   const [category, setCategory] = useState('')
   const [ageRestriction, setAgeRestriction] = useState('')
@@ -165,6 +166,7 @@ export default function NewPromoterEventPage() {
         venue_address: venueAddress || undefined,
         city: city || undefined,
         state: state || undefined,
+        zip_code: zipCode || undefined,
         venue_type: venueType || undefined,
         category: category || undefined,
         age_restriction: ageRestriction || undefined,
@@ -304,7 +306,7 @@ export default function NewPromoterEventPage() {
               className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
               placeholder="123 Main St" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
               <input value={city} onChange={e => setCity(e.target.value)}
@@ -315,6 +317,12 @@ export default function NewPromoterEventPage() {
               <input value={state} onChange={e => setState(e.target.value)}
                 className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
                 placeholder="e.g. GA" maxLength={2} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">ZIP Code</label>
+              <input value={zipCode} onChange={e => setZipCode(e.target.value)}
+                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                placeholder="e.g. 30301" maxLength={10} />
             </div>
           </div>
           <div>

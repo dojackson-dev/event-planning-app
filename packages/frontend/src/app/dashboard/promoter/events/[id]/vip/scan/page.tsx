@@ -186,9 +186,9 @@ export default function VipScannerPage() {
           </button>
         )}
 
-        {/* ── In-viewport overlay — flashes immediately on scan ── */}
-        {started && (loading || scanResult || scanError) && (
-          <div className={`absolute inset-0 z-20 flex flex-col items-center justify-center rounded-2xl ${
+        {/* ── Full-screen overlay — always on top regardless of scroll ── */}
+        {(loading || scanResult || scanError) && (
+          <div className={`fixed inset-0 z-50 flex flex-col items-center justify-center ${
             loading             ? 'bg-black/80'
             : scanResult?.success ? 'bg-green-900/92'
             :                       'bg-red-900/92'
@@ -262,23 +262,7 @@ export default function VipScannerPage() {
         </button>
       </div>
 
-      {/* Result — only shown in manual (no-camera) mode; camera mode uses the overlay above */}
-      {!started && loading && (
-        <div className="flex items-center justify-center py-8">
-          <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
-        </div>
-      )}
-
-      {!started && scanError && !loading && (
-        <div className="bg-red-50 border border-red-200 rounded-2xl p-5 text-center">
-          <XCircle className="w-10 h-10 text-red-500 mx-auto mb-2" />
-          <p className="font-semibold text-red-700 text-lg">Invalid QR Code</p>
-          <p className="text-red-600 text-sm mt-1">{scanError}</p>
-          <button onClick={resetScan} className="mt-4 px-4 py-2 bg-red-100 text-red-700 rounded-xl text-sm hover:bg-red-200">
-            Try Again
-          </button>
-        </div>
-      )}
+      {/* Manual-mode inline result removed — fixed overlay above handles all modes */}
 
       {!started && scanResult && !loading && (
         <div className={`rounded-2xl border-2 overflow-hidden ${scanResult.success ? 'border-green-400' : 'border-red-400'}`}>

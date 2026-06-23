@@ -235,80 +235,70 @@ export default function ConciergePortalPage({ params }: { params: { code: string
             <p className="mt-3 text-sm text-red-600 text-center">{scanError}</p>
           )}
           {scanResult && (
-            <div className={`mt-4 rounded-2xl border-2 overflow-hidden ${
-              scanResult.success ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'
+            <div className={`fixed inset-0 z-50 flex flex-col items-center justify-center px-6 ${
+              scanResult.success ? 'bg-green-600' : 'bg-red-600'
             }`}>
-              {/* Top banner */}
-              <div className={`px-4 py-3 flex items-center justify-center gap-2 ${
-                scanResult.success ? 'bg-green-500' : 'bg-red-500'
-              }`}>
+              {/* Icon + status */}
+              <div className="mb-4">
                 {scanResult.success
-                  ? <CheckCircle className="w-6 h-6 text-white" />
-                  : <XCircle className="w-6 h-6 text-white" />}
-                <span className="text-white font-bold text-lg tracking-wide">
-                  {scanResult.success ? 'CHECKED IN' : 'DENIED'}
-                </span>
+                  ? <CheckCircle className="w-24 h-24 text-white mx-auto" />
+                  : <XCircle className="w-24 h-24 text-white mx-auto" />}
               </div>
+              <p className="text-white font-black text-4xl tracking-widest mb-2">
+                {scanResult.success ? 'CHECKED IN' : 'DENIED'}
+              </p>
 
-              <div className="p-4 text-center space-y-2">
-                {scanResult.buyerName && (
-                  <p className="font-bold text-gray-900 text-xl">{scanResult.buyerName}</p>
-                )}
+              {scanResult.buyerName && (
+                <p className="text-white/90 text-2xl font-semibold mb-3">{scanResult.buyerName}</p>
+              )}
 
-                {/* Package + table */}
-                {(scanResult.packageName || scanResult.tableLabel) && (
-                  <div className="flex items-center justify-center gap-2 flex-wrap">
-                    {scanResult.packageName && (
-                      <span className="bg-purple-100 text-purple-700 px-2.5 py-0.5 rounded-full text-sm font-medium">
-                        {scanResult.packageName}
-                      </span>
-                    )}
-                    {scanResult.tableLabel && (
-                      <span className="bg-gray-100 text-gray-700 px-2.5 py-0.5 rounded-full text-sm">
-                        {scanResult.tableLabel}
-                      </span>
-                    )}
+              {/* Package + table */}
+              {(scanResult.packageName || scanResult.tableLabel) && (
+                <div className="flex items-center justify-center gap-2 flex-wrap mb-3">
+                  {scanResult.packageName && (
+                    <span className="bg-white/20 text-white px-3 py-1 rounded-full text-sm font-medium">
+                      {scanResult.packageName}
+                    </span>
+                  )}
+                  {scanResult.tableLabel && (
+                    <span className="bg-white/20 text-white px-3 py-1 rounded-full text-sm">
+                      {scanResult.tableLabel}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Guests progress */}
+              {scanResult.success && scanResult.totalCapacity !== undefined && scanResult.guestsCheckedIn !== undefined && (
+                <div className="w-full max-w-xs mt-2 mb-4">
+                  <div className="flex justify-between text-white/80 text-sm mb-1 px-1">
+                    <span>Guests arrived</span>
+                    <span className="font-bold">{scanResult.guestsCheckedIn} / {scanResult.totalCapacity}</span>
                   </div>
-                )}
-
-                {/* Guests progress */}
-                {scanResult.success && scanResult.totalCapacity !== undefined && scanResult.guestsCheckedIn !== undefined && (
-                  <div className="mt-2">
-                    <div className="flex justify-between text-xs text-gray-500 mb-1 px-1">
-                      <span>Guests arrived</span>
-                      <span>{scanResult.guestsCheckedIn} / {scanResult.totalCapacity}</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2.5">
-                      <div
-                        className="bg-green-500 h-2.5 rounded-full transition-all"
-                        style={{ width: `${Math.min(100, (scanResult.guestsCheckedIn / scanResult.totalCapacity) * 100)}%` }}
-                      />
-                    </div>
-                    <p className={`mt-2 text-sm font-semibold ${
-                      scanResult.guestsCheckedIn >= scanResult.totalCapacity
-                        ? 'text-green-700'
-                        : 'text-orange-600'
-                    }`}>
-                      {scanResult.guestsCheckedIn >= scanResult.totalCapacity
-                        ? '✓ All guests have arrived'
-                        : `${scanResult.totalCapacity - scanResult.guestsCheckedIn} pass${scanResult.totalCapacity - scanResult.guestsCheckedIn === 1 ? '' : 'es'} remaining`}
-                    </p>
+                  <div className="w-full bg-white/30 rounded-full h-3">
+                    <div
+                      className="bg-white h-3 rounded-full transition-all"
+                      style={{ width: `${Math.min(100, (scanResult.guestsCheckedIn / scanResult.totalCapacity) * 100)}%` }}
+                    />
                   </div>
-                )}
+                  <p className="mt-2 text-sm text-white/80 text-center">
+                    {scanResult.guestsCheckedIn >= scanResult.totalCapacity
+                      ? '✓ All guests have arrived'
+                      : `${scanResult.totalCapacity - scanResult.guestsCheckedIn} pass${scanResult.totalCapacity - scanResult.guestsCheckedIn === 1 ? '' : 'es'} remaining`}
+                  </p>
+                </div>
+              )}
 
-                {!scanResult.success && (
-                  <p className="text-sm text-red-600 font-medium">{scanResult.message}</p>
-                )}
-              </div>
+              {!scanResult.success && (
+                <p className="text-white/80 text-sm mb-4 text-center">{scanResult.message}</p>
+              )}
 
-              <div className="px-4 pb-4">
-                <button
-                  onClick={() => { setScanResult(null); startScanner() }}
-                  className="w-full py-2.5 bg-purple-600 text-white rounded-xl text-sm font-medium"
-                >
-                  Scan Next
-                </button>
-              </div>
+              <button
+                onClick={() => { setScanResult(null); startScanner() }}
+                className="mt-4 w-full max-w-xs py-4 bg-white/20 text-white rounded-2xl text-lg font-bold hover:bg-white/30 active:bg-white/40 border border-white/30"
+              >
+                Scan Next
+              </button>
             </div>
           )}
         </div>

@@ -57,24 +57,20 @@ const STEPS: Step[] = [
       'EventEcos is a complete business platform for venue owners, event promoters, vendors, and artists. This guided tour covers every feature so you know exactly what to expect.',
     badge: 'Demo Mode Active',
     badgeColor: 'bg-violet-100 text-violet-700',
-    tips: ['Use the arrows below to navigate', 'Click any page link to explore that feature live', 'Reopen this tour anytime from the banner above'],
+    tips: ['Use the arrows below to navigate', 'Sign up for a free trial to access every feature', 'Reopen this tour anytime from the banner above'],
   },
   {
     icon: <LayoutDashboard className="h-10 w-10 text-blue-500" />,
     title: 'Dashboard — Your Command Center',
     description:
       'The dashboard greets you with live stats: unpaid invoices, upcoming events, total revenue, and new clients. Everything you need to know about your business at a glance.',
-    href: '/dashboard',
-    hrefLabel: 'Go to Dashboard',
-    tips: ['Stats update in real time', '"Take a tour" button is always in the top-right corner', 'The setup checklist guides new users step by step'],
+    tips: ['Stats update in real time', 'The setup checklist guides new users step by step', 'Quick links to every section are always visible'],
   },
   {
     icon: <ClipboardList className="h-10 w-10 text-purple-500" />,
     title: 'Client Intake — Where It All Starts',
     description:
       'Share your unique intake form link with potential clients. When they fill it out, the platform automatically creates an event and instantly sends them an SMS with a link to their own client portal.',
-    href: '/dashboard/intake',
-    hrefLabel: 'View Intake Form',
     badge: 'Step 1 of 5',
     badgeColor: 'bg-purple-100 text-purple-700',
     tips: ['Your intake link is unique to your account', 'Clients get an SMS the moment they submit', 'No client login required — just their link'],
@@ -84,8 +80,6 @@ const STEPS: Step[] = [
     title: 'Events — Your Central Hub',
     description:
       'Every client becomes an event. Each event shows a 5-step progress tracker: Intake Received → Estimate Sent → Contract Signed → Invoice Paid → Booked. Open any event to take the next step.',
-    href: '/dashboard/events',
-    hrefLabel: 'View Events',
     badge: 'Step 2 of 5',
     badgeColor: 'bg-emerald-100 text-emerald-700',
     tips: ['All documents for an event live in one place', 'Color-coded status makes it easy to spot what needs attention', 'Filter by date, venue, or status'],
@@ -95,8 +89,6 @@ const STEPS: Step[] = [
     title: 'Estimates — Get Client Approval First',
     description:
       'Before sending an invoice, send an estimate. The client receives a link to review the pricing and approve or decline. Once approved, it converts automatically into an invoice.',
-    href: '/dashboard/estimates',
-    hrefLabel: 'View Estimates',
     badge: 'Step 3 of 5',
     badgeColor: 'bg-amber-100 text-amber-700',
     tips: ['Estimates keep you from issuing invoices before the client agrees', 'Clients approve with one tap from their phone', 'Approved estimates auto-populate the invoice'],
@@ -106,8 +98,6 @@ const STEPS: Step[] = [
     title: 'Contracts — E-Signature, No Printer',
     description:
       'Upload a contract PDF or use a template, assign it to an event, and send it. Clients e-sign directly from their phone. The signed document is stored and accessible any time.',
-    href: '/dashboard/contracts',
-    hrefLabel: 'View Contracts',
     badge: 'Step 4 of 5',
     badgeColor: 'bg-rose-100 text-rose-700',
     tips: ['Contracts are linked directly to the event', 'You get notified the moment a contract is signed', 'Voided contracts are marked automatically'],
@@ -117,8 +107,6 @@ const STEPS: Step[] = [
     title: 'Invoices — Get Paid Online',
     description:
       'Create an invoice, add your service items, and send it. Clients pay online via a secure Stripe link — funds go straight to your connected bank account. No manual transfers.',
-    href: '/dashboard/invoices',
-    hrefLabel: 'View Invoices',
     badge: 'Step 5 of 5',
     badgeColor: 'bg-green-100 text-green-700',
     tips: ['Clients pay from any device — no app required', 'Partial payments and deposits are supported', 'Revenue is tracked automatically in Payments'],
@@ -135,8 +123,6 @@ const STEPS: Step[] = [
     title: 'Messages — In-App Client Chat',
     description:
       'Each event has its own message thread. You and the client can exchange messages directly in the app — no more lost emails or scattered texts. Unread counts show in your sidebar.',
-    href: '/dashboard/messages',
-    hrefLabel: 'Open Messages',
     tips: ['Unread badge appears on the sidebar icon', 'Each event is a separate conversation', 'Messages are archived with the event'],
   },
   {
@@ -144,8 +130,6 @@ const STEPS: Step[] = [
     title: 'Calendar — See Everything at Once',
     description:
       'A full-screen calendar view of all your events. Click any date to see what\'s booked. Toggle between month, week, and day views. Block out dates to prevent double-bookings.',
-    href: '/dashboard/calendar',
-    hrefLabel: 'Open Calendar',
     tips: ['Clicking an event opens it directly', 'Color coding shows event status', 'Great for planning capacity across multiple venues'],
   },
   {
@@ -153,8 +137,6 @@ const STEPS: Step[] = [
     title: 'Vendors — Your Entire Supply Chain',
     description:
       'Add vendors (DJs, caterers, photographers, etc.), send booking requests, collect their invoices, and track payments — all from one vendor hub that keeps your supply chain organized.',
-    href: '/dashboard/vendors',
-    hrefLabel: 'View Vendors',
     tips: ['Vendors can also register on the platform directly', 'Vendor invoices go into a separate queue', 'Link vendors to specific events'],
   },
   {
@@ -162,8 +144,6 @@ const STEPS: Step[] = [
     title: 'Vendor Portal — For Service Providers',
     description:
       'Vendors get their own dashboard to manage their public profile, respond to booking requests from event owners, submit invoices, and track their earnings — no separate account needed.',
-    href: '/vendors/dashboard',
-    hrefLabel: 'View Vendor Dashboard',
     badge: 'Add-On Role',
     badgeColor: 'bg-orange-100 text-orange-700',
     tips: ['Vendors sign up with the Vendor role', 'Event owners discover vendors from the platform directory', 'Vendor invoices feed directly into the owner\'s billing workflow'],
@@ -173,8 +153,6 @@ const STEPS: Step[] = [
     title: 'Door Lists — Manage Event Access',
     description:
       'Build a guest list for any event. Add names, assign ticket types or VIP status, and check guests in at the door. Great for ticketed events, private functions, and galas.',
-    href: '/dashboard/door-lists',
-    hrefLabel: 'View Door Lists',
     tips: ['Security staff can check in guests from a tablet', 'Capacity tracking prevents over-entry', 'Lists are tied to specific events'],
   },
   {
@@ -182,17 +160,13 @@ const STEPS: Step[] = [
     title: 'Security — Staff & Access Control',
     description:
       'Assign security personnel to events and control which entry points they manage. Security staff get a dedicated check-in interface — no dashboard access required.',
-    href: '/dashboard/security',
-    hrefLabel: 'View Security',
     tips: ['Security staff only see their assigned events', 'Access is role-based and scoped to the event', 'Perfect for multi-entry venues'],
   },
   {
     icon: <Megaphone className="h-10 w-10 text-blue-500" />,
     title: 'Promoter Mode — Sell Tickets Publicly',
     description:
-      'Enable Promoter Mode from Settings to unlock a second dashboard. Create public events, set multiple ticket tiers, and sell tickets directly. Ticket buyers get a QR code confirmation via email.',
-    href: '/dashboard/settings',
-    hrefLabel: 'Enable Promoter Mode',
+      'Enable Promoter Mode to unlock a second dashboard. Create public events, set multiple ticket tiers, and sell tickets directly. Ticket buyers get a QR code confirmation via email.',
     badge: 'Add-On Feature',
     badgeColor: 'bg-blue-100 text-blue-700',
     tips: ['Promoter and Owner dashboards are separate but linked', 'Tickets are scanned at the door using QR codes', 'Sales reports show real-time revenue'],
@@ -202,17 +176,15 @@ const STEPS: Step[] = [
     title: 'Artist Portal — For Performers',
     description:
       'Artists have their own dashboard to manage their public profile, performance rider, and incoming booking requests from promoters. All bookings are tracked with status and payment details.',
-    href: '/artist/dashboard',
-    hrefLabel: 'View Artist Dashboard',
     badge: 'Add-On Feature',
     badgeColor: 'bg-pink-100 text-pink-700',
     tips: ['Artists sign up with the Artist role', 'Promoters can discover and book artists from the platform', 'Riders are sent to promoters digitally'],
   },
   {
     icon: <Rocket className="h-10 w-10 text-violet-500" />,
-    title: 'You\'re Ready to Explore!',
+    title: 'You\'re Ready to Get Started!',
     description:
-      'That\'s a full lap around EventEcos. Everything is live — click around, explore any section, and see how the pieces connect. When you\'re ready, start your free trial.',
+      'That\'s a full lap around EventEcos. Start your free trial today — all features unlocked, no credit card required.',
     badge: 'Tour Complete ✓',
     badgeColor: 'bg-violet-100 text-violet-700',
     href: '/signup',

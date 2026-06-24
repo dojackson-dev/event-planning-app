@@ -9,6 +9,7 @@
  * enough for a decision-maker to evaluate.
  */
 
+import { useState } from 'react'
 import Link from 'next/link'
 import {
   ArrowRight,
@@ -336,6 +337,313 @@ const ROLE_FEATURES: FeatureCard[] = [
   },
 ]
 
+// ─── Dashboard Preview Mockups ────────────────────────────────────────────────
+
+type PreviewTab = 'owner' | 'promoter' | 'vendor' | 'artist' | 'client'
+
+const PREVIEW_TABS: { id: PreviewTab; label: string; color: string }[] = [
+  { id: 'owner',    label: 'Venue Owner',  color: 'text-indigo-600 border-indigo-600' },
+  { id: 'promoter', label: 'Promoter',     color: 'text-blue-600 border-blue-600' },
+  { id: 'vendor',   label: 'Vendor',       color: 'text-orange-600 border-orange-600' },
+  { id: 'artist',   label: 'Artist',       color: 'text-pink-600 border-pink-600' },
+  { id: 'client',   label: 'Client Portal',color: 'text-teal-600 border-teal-600' },
+]
+
+function MockBrowser({ url, children }: { url: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl overflow-hidden border border-gray-200 shadow-2xl">
+      <div className="bg-gray-100 border-b border-gray-200 px-4 py-2.5 flex items-center gap-3">
+        <div className="flex gap-1.5 shrink-0">
+          <div className="w-3 h-3 rounded-full bg-red-400" />
+          <div className="w-3 h-3 rounded-full bg-yellow-400" />
+          <div className="w-3 h-3 rounded-full bg-green-400" />
+        </div>
+        <div className="flex-1 bg-white rounded-md px-3 py-1 text-[11px] text-gray-400 border border-gray-200 font-mono truncate">
+          eventecos.com{url}
+        </div>
+      </div>
+      <div className="bg-white overflow-hidden">{children}</div>
+    </div>
+  )
+}
+
+function FakeRow({ name, sub, badge, badgeColor }: { name: string; sub: string; badge: string; badgeColor: string }) {
+  return (
+    <div className="flex items-center justify-between px-3 py-2 border-b border-gray-50 last:border-0">
+      <div>
+        <p className="text-[11px] font-medium text-gray-800">{name}</p>
+        <p className="text-[10px] text-gray-400">{sub}</p>
+      </div>
+      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${badgeColor}`}>{badge}</span>
+    </div>
+  )
+}
+
+function OwnerPreview() {
+  const nav = ['Dashboard','Events','Clients','Invoices','Estimates','Contracts','Calendar','Vendors','Messages','Payments']
+  return (
+    <MockBrowser url="/dashboard">
+      <div className="flex h-[400px] text-[11px] overflow-hidden select-none">
+        <div className="w-40 bg-gray-900 shrink-0 flex flex-col gap-0.5 py-4 px-2">
+          <div className="flex items-center gap-1.5 px-2 py-2 mb-2">
+            <div className="w-5 h-5 rounded bg-indigo-500 shrink-0" />
+            <span className="text-white font-bold text-xs tracking-tight">EventEcos</span>
+          </div>
+          {nav.map((item, i) => (
+            <div key={item} className={`flex items-center gap-2 px-2 py-1.5 rounded-md ${i === 0 ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-gray-200'}`}>
+              <div className="w-2.5 h-2.5 rounded-sm bg-current opacity-60 shrink-0" />
+              {item}
+            </div>
+          ))}
+        </div>
+        <div className="flex-1 bg-gray-50 overflow-hidden p-4 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <p className="font-bold text-gray-800 text-sm">Welcome back!</p>
+            <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full font-medium">Free Trial</span>
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { label: 'Unpaid Invoices', value: '$4,250', bg: 'bg-red-50 border-red-100', text: 'text-red-600' },
+              { label: 'Revenue / Mo.', value: '$12,800', bg: 'bg-green-50 border-green-100', text: 'text-green-600' },
+              { label: 'Upcoming Events', value: '7', bg: 'bg-blue-50 border-blue-100', text: 'text-blue-600' },
+              { label: 'New Clients', value: '3', bg: 'bg-purple-50 border-purple-100', text: 'text-purple-600' },
+            ].map(s => (
+              <div key={s.label} className={`rounded-lg border p-2 ${s.bg}`}>
+                <p className="text-[9px] text-gray-500 leading-tight mb-0.5">{s.label}</p>
+                <p className={`text-base font-bold ${s.text}`}>{s.value}</p>
+              </div>
+            ))}
+          </div>
+          <div className="bg-white rounded-lg border border-gray-200 flex-1 overflow-hidden">
+            <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+              <p className="font-semibold text-gray-700 text-xs">Recent Events</p>
+              <span className="text-[9px] text-indigo-500 font-medium">View all →</span>
+            </div>
+            <FakeRow name="Johnson Wedding" sub="Jul 12 · Grand Ballroom" badge="Invoice Sent" badgeColor="bg-green-100 text-green-700" />
+            <FakeRow name="Garcia Quinceañera" sub="Jul 18 · Rooftop" badge="Contract Signed" badgeColor="bg-blue-100 text-blue-700" />
+            <FakeRow name="Smith Corp Event" sub="Aug 2 · Hall A" badge="Estimate Sent" badgeColor="bg-amber-100 text-amber-700" />
+            <FakeRow name="Rivera Birthday" sub="Aug 9 · Garden" badge="Intake Received" badgeColor="bg-purple-100 text-purple-700" />
+          </div>
+        </div>
+      </div>
+    </MockBrowser>
+  )
+}
+
+function PromoterPreview() {
+  return (
+    <MockBrowser url="/dashboard/promoter">
+      <div className="flex h-[400px] text-[11px] overflow-hidden select-none">
+        <div className="w-40 bg-gray-900 shrink-0 flex flex-col gap-0.5 py-4 px-2">
+          <div className="flex items-center gap-1.5 px-2 py-2 mb-2">
+            <div className="w-5 h-5 rounded bg-blue-500 shrink-0" />
+            <span className="text-white font-bold text-xs">Promoter</span>
+          </div>
+          {['Dashboard','My Events','Artists','Ticket Sales','Payouts'].map((item, i) => (
+            <div key={item} className={`flex items-center gap-2 px-2 py-1.5 rounded-md ${i === 0 ? 'bg-blue-600 text-white' : 'text-gray-400'}`}>
+              <div className="w-2.5 h-2.5 rounded-sm bg-current opacity-60 shrink-0" />
+              {item}
+            </div>
+          ))}
+        </div>
+        <div className="flex-1 bg-gray-50 overflow-hidden p-4 flex flex-col gap-3">
+          <p className="font-bold text-gray-800 text-sm">Promoter Dashboard</p>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: 'Active Events', value: '4', bg: 'bg-blue-50 border-blue-100', text: 'text-blue-600' },
+              { label: 'Tickets Sold', value: '312', bg: 'bg-indigo-50 border-indigo-100', text: 'text-indigo-600' },
+              { label: 'Revenue', value: '$6,240', bg: 'bg-green-50 border-green-100', text: 'text-green-600' },
+            ].map(s => (
+              <div key={s.label} className={`rounded-lg border p-2 ${s.bg}`}>
+                <p className="text-[9px] text-gray-500 mb-0.5">{s.label}</p>
+                <p className={`text-base font-bold ${s.text}`}>{s.value}</p>
+              </div>
+            ))}
+          </div>
+          <div className="bg-white rounded-lg border border-gray-200 flex-1 overflow-hidden">
+            <div className="px-3 py-2 border-b border-gray-100">
+              <p className="font-semibold text-gray-700 text-xs">Your Events</p>
+            </div>
+            <FakeRow name="Summer Rooftop Party" sub="Jul 20 · 180 tickets left" badge="On Sale" badgeColor="bg-green-100 text-green-700" />
+            <FakeRow name="DJ Night Vol. 3" sub="Aug 5 · 43 sold" badge="On Sale" badgeColor="bg-green-100 text-green-700" />
+            <FakeRow name="Comedy Night" sub="Aug 22 · Draft" badge="Draft" badgeColor="bg-gray-100 text-gray-600" />
+            <FakeRow name="New Year Gala" sub="Dec 31 · Not started" badge="Planning" badgeColor="bg-blue-100 text-blue-700" />
+          </div>
+        </div>
+      </div>
+    </MockBrowser>
+  )
+}
+
+function VendorPreview() {
+  return (
+    <MockBrowser url="/vendors/dashboard">
+      <div className="h-[400px] text-[11px] overflow-hidden select-none bg-gray-50 p-4 flex flex-col gap-3">
+        <div className="bg-orange-600 rounded-xl p-4 text-white flex items-center gap-4">
+          <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center text-xl shrink-0">🎵</div>
+          <div>
+            <p className="font-bold text-sm">SoundWave Productions</p>
+            <p className="text-orange-200 text-[10px]">DJ · Audio Equipment · Lighting</p>
+            <span className="inline-block mt-1 text-[9px] bg-white/20 px-2 py-0.5 rounded-full">Profile 85% complete</span>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { label: 'Bookings', value: '8', bg: 'bg-orange-50 border-orange-100', text: 'text-orange-600' },
+            { label: 'Pending', value: '2', bg: 'bg-yellow-50 border-yellow-100', text: 'text-yellow-600' },
+            { label: 'Earned', value: '$3,400', bg: 'bg-green-50 border-green-100', text: 'text-green-600' },
+          ].map(s => (
+            <div key={s.label} className={`rounded-lg border p-2 ${s.bg}`}>
+              <p className="text-[9px] text-gray-500 mb-0.5">{s.label}</p>
+              <p className={`text-base font-bold ${s.text}`}>{s.value}</p>
+            </div>
+          ))}
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 flex-1 overflow-hidden">
+          <div className="px-3 py-2 border-b border-gray-100">
+            <p className="font-semibold text-gray-700 text-xs">Booking Requests</p>
+          </div>
+          <FakeRow name="Galaxy Events — Wedding" sub="Jul 26 · 4hr set" badge="New Request" badgeColor="bg-orange-100 text-orange-700" />
+          <FakeRow name="Rooftop Promotions" sub="Aug 3 · DJ Night" badge="Accepted" badgeColor="bg-green-100 text-green-700" />
+          <FakeRow name="Smith Corp Event" sub="Aug 10 · Corporate" badge="Pending Quote" badgeColor="bg-yellow-100 text-yellow-700" />
+        </div>
+      </div>
+    </MockBrowser>
+  )
+}
+
+function ArtistPreview() {
+  return (
+    <MockBrowser url="/artist/dashboard">
+      <div className="h-[400px] text-[11px] overflow-hidden select-none bg-gray-50 p-4 flex flex-col gap-3">
+        <div className="bg-gradient-to-r from-pink-600 to-rose-500 rounded-xl p-4 text-white flex items-center gap-4">
+          <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center text-xl shrink-0">🎤</div>
+          <div>
+            <p className="font-bold text-sm">Marcus Rivera</p>
+            <p className="text-pink-200 text-[10px]">R&B · Soul · Live Performance</p>
+            <div className="flex gap-1 mt-1">
+              <span className="text-[9px] bg-white/20 px-2 py-0.5 rounded-full">Rider Uploaded</span>
+              <span className="text-[9px] bg-white/20 px-2 py-0.5 rounded-full">Public Profile</span>
+            </div>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { label: 'Bookings', value: '6', bg: 'bg-pink-50 border-pink-100', text: 'text-pink-600' },
+            { label: 'Pending', value: '1', bg: 'bg-yellow-50 border-yellow-100', text: 'text-yellow-600' },
+            { label: 'Earned', value: '$5,200', bg: 'bg-green-50 border-green-100', text: 'text-green-600' },
+          ].map(s => (
+            <div key={s.label} className={`rounded-lg border p-2 ${s.bg}`}>
+              <p className="text-[9px] text-gray-500 mb-0.5">{s.label}</p>
+              <p className={`text-base font-bold ${s.text}`}>{s.value}</p>
+            </div>
+          ))}
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 flex-1 overflow-hidden">
+          <div className="px-3 py-2 border-b border-gray-100">
+            <p className="font-semibold text-gray-700 text-xs">Booking Requests</p>
+          </div>
+          <FakeRow name="Summer Rooftop — DJ Set" sub="Jul 28 · via PromoterX" badge="New" badgeColor="bg-pink-100 text-pink-700" />
+          <FakeRow name="Galaxy Events Wedding" sub="Aug 12 · Live Performance" badge="Confirmed" badgeColor="bg-green-100 text-green-700" />
+          <FakeRow name="NYE Gala 2027" sub="Dec 31 · Negotiating" badge="Offer Sent" badgeColor="bg-blue-100 text-blue-700" />
+        </div>
+      </div>
+    </MockBrowser>
+  )
+}
+
+function ClientPortalPreview() {
+  return (
+    <MockBrowser url="/client-portal">
+      <div className="h-[400px] text-[11px] overflow-hidden select-none bg-gray-50 p-4 flex flex-col gap-3">
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <p className="font-bold text-gray-800 text-sm mb-1">Your Event — Johnson Wedding</p>
+          <p className="text-gray-400 text-[10px] mb-3">Saturday, July 12 · Grand Ballroom · 120 guests</p>
+          <div className="flex items-center gap-0">
+            {['Intake', 'Estimate', 'Contract', 'Invoice', 'Booked'].map((step, i) => (
+              <div key={step} className="flex items-center flex-1 last:flex-initial">
+                <div className={`flex flex-col items-center gap-0.5 flex-1`}>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold ${i < 4 ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-400'}`}>{i + 1}</div>
+                  <p className={`text-[8px] font-medium ${i < 4 ? 'text-indigo-600' : 'text-gray-400'}`}>{step}</p>
+                </div>
+                {i < 4 && <div className={`h-0.5 flex-1 -mt-4 ${i < 3 ? 'bg-indigo-300' : 'bg-gray-200'}`} />}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3 flex-1">
+          <div className="bg-white rounded-xl border border-green-200 p-3 flex flex-col">
+            <p className="font-semibold text-gray-700 text-xs mb-1">💳 Invoice</p>
+            <p className="text-[10px] text-gray-500">Balance due</p>
+            <p className="text-xl font-bold text-green-600 mt-0.5">$2,500</p>
+            <button className="mt-auto w-full bg-green-600 text-white rounded-lg py-1.5 text-[10px] font-semibold">Pay Now →</button>
+          </div>
+          <div className="bg-white rounded-xl border border-blue-200 p-3 flex flex-col">
+            <p className="font-semibold text-gray-700 text-xs mb-1">✍️ Contract</p>
+            <p className="text-[10px] text-gray-500">Status</p>
+            <p className="text-sm font-bold text-blue-600 mt-0.5">Signed ✓</p>
+            <p className="text-[9px] text-gray-400 mt-auto">Signed Jun 5, 2026</p>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-3 col-span-2">
+            <p className="font-semibold text-gray-700 text-xs mb-1.5">💬 Messages</p>
+            <div className="bg-gray-50 rounded-lg px-2 py-1.5 text-[10px] text-gray-600">"Your timeline looks great — see you Saturday! 🎉"</div>
+          </div>
+        </div>
+      </div>
+    </MockBrowser>
+  )
+}
+
+function DashboardPreviews() {
+  const [activeTab, setActiveTab] = useState<PreviewTab>('owner')
+  return (
+    <section className="py-16 px-4 sm:px-6 lg:px-8 bg-white border-b border-gray-100">
+      <div className="max-w-5xl mx-auto">
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center gap-2 bg-gray-100 text-gray-600 text-xs font-bold px-3 py-1.5 rounded-full mb-4 uppercase tracking-wide">
+            <LayoutDashboard className="h-3.5 w-3.5" />
+            Dashboard Previews
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3">
+            See What Every Dashboard Looks Like
+          </h2>
+          <p className="text-gray-500 max-w-xl mx-auto">
+            Each role has its own purpose-built interface. Click a tab to preview.
+          </p>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex flex-wrap gap-1 border-b border-gray-200 mb-8">
+          {PREVIEW_TABS.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setActiveTab(t.id)}
+              className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap -mb-px ${
+                activeTab === t.id ? t.color : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Preview */}
+        <div>
+          {activeTab === 'owner'    && <OwnerPreview />}
+          {activeTab === 'promoter' && <PromoterPreview />}
+          {activeTab === 'vendor'   && <VendorPreview />}
+          {activeTab === 'artist'   && <ArtistPreview />}
+          {activeTab === 'client'   && <ClientPortalPreview />}
+        </div>
+
+        <p className="text-center text-xs text-gray-400 mt-5">
+          These are illustrative previews. Sign up for a free trial to experience the real thing.
+        </p>
+      </div>
+    </section>
+  )
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function FeatureCardItem({ feature }: { feature: FeatureCard }) {
@@ -372,10 +680,10 @@ function FeatureCardItem({ feature }: { feature: FeatureCard }) {
       {/* CTA */}
       {feature.href && (
         <Link
-          href={feature.href}
+          href="/signup"
           className="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition-colors mt-auto pt-1"
         >
-          {feature.hrefLabel || 'Try it'} <ChevronRight className="h-4 w-4" />
+          Sign up to access <ChevronRight className="h-4 w-4" />
         </Link>
       )}
     </div>
@@ -409,10 +717,10 @@ export default function DemoPage() {
               Start Tour
             </button>
             <Link
-              href="/dashboard"
+              href="/signup"
               className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 hover:text-gray-900 border border-gray-300 hover:border-gray-400 px-3 py-1.5 rounded-lg transition-colors"
             >
-              Dashboard <ExternalLink className="h-3.5 w-3.5" />
+              Sign Up Free
             </Link>
           </div>
         </div>
@@ -445,10 +753,10 @@ export default function DemoPage() {
               Guided Tour (17 steps)
             </button>
             <Link
-              href="/dashboard"
+              href="/signup"
               className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-900 font-bold px-6 py-3 rounded-xl border border-gray-300 hover:border-gray-400 transition-colors shadow-sm text-sm"
             >
-              Enter Demo Dashboard <ArrowRight className="h-4 w-4" />
+              Start Free Trial <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
         </div>
@@ -564,10 +872,10 @@ export default function DemoPage() {
                   ))}
                 </ul>
                 <Link
-                  href={r.dashboard}
+                  href="/signup"
                   className="inline-flex items-center gap-1 text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition-colors mt-auto pt-1"
                 >
-                  {r.dashLabel} <ChevronRight className="h-4 w-4" />
+                  Sign up to get started <ChevronRight className="h-4 w-4" />
                 </Link>
               </div>
             ))}
@@ -622,6 +930,9 @@ export default function DemoPage() {
           </div>
         </div>
       </section>
+
+      {/* ── Dashboard Previews ── */}
+      <DashboardPreviews />
 
       {/* ── What Makes It Easy ── */}
       <section className="py-16 px-4 sm:px-6 lg:px-8 bg-white border-t border-gray-100">
@@ -679,12 +990,6 @@ export default function DemoPage() {
               className="flex items-center gap-2 bg-white text-indigo-700 font-bold px-8 py-4 rounded-xl transition-colors hover:bg-indigo-50 shadow-lg text-base"
             >
               Start Free Trial <ArrowRight className="h-5 w-5" />
-            </Link>
-            <Link
-              href="/dashboard"
-              className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white font-bold px-8 py-4 rounded-xl transition-colors border border-white/30 text-base"
-            >
-              Keep Exploring <ExternalLink className="h-4 w-4" />
             </Link>
           </div>
         </div>

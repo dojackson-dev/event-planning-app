@@ -150,6 +150,7 @@ export default function SalesPortalDashboard() {
   const [managerUsers,    setManagerUsers]   = useState<ManagerUser[]>([])
   const [managerSummary,  setManagerSummary] = useState<ManagerSummary | null>(null)
   const [userRoleFilter,  setUserRoleFilter]  = useState('all')
+  const [userSearch,      setUserSearch]     = useState('')
   const [loadingData,     setLoadingData]    = useState(true)
   const [loadingUsers,    setLoadingUsers]   = useState(false)
   const [copied,          setCopied]         = useState(false)
@@ -512,7 +513,8 @@ export default function SalesPortalDashboard() {
             <div className="space-y-5">
 
               {/* Summary cards */}
-              {managerSummary && (5 gap-3">
+              {managerSummary && (
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                   <div className="bg-white rounded-xl border p-4 col-span-2 sm:col-span-1">
                     <p className="text-xs text-gray-500 mb-1">All Users</p>
                     <p className="text-2xl font-bold text-gray-900">{managerSummary.total}</p>
@@ -531,8 +533,7 @@ export default function SalesPortalDashboard() {
                   </div>
                   <div className="bg-orange-50 rounded-xl border border-orange-200 p-4">
                     <p className="text-xs text-orange-600 mb-1">Vendors</p>
-                    <p className="text-2xl font-bold text-orange-700">{managerSummary.vendors
-                    <p className="text-2xl font-bold text-red-700">{managerSummary.cancelled}</p>
+                    <p className="text-2xl font-bold text-orange-700">{managerSummary.vendors}</p>
                   </div>
                 </div>
               )}
@@ -555,7 +556,8 @@ export default function SalesPortalDashboard() {
                   </button>
                 </form>
                 <div className="flex gap-2 items-center">
-                  <selectRoleFilter}
+                  <select
+                    value={userRoleFilter}
                     onChange={e => {
                       setUserRoleFilter(e.target.value)
                       fetchManagerUsers(userSearch, e.target.value)
@@ -569,8 +571,7 @@ export default function SalesPortalDashboard() {
                     <option value="vendor">Vendors</option>
                   </select>
                   <button
-                    onClick={() => fetchManagerUsers(userSearch, userRole
-                    onClick={() => fetchManagerUsers(userSearch, userStatusFilter)}
+                    onClick={() => fetchManagerUsers(userSearch, userRoleFilter)}
                     className="p-2 border rounded-lg hover:bg-gray-50"
                     title="Refresh"
                   >
@@ -590,8 +591,8 @@ export default function SalesPortalDashboard() {
                 ) : (
                   <table className="min-w-full divide-y divide-gray-100 text-sm">
                     <thead className="bg-gray-50">
-                      <tr>Role', '
-                        {['User', 'Business', 'Subscription', 'Signed Up', 'Last Login', 'Referred By'].map(h => (
+                      <tr>
+                        {['User', 'Role', 'Business', 'Subscription', 'Signed Up', 'Last Login', 'Referred By'].map(h => (
                           <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             {h}
                           </th>
@@ -608,7 +609,8 @@ export default function SalesPortalDashboard() {
                                 : <span className="text-gray-400 italic">No name</span>}
                             </p>
                             <p className="text-xs text-gray-400">{u.email ?? '—'}</p>
-                          </td>">
+                          </td>
+                          <td className="px-4 py-3">
                             <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium border ${
                               u.role === 'owner'    ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
                               u.role === 'promoter' ? 'bg-purple-50 text-purple-700 border-purple-200' :
@@ -631,8 +633,7 @@ export default function SalesPortalDashboard() {
                                 )}
                               </>
                             ) : (
-                              <span className="text-gray-300 text-xs">—</span
-                              <p className="text-xs text-gray-400 mt-0.5">ends {fmtDate(u.trial_ends_at)}</p>
+                              <span className="text-gray-300 text-xs">—</span>
                             )}
                           </td>
                           <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{fmtDate(u.account_created_at)}</td>

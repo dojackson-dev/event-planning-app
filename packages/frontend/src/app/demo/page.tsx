@@ -34,6 +34,7 @@ import {
   Package,
   ExternalLink,
 } from 'lucide-react'
+import DemoTour from '@/components/DemoTour'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -386,6 +387,7 @@ function FeatureCardItem({ feature }: { feature: FeatureCard }) {
 export default function DemoPage() {
   return (
     <div className="min-h-screen bg-white">
+      <DemoTour />
 
       {/* ── Nav ── */}
       <nav className="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm">
@@ -440,7 +442,7 @@ export default function DemoPage() {
               className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-3 rounded-xl transition-colors shadow-lg hover:shadow-xl text-sm"
             >
               <Play className="h-4 w-4" />
-              Guided Tour (16 steps)
+              Guided Tour (17 steps)
             </button>
             <Link
               href="/dashboard"
@@ -506,50 +508,66 @@ export default function DemoPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             {[
               {
                 role: 'Venue Owner / Event Planner',
                 icon: <Building2 className="h-8 w-8" />,
                 color: 'text-indigo-600 bg-indigo-100',
-                description: 'Manage private events, clients, vendors, contracts, and payments through the full 5-step pipeline.',
+                description: 'Run your venue end-to-end. Manage private events through the full 5-step pipeline — intake, estimate, contract, invoice, and booked. Hire vendors, assign security staff, and keep clients informed from one dashboard.',
+                features: ['Full 5-step event pipeline', 'Client intake form with auto-SMS', 'E-signature contracts & online invoices', 'Vendor hiring & payment tracking', 'Guest lists, door lists & security staff'],
                 dashboard: '/dashboard',
+                dashLabel: 'Open Owner Dashboard',
               },
               {
                 role: 'Promoter',
                 icon: <Megaphone className="h-8 w-8" />,
                 color: 'text-blue-600 bg-blue-100',
-                description: 'Create public ticketed events, sell tickets with QR codes, and manage artist bookings.',
+                description: 'Build and promote public ticketed events. Set multiple ticket tiers, sell tickets online, and scan QR codes at the door. Discover and book artists from the EventEcos directory. Track sales and revenue in real time.',
+                features: ['Create public events with ticket tiers', 'QR code tickets delivered by email', 'Door scanner for fast check-ins', 'Book artists from the talent directory', 'Real-time sales & revenue dashboard'],
                 dashboard: '/dashboard/promoter',
+                dashLabel: 'Open Promoter Dashboard',
               },
               {
-                role: 'Vendor',
+                role: 'Vendor / Service Provider',
                 icon: <Store className="h-8 w-8" />,
                 color: 'text-orange-600 bg-orange-100',
-                description: 'List your services, receive booking requests from event owners, and submit invoices.',
+                description: 'Get discovered by event owners looking for DJs, caterers, photographers, decorators, and more. Receive booking requests, respond to inquiries, submit invoices, and track your earnings — all without leaving the platform.',
+                features: ['Public profile in the vendor directory', 'Receive & manage booking requests', 'Submit invoices directly through the app', 'Track booking status & payment history', 'Build reputation with client reviews'],
                 dashboard: '/vendors/dashboard',
+                dashLabel: 'Open Vendor Dashboard',
               },
               {
-                role: 'Artist',
+                role: 'Artist / Performer',
                 icon: <Music className="h-8 w-8" />,
                 color: 'text-pink-600 bg-pink-100',
-                description: 'Manage your public profile and rider. Promoters can discover and book you directly.',
+                description: 'Get booked by promoters and venue owners looking for musicians, DJs, comedians, dancers, and MCs. Manage your public profile, upload your performance rider, set your availability, and respond to booking requests from one place.',
+                features: ['Public artist profile & portfolio', 'Upload & send your performance rider', 'Receive booking requests from promoters', 'Set availability & rate information', 'Track all bookings & payment status'],
                 dashboard: '/artist/dashboard',
+                dashLabel: 'Open Artist Dashboard',
               },
             ].map((r) => (
-              <div key={r.role} className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm hover:shadow-md transition-all flex flex-col gap-3">
-                <div className={`p-3 rounded-xl ${r.color} w-fit`}>
-                  {r.icon}
+              <div key={r.role} className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all flex flex-col gap-4">
+                <div className="flex items-center gap-3">
+                  <div className={`p-3 rounded-xl ${r.color} w-fit shrink-0`}>
+                    {r.icon}
+                  </div>
+                  <h3 className="font-bold text-gray-900 text-base">{r.role}</h3>
                 </div>
-                <div>
-                  <h3 className="font-bold text-gray-900 text-sm mb-1">{r.role}</h3>
-                  <p className="text-xs text-gray-500 leading-relaxed">{r.description}</p>
-                </div>
+                <p className="text-sm text-gray-500 leading-relaxed">{r.description}</p>
+                <ul className="space-y-1.5">
+                  {r.features.map((f, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm text-gray-600">
+                      <CheckCircle2 className="h-4 w-4 text-indigo-400 shrink-0 mt-0.5" />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
                 <Link
                   href={r.dashboard}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors mt-auto"
+                  className="inline-flex items-center gap-1 text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition-colors mt-auto pt-1"
                 >
-                  Try this dashboard <ChevronRight className="h-3.5 w-3.5" />
+                  {r.dashLabel} <ChevronRight className="h-4 w-4" />
                 </Link>
               </div>
             ))}

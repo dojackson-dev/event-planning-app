@@ -1,9 +1,22 @@
 'use client'
 
+import { useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 
+const MAIN_SITE_URL = process.env.NEXT_PUBLIC_MAIN_SITE_URL
+
 export default function SignupPage() {
+  useEffect(() => {
+    if (MAIN_SITE_URL && typeof window !== 'undefined') {
+      const currentOrigin = window.location.origin
+      const mainOrigin = MAIN_SITE_URL.replace(/\/$/, '')
+      if (currentOrigin !== mainOrigin) {
+        window.location.replace(`${mainOrigin}/signup`)
+      }
+    }
+  }, [])
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-white flex flex-col">
       {/* Nav */}

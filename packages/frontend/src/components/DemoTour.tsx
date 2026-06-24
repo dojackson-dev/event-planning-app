@@ -158,6 +158,17 @@ const STEPS: Step[] = [
     tips: ['Vendors can also register on the platform directly', 'Vendor invoices go into a separate queue', 'Link vendors to specific events'],
   },
   {
+    icon: <Store className="h-10 w-10 text-amber-500" />,
+    title: 'Vendor Portal — For Service Providers',
+    description:
+      'Vendors get their own dashboard to manage their public profile, respond to booking requests from event owners, submit invoices, and track their earnings — no separate account needed.',
+    href: '/vendors/dashboard',
+    hrefLabel: 'View Vendor Dashboard',
+    badge: 'Add-On Role',
+    badgeColor: 'bg-orange-100 text-orange-700',
+    tips: ['Vendors sign up with the Vendor role', 'Event owners discover vendors from the platform directory', 'Vendor invoices feed directly into the owner\'s billing workflow'],
+  },
+  {
     icon: <ListChecks className="h-10 w-10 text-cyan-500" />,
     title: 'Door Lists — Manage Event Access',
     description:

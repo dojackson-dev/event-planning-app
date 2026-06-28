@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
-import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
 import { Send, Copy, CheckCircle2, Loader2, Trash2, ExternalLink } from 'lucide-react'
@@ -52,7 +52,6 @@ export default function ArtistInvoiceDetailPage() {
 function ArtistInvoiceDetail() {
   const { id } = useParams() as { id: string }
   const router = useRouter()
-  const searchParams = useSearchParams()
 
   const [invoice, setInvoice] = useState<ArtistInvoice | null>(null)
   const [loading, setLoading] = useState(true)
@@ -60,9 +59,15 @@ function ArtistInvoiceDetail() {
   const [deleting, setDeleting] = useState(false)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
-  const [sent, setSent] = useState(searchParams.get('sent') === '1')
+  const [sent, setSent] = useState(false)
 
   useEffect(() => {
+    // Check if we just sent this invoice (flag set by new invoice page)
+    if (sessionStorage.getItem('invoiceJustSent') === '1') {
+      sessionStorage.removeItem('invoiceJustSent')
+      setSent(true)
+      setTimeout(() => setSent(false), 6000)
+    }
     api.get(`/artist-invoices/${id}`)
       .then(r => setInvoice(r.data))
       .catch(e => setError(e.response?.data?.message || 'Invoice not found'))

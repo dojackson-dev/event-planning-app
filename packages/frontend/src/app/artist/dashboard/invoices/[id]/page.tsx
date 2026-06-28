@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
 import { Send, Copy, CheckCircle2, Loader2, Trash2, ExternalLink } from 'lucide-react'
@@ -42,8 +42,17 @@ const STATUS_COLORS: Record<string, string> = {
 const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000'
 
 export default function ArtistInvoiceDetailPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>}>
+      <ArtistInvoiceDetail />
+    </Suspense>
+  )
+}
+
+function ArtistInvoiceDetail() {
   const { id } = useParams() as { id: string }
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   const [invoice, setInvoice] = useState<ArtistInvoice | null>(null)
   const [loading, setLoading] = useState(true)
@@ -51,7 +60,7 @@ export default function ArtistInvoiceDetailPage() {
   const [deleting, setDeleting] = useState(false)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
-  const [sent, setSent] = useState(false)
+  const [sent, setSent] = useState(searchParams.get('sent') === '1')
 
   useEffect(() => {
     api.get(`/artist-invoices/${id}`)
@@ -131,10 +140,10 @@ export default function ArtistInvoiceDetailPage() {
         {/* Actions */}
         <div className="flex gap-2 flex-wrap">
           {invoice.status !== 'paid' && invoice.status !== 'cancelled' && (
-            <button onClick={handleSend} disabled={sending}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
-              {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              {invoice.status === 'draft' ? 'Send Invoice' : 'Resend'}
+            <button onClick={handleSend} disabled={sending || sent}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm disabled:opacity-60 transition-colors ${sent ? 'bg-green-600 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
+              {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : sent ? <CheckCircle2 className="w-4 h-4" /> : <Send className="w-4 h-4" />}
+              {sending ? 'Sending…' : sent ? 'Sent!' : invoice.status === 'draft' ? 'Send Invoice' : 'Resend'}
             </button>
           )}
           {payLink && (
@@ -253,3 +262,4 @@ export default function ArtistInvoiceDetailPage() {
     </div>
   )
 }
+

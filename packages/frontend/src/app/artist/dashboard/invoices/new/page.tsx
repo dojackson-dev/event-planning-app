@@ -175,7 +175,7 @@ function NewArtistInvoiceForm() {
     try {
       const res = await api.post('/artist-invoices', buildPayload())
       await api.post(`/artist-invoices/${res.data.id}/send`)
-      router.push(`/artist/dashboard/invoices/${res.data.id}`)
+      router.push(`/artist/dashboard/invoices/${res.data.id}?sent=1`)
     } catch (e: any) {
       setError(e.response?.data?.message || 'Failed to create or send invoice.')
       setSending(false)

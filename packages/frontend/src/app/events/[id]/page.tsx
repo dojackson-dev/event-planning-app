@@ -476,6 +476,11 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
                       <span className="text-gray-800">Total</span>
                       <span>{faceValue === 0 ? 'Free' : `$${totalCharge.toFixed(2)}`}</span>
                     </div>
+                    {faceValue > 0 && (
+                      <p className="text-xs text-gray-400 text-center">
+                        + applicable sales tax calculated at checkout
+                      </p>
+                    )}
                     <button type="submit" disabled={purchasing || !buyerEmail}
                       className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white font-bold py-3 rounded-xl hover:bg-purple-700 disabled:opacity-60 mt-2">
                       {purchasing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ticket className="w-4 h-4" />}

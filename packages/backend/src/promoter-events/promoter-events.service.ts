@@ -397,6 +397,10 @@ export class PromoterEventsService {
       payment_method_types: ['card'],
       mode: 'payment',
       ...(buyerEmail ? { customer_email: buyerEmail } : {}),
+      // Collect billing address so Stripe Tax can determine the correct jurisdiction
+      billing_address_collection: 'required',
+      // Stripe Tax: EventEcos remits tax on ticket sales
+      automatic_tax: { enabled: true },
       line_items: [
         {
           price_data: {
@@ -404,8 +408,12 @@ export class PromoterEventsService {
             product_data: {
               name: `${event.title} — ${tier.name}`,
               description: event.venue_name ? `${event.event_date} at ${event.venue_name}` : event.event_date,
+              // Tax code: general admission / live event ticket
+              tax_code: 'txcd_90000001',
             },
             unit_amount: unitAmount,
+            // Tax is calculated on top of this price (shown as separate line item)
+            tax_behavior: 'exclusive',
           },
           quantity,
         },
@@ -415,8 +423,11 @@ export class PromoterEventsService {
             product_data: {
               name: 'Service fee',
               description: 'Covers payment processing and platform fee',
+              // Service fees are generally not taxable
+              tax_code: 'txcd_00000000',
             },
             unit_amount: serviceFee,
+            tax_behavior: 'exempt',
           },
           quantity: 1,
         },
@@ -839,8 +850,12 @@ export class PromoterEventsService {
           product_data: {
             name: `${event.title} — ${tier.name}`,
             description: event.venue_name ? `${event.event_date} at ${event.venue_name}` : event.event_date,
+            // Tax code: general admission / live event ticket
+            tax_code: 'txcd_90000001',
           },
           unit_amount: unitAmount,
+          // Tax is calculated on top of this price (shown as separate line item at checkout)
+          tax_behavior: 'exclusive',
         },
         quantity: item.quantity,
       });
@@ -853,8 +868,13 @@ export class PromoterEventsService {
     lineItems.push({
       price_data: {
         currency: 'usd',
-        product_data: { name: 'Service fee', description: 'Covers payment processing and platform fee' },
+        product_data: {
+          name: 'Service fee',
+          description: 'Covers payment processing and platform fee',
+          tax_code: 'txcd_00000000',
+        },
         unit_amount: serviceFee,
+        tax_behavior: 'exempt',
       },
       quantity: 1,
     });
@@ -870,6 +890,10 @@ export class PromoterEventsService {
       payment_method_types: ['card'],
       mode: 'payment',
       ...(buyerEmail ? { customer_email: buyerEmail } : {}),
+      // Collect billing address so Stripe Tax can determine the correct jurisdiction
+      billing_address_collection: 'required',
+      // Stripe Tax: EventEcos remits tax on ticket sales
+      automatic_tax: { enabled: true },
       line_items: lineItems,
       payment_intent_data: {
         application_fee_amount: appFeeAmount,

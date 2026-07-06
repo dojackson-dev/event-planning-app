@@ -106,7 +106,7 @@ export default function Home() {
                 Login
               </Link>
               <Link
-                href="/signup"
+                href="https://eventecos.com/signup"
                 className="bg-accent-500 hover:bg-accent-600 text-white font-semibold px-5 py-1.5 rounded-lg transition-colors text-sm whitespace-nowrap"
               >
                 Get Started
@@ -214,7 +214,7 @@ export default function Home() {
           {/* CTA centered below both columns */}
           <div className="flex justify-center mt-12">
             <Link
-              href="/signup"
+              href="https://eventecos.com/signup"
               className="bg-accent-500 hover:bg-accent-600 text-white font-bold px-10 py-4 rounded-lg transition-colors flex items-center gap-2 text-lg shadow-lg hover:shadow-xl"
             >
               Get Started <ArrowRight className="h-5 w-5" />
@@ -335,7 +335,7 @@ export default function Home() {
       {/* CTA after How It Works */}
       <div className="bg-white py-8 px-4 text-center border-b border-gray-100">
         <Link
-          href="/signup"
+          href="https://eventecos.com/signup"
           className="inline-flex items-center gap-2 bg-accent-500 hover:bg-accent-600 text-white font-bold px-10 py-4 rounded-lg transition-colors text-lg shadow-lg"
         >
           Get Started <ArrowRight className="h-5 w-5" />
@@ -430,7 +430,7 @@ export default function Home() {
                   <li key={f} className="flex items-start gap-2"><span className="text-accent-500 mt-0.5">✓</span>{f}</li>
                 ))}
               </ul>
-              <Link href="/signup" className="block text-center bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold py-2.5 rounded-lg transition-colors text-sm">
+              <Link href="https://eventecos.com/signup" className="block text-center bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold py-2.5 rounded-lg transition-colors text-sm">
                 Get Started
               </Link>
             </div>
@@ -449,7 +449,7 @@ export default function Home() {
                   <li key={f} className="flex items-start gap-2"><span className="text-accent-500 mt-0.5">✓</span>{f}</li>
                 ))}
               </ul>
-              <Link href="/signup" className="block text-center bg-accent-500 hover:bg-accent-600 text-white font-semibold py-2.5 rounded-lg transition-colors text-sm">
+              <Link href="https://eventecos.com/signup" className="block text-center bg-accent-500 hover:bg-accent-600 text-white font-semibold py-2.5 rounded-lg transition-colors text-sm">
                 Start Pro
               </Link>
             </div>
@@ -467,7 +467,7 @@ export default function Home() {
                   <li key={f} className="flex items-start gap-2"><span className="text-accent-500 mt-0.5">✓</span>{f}</li>
                 ))}
               </ul>
-              <Link href="/signup" className="block text-center bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold py-2.5 rounded-lg transition-colors text-sm">
+              <Link href="https://eventecos.com/signup" className="block text-center bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold py-2.5 rounded-lg transition-colors text-sm">
                 Start Premium
               </Link>
             </div>
@@ -507,7 +507,7 @@ export default function Home() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
-              href="/signup"
+              href="https://eventecos.com/signup"
               className="bg-white hover:bg-accent-50 text-accent-600 font-bold px-8 py-4 rounded-lg transition-colors text-lg shadow-lg"
             >
               Get Started

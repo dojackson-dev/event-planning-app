@@ -292,8 +292,13 @@ export class VipService {
         serviceLineItems.push({
           price_data: {
             currency: 'usd',
-            product_data: { name: item.name },
+            product_data: {
+              name: item.name,
+              // Tax code: general admission / live event ticket
+              tax_code: 'txcd_90000001',
+            },
             unit_amount: Math.round(Number(item.price) * 100),
+            tax_behavior: 'exclusive',
           },
           quantity: si.quantity,
         });
@@ -317,6 +322,10 @@ export class VipService {
       payment_method_types: ['card'],
       mode: 'payment',
       ...(dto.buyer_email ? { customer_email: dto.buyer_email } : {}),
+      // Collect billing address so Stripe Tax can determine the correct jurisdiction
+      billing_address_collection: 'required',
+      // Stripe Tax: EventEcos remits tax on VIP ticket sales
+      automatic_tax: { enabled: true },
       line_items: [
         {
           price_data: {
@@ -324,8 +333,12 @@ export class VipService {
             product_data: {
               name: `${event.title} — ${pkg.name}`,
               description: pkg.description || `VIP Package · ${pkg.capacity} guests`,
+              // Tax code: general admission / live event ticket
+              tax_code: 'txcd_90000001',
             },
             unit_amount: packageCents,
+            // Tax is calculated on top of this price (shown as separate line item)
+            tax_behavior: 'exclusive',
           },
           quantity: 1,
         },
@@ -333,8 +346,14 @@ export class VipService {
         {
           price_data: {
             currency: 'usd',
-            product_data: { name: 'Service fee', description: 'Platform & processing fee' },
+            product_data: {
+              name: 'Service fee',
+              description: 'Platform & processing fee',
+              // Service fees are generally not taxable
+              tax_code: 'txcd_00000000',
+            },
             unit_amount: serviceFee,
+            tax_behavior: 'exempt',
           },
           quantity: 1,
         },

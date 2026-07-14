@@ -42,3 +42,10 @@ android/
 *.ipa
 *.apk
 event-planning-app/
+
+# Demo setup artifacts
+schema.sql
+schema-fixed.sql
+schema-public.sql
+demo-schema.sql
+supabase/.temp/

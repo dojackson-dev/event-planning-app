@@ -150,7 +150,7 @@ export default function SalesPortalDashboard() {
   const [managerUsers,    setManagerUsers]   = useState<ManagerUser[]>([])
   const [managerSummary,  setManagerSummary] = useState<ManagerSummary | null>(null)
   const [userRoleFilter,  setUserRoleFilter]  = useState('all')
-  const [userSearch,      setUserSearch]     = useState('')
+  const [userSearch,      setUserSearch]      = useState('')
   const [loadingData,     setLoadingData]    = useState(true)
   const [loadingUsers,    setLoadingUsers]   = useState(false)
   const [copied,          setCopied]         = useState(false)
@@ -556,8 +556,7 @@ export default function SalesPortalDashboard() {
                   </button>
                 </form>
                 <div className="flex gap-2 items-center">
-                  <select
-                    value={userRoleFilter}
+                  <select value={userRoleFilter}
                     onChange={e => {
                       setUserRoleFilter(e.target.value)
                       fetchManagerUsers(userSearch, e.target.value)
@@ -592,7 +591,7 @@ export default function SalesPortalDashboard() {
                   <table className="min-w-full divide-y divide-gray-100 text-sm">
                     <thead className="bg-gray-50">
                       <tr>
-                        {['User', 'Role', 'Business', 'Subscription', 'Signed Up', 'Last Login', 'Referred By'].map(h => (
+                        {['Role', 'User', 'Business', 'Subscription', 'Signed Up', 'Last Login', 'Referred By'].map(h => (
                           <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             {h}
                           </th>

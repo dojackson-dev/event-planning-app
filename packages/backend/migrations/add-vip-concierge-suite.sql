@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS vip_guest_passes (
   vip_order_id UUID NOT NULL REFERENCES vip_orders(id) ON DELETE CASCADE,
   guest_name TEXT,
   guest_email TEXT,
+  guest_phone TEXT,
   qr_code TEXT UNIQUE NOT NULL DEFAULT gen_random_uuid()::TEXT,
   status TEXT NOT NULL DEFAULT 'valid'
     CHECK (status IN ('valid', 'used', 'cancelled')),

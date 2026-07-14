@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import Link from 'next/link'
-import { CheckCircle, Calendar, MapPin, Ticket, Loader2, Send, X, Check, Phone, Mail } from 'lucide-react'
+import { CheckCircle, Calendar, MapPin, Ticket, Loader2, Send, X, Check, Phone, Mail, Copy, ExternalLink } from 'lucide-react'
 import api from '@/lib/api'
 
 interface TicketData {
@@ -250,16 +250,37 @@ export default function TicketConfirmationPage({ params }: { params: { sessionId
             <div className="p-5">
               {forwardedCode ? (
                 <div className="text-center space-y-4">
-                  <Check className="w-10 h-10 text-green-500 mx-auto" />
-                  <p className="font-semibold text-gray-900">Ticket forwarded!</p>
-                  <p className="text-sm text-gray-500">The recipient was sent the access code:</p>
-                  <div className="bg-purple-50 border border-purple-200 rounded-xl py-3 px-4">
-                    <p className="text-3xl font-black tracking-widest text-purple-700 font-mono">{forwardedCode}</p>
+                  <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+                    <Check className="w-7 h-7 text-green-500" />
                   </div>
-                  <p className="text-xs text-gray-400">They can use this code at <strong>eventecos.com/tickets/claim</strong></p>
-                  <button onClick={closeForward} className="w-full bg-purple-600 text-white font-semibold py-2.5 rounded-xl hover:bg-purple-700 transition-colors">
-                    Done
-                  </button>
+                  <p className="font-semibold text-gray-900">Ticket forwarded!</p>
+                  <p className="text-sm text-gray-500">Share this link with the recipient:</p>
+                  <div
+                    className="bg-purple-50 border border-purple-200 rounded-xl py-3 px-4 cursor-pointer hover:bg-purple-100 transition-colors group relative"
+                    onClick={() => {
+                      const url = `${window.location.origin}/tickets/forward/${forwardedCode}`
+                      navigator.clipboard.writeText(url)
+                    }}
+                  >
+                    <p className="text-xs text-purple-500 font-medium mb-1 flex items-center justify-center gap-1">
+                      <Copy className="w-3 h-3" /> Tap to copy link
+                    </p>
+                    <p className="text-sm text-purple-700 font-mono break-all">/tickets/forward/{forwardedCode}</p>
+                  </div>
+                  <p className="text-xs text-gray-400">Or they can enter the code <strong className="font-mono text-purple-700">{forwardedCode}</strong> at eventecos.com/tickets/claim</p>
+                  <div className="flex gap-2">
+                    <a
+                      href={`/tickets/forward/${forwardedCode}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 flex items-center justify-center gap-1.5 border border-purple-300 text-purple-700 font-medium py-2.5 rounded-xl hover:bg-purple-50 transition-colors text-sm"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" /> Preview
+                    </a>
+                    <button onClick={closeForward} className="flex-1 bg-purple-600 text-white font-semibold py-2.5 rounded-xl hover:bg-purple-700 transition-colors text-sm">
+                      Done
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <form onSubmit={handleForward} className="space-y-4">

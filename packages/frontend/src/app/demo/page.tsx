@@ -680,7 +680,7 @@ function FeatureCardItem({ feature }: { feature: FeatureCard }) {
       {/* CTA */}
       {feature.href && (
         <Link
-          href="/signup"
+          href="https://www.eventecos.com/signup"
           className="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition-colors mt-auto pt-1"
         >
           Sign up to access <ChevronRight className="h-4 w-4" />
@@ -717,7 +717,7 @@ export default function DemoPage() {
               Start Tour
             </button>
             <Link
-              href="/signup"
+              href="https://www.eventecos.com/signup"
               className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 hover:text-gray-900 border border-gray-300 hover:border-gray-400 px-3 py-1.5 rounded-lg transition-colors"
             >
               Sign Up Free
@@ -753,7 +753,7 @@ export default function DemoPage() {
               Guided Tour (17 steps)
             </button>
             <Link
-              href="/signup"
+              href="https://www.eventecos.com/signup"
               className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-900 font-bold px-6 py-3 rounded-xl border border-gray-300 hover:border-gray-400 transition-colors shadow-sm text-sm"
             >
               Start Free Trial <ArrowRight className="h-4 w-4" />
@@ -872,7 +872,7 @@ export default function DemoPage() {
                   ))}
                 </ul>
                 <Link
-                  href="/signup"
+                  href="https://www.eventecos.com/signup"
                   className="inline-flex items-center gap-1 text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition-colors mt-auto pt-1"
                 >
                   Sign up to get started <ChevronRight className="h-4 w-4" />
@@ -986,7 +986,7 @@ export default function DemoPage() {
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
             <Link
-              href="/signup"
+              href="https://www.eventecos.com/signup"
               className="flex items-center gap-2 bg-white text-indigo-700 font-bold px-8 py-4 rounded-xl transition-colors hover:bg-indigo-50 shadow-lg text-base"
             >
               Start Free Trial <ArrowRight className="h-5 w-5" />
@@ -1003,7 +1003,7 @@ export default function DemoPage() {
           {' · '}
           <Link href="/login" className="hover:text-white transition-colors">Login</Link>
           {' · '}
-          <Link href="/signup" className="hover:text-white transition-colors">Sign Up</Link>
+          <Link href="https://www.eventecos.com/signup" className="hover:text-white transition-colors">Sign Up</Link>
         </p>
       </footer>
 

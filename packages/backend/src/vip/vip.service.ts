@@ -353,7 +353,7 @@ export class VipService {
               tax_code: 'txcd_00000000',
             },
             unit_amount: serviceFee,
-            tax_behavior: 'exempt',
+            tax_behavior: 'exclusive',
           },
           quantity: 1,
         },

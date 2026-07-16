@@ -82,6 +82,9 @@ export default function Home() {
               <Link href="#features" className="text-white hover:text-primary-100 font-medium text-sm border border-white/40 hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors">
                 Features
               </Link>
+              <a href="https://demo.eventecos.com/demo" target="_blank" rel="noopener noreferrer" className="text-white hover:text-primary-100 font-medium text-sm border border-white/40 hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors">
+                Live Demo
+              </a>
             </div>
 
             {/* Right CTA */}
@@ -205,13 +208,21 @@ export default function Home() {
           </div>
 
           {/* CTA centered below both columns */}
-          <div className="flex justify-center mt-12">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center mt-12">
             <Link
               href="/signup"
               className="bg-accent-500 hover:bg-accent-600 text-white font-bold px-10 py-4 rounded-lg transition-colors flex items-center gap-2 text-lg shadow-lg hover:shadow-xl"
             >
               Get Started <ArrowRight className="h-5 w-5" />
             </Link>
+            <a
+              href="https://demo.eventecos.com/demo"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="border-2 border-accent-500 text-accent-600 hover:bg-accent-50 font-bold px-10 py-4 rounded-lg transition-colors flex items-center gap-2 text-lg"
+            >
+              See Live Demo
+            </a>
           </div>
         </div>
       </section>
@@ -291,49 +302,25 @@ export default function Home() {
         </div>
       </section>
 
-      {/* How It Works */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-accent-50 to-primary-50">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-4">
-              How It Works
-            </h2>
-            <p className="text-xl text-gray-600">Get started in minutes, manage like a pro</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-            {[
-              { number: '1', title: 'Sign Up', desc: 'Create your free account in seconds' },
-              { number: '2', title: 'Set Up Your Role', desc: 'Choose your role — venue owner, promoter, vendor, or artist — and customize your profile' },
-              { number: '3', title: 'Share Portal', desc: 'Invite clients to your portal' },
-              { number: '4', title: 'Grow Business', desc: 'Accept bookings and payments' },
-            ].map((step, idx) => (
-              <div key={idx} className="relative">
-                <div className="text-center">
-                  <div className="h-16 w-16 bg-accent-500 text-white rounded-full flex items-center justify-center mx-auto mb-4 font-bold text-2xl">
-                    {step.number}
-                  </div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">{step.title}</h3>
-                  <p className="text-gray-600">{step.desc}</p>
-                </div>
-                {idx < 3 && (
-                  <div className="hidden md:block absolute top-8 left-full w-8 h-0.5 bg-accent-200 -ml-4" />
-                )}
-              </div>
-            ))}
-          </div>
+      {/* Demo CTA Banner */}
+      <section className="py-16 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-primary-600 to-secondary-500">
+        <div className="max-w-4xl mx-auto text-center">
+          <h2 className="text-3xl lg:text-4xl font-bold text-white mb-4">
+            See EventEcos in Action
+          </h2>
+          <p className="text-lg text-primary-100 mb-8">
+            Explore a fully loaded demo environment — real bookings, invoices, ticket sales, and more.
+          </p>
+          <a
+            href="https://demo.eventecos.com/demo"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 bg-white hover:bg-accent-50 text-accent-600 font-bold px-10 py-4 rounded-lg transition-colors text-lg shadow-lg"
+          >
+            Launch Live Demo <ArrowRight className="h-5 w-5" />
+          </a>
         </div>
       </section>
-
-      {/* CTA after How It Works */}
-      <div className="bg-white py-8 px-4 text-center border-b border-gray-100">
-        <Link
-          href="/signup"
-          className="inline-flex items-center gap-2 bg-accent-500 hover:bg-accent-600 text-white font-bold px-10 py-4 rounded-lg transition-colors text-lg shadow-lg"
-        >
-          Get Started <ArrowRight className="h-5 w-5" />
-        </Link>
-      </div>
 
       {/* Directory & Events CTA */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gray-900 text-white">
@@ -505,12 +492,14 @@ export default function Home() {
             >
               Get Started
             </Link>
-            <Link
-              href="/login"
+            <a
+              href="https://demo.eventecos.com/demo"
+              target="_blank"
+              rel="noopener noreferrer"
               className="border-2 border-white text-white hover:bg-white/10 font-bold px-8 py-4 rounded-lg transition-colors text-lg"
             >
-              Sign In
-            </Link>
+              See Live Demo
+            </a>
           </div>
         </div>
       </section>

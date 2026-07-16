@@ -239,8 +239,8 @@ export class StripeService {
     venueLimit: number | null;
     teamMemberLimit: number | null;
   } {
-    const proPriceId     = this.configService.get<string>('STRIPE_OWNER_PRO_PRICE_ID',     'price_1TZs56Q777mo7OFqwxVgp4dE');
-    const premiumPriceId = this.configService.get<string>('STRIPE_OWNER_PREMIUM_PRICE_ID', 'price_1TZs57Q777mo7OFqU56SIUsu');
+    const proPriceId     = this.configService.get<string>('STRIPE_OWNER_PRO_PRICE_ID',     'price_1TZt1YQ5L9kwfWUtG72lKBIh');
+    const premiumPriceId = this.configService.get<string>('STRIPE_OWNER_PREMIUM_PRICE_ID', 'price_1TZt2GQ5L9kwfWUtz6t1mbXX');
 
     if (priceId === premiumPriceId) return { planName: 'premium', venueLimit: 5,    teamMemberLimit: 5    };
     if (priceId === proPriceId)     return { planName: 'pro',     venueLimit: 3,    teamMemberLimit: 3    };

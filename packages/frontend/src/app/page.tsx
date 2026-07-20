@@ -39,10 +39,11 @@ export default function Home() {
   useEffect(() => {
     if (!loading && isAuthenticated && user) {
       const role = user.role as string
-      if (role === 'vendor')   { router.push('/vendors/dashboard'); return }
-      if (role === 'admin')    { router.push('/admin'); return }
-      if (role === 'promoter') { router.push('/dashboard/promoter'); return }
-      if (role === 'artist')   { router.push('/artist/dashboard'); return }
+      if (role === 'vendor')    { router.push('/vendors/dashboard'); return }
+      if (role === 'admin')     { router.push('/admin'); return }
+      if (role === 'promoter')  { router.push('/dashboard/promoter'); return }
+      if (role === 'artist')    { router.push('/artist/dashboard'); return }
+      if (role === 'affiliate') { router.push('/sales-portal/dashboard'); return }
       router.push('/dashboard')
     }
   }, [isAuthenticated, loading, router, user])

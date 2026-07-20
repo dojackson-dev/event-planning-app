@@ -223,7 +223,7 @@ export class AuthService {
     }
 
     // Delete the auth user using admin client
-    const adminSupabase = this.supabaseService.getClient();
+    const adminSupabase = this.supabaseService.getAdminClient();
     const { error } = await adminSupabase.auth.admin.deleteUser(userId);
 
     if (error) {

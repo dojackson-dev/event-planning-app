@@ -8,8 +8,10 @@
  *  - 3 private events
  *  - 5 service items
  *  - 2 bookings
+ *  - 3 clients      (intake forms: Sarah Johnson, David Park, Rosa Mendez)
+ *  - 3 invoices     (with line items, linked to clients)
  *  - 1 promoter     (marcus@demopromoter.com / Demo@2024!)
- *  - 2 public events with ticket tiers
+ *  - 3 public events with ticket tiers
  *  - VIP section + 2 VIP packages for first public event
  *
  * Run:  node seed-demo.js
@@ -493,6 +495,237 @@ async function main() {
       const { error: vpErr } = await supabase.from('vip_packages').insert(pkg);
       if (vpErr) { warn(`vip_package "${pkg.name}": ${vpErr.message}`); continue; }
       ok(`VIP package: ${pkg.name} ($${pkg.price})`);
+    }
+  }
+
+  // ── 10. CLIENTS (INTAKE FORMS) ─────────────────────────────────────────────
+  console.log('\n🔟  Clients (intake forms for Alex)...');
+  const clientDefs = [
+    {
+      user_id:          ownerUserId,
+      contact_name:     'Sarah Johnson',
+      contact_email:    'sarah@johnsonwedding.com',
+      contact_phone:    '312-555-0310',
+      event_type:       'Wedding',
+      event_date:       '2026-08-15',
+      event_time:       '17:00:00',
+      guest_count:      200,
+      budget_range:     '$8,000 - $12,000',
+      special_requests: 'Champagne tower, custom monogram lighting, late-night snack bar',
+      status:           'confirmed',
+    },
+    {
+      user_id:          ownerUserId,
+      contact_name:     'David Park',
+      contact_email:    'dpark@techcorp.com',
+      contact_phone:    '312-555-0420',
+      event_type:       'Corporate',
+      event_date:       '2026-09-20',
+      event_time:       '18:00:00',
+      guest_count:      350,
+      budget_range:     '$12,000 - $18,000',
+      special_requests: 'Stage for awards presentation, branded backdrop, vegan menu options',
+      status:           'confirmed',
+    },
+    {
+      user_id:          ownerUserId,
+      contact_name:     'Rosa Mendez',
+      contact_email:    'rosa.mendez@email.com',
+      contact_phone:    '312-555-0531',
+      event_type:       'Birthday',
+      event_date:       '2026-10-04',
+      event_time:       '15:00:00',
+      guest_count:      150,
+      budget_range:     '$5,000 - $7,000',
+      special_requests: 'Pink and gold color scheme, custom quinceañera cake, photo booth',
+      status:           'new',
+    },
+  ];
+
+  const createdIntakeForms = [];
+  for (const client of clientDefs) {
+    const { data: existingForm } = await supabase
+      .from('intake_forms')
+      .select('id')
+      .eq('contact_email', client.contact_email)
+      .eq('user_id', ownerUserId)
+      .maybeSingle();
+    if (existingForm) {
+      log(`Client already exists: ${client.contact_name}`);
+      createdIntakeForms.push(existingForm);
+      continue;
+    }
+    const { data: form, error: formErr } = await supabase
+      .from('intake_forms')
+      .insert(client)
+      .select()
+      .single();
+    if (formErr) { warn(`intake_form "${client.contact_name}": ${formErr.message}`); createdIntakeForms.push(null); continue; }
+    createdIntakeForms.push(form);
+    ok(`Client: ${client.contact_name} (${client.contact_email})`);
+  }
+
+  // ── 11. INVOICES ───────────────────────────────────────────────────────────
+  console.log('\n1️⃣1️⃣  Invoices...');
+  const invoiceDefs = [
+    {
+      intakeForm:    createdIntakeForms[0],
+      clientName:    'Sarah Johnson',
+      clientEmail:   'sarah@johnsonwedding.com',
+      clientPhone:   '312-555-0310',
+      invoiceNumber: 'INV-2026-00001',
+      issueDate:     '2026-07-01',
+      dueDate:       '2026-08-01',
+      status:        'sent',
+      amountPaid:    4400,
+      items: [
+        { description: 'Full-Service Catering (200 guests)', qty: 1, price: 4500 },
+        { description: 'DJ & Sound System (6 hrs)',          qty: 1, price: 1800 },
+        { description: 'Photography Package',                qty: 1, price: 2500 },
+      ],
+    },
+    {
+      intakeForm:    createdIntakeForms[1],
+      clientName:    'David Park',
+      clientEmail:   'dpark@techcorp.com',
+      clientPhone:   '312-555-0420',
+      invoiceNumber: 'INV-2026-00002',
+      issueDate:     '2026-07-05',
+      dueDate:       '2026-09-05',
+      status:        'sent',
+      amountPaid:    3125,
+      items: [
+        { description: 'Full-Service Catering (350 guests)', qty: 1, price: 6000 },
+        { description: 'DJ & Sound System (6 hrs)',          qty: 1, price: 1800 },
+        { description: 'Photography Package',                qty: 1, price: 2500 },
+        { description: 'Floral & Decor',                     qty: 1, price: 1200 },
+        { description: 'Event Security (8 hrs)',             qty: 1, price: 1000 },
+      ],
+    },
+    {
+      intakeForm:    createdIntakeForms[2],
+      clientName:    'Rosa Mendez',
+      clientEmail:   'rosa.mendez@email.com',
+      clientPhone:   '312-555-0531',
+      invoiceNumber: 'INV-2026-00003',
+      issueDate:     '2026-07-15',
+      dueDate:       '2026-08-15',
+      status:        'draft',
+      amountPaid:    0,
+      items: [
+        { description: 'Full-Service Catering (150 guests)', qty: 1, price: 3000 },
+        { description: 'DJ & Sound System (6 hrs)',          qty: 1, price: 1800 },
+        { description: 'Floral & Decor',                     qty: 1, price:  700 },
+      ],
+    },
+  ];
+
+  for (const inv of invoiceDefs) {
+    if (!inv.intakeForm) { warn(`Skipping invoice for ${inv.clientName} — intake form missing`); continue; }
+
+    const { data: existingInv } = await supabase
+      .from('invoices')
+      .select('id')
+      .eq('invoice_number', inv.invoiceNumber)
+      .maybeSingle();
+    if (existingInv) { log(`Invoice already exists: ${inv.invoiceNumber}`); continue; }
+
+    const subtotal      = inv.items.reduce((s, i) => s + i.price * i.qty, 0);
+    const totalAmount   = subtotal;
+    const amountDue     = totalAmount - inv.amountPaid;
+
+    const { data: invoice, error: invErr } = await supabase
+      .from('invoices')
+      .insert({
+        invoice_number:  inv.invoiceNumber,
+        owner_id:        ownerUserId,
+        intake_form_id:  inv.intakeForm.id,
+        client_name:     inv.clientName,
+        client_email:    inv.clientEmail,
+        client_phone:    inv.clientPhone,
+        issue_date:      inv.issueDate,
+        due_date:        inv.dueDate,
+        status:          inv.status,
+        subtotal,
+        tax_rate:        0,
+        tax_amount:      0,
+        discount_amount: 0,
+        total_amount:    totalAmount,
+        amount_paid:     inv.amountPaid,
+        amount_due:      amountDue,
+      })
+      .select()
+      .single();
+    if (invErr) { warn(`invoice "${inv.invoiceNumber}": ${invErr.message}`); continue; }
+    ok(`Invoice: ${inv.invoiceNumber} — $${totalAmount} (${inv.status})`);
+
+    for (let i = 0; i < inv.items.length; i++) {
+      const item        = inv.items[i];
+      const itemAmount  = item.price * item.qty;
+      const { error: itemErr } = await supabase.from('invoice_items').insert({
+        invoice_id:      invoice.id,
+        description:     item.description,
+        quantity:        item.qty,
+        standard_price:  item.price,
+        unit_price:      item.price,
+        subtotal:        itemAmount,
+        discount_type:   'none',
+        discount_value:  0,
+        discount_amount: 0,
+        amount:          itemAmount,
+        sort_order:      i + 1,
+      });
+      if (itemErr) { warn(`  invoice_item "${item.description}": ${itemErr.message}`); continue; }
+      ok(`  → ${item.description}: $${item.price}`);
+    }
+  }
+
+  // ── 12. ADDITIONAL PUBLIC EVENT FOR MARCUS ─────────────────────────────────
+  console.log('\n1️⃣2️⃣  Additional public event for Marcus...');
+  const { data: existingPE3 } = await supabase
+    .from('public_events')
+    .select('id, title')
+    .eq('promoter_account_id', promoterAccount.id)
+    .eq('title', 'Old School Hip-Hop Night')
+    .maybeSingle();
+
+  if (existingPE3) {
+    log(`Public event already exists: ${existingPE3.title}`);
+  } else {
+    const { data: pubEvent3, error: pe3Err } = await supabase
+      .from('public_events')
+      .insert({
+        promoter_account_id: promoterAccount.id,
+        title:           'Old School Hip-Hop Night',
+        description:     "90s & 2000s hip-hop classics all night long. DJ Flex spins your favorite anthems from the golden era. No attitude, just vibes.",
+        event_date:      '2026-10-17',
+        start_time:      '21:00',
+        end_time:        '02:00',
+        venue_name:      'The Mid Chicago',
+        venue_address:   '306 N Halsted St',
+        city:            'Chicago',
+        state:           'IL',
+        zip_code:        '60661',
+        category:        'Music & Nightlife',
+        age_restriction: '21+',
+        venue_type:      'Nightclub',
+        status:          'published',
+      })
+      .select()
+      .single();
+    if (pe3Err) { warn(`public_event 3: ${pe3Err.message}`); }
+    else {
+      ok(`Public event: ${pubEvent3.title}`);
+      const tiers3 = [
+        { public_event_id: pubEvent3.id, name: 'Early Bird',     price: 15.00, quantity: 150, quantity_sold: 98, description: 'Limited early bird pricing.' },
+        { public_event_id: pubEvent3.id, name: 'General Admission', price: 25.00, quantity: 400, quantity_sold: 210, description: 'Standard entry.' },
+        { public_event_id: pubEvent3.id, name: 'VIP Booth',      price: 200.00, quantity:  10, quantity_sold:  6, description: 'Reserved booth for 4 with 1 bottle included.' },
+      ];
+      for (const tier of tiers3) {
+        const { error: tErr } = await supabase.from('ticket_tiers').insert(tier);
+        if (tErr) { warn(`ticket_tier "${tier.name}": ${tErr.message}`); continue; }
+        ok(`Ticket tier: ${tier.name} ($${tier.price})`);
+      }
     }
   }
 

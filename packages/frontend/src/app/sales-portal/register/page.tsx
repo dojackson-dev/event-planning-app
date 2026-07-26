@@ -1,11 +1,11 @@
 ﻿'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
 
-export default function SalesPortalRegister() {
+function RegisterForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -264,5 +264,17 @@ export default function SalesPortalRegister() {
 
       </div>
     </div>
+  )
+}
+
+export default function SalesPortalRegister() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-white px-4">
+        <p className="text-gray-500 text-sm animate-pulse">Loading…</p>
+      </div>
+    }>
+      <RegisterForm />
+    </Suspense>
   )
 }

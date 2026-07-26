@@ -155,6 +155,12 @@ export default function SalesPortalDashboard() {
   const [loadingUsers,    setLoadingUsers]   = useState(false)
   const [copied,          setCopied]         = useState(false)
 
+  // Invite form state (manager only)
+  const [inviteEmail,     setInviteEmail]    = useState('')
+  const [inviteLoading,   setInviteLoading]  = useState(false)
+  const [inviteSuccess,   setInviteSuccess]  = useState('')
+  const [inviteError,     setInviteError]    = useState('')
+
   const isManager = authAffiliate?.email === 'sales@eventecos.com'
 
   // Redirect if not authenticated
@@ -511,6 +517,52 @@ export default function SalesPortalDashboard() {
           {/* ── Users (manager only) ─── */}
           {tab === 'users' && isManager && (
             <div className="space-y-5">
+
+              {/* ── Invite Affiliate ── */}
+              <div className="bg-white rounded-xl border p-5">
+                <h3 className="text-sm font-semibold text-gray-900 mb-1">Invite a New Affiliate</h3>
+                <p className="text-xs text-gray-500 mb-3">Send an invite link to onboard a new sales affiliate. The link expires in 7 days.</p>
+                <form
+                  onSubmit={async e => {
+                    e.preventDefault()
+                    setInviteError('')
+                    setInviteSuccess('')
+                    setInviteLoading(true)
+                    try {
+                      const res = await api.post('/affiliates/manager/invite', { email: inviteEmail })
+                      setInviteSuccess(res.data.message || `Invite sent to ${inviteEmail}`)
+                      setInviteEmail('')
+                    } catch (err: any) {
+                      setInviteError(err.response?.data?.message || 'Failed to send invite')
+                    } finally {
+                      setInviteLoading(false)
+                    }
+                  }}
+                  className="flex gap-2"
+                >
+                  <input
+                    type="email"
+                    required
+                    value={inviteEmail}
+                    onChange={e => setInviteEmail(e.target.value)}
+                    placeholder="affiliate@example.com"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <button
+                    type="submit"
+                    disabled={inviteLoading}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg transition-colors"
+                  >
+                    {inviteLoading ? 'Sending…' : 'Send Invite'}
+                  </button>
+                </form>
+                {inviteSuccess && (
+                  <p className="mt-2 text-xs text-green-600">{inviteSuccess}</p>
+                )}
+                {inviteError && (
+                  <p className="mt-2 text-xs text-red-600">{inviteError}</p>
+                )}
+              </div>
 
               {/* Summary cards */}
               {managerSummary && (

@@ -8,6 +8,7 @@ import {
 import { SupabaseService } from '../supabase/supabase.service';
 import { RegisterAffiliateDto, UpdateAffiliateDto } from './dto/affiliate.dto';
 import { randomBytes } from 'crypto';
+import { MailService } from '../mail/mail.service';
 
 /** Commission rates */
 const CONVERSION_RATE = 0.50;  // 50% of first subscription payment
@@ -16,12 +17,103 @@ const MAX_COMMISSION_YEARS = 3;
 
 @Injectable()
 export class AffiliatesService {
-  constructor(private readonly supabaseService: SupabaseService) {}
+  constructor(
+    private readonly supabaseService: SupabaseService,
+    private readonly mailService: MailService,
+  ) {}
+
+  // ─── Invite Flow ─────────────────────────────────────────────────────────
+
+  async inviteAffiliate(email: string, managerEmail: string) {
+    const admin = this.supabaseService.getAdminClient();
+
+    // Only the sales manager can send invites
+    if (managerEmail !== 'sales@eventecos.com') {
+      throw new ForbiddenException('Only the sales manager can send invites');
+    }
+
+    const normalizedEmail = email.toLowerCase();
+
+    // Check if already an affiliate
+    const { data: existing } = await admin
+      .from('affiliates')
+      .select('id')
+      .eq('email', normalizedEmail)
+      .maybeSingle();
+
+    if (existing) {
+      throw new BadRequestException('This email is already registered as an affiliate');
+    }
+
+    // Revoke any previous unused invite for this email
+    await admin
+      .from('affiliate_invites')
+      .update({ used_at: new Date().toISOString() })
+      .eq('email', normalizedEmail)
+      .is('used_at', null);
+
+    // Generate a secure token
+    const token = randomBytes(32).toString('hex');
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
+    const { error: insertErr } = await admin.from('affiliate_invites').insert({
+      email: normalizedEmail,
+      token,
+      invited_by: managerEmail,
+      expires_at: expiresAt.toISOString(),
+    });
+
+    if (insertErr) {
+      throw new BadRequestException(insertErr.message);
+    }
+
+    // Send the invite email
+    await this.mailService.sendAffiliateInvite({ toEmail: normalizedEmail, inviteToken: token });
+
+    return { message: `Invite sent to ${normalizedEmail}` };
+  }
+
+  async validateInviteToken(token: string) {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: invite } = await admin
+      .from('affiliate_invites')
+      .select('email, used_at, expires_at')
+      .eq('token', token)
+      .maybeSingle();
+
+    if (!invite) return { valid: false, reason: 'Invalid invite link' };
+    if (invite.used_at) return { valid: false, reason: 'This invite link has already been used' };
+    if (new Date(invite.expires_at) < new Date()) return { valid: false, reason: 'This invite link has expired' };
+
+    return { valid: true, email: invite.email };
+  }
 
   // ─── Registration ────────────────────────────────────────────────────────
 
   async register(dto: RegisterAffiliateDto) {
     const admin = this.supabaseService.getAdminClient();
+
+    // Validate invite token
+    const { data: invite, error: inviteErr } = await admin
+      .from('affiliate_invites')
+      .select('id, email, used_at, expires_at')
+      .eq('token', dto.inviteToken)
+      .maybeSingle();
+
+    if (inviteErr || !invite) {
+      throw new BadRequestException('Invalid or expired invite link');
+    }
+    if (invite.used_at) {
+      throw new BadRequestException('This invite link has already been used');
+    }
+    if (new Date(invite.expires_at) < new Date()) {
+      throw new BadRequestException('This invite link has expired');
+    }
+    if (invite.email.toLowerCase() !== dto.email.toLowerCase()) {
+      throw new BadRequestException('This invite was sent to a different email address');
+    }
 
     // Check email uniqueness in users table
     const { data: existing } = await admin
@@ -91,6 +183,12 @@ export class AffiliatesService {
       await admin.auth.admin.deleteUser(userId);
       throw new BadRequestException(affError.message);
     }
+
+    // Mark invite as used
+    await admin
+      .from('affiliate_invites')
+      .update({ used_at: new Date().toISOString() })
+      .eq('token', dto.inviteToken);
 
     // Sign in to get a session for the new affiliate
     const anonClient = this.supabaseService.getClient();

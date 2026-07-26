@@ -4,6 +4,7 @@ export class RegisterAffiliateDto {
   firstName: string;
   lastName: string;
   phone?: string;
+  inviteToken: string;
 }
 
 export class LoginAffiliateDto {
@@ -16,3 +17,8 @@ export class UpdateAffiliateDto {
   lastName?: string;
   phone?: string;
 }
+
+export class InviteAffiliateDto {
+  email: string;
+}
+

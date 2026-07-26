@@ -407,4 +407,60 @@ export class MailService {
       // Non-fatal — SMS is already sent; don't break the contract send flow
     }
   }
-}
+  async sendAffiliateInvite(params: {
+    toEmail: string;
+    inviteToken: string;
+  }): Promise<void> {
+    try {
+      const salesPortalUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+      const registerUrl = `${salesPortalUrl}/sales-portal/register?token=${params.inviteToken}`;
+
+      const mailOptions = {
+        from: `"EventEcos Sales" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
+        to: params.toEmail,
+        subject: `You've been invited to join the EventEcos Affiliate Program`,
+        html: `
+          <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f9fafb;padding:32px 16px;">
+            <div style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+              <div style="background:linear-gradient(135deg,#4338ca 0%,#6366f1 100%);padding:32px;text-align:center;">
+                <h1 style="color:white;margin:0;font-size:24px;font-weight:700;">EventEcos</h1>
+                <p style="color:rgba(255,255,255,0.85);margin:8px 0 0;font-size:14px;">Affiliate Program Invitation</p>
+              </div>
+              <div style="padding:32px;">
+                <p style="color:#374151;font-size:15px;line-height:1.6;">
+                  You've been personally invited to join the <strong>EventEcos Affiliate Program</strong>.
+                </p>
+                <p style="color:#374151;font-size:15px;line-height:1.6;">
+                  As an affiliate you earn:
+                </p>
+                <ul style="color:#374151;font-size:14px;line-height:2;">
+                  <li><strong>50%</strong> commission on each owner's first subscription payment</li>
+                  <li><strong>3%</strong> recurring commission on every subsequent payment for up to 3 years</li>
+                </ul>
+                <div style="text-align:center;margin:32px 0;">
+                  <a href="${registerUrl}"
+                     style="display:inline-block;background:#4338ca;color:white;padding:14px 40px;text-decoration:none;border-radius:8px;font-size:16px;font-weight:600;letter-spacing:0.3px;">
+                    Create Your Account
+                  </a>
+                </div>
+                <p style="color:#6b7280;font-size:13px;text-align:center;">
+                  This invite link expires in 7 days and is valid for this email address only.
+                </p>
+                <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
+                <p style="color:#9ca3af;font-size:12px;text-align:center;margin:0;">
+                  EventEcos &middot; Automated message, please do not reply.
+                </p>
+              </div>
+            </div>
+          </div>
+        `,
+        text: `You've been invited to join the EventEcos Affiliate Program.\n\nEarn 50% on first conversions + 3% recurring for up to 3 years.\n\nCreate your account here: ${registerUrl}\n\nThis link expires in 7 days.`,
+      };
+
+      const info = await this.transporter.sendMail(mailOptions);
+      console.log('[MailService] Affiliate invite sent to', params.toEmail, info.messageId);
+    } catch (error) {
+      console.error('[MailService] Failed to send affiliate invite email:', error);
+      throw error; // Let caller handle — invite is useless without the email
+    }
+  }}

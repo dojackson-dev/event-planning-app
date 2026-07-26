@@ -623,6 +623,61 @@ export class AffiliatesService {
     };
   }
 
+  // ─── Sales Manager: All-affiliates view ─────────────────────────────────
+
+  async getManagerAffiliates(affiliateEmail: string) {
+    if (affiliateEmail !== 'sales@eventecos.com') {
+      throw new ForbiddenException('Manager access only');
+    }
+
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: affiliates, error } = await admin
+      .from('affiliates')
+      .select('id, first_name, last_name, email, referral_code, status, created_at')
+      .neq('email', 'sales@eventecos.com')
+      .order('created_at', { ascending: false });
+
+    if (error) throw new BadRequestException(error.message);
+
+    const affiliateIds = (affiliates ?? []).map((a: any) => a.id);
+
+    if (!affiliateIds.length) return { affiliates: [] };
+
+    const [{ data: referrals }, { data: commissions }] = await Promise.all([
+      admin
+        .from('affiliate_referrals')
+        .select('affiliate_id, status')
+        .in('affiliate_id', affiliateIds),
+      admin
+        .from('affiliate_commissions')
+        .select('affiliate_id, commission_amount, status')
+        .in('affiliate_id', affiliateIds),
+    ]);
+
+    const enriched = (affiliates ?? []).map((a: any) => {
+      const refs  = (referrals   ?? []).filter((r: any) => r.affiliate_id === a.id);
+      const comms = (commissions ?? []).filter((c: any) => c.affiliate_id === a.id);
+      return {
+        id:            a.id,
+        first_name:    a.first_name,
+        last_name:     a.last_name,
+        email:         a.email,
+        referral_code: a.referral_code,
+        status:        a.status,
+        joined_at:     a.created_at,
+        stats: {
+          totalReferred:   refs.length,
+          totalConverted:  refs.filter((r: any) => r.status === 'converted').length,
+          totalEarned:     Number(comms.reduce((s: number, c: any) => s + Number(c.commission_amount), 0).toFixed(2)),
+          pendingEarnings: Number(comms.filter((c: any) => c.status === 'pending').reduce((s: number, c: any) => s + Number(c.commission_amount), 0).toFixed(2)),
+        },
+      };
+    });
+
+    return { affiliates: enriched };
+  }
+
   // ─── Referral Code Lookup ─────────────────────────────────────────────────
 
   /** Validate a referral code and return the affiliate ID (used during owner signup). */

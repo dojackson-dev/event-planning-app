@@ -94,4 +94,11 @@ export class AffiliatesController {
   async inviteAffiliate(@Req() req: any, @Body() dto: InviteAffiliateDto) {
     return this.affiliatesService.inviteAffiliate(dto.email, req.affiliate.email);
   }
+
+  /** Sales manager: all registered affiliates with stats */
+  @Get('manager/affiliates')
+  @UseGuards(AffiliateGuard)
+  async getManagerAffiliates(@Req() req: any) {
+    return this.affiliatesService.getManagerAffiliates(req.affiliate.email);
+  }
 }

@@ -6,6 +6,7 @@ import {
   Body,
   Req,
   Query,
+  Param,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -79,5 +80,12 @@ export class AffiliatesController {
     @Query('role') role = '',
   ) {
     return this.affiliatesService.getManagerUsers(req.affiliate.email, search, role);
+  }
+
+  /** Sales manager: full detail for a single platform user */
+  @Get('manager/users/:id')
+  @UseGuards(AffiliateGuard)
+  async getManagerUserDetail(@Req() req: any, @Param('id') id: string) {
+    return this.affiliatesService.getManagerUserDetail(req.affiliate.email, id);
   }
 }

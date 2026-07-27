@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
 import { useAffiliateAuth } from '@/contexts/AffiliateAuthContext'
-import { Search, RefreshCw, Users, TrendingUp, CheckCircle, XCircle } from 'lucide-react'
+import { Search, RefreshCw, Users, TrendingUp, CheckCircle, XCircle, X } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -70,6 +70,22 @@ interface ManagerSummary {
   promoters: number
   artists: number
   vendors: number
+}
+
+interface ManagerUserDetail {
+  user: {
+    id: string
+    email: string | null
+    first_name: string | null
+    last_name: string | null
+    role: string
+    roles: string[] | null
+    created_at: string
+    last_sign_in_at: string | null
+  }
+  account: Record<string, any> | null
+  referred_by: { name: string; code: string } | null
+  stats: Record<string, any>
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -154,6 +170,9 @@ export default function SalesPortalDashboard() {
   const [loadingData,     setLoadingData]    = useState(true)
   const [loadingUsers,    setLoadingUsers]   = useState(false)
   const [copied,          setCopied]         = useState(false)
+  const [selectedUserId,  setSelectedUserId]  = useState<string | null>(null)
+  const [userDetail,      setUserDetail]      = useState<ManagerUserDetail | null>(null)
+  const [loadingDetail,   setLoadingDetail]   = useState(false)
 
   const isManager = authAffiliate?.email === 'sales@eventecos.com'
 
@@ -211,6 +230,25 @@ export default function SalesPortalDashboard() {
   const handleUserSearch = (e: React.FormEvent) => {
     e.preventDefault()
     fetchManagerUsers(userSearch, userRoleFilter)
+  }
+
+  const openUserDetail = useCallback(async (userId: string) => {
+    setSelectedUserId(userId)
+    setLoadingDetail(true)
+    setUserDetail(null)
+    try {
+      const res = await api.get(`/affiliates/manager/users/${userId}`)
+      setUserDetail(res.data)
+    } catch {
+      // failed to load — modal will show an error state
+    } finally {
+      setLoadingDetail(false)
+    }
+  }, [])
+
+  const closeUserDetail = () => {
+    setSelectedUserId(null)
+    setUserDetail(null)
   }
 
   const referralLink = dashboard
@@ -600,7 +638,11 @@ export default function SalesPortalDashboard() {
                     </thead>
                     <tbody className="divide-y divide-gray-50">
                       {managerUsers.map(u => (
-                        <tr key={u.id} className="hover:bg-gray-50">
+                        <tr
+                          key={u.id}
+                          onClick={() => openUserDetail(u.id)}
+                          className="hover:bg-gray-50 cursor-pointer"
+                        >
                           <td className="px-4 py-3">
                             <p className="font-medium text-gray-900">
                               {u.first_name || u.last_name
@@ -665,6 +707,149 @@ export default function SalesPortalDashboard() {
         </div>
 
       </main>
+
+      {/* ── User Detail Modal ─── */}
+      {selectedUserId && (
+        <div
+          className="fixed inset-0 bg-black/40 z-20 flex items-center justify-center p-4"
+          onClick={closeUserDetail}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[85vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl">
+              <h3 className="font-semibold text-gray-900">User Details</h3>
+              <button onClick={closeUserDetail} className="p-1 rounded-lg hover:bg-gray-100">
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              {loadingDetail ? (
+                <div className="flex justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+                </div>
+              ) : !userDetail ? (
+                <p className="text-sm text-gray-500 text-center py-8">Failed to load user details.</p>
+              ) : (
+                <div className="space-y-5">
+                  <div>
+                    <p className="text-lg font-semibold text-gray-900">
+                      {userDetail.user.first_name || userDetail.user.last_name
+                        ? `${userDetail.user.first_name ?? ''} ${userDetail.user.last_name ?? ''}`.trim()
+                        : 'No name'}
+                    </p>
+                    <p className="text-sm text-gray-500">{userDetail.user.email ?? '—'}</p>
+                    <span className={`inline-flex mt-2 px-2 py-0.5 rounded-full text-xs font-medium border ${
+                      userDetail.user.role === 'owner'    ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                      userDetail.user.role === 'promoter' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                      userDetail.user.role === 'artist'   ? 'bg-pink-50 text-pink-700 border-pink-200' :
+                      userDetail.user.role === 'vendor'   ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                      'bg-gray-50 text-gray-600 border-gray-200'
+                    }`}>
+                      {userDetail.user.role.charAt(0).toUpperCase() + userDetail.user.role.slice(1)}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Signed Up</p>
+                      <p className="text-gray-700">{fmtDate(userDetail.user.created_at)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Last Login</p>
+                      <p className="text-gray-700">{fmtDate(userDetail.user.last_sign_in_at)}</p>
+                    </div>
+                  </div>
+
+                  {userDetail.referred_by && (
+                    <div>
+                      <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Referred By</p>
+                      <p className="text-gray-700 text-sm">
+                        {userDetail.referred_by.name}{' '}
+                        <span className="text-gray-400 font-mono text-xs">({userDetail.referred_by.code})</span>
+                      </p>
+                    </div>
+                  )}
+
+                  {userDetail.account && userDetail.user.role === 'owner' && (
+                    <div className="border-t border-gray-100 pt-4 space-y-3">
+                      <p className="text-xs text-gray-400 uppercase tracking-wide">Owner Account</p>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="text-xs text-gray-400 mb-0.5">Business Name</p>
+                          <p className="text-gray-700">{userDetail.account.business_name ?? '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-400 mb-0.5">Subscription</p>
+                          <span className={statusBadge(userDetail.account.subscription_status)}>
+                            {SUB_STATUS_LABELS[userDetail.account.subscription_status] ?? userDetail.account.subscription_status ?? '—'}
+                          </span>
+                        </div>
+                        {userDetail.account.trial_ends_at && (
+                          <div>
+                            <p className="text-xs text-gray-400 mb-0.5">Trial Ends</p>
+                            <p className="text-gray-700">{fmtDate(userDetail.account.trial_ends_at)}</p>
+                          </div>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-3 gap-3 pt-1">
+                        <div className="bg-gray-50 rounded-lg p-3 text-center">
+                          <p className="text-lg font-bold text-gray-900">{userDetail.stats.eventCount ?? 0}</p>
+                          <p className="text-xs text-gray-500">Events</p>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg p-3 text-center">
+                          <p className="text-lg font-bold text-gray-900">{userDetail.stats.invoiceCount ?? 0}</p>
+                          <p className="text-xs text-gray-500">Invoices</p>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg p-3 text-center">
+                          <p className="text-lg font-bold text-green-700">{fmt(userDetail.stats.totalRevenue ?? 0)}</p>
+                          <p className="text-xs text-gray-500">Revenue</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {userDetail.account && userDetail.user.role === 'vendor' && (
+                    <div className="border-t border-gray-100 pt-4 space-y-3">
+                      <p className="text-xs text-gray-400 uppercase tracking-wide">Vendor Account</p>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="text-xs text-gray-400 mb-0.5">Business Name</p>
+                          <p className="text-gray-700">{userDetail.account.business_name ?? '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-400 mb-0.5">Category</p>
+                          <p className="text-gray-700">{userDetail.account.category ?? '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-400 mb-0.5">Phone</p>
+                          <p className="text-gray-700">{userDetail.account.phone ?? '—'}</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-3 pt-1">
+                        <div className="bg-gray-50 rounded-lg p-3 text-center">
+                          <p className="text-lg font-bold text-gray-900">{userDetail.stats.bookingCount ?? 0}</p>
+                          <p className="text-xs text-gray-500">Bookings</p>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg p-3 text-center">
+                          <p className="text-lg font-bold text-gray-900">{userDetail.stats.invoiceCount ?? 0}</p>
+                          <p className="text-xs text-gray-500">Invoices</p>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg p-3 text-center">
+                          <p className="text-lg font-bold text-green-700">{fmt(userDetail.stats.totalRevenue ?? 0)}</p>
+                          <p className="text-xs text-gray-500">Revenue</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

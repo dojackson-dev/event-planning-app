@@ -525,6 +525,87 @@ export class AffiliatesService {
     };
   }
 
+  /**
+   * Only available to the sales@eventecos.com manager account.
+   * Returns full profile detail for a single platform user, including
+   * role-specific stats (events/revenue for owners, bookings for vendors).
+   */
+  async getManagerUserDetail(affiliateEmail: string, userId: string) {
+    if (affiliateEmail !== 'sales@eventecos.com') {
+      throw new ForbiddenException('Manager access only');
+    }
+
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: user, error: userError } = await admin
+      .from('users')
+      .select('id, email, first_name, last_name, role, roles, created_at, last_sign_in_at')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (userError) throw new BadRequestException(userError.message);
+    if (!user) throw new NotFoundException('User not found');
+
+    let account: any = null;
+    let referredBy: { name: string; code: string } | null = null;
+    let stats: Record<string, any> = {};
+
+    if (user.role === 'owner') {
+      const [{ data: acct }, { count: eventCount }, { data: invoices }] = await Promise.all([
+        admin.from('owner_accounts').select('*').eq('primary_owner_id', userId).maybeSingle(),
+        admin.from('events').select('*', { count: 'exact', head: true }).eq('owner_id', userId),
+        admin.from('invoices').select('total_amount, status').eq('owner_id', userId),
+      ]);
+
+      account = acct;
+      const totalRevenue = (invoices || [])
+        .filter((i: any) => i.status === 'paid')
+        .reduce((sum: number, i: any) => sum + (i.total_amount || 0), 0);
+
+      stats = {
+        eventCount: eventCount || 0,
+        invoiceCount: (invoices || []).length,
+        totalRevenue,
+      };
+
+      if (acct?.referred_by_affiliate_id) {
+        const { data: ref } = await admin
+          .from('affiliates')
+          .select('first_name, last_name, referral_code')
+          .eq('id', acct.referred_by_affiliate_id)
+          .maybeSingle();
+        if (ref) referredBy = { name: `${ref.first_name} ${ref.last_name}`, code: ref.referral_code };
+      }
+    } else if (user.role === 'vendor') {
+      const { data: acct } = await admin.from('vendor_accounts').select('*').eq('user_id', userId).maybeSingle();
+      account = acct;
+
+      if (acct?.id) {
+        const [{ count: bookingCount }, { data: invoices }] = await Promise.all([
+          admin.from('vendor_bookings').select('*', { count: 'exact', head: true }).eq('vendor_account_id', acct.id),
+          admin.from('vendor_invoices').select('total_amount, status').eq('vendor_account_id', acct.id),
+        ]);
+
+        const totalRevenue = (invoices || [])
+          .filter((i: any) => i.status === 'paid')
+          .reduce((sum: number, i: any) => sum + (i.total_amount || 0), 0);
+
+        stats = {
+          bookingCount: bookingCount || 0,
+          invoiceCount: (invoices || []).length,
+          totalRevenue,
+        };
+      }
+    }
+
+    return {
+      user,
+      account,
+      referred_by: referredBy,
+      stats,
+    };
+  }
+
   // ─── Referral Code Lookup ─────────────────────────────────────────────────
 
   /** Validate a referral code and return the affiliate ID (used during owner signup). */

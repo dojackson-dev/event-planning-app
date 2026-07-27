@@ -98,13 +98,11 @@ export default function SalesPortalLogin() {
             </button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-gray-500">
-            New affiliate?{' '}
-            <Link href="/sales-portal/register" className="text-indigo-600 hover:text-indigo-700 font-medium">
-              Apply here
-            </Link>
-          </p>
         </div>
+
+        <p className="text-center text-sm text-gray-400">
+          <Link href="/" className="hover:text-gray-600 transition-colors">← Back to main site</Link>
+        </p>
 
       </div>
     </div>

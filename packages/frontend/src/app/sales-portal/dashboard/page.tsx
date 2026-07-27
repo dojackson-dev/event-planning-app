@@ -512,31 +512,6 @@ export default function SalesPortalDashboard() {
 
           {/* ── Referrals ─── */}
           {tab === 'referrals' && (
-                  />
-                </div>
-              )}
-
-              {/* Commission rate card */}
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
-                <h3 className="font-semibold text-gray-900 mb-4">Your Commission Structure</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="bg-indigo-50 rounded-lg p-4">
-                    <p className="text-2xl font-bold text-indigo-700">50%</p>
-                    <p className="text-sm font-medium text-indigo-800 mt-1">Conversion Bonus</p>
-                    <p className="text-xs text-indigo-600 mt-1">Earned on the first subscription payment of every owner you convert.</p>
-                  </div>
-                  <div className="bg-green-50 rounded-lg p-4">
-                    <p className="text-2xl font-bold text-green-700">3%</p>
-                    <p className="text-sm font-medium text-green-800 mt-1">Recurring Revenue</p>
-                    <p className="text-xs text-green-600 mt-1">Earned on every monthly payment for up to 3 years per subscriber.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ── Referrals ─── */}
-          {tab === 'referrals' && (
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               {loadingData ? (
                 <div className="p-8 flex justify-center">

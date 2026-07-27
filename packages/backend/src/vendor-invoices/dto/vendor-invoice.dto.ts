@@ -6,7 +6,7 @@ export class VendorInvoiceItemDto {
 
 export class CreateVendorInvoiceDto {
   client_name!: string;
-  client_email!: string;
+  client_email?: string;
   client_phone?: string;
   issue_date!: string;
   due_date!: string;
@@ -15,6 +15,7 @@ export class CreateVendorInvoiceDto {
   notes?: string;
   terms?: string;
   items!: VendorInvoiceItemDto[];
+  vendor_booking_id?: string;
 }
 
 export class UpdateVendorInvoiceDto {

@@ -88,6 +88,22 @@ interface ManagerUserDetail {
   stats: Record<string, any>
 }
 
+interface ManagerAffiliate {
+  id: string
+  first_name: string | null
+  last_name: string | null
+  email: string
+  referral_code: string
+  status: string
+  joined_at: string
+  stats: {
+    totalReferred: number
+    totalConverted: number
+    totalEarned: number
+    pendingEarnings: number
+  }
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://eventecos.com'
@@ -153,7 +169,7 @@ function StatCard({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type Tab = 'overview' | 'referrals' | 'commissions' | 'users'
+type Tab = 'overview' | 'referrals' | 'commissions' | 'users' | 'affiliates'
 
 export default function SalesPortalDashboard() {
   const { affiliate: authAffiliate, isAuthenticated, loading: authLoading, logout } = useAffiliateAuth()
@@ -173,6 +189,14 @@ export default function SalesPortalDashboard() {
   const [selectedUserId,  setSelectedUserId]  = useState<string | null>(null)
   const [userDetail,      setUserDetail]      = useState<ManagerUserDetail | null>(null)
   const [loadingDetail,   setLoadingDetail]   = useState(false)
+
+  // Invite form state (manager only)
+  const [inviteEmail,     setInviteEmail]    = useState('')
+  const [inviteLoading,   setInviteLoading]  = useState(false)
+  const [inviteSuccess,   setInviteSuccess]  = useState('')
+  const [inviteError,     setInviteError]    = useState('')
+  const [managerAffiliates, setManagerAffiliates] = useState<ManagerAffiliate[]>([])
+  const [loadingAffiliates, setLoadingAffiliates] = useState(false)
 
   const isManager = authAffiliate?.email === 'sales@eventecos.com'
 
@@ -202,8 +226,20 @@ export default function SalesPortalDashboard() {
   }, [])
 
   useEffect(() => {
-    if (isAuthenticated) fetchData()
-  }, [isAuthenticated, fetchData])
+    if (isAuthenticated && !isManager) fetchData()
+  }, [isAuthenticated, isManager, fetchData])
+
+  const fetchManagerAffiliates = useCallback(async () => {
+    setLoadingAffiliates(true)
+    try {
+      const res = await api.get('/affiliates/manager/affiliates')
+      setManagerAffiliates(res.data.affiliates || [])
+    } catch {
+      // not authorized or error
+    } finally {
+      setLoadingAffiliates(false)
+    }
+  }, [])
 
   const fetchManagerUsers = useCallback(async (search = '', role = '') => {
     setLoadingUsers(true)
@@ -220,10 +256,21 @@ export default function SalesPortalDashboard() {
     }
   }, [])
 
-  // Load users tab on first visit
+  // Auto-load manager data on mount
+  useEffect(() => {
+    if (isAuthenticated && isManager) {
+      fetchManagerUsers('', 'all')
+      fetchManagerAffiliates()
+    }
+  }, [isAuthenticated, isManager]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reload users/affiliates on tab visit if stale
   useEffect(() => {
     if (tab === 'users' && isManager && managerUsers.length === 0) {
       fetchManagerUsers(userSearch, userRoleFilter)
+    }
+    if (tab === 'affiliates' && isManager && managerAffiliates.length === 0) {
+      fetchManagerAffiliates()
     }
   }, [tab]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -291,9 +338,9 @@ export default function SalesPortalDashboard() {
           </div>
 
           <div className="flex items-center gap-4">
-            {dashboard && (
+            {(dashboard || authAffiliate) && (
               <span className="text-sm text-gray-500 hidden sm:block">
-                Hi, {dashboard.affiliate.first_name}
+                {isManager ? 'Sales Admin' : `Hi, ${dashboard?.affiliate.first_name ?? authAffiliate?.first_name}`}
               </span>
             )}
             <button
@@ -309,7 +356,7 @@ export default function SalesPortalDashboard() {
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
 
         {/* Referral Link Banner */}
-        {referralLink && (
+        {!isManager && referralLink && (
           <div className="bg-indigo-600 rounded-2xl p-6 text-white">
             <p className="text-sm font-medium text-indigo-200 mb-1">Your unique referral link</p>
             <p className="text-xs text-indigo-300 mb-3">
@@ -331,7 +378,7 @@ export default function SalesPortalDashboard() {
         )}
 
         {/* How It Works */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {!isManager && <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
             { step: '1', title: 'Share Your Link', desc: 'Send your referral link to venue owners, bloggers, and event planners.' },
             { step: '2', title: 'They Subscribe', desc: 'When they sign up and subscribe, you earn 50% of their first payment.' },
@@ -345,38 +392,48 @@ export default function SalesPortalDashboard() {
               <p className="text-xs text-gray-500">{item.desc}</p>
             </div>
           ))}
-        </div>
+        </div>}
 
         {/* Tabs */}
         <div>
           <div className="flex gap-1 border-b border-gray-200 mb-6 overflow-x-auto">
-            {(['overview', 'referrals', 'commissions'] as Tab[]).map(t => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors capitalize whitespace-nowrap
-                  ${tab === t
-                    ? 'border-indigo-600 text-indigo-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-              >
-                {t}
-              </button>
-            ))}
-            {isManager && (
-              <button
-                onClick={() => setTab('users')}
-                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-1
-                  ${tab === 'users'
-                    ? 'border-indigo-600 text-indigo-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-              >
-                <Users className="w-3.5 h-3.5" />All Users
-              </button>
+            {isManager ? (
+              <>  
+                {(['overview', 'users', 'affiliates'] as Tab[]).map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setTab(t)}
+                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors capitalize whitespace-nowrap flex items-center gap-1
+                      ${tab === t
+                        ? 'border-indigo-600 text-indigo-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                  >
+                    {t === 'users' && <Users className="w-3.5 h-3.5" />}
+                    {t === 'affiliates' && <TrendingUp className="w-3.5 h-3.5" />}
+                    {t === 'overview' ? 'Overview' : t === 'users' ? 'All Users' : 'Affiliates'}
+                  </button>
+                ))}
+              </>
+            ) : (
+              <>
+                {(['overview', 'referrals', 'commissions'] as Tab[]).map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setTab(t)}
+                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors capitalize whitespace-nowrap
+                      ${tab === t
+                        ? 'border-indigo-600 text-indigo-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </>
             )}
           </div>
 
           {/* ── Overview ─── */}
-          {tab === 'overview' && (
+          {tab === 'overview' && !isManager && (
             <div className="space-y-6">
               {loadingData ? (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -426,6 +483,65 @@ export default function SalesPortalDashboard() {
                     <p className="text-2xl font-bold text-green-700">3%</p>
                     <p className="text-sm font-medium text-green-800 mt-1">Recurring Revenue</p>
                     <p className="text-xs text-green-600 mt-1">Earned on every monthly payment for up to 3 years per subscriber.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Manager Overview ─── */}
+          {tab === 'overview' && isManager && (
+            <div className="space-y-6">
+              {/* Platform user summary */}
+              {managerSummary ? (
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                  <div className="bg-white rounded-xl border p-4 col-span-2 sm:col-span-1">
+                    <p className="text-xs text-gray-500 mb-1">All Users</p>
+                    <p className="text-2xl font-bold text-gray-900">{managerSummary.total}</p>
+                  </div>
+                  <div className="bg-indigo-50 rounded-xl border border-indigo-200 p-4">
+                    <p className="text-xs text-indigo-600 mb-1">Owners</p>
+                    <p className="text-2xl font-bold text-indigo-700">{managerSummary.owners}</p>
+                  </div>
+                  <div className="bg-purple-50 rounded-xl border border-purple-200 p-4">
+                    <p className="text-xs text-purple-600 mb-1">Promoters</p>
+                    <p className="text-2xl font-bold text-purple-700">{managerSummary.promoters}</p>
+                  </div>
+                  <div className="bg-pink-50 rounded-xl border border-pink-200 p-4">
+                    <p className="text-xs text-pink-600 mb-1">Artists</p>
+                    <p className="text-2xl font-bold text-pink-700">{managerSummary.artists}</p>
+                  </div>
+                  <div className="bg-orange-50 rounded-xl border border-orange-200 p-4">
+                    <p className="text-xs text-orange-600 mb-1">Vendors</p>
+                    <p className="text-2xl font-bold text-orange-700">{managerSummary.vendors}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="bg-white rounded-xl border border-gray-200 p-5 animate-pulse h-20" />
+                  ))}
+                </div>
+              )}
+              {/* Sales team summary */}
+              <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <h3 className="font-semibold text-gray-900 mb-4">Sales Team Performance</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-indigo-50 rounded-lg p-4">
+                    <p className="text-2xl font-bold text-indigo-700">{managerAffiliates.length}</p>
+                    <p className="text-sm font-medium text-indigo-800 mt-1">Active Affiliates</p>
+                  </div>
+                  <div className="bg-green-50 rounded-lg p-4">
+                    <p className="text-2xl font-bold text-green-700">
+                      {managerAffiliates.reduce((s, a) => s + a.stats.totalConverted, 0)}
+                    </p>
+                    <p className="text-sm font-medium text-green-800 mt-1">Total Conversions</p>
+                  </div>
+                  <div className="bg-amber-50 rounded-lg p-4">
+                    <p className="text-2xl font-bold text-amber-700">
+                      {fmt(managerAffiliates.reduce((s, a) => s + a.stats.pendingEarnings, 0))}
+                    </p>
+                    <p className="text-sm font-medium text-amber-800 mt-1">Pending Payouts</p>
                   </div>
                 </div>
               </div>
@@ -550,32 +666,6 @@ export default function SalesPortalDashboard() {
           {tab === 'users' && isManager && (
             <div className="space-y-5">
 
-              {/* Summary cards */}
-              {managerSummary && (
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                  <div className="bg-white rounded-xl border p-4 col-span-2 sm:col-span-1">
-                    <p className="text-xs text-gray-500 mb-1">All Users</p>
-                    <p className="text-2xl font-bold text-gray-900">{managerSummary.total}</p>
-                  </div>
-                  <div className="bg-indigo-50 rounded-xl border border-indigo-200 p-4">
-                    <p className="text-xs text-indigo-600 mb-1">Owners</p>
-                    <p className="text-2xl font-bold text-indigo-700">{managerSummary.owners}</p>
-                  </div>
-                  <div className="bg-purple-50 rounded-xl border border-purple-200 p-4">
-                    <p className="text-xs text-purple-600 mb-1">Promoters</p>
-                    <p className="text-2xl font-bold text-purple-700">{managerSummary.promoters}</p>
-                  </div>
-                  <div className="bg-pink-50 rounded-xl border border-pink-200 p-4">
-                    <p className="text-xs text-pink-600 mb-1">Artists</p>
-                    <p className="text-2xl font-bold text-pink-700">{managerSummary.artists}</p>
-                  </div>
-                  <div className="bg-orange-50 rounded-xl border border-orange-200 p-4">
-                    <p className="text-xs text-orange-600 mb-1">Vendors</p>
-                    <p className="text-2xl font-bold text-orange-700">{managerSummary.vendors}</p>
-                  </div>
-                </div>
-              )}
-
               {/* Search + filter */}
               <div className="bg-white rounded-xl border p-4 flex flex-col sm:flex-row gap-3">
                 <form onSubmit={handleUserSearch} className="flex gap-2 flex-1">
@@ -629,7 +719,7 @@ export default function SalesPortalDashboard() {
                   <table className="min-w-full divide-y divide-gray-100 text-sm">
                     <thead className="bg-gray-50">
                       <tr>
-                        {['Role', 'User', 'Business', 'Subscription', 'Signed Up', 'Last Login', 'Referred By'].map(h => (
+                        {['User', 'Role', 'Business', 'Subscription', 'Signed Up', 'Last Login', 'Referred By'].map(h => (
                           <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             {h}
                           </th>
@@ -696,6 +786,101 @@ export default function SalesPortalDashboard() {
                               <span className="text-gray-300 text-xs">Organic</span>
                             )}
                           </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── Affiliates (manager only) ─── */}
+          {tab === 'affiliates' && isManager && (
+            <div className="space-y-5">
+
+              {/* Invite form */}
+              <div className="bg-white rounded-xl border p-5">
+                <h3 className="text-sm font-semibold text-gray-900 mb-1">Invite a New Affiliate</h3>
+                <p className="text-xs text-gray-500 mb-3">Send an invite link to onboard a new sales affiliate. The link expires in 7 days.</p>
+                <form
+                  onSubmit={async e => {
+                    e.preventDefault()
+                    setInviteError('')
+                    setInviteSuccess('')
+                    setInviteLoading(true)
+                    try {
+                      const res = await api.post('/affiliates/manager/invite', { email: inviteEmail })
+                      setInviteSuccess(res.data.message || `Invite sent to ${inviteEmail}`)
+                      setInviteEmail('')
+                      fetchManagerAffiliates()
+                    } catch (err: any) {
+                      setInviteError(err.response?.data?.message || 'Failed to send invite')
+                    } finally {
+                      setInviteLoading(false)
+                    }
+                  }}
+                  className="flex gap-2"
+                >
+                  <input
+                    type="email"
+                    required
+                    value={inviteEmail}
+                    onChange={e => setInviteEmail(e.target.value)}
+                    placeholder="affiliate@example.com"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <button
+                    type="submit"
+                    disabled={inviteLoading}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg transition-colors"
+                  >
+                    {inviteLoading ? 'Sending…' : 'Send Invite'}
+                  </button>
+                </form>
+                {inviteSuccess && <p className="mt-2 text-xs text-green-600">{inviteSuccess}</p>}
+                {inviteError   && <p className="mt-2 text-xs text-red-600">{inviteError}</p>}
+              </div>
+
+              {/* Affiliates table */}
+              <div className="bg-white rounded-xl border overflow-hidden">
+                {loadingAffiliates ? (
+                  <div className="flex items-center justify-center py-16">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+                  </div>
+                ) : managerAffiliates.length === 0 ? (
+                  <div className="text-center py-16 text-gray-400">No affiliates registered yet. Invite one above!</div>
+                ) : (
+                  <table className="min-w-full divide-y divide-gray-100 text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        {['Affiliate', 'Code', 'Referred', 'Converted', 'Total Earned', 'Pending', 'Status', 'Joined'].map(h => (
+                          <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {managerAffiliates.map(a => (
+                        <tr key={a.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3">
+                            <p className="font-medium text-gray-900">
+                              {a.first_name || a.last_name
+                                ? `${a.first_name ?? ''} ${a.last_name ?? ''}`.trim()
+                                : <span className="text-gray-400 italic">No name</span>}
+                            </p>
+                            <p className="text-xs text-gray-400">{a.email}</p>
+                          </td>
+                          <td className="px-4 py-3 font-mono text-xs text-indigo-600">{a.referral_code}</td>
+                          <td className="px-4 py-3 text-gray-700">{a.stats.totalReferred}</td>
+                          <td className="px-4 py-3 text-green-700 font-medium">{a.stats.totalConverted}</td>
+                          <td className="px-4 py-3 text-gray-700">{fmt(a.stats.totalEarned)}</td>
+                          <td className="px-4 py-3 text-amber-600">{fmt(a.stats.pendingEarnings)}</td>
+                          <td className="px-4 py-3">
+                            <span className={statusBadge(a.status)}>{a.status}</span>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-gray-500">{fmtDate(a.joined_at)}</td>
                         </tr>
                       ))}
                     </tbody>

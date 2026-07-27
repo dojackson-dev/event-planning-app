@@ -1,11 +1,19 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
 import { EventType } from '@/types'
-import { Calendar, Users, Clock, DollarSign, FileText, ArrowLeft, ArrowRight } from 'lucide-react'
+import { Calendar, Users, Clock, DollarSign, FileText, ArrowLeft, ArrowRight, Building2 } from 'lucide-react'
 import { useOwnerBrand } from '@/contexts/OwnerBrandContext'
+
+interface Venue {
+  id: number | string
+  name: string
+  address?: string
+  city?: string
+  state?: string
+}
 
 const eventTypeLabels: Record<EventType, string> = {
   [EventType.WEDDING_RECEPTION]: 'Wedding Reception',
@@ -29,12 +37,28 @@ const eventTypeLabels: Record<EventType, string> = {
   [EventType.GRADUATION_PARTY]: 'Graduation Party',
 }
 
-export default function ClientIntakePage() {
+function ClientIntakePageInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { logoUrl, businessName } = useOwnerBrand()
   const [currentStep, setCurrentStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [venues, setVenues] = useState<Venue[]>([])
+  const [venueId, setVenueId] = useState<string>('')
+
+  useEffect(() => {
+    const paramVenueId = searchParams?.get('venueId') || ''
+    api.get('/owner/venues').then(r => {
+      const list: Venue[] = r.data?.venues || []
+      setVenues(list)
+      if (paramVenueId) {
+        setVenueId(paramVenueId)
+      } else if (list.length === 1) {
+        setVenueId(String(list[0].id))
+      }
+    }).catch(() => {})
+  }, [])
 
   // Map frontend event types to database enum values
   const mapEventTypeToDb = (eventType: EventType): string => {
@@ -73,6 +97,7 @@ export default function ClientIntakePage() {
     // Event Details
     eventType: EventType.BIRTHDAY_PARTY,
     eventName: '',
+    eventDescription: '',
     eventDate: '',
     alternateDate: '',
     isFlexibleDate: false,
@@ -168,8 +193,10 @@ export default function ClientIntakePage() {
       const dbData = {
         event_type: mapEventTypeToDb(formData.eventType),
         event_name: formData.eventName || eventTypeLabels[formData.eventType] || null,
+        event_description: formData.eventDescription || null,
         event_date: formData.eventDate,
         event_time: formData.startTime || null,
+        event_end_time: formData.endTime || null,
         guest_count: parseInt(formData.estimatedGuests) || null,
         venue_preference: formData.preferredVenue || null,
         contact_name: `${formData.firstName} ${formData.lastName}`.trim() || 'Unknown',
@@ -197,6 +224,7 @@ export default function ClientIntakePage() {
         budget_range: formData.estimatedBudget || null,
         how_did_you_hear: formData.referralSource || null,
         preferred_contact: formData.preferredContact || 'phone',
+        ...(venueId ? { venue_id: venueId } : {}),
       }
 
       console.log('Submitting intake form data:', dbData)
@@ -225,7 +253,7 @@ export default function ClientIntakePage() {
 
       // Show success message
       alert('Client intake form submitted successfully!')
-      router.push('/dashboard/bookings')
+      router.push('/dashboard/events')
     } catch (err: any) {
       console.error('Intake form submission error:', err.response?.data || err.message)
       setError(err.response?.data?.message || err.message || 'Failed to submit intake form')
@@ -291,6 +319,29 @@ export default function ClientIntakePage() {
         {error && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-800 rounded-lg text-sm">
             {error}
+          </div>
+        )}
+
+        {venues.length > 1 && (
+          <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg mb-6">
+            <Building2 className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-blue-900 mb-1">
+                Which venue is this intake for?
+              </label>
+              <select
+                value={venueId}
+                onChange={(e) => setVenueId(e.target.value)}
+                className="w-full px-4 py-2.5 border border-blue-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-sm"
+              >
+                <option value="">-- No specific venue --</option>
+                {venues.map((v) => (
+                  <option key={v.id} value={String(v.id)}>
+                    {v.name}{v.city ? ` · ${v.city}${v.state ? `, ${v.state}` : ''}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         )}
 
@@ -454,6 +505,21 @@ export default function ClientIntakePage() {
                   value={formData.eventName}
                   onChange={handleChange}
                   placeholder="e.g., Sarah's 30th Birthday Celebration"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Event Description <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <p className="text-xs text-gray-500 mb-1">💡 Tip: A brief description helps your coordinator prepare a better estimate.</p>
+                <textarea
+                  name="eventDescription"
+                  rows={3}
+                  value={formData.eventDescription}
+                  onChange={handleChange}
+                  placeholder="Describe the event — theme, vision, special needs, atmosphere..."
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 />
               </div>
@@ -1118,6 +1184,7 @@ export default function ClientIntakePage() {
                 <div className="text-sm text-gray-600 space-y-1">
                   <p><strong>Type:</strong> {eventTypeLabels[formData.eventType]}</p>
                   {formData.eventName && <p><strong>Name:</strong> {formData.eventName}</p>}
+                  {formData.eventDescription && <p><strong>Description:</strong> {formData.eventDescription}</p>}
                   <p><strong>Date:</strong> {formData.eventDate}</p>
                   <p><strong>Time:</strong> {formData.startTime} - {formData.endTime}</p>
                   <p><strong>Guests:</strong> {formData.estimatedGuests} (estimated)</p>
@@ -1205,5 +1272,13 @@ export default function ClientIntakePage() {
         </div>
       </form>
     </div>
+  )
+}
+
+export default function ClientIntakePage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>}>
+      <ClientIntakePageInner />
+    </Suspense>
   )
 }

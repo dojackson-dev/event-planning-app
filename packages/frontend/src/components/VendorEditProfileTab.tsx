@@ -4,6 +4,7 @@ import { useState } from 'react'
 import api from '@/lib/api'
 import ImageUpload from '@/components/ImageUpload'
 import AddressAutocomplete from '@/components/AddressAutocomplete'
+import { VENDOR_CATEGORIES } from '@/lib/vendorTypes'
 import type { VendorProfile } from '@/lib/vendorTypes'
 
 interface Props {
@@ -18,6 +19,10 @@ export default function VendorEditProfileTab({ profile, onUpdate }: Props) {
   const [logoUrl, setLogoUrl] = useState(profile.profile_image_url || '')
   const [coverUrl, setCoverUrl] = useState(profile.cover_image_url || '')
 
+  const [businessName, setBusinessName] = useState(profile.business_name || '')
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(
+    profile.categories?.length ? profile.categories : (profile.category ? [profile.category] : [])
+  )
   const [bio, setBio] = useState(profile.bio || '')
   const [address, setAddress] = useState(profile.address || '')
   const [city, setCity] = useState(profile.city || '')
@@ -37,6 +42,8 @@ export default function VendorEditProfileTab({ profile, onUpdate }: Props) {
     setError('')
     try {
       const res = await api.put('/vendors/account/me', {
+        businessName: businessName || undefined,
+        categories: selectedCategories,
         bio, address, city, state, zipCode,
         hourlyRate: hourlyRate ? parseFloat(hourlyRate) : undefined,
         flatRate: flatRate ? parseFloat(flatRate) : undefined,
@@ -58,8 +65,6 @@ export default function VendorEditProfileTab({ profile, onUpdate }: Props) {
   return (
     <div className="bg-white rounded-xl shadow-sm p-6">
       <h2 className="text-lg font-bold text-gray-900 mb-4">Edit Profile</h2>
-      {error && <div className="bg-red-50 text-red-700 rounded p-3 text-sm mb-4">{error}</div>}
-      {saved && <div className="bg-green-50 text-green-700 rounded p-3 text-sm mb-4">✓ Profile saved!</div>}
       <form onSubmit={handleSave} className="space-y-5">
 
         {/* Images */}
@@ -82,6 +87,33 @@ export default function VendorEditProfileTab({ profile, onUpdate }: Props) {
               onUpload={(url) => setCoverUrl(url)}
             />
           </div>
+        </div>
+
+        {/* Business Name */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Business / Company Name</label>
+          <input
+            type="text"
+            value={businessName}
+            onChange={e => setBusinessName(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            placeholder="e.g. DJ Jay Entertainment"
+          />
+        </div>
+
+        {/* Services / Categories */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+          <select
+            value={selectedCategories[0] || ''}
+            onChange={e => setSelectedCategories(e.target.value ? [e.target.value] : [])}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
+          >
+            <option value="">Select a category...</option>
+            {VENDOR_CATEGORIES.map(cat => (
+              <option key={cat.value} value={cat.value}>{cat.icon} {cat.label}</option>
+            ))}
+          </select>
         </div>
 
         {/* Bio */}
@@ -193,10 +225,19 @@ export default function VendorEditProfileTab({ profile, onUpdate }: Props) {
           </div>
         </div>
 
-        <button type="submit" disabled={saving}
-          className="bg-primary-600 text-white px-6 py-2.5 rounded-lg font-semibold hover:bg-primary-700 disabled:opacity-50">
-          {saving ? 'Saving...' : 'Save Changes'}
-        </button>
+        <div className="flex items-center gap-3">
+          {error && <span className="text-sm text-red-600 font-medium">{error}</span>}
+          {saved && (
+            <span className="flex items-center gap-1.5 text-sm text-green-700 font-medium">
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              Saved successfully
+            </span>
+          )}
+          <button type="submit" disabled={saving}
+            className="bg-primary-600 text-white px-6 py-2.5 rounded-lg font-semibold hover:bg-primary-700 disabled:opacity-50">
+            {saving ? 'Saving...' : 'Save Changes'}
+          </button>
+        </div>
       </form>
     </div>
   )

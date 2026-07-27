@@ -2,8 +2,12 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { SupabaseClient } from '@supabase/supabase-js';
 import { SupabaseService } from '../supabase/supabase.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
-import { Booking } from '../entities/booking.entity';
 
+/**
+ * BookingsService — booking table removed.
+ * "Bookings" are now just events where payment_status = deposit_paid | paid.
+ * All reads/writes go to the `event` table directly.
+ */
 @Injectable()
 export class BookingsService {
   constructor(
@@ -11,18 +15,21 @@ export class BookingsService {
     private readonly smsNotifications: SmsNotificationsService,
   ) {}
 
-  async findAll(supabase: SupabaseClient): Promise<Booking[]> {
-    console.log('Fetching bookings...');
-    // A booking is defined as an event with deposit paid or complete balance paid
-    const { data, error } = await supabase
-      .from('booking')
-      .select(`
-        *,
-        event:event(id, name, date, start_time, end_time, venue, location, status)
-      `)
-      .in('client_status', ['deposit_paid', 'completed'])
-      .order('created_at', { ascending: false });
+  async findAll(supabase: SupabaseClient, venueId?: string): Promise<any[]> {
+    console.log('Fetching bookings (from event table)...');
+    const admin = this.supabaseService.getAdminClient();
 
+    let query = admin
+      .from('event')
+      .select('*, intake_form:intake_forms!intake_form_id(contact_name, contact_phone, event_name, event_type)')
+      .in('client_status', ['deposit_paid', 'completed'])
+      .order('date', { ascending: false });
+
+    if (venueId) {
+      query = query.eq('venue_id', venueId);
+    }
+
+    const { data, error } = await query;
     if (error) {
       console.error('Error fetching bookings:', error);
       throw error;
@@ -31,73 +38,52 @@ export class BookingsService {
     return data || [];
   }
 
-  async findOne(supabase: SupabaseClient, id: string): Promise<Booking | null> {
-    const { data, error } = await supabase
-      .from('booking')
-      .select(`
-        *,
-        event:event(*)
-      `)
+  async findOne(supabase: SupabaseClient, id: string): Promise<any> {
+    const admin = this.supabaseService.getAdminClient();
+    const { data, error } = await admin
+      .from('event')
+      .select('*, intake_form:intake_forms!intake_form_id(contact_name, contact_phone, contact_email, event_name, event_type)')
       .eq('id', id)
-      .single();
+      .maybeSingle();
 
     if (error && error.code !== 'PGRST116') throw error;
-    if (!data) throw new NotFoundException(`Booking ${id} not found`);
+    if (!data) throw new NotFoundException(`Event/Booking ${id} not found`);
     return data;
   }
 
-  async create(supabase: SupabaseClient, booking: Partial<Booking>): Promise<Booking> {
+  async create(supabase: SupabaseClient, booking: Record<string, any>): Promise<any> {
     const { data, error } = await supabase
-      .from('booking')
+      .from('event')
       .insert([booking])
       .select()
       .single();
 
     if (error) throw error;
-    // Fire-and-forget conflict check + notifications
-    try {
-      await this.checkForConflicts(supabase, data);
-    } catch (err) {
-      console.error('Error checking booking conflicts:', err?.message || err);
-    }
-
     return data;
   }
 
-  async update(supabase: SupabaseClient, id: string, booking: Partial<Booking>): Promise<Booking | null> {
-    const { data, error } = await supabase
-      .from('booking')
+  async update(supabase: SupabaseClient, id: string, booking: Partial<any>): Promise<any> {
+    const admin = this.supabaseService.getAdminClient();
+    const { data, error } = await admin
+      .from('event')
       .update(booking)
       .eq('id', id)
       .select()
       .single();
 
     if (error) throw error;
-    try {
-      await this.checkForConflicts(supabase, data);
-    } catch (err) {
-      console.error('Error checking booking conflicts:', err?.message || err);
-    }
 
-    // SMS notification when a booking is confirmed
-    if (booking.status === 'confirmed' && data?.contact_phone) {
+    // SMS notification when status moves to confirmed
+    if (booking.client_status === 'deposit_paid' || booking.status === 'confirmed') {
       try {
-        const { data: fullBooking } = await supabase
-          .from('booking')
-          .select('contact_phone, contact_name, event:event(name)')
-          .eq('id', id)
-          .single();
-        if (fullBooking?.contact_phone) {
-          await this.smsNotifications.vendorBookingStatusChanged(
-            fullBooking.contact_phone,
-            fullBooking.contact_name || 'Valued Client',
-            (fullBooking.event as any)?.name || 'your event',
-            'confirmed',
-            false,
-          );
+        const phone = data?.contact_phone || data?.intake_form?.contact_phone;
+        const name = data?.contact_name || data?.intake_form?.contact_name || 'Valued Client';
+        const eventName = data?.name || 'your event';
+        if (phone) {
+          await this.smsNotifications.vendorBookingStatusChanged(phone, name, eventName, 'confirmed', false);
         }
       } catch {
-        // SMS errors must never break the booking update
+        // SMS errors must never break the update
       }
     }
 
@@ -105,49 +91,44 @@ export class BookingsService {
   }
 
   /**
-   * Soft-cancel a booking (sets status = 'cancelled', client_confirmation_status = 'cancelled').
-   * Cancels the linked event and inserts a notification so the client knows.
+   * Cancel an event (was: cancel booking).
    */
   async cancelBooking(supabase: SupabaseClient, id: string): Promise<{ success: boolean }> {
-    const supabaseAdmin = this.supabaseService.getAdminClient();
+    const admin = this.supabaseService.getAdminClient();
 
-    const { data: booking, error: fetchErr } = await supabaseAdmin
-      .from('booking')
-      .select('id, contact_phone, contact_name, event_id, client_confirmation_status')
+    const { data: event, error: fetchErr } = await admin
+      .from('event')
+      .select('id, contact_phone, contact_name, intake_form_id')
       .eq('id', id)
       .maybeSingle();
 
-    if (fetchErr || !booking) throw new NotFoundException('Booking not found');
+    if (fetchErr || !event) throw new NotFoundException('Event not found');
 
-    // Cancel the booking
-    const { error: cancelErr } = await supabaseAdmin
-      .from('booking')
-      .update({ status: 'cancelled', client_confirmation_status: 'cancelled' })
+    const { error: cancelErr } = await admin
+      .from('event')
+      .update({ status: 'cancelled', client_confirmation_status: 'cancelled', cancelled_at: new Date().toISOString() })
       .eq('id', id);
 
     if (cancelErr) throw new BadRequestException(cancelErr.message);
 
-    // Cancel the linked event
-    if (booking.event_id) {
-      await supabaseAdmin
-        .from('event')
-        .update({ status: 'cancelled' })
-        .eq('id', booking.event_id);
+    // Resolve phone from intake_form if not directly on event
+    let phone = event.contact_phone;
+    if (!phone && event.intake_form_id) {
+      const { data: form } = await admin.from('intake_forms').select('contact_phone').eq('id', event.intake_form_id).maybeSingle();
+      phone = form?.contact_phone;
     }
 
-    // Notify the client
-    await this.createClientNotification(supabaseAdmin, {
-      clientPhone: booking.contact_phone,
-      eventId: booking.event_id,
+    await this.createClientNotification(admin, {
+      clientPhone: phone,
+      eventId: id,
       type: 'booking',
-      message: `Your booking has been cancelled by the event organiser.`,
+      message: `Your event has been cancelled by the event organiser.`,
     });
 
     return { success: true };
   }
 
   async remove(supabase: SupabaseClient, id: string): Promise<void> {
-    // Soft-cancel rather than hard-delete so client sees cancellation
     await this.cancelBooking(supabase, id);
   }
 
@@ -184,142 +165,31 @@ export class BookingsService {
   }
 
   /**
-   * Owner resends a client confirmation notification.
-   * Resets client_confirmation_status back to 'pending' so the client sees it again.
+   * Resend client confirmation — now targets the event table.
    */
-  async resendClientConfirmation(bookingId: string): Promise<{ success: boolean; message: string }> {
-    const supabase = this.supabaseService.getAdminClient();
+  async resendClientConfirmation(eventId: string): Promise<{ success: boolean; message: string }> {
+    const admin = this.supabaseService.getAdminClient();
 
-    const { data: booking, error: fetchErr } = await supabase
-      .from('booking')
-      .select('id, client_confirmation_status, contact_phone')
-      .eq('id', bookingId)
+    const { data: event, error: fetchErr } = await admin
+      .from('event')
+      .select('id, client_confirmation_status, contact_phone, intake_form_id')
+      .eq('id', eventId)
       .maybeSingle();
 
-    if (fetchErr || !booking) {
-      throw new NotFoundException('Booking not found.');
+    if (fetchErr || !event) throw new NotFoundException('Event not found.');
+
+    let phone = event.contact_phone;
+    if (!phone && event.intake_form_id) {
+      const { data: form } = await admin.from('intake_forms').select('contact_phone').eq('id', event.intake_form_id).maybeSingle();
+      phone = form?.contact_phone;
     }
 
-    if (!booking.contact_phone) {
-      throw new BadRequestException('This booking has no client phone number to notify.');
-    }
+    if (!phone) throw new BadRequestException('This event has no client phone number to notify.');
+    if (event.client_confirmation_status === 'confirmed') throw new BadRequestException('Client has already confirmed.');
 
-    if (booking.client_confirmation_status === 'confirmed') {
-      throw new BadRequestException('Client has already confirmed this booking.');
-    }
-
-    const { error } = await supabase
-      .from('booking')
-      .update({ client_confirmation_status: 'pending' })
-      .eq('id', bookingId);
-
+    const { error } = await admin.from('event').update({ client_confirmation_status: 'pending' }).eq('id', eventId);
     if (error) throw new BadRequestException(error.message);
 
     return { success: true, message: 'Event notification resent to client.' };
-  }
-
-  // Helper: check for scheduling conflicts for the booking's event and create notifications
-  private async checkForConflicts(supabase: SupabaseClient, booking: any) {
-    if (!booking) return;
-
-    // Ensure we have event information
-    let event = booking.event;
-    if (!event && booking.event_id) {
-      const { data: e } = await supabase.from('events').select('*').eq('id', booking.event_id).single();
-      event = e;
-    }
-    if (!event) return;
-
-    const eventDate = event.date;
-    const venue = event.venue;
-    const startA = event.startTime;
-    const endA = event.endTime;
-
-    // Fetch other events on same date and venue
-    const { data: otherEvents } = await supabase
-      .from('events')
-      .select('*')
-      .eq('date', eventDate)
-      .eq('venue', venue)
-      .neq('id', event.id);
-
-    if (!otherEvents || otherEvents.length === 0) return;
-
-    const overlaps = (aStart: string, aEnd: string, bStart: string, bEnd: string) => {
-      try {
-        const toTime = (t: string) => {
-          // Normalize HH:MM[:SS]
-          const parts = t.split(':').map((p: string) => parseInt(p, 10));
-          return (parts[0] || 0) * 60 + (parts[1] || 0);
-        };
-        const as = toTime(aStart);
-        const ae = toTime(aEnd);
-        const bs = toTime(bStart);
-        const be = toTime(bEnd);
-        return Math.max(as, bs) < Math.min(ae, be);
-      } catch (err) {
-        return false;
-      }
-    };
-
-    const conflicting: any[] = [];
-    for (const other of otherEvents) {
-      if (other.startTime && other.endTime && overlaps(startA, endA, other.startTime, other.endTime)) {
-        conflicting.push(other);
-      }
-    }
-
-    if (conflicting.length === 0) return;
-
-    // Build a conflict message and insert into messages table for owner and booking user
-    const conflictDescriptions = conflicting.map(c => `${c.name || 'Event'} (id:${c.id}) ${c.startTime}-${c.endTime}`).join('; ');
-    const messageText = `Scheduling conflict detected for your event "${event.name}" on ${eventDate} at ${startA}-${endA} in ${venue}. Conflicts: ${conflictDescriptions}`;
-
-    try {
-      // Attempt to get booking user and event owner
-      let bookingUser: any = null;
-      if (booking.user_id) {
-        const { data: u } = await supabase.from('users').select('*').eq('id', booking.user_id).single();
-        bookingUser = u;
-      }
-
-      let ownerUser: any = null;
-      if (event.ownerId) {
-        const { data: o } = await supabase.from('users').select('*').eq('id', event.ownerId).single();
-        ownerUser = o;
-      }
-
-      const inserts: any[] = [];
-      if (ownerUser) {
-        inserts.push({
-          recipient_phone: ownerUser.phone || null,
-          recipient_name: `${ownerUser.first_name || ''} ${ownerUser.last_name || ''}`.trim() || null,
-          recipient_type: 'client',
-          user_id: ownerUser.id || null,
-          event_id: event.id || null,
-          message_type: 'update',
-          content: messageText,
-          status: 'pending',
-        });
-      }
-      if (bookingUser && bookingUser.id !== ownerUser?.id) {
-        inserts.push({
-          recipient_phone: bookingUser.phone || null,
-          recipient_name: `${bookingUser.first_name || ''} ${bookingUser.last_name || ''}`.trim() || null,
-          recipient_type: 'client',
-          user_id: bookingUser.id || null,
-          event_id: event.id || null,
-          message_type: 'update',
-          content: messageText,
-          status: 'pending',
-        });
-      }
-
-      if (inserts.length > 0) {
-        await supabase.from('messages').insert(inserts);
-      }
-    } catch (err) {
-      console.error('Failed to create conflict notification messages:', err?.message || err);
-    }
   }
 }

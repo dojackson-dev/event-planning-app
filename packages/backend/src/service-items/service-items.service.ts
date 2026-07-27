@@ -12,6 +12,7 @@ export interface ServiceItem {
   sort_order: number;
   image_url?: string;
   owner_id?: string;
+  venue_id?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -20,12 +21,18 @@ export interface ServiceItem {
 export class ServiceItemsService {
   constructor(private readonly supabaseService: SupabaseService) {}
 
-  async findAll(supabase: any, userId: string): Promise<ServiceItem[]> {
-    const { data, error } = await supabase
+  async findAll(supabase: any, userId: string, venueId?: string): Promise<ServiceItem[]> {
+    let query = supabase
       .from('service_items')
       .select('*')
       .or(`owner_id.eq.${userId},owner_id.is.null`)
-      .eq('is_active', true)
+      .eq('is_active', true);
+
+    if (venueId) {
+      query = query.eq('venue_id', venueId);
+    }
+
+    const { data, error } = await query
       .order('sort_order', { ascending: true })
       .order('name', { ascending: true });
 
@@ -33,13 +40,19 @@ export class ServiceItemsService {
     return data || [];
   }
 
-  async findByCategory(supabase: any, userId: string, category: ServiceItemCategory): Promise<ServiceItem[]> {
-    const { data, error } = await supabase
+  async findByCategory(supabase: any, userId: string, category: ServiceItemCategory, venueId?: string): Promise<ServiceItem[]> {
+    let query = supabase
       .from('service_items')
       .select('*')
       .eq('category', category)
       .or(`owner_id.eq.${userId},owner_id.is.null`)
-      .eq('is_active', true)
+      .eq('is_active', true);
+
+    if (venueId) {
+      query = query.eq('venue_id', venueId);
+    }
+
+    const { data, error } = await query
       .order('sort_order', { ascending: true })
       .order('name', { ascending: true });
 
@@ -63,7 +76,7 @@ export class ServiceItemsService {
   }
 
   async create(supabase: any, userId: string, item: Partial<ServiceItem>): Promise<ServiceItem> {
-    const itemWithOwner = { ...item, owner_id: userId };
+    const itemWithOwner = { ...item, owner_id: userId, venue_id: item.venue_id || null };
     const { data, error } = await supabase
       .from('service_items')
       .insert(itemWithOwner)

@@ -72,16 +72,16 @@ export default function CustomerServicesPage() {
       console.error('Failed to fetch services:', error)
       // Set mock data for demo
       setServices([
-        { id: '1', name: 'Grand Ballroom Rental', description: 'Our largest venue space, perfect for weddings and galas. Features elegant chandeliers, hardwood floors, and panoramic views.', category: ServiceItemCategory.FACILITY, defaultPrice: 3500, isActive: true, sortOrder: 1, createdAt: '', updatedAt: '' },
-        { id: '2', name: 'Garden Room Rental', description: 'Intimate space with natural lighting and garden views. Ideal for smaller gatherings and corporate meetings.', category: ServiceItemCategory.FACILITY, defaultPrice: 1500, isActive: true, sortOrder: 2, createdAt: '', updatedAt: '' },
+        { id: '1', name: 'Grand Ballroom Rental', description: 'Our largest venue space, perfect for weddings and galas. Features elegant chandeliers, hardwood floors, and panoramic views.', category: ServiceItemCategory.FACILITY_RENTAL, defaultPrice: 3500, isActive: true, sortOrder: 1, createdAt: '', updatedAt: '' },
+        { id: '2', name: 'Garden Room Rental', description: 'Intimate space with natural lighting and garden views. Ideal for smaller gatherings and corporate meetings.', category: ServiceItemCategory.FACILITY_RENTAL, defaultPrice: 1500, isActive: true, sortOrder: 2, createdAt: '', updatedAt: '' },
         { id: '3', name: 'Premium Sound System', description: 'Professional-grade sound system with DJ equipment, wireless microphones, and Bluetooth connectivity.', category: ServiceItemCategory.SOUND_SYSTEM, defaultPrice: 750, isActive: true, sortOrder: 3, createdAt: '', updatedAt: '' },
         { id: '4', name: 'Full Catering Package', description: 'Complete catering service including appetizers, main course, dessert, and professional servers.', category: ServiceItemCategory.CATERING, defaultPrice: 45, isActive: true, sortOrder: 4, createdAt: '', updatedAt: '' },
-        { id: '5', name: 'Premium Bar Service', description: 'Full bar setup with professional bartenders, premium spirits, and cocktail menu.', category: ServiceItemCategory.BAR, defaultPrice: 1200, isActive: true, sortOrder: 5, createdAt: '', updatedAt: '' },
-        { id: '6', name: 'Security Personnel', description: 'Trained security staff for event safety and crowd management. Price per guard per hour.', category: ServiceItemCategory.SECURITY, defaultPrice: 35, isActive: true, sortOrder: 6, createdAt: '', updatedAt: '' },
+        { id: '5', name: 'Premium Bar Service', description: 'Full bar setup with professional bartenders, premium spirits, and cocktail menu.', category: ServiceItemCategory.BAR_SERVICES, defaultPrice: 1200, isActive: true, sortOrder: 5, createdAt: '', updatedAt: '' },
+        { id: '6', name: 'Security Personnel', description: 'Trained security staff for event safety and crowd management. Price per guard per hour.', category: ServiceItemCategory.SECURITY_SERVICES, defaultPrice: 35, isActive: true, sortOrder: 6, createdAt: '', updatedAt: '' },
         { id: '7', name: 'Elegant Decorations Package', description: 'Beautiful centerpieces, linens, and decorative elements to transform your venue.', category: ServiceItemCategory.DECORATIONS, defaultPrice: 800, isActive: true, sortOrder: 7, createdAt: '', updatedAt: '' },
         { id: '8', name: 'Additional Hour', description: 'Extend your event with additional hours. Includes all staff and services.', category: ServiceItemCategory.ADDITIONAL_TIME, defaultPrice: 500, isActive: true, sortOrder: 8, createdAt: '', updatedAt: '' },
-        { id: '9', name: 'AV Equipment Package', description: 'Projector, screens, and technical support for presentations and slideshows.', category: ServiceItemCategory.AV, defaultPrice: 400, isActive: true, sortOrder: 9, createdAt: '', updatedAt: '' },
-        { id: '10', name: 'Event Coordinator', description: 'Dedicated event coordinator to manage all details and ensure your event runs smoothly.', category: ServiceItemCategory.PLANNING, defaultPrice: 1000, isActive: true, sortOrder: 10, createdAt: '', updatedAt: '' },
+        { id: '9', name: 'AV Equipment Package', description: 'Projector, screens, and technical support for presentations and slideshows.', category: ServiceItemCategory.AV_EQUIPMENT, defaultPrice: 400, isActive: true, sortOrder: 9, createdAt: '', updatedAt: '' },
+        { id: '10', name: 'Event Coordinator', description: 'Dedicated event coordinator to manage all details and ensure your event runs smoothly.', category: ServiceItemCategory.PLANNING_SERVICES, defaultPrice: 1000, isActive: true, sortOrder: 10, createdAt: '', updatedAt: '' },
       ])
     } finally {
       setLoading(false)
@@ -315,7 +315,7 @@ export default function CustomerServicesPage() {
                       <p className="text-2xl font-bold text-primary-600">
                         ${Number(service.defaultPrice || 0).toLocaleString()}
                         {service.category === ServiceItemCategory.CATERING && <span className="text-sm font-normal text-gray-500">/person</span>}
-                        {service.category === ServiceItemCategory.SECURITY && <span className="text-sm font-normal text-gray-500">/hour</span>}
+                        {service.category === ServiceItemCategory.SECURITY_SERVICES && <span className="text-sm font-normal text-gray-500">/hour</span>}
                       </p>
                     </div>
                     <button
@@ -390,7 +390,7 @@ export default function CustomerServicesPage() {
                     {selectedService.category === ServiceItemCategory.CATERING && (
                       <span className="text-gray-500">per person</span>
                     )}
-                    {selectedService.category === ServiceItemCategory.SECURITY && (
+                    {selectedService.category === ServiceItemCategory.SECURITY_SERVICES && (
                       <span className="text-gray-500">per hour</span>
                     )}
                     {selectedService.category === ServiceItemCategory.ADDITIONAL_TIME && (

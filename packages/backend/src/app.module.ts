@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { SupabaseModule } from './supabase/supabase.module';
@@ -25,12 +26,26 @@ import { MessagingModule } from './messaging/messaging.module.js';
 import { ClientPortalModule } from './client-portal/client-portal.module';
 import { VendorInvoicesModule } from './vendor-invoices/vendor-invoices.module';
 import { AffiliatesModule } from './affiliates/affiliates.module';
+import { PromoterModule } from './promoter/promoter.module';
+import { ArtistsModule } from './artists/artists.module';
+import { ArtistInvoicesModule } from './artist-invoices/artist-invoices.module';
+import { ArtistBookingsModule } from './artist-bookings/artist-bookings.module';
+import { PromoterInvoicesModule } from './promoter-invoices/promoter-invoices.module';
+import { PromoterBookingsModule } from './promoter-bookings/promoter-bookings.module';
+import { PromoterEventsModule } from './promoter-events/promoter-events.module';
+import { TeamModule } from './team/team.module';
+import { RemindersModule } from './reminders/reminders.module';
+import { AuditModule } from './audit/audit.module';
+import { RsvpModule } from './rsvp/rsvp.module';
+import { ContactModule } from './contact/contact.module';
+import { VipModule } from './vip/vip.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    ScheduleModule.forRoot(),
     SupabaseModule,
     AuthModule,
     ServiceItemsModule,
@@ -54,6 +69,19 @@ import { AffiliatesModule } from './affiliates/affiliates.module';
     ClientPortalModule,
     VendorInvoicesModule,
     AffiliatesModule,
+    PromoterModule,
+    ArtistsModule,
+    ArtistInvoicesModule,
+    ArtistBookingsModule,
+    PromoterInvoicesModule,
+    PromoterBookingsModule,
+    PromoterEventsModule,
+    TeamModule,
+    RemindersModule,
+    AuditModule,
+    RsvpModule,
+    ContactModule,
+    VipModule,
   ],
   controllers: [AppController],
   providers: [AppService],

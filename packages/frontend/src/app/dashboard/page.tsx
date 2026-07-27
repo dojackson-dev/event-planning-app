@@ -5,9 +5,12 @@ import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Event, Booking, ClientStatus, Invoice, InvoiceStatus } from '@/types'
-import { Calendar, Users, DollarSign, CheckCircle, Clock, ArrowRight, UserPlus, Mail, Phone, AlertCircle } from 'lucide-react'
+import { Calendar, Users, DollarSign, CheckCircle, Clock, ArrowRight, UserPlus, Mail, Phone, AlertCircle, Building2 } from 'lucide-react'
 import { parseLocalDate } from '@/lib/dateUtils'
 import SetupChecklist from '@/components/SetupChecklist'
+import TrialBanner from '@/components/TrialBanner'
+import DemoTour from '@/components/DemoTour'
+import { useVenue } from '@/contexts/VenueContext'
 
 interface IntakeForm {
   id: string
@@ -23,6 +26,7 @@ interface IntakeForm {
 
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth()
+  const { venues, activeVenue } = useVenue()
   const [stats, setStats] = useState({
     unpaidInvoices: 0,
     unpaidAmount: 0,
@@ -37,13 +41,17 @@ export default function DashboardPage() {
   const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([])
   const [recentClients, setRecentClients] = useState<IntakeForm[]>([])
   const [loading, setLoading] = useState(true)
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState<string | null>(null)
   const [intakeSlug, setIntakeSlug] = useState<string | null>(null)
 
   useEffect(() => {
-    if (authLoading || !user) return
+    if (authLoading) return
+    if (!user) {
+      setLoading(false)
+      return
+    }
     fetchDashboardData()
-  }, [authLoading, user])
+  }, [authLoading, user, activeVenue])
 
   useEffect(() => {
     if (!user?.id) return
@@ -55,33 +63,39 @@ export default function DashboardPage() {
 
   const fetchDashboardData = async () => {
     try {
-      // Fetch events (still needed for upcoming bookings)
-      const eventsRes = await api.get<Event[]>('/events')
+      // Fetch events
+      const venueParams = activeVenue ? { venueId: activeVenue.id } : {}
+      const eventsRes = await api.get<Event[]>('/events', { params: venueParams }).catch(() => ({ data: [] as Event[] }))
       const events = eventsRes.data
 
       // Fetch invoices for unpaid count
-      const invoicesRes = await api.get<Invoice[]>('/invoices')
+      const invoicesRes = await api.get<Invoice[]>('/invoices', { params: venueParams }).catch(() => ({ data: [] as Invoice[] }))
       const invoices = invoicesRes.data
-      // Count invoices linked to a booking where money is still owed (any status except paid/cancelled)
+      // Count all invoices where money is still owed (any status except paid/cancelled)
       const unpaidInvoices = invoices.filter(inv =>
-        !!inv.booking_id &&
         inv.status !== InvoiceStatus.PAID &&
         inv.status !== InvoiceStatus.CANCELLED &&
         Number(inv.amount_due ?? 0) > 0
       )
       const unpaidAmount = unpaidInvoices.reduce((sum, inv) => sum + Number(inv.amount_due ?? 0), 0)
 
-      // Fetch bookings
-      const bookingsRes = await api.get<Booking[]>('/bookings')
+      // Fetch bookings (gracefully handle missing table)
+      const bookingsRes = await api.get<Booking[]>('/bookings').catch(() => ({ data: [] as Booking[] }))
       const bookings = bookingsRes.data
-      const pendingBookings = bookings.filter(b => b.status === 'pending')
+      // Count events where a deposit amount > 0 was charged (confirmed bookings)
+      const paidDepositBookings = bookings.filter(b =>
+        Number((b as any).deposit_amount ?? b.deposit ?? 0) > 0
+      )
+      const completedBookings = bookings.filter(b => (b as any).client_status === 'completed')
       
-      // Calculate revenue
-      const totalRevenue = bookings.reduce((sum, b) => sum + (b.totalAmountPaid || 0), 0)
-      const pendingPayments = bookings.reduce((sum, b) => {
-        const remaining = b.totalPrice - (b.totalAmountPaid || 0)
-        return sum + (remaining > 0 ? remaining : 0)
+      // Calculate revenue from invoices (captures paid standalone invoices, not just booking payments)
+      const totalRevenue = invoices.reduce((sum, inv) => {
+        return sum + Number((inv as any).amount_paid ?? (inv as any).amountPaid ?? 0)
       }, 0)
+      // Pending payments = all unpaid/outstanding invoice amounts
+      const pendingPayments = invoices
+        .filter(inv => inv.status !== InvoiceStatus.PAID && inv.status !== InvoiceStatus.CANCELLED)
+        .reduce((sum, inv) => sum + Number((inv as any).amount_due ?? (inv as any).amountDue ?? 0), 0)
 
       // Fetch intake forms (clients)
       const clientsRes = await api.get<IntakeForm[]>('/intake-forms')
@@ -91,8 +105,8 @@ export default function DashboardPage() {
       setStats({
         unpaidInvoices: unpaidInvoices.length,
         unpaidAmount,
-        totalBookings: bookings.length,
-        pendingBookings: pendingBookings.length,
+        totalBookings: paidDepositBookings.length,
+        pendingBookings: completedBookings.length,
         totalRevenue,
         pendingPayments,
         totalClients: clients.length,
@@ -149,9 +163,30 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6 sm:mb-8">
-        Welcome back, {user?.firstName}!
-      </h1>
+      <DemoTour />
+
+      <div className="flex items-center justify-between mb-6 sm:mb-8 gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+            Welcome back, {user?.firstName}!
+          </h1>
+          {venues.length > 1 && (
+            <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1.5">
+              <Building2 className="h-3.5 w-3.5" />
+              {activeVenue ? activeVenue.name : 'All Venues'}
+            </p>
+          )}
+        </div>
+        <button
+          onClick={() => (window as any).__openDemoTour?.()}
+          className="flex-shrink-0 text-xs font-medium text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors"
+        >
+          Take a tour
+        </button>
+      </div>
+
+      {/* Trial conversion banner */}
+      <TrialBanner />
 
       {/* Setup checklist — hidden once all steps are complete */}
       <SetupChecklist />
@@ -176,7 +211,7 @@ export default function DashboardPage() {
             <div className="flex-1">
               <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">Total Bookings</p>
               <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.totalBookings}</p>
-              <p className="text-xs text-gray-500 mt-1">{stats.pendingBookings} pending</p>
+              <p className="text-xs text-gray-500 mt-1">{stats.pendingBookings} completed</p>
             </div>
             <div className="bg-green-50 p-3 rounded-lg">
               <Users className="h-8 w-8 sm:h-10 sm:w-10 text-green-600" />
@@ -298,21 +333,50 @@ export default function DashboardPage() {
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl shadow-sm p-5 mb-6 sm:mb-8 text-white">
         <h2 className="text-base font-bold mb-1">Share Your Client Intake Form</h2>
         <p className="text-blue-100 text-sm mb-3">Send this link to clients to collect event details automatically.</p>
-        <div className="flex items-center gap-2 bg-white/10 border border-white/30 rounded-lg px-3 py-2">
-          <span className="flex-1 text-sm font-mono truncate select-all">
-            dovenuesuite.com/intake/{intakeSlug ?? user?.id}
-          </span>
-          <button
-            onClick={() => {
-              navigator.clipboard.writeText(`https://dovenuesuite.com/intake/${intakeSlug ?? user?.id}`)
-              setCopied(true)
-              setTimeout(() => setCopied(false), 2000)
-            }}
-            className="flex-shrink-0 px-4 py-1.5 bg-white text-blue-700 rounded-md font-semibold text-sm hover:bg-blue-50 transition-colors"
-          >
-            {copied ? '✓ Copied!' : 'Copy'}
-          </button>
-        </div>
+        {venues.length > 0 ? (
+          <div className="space-y-2">
+            {venues.map(venue => {
+              const link = `https://eventecos.com/intake/${intakeSlug ?? user?.id}?venueId=${venue.id}`
+              const display = `eventecos.com/intake/${intakeSlug ?? user?.id}?venueId=${venue.id}`
+              return (
+                <div key={venue.id}>
+                  {venues.length > 1 && (
+                    <p className="text-blue-100 text-xs font-medium mb-1">{venue.name}</p>
+                  )}
+                  <div className="flex items-center gap-2 bg-white/10 border border-white/30 rounded-lg px-3 py-2">
+                    <span className="flex-1 text-xs font-mono truncate select-all">{display}</span>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(link)
+                        setCopied(venue.id)
+                        setTimeout(() => setCopied(null), 2000)
+                      }}
+                      className="flex-shrink-0 px-3 py-1.5 bg-white text-blue-700 rounded-md font-semibold text-xs hover:bg-blue-50 transition-colors"
+                    >
+                      {copied === venue.id ? '✓ Copied!' : 'Copy'}
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 bg-white/10 border border-white/30 rounded-lg px-3 py-2">
+            <span className="flex-1 text-sm font-mono truncate select-all">
+              eventecos.com/intake/{intakeSlug ?? user?.id}
+            </span>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(`https://eventecos.com/intake/${intakeSlug ?? user?.id}`)
+                setCopied('default')
+                setTimeout(() => setCopied(null), 2000)
+              }}
+              className="flex-shrink-0 px-4 py-1.5 bg-white text-blue-700 rounded-md font-semibold text-sm hover:bg-blue-50 transition-colors"
+            >
+              {copied === 'default' ? '✓ Copied!' : 'Copy'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Quick Vendor Booking Link */}
@@ -394,15 +458,6 @@ export default function DashboardPage() {
                         {client.guest_count} guests
                       </div>
                     </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <Link
-                      href={`/dashboard/clients/${client.id}`}
-                      className="px-3 py-1.5 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors"
-                    >
-                      View Details
-                    </Link>
                   </div>
                 </div>
               </div>

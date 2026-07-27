@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Shield, Mail, Lock, AlertTriangle } from 'lucide-react'
 
-const ADMIN_EMAIL = 'admin@dovenuesuite.com'
+const ADMIN_EMAIL = 'admin@eventecos.com'
 
 export default function AdminLoginPage() {
   const router = useRouter()
@@ -96,7 +96,7 @@ export default function AdminLoginPage() {
             <AlertTriangle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
             <div className="text-sm text-yellow-800">
               <p className="font-semibold">Restricted Area</p>
-              <p className="mt-1">This portal is for DoVenue Suite administrators only. Unauthorized access attempts are logged.</p>
+              <p className="mt-1">This portal is for EventEcos administrators only. Unauthorized access attempts are logged.</p>
             </div>
           </div>
 
@@ -122,7 +122,7 @@ export default function AdminLoginPage() {
                   value={formData.email}
                   onChange={handleChange}
                   className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 text-gray-900"
-                  placeholder="admin@dovenuesuite.com"
+                  placeholder="admin@eventecos.com"
                 />
               </div>
             </div>
@@ -174,7 +174,7 @@ export default function AdminLoginPage() {
         </div>
 
         <p className="mt-4 text-center text-xs text-gray-400">
-          © {new Date().getFullYear()} DoVenue Suite. All rights reserved.
+          © {new Date().getFullYear()} EventEcos. All rights reserved.
         </p>
       </div>
     </div>

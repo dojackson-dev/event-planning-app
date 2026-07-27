@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Contract, ContractStatus } from '@/types'
-import { FileText, Plus, Search, ChevronDown } from 'lucide-react'
+import { FileText, Search, ChevronDown, Eye } from 'lucide-react'
+import { useVenue } from '@/contexts/VenueContext'
+import StripeSetupBanner from '@/components/StripeSetupBanner'
 
 export default function ContractsPage() {
   const [contracts, setContracts] = useState<Contract[]>([])
@@ -16,14 +18,18 @@ export default function ContractsPage() {
   const [recentlyChanged, setRecentlyChanged] = useState<Set<string>>(new Set())
   const router = useRouter()
   const { user } = useAuth()
+  const { activeVenue } = useVenue()
 
   useEffect(() => {
     fetchContracts()
-  }, [])
+  }, [activeVenue])
 
   const fetchContracts = async () => {
+    setLoading(true)
+    setContracts([])
     try {
-      const params = user?.role === 'owner' ? { ownerId: user.id } : user?.role === 'customer' ? { clientId: user.id } : {}
+      const params: any = user?.role === 'owner' ? { ownerId: user.id } : user?.role === 'customer' ? { clientId: user.id } : {}
+      if (activeVenue) params.venueId = activeVenue.id
       const response = await api.get<Contract[]>('/contracts', { params })
       setContracts(response.data)
     } catch (error) {
@@ -139,20 +145,15 @@ export default function ContractsPage() {
 
   return (
     <div className="p-6">
+      <StripeSetupBanner feature="Contracts" />
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 text-center mb-3">
           {user?.role === 'owner' ? 'My Contracts' : 'Contracts'}
         </h1>
         {user?.role === 'owner' && (
-          <div className="flex justify-center">
-            <button
-              onClick={() => router.push('/dashboard/contracts/new')}
-              className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
-            >
-              <Plus className="h-5 w-5" />
-              Create Contract
-            </button>
-          </div>
+          <p className="text-center text-sm text-gray-500">
+            Contracts are created through the <a href="/dashboard/events" className="text-primary-600 hover:underline font-medium">Events</a> tab.
+          </p>
         )}
       </div>
 
@@ -204,8 +205,13 @@ export default function ContractsPage() {
                   <p className="font-semibold text-gray-900 truncate">{contract.title}</p>
                   <p className="text-sm text-gray-500">{contract.contractNumber}</p>
                 </div>
-                <div className="flex-shrink-0">
+                <div className="flex-shrink-0 flex flex-col items-end gap-1.5">
                   <StatusSelector contract={contract} />
+                  {(contract as any).viewed_at && (
+                    <span className="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                      <Eye className="h-3 w-3" /> Viewed
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-600">
@@ -282,7 +288,14 @@ export default function ContractsPage() {
                     {new Date(contract.createdAt).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <StatusSelector contract={contract} />
+                    <div className="flex flex-col gap-1">
+                      <StatusSelector contract={contract} />
+                      {(contract as any).viewed_at && (
+                        <span className="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full w-fit">
+                          <Eye className="h-3 w-3" /> Viewed
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium" onClick={e => e.stopPropagation()}>
                     <button

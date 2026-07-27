@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import {
   FileText, CheckCircle2, Loader2, AlertCircle, CreditCard, Lock, Calendar,
@@ -37,7 +37,7 @@ interface PublicOwnerInvoice {
 
 type PaymentSelection = 'deposit' | 'full' | 'custom'
 
-export default function OwnerInvoicePayPage() {
+function OwnerInvoicePayPageContent() {
   const params = useParams()
   const searchParams = useSearchParams()
   const token = params.token as string
@@ -51,8 +51,19 @@ export default function OwnerInvoicePayPage() {
 
   const justPaid = searchParams.get('paid') === 'true'
   const wasCanceled = searchParams.get('canceled') === 'true'
+  const sid = searchParams.get('sid') // Stripe session ID
 
   useEffect(() => {
+    if (justPaid && sid) {
+      fetch(`${API_URL}/stripe/invoice-pay/${token}/verify-payment?sid=${encodeURIComponent(sid)}`, { method: 'POST' })
+        .then(r => r.json())
+        .then(d => {
+          if (d.paid) {
+            setInvoice(prev => prev ? { ...prev, status: 'paid', amount_due: 0 } : prev)
+          }
+        })
+        .catch(() => {})
+    }
     fetchInvoice()
   }, [token])
 
@@ -364,9 +375,17 @@ export default function OwnerInvoicePayPage() {
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-5">
-          Powered by <span className="font-semibold text-gray-500">DoVenue Suite</span>
+          Powered by <span className="font-semibold text-gray-500">EventEcos</span>
         </p>
       </div>
     </div>
+  )
+}
+
+export default function OwnerInvoicePayPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="animate-spin h-8 w-8 border-4 border-indigo-500 border-t-transparent rounded-full" /></div>}>
+      <OwnerInvoicePayPageContent />
+    </Suspense>
   )
 }

@@ -285,7 +285,7 @@ export default function VendorInvoiceDetailPage() {
 
       {/* Fee disclaimer */}
       <p className="text-center text-xs text-gray-400 mt-4">
-        A 5% platform fee + Stripe's standard processing fees apply to all payments collected through DoVenue Suite.
+        A 5% platform fee + Stripe's standard processing fees apply to all payments collected through EventEcos.
       </p>
     </div>
   )

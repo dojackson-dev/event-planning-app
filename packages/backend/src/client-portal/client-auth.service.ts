@@ -1,7 +1,7 @@
 import { Injectable, UnauthorizedException, BadRequestException, Logger } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { TwilioService } from '../messaging/twilio.service';
-import { randomBytes, createHash } from 'crypto';
+import { randomBytes, createHash, createHmac } from 'crypto';
 
 interface OtpRecord {
   code: string;
@@ -24,9 +24,13 @@ export interface ClientSession {
 export class ClientAuthService {
   private readonly logger = new Logger(ClientAuthService.name);
 
-  // In-memory stores – swap for Redis in production
+  // In-memory OTP store (short-lived, in-memory is fine)
   private readonly otpStore = new Map<string, OtpRecord>();
-  private readonly sessionStore = new Map<string, ClientSession>();
+
+  // Session secret — self-validating HMAC tokens survive backend restarts
+  private readonly sessionSecret =
+    process.env.CLIENT_SESSION_SECRET ||
+    createHash('sha256').update('dovenue-client-sessions-devkey').digest('hex');
 
   constructor(
     private readonly supabaseService: SupabaseService,
@@ -92,24 +96,7 @@ export class ClientAuthService {
       }
     }
 
-    // 3. Check booking.contact_phone by phone variants (+ optional name match)
-    if (!clientFound) {
-      const bookingResults = await Promise.all(
-        phoneVariants.map(p =>
-          supabase
-            .from('booking')
-            .select('id, contact_name, contact_phone')
-            .eq('contact_phone', p)
-            .limit(10),
-        ),
-      );
-      const allBookings = bookingResults.flatMap((r: any) => r.data || []);
-      if (allBookings.length > 0) {
-        clientFound = name ? this.nameMatches(name, allBookings.map((b: any) => b.contact_name)) : true;
-      }
-    }
-
-    // 4. Check vendor_booking_requests.client_phone (submitted via vendor public booking form)
+    // 3. Check vendor_booking_requests.client_phone (submitted via vendor public booking form)
     if (!clientFound) {
       const vendorRequestResults = await Promise.all(
         phoneVariants.map(p =>
@@ -127,8 +114,7 @@ export class ClientAuthService {
     }
 
     if (!clientFound) {
-      this.logger.warn(`OTP requested for unrecognized phone: ${normalized}`);
-      return { message: 'If this number is on file, you will receive a verification code shortly.' };
+      this.logger.log(`New phone login attempt: ${normalized} — will create client record on verify`);
     }
 
     const otp = this.generateOtp();
@@ -146,15 +132,11 @@ export class ClientAuthService {
     const isDev = process.env.NODE_ENV !== 'production';
     if (isDev) {
       this.logger.warn(`[DEV] OTP for ${normalized}: ${otp}`);
-      return {
-        message: 'Verification code sent.',
-        devOtp: otp,
-      };
     }
 
     await this.twilioService.sendSMS(
       normalized,
-      `Your DoVenue Suites verification code is: ${otp}. Valid for 10 minutes.`,
+      `Your EventEcos verification code is: ${otp}. Valid for 10 minutes.`,
     );
 
     return { message: 'Verification code sent.' };
@@ -237,18 +219,6 @@ export class ClientAuthService {
           firstName = parts[0] || '';
           lastName = parts.slice(1).join(' ') || '';
         } else {
-          // Try bookings
-          const bookingResults = await Promise.all(
-            phoneVariants.map(p =>
-              supabase.from('booking').select('contact_name').eq('contact_phone', p).limit(1),
-            ),
-          );
-          const bookingName = bookingResults.flatMap((r: any) => r.data || [])[0]?.contact_name || '';
-          if (bookingName) {
-            const parts = bookingName.split(/\s+/);
-            firstName = parts[0] || '';
-            lastName = parts.slice(1).join(' ') || '';
-          } else {
             // Try vendor_booking_requests (submitted via vendor public booking form)
             const vendorRequestResults = await Promise.all(
               phoneVariants.map(p =>
@@ -259,7 +229,6 @@ export class ClientAuthService {
             const parts = vendorRequestName.split(/\s+/);
             firstName = parts[0] || '';
             lastName = parts.slice(1).join(' ') || '';
-          }
         }
       }
       // Generate a stable, UUID-format client ID derived from the phone number
@@ -267,42 +236,55 @@ export class ClientAuthService {
     }
 
     // Issue a session token – 30-day expiry for persistent login
-    const token = randomBytes(32).toString('hex');
-    const session: ClientSession = {
+    const sessionData = {
       clientId,
       phone: normalized,
       firstName,
       lastName,
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
     };
-    this.sessionStore.set(token, session);
+    const payload = Buffer.from(JSON.stringify(sessionData)).toString('base64url');
+    const sig = createHmac('sha256', this.sessionSecret).update(payload).digest('base64url');
+    const token = `${payload}.${sig}`;
 
     this.logger.log(`Client session created for ${normalized}`);
 
-    const { expiresAt, ...clientInfo } = session;
-    return { token, client: clientInfo };
+    const { expiresAt, ...clientInfo } = sessionData as any;
+    return { token, client: { ...clientInfo } };
   }
 
   /**
    * Validate a session token and return the client session.
    */
   validateSession(token: string): ClientSession {
-    const session = this.sessionStore.get(token);
-    if (!session) {
-      throw new UnauthorizedException('Invalid or expired session.');
+    const dotIndex = token.lastIndexOf('.');
+    if (dotIndex === -1) throw new UnauthorizedException('Invalid session token.');
+
+    const payload = token.substring(0, dotIndex);
+    const sig = token.substring(dotIndex + 1);
+    const expectedSig = createHmac('sha256', this.sessionSecret).update(payload).digest('base64url');
+
+    if (sig !== expectedSig) throw new UnauthorizedException('Invalid session token.');
+
+    let session: ClientSession;
+    try {
+      session = JSON.parse(Buffer.from(payload, 'base64url').toString());
+    } catch {
+      throw new UnauthorizedException('Invalid session token.');
     }
-    if (new Date() > session.expiresAt) {
-      this.sessionStore.delete(token);
+
+    if (new Date() > new Date(session.expiresAt)) {
       throw new UnauthorizedException('Session expired. Please log in again.');
     }
     return session;
   }
 
   /**
-   * Invalidate a session token (logout).
+   * Logout is handled client-side by clearing localStorage.
+   * HMAC tokens cannot be individually revoked without a denylist.
    */
-  revokeSession(token: string): void {
-    this.sessionStore.delete(token);
+  revokeSession(_token: string): void {
+    // No-op: token expiry is enforced via the embedded expiresAt claim
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

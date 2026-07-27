@@ -3,7 +3,13 @@ import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { SupabaseService } from '../supabase/supabase.service';
 import { VendorInvoicesService } from '../vendor-invoices/vendor-invoices.service';
+import { ArtistInvoicesService } from '../artist-invoices/artist-invoices.service';
+import { PromoterInvoicesService } from '../promoter-invoices/promoter-invoices.service';
+import { PromoterEventsService } from '../promoter-events/promoter-events.service';
 import { AffiliatesService } from '../affiliates/affiliates.service';
+import { SmsNotificationsService } from '../messaging/sms-notifications.service';
+import { MailService } from '../mail/mail.service';
+import { VipService } from '../vip/vip.service';
 
 @Injectable()
 export class StripeService {
@@ -16,8 +22,14 @@ export class StripeService {
     private readonly configService: ConfigService,
     private readonly supabaseService: SupabaseService,
     private readonly vendorInvoicesService: VendorInvoicesService,
+    private readonly artistInvoicesService: ArtistInvoicesService,
+    private readonly promoterInvoicesService: PromoterInvoicesService,
+    private readonly promoterEventsService: PromoterEventsService,
     @Inject(forwardRef(() => AffiliatesService))
     private readonly affiliatesService: AffiliatesService,
+    private readonly smsNotifications: SmsNotificationsService,
+    private readonly mailService: MailService,
+    private readonly vipService: VipService,
   ) {
     const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (!secretKey) {
@@ -25,7 +37,15 @@ export class StripeService {
     }
     this.stripe = new Stripe(secretKey);
     this.webhookSecret = this.configService.get<string>('STRIPE_WEBHOOK_SECRET', '');
-    this.frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://dovenuesuite.com');
+    this.frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://eventecos.com');
+  }
+
+  /** Returns a public-facing URL Stripe will accept for business_profile.url (never localhost or bare IPs). */
+  private get connectBusinessUrl(): string {
+    const isLocal = this.frontendUrl.startsWith('http://localhost') ||
+      this.frontendUrl.startsWith('http://127.') ||
+      /^https?:\/\/\d+\.\d+\.\d+\.\d+/.test(this.frontendUrl);
+    return isLocal ? 'https://eventecos.com' : this.frontendUrl;
   }
 
   // ─── Customer ─────────────────────────────────────────────────────────────
@@ -101,7 +121,90 @@ export class StripeService {
     return session.url!;
   }
 
-  // ─── Billing Portal ────────────────────────────────────────────────────────
+  // ─── Promoter Subscription Checkout ───────────────────────────────────────
+
+  /**
+   * Create a Stripe Checkout session for a promoter subscribing to Pro or Premium.
+   * On success, the webhook sets promoter_accounts.plan to the chosen value.
+   */
+  async createPromoterCheckoutSession(
+    promoterAccountId: string,
+    plan: 'pro' | 'premium',
+    email: string,
+    name: string,
+  ): Promise<string> {
+    const priceIdKey = plan === 'pro'
+      ? 'STRIPE_PROMOTER_PRO_PRICE_ID'
+      : 'STRIPE_PROMOTER_PREMIUM_PRICE_ID';
+    const priceId = this.configService.get<string>(priceIdKey);
+    if (!priceId) {
+      throw new Error(`${priceIdKey} is not configured. Add it to .env and Stripe Dashboard.`);
+    }
+
+    const admin = this.supabaseService.getAdminClient();
+
+    // Reuse or create a Stripe customer keyed on promoter_accounts.stripe_customer_id
+    let { data: promoter } = await admin
+      .from('promoter_accounts')
+      .select('stripe_customer_id')
+      .eq('id', promoterAccountId)
+      .maybeSingle();
+
+    let customerId: string;
+    if (promoter?.stripe_customer_id) {
+      customerId = promoter.stripe_customer_id;
+    } else {
+      const customer = await this.stripe.customers.create({
+        email,
+        name,
+        metadata: { promoter_account_id: promoterAccountId },
+      });
+      customerId = customer.id;
+      await admin
+        .from('promoter_accounts')
+        .update({ stripe_customer_id: customerId })
+        .eq('id', promoterAccountId);
+    }
+
+    const session = await this.stripe.checkout.sessions.create({
+      customer: customerId,
+      payment_method_types: ['card'],
+      line_items: [{ price: priceId, quantity: 1 }],
+      mode: 'subscription',
+      success_url: `${this.frontendUrl}/dashboard/promoter/billing?subscribed=true`,
+      cancel_url: `${this.frontendUrl}/dashboard/promoter/billing?canceled=true`,
+      client_reference_id: promoterAccountId,
+      subscription_data: {
+        metadata: { promoter_account_id: promoterAccountId, promoter_plan: plan },
+      },
+    });
+
+    this.logger.log(`Created promoter checkout session ${session.id} for promoter ${promoterAccountId} plan=${plan}`);
+    return session.url!;
+  }
+
+  /**
+   * Create a Stripe Billing Portal session for a promoter to manage/cancel their subscription.
+   */
+  async createPromoterBillingPortalSession(promoterAccountId: string): Promise<string> {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: promoter } = await admin
+      .from('promoter_accounts')
+      .select('stripe_customer_id')
+      .eq('id', promoterAccountId)
+      .maybeSingle();
+
+    if (!promoter?.stripe_customer_id) {
+      throw new Error('No Stripe customer found for this promoter. Complete a checkout first.');
+    }
+
+    const session = await this.stripe.billingPortal.sessions.create({
+      customer: promoter.stripe_customer_id,
+      return_url: `${this.frontendUrl}/dashboard/promoter/billing`,
+    });
+
+    return session.url;
+  }
 
   /**
    * Create a Stripe Customer Portal session for managing subscriptions.
@@ -126,7 +229,129 @@ export class StripeService {
     return session.url;
   }
 
-  // ─── Webhooks ──────────────────────────────────────────────────────────────
+  // ─── Client Invoice Payment ────────────────────────────────────────────────
+
+  // ─── Plan Metadata ────────────────────────────────────────────────────────
+
+  /** Maps a Stripe Price ID to canonical plan name and account limits. */
+  private priceIdToPlanMeta(priceId: string): {
+    planName: 'pro' | 'premium' | 'enterprise';
+    venueLimit: number | null;
+    teamMemberLimit: number | null;
+  } {
+    const proPriceId     = this.configService.get<string>('STRIPE_OWNER_PRO_PRICE_ID',     'price_1TZt1YQ5L9kwfWUtG72lKBIh');
+    const premiumPriceId = this.configService.get<string>('STRIPE_OWNER_PREMIUM_PRICE_ID', 'price_1TZt2GQ5L9kwfWUtz6t1mbXX');
+
+    if (priceId === premiumPriceId) return { planName: 'premium', venueLimit: 5,    teamMemberLimit: 5    };
+    if (priceId === proPriceId)     return { planName: 'pro',     venueLimit: 3,    teamMemberLimit: 3    };
+    // Unknown/enterprise price — treat as enterprise with no enforced limits
+    return                                 { planName: 'enterprise', venueLimit: null, teamMemberLimit: null };
+  }
+
+  /** Maps owner subscription plan to platform fee rate. */
+  private resolveOwnerPlatformFeeRate(owner: any): number {
+    if (owner?.subscription_status !== 'active') return 0.03; // free / trialing
+    const planName = (owner?.plan_name ?? '').toLowerCase();
+    if (planName === 'premium') return 0.01;
+    if (planName === 'pro')     return 0.015;
+    if (planName === 'enterprise') return 0.01; // enterprise gets premium rate by default
+    return 0.03; // free / no recognised plan
+  }
+
+  /**
+   * Create a Stripe Checkout session for a client paying a specific invoice.
+   * Funds route to the owner's Connect account (if connected), or directly to platform.
+   * Client absorbs Stripe's processing fee (grossed-up line item).
+   * Owner pays the platform fee (3% free, 1.5% pro, 1% premium) via application_fee_amount.
+   * On checkout.session.completed the webhook calls markInvoicePaid automatically.
+   */
+  async createInvoiceCheckoutSession(
+    invoiceId: string,
+    clientName: string,
+  ): Promise<string> {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: invoice } = await admin
+      .from('invoices')
+      .select('id, invoice_number, total_amount, amount_due, amount_paid, owner_id, client_name')
+      .eq('id', invoiceId)
+      .maybeSingle();
+
+    if (!invoice) throw new Error('Invoice not found');
+    if (invoice.amount_due <= 0) throw new Error('Invoice is already fully paid');
+
+    const amountCents = Math.round(Number(invoice.amount_due) * 100);
+    if (amountCents < 50) throw new Error('Amount too small to process');
+
+    // Gross up so the client absorbs Stripe's processing fee (2.9% + $0.30)
+    const grossCents = Math.round((amountCents + 30) / 0.971);
+    const stripeFeeCents = grossCents - amountCents;
+
+    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
+      {
+        price_data: {
+          currency: 'usd',
+          unit_amount: amountCents,
+          product_data: {
+            name: `Invoice #${invoice.invoice_number}`,
+            description: `Payment from ${clientName || invoice.client_name || 'Client'}`,
+          },
+        },
+        quantity: 1,
+      },
+      {
+        price_data: {
+          currency: 'usd',
+          unit_amount: stripeFeeCents,
+          product_data: {
+            name: 'Stripe Processing Fee',
+            description: 'Credit/debit card processing fee (2.9% + $0.30)',
+          },
+        },
+        quantity: 1,
+      },
+    ];
+
+    // Resolve owner's Stripe Connect ID and plan for fee calculation
+    let transferData: Stripe.Checkout.SessionCreateParams['payment_intent_data'] | undefined;
+    if (invoice.owner_id) {
+      let ownerAccount: any = await this.getOwnerAccountByUserId(invoice.owner_id, admin);
+      if (!ownerAccount) {
+        const { data: ownerById } = await admin
+          .from('owner_accounts')
+          .select('stripe_connect_id, stripe_connect_status, subscription_status, plan_id')
+          .eq('id', invoice.owner_id)
+          .maybeSingle();
+        ownerAccount = ownerById;
+      }
+
+      const connectId = ownerAccount?.stripe_connect_id ?? ownerAccount?.stripe_account_id;
+      const connectActive = ownerAccount?.stripe_connect_status === 'active';
+
+      if (connectId && connectActive) {
+        // plan_name is now stored directly in owner_accounts — no Stripe API call needed
+        const feeRate = this.resolveOwnerPlatformFeeRate(ownerAccount);
+        const platformFeeCents = Math.round(amountCents * feeRate);
+        transferData = {
+          application_fee_amount: platformFeeCents,
+          transfer_data: { destination: connectId },
+        };
+      }
+    }
+
+    const session = await this.stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: lineItems,
+      mode: 'payment',
+      success_url: `${this.frontendUrl}/client-portal/invoices?paid=true&invoice=${invoice.invoice_number}&iid=${invoiceId}&sid={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${this.frontendUrl}/client-portal/invoices?canceled=true`,
+      metadata: { invoice_id: invoiceId },
+      ...(transferData ? { payment_intent_data: transferData } : {}),
+    });
+
+    this.logger.log(`Created invoice checkout session ${session.id} for invoice ${invoiceId}`);
+    return session.url!
+  }
 
   /**
    * Verify Stripe webhook signature and process the event.
@@ -189,36 +414,28 @@ export class StripeService {
     planName: string | null;
     stripeCustomerId: string | null;
     stripeSubscriptionId: string | null;
+    venueLimit: number | null;
+    teamMemberLimit: number | null;
   }> {
     const admin = this.supabaseService.getAdminClient();
     const { data: owner, error } = await admin
       .from('owner_accounts')
-      .select('subscription_status, plan_id, stripe_customer_id, stripe_subscription_id')
+      .select('subscription_status, plan_id, plan_name, stripe_customer_id, stripe_subscription_id, venue_limit, team_member_limit')
       .eq('id', ownerAccountId)
       .single();
 
     if (error || !owner) {
-      return { status: 'none', planId: null, planName: null, stripeCustomerId: null, stripeSubscriptionId: null };
-    }
-
-    // Look up the plan name from Stripe using the price ID
-    let planName: string | null = null;
-    if (owner.plan_id) {
-      try {
-        const price = await this.stripe.prices.retrieve(owner.plan_id, { expand: ['product'] });
-        const product = price.product as Stripe.Product;
-        planName = product?.name ?? null;
-      } catch {
-        // Non-fatal — just leave planName null
-      }
+      return { status: 'none', planId: null, planName: 'free', stripeCustomerId: null, stripeSubscriptionId: null, venueLimit: 1, teamMemberLimit: 0 };
     }
 
     return {
       status: owner.subscription_status ?? 'inactive',
       planId: owner.plan_id ?? null,
-      planName,
+      planName: owner.plan_name ?? 'free',
       stripeCustomerId: owner.stripe_customer_id ?? null,
       stripeSubscriptionId: owner.stripe_subscription_id ?? null,
+      venueLimit: owner.venue_limit ?? 1,
+      teamMemberLimit: owner.team_member_limit ?? 0,
     };
   }
 
@@ -244,6 +461,68 @@ export class StripeService {
       return;
     }
 
+    // ── Artist invoice payment ────────────────────────────────────────────────
+    if (session.metadata?.artist_invoice_id) {
+      const paymentIntentId = typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : (session.payment_intent as Stripe.PaymentIntent | null)?.id ?? null;
+      await this.artistInvoicesService.markInvoicePaidBySession(session.id, paymentIntentId);
+      this.logger.log(`Artist invoice checkout complete — session ${session.id}`);
+      return;
+    }
+
+    // ── Ticket purchase (public event) ─────────────────────────────────────
+    if (session.metadata?.public_event_id && !session.metadata?.vip_package_id) {
+      await this.promoterEventsService.markTicketsSoldBySession(session.id);
+      this.logger.log(`Ticket purchase complete — session ${session.id}`);
+      return;
+    }
+
+    // ── VIP package purchase ──────────────────────────────────────────────
+    if (session.metadata?.vip_package_id) {
+      await this.vipService.processVipCheckoutComplete(session.id);
+      this.logger.log(`VIP purchase complete — session ${session.id}`);
+      return;
+    }
+
+    // ── Promoter invoice payment ──────────────────────────────────────────────
+    if (session.metadata?.promoter_invoice_id) {
+      const paymentIntentId = typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : (session.payment_intent as Stripe.PaymentIntent | null)?.id ?? null;
+      await this.promoterInvoicesService.markInvoicePaidBySession(session.id, paymentIntentId);
+      this.logger.log(`Promoter invoice checkout complete — session ${session.id}`);
+      return;
+    }
+
+    // ── Promoter subscription checkout ───────────────────────────────────────
+    // The subscription_data.metadata carries promoter_account_id + promoter_plan.
+    // We also get it from client_reference_id, but we check subscription metadata first.
+    if (session.mode === 'subscription') {
+      const subId = typeof session.subscription === 'string'
+        ? session.subscription
+        : (session.subscription as Stripe.Subscription | null)?.id ?? null;
+
+      if (subId) {
+        try {
+          const sub = await this.stripe.subscriptions.retrieve(subId);
+          const promoterAccountId = sub.metadata?.promoter_account_id;
+          const plan = sub.metadata?.promoter_plan as string | undefined;
+          if (promoterAccountId && plan) {
+            const admin = this.supabaseService.getAdminClient();
+            await admin
+              .from('promoter_accounts')
+              .update({ plan, stripe_subscription_id: subId })
+              .eq('id', promoterAccountId);
+            this.logger.log(`Promoter ${promoterAccountId} subscribed to plan=${plan}`);
+            return;
+          }
+        } catch (err) {
+          this.logger.warn('Could not retrieve subscription for promoter plan check', (err as Error).message);
+        }
+      }
+    }
+
     // ── Owner subscription checkout ──────────────────────────────────────────
     const ownerAccountId = session.client_reference_id;
     if (!ownerAccountId) return;
@@ -252,8 +531,19 @@ export class StripeService {
       ? session.subscription
       : (session.subscription as Stripe.Subscription | null)?.id ?? null;
 
-    await this.syncSubscriptionToDb(ownerAccountId, subscriptionId, 'active');
-    this.logger.log(`Checkout complete — owner ${ownerAccountId} is now active`);
+    // Retrieve the subscription to get the price ID so plan_name / limits are set correctly
+    let planPriceId: string | null = null;
+    if (subscriptionId) {
+      try {
+        const sub = await this.stripe.subscriptions.retrieve(subscriptionId);
+        planPriceId = sub.items.data[0]?.price?.id ?? null;
+      } catch (err) {
+        this.logger.warn('Could not retrieve subscription to resolve plan price', (err as Error).message);
+      }
+    }
+
+    await this.syncSubscriptionToDb(ownerAccountId, subscriptionId, 'active', planPriceId);
+    this.logger.log(`Checkout complete — owner ${ownerAccountId} is now active (plan price: ${planPriceId ?? 'unknown'})`);
 
     // ── Affiliate conversion commission ─────────────────────────────────────
     if (subscriptionId) {
@@ -292,7 +582,7 @@ export class StripeService {
 
     const { data: invoice } = await admin
       .from('invoices')
-      .select('total_amount, amount_paid')
+      .select('total_amount, amount_paid, client_phone, client_name, invoice_number, owner_id, booking_id, intake_form_id')
       .eq('id', invoiceId)
       .maybeSingle();
 
@@ -315,10 +605,139 @@ export class StripeService {
 
     if (error) {
       this.logger.error(`Failed to record payment for invoice ${invoiceId}: ${error.message}`);
+      return;
+    }
+
+    if (!invoice) return;
+
+    // ── Notify client via SMS ──────────────────────────────────────────────
+    let clientPhone = invoice.client_phone ?? null;
+    const clientName = invoice.client_name || 'Valued Client';
+    const invoiceNumber = invoice.invoice_number || invoiceId;
+
+    // Fallback: look up phone from intake form
+    if (!clientPhone && invoice.intake_form_id) {
+      const { data: form } = await admin.from('intake_forms').select('contact_phone').eq('id', invoice.intake_form_id).maybeSingle();
+      clientPhone = (form as any)?.contact_phone ?? null;
+    }
+
+    const paidAmount = isFullyPaid ? total : amountDollars;
+    try {
+      await this.smsNotifications.invoicePaid(clientPhone, clientName, invoiceNumber, paidAmount);
+    } catch (smsErr) {
+      this.logger.warn(`Failed to send client payment SMS for invoice ${invoiceId}`, (smsErr as Error).message);
+    }
+
+    // ── Email "You're Booked!" confirmation to client ──────────────────────
+    if (isFullyPaid) {
+      try {
+        // Look up client email
+        let clientEmail: string | null = (invoice as any).client_email ?? null;
+        if (!clientEmail && invoice.booking_id) {
+          const { data: booking } = await admin.from('event').select('contact_email').eq('id', invoice.booking_id).maybeSingle();
+          clientEmail = (booking as any)?.contact_email ?? null;
+        }
+        if (!clientEmail && invoice.intake_form_id) {
+          const { data: form } = await admin.from('intake_forms').select('contact_email').eq('id', invoice.intake_form_id).maybeSingle();
+          clientEmail = (form as any)?.contact_email ?? null;
+        }
+
+        if (clientEmail) {
+          const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+          let eventType: string | null = null;
+          let eventDate: string | null = null;
+          let venueName: string | undefined;
+          if (invoice.intake_form_id) {
+            const { data: form } = await admin.from('intake_forms').select('event_type, event_date').eq('id', invoice.intake_form_id).maybeSingle();
+            eventType = (form as any)?.event_type ?? null;
+            eventDate = (form as any)?.event_date ?? null;
+          }
+          if (invoice.owner_id) {
+            const { data: ownerAcct } = await admin.from('owner_accounts').select('business_name').eq('primary_owner_id', invoice.owner_id).maybeSingle();
+            if (!ownerAcct?.business_name) {
+              const { data: acct } = await admin.from('owner_accounts').select('business_name').eq('id', invoice.owner_id).maybeSingle();
+              if (acct?.business_name) venueName = acct.business_name;
+            } else {
+              venueName = ownerAcct.business_name;
+            }
+          }
+          await this.mailService.sendInvoicePaidConfirmation({
+            clientName,
+            clientEmail,
+            invoiceNumber,
+            totalAmount: total,
+            eventType,
+            eventDate,
+            venueName,
+            portalUrl: `${frontendUrl}/client-portal`,
+          });
+        }
+      } catch (emailErr) {
+        this.logger.warn(`Failed to send booking confirmation email for invoice ${invoiceId}`, (emailErr as Error).message);
+      }
+    }
+
+    // ── Notify owner via SMS ───────────────────────────────────────────────
+    if (invoice.owner_id) {
+      try {
+        // Path 1: memberships table → user_id → phone_number
+        let ownerPhone: string | null = null;
+        const { data: membership } = await admin
+          .from('memberships')
+          .select('user_id')
+          .eq('owner_account_id', invoice.owner_id)
+          .eq('role', 'owner')
+          .limit(1)
+          .maybeSingle();
+        if (membership?.user_id) {
+          const { data: user } = await admin.from('users').select('phone_number').eq('id', membership.user_id).maybeSingle();
+          ownerPhone = (user as any)?.phone_number ?? null;
+        }
+
+        // Path 2: fallback via owner_accounts.primary_owner_id → users
+        if (!ownerPhone) {
+          const { data: ownerAccount } = await admin
+            .from('owner_accounts')
+            .select('primary_owner_id')
+            .eq('id', invoice.owner_id)
+            .maybeSingle();
+          if (ownerAccount?.primary_owner_id) {
+            const { data: user } = await admin.from('users').select('phone_number').eq('id', ownerAccount.primary_owner_id).maybeSingle();
+            ownerPhone = (user as any)?.phone_number ?? null;
+          }
+        }
+
+        if (ownerPhone) {
+          await this.smsNotifications.trySend(
+            ownerPhone,
+            `DoVenue Suite: Invoice #${invoiceNumber} has been paid — $${paidAmount.toFixed(2)} received from ${clientName}.`,
+          );
+        } else {
+          this.logger.warn(`No phone found for owner ${invoice.owner_id}, skipping owner SMS for invoice ${invoiceId}`);
+        }
+      } catch (ownerSmsErr) {
+        this.logger.warn(`Failed to send owner payment SMS for invoice ${invoiceId}`, (ownerSmsErr as Error).message);
+      }
     }
   }
 
   private async handleSubscriptionUpdate(subscription: Stripe.Subscription): Promise<void> {
+    // Promoter subscription update
+    const promoterAccountId = subscription.metadata?.promoter_account_id;
+    if (promoterAccountId) {
+      const plan = subscription.metadata?.promoter_plan as string | undefined;
+      if (plan) {
+        const admin = this.supabaseService.getAdminClient();
+        await admin
+          .from('promoter_accounts')
+          .update({ plan, stripe_subscription_id: subscription.id })
+          .eq('id', promoterAccountId);
+        this.logger.log(`Promoter ${promoterAccountId} subscription updated to plan=${plan}`);
+      }
+      return;
+    }
+
+    // Owner subscription update
     const ownerAccountId = subscription.metadata?.owner_account_id;
     const priceId = subscription.items.data[0]?.price?.id ?? null;
 
@@ -333,6 +752,19 @@ export class StripeService {
   }
 
   private async handleSubscriptionCanceled(subscription: Stripe.Subscription): Promise<void> {
+    // Promoter subscription canceled → revert to free
+    const promoterAccountId = subscription.metadata?.promoter_account_id;
+    if (promoterAccountId) {
+      const admin = this.supabaseService.getAdminClient();
+      await admin
+        .from('promoter_accounts')
+        .update({ plan: 'free', stripe_subscription_id: null })
+        .eq('id', promoterAccountId);
+      this.logger.log(`Promoter ${promoterAccountId} subscription canceled — reverted to free`);
+      return;
+    }
+
+    // Owner subscription canceled
     const ownerAccountId = subscription.metadata?.owner_account_id;
     if (ownerAccountId) {
       await this.syncSubscriptionToDb(ownerAccountId, subscription.id, 'canceled');
@@ -418,6 +850,21 @@ export class StripeService {
     if (subscriptionId) update.stripe_subscription_id = subscriptionId;
     if (planId !== undefined) update.plan_id = planId;
 
+    // When activating a paid plan, store canonical plan name + limits
+    if (planId && status === 'active') {
+      const meta = this.priceIdToPlanMeta(planId);
+      update.plan_name = meta.planName;
+      update.venue_limit = meta.venueLimit;
+      update.team_member_limit = meta.teamMemberLimit;
+    }
+
+    // When canceling, revert to free tier defaults
+    if (status === 'canceled') {
+      update.plan_name = 'free';
+      update.venue_limit = 1;
+      update.team_member_limit = 0;
+    }
+
     const { error } = await admin
       .from('owner_accounts')
       .update(update)
@@ -439,6 +886,19 @@ export class StripeService {
     if (subscriptionId) update.stripe_subscription_id = subscriptionId;
     if (planId) update.plan_id = planId;
 
+    if (planId && status === 'active') {
+      const meta = this.priceIdToPlanMeta(planId);
+      update.plan_name = meta.planName;
+      update.venue_limit = meta.venueLimit;
+      update.team_member_limit = meta.teamMemberLimit;
+    }
+
+    if (status === 'canceled') {
+      update.plan_name = 'free';
+      update.venue_limit = 1;
+      update.team_member_limit = 0;
+    }
+
     const { error } = await admin
       .from('owner_accounts')
       .update(update)
@@ -451,7 +911,7 @@ export class StripeService {
 
   // ─── Stripe Connect ────────────────────────────────────────────────────────
 
-  private readonly APP_FEE_RATE = 0.05; // 5% DoVenueSuite fee
+  // Platform fee rate is resolved per-payment via resolveOwnerPlatformFeeRate() (3% / 1.5% / 1%)
 
   /**
    * Resolves the owner_accounts row for a given auth user ID.
@@ -476,11 +936,11 @@ export class StripeService {
       return owner ?? null;
     }
 
-    // Fallback: direct user_id column (legacy)
+    // Fallback: primary_owner_id on owner_accounts (auth UUID stored there)
     const { data: owner } = await admin
       .from('owner_accounts')
       .select('*')
-      .eq('user_id', userId)
+      .eq('primary_owner_id', userId)
       .maybeSingle();
 
     return owner ?? null;
@@ -503,6 +963,7 @@ export class StripeService {
         type: 'express',
         email,
         capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+        business_profile: { url: this.connectBusinessUrl },
         metadata: { owner_account_id: String(owner.id) },
       });
       connectId = account.id;
@@ -545,6 +1006,7 @@ export class StripeService {
         type: 'express',
         email,
         capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+        business_profile: { url: this.connectBusinessUrl },
         metadata: { vendor_account_id: vendor.id },
       });
       connectId = account.id;
@@ -567,39 +1029,297 @@ export class StripeService {
 
   /**
    * Get the Connect account status for an owner.
+   * If status is pending, does a live Stripe check so we don't need webhooks in dev.
    */
-  async getOwnerConnectStatus(userId: string): Promise<{ status: string; connectId: string | null }> {
+  async getOwnerConnectStatus(userId: string): Promise<{ status: string; connectId: string | null; accountCreatedAt: string | null; planName: string | null; subscriptionStatus: string | null }> {
     const admin = this.supabaseService.getAdminClient();
     const owner = await this.getOwnerAccountByUserId(userId, admin);
 
-    return {
-      status: owner?.stripe_connect_status ?? 'not_connected',
-      connectId: owner?.stripe_connect_id ?? null,
-    };
+    let status = owner?.stripe_connect_status ?? 'not_connected';
+    const connectId = owner?.stripe_connect_id ?? null;
+    const accountCreatedAt = owner?.created_at ?? null;
+    const planName = owner?.plan_name ?? 'free';
+    const subscriptionStatus = owner?.subscription_status ?? null;
+
+    if (status === 'pending' && connectId) {
+      try {
+        const account = await this.stripe.accounts.retrieve(connectId);
+        const isActive = account.details_submitted && account.charges_enabled && account.payouts_enabled;
+        if (isActive) {
+          status = 'active';
+          await admin.from('owner_accounts').update({ stripe_connect_status: 'active' }).eq('id', owner!.id);
+          this.logger.log(`Owner Connect ${connectId} auto-upgraded to active via live check`);
+        }
+      } catch (err) {
+        this.logger.warn(`Live Stripe check failed for owner ${connectId}: ${(err as Error).message}`);
+      }
+    }
+
+    return { status, connectId, accountCreatedAt, planName, subscriptionStatus };
   }
 
   /**
    * Get the Connect account status for a vendor.
+   * If status is pending, does a live Stripe check so we don't need webhooks in dev.
    */
   async getVendorConnectStatus(userId: string): Promise<{ status: string; connectId: string | null }> {
     const admin = this.supabaseService.getAdminClient();
     const { data } = await admin
       .from('vendor_accounts')
-      .select('stripe_account_id, stripe_connect_status')
+      .select('id, stripe_account_id, stripe_connect_status')
       .eq('user_id', userId)
       .maybeSingle();
 
-    return {
-      status: data?.stripe_connect_status ?? 'not_connected',
-      connectId: data?.stripe_account_id ?? null,
-    };
+    let status = data?.stripe_connect_status ?? 'not_connected';
+    const connectId = data?.stripe_account_id ?? null;
+
+    if (status === 'pending' && connectId) {
+      try {
+        const account = await this.stripe.accounts.retrieve(connectId);
+        const isActive = account.details_submitted && account.charges_enabled && account.payouts_enabled;
+        if (isActive) {
+          status = 'active';
+          await admin.from('vendor_accounts').update({ stripe_connect_status: 'active' }).eq('id', data!.id);
+          this.logger.log(`Vendor Connect ${connectId} auto-upgraded to active via live check`);
+        }
+      } catch (err) {
+        this.logger.warn(`Live Stripe check failed for vendor ${connectId}: ${(err as Error).message}`);
+      }
+    }
+
+    return { status, connectId };
+  }
+
+  /**
+   * Reset owner Stripe Connect — clears stored ID so a fresh account is created on next attempt.
+   */
+  async resetOwnerConnect(userId: string): Promise<{ success: boolean }> {
+    const admin = this.supabaseService.getAdminClient();
+    const owner = await this.getOwnerAccountByUserId(userId, admin);
+    if (!owner) throw new Error('Owner account not found');
+    await admin
+      .from('owner_accounts')
+      .update({ stripe_connect_id: null, stripe_connect_status: 'not_connected' })
+      .eq('id', owner.id);
+    return { success: true };
+  }
+
+  /**
+   * Reset vendor Stripe Connect — clears stored ID so a fresh account is created on next attempt.
+   */
+  async resetVendorConnect(userId: string): Promise<{ success: boolean }> {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: vendor } = await admin
+      .from('vendor_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (!vendor) throw new Error('Vendor account not found');
+    await admin
+      .from('vendor_accounts')
+      .update({ stripe_account_id: null, stripe_connect_status: 'not_connected' })
+      .eq('id', vendor.id);
+    return { success: true };
+  }
+
+  // ─── Promoter Stripe Connect ───────────────────────────────────────────────
+
+  /**
+   * Create (or retrieve) a Stripe Connect Express account for a promoter,
+   * then return a one-time onboarding URL.
+   */
+  async createPromoterConnectOnboarding(userId: string, email: string): Promise<string> {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: promoter } = await admin
+      .from('promoter_accounts')
+      .select('id, stripe_account_id, stripe_connect_status')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!promoter) throw new Error('Promoter account not found');
+
+    let connectId = promoter.stripe_account_id;
+
+    if (!connectId) {
+      const account = await this.stripe.accounts.create({
+        type: 'express',
+        email,
+        capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+        business_profile: { url: this.connectBusinessUrl },
+        metadata: { promoter_account_id: promoter.id },
+      });
+      connectId = account.id;
+
+      await admin
+        .from('promoter_accounts')
+        .update({ stripe_account_id: connectId, stripe_connect_status: 'pending' })
+        .eq('id', promoter.id);
+    }
+
+    const accountLink = await this.stripe.accountLinks.create({
+      account: connectId,
+      refresh_url: `${this.frontendUrl}/dashboard/promoter?connect=refresh`,
+      return_url: `${this.frontendUrl}/dashboard/promoter?connect=success`,
+      type: 'account_onboarding',
+    });
+
+    return accountLink.url;
+  }
+
+  /**
+   * Get the Connect account status for a promoter.
+   * If status is pending, does a live Stripe check.
+   */
+  async getPromoterConnectStatus(userId: string): Promise<{ status: string; connectId: string | null }> {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data } = await admin
+      .from('promoter_accounts')
+      .select('id, stripe_account_id, stripe_connect_status')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    let status = data?.stripe_connect_status ?? 'not_connected';
+    const connectId = data?.stripe_account_id ?? null;
+
+    if (status === 'pending' && connectId) {
+      try {
+        const account = await this.stripe.accounts.retrieve(connectId);
+        const isActive = account.details_submitted && account.charges_enabled && account.payouts_enabled;
+        if (isActive) {
+          status = 'active';
+          await admin.from('promoter_accounts').update({ stripe_connect_status: 'active' }).eq('id', data!.id);
+          this.logger.log(`Promoter Connect ${connectId} auto-upgraded to active via live check`);
+        }
+      } catch (err) {
+        this.logger.warn(`Live Stripe check failed for promoter ${connectId}: ${(err as Error).message}`);
+      }
+    }
+
+    return { status, connectId };
+  }
+
+  /**
+   * Reset promoter Stripe Connect — clears stored ID so a fresh account is created on next attempt.
+   */
+  async resetPromoterConnect(userId: string): Promise<{ success: boolean }> {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: promoter } = await admin
+      .from('promoter_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (!promoter) throw new Error('Promoter account not found');
+    await admin
+      .from('promoter_accounts')
+      .update({ stripe_account_id: null, stripe_connect_status: 'not_connected' })
+      .eq('id', promoter.id);
+    return { success: true };
+  }
+
+  // ─── Artist Stripe Connect ─────────────────────────────────────────────────
+
+  /**
+   * Create (or retrieve) a Stripe Connect Express account for an artist,
+   * then return a one-time onboarding URL.
+   */
+  async createArtistConnectOnboarding(userId: string, email: string): Promise<string> {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: artist } = await admin
+      .from('artist_accounts')
+      .select('id, stripe_account_id, stripe_connect_status')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!artist) throw new Error('Artist account not found');
+
+    let connectId = artist.stripe_account_id;
+
+    if (!connectId) {
+      const account = await this.stripe.accounts.create({
+        type: 'express',
+        email,
+        capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+        business_profile: { url: this.connectBusinessUrl },
+        metadata: { artist_account_id: artist.id },
+      });
+      connectId = account.id;
+
+      await admin
+        .from('artist_accounts')
+        .update({ stripe_account_id: connectId, stripe_connect_status: 'pending' })
+        .eq('id', artist.id);
+    }
+
+    const accountLink = await this.stripe.accountLinks.create({
+      account: connectId,
+      refresh_url: `${this.frontendUrl}/artist/dashboard?connect=refresh`,
+      return_url: `${this.frontendUrl}/artist/dashboard?connect=success`,
+      type: 'account_onboarding',
+    });
+
+    return accountLink.url;
+  }
+
+  /**
+   * Get the Connect account status for an artist.
+   * If status is pending, does a live Stripe check so we don't need webhooks in dev.
+   */
+  async getArtistConnectStatus(userId: string): Promise<{ status: string; connectId: string | null }> {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data } = await admin
+      .from('artist_accounts')
+      .select('id, stripe_account_id, stripe_connect_status')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    let status = data?.stripe_connect_status ?? 'not_connected';
+    const connectId = data?.stripe_account_id ?? null;
+
+    if (status === 'pending' && connectId) {
+      try {
+        const account = await this.stripe.accounts.retrieve(connectId);
+        const isActive = account.details_submitted && account.charges_enabled && account.payouts_enabled;
+        if (isActive) {
+          status = 'active';
+          await admin.from('artist_accounts').update({ stripe_connect_status: 'active' }).eq('id', data!.id);
+          this.logger.log(`Artist Connect ${connectId} auto-upgraded to active via live check`);
+        }
+      } catch (err) {
+        this.logger.warn(`Live Stripe check failed for artist ${connectId}: ${(err as Error).message}`);
+      }
+    }
+
+    return { status, connectId };
+  }
+
+  /**
+   * Reset artist Stripe Connect — clears stored ID so a fresh account is created on next attempt.
+   */
+  async resetArtistConnect(userId: string): Promise<{ success: boolean }> {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: artist } = await admin
+      .from('artist_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (!artist) throw new Error('Artist account not found');
+    await admin
+      .from('artist_accounts')
+      .update({ stripe_account_id: null, stripe_connect_status: 'not_connected' })
+      .eq('id', artist.id);
+    return { success: true };
   }
 
   /**
    * Charge a client and route funds to an owner's Connect account.
-   * DoVenueSuite takes 5% as application_fee_amount.
+   * EventEcos takes a platform fee (3% free · 1.5% Pro · 1% Premium) via application_fee_amount.
+   * The payer covers Stripe's processing fee.
    *
-   * Flow: Client card → Stripe → DoVenueSuite takes 5% → owner receives the rest
+   * Flow: Client card → Stripe → EventEcos takes platform fee → owner receives the rest
    * Returns a PaymentIntent client_secret for the frontend to complete payment.
    */
   async createClientPaymentIntent(
@@ -615,7 +1335,8 @@ export class StripeService {
       throw new Error('Owner has not completed Stripe Connect onboarding');
     }
 
-    const feeCents = Math.round(amountCents * this.APP_FEE_RATE);
+    const feeRate = this.resolveOwnerPlatformFeeRate(owner);
+    const feeCents = Math.round(amountCents * feeRate);
 
     const paymentIntent = await this.stripe.paymentIntents.create({
       amount: amountCents,
@@ -650,9 +1371,9 @@ export class StripeService {
 
   /**
    * Transfer funds from owner to vendor for a completed booking.
-   * DoVenueSuite takes 5% as fee (paid by vendor — deducted from transfer).
+   * EventEcos takes a platform fee (3% free · 1.5% Pro · 1% Premium) deducted from the vendor's payout.
    *
-   * Flow: Owner's balance → transfer to vendor → DoVenueSuite keeps 5%
+   * Flow: Owner's balance → transfer to vendor → EventEcos keeps platform fee
    */
   async payVendor(
     amountCents: number,
@@ -675,7 +1396,8 @@ export class StripeService {
       throw new Error('Vendor has not completed Stripe Connect onboarding');
     }
 
-    const feeCents = Math.round(amountCents * this.APP_FEE_RATE);
+    const feeRate = this.resolveOwnerPlatformFeeRate(owner);
+    const feeCents = Math.round(amountCents * feeRate);
     const netCents = amountCents - feeCents;
 
     // Transfer net amount to vendor; fee stays on platform
@@ -735,6 +1457,64 @@ export class StripeService {
   }
 
   /**
+   * Webhook fallback for the public invoice pay page.
+   * Called after Stripe redirects back with ?paid=true — verifies payment
+   * status directly with Stripe and marks the invoice paid if confirmed.
+   */
+  async verifyPublicInvoicePayment(token: string, sessionId: string): Promise<{ status: string; paid: boolean }> {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: invoice } = await admin
+      .from('invoices')
+      .select('id, status, total_amount, amount_paid')
+      .eq('public_token', token)
+      .maybeSingle();
+
+    if (!invoice) throw new Error('Invoice not found');
+    if (invoice.status === 'paid') return { status: 'paid', paid: true };
+
+    // Retrieve the specific Stripe session directly — no listing needed
+    const session = await this.stripe.checkout.sessions.retrieve(sessionId);
+    if (!session || session.payment_status !== 'paid') return { status: invoice.status, paid: false };
+    // Confirm the session actually belongs to this invoice
+    if ((session.metadata as any)?.invoice_id !== invoice.id) return { status: invoice.status, paid: false };
+
+    await this.markInvoicePaid(invoice.id, session.amount_total ?? 0);
+    this.logger.log(`Invoice ${invoice.id} verified and marked paid via session ${session.id} (webhook fallback)`);
+
+    return { status: 'paid', paid: true };
+  }
+
+  /**
+   * Webhook fallback for the authenticated client portal.
+   * Called after Stripe redirects back with ?paid=true&iid=<invoiceId>.
+   * Queries Stripe directly by client_reference_id and marks the invoice paid if confirmed.
+   */
+  async verifyInvoicePaymentById(invoiceId: string, sessionId: string): Promise<{ status: string; paid: boolean }> {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: invoice } = await admin
+      .from('invoices')
+      .select('id, status')
+      .eq('id', invoiceId)
+      .maybeSingle();
+
+    if (!invoice) throw new Error('Invoice not found');
+    if (invoice.status === 'paid') return { status: 'paid', paid: true };
+
+    // Retrieve the specific Stripe session directly — no listing needed
+    const session = await this.stripe.checkout.sessions.retrieve(sessionId);
+    if (!session || session.payment_status !== 'paid') return { status: invoice.status, paid: false };
+    // Confirm the session actually belongs to this invoice
+    if ((session.metadata as any)?.invoice_id !== invoiceId) return { status: invoice.status, paid: false };
+
+    await this.markInvoicePaid(invoiceId, session.amount_total ?? 0);
+    this.logger.log(`Client portal invoice ${invoiceId} verified and marked paid via session ${session.id} (webhook fallback)`);
+
+    return { status: 'paid', paid: true };
+  }
+
+  /**
    * Public: fetch a safe subset of invoice data for the client payment page.
    */
   async getPublicInvoice(token: string) {
@@ -747,7 +1527,7 @@ export class StripeService {
         total_amount, amount_paid, amount_due, status,
         issue_date, due_date, notes, terms,
         deposit_percentage, deposit_due_days_before, final_payment_due_days_before,
-        booking:booking(event:event(id, name, date)),
+        event:event!event_id(id, name, date),
         items:invoice_items(id, description, quantity, unit_price, amount, item_type)
       `)
       .eq('public_token', token)
@@ -776,35 +1556,52 @@ export class StripeService {
     const safeCents = Math.min(amountCents, maxCents);
     if (safeCents < 50) throw new Error('Minimum payment is $0.50');
 
-    // Look up owner Connect account
+    // Look up owner Connect account + subscription plan for fee rate
     let owner: any = null;
     if (inv.owner_id) {
-      const { data } = await admin.from('owner_accounts').select('stripe_connect_id, stripe_connect_status').eq('id', inv.owner_id).maybeSingle();
+      const { data } = await admin.from('owner_accounts').select('stripe_connect_id, stripe_connect_status, subscription_status, plan_name, plan_id').eq('id', inv.owner_id).maybeSingle();
       owner = data;
     }
     const hasConnect = owner?.stripe_connect_id && owner?.stripe_connect_status === 'active';
 
     const description = `Invoice ${inv.invoice_number} — $${(safeCents / 100).toFixed(2)}`;
 
+    // Gross up so payer absorbs Stripe's processing fee (2.9% + $0.30)
+    const grossCents = Math.round((safeCents + 30) / 0.971);
+    const stripeFeeCents = grossCents - safeCents;
+
     const sessionParams: any = {
       mode: 'payment',
       payment_method_types: ['card'],
-      line_items: [{
-        price_data: {
-          currency: 'usd',
-          unit_amount: safeCents,
-          product_data: { name: description },
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            unit_amount: safeCents,
+            product_data: { name: description },
+          },
+          quantity: 1,
         },
-        quantity: 1,
-      }],
-      success_url: `${this.frontendUrl}/pay/invoice/${token}?paid=true`,
+        {
+          price_data: {
+            currency: 'usd',
+            unit_amount: stripeFeeCents,
+            product_data: {
+              name: 'Stripe Processing Fee',
+              description: 'Credit/debit card processing fee (2.9% + $0.30)',
+            },
+          },
+          quantity: 1,
+        },
+      ],
+      success_url: `${this.frontendUrl}/pay/invoice/${token}?paid=true&sid={CHECKOUT_SESSION_ID}`,
       cancel_url: `${this.frontendUrl}/pay/invoice/${token}?canceled=true`,
-      client_reference_id: inv.id,
       metadata: { invoice_id: inv.id },
     };
 
     if (hasConnect) {
-      const feeCents = Math.round(safeCents * this.APP_FEE_RATE);
+      const feeRate = this.resolveOwnerPlatformFeeRate(owner!);
+      const feeCents = Math.round(safeCents * feeRate);
       sessionParams.payment_intent_data = {
         application_fee_amount: feeCents,
         transfer_data: { destination: owner!.stripe_connect_id! },
@@ -848,6 +1645,26 @@ export class StripeService {
       return;
     }
 
+    // Check promoter_accounts
+    if (account.metadata?.promoter_account_id) {
+      await admin
+        .from('promoter_accounts')
+        .update({ stripe_connect_status: newStatus })
+        .eq('id', account.metadata.promoter_account_id);
+      this.logger.log(`Promoter Connect ${account.id} → ${newStatus}`);
+      return;
+    }
+
+    // Check artist_accounts
+    if (account.metadata?.artist_account_id) {
+      await admin
+        .from('artist_accounts')
+        .update({ stripe_connect_status: newStatus })
+        .eq('id', account.metadata.artist_account_id);
+      this.logger.log(`Artist Connect ${account.id} → ${newStatus}`);
+      return;
+    }
+
     // Fallback: match by stripe_account_id / stripe_connect_id
     await admin
       .from('owner_accounts')
@@ -856,6 +1673,16 @@ export class StripeService {
 
     await admin
       .from('vendor_accounts')
+      .update({ stripe_connect_status: newStatus })
+      .eq('stripe_account_id', account.id);
+
+    await admin
+      .from('promoter_accounts')
+      .update({ stripe_connect_status: newStatus })
+      .eq('stripe_account_id', account.id);
+
+    await admin
+      .from('artist_accounts')
       .update({ stripe_connect_status: newStatus })
       .eq('stripe_account_id', account.id);
   }

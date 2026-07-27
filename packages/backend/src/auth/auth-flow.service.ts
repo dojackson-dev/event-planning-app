@@ -159,7 +159,7 @@ export class AuthFlowService {
       try {
         await this.twilioService.sendSMS(
           dto.phoneNumber,
-          'Welcome to DoVenue Suite! You are now subscribed to SMS notifications for account updates, event confirmations, reminders, and more. To unsubscribe at any time, reply STOP. You\'ll receive a confirmation: "You have successfully been unsubscribed. You will not receive any more messages from this number. Reply START to resubscribe." Msg & data rates may apply.',
+          'Welcome to EventEcos! You are now subscribed to SMS notifications for account updates, event confirmations, reminders, and more. To unsubscribe at any time, reply STOP. You\'ll receive a confirmation: "You have successfully been unsubscribed. You will not receive any more messages from this number. Reply START to resubscribe." Msg & data rates may apply.',
         );
       } catch {
         // Non-fatal — don't block account creation if SMS fails
@@ -241,6 +241,24 @@ export class AuthFlowService {
       : user.role ? [user.role] : [];
     // Deduplicate
     return [...new Set(rolesArray)];
+  }
+
+  /** Returns the authenticated user's id, email, and roles — used to refresh stale frontend sessions */
+  async getMyRoles(accessToken: string) {
+    const supabase = this.supabaseService.getClient();
+    const adminClient = this.supabaseService.getAdminClient();
+
+    const { data: { user: authUser }, error } = await supabase.auth.getUser(accessToken);
+    if (error || !authUser) throw new UnauthorizedException('Invalid token');
+
+    const { data: dbUser } = await adminClient
+      .from('users')
+      .select('id, email, role, roles')
+      .eq('id', authUser.id)
+      .single();
+
+    const roles = this.getUserRoles(dbUser ?? { role: authUser.user_metadata?.role ?? 'owner' });
+    return { id: authUser.id, email: authUser.email, roles };
   }
 
   /**
@@ -355,7 +373,7 @@ export class AuthFlowService {
     return {
       inviteId: invite.id,
       inviteToken,
-      inviteLink: `${process.env.FRONTEND_URL || 'https://dovenuesuite.com'}/invite/${inviteToken}`,
+      inviteLink: `${process.env.FRONTEND_URL || 'https://eventecos.com'}/invite/${inviteToken}`,
       expiresAt: invite.expires_at,
     };
   }
@@ -557,7 +575,7 @@ export class AuthFlowService {
       try {
         await this.twilioService.sendSMS(
           dto.phoneNumber,
-          'Welcome to DoVenue Suite! You are now subscribed to SMS notifications for account updates, event confirmations, reminders, and more. To unsubscribe at any time, reply STOP. Msg & data rates may apply.',
+          'Welcome to EventEcos! You are now subscribed to SMS notifications for account updates, event confirmations, reminders, and more. To unsubscribe at any time, reply STOP. Msg & data rates may apply.',
         );
       } catch {
         // Non-fatal — don\'t block account creation if SMS fails
@@ -571,9 +589,140 @@ export class AuthFlowService {
     };
   }
 
-  /**
-   * VENDOR LOGIN
-   */
+  async promoterSignup(dto: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    phoneNumber?: string;
+    smsOptIn?: boolean;
+  }) {
+    const adminClient = this.supabaseService.getAdminClient();
+
+    const { data: existing } = await adminClient
+      .from('users')
+      .select('id')
+      .eq('email', dto.email.toLowerCase())
+      .single();
+
+    if (existing) {
+      throw new BadRequestException('An account with this email already exists');
+    }
+
+    const { data: authData, error: authError } = await adminClient.auth.signUp({
+      email: dto.email,
+      password: dto.password,
+      options: {
+        data: {
+          first_name: dto.firstName,
+          last_name: dto.lastName,
+        },
+      },
+    });
+
+    if (authError || !authData.user) {
+      throw new BadRequestException(authError?.message || 'Failed to create user');
+    }
+
+    if (!authData.user.identities || authData.user.identities.length === 0) {
+      throw new BadRequestException('An account with this email already exists');
+    }
+
+    const userId = authData.user.id;
+
+    const { error: userError } = await adminClient
+      .from('users')
+      .insert({
+        id: userId,
+        email: dto.email,
+        first_name: dto.firstName,
+        last_name: dto.lastName,
+        role: 'promoter',
+        roles: ['promoter'],
+        phone_number: dto.phoneNumber,
+        email_verified: false,
+        phone_verified: false,
+        sms_opt_in: dto.smsOptIn === true,
+        sms_opt_in_at: dto.smsOptIn === true ? new Date().toISOString() : null,
+        status: 'active',
+      });
+
+    if (userError) throw new BadRequestException(userError.message);
+
+    return {
+      userId,
+      message: 'Promoter account created. Please verify your email and complete your profile.',
+      session: authData.session,
+    };
+  }
+
+  async artistSignup(dto: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    phoneNumber?: string;
+    smsOptIn?: boolean;
+  }) {
+    const adminClient = this.supabaseService.getAdminClient();
+
+    const { data: existing } = await adminClient
+      .from('users')
+      .select('id')
+      .eq('email', dto.email.toLowerCase())
+      .single();
+
+    if (existing) {
+      throw new BadRequestException('An account with this email already exists');
+    }
+
+    const { data: authData, error: authError } = await adminClient.auth.signUp({
+      email: dto.email,
+      password: dto.password,
+      options: {
+        data: {
+          first_name: dto.firstName,
+          last_name: dto.lastName,
+        },
+      },
+    });
+
+    if (authError || !authData.user) {
+      throw new BadRequestException(authError?.message || 'Failed to create user');
+    }
+
+    if (!authData.user.identities || authData.user.identities.length === 0) {
+      throw new BadRequestException('An account with this email already exists');
+    }
+
+    const userId = authData.user.id;
+
+    const { error: userError } = await adminClient
+      .from('users')
+      .insert({
+        id: userId,
+        email: dto.email,
+        first_name: dto.firstName,
+        last_name: dto.lastName,
+        role: 'artist',
+        roles: ['artist'],
+        phone_number: dto.phoneNumber,
+        email_verified: false,
+        phone_verified: false,
+        sms_opt_in: dto.smsOptIn === true,
+        sms_opt_in_at: dto.smsOptIn === true ? new Date().toISOString() : null,
+        status: 'active',
+      });
+
+    if (userError) throw new BadRequestException(userError.message);
+
+    return {
+      userId,
+      message: 'Artist account created. Please verify your email and complete your profile.',
+      session: authData.session,
+    };
+  }
+
   async vendorLogin(email: string, password: string) {
     const supabase = this.supabaseService.getClient();
 
@@ -659,6 +808,20 @@ export class AuthFlowService {
         .single();
       subscriptionStatus = (membership?.owner_accounts as any)?.subscription_status ?? null;
       ownerAccountId = membership?.owner_account_id ?? null;
+    }
+
+    // Associates: load the owner_account they belong to
+    if (this.userHasRole(user, 'associate')) {
+      const { data: membership } = await adminClient
+        .from('memberships')
+        .select('owner_account_id, owner_accounts(subscription_status)')
+        .eq('user_id', user.id)
+        .eq('role', 'associate')
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+      ownerAccountId = membership?.owner_account_id ?? null;
+      subscriptionStatus = (membership?.owner_accounts as any)?.subscription_status ?? null;
     }
 
     // Fetch vendor account if user is a vendor

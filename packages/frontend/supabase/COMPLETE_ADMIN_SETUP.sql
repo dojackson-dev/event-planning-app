@@ -123,7 +123,7 @@ CREATE INDEX IF NOT EXISTS idx_website_configs_tenant_id ON website_configs(tena
 INSERT INTO users (id, email, first_name, last_name, role, tenant_id)
 VALUES (
   '2fbe92e3-3275-459a-9a26-00c526cd69db',
-  'admin@dovenuesuites.com',  -- CHANGE THIS TO YOUR EMAIL
+  'admin@eventecos.com',  -- CHANGE THIS TO YOUR EMAIL
   'Larry',
   'Admin',
   'admin',

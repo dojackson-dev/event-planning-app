@@ -2,6 +2,8 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
+  Patch,
   Body,
   Headers,
   UnauthorizedException,
@@ -122,6 +124,15 @@ export class ClientPortalController {
     );
   }
 
+  @Delete('vendors/requests/:id')
+  async cancelBookingRequest(
+    @Headers('x-client-token') token: string,
+    @Param('id') requestId: string,
+  ) {
+    const session = this.requireSession(token);
+    return this.clientPortalService.cancelBookingRequest(requestId, session.phone);
+  }
+
   @Get('vendors')
   async getVendors(@Headers('x-client-token') token: string) {
     const session = this.requireSession(token);
@@ -157,12 +168,112 @@ export class ClientPortalController {
     return this.clientPortalService.getContracts(session.clientId, session.phone);
   }
 
-  // ── Estimates ─────────────────────────────────────────────────────────────
+  @Get('contracts/:id')
+  async getContractById(
+    @Headers('x-client-token') token: string,
+    @Param('id') id: string,
+  ) {
+    const session = this.requireSession(token);
+    return this.clientPortalService.getContractById(id, session.clientId, session.phone);
+  }
+
+  @Post('contracts/:id/sign')
+  async signContract(
+    @Headers('x-client-token') token: string,
+    @Param('id') id: string,
+    @Body() body: { signatureData: string; signerName: string },
+  ) {
+    const session = this.requireSession(token);
+    if (!body?.signatureData || !body?.signerName) {
+      throw new BadRequestException('signatureData and signerName are required');
+    }
+    return this.clientPortalService.signClientContract(
+      id,
+      session.clientId,
+      session.phone,
+      body.signatureData,
+      body.signerName,
+    );
+  }
+
+
 
   @Get('estimates')
   async getEstimates(@Headers('x-client-token') token: string) {
     const session = this.requireSession(token);
     return this.clientPortalService.getEstimates(session.clientId, session.phone);
+  }
+
+  @Get('estimates/:id')
+  async getEstimateById(
+    @Headers('x-client-token') token: string,
+    @Param('id') id: string,
+  ) {
+    const session = this.requireSession(token);
+    return this.clientPortalService.getEstimateById(id, session.clientId, session.phone);
+  }
+
+  @Post('estimates/:id/viewed')
+  async markEstimateViewed(
+    @Headers('x-client-token') token: string,
+    @Param('id') id: string,
+  ) {
+    this.requireSession(token);
+    return this.clientPortalService.markViewed('estimates', id);
+  }
+
+  @Post('estimates/:id/respond')
+  async respondToEstimate(
+    @Headers('x-client-token') token: string,
+    @Param('id') id: string,
+    @Body() body: { action: 'approved' | 'rejected' },
+  ) {
+    try {
+      const session = this.requireSession(token);
+      if (body.action !== 'approved' && body.action !== 'rejected') {
+        throw new BadRequestException('action must be "approved" or "rejected"');
+      }
+      return await this.clientPortalService.respondToEstimate(
+        id,
+        session.clientId,
+        session.phone,
+        body.action,
+      );
+    } catch (err: any) {
+      this.logger.error(`[respondToEstimate] Error: ${err?.message || 'Unknown error'}`);
+      throw err;
+    }
+  }
+
+  @Post('contracts/:id/viewed')
+  async markContractViewed(
+    @Headers('x-client-token') token: string,
+    @Param('id') id: string,
+  ) {
+    this.requireSession(token);
+    return this.clientPortalService.markViewed('contracts', id);
+  }
+
+  // ── Invoices ──────────────────────────────────────────────────────────────
+
+  @Get('invoices')
+  async getInvoices(@Headers('x-client-token') token: string) {
+    const session = this.requireSession(token);
+    return this.clientPortalService.getInvoices(session.clientId, session.phone);
+  }
+
+  @Post('invoices/:id/checkout')
+  async createInvoiceCheckout(
+    @Headers('x-client-token') token: string,
+    @Param('id') id: string,
+  ) {
+    const session = this.requireSession(token);
+    return this.clientPortalService.createInvoiceCheckout(
+      id,
+      session.clientId,
+      session.phone,
+      `${session.firstName} ${session.lastName}`.trim() || 'Client',
+    );
   }
 
   // ── Items & Packages ──────────────────────────────────────────────────────
@@ -175,20 +286,29 @@ export class ClientPortalController {
 
   // ── Messages ──────────────────────────────────────────────────────────────
 
-  @Get('messages')
-  async getMessages(@Headers('x-client-token') token: string) {
+  @Get('contacts')
+  async getContacts(@Headers('x-client-token') token: string) {
     const session = this.requireSession(token);
-    return this.clientPortalService.getMessages(session.clientId);
+    return this.clientPortalService.getContacts(session.clientId, session.phone);
+  }
+
+  @Get('messages')
+  async getMessages(
+    @Headers('x-client-token') token: string,
+    @Query('eventId') eventId?: string,
+  ) {
+    const session = this.requireSession(token);
+    return this.clientPortalService.getMessages(session.clientId, eventId);
   }
 
   @Post('messages')
   async sendMessage(
     @Headers('x-client-token') token: string,
-    @Body() body: { recipientId: string; content: string; eventId?: string },
+    @Body() body: { recipientId: string; content: string; eventId: string },
   ) {
     const session = this.requireSession(token);
-    if (!body?.recipientId || !body?.content) {
-      throw new BadRequestException('recipientId and content are required');
+    if (!body?.recipientId || !body?.content || !body?.eventId) {
+      throw new BadRequestException('recipientId, eventId, and content are required');
     }
     return this.clientPortalService.sendMessage(
       session.clientId,
@@ -199,12 +319,22 @@ export class ClientPortalController {
     );
   }
 
+  @Patch('messages/read')
+  async markMessagesRead(
+    @Headers('x-client-token') token: string,
+    @Body() body: { eventId: string },
+  ) {
+    const session = this.requireSession(token);
+    if (!body?.eventId) throw new BadRequestException('eventId is required');
+    return this.clientPortalService.markMessagesRead(session.clientId, body.eventId);
+  }
+
   // ── Notifications ─────────────────────────────────────────────────────────
 
   @Get('notifications')
   async getNotifications(@Headers('x-client-token') token: string) {
     const session = this.requireSession(token);
-    return this.clientPortalService.getNotifications(session.clientId);
+    return this.clientPortalService.getNotifications(session.clientId, session.phone);
   }
 
   @Put('notifications/:id/read')

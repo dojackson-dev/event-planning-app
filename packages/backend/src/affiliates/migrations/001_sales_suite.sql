@@ -103,15 +103,18 @@ ALTER TABLE public.affiliate_referrals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.affiliate_commissions ENABLE ROW LEVEL SECURITY;
 
 -- Affiliates can view and update their own record
+DROP POLICY IF EXISTS "affiliates_select_own" ON public.affiliates;
 CREATE POLICY "affiliates_select_own"
   ON public.affiliates FOR SELECT
   USING (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "affiliates_update_own" ON public.affiliates;
 CREATE POLICY "affiliates_update_own"
   ON public.affiliates FOR UPDATE
   USING (user_id = auth.uid());
 
 -- Affiliates can view their own referrals
+DROP POLICY IF EXISTS "affiliate_referrals_select_own" ON public.affiliate_referrals;
 CREATE POLICY "affiliate_referrals_select_own"
   ON public.affiliate_referrals FOR SELECT
   USING (
@@ -121,6 +124,7 @@ CREATE POLICY "affiliate_referrals_select_own"
   );
 
 -- Affiliates can view their own commissions
+DROP POLICY IF EXISTS "affiliate_commissions_select_own" ON public.affiliate_commissions;
 CREATE POLICY "affiliate_commissions_select_own"
   ON public.affiliate_commissions FOR SELECT
   USING (

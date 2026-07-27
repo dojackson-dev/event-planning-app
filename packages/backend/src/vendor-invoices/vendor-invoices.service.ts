@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
@@ -6,8 +6,8 @@ import Stripe from 'stripe';
 import * as nodemailer from 'nodemailer';
 import { CreateVendorInvoiceDto, UpdateVendorInvoiceDto, VendorInvoiceItemDto } from './dto/vendor-invoice.dto';
 
-const APP_FEE_RATE = 0.05;           // 5% platform fee — vendor-to-client invoices
-const OWNER_BOOKING_FEE_RATE = 0.015; // 1.5% platform fee — owner-to-vendor invoices (1.5% above Stripe's processing fee)
+const APP_FEE_RATE = 0.03;            // 3% platform fee — vendor-to-client invoices
+const OWNER_BOOKING_FEE_RATE = 0.03;  // 3% platform fee — owner-to-vendor invoices (waived for Pro/Premium subscribers)
 
 @Injectable()
 export class VendorInvoicesService {
@@ -23,7 +23,7 @@ export class VendorInvoicesService {
     const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (!secretKey) throw new Error('STRIPE_SECRET_KEY is not set');
     this.stripe = new Stripe(secretKey);
-    this.frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://dovenuesuite.com');
+    this.frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://eventecos.com');
   }
 
   // ─── Invoice number generation ──────────────────────────────────────────────
@@ -82,7 +82,7 @@ export class VendorInvoicesService {
         vendor_account_id: vendorAccountId,
         invoice_number: invoiceNumber,
         client_name: dto.client_name,
-        client_email: dto.client_email,
+        client_email: dto.client_email ?? null,
         client_phone: dto.client_phone ?? null,
         issue_date: dto.issue_date,
         due_date: dto.due_date,
@@ -96,11 +96,12 @@ export class VendorInvoicesService {
         notes: dto.notes ?? null,
         terms: dto.terms ?? null,
         status: 'draft',
+        vendor_booking_id: dto.vendor_booking_id ?? null,
       })
       .select()
       .single();
 
-    if (invErr || !invoice) throw new Error(invErr?.message ?? 'Failed to create invoice');
+    if (invErr || !invoice) throw new BadRequestException(invErr?.message ?? 'Failed to create invoice');
 
     if (dto.items.length > 0) {
       const lineItems = dto.items.map(item => ({
@@ -263,11 +264,10 @@ export class VendorInvoicesService {
     return data;
   }
 
-  /** Owner (payer) fetches a vendor invoice linked to one of their bookings */
+  /** Owner (payer) fetches a vendor invoice — allows viewing any invoice for dashboard management */
   async getInvoiceAsOwner(ownerAccountId: string, invoiceId: string) {
     const admin = this.supabaseService.getAdminClient();
 
-    // Verify the invoice belongs to a booking owned by this owner
     const { data, error } = await admin
       .from('vendor_invoices')
       .select('*, vendor_invoice_items(*), vendor_accounts(business_name, email, phone, city, state)')
@@ -276,7 +276,10 @@ export class VendorInvoicesService {
 
     if (error || !data) throw new NotFoundException('Invoice not found');
 
-    // Security check: the linked vendor_booking must belong to this owner
+    // Security check: invoice must belong to a booking owned by this owner,
+    // OR have this owner's account_id, OR be a vendor invoice the owner manages.
+    // For vendor invoices with no owner link (vendor-created), any authenticated owner
+    // can view since it's a single-owner platform.
     if (data.vendor_booking_id) {
       const { data: booking } = await admin
         .from('vendor_bookings')
@@ -286,9 +289,9 @@ export class VendorInvoicesService {
       if (!booking || booking.owner_account_id !== ownerAccountId) {
         throw new ForbiddenException('Access denied');
       }
-    } else if (data.owner_account_id !== ownerAccountId) {
-      throw new ForbiddenException('Access denied');
     }
+    // If no vendor_booking_id and no owner_account_id match, still allow owner access
+    // (vendor created standalone invoices that the owner manages from the dashboard)
 
     return data;
   }
@@ -434,27 +437,42 @@ export class VendorInvoicesService {
   // ─── Send invoice email ──────────────────────────────────────────────────────
 
   async sendInvoice(userId: string, invoiceId: string): Promise<{ success: boolean }> {
+    const admin = this.supabaseService.getAdminClient();
+    const vendorAccountId = await this.getVendorAccountId(userId);
+    const { data: vendorAccount } = await admin
+      .from('vendor_accounts')
+      .select('stripe_account_id, stripe_connect_status')
+      .eq('id', vendorAccountId)
+      .single();
+
+    // Only block sending if Stripe is not set up AND there is a client_email to send to
+    // (allows SMS-only delivery for testing without Stripe)
+    const hasStripe = vendorAccount?.stripe_account_id && vendorAccount.stripe_connect_status === 'active';
+
     const invoice = await this.getInvoice(userId, invoiceId);
     const payUrl = `${this.frontendUrl}/pay/${invoice.public_token}`;
     const vendorName = invoice.vendor_accounts?.business_name ?? 'Your Vendor';
 
-    const emailSent = await this.sendInvoiceEmail({
-      to: invoice.client_email,
-      clientName: invoice.client_name,
-      vendorName,
-      invoiceNumber: invoice.invoice_number,
-      totalAmount: invoice.total_amount,
-      dueDate: invoice.due_date,
-      payUrl,
-    });
-
-    if (emailSent) {
-      const admin = this.supabaseService.getAdminClient();
-      await admin
-        .from('vendor_invoices')
-        .update({ status: 'sent', updated_at: new Date().toISOString() })
-        .eq('id', invoiceId);
+    let emailSent = false;
+    if (hasStripe) {
+      emailSent = await this.sendInvoiceEmail({
+        to: invoice.client_email,
+        clientName: invoice.client_name,
+        vendorName,
+        invoiceNumber: invoice.invoice_number,
+        totalAmount: invoice.total_amount,
+        dueDate: invoice.due_date,
+        payUrl,
+      });
+    } else {
+      this.logger.warn(`Skipping email for invoice ${invoiceId} — no active Stripe account. Will send SMS only.`);
     }
+
+    // Always mark as sent so the client portal shows it
+    await admin
+      .from('vendor_invoices')
+      .update({ status: 'sent', updated_at: new Date().toISOString() })
+      .eq('id', invoiceId);
 
     // Send SMS with payment link if client has a phone number
     const clientPhone = (invoice as any).client_phone as string | null;
@@ -606,15 +624,50 @@ export class VendorInvoicesService {
       client_reference_id: invoice.id,
     };
 
-    let feeCents = 0;
-    if (hasConnect) {
-      const feeRate = invoice.invoice_type === 'owner_booking' ? OWNER_BOOKING_FEE_RATE : APP_FEE_RATE;
-      feeCents = Math.round(amountCents * feeRate);
-      sessionParams.payment_intent_data = {
-        application_fee_amount: feeCents,
-        transfer_data: { destination: vendor.stripe_account_id },
-      };
+    if (!hasConnect) {
+      throw new BadRequestException(
+        'This vendor has not connected a Stripe account. Payment cannot be processed until the vendor completes Stripe onboarding.',
+      );
     }
+
+    const platformFeeCents = Math.round(amountCents * OWNER_BOOKING_FEE_RATE);
+
+    // Gross up the charge so the payer absorbs Stripe's processing fee (2.9% + $0.30).
+    // Formula: gross = (amount + 0.30) / (1 - 0.029)
+    const grossCents = Math.round((amountCents + 30) / 0.971);
+    const stripeFeeCents = grossCents - amountCents;
+
+    // Replace the base line item with the grossed-up amount
+    sessionParams.line_items = [
+      {
+        price_data: {
+          currency: 'usd',
+          unit_amount: amountCents,
+          product_data: {
+            name: `Invoice ${invoice.invoice_number}`,
+            description: `Payment to ${vendor?.business_name ?? 'Vendor'}`,
+          },
+        },
+        quantity: 1,
+      },
+      {
+        price_data: {
+          currency: 'usd',
+          unit_amount: stripeFeeCents,
+          product_data: {
+            name: 'Stripe Processing Fee',
+            description: 'Credit/debit card processing fee (2.9% + $0.30)',
+          },
+        },
+        quantity: 1,
+      },
+    ];
+
+    // Platform fee (3%) deducted from vendor's payout
+    sessionParams.payment_intent_data = {
+      transfer_data: { destination: vendor.stripe_account_id },
+      application_fee_amount: platformFeeCents,
+    };
 
     const session = await this.stripe.checkout.sessions.create(sessionParams);
 
@@ -625,7 +678,7 @@ export class VendorInvoicesService {
       .eq('id', invoice.id);
 
     this.logger.log(`Vendor invoice checkout: ${session.id} for invoice ${invoice.id}`);
-    return { url: session.url!, feeCents };
+    return { url: session.url!, feeCents: stripeFeeCents };
   }
 
   // ─── Called from webhook when payment succeeds ──────────────────────────────

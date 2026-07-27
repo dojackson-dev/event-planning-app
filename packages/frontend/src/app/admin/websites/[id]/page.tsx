@@ -31,6 +31,7 @@ interface WebsiteConfig {
 }
 
 export default function WebsiteManagementPage({ params }: { params: { id: string } }) {
+  const { id } = params
   const [tenant, setTenant] = useState<Tenant | null>(null)
   const [config, setConfig] = useState<WebsiteConfig | null>(null)
   const [loading, setLoading] = useState(true)
@@ -52,7 +53,7 @@ export default function WebsiteManagementPage({ params }: { params: { id: string
 
   useEffect(() => {
     fetchData()
-  }, [params.id])
+  }, [id])
 
   const fetchData = async () => {
     try {
@@ -62,7 +63,7 @@ export default function WebsiteManagementPage({ params }: { params: { id: string
       const { data: tenantData, error: tenantError } = await supabase
         .from('tenants')
         .select('*')
-        .eq('id', params.id)
+        .eq('id', id)
         .single()
 
       if (tenantError) throw tenantError
@@ -72,7 +73,7 @@ export default function WebsiteManagementPage({ params }: { params: { id: string
       const { data: configData, error: configError } = await supabase
         .from('website_configs')
         .select('*')
-        .eq('tenant_id', params.id)
+        .eq('tenant_id', id)
         .single()
 
       if (configData) {
@@ -114,7 +115,7 @@ export default function WebsiteManagementPage({ params }: { params: { id: string
       const supabase = createClient()
 
       const dataToSave = {
-        tenant_id: params.id,
+        tenant_id: id,
         theme_color: formData.theme_color,
         logo_url: formData.logo_url || null,
         hero_title: formData.hero_title,
@@ -188,7 +189,7 @@ export default function WebsiteManagementPage({ params }: { params: { id: string
       {/* Header */}
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <Link href={`/admin/tenants/${params.id}`} className="text-sm text-primary-600 hover:text-primary-800 mb-2 inline-block">
+          <Link href={`/admin/tenants/${id}`} className="text-sm text-primary-600 hover:text-primary-800 mb-2 inline-block">
             ← Back to Tenant
           </Link>
           <div className="flex items-center justify-between">
@@ -449,7 +450,7 @@ export default function WebsiteManagementPage({ params }: { params: { id: string
               {saving ? 'Saving...' : 'Save Configuration'}
             </button>
             <Link
-              href={`/admin/tenants/${params.id}`}
+              href={`/admin/tenants/${id}`}
               className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors font-semibold"
             >
               Cancel

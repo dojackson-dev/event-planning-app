@@ -24,6 +24,16 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
       router.push('/vendor-portal')
       return
     }
+    // Redirect promoter users away from /dashboard (owner) to their own dashboard
+    if (user?.role === 'promoter' && pathname === '/dashboard') {
+      router.push('/dashboard/promoter')
+      return
+    }
+    // Redirect artist users away from owner dashboard
+    if (user?.role === 'artist' && pathname?.startsWith('/dashboard')) {
+      router.push('/artist/dashboard')
+      return
+    }
 
     // Skip auth check when bypassed
     if (BYPASS_AUTH) return
@@ -44,8 +54,16 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
     if (user?.role === 'admin' && typeof window !== 'undefined' && window.location.pathname?.startsWith('/dashboard')) {
       return null
     }
-    // Still redirect vendor even when bypassed
+    // Still redirect vendor even when bypassed — return null to prevent the owner dashboard from rendering/fetching
     if (user?.role === 'vendor' && typeof window !== 'undefined' && window.location.pathname?.startsWith('/dashboard')) {
+      return null
+    }
+    // Still redirect promoter even when bypassed
+    if (user?.role === 'promoter' && typeof window !== 'undefined' && window.location.pathname === '/dashboard') {
+      return null
+    }
+    // Still redirect artist even when bypassed
+    if (user?.role === 'artist' && typeof window !== 'undefined' && window.location.pathname?.startsWith('/dashboard')) {
       return null
     }
     return <>{children}</>

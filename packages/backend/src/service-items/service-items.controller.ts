@@ -39,22 +39,26 @@ export class ServiceItemsController {
   }
 
   @Get()
-  async findAll(@Headers('authorization') authorization: string): Promise<ServiceItem[]> {
+  async findAll(
+    @Headers('authorization') authorization: string,
+    @Headers('x-venue-id') venueId?: string,
+  ): Promise<ServiceItem[]> {
     const userId = await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.serviceItemsService.findAll(supabaseWithAuth, userId);
+    return this.serviceItemsService.findAll(supabaseWithAuth, userId, venueId);
   }
 
   @Get('category/:category')
   async findByCategory(
     @Param('category') category: ServiceItemCategory,
     @Headers('authorization') authorization: string,
+    @Headers('x-venue-id') venueId?: string,
   ): Promise<ServiceItem[]> {
     const userId = await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.serviceItemsService.findByCategory(supabaseWithAuth, userId, category);
+    return this.serviceItemsService.findByCategory(supabaseWithAuth, userId, category, venueId);
   }
 
   @Get(':id')

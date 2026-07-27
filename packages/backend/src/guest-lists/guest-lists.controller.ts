@@ -119,4 +119,9 @@ export class GuestListsController {
   async smsClientInvite(@Param('id', ParseIntPipe) id: number): Promise<{ sent: boolean; to?: string; error?: string }> {
     return this.guestListsService.smsClientInvite(id);
   }
+
+  @Post(':id/import-rsvp')
+  async importFromRsvp(@Param('id', ParseIntPipe) id: number): Promise<{ imported: number; skipped: number }> {
+    return this.guestListsService.importFromRsvp(id);
+  }
 }

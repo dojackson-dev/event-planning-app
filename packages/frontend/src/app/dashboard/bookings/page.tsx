@@ -7,6 +7,7 @@ import api from '@/lib/api'
 import { Booking, ClientStatus } from '@/types'
 import { Eye, Download, Mail, RefreshCw, XCircle, Search } from 'lucide-react'
 import { format } from 'date-fns'
+import { useVenue } from '@/contexts/VenueContext'
 
 const clientStatusLabels: Record<ClientStatus, string> = {
   [ClientStatus.CONTACTED_BY_PHONE]: 'Contacted by Phone',
@@ -28,6 +29,7 @@ const clientStatusColors: Record<ClientStatus, string> = {
 
 export default function BookingsPage() {
   const router = useRouter()
+  const { activeVenue } = useVenue()
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'deposit_paid' | 'completed'>('all')
@@ -35,11 +37,15 @@ export default function BookingsPage() {
 
   useEffect(() => {
     fetchBookings()
-  }, [])
+  }, [activeVenue])
 
   const fetchBookings = async () => {
+    setLoading(true)
+    setBookings([])
     try {
-      const response = await api.get<Booking[]>('/bookings')
+      const params: any = {}
+      if (activeVenue) params.venueId = activeVenue.id
+      const response = await api.get<Booking[]>('/bookings', { params })
       setBookings(response.data)
     } catch (error) {
       console.error('Failed to fetch bookings:', error)

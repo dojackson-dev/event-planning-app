@@ -5,9 +5,12 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Estimate, EstimateStatus } from '@/types'
-import { Search } from 'lucide-react'
+import { Search, Eye } from 'lucide-react'
+import { useVenue } from '@/contexts/VenueContext'
+import StripeSetupBanner from '@/components/StripeSetupBanner'
 
 function getClientName(estimate: Estimate): string {
+  if ((estimate as any).client_name) return (estimate as any).client_name
   const booking = (estimate.booking as any)
   if (booking?.contact_name) return booking.contact_name
   // legacy: user join
@@ -37,14 +40,18 @@ export default function EstimatesPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const router = useRouter()
   const { user } = useAuth()
+  const { activeVenue } = useVenue()
 
   useEffect(() => {
     fetchEstimates()
-  }, [])
+  }, [activeVenue])
 
   const fetchEstimates = async () => {
+    setLoading(true)
+    setEstimates([])
     try {
-      const params = user?.role === 'owner' ? { ownerId: user.id } : {}
+      const params: any = user?.role === 'owner' ? { ownerId: user.id } : {}
+      if (activeVenue) params.venueId = activeVenue.id
       const res = await api.get<Estimate[]>('/estimates', { params })
       setEstimates(res.data)
     } catch (err) {
@@ -88,16 +95,12 @@ export default function EstimatesPage() {
 
   return (
     <div className="p-6">
+      <StripeSetupBanner feature="Estimates" />
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 text-center mb-3">Estimates</h1>
-        <div className="flex justify-center">
-          <button
-            onClick={() => router.push('/dashboard/estimates/new')}
-            className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
-          >
-            + New Estimate
-          </button>
-        </div>
+        <p className="text-center text-sm text-gray-500">
+          Estimates are created through the <a href="/dashboard/events" className="text-primary-600 hover:underline font-medium">Events</a> tab.
+        </p>
       </div>
 
       {/* Search + Filter */}
@@ -126,10 +129,7 @@ export default function EstimatesPage() {
 
       {filtered.length === 0 ? (
         <div className="bg-white rounded-lg p-8 text-center text-gray-500">
-          No estimates found.{' '}
-          <button onClick={() => router.push('/dashboard/estimates/new')} className="text-primary-600 hover:underline">
-            Create one
-          </button>
+          No estimates found. Estimates are created through the <a href="/dashboard/events" className="text-primary-600 hover:underline">Events</a> tab.
         </div>
       ) : (
         <>
@@ -143,7 +143,7 @@ export default function EstimatesPage() {
               >
                 {/* Status stripe */}
                 <div className={`h-1 w-full ${
-                  estimate.status === 'accepted' ? 'bg-green-400' :
+                  estimate.status === 'approved' ? 'bg-green-400' :
                   estimate.status === 'sent' ? 'bg-fuchsia-500' :
                   estimate.status === 'expired' ? 'bg-fuchsia-700' :
                   estimate.status === 'rejected' ? 'bg-gray-400' :
@@ -155,9 +155,16 @@ export default function EstimatesPage() {
                     <p className="font-semibold text-gray-900">{estimate.estimate_number}</p>
                     <p className="text-sm text-gray-600 truncate">{getClientName(estimate)}</p>
                   </div>
-                  <span className={`ml-2 px-2 py-1 text-xs font-medium rounded-full flex-shrink-0 capitalize ${statusColors[estimate.status]}`}>
-                    {estimate.status}
-                  </span>
+                  <div className="ml-2 flex flex-col items-end gap-1.5 flex-shrink-0">
+                    <span className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${statusColors[estimate.status]}`}>
+                      {estimate.status}
+                    </span>
+                    {(estimate as any).viewed_at && (
+                      <span className="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                        <Eye className="h-3 w-3" /> Viewed
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-600">
                   <span className="font-semibold text-gray-900">${Number(estimate.total_amount).toFixed(2)}</span>
@@ -199,7 +206,7 @@ export default function EstimatesPage() {
                   <tr
                     key={estimate.id}
                     className={`hover:bg-gray-50 cursor-pointer border-l-4 ${
-                      estimate.status === 'accepted' ? 'border-green-400' :
+                      estimate.status === 'approved' ? 'border-green-400' :
                       estimate.status === 'sent' ? 'border-fuchsia-500' :
                       estimate.status === 'expired' ? 'border-fuchsia-700' :
                       estimate.status === 'rejected' ? 'border-gray-400' :
@@ -210,9 +217,16 @@ export default function EstimatesPage() {
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">{estimate.estimate_number}</td>
                     <td className="px-4 py-3 text-sm text-gray-900">{getClientName(estimate)}</td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${statusColors[estimate.status]}`}>
-                        {estimate.status}
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${statusColors[estimate.status]}`}>
+                          {estimate.status}
+                        </span>
+                        {(estimate as any).viewed_at && (
+                          <span className="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full w-fit">
+                            <Eye className="h-3 w-3" /> Viewed
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600">
                       {new Date(estimate.issue_date + 'T12:00:00').toLocaleDateString()}

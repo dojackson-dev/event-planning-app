@@ -6,6 +6,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Invoice, InvoiceStatus } from '@/types'
 import { Search } from 'lucide-react'
+import { useVenue } from '@/contexts/VenueContext'
+import StripeSetupBanner from '@/components/StripeSetupBanner'
 
 function getCustomerName(invoice: any): string {
   if (invoice.client_name) return invoice.client_name
@@ -25,15 +27,18 @@ export default function InvoicesPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const router = useRouter()
   const { user } = useAuth()
+  const { activeVenue } = useVenue()
 
   useEffect(() => {
     fetchInvoices()
-  }, [])
+  }, [activeVenue])
 
   const fetchInvoices = async () => {
+    setLoading(true)
+    setInvoices([])
     try {
-      // If user is an owner, filter by their ownerId
-      const params = user?.role === 'owner' ? { ownerId: user.id } : {}
+      const params: any = user?.role === 'owner' ? { ownerId: user.id } : {}
+      if (activeVenue) params.venueId = activeVenue.id
       const response = await api.get<Invoice[]>('/invoices', { params })
       setInvoices(response.data)
     } catch (error) {
@@ -98,19 +103,15 @@ export default function InvoicesPage() {
 
   return (
     <div className="min-w-0 w-full">
+      <StripeSetupBanner feature="Invoicing" />
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 text-center mb-3">
           {user?.role === 'owner' ? 'My Invoices' : 'Invoices'}
         </h1>
         {user?.role === 'owner' && (
-          <div className="flex justify-center">
-            <button
-              onClick={() => router.push('/dashboard/invoices/new')}
-              className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
-            >
-              Create Invoice
-            </button>
-          </div>
+          <p className="text-center text-sm text-gray-500">
+            Invoices are created through the <a href="/dashboard/events" className="text-primary-600 hover:underline font-medium">Events</a> tab.
+          </p>
         )}
       </div>
 
@@ -164,14 +165,17 @@ export default function InvoicesPage() {
                     <p className="font-semibold text-gray-900 truncate">{invoice.invoice_number}</p>
                     <p className="text-sm text-gray-600 truncate">{getCustomerName(invoice)}</p>
                   </div>
-                  <span className={`px-2 py-1 text-xs font-semibold rounded-full flex-shrink-0 whitespace-nowrap ${getStatusColor(invoice.status)}`}>
-                    {invoice.status}
-                  </span>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm text-gray-600">
                   <span className="font-medium">${Number(invoice.total_amount).toFixed(2)}</span>
                   <span className="text-gray-400">·</span>
                   <span>Due {new Date(invoice.due_date + 'T12:00:00').toLocaleDateString()}</span>
+                  {(invoice as any).booking?.event?.date && (
+                    <>
+                      <span className="text-gray-400">·</span>
+                      <span>Event {new Date((invoice as any).booking.event.date + 'T12:00:00').toLocaleDateString()}</span>
+                    </>
+                  )}
                 </div>
                 <div className="mt-3 pt-3 border-t flex justify-between items-center" onClick={e => e.stopPropagation()}>
                   <span className="text-xs text-gray-400">Tap to view details →</span>
@@ -206,6 +210,9 @@ export default function InvoicesPage() {
                 Due Date
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Event Date
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Amount
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -219,7 +226,7 @@ export default function InvoicesPage() {
           <tbody className="bg-white divide-y divide-gray-200">
             {filteredInvoices.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
+                <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
                   No invoices found
                 </td>
               </tr>
@@ -248,6 +255,11 @@ export default function InvoicesPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(invoice.due_date + 'T12:00:00').toLocaleDateString()}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {(invoice as any).booking?.event?.date
+                      ? new Date((invoice as any).booking.event.date + 'T12:00:00').toLocaleDateString()
+                      : '—'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     ${Number(invoice.total_amount).toFixed(2)}

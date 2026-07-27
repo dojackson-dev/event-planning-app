@@ -54,6 +54,7 @@ export default function VendorSettingsPage() {
   // UI state
   const [activeTab, setActiveTab] = useState<Tab>('account')
   const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   // Load stored user data
@@ -104,6 +105,7 @@ export default function VendorSettingsPage() {
         }
       } catch {}
       setMessage({ type: 'success', text: 'Account info updated successfully!' })
+      setSaved(true); setTimeout(() => setSaved(false), 3000)
     } catch (err: any) {
       setMessage({ type: 'error', text: err.response?.data?.message || 'Failed to update account info' })
     } finally {
@@ -126,6 +128,7 @@ export default function VendorSettingsPage() {
     try {
       await api.put('/auth/password', { currentPassword, newPassword })
       setMessage({ type: 'success', text: 'Password changed successfully!' })
+      setSaved(true); setTimeout(() => setSaved(false), 3000)
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
@@ -146,6 +149,7 @@ export default function VendorSettingsPage() {
         marketing: notifyMarketing,
       }))
       setMessage({ type: 'success', text: 'Notification preferences saved!' })
+      setSaved(true); setTimeout(() => setSaved(false), 3000)
     } catch {
       setMessage({ type: 'error', text: 'Failed to save preferences' })
     }
@@ -185,7 +189,7 @@ export default function VendorSettingsPage() {
       <nav className="bg-white border-b sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link href="/" className="text-primary-600 font-bold text-lg">DoVenueSuite</Link>
+            <Link href="/" className="text-primary-600 font-bold text-lg">EventEcos</Link>
           </div>
           <Link
             href="/vendors/dashboard"
@@ -289,7 +293,12 @@ export default function VendorSettingsPage() {
                   />
                 </div>
 
-                <div className="flex justify-end pt-2 border-t">
+                <div className="flex items-center justify-end gap-3 pt-2 border-t">
+                  {saved && (
+                    <span className="flex items-center gap-1.5 text-sm text-green-700 font-medium">
+                      <CheckCircle className="h-4 w-4" /> Saved successfully
+                    </span>
+                  )}
                   <button
                     type="submit" disabled={saving}
                     className="inline-flex items-center gap-2 px-6 py-2 bg-primary-600 text-white text-sm font-semibold rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors"
@@ -300,8 +309,6 @@ export default function VendorSettingsPage() {
                 </div>
               </form>
             )}
-
-            {/* ── PASSWORD TAB ── */}
             {activeTab === 'password' && (
               <form onSubmit={handleChangePassword} className="space-y-6 max-w-md">
                 <p className="text-sm text-gray-500">Choose a strong password that you don't use elsewhere.</p>
@@ -362,7 +369,12 @@ export default function VendorSettingsPage() {
                   )}
                 </div>
 
-                <div className="flex justify-end pt-2 border-t">
+                <div className="flex items-center justify-end gap-3 pt-2 border-t">
+                  {saved && (
+                    <span className="flex items-center gap-1.5 text-sm text-green-700 font-medium">
+                      <CheckCircle className="h-4 w-4" /> Saved successfully
+                    </span>
+                  )}
                   <button
                     type="submit" disabled={saving}
                     className="inline-flex items-center gap-2 px-6 py-2 bg-primary-600 text-white text-sm font-semibold rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors"
@@ -378,7 +390,7 @@ export default function VendorSettingsPage() {
             {activeTab === 'notifications' && (
               <div className="space-y-6 max-w-lg">
                 <p className="text-sm text-gray-500">
-                  Control which email notifications you receive from DoVenueSuite.
+                  Control which email notifications you receive from EventEcos.
                 </p>
 
                 <div className="space-y-4">
@@ -413,7 +425,12 @@ export default function VendorSettingsPage() {
                   ))}
                 </div>
 
-                <div className="flex justify-end pt-2 border-t">
+                <div className="flex items-center justify-end gap-3 pt-2 border-t">
+                  {saved && (
+                    <span className="flex items-center gap-1.5 text-sm text-green-700 font-medium">
+                      <CheckCircle className="h-4 w-4" /> Saved successfully
+                    </span>
+                  )}
                   <button
                     type="button" onClick={handleSaveNotifications}
                     className="inline-flex items-center gap-2 px-6 py-2 bg-primary-600 text-white text-sm font-semibold rounded-lg hover:bg-primary-700 transition-colors"
@@ -431,15 +448,15 @@ export default function VendorSettingsPage() {
                 <div>
                   <h3 className="text-base font-semibold text-gray-900 mb-1">Bank Account &amp; Payouts</h3>
                   <p className="text-sm text-gray-500">
-                    Connect your bank account to receive payments from clients directly through DoVenueSuite. Powered by Stripe Connect.
+                    Connect your bank account to receive payments from clients directly through EventEcos. Powered by Stripe Connect.
                   </p>
                 </div>
 
                 <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
                   <h4 className="text-sm font-semibold text-blue-800 mb-2">💰 How vendor payouts work</h4>
                   <ul className="text-sm text-blue-700 space-y-1.5">
-                    <li>• Event owners pay you directly through DoVenueSuite</li>
-                    <li>• DoVenueSuite collects a <strong>5% platform fee</strong> per transaction</li>
+                    <li>• Event owners pay you directly through EventEcos</li>
+                    <li>• EventEcos collects a <strong>5% platform fee</strong> per transaction</li>
                     <li>• Stripe's standard card processing fees also apply (~2.9% + 30¢)</li>
                     <li>• Funds arrive in your bank within 2 business days after payout</li>
                     <li>• All payment handling is secure and managed by Stripe</li>
@@ -452,7 +469,7 @@ export default function VendorSettingsPage() {
                   <p className="text-xs text-gray-400">
                     By connecting your bank account you agree to{' '}
                     <a href="https://stripe.com/connect-account/legal" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600">Stripe's Connected Account Agreement</a>.
-                    Your banking information is stored securely by Stripe and never shared with DoVenueSuite.
+                    Your banking information is stored securely by Stripe and never shared with EventEcos.
                   </p>
                 </div>
               </div>

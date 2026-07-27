@@ -352,7 +352,7 @@ export default function PhoneInput({
       {/* SMS disclosure — hidden when hideSmsOptIn is true (e.g. venue phone) */}
       {!hideSmsOptIn && <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-2.5">
         <p className="text-xs text-gray-600 leading-relaxed">
-          DoVenue Suite sends SMS messages to users who voluntarily opt in through our website or event
+          EventEcos sends SMS messages to users who voluntarily opt in through our website or event
           registration forms. Messages include account notifications, event confirmations, reminders,
           customer support responses, and occasional event-related announcements. Messages are only sent
           to users who provide express consent. Message frequency varies. Message and data rates may apply.
@@ -367,7 +367,7 @@ export default function PhoneInput({
             className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 flex-shrink-0"
           />
           <span className="text-xs text-gray-700 leading-relaxed">
-            I agree to receive SMS notifications from DoVenue Suite regarding my account and event
+            I agree to receive SMS notifications from EventEcos regarding my account and event
             registrations. Message frequency varies. Message and data rates may apply. Reply{' '}
             <strong>STOP</strong> to unsubscribe. Reply <strong>HELP</strong> for help.
           </span>

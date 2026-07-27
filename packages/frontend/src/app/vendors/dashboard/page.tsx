@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import {
-  Store,
   Calendar,
   FileText,
   Link2,
@@ -32,6 +31,8 @@ export default function VendorDashboard() {
   const router = useRouter()
   const [profile, setProfile] = useState<VendorProfile | null>(null)
   const [bookings, setBookings] = useState<Booking[]>([])
+  const [vendorInvoices, setVendorInvoices] = useState<any[]>([])
+  const [pendingRequests, setPendingRequests] = useState(0)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -40,12 +41,16 @@ export default function VendorDashboard() {
 
     const loadData = async () => {
       try {
-        const [profileRes, bookingsRes] = await Promise.all([
+        const [profileRes, bookingsRes, requestsRes, invoicesRes] = await Promise.all([
           api.get('/vendors/account/me'),
           api.get('/vendors/bookings/mine'),
+          api.get('/vendors/booking-requests/mine').catch(() => ({ data: [] })),
+          api.get('/vendor-invoices/mine').catch(() => ({ data: [] })),
         ])
         setProfile(profileRes.data)
         setBookings(bookingsRes.data || [])
+        setVendorInvoices(invoicesRes.data || [])
+        setPendingRequests((requestsRes.data || []).filter((r: any) => r.status === 'pending').length)
       } catch (err: any) {
         if (err.response?.status === 401) {
           router.push('/vendors/login')
@@ -59,11 +64,12 @@ export default function VendorDashboard() {
     loadData()
   }, [router])
 
-  const handleLogout = () => {
-    localStorage.removeItem('access_token')
-    localStorage.removeItem('refresh_token')
-    localStorage.removeItem('user_role')
-    router.push('/vendors/login')
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24 bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600" />
+      </div>
+    )
   }
 
   const counts = bookings.reduce((acc, b) => {
@@ -71,7 +77,7 @@ export default function VendorDashboard() {
     return acc
   }, {} as Record<string, number>)
 
-  const pendingCount = counts['pending'] || 0
+  const pendingCount = (counts['pending'] || 0) + pendingRequests
 
   const stats = {
     pending:   pendingCount,
@@ -79,7 +85,10 @@ export default function VendorDashboard() {
     completed: (counts['completed'] || 0) + (counts['paid'] || 0),
     revenue: bookings
       .filter(b => b.status === 'paid' || b.status === 'completed')
-      .reduce((sum, b) => sum + (b.agreed_amount || 0), 0),
+      .reduce((sum, b) => sum + (b.agreed_amount || 0), 0)
+      + vendorInvoices
+      .filter((inv: any) => inv.status === 'paid')
+      .reduce((sum: number, inv: any) => sum + Number(inv.amount_paid || inv.total_amount || 0), 0),
   }
 
   const upcomingConfirmed = bookings
@@ -87,50 +96,20 @@ export default function VendorDashboard() {
     .sort((a, b) => new Date(a.event_date + 'T12:00:00').getTime() - new Date(b.event_date + 'T12:00:00').getTime())
     .slice(0, 5)
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600" />
-      </div>
-    )
-  }
-
   const navLinks = [
-    { href: '/vendors/dashboard/bookings', label: `📋 Bookings${pendingCount > 0 ? ` (${pendingCount})` : ''}` },
+    { href: '/vendors/dashboard/bookings',  label: `📋 Bookings${pendingCount > 0 ? ` (${pendingCount})` : ''}` },
+    { href: '/vendor-portal/booking-requests', label: `📩 Requests${pendingRequests > 0 ? ` (${pendingRequests})` : ''}` },
     { href: '/vendors/dashboard/calendar',  label: '📆 Calendar' },
     { href: '/vendors/dashboard/earnings',  label: '💰 Earnings' },
     { href: '/vendors/dashboard/invoices',  label: '🧾 Invoices' },
+    { href: '/vendors/dashboard/contracts', label: '📄 Contracts' },
     { href: '/vendors/dashboard/reviews',   label: '⭐ Reviews' },
     { href: '/vendors/dashboard/profile',   label: '✏️ Profile' },
     { href: '/vendors/dashboard/payouts',   label: '🏦 Payouts' },
   ]
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Top Nav */}
-      <nav className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Store className="w-5 h-5 text-primary-600" />
-            <div>
-              <p className="font-semibold text-gray-900 leading-none">
-                {profile?.business_name || 'Vendor Dashboard'}
-              </p>
-              <p className="text-xs text-gray-400">{profile?.email}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <Link href="/vendors/settings" className="text-sm text-gray-500 hover:text-gray-700">⚙️ Settings</Link>
-            <button
-              onClick={handleLogout}
-              className="text-sm text-gray-400 hover:text-red-500 transition-colors"
-            >
-              Log out
-            </button>
-          </div>
-        </div>
-      </nav>
-
+    <div className="bg-gray-50">
       <div className="max-w-6xl mx-auto px-4 py-8">
 
         {/* Suite title */}
@@ -140,15 +119,15 @@ export default function VendorDashboard() {
         </div>
 
         {/* Quick Overview - only shown when there are pending bookings */}
-        {pendingCount > 0 && (
+        {pendingRequests > 0 && (
           <div className="bg-white rounded-xl shadow-sm p-5 mb-6">
             <h2 className="text-sm font-semibold text-gray-700 mb-3">Quick Overview</h2>
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
               <p className="text-yellow-800 font-medium text-sm">
-                ⏳ You have {pendingCount} pending booking request{pendingCount > 1 ? 's' : ''} awaiting your response.
+                ⏳ You have {pendingRequests} pending booking request{pendingRequests > 1 ? 's' : ''} awaiting your response.
               </p>
-              <Link href="/vendors/dashboard/bookings" className="text-yellow-700 underline text-sm mt-1 inline-block">
-                Review bookings →
+              <Link href="/vendor-portal/booking-requests" className="text-yellow-700 underline text-sm mt-1 inline-block">
+                Review requests →
               </Link>
             </div>
           </div>
@@ -170,7 +149,7 @@ export default function VendorDashboard() {
           </Link>
 
           <Link
-            href="/vendors/dashboard/bookings"
+            href="/vendor-portal/booking-requests"
             className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:border-primary-300 hover:shadow-md transition-all flex items-center gap-3"
           >
             <div className="w-10 h-10 rounded-lg bg-yellow-50 flex items-center justify-center flex-shrink-0">
@@ -179,7 +158,7 @@ export default function VendorDashboard() {
             <div>
               <p className="font-semibold text-gray-900 text-sm">Booking Requests</p>
               <p className="text-xs text-gray-400">
-                {pendingCount > 0 ? `${pendingCount} new request${pendingCount > 1 ? 's' : ''}` : 'Manage requests'}
+                {pendingRequests > 0 ? `${pendingRequests} new request${pendingRequests > 1 ? 's' : ''}` : 'Manage requests'}
               </p>
             </div>
           </Link>
@@ -194,6 +173,19 @@ export default function VendorDashboard() {
             <div>
               <p className="font-semibold text-gray-900 text-sm">Booking Link</p>
               <p className="text-xs text-gray-400">Share your booking page</p>
+            </div>
+          </Link>
+
+          <Link
+            href="/vendors/dashboard/contracts"
+            className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:border-primary-300 hover:shadow-md transition-all flex items-center gap-3"
+          >
+            <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
+              <FileText className="w-5 h-5 text-purple-600" />
+            </div>
+            <div>
+              <p className="font-semibold text-gray-900 text-sm">Contracts</p>
+              <p className="text-xs text-gray-400">View &amp; sign contracts</p>
             </div>
           </Link>
         </div>

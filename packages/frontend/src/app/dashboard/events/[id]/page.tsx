@@ -9,6 +9,15 @@ import { Calendar, Clock, MapPin, Users, ArrowLeft, Edit, Trash2 } from 'lucide-
 import { format } from 'date-fns'
 import { parseLocalDate } from '@/lib/dateUtils'
 
+const formatTime = (timeString: string | undefined): string => {
+  if (!timeString) return 'Not set'
+  const [hours, minutes] = timeString.split(':')
+  const hour = parseInt(hours, 10)
+  const ampm = hour >= 12 ? 'PM' : 'AM'
+  const displayHour = hour % 12 || 12
+  return `${displayHour}:${minutes} ${ampm}`
+}
+
 export default function EventDetailsPage() {
   const params = useParams()
   const router = useRouter()
@@ -108,7 +117,14 @@ export default function EventDetailsPage() {
 
       <div className="bg-white rounded-lg shadow-lg p-8">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">{event.name}</h1>
+          {(event as any).clientName && (
+            <>
+              <p className="text-xs font-medium text-gray-400 uppercase tracking-widest mb-0.5">Client</p>
+              <p className="text-lg font-semibold text-primary-700 mb-2">{(event as any).clientName}</p>
+            </>
+          )}
+          <p className="text-xs font-medium text-gray-400 uppercase tracking-widest mb-0.5">Event</p>
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">{(event as any).intakeEventName || event.name}</h1>
           <span className="inline-block px-3 py-1 bg-gray-100 text-gray-800 text-sm font-semibold rounded-full">
             {event.status || 'Draft'}
           </span>
@@ -132,7 +148,7 @@ export default function EventDetailsPage() {
               <h3 className="text-sm font-semibold text-gray-600">Time</h3>
             </div>
             <p className="text-lg text-gray-900">
-              {event.startTime} - {event.endTime}
+              {formatTime(event.startTime)} - {formatTime(event.endTime)}
             </p>
           </div>
 

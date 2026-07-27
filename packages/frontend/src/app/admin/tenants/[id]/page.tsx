@@ -17,6 +17,7 @@ interface Tenant {
 }
 
 export default function TenantDetailPage({ params }: { params: { id: string } }) {
+  const { id } = params
   const router = useRouter()
   const [tenant, setTenant] = useState<Tenant | null>(null)
   const [loading, setLoading] = useState(true)
@@ -31,7 +32,7 @@ export default function TenantDetailPage({ params }: { params: { id: string } })
 
   useEffect(() => {
     fetchTenant()
-  }, [params.id])
+  }, [id])
 
   const fetchTenant = async () => {
     try {
@@ -39,7 +40,7 @@ export default function TenantDetailPage({ params }: { params: { id: string } })
       const { data, error } = await supabase
         .from('tenants')
         .select('*')
-        .eq('id', params.id)
+        .eq('id', id)
         .single()
 
       if (error) throw error
@@ -74,7 +75,7 @@ export default function TenantDetailPage({ params }: { params: { id: string } })
           custom_url: formData.custom_url || null,
           subscription_status: formData.subscription_status
         })
-        .eq('id', params.id)
+        .eq('id', id)
 
       if (error) throw error
 
@@ -97,7 +98,7 @@ export default function TenantDetailPage({ params }: { params: { id: string } })
       const { error } = await supabase
         .from('tenants')
         .delete()
-        .eq('id', params.id)
+        .eq('id', id)
 
       if (error) throw error
 

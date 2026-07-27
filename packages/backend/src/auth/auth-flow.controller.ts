@@ -79,6 +79,16 @@ export class AuthFlowController {
     return this.authFlowService.vendorSignup(dto);
   }
 
+  @Post('promoter/signup')
+  async promoterSignup(@Body() dto: any) {
+    return this.authFlowService.promoterSignup(dto);
+  }
+
+  @Post('artist/signup')
+  async artistSignup(@Body() dto: any) {
+    return this.authFlowService.artistSignup(dto);
+  }
+
   @Post('vendor/login')
   async vendorLogin(@Body() dto: { email: string; password: string }) {
     return this.authFlowService.vendorLogin(dto.email, dto.password);
@@ -107,6 +117,13 @@ export class AuthFlowController {
   @Post('unified/login')
   async unifiedLogin(@Body() body: { email: string; password: string }) {
     return this.authFlowService.unifiedLogin(body.email, body.password);
+  }
+
+  /** Returns the authenticated user's roles — used by the frontend to refresh stale sessions */
+  @Get('unified/me')
+  async unifiedMe(@Headers('authorization') authorization: string) {
+    const token = authorization?.replace('Bearer ', '') || '';
+    return this.authFlowService.getMyRoles(token);
   }
 
   /**

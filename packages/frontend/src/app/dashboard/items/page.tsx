@@ -5,6 +5,7 @@ import api from '@/lib/api'
 import Pagination from '@/components/Pagination'
 import { Item, ItemType, ServiceItemCategory } from '@/types'
 import ImageUpload from '@/components/ImageUpload'
+import { useVenue } from '@/contexts/VenueContext'
 import { Plus, Edit, Trash2, Package, Music, Lightbulb, Users, Utensils, Sparkles, Building2, Grid3x3, Clock, Percent, Mic, Wine, Shield, DollarSign, Monitor, Calendar } from 'lucide-react'
 
 // Use ServiceItemCategory enum values to match database
@@ -77,20 +78,32 @@ export default function ItemsPage() {
     image_url: '',
     is_active: true,
   })
+  const { activeVenue, venuesLoaded } = useVenue()
 
   useEffect(() => {
-    fetchItems()
-  }, [])
+    if (!venuesLoaded) return
+    let cancelled = false
+    setLoading(true)
+    setItems([])
+    const headers: Record<string, string> = {}
+    if (activeVenue?.id) headers['x-venue-id'] = activeVenue.id
+    api.get<Item[]>('/service-items', { headers })
+      .then(res => { if (!cancelled) setItems(res.data) })
+      .catch(err => { if (!cancelled) console.error('Failed to fetch items:', err) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [activeVenue, venuesLoaded])
 
-  const fetchItems = async () => {
-    try {
-      const response = await api.get<Item[]>('/service-items')
-      setItems(response.data)
-    } catch (error) {
-      console.error('Failed to fetch items:', error)
-    } finally {
-      setLoading(false)
-    }
+  const fetchItems = () => {
+    if (!venuesLoaded) return
+    setLoading(true)
+    setItems([])
+    const headers: Record<string, string> = {}
+    if (activeVenue?.id) headers['x-venue-id'] = activeVenue.id
+    api.get<Item[]>('/service-items', { headers })
+      .then(res => setItems(res.data))
+      .catch(err => console.error('Failed to fetch items:', err))
+      .finally(() => setLoading(false))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -106,6 +119,7 @@ export default function ItemsPage() {
         image_url: formData.image_url || null,
         is_active: formData.is_active,
         sort_order: 0,
+        venue_id: activeVenue?.id || null,
       }
 
       if (editingItem) {

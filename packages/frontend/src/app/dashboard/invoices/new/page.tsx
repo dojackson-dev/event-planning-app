@@ -54,6 +54,7 @@ function NewInvoicePageContent() {
   const [ownerDepositDays, setOwnerDepositDays] = useState<number | null>(null)
   const [ownerFinalDays, setOwnerFinalDays] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
+  const [approvedEstimates, setApprovedEstimates] = useState<any[]>([])
 
   useEffect(() => {
     fetchEvents()
@@ -72,16 +73,20 @@ function NewInvoicePageContent() {
   // Pre-fill from event manage page workflow (eventId param)
   useEffect(() => {
     const eventId = searchParams?.get('eventId')
+    const clientIdParam = searchParams?.get('clientId')
     if (!eventId) return
     setSelectedBooking(eventId)
     api.get(`/events/${eventId}`).then(res => {
       const ev = res.data
-      const evName = ev.name || ''
+      const evName = ev.intakeEventName || ev.name || ''
       setLockedEvent({ id: eventId, name: evName, date: ev.date || '' })
       setEventName(evName)
 
-      // Try direct intake form lookup via intakeFormId/bookingId on the event
-      const intakeId = ev.intakeFormId || ev.bookingId || ev.booking_id || ev.intake_form_id
+      // Use clientName directly from event if available
+      if (ev.clientName) setClientName(ev.clientName)
+
+      // Try clientId param first (passed from manage page)
+      const intakeId = clientIdParam || ev.intakeFormId || ev.bookingId || ev.booking_id || ev.intake_form_id
       if (intakeId) {
         setIntakeFormId(intakeId)
         api.get(`/intake-forms/${intakeId}`).then(r => {
@@ -159,6 +164,97 @@ function NewInvoicePageContent() {
       if (vb.event_id) setSelectedBooking('')
     }).catch(() => {})
   }, [searchParams])
+
+  // Fetch sent/approved/converted estimates for this event so the user can import line items
+  useEffect(() => {
+    const eventId = lockedEvent?.id
+    if (!eventId && !intakeFormId) return
+    api.get('/estimates').then(res => {
+      const all: any[] = res.data || []
+      const matched = all.filter((e: any) =>
+        ['sent', 'approved', 'converted'].includes(e.status) &&
+        (
+          (eventId && e.event_id === eventId) ||
+          (intakeFormId && e.intake_form_id === intakeFormId)
+        )
+      )
+      setApprovedEstimates(matched)
+    }).catch(() => {})
+  }, [lockedEvent, intakeFormId])
+
+  // Auto-apply estimate when estimateId is passed in the URL (e.g. from manage page "Send Invoice")
+  useEffect(() => {
+    const estimateId = searchParams?.get('estimateId')
+    if (!estimateId) return
+    api.get(`/estimates/${estimateId}`).then(res => {
+      applyFromEstimate(res.data)
+    }).catch(() => {})
+  }, [searchParams])
+
+  // Auto-load vendor bookings for this event as expense items
+  useEffect(() => {
+    const eventId = lockedEvent?.id
+    if (!eventId) return
+    // Skip if a specific vendorBookingId was already pre-filled
+    if (searchParams?.get('vendorBookingId')) return
+    api.get(`/vendors/bookings/by-event/${eventId}`).then(res => {
+      const bookings: any[] = res.data || []
+      if (bookings.length === 0) return
+      const items: InvoiceLineItem[] = bookings.map((vb: any) => {
+        const vendor = vb.vendor_accounts
+        const amount = Number(vb.agreed_amount) || 0
+        return {
+          id: `expense-vb-${vb.id}`,
+          description: `Vendor: ${vendor?.business_name || 'Vendor'} — ${vb.event_name || ''}`,
+          quantity: 1,
+          standardPrice: amount,
+          unitPrice: amount,
+          subtotal: amount,
+          discountType: DiscountType.NONE,
+          discountValue: 0,
+          discountAmount: 0,
+          amount,
+          item_type: 'expense' as const,
+          vendor_booking_id: vb.id,
+        }
+      })
+      setExpenseItems(items)
+      const names = bookings.map((vb: any) => vb.vendor_accounts?.business_name || 'Vendor').join(', ')
+      setVendorBookingBanner(`Vendor costs pre-filled from event bookings: ${names}`)
+    }).catch(() => {})
+  }, [lockedEvent])
+
+  const applyFromEstimate = (estimate: any) => {
+    const discTypeMap: Record<string, DiscountType> = {
+      percentage: DiscountType.PERCENTAGE,
+      fixed: DiscountType.FIXED,
+      none: DiscountType.NONE,
+    }
+    const items: InvoiceLineItem[] = (estimate.items || []).map((item: any, idx: number) => {
+      const qty = Number(item.quantity) || 1
+      const unitPrice = Number(item.unit_price) || 0
+      const subtotal = qty * unitPrice
+      const discountType = discTypeMap[item.discount_type] ?? DiscountType.NONE
+      const discountValue = Number(item.discount_value) || 0
+      let discountAmount = 0
+      if (discountType === DiscountType.PERCENTAGE) discountAmount = subtotal * (discountValue / 100)
+      else if (discountType === DiscountType.FIXED) discountAmount = discountValue
+      return {
+        id: `est-${estimate.id}-${idx}`,
+        description: item.description || '',
+        quantity: qty,
+        standardPrice: unitPrice,
+        unitPrice,
+        subtotal,
+        discountType,
+        discountValue,
+        discountAmount,
+        amount: subtotal - discountAmount,
+        item_type: 'revenue' as const,
+      }
+    })
+    setLineItems(items)
+  }
 
   const fetchEvents = async () => {
     try {
@@ -384,16 +480,17 @@ function NewInvoicePageContent() {
 
       const response = await api.post('/invoices', invoiceData)
       router.push(`/dashboard/invoices/${response.data.id}`)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to create invoice:', error)
-      alert('Failed to create invoice')
+      const msg = error?.response?.data?.message || 'Failed to create invoice. Please try again.'
+      alert(msg)
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="px-4 py-6 sm:px-6 max-w-6xl mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">
           {invoiceType === 'estimate' ? 'Create New Estimate' : 'Create New Invoice'}
@@ -545,6 +642,35 @@ function NewInvoicePageContent() {
           </div>
         )}
 
+        {/* Apply from Approved Estimate */}
+        {approvedEstimates.length > 0 && (
+          <div className="mb-6 border border-green-200 bg-green-50 rounded-lg p-4">
+            <p className="text-sm font-semibold text-green-800 mb-1">✓ Estimate available</p>
+            <p className="text-xs text-green-700 mb-3">Import line items directly from an estimate — you can still edit them after applying.</p>
+            <div className="flex flex-col gap-2">
+              {approvedEstimates.map(est => (
+                <div key={est.id} className="flex items-center justify-between bg-white rounded-md border border-green-200 px-3 py-2">
+                  <div>
+                    <span className="text-sm font-medium text-gray-800">
+                      Estimate #{est.estimate_number || est.id.slice(0, 8)}
+                    </span>
+                    <span className="ml-2 text-xs text-gray-500">
+                      ${Number(est.total_amount || 0).toFixed(2)} &middot; {est.items?.length || 0} item{est.items?.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => applyFromEstimate(est)}
+                    className="text-sm px-3 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 font-medium"
+                  >
+                    Apply
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Service Items Quick Add */}
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -589,8 +715,8 @@ function NewInvoicePageContent() {
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Invoice Items *
           </label>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
+          <div className="overflow-x-auto -mx-4 sm:mx-0">
+            <table className="min-w-[700px] w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
@@ -731,8 +857,8 @@ function NewInvoicePageContent() {
             </button>
           </div>
           {expenseItems.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-amber-100">
+            <div className="overflow-x-auto -mx-4 sm:mx-0">
+              <table className="min-w-[500px] w-full divide-y divide-amber-100">
                 <thead className="bg-amber-50">
                   <tr>
                     <th className="px-4 py-2 text-left text-xs font-medium text-amber-700 uppercase">Description</th>
@@ -790,7 +916,7 @@ function NewInvoicePageContent() {
 
         {/* Calculations */}
         <div className="mb-6 flex justify-end">
-          <div className="w-96">
+          <div className="w-full sm:w-96">
             <div className="mb-3">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Subtotal
@@ -901,7 +1027,7 @@ function NewInvoicePageContent() {
         </div>
 
         {/* Actions */}
-        <div className="flex gap-4 justify-end">
+        <div className="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4 justify-end">
           <button
             type="button"
             onClick={() => router.push('/dashboard/invoices')}

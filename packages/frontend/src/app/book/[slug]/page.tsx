@@ -413,7 +413,7 @@ export default function PublicBookingPage() {
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-5">
-          Powered by <span className="font-semibold text-gray-500">DoVenue Suite</span>
+          Powered by <span className="font-semibold text-gray-500">EventEcos</span>
         </p>
       </div>
     </div>

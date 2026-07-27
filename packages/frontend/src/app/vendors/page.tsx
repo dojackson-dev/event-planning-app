@@ -15,6 +15,7 @@ const CATEGORIES = [
   { value: 'photographer', label: 'Photographer' },
   { value: 'musicians', label: 'Musicians' },
   { value: 'mc_host', label: 'MC / Host' },
+  { value: 'graphic_designer', label: 'Graphic Designer' },
   { value: 'other', label: 'Other' },
 ]
 
@@ -26,6 +27,7 @@ const CATEGORY_ICONS: Record<string, string> = {
   photographer: '📷',
   musicians: '🎵',
   mc_host: '🎤',
+  graphic_designer: '🖌️',
   other: '⭐',
 }
 
@@ -37,6 +39,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   photographer: 'bg-green-100 text-green-700',
   musicians: 'bg-indigo-100 text-indigo-700',
   mc_host: 'bg-red-100 text-red-700',
+  graphic_designer: 'bg-teal-100 text-teal-700',
   other: 'bg-gray-100 text-gray-700',
 }
 
@@ -203,19 +206,25 @@ export default function VendorsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <nav className="bg-white shadow-sm sticky top-0 z-10">
+      {/* Nav */}
+      <nav className="sticky top-0 z-50 bg-white border-b-4 border-primary-600 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <Link href="/" className="flex items-center gap-2">
-              <img src="/lib/LogoDVS.png" alt="DoVenueSuite" style={{ height: '40px', width: 'auto' }} />
+          <div className="flex items-center justify-between h-20">
+            <Link href="/">
+              <img src="/lib/EventEcos-Logo.jpg" alt="EventEcos" style={{ height: '70px', width: 'auto' }} />
             </Link>
-            <div className="flex items-center gap-4">
-              <Link href="/signup" className="bg-primary-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-primary-700">
-                List Your Business
+            <div className="flex items-center gap-2">
+              <Link href="/venues" className="text-gray-700 hover:text-primary-600 font-medium text-sm border border-gray-300 hover:border-primary-400 px-3 py-1.5 rounded-lg transition-colors hidden md:inline-flex">
+                Find Venues
               </Link>
-              <Link href="/login" className="text-gray-600 hover:text-gray-900 text-sm font-medium">
-                Log In
+              <Link href="/events" className="text-gray-700 hover:text-primary-600 font-medium text-sm border border-gray-300 hover:border-primary-400 px-3 py-1.5 rounded-lg transition-colors hidden md:inline-flex">
+                Discover Events
+              </Link>
+              <Link href="/login" className="text-gray-700 hover:text-primary-600 font-medium text-sm border border-gray-300 hover:border-primary-400 px-3 py-1.5 rounded-lg transition-colors">
+                Login
+              </Link>
+              <Link href="/signup" className="bg-accent-500 hover:bg-accent-600 text-white font-semibold px-5 py-1.5 rounded-lg transition-colors text-sm whitespace-nowrap">
+                Get Started
               </Link>
               <DashboardReturnButton />
             </div>
@@ -223,16 +232,30 @@ export default function VendorsPage() {
         </div>
       </nav>
 
-      {/* Hero */}
-      <div className="bg-gradient-to-br from-primary-700 to-primary-900 text-white py-16">
+      {/* Banner */}
+      <div className="relative w-full h-56 md:h-72 overflow-hidden">
+        <img src="/lib/Vendors-Banner.jpg" alt="Discover Vendors" className="w-full h-full object-cover" />
+      </div>
+
+      {/* Search */}
+      <div className="bg-gradient-to-br from-primary-700 to-primary-900 text-white py-8">
         <div className="max-w-4xl mx-auto px-4 text-center">
-          <h1 className="text-4xl font-extrabold mb-4">Find Vendors &amp; Venues</h1>
-          <p className="text-primary-200 text-lg mb-8">
+          <p className="text-primary-200 text-lg mb-6">
             Discover DJs, photographers, decorators, planners, and more near you.
           </p>
 
           {/* Search Bar */}
           <form onSubmit={searchDirectory} className="bg-white rounded-xl p-4 shadow-xl">
+            <div className="flex justify-center mb-3">
+              <button
+                type="button"
+                onClick={useMyLocation}
+                disabled={locating || loading}
+                className="px-4 py-2 border border-primary-300 rounded-lg text-primary-600 hover:bg-primary-50 disabled:opacity-50 transition-colors text-sm font-medium"
+              >
+                {locating ? 'Locating...' : '📍 Use My Location'}
+              </button>
+            </div>
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex flex-1 gap-2">
                 <input
@@ -242,20 +265,6 @@ export default function VendorsPage() {
                   onChange={e => setZipCode(e.target.value)}
                   className="flex-1 border border-gray-300 rounded-lg px-4 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
-                <button
-                  type="button"
-                  onClick={useMyLocation}
-                  disabled={locating || loading}
-                  title="Use my current location"
-                  className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 hover:border-primary-400 hover:text-primary-600 disabled:opacity-50 transition-colors whitespace-nowrap text-sm"
-                >
-                  {locating ? (
-                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                  ) : (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                  )}
-                  <span className="hidden sm:inline">{locating ? 'Locating...' : 'Near Me'}</span>
-                </button>
               </div>
               <select
                 value={radiusMiles}
@@ -288,27 +297,6 @@ export default function VendorsPage() {
             </div>
             {error && <p className="text-red-600 text-sm mt-2 text-left">{error}</p>}
           </form>
-        </div>
-      </div>
-
-      {/* Category pills */}
-      <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex gap-2 overflow-x-auto pb-1 hide-scrollbar">
-            {CATEGORIES.map(c => (
-              <button
-                key={c.value}
-                onClick={() => setCategory(c.value)}
-                className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium border transition-all ${
-                  category === c.value
-                    ? 'bg-primary-600 text-white border-primary-600'
-                    : 'bg-white text-gray-600 border-gray-300 hover:border-primary-400'
-                }`}
-              >
-                {c.value && CATEGORY_ICONS[c.value]} {c.label}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
 
@@ -404,9 +392,36 @@ export default function VendorsPage() {
       </div>
 
       {/* Footer */}
-      <footer className="bg-gray-800 text-gray-400 text-sm py-8">
-        <div className="max-w-7xl mx-auto px-4 text-center">
-          <p>&copy; 2026 DoVenueSuite. All rights reserved.</p>
+      <footer className="bg-gray-900 border-t border-gray-800 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+            <div>
+              <Link href="/">
+                <div className="inline-block bg-white rounded-xl p-2">
+                  <img src="/lib/EventEcos-Logo.jpg" alt="EventEcos" style={{ height: '90px', width: 'auto' }} />
+                </div>
+              </Link>
+              <p className="text-gray-400 text-sm mt-2">The complete event management platform.</p>
+            </div>
+            <div>
+              <h4 className="text-white font-bold mb-4">Browse</h4>
+              <ul className="space-y-2 text-gray-400 text-sm">
+                <li><Link href="/venues" className="hover:text-white">Venues</Link></li>
+                <li><Link href="/vendors" className="hover:text-white">Vendors</Link></li>
+                <li><Link href="/events" className="hover:text-white">Events</Link></li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="text-white font-bold mb-4">Legal</h4>
+              <ul className="space-y-2 text-gray-400 text-sm">
+                <li><Link href="/privacy-policy" className="hover:text-white">Privacy</Link></li>
+                <li><Link href="/terms-of-service" className="hover:text-white">Terms</Link></li>
+              </ul>
+            </div>
+          </div>
+          <div className="border-t border-gray-800 pt-8">
+            <p className="text-center text-gray-400 text-sm">&copy; 2026 EventEcos. All rights reserved. Powering the Event Ecosystem.</p>
+          </div>
         </div>
       </footer>
     </div>

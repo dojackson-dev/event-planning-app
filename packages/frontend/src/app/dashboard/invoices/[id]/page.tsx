@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { Invoice, InvoiceStatus } from '@/types'
+import { Send, Trash2, Pencil, Printer, Link2, DollarSign, Loader2 } from 'lucide-react'
 
 interface EditItem {
   id?: string
@@ -265,66 +266,48 @@ export default function InvoiceDetailPage() {
     <div className="p-4 sm:p-6 max-w-4xl mx-auto">
       {/* Back link */}
       <div className="mb-3 print:hidden">
-        <button
-          onClick={() => router.push('/dashboard/invoices')}
-          className="text-gray-600 hover:text-gray-900 flex items-center gap-1 text-sm"
-        >
-          ← Back to Invoices
-        </button>
+        <div className="flex flex-col gap-1">
+          <button
+            onClick={() => router.push('/dashboard/events')}
+            className="text-gray-600 hover:text-gray-900 flex items-center gap-1 text-sm"
+          >
+            ← Back to Events
+          </button>
+          <button
+            onClick={() => router.push('/dashboard/invoices')}
+            className="text-xs text-gray-400 hover:text-gray-600 text-left"
+          >
+            View All Invoices →
+          </button>
+        </div>
       </div>
 
       {/* Action Buttons */}
       <div className="flex flex-wrap gap-2 mb-6 print:hidden">
-        {invoice.status !== InvoiceStatus.PAID && (
-          <>
-            <button
-              onClick={() => setShowPaymentModal(true)}
-              className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-sm font-medium"
-            >
-              Record Payment
-            </button>
-            <button
-              onClick={handleGeneratePaymentLink}
-              disabled={generatingLink}
-              className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1.5 text-sm font-medium"
-            >
-              {generatingLink ? 'Generating...' : '🔗 Payment Link'}
-            </button>
-            {invoice.status === InvoiceStatus.DRAFT && (
-              <button
-                onClick={() => handleStatusUpdate(InvoiceStatus.SENT)}
-                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 text-sm font-medium"
-              >
-                Send Invoice
-              </button>
-            )}
-            {(invoice.status === InvoiceStatus.SENT || invoice.status === InvoiceStatus.PARTIAL || invoice.status === InvoiceStatus.OVERDUE) && (
-              <button
-                onClick={() => handleStatusUpdate(invoice.status)}
-                className="bg-blue-100 text-blue-700 px-4 py-2 rounded-md hover:bg-blue-200 text-sm font-medium"
-              >
-                Resend Invoice
-              </button>
-            )}
-          </>
+        {invoice.status === InvoiceStatus.DRAFT && (
+          <button
+            onClick={() => handleStatusUpdate(InvoiceStatus.SENT)}
+            className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium"
+          >
+            <Send className="w-4 h-4" />
+            Send Invoice
+          </button>
+        )}
+        {(invoice.status === InvoiceStatus.SENT || invoice.status === InvoiceStatus.PARTIAL || invoice.status === InvoiceStatus.OVERDUE) && (
+          <button
+            onClick={() => handleStatusUpdate(invoice.status)}
+            className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium"
+          >
+            <Send className="w-4 h-4" />
+            Resend Invoice
+          </button>
         )}
         <button
-          onClick={handlePrint}
-          className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 text-sm font-medium"
-        >
-          Print
-        </button>
-        <button
           onClick={openEditModal}
-          className="bg-yellow-600 text-white px-4 py-2 rounded-md hover:bg-yellow-700 text-sm font-medium"
+          className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium"
         >
+          <Pencil className="w-4 h-4" />
           Edit
-        </button>
-        <button
-          onClick={handleDelete}
-          className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 text-sm font-medium"
-        >
-          Delete
         </button>
       </div>
 
@@ -402,12 +385,20 @@ export default function InvoiceDetailPage() {
                 {new Date(invoice.issue_date + 'T12:00:00').toLocaleDateString()}
               </span>
             </div>
-            <div>
+            <div className="mb-2">
               <span className="text-gray-600">Due Date: </span>
               <span className="font-semibold">
                 {new Date(invoice.due_date + 'T12:00:00').toLocaleDateString()}
               </span>
             </div>
+            {(invoice as any).booking?.event?.date && (
+              <div>
+                <span className="text-gray-600">Event Date: </span>
+                <span className="font-semibold">
+                  {new Date((invoice as any).booking.event.date + 'T12:00:00').toLocaleDateString()}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 

@@ -17,7 +17,8 @@ import {
   addWeeks,
   subWeeks
 } from 'date-fns'
-import { ChevronLeft, ChevronRight, CalendarDays, CalendarRange, X, Edit2, Trash2, Clock, MapPin, Users, DollarSign, FileText, AlertCircle, Plus } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CalendarDays, CalendarRange, X, Edit2, Trash2, Clock, MapPin, Users, DollarSign, FileText, AlertCircle, Plus, Building2 } from 'lucide-react'
+import { useVenue } from '@/contexts/VenueContext'
 
 type ViewType = 'month' | 'week'
 
@@ -68,6 +69,7 @@ const formatTime = (timeString: string | undefined): string => {
 
 export default function CalendarPage() {
   const router = useRouter()
+  const { venues, activeVenue, setActiveVenue, venuesLoaded } = useVenue()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [viewType, setViewType] = useState<ViewType>('month')
   const [entries, setEntries] = useState<CalendarEntry[]>([])
@@ -102,27 +104,18 @@ export default function CalendarPage() {
   const [creating, setCreating] = useState(false)
 
   useEffect(() => {
-    fetchAllEntries()
-  }, [currentDate])
-
-  useEffect(() => {
-    api.get('/intake-forms').then(res => {
-      setCalendarClients((res.data || []).map((f: any) => ({
-        id: f.id,
-        contact_name: f.contactName || f.contact_name || 'Unknown',
-        contact_phone: f.contactPhone || f.contact_phone || '',
-      })))
-    }).catch(() => {})
-  }, [])
-
-  const fetchAllEntries = async () => {
-    try {
-      const [eventsRes, bookingsRes, intakeRes, apptRes] = await Promise.allSettled([
-        api.get<Event[]>('/events'),
-        api.get<Booking[]>('/bookings'),
-        api.get<any[]>('/intake-forms'),
-        api.get<any[]>('/appointments'),
-      ])
+    if (!venuesLoaded) return
+    let cancelled = false
+    setLoading(true)
+    setEntries([])
+    const venueParams = activeVenue ? { venueId: activeVenue.id } : {}
+    Promise.allSettled([
+      api.get<Event[]>('/events', { params: venueParams }),
+      api.get<Booking[]>('/bookings', { params: venueParams }),
+      api.get<any[]>('/intake-forms'),
+      api.get<any[]>('/appointments'),
+    ]).then(([eventsRes, bookingsRes, intakeRes, apptRes]) => {
+      if (cancelled) return
 
       // Debug logs — visible in browser console
       if (eventsRes.status === 'fulfilled') {
@@ -236,13 +229,24 @@ export default function CalendarPage() {
             }))
         : []
 
-      setEntries([...unbookedEventEntries, ...bookingEntries, ...intakeEntries, ...appointmentEntries])
-    } catch (error) {
-      console.error('Failed to fetch calendar data:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
+      if (!cancelled) setEntries([...unbookedEventEntries, ...bookingEntries, ...intakeEntries, ...appointmentEntries])
+    }).catch(error => {
+      if (!cancelled) console.error('Failed to fetch calendar data:', error)
+    }).finally(() => {
+      if (!cancelled) setLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [activeVenue, venuesLoaded, currentDate])
+
+  useEffect(() => {
+    api.get('/intake-forms').then(res => {
+      setCalendarClients((res.data || []).map((f: any) => ({
+        id: f.id,
+        contact_name: f.contactName || f.contact_name || 'Unknown',
+        contact_phone: f.contactPhone || f.contact_phone || '',
+      })))
+    }).catch(() => {})
+  }, [])
 
   // Month view calculations
   const monthStart = startOfMonth(currentDate)
@@ -442,6 +446,32 @@ export default function CalendarPage() {
             New Event
           </button>
         </div>
+
+        {/* Venue filter tabs — only shown when owner has multiple venues */}
+        {venues.length > 1 && (
+          <div className="flex items-center justify-center gap-2 flex-wrap mb-4">
+            <Building2 className="h-4 w-4 text-gray-400 flex-shrink-0" />
+            <button
+              onClick={() => setActiveVenue(null)}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                !activeVenue ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              All Venues
+            </button>
+            {venues.map(v => (
+              <button
+                key={v.id}
+                onClick={() => setActiveVenue(v)}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                  activeVenue?.id === v.id ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {v.name}
+              </button>
+            ))}
+          </div>
+        )}
         
         {/* View Toggle - Centered */}
         <div className="flex justify-center mb-4">
@@ -1033,18 +1063,23 @@ export default function CalendarPage() {
               ) : (
                 <>
                   <button
-                    onClick={handleEditEvent}
+                    onClick={() => { closeModal(); router.push(`/dashboard/events/${selectedEntry.id}/manage`) }}
                     className="flex-1 inline-flex items-center justify-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
                   >
                     <Edit2 className="h-4 w-4 mr-2" />
+                    Manage
+                  </button>
+                  <button
+                    onClick={handleEditEvent}
+                    className="inline-flex items-center justify-center px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
                     Edit
                   </button>
                   <button
                     onClick={() => setShowDeleteConfirm(true)}
-                    className="flex-1 inline-flex items-center justify-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                    className="inline-flex items-center justify-center px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
                   >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete
+                    <Trash2 className="h-4 w-4" />
                   </button>
                 </>
               )}

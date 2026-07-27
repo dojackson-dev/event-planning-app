@@ -54,7 +54,8 @@ export class VendorsService {
       .insert({
         user_id: userId,
         business_name: dto.businessName,
-        category: dto.category,
+        category: dto.categories?.length ? dto.categories[0] : (dto.category ?? null),
+        categories: dto.categories ?? (dto.category ? [dto.category] : []),
         bio: dto.bio,
         website: dto.website,
         instagram: dto.instagram,
@@ -125,7 +126,12 @@ export class VendorsService {
 
     const updatePayload: Record<string, any> = {};
     if (dto.businessName !== undefined) updatePayload.business_name = dto.businessName;
-    if (dto.category !== undefined) updatePayload.category = dto.category;
+    if (dto.categories !== undefined) {
+      updatePayload.categories = dto.categories;
+      updatePayload.category = dto.categories.length ? dto.categories[0] : null;
+    } else if (dto.category !== undefined) {
+      updatePayload.category = dto.category;
+    }
     if (dto.bio !== undefined) updatePayload.bio = dto.bio;
     if (dto.website !== undefined) updatePayload.website = dto.website;
     if (dto.instagram !== undefined) updatePayload.instagram = dto.instagram;
@@ -174,7 +180,7 @@ export class VendorsService {
 
     if (error) {
       this.logger.error('Vendor geo search error:', error);
-      throw new BadRequestException('Search failed: ' + error.message);
+      return [];
     }
 
     return vendors || [];
@@ -191,15 +197,35 @@ export class VendorsService {
 
     if (error) {
       this.logger.error('Venue geo search error:', error);
-      throw new BadRequestException('Venue search failed: ' + error.message);
+      return [];
     }
 
     return venues || [];
   }
 
+  /** Zip-code-based vendor search — used as fallback when geo RPC returns no results. */
+  async getVendorsByZip(zipCode: string, category?: string) {
+    const client = this.supabaseService.getClient();
+    let query = client
+      .from('vendor_accounts')
+      .select('id, business_name, category, bio, city, state, zip_code, profile_image_url, hourly_rate, flat_rate, rate_description, phone, email, website, instagram, facebook, is_verified, vendor_reviews(rating)')
+      .or('is_active.is.null,is_active.eq.true')
+      .eq('zip_code', zipCode)
+      .order('business_name');
+
+    if (category) query = query.eq('category', category);
+
+    const { data, error } = await query;
+    if (error) {
+      this.logger.error('getVendorsByZip error:', error.message);
+      return [];
+    }
+    return (data || []).map(v => this.enrichWithRating(v));
+  }
+
   async getAllVendors(category?: string) {
-    const admin = this.supabaseService.getAdminClient();
-    let query = admin
+    const client = this.supabaseService.getClient();
+    let query = client
       .from('vendor_accounts')
       .select('id, business_name, category, bio, city, state, zip_code, profile_image_url, hourly_rate, flat_rate, rate_description, phone, email, website, instagram, facebook, is_verified, vendor_reviews(rating)')
       .or('is_active.is.null,is_active.eq.true')
@@ -210,7 +236,10 @@ export class VendorsService {
     }
 
     const { data, error } = await query;
-    if (error) throw new BadRequestException(error.message);
+    if (error) {
+      this.logger.error('getAllVendors error:', error.message);
+      return [];
+    }
 
     return (data || []).map(v => this.enrichWithRating(v));
   }
@@ -254,12 +283,31 @@ export class VendorsService {
     // Verify vendor exists (include phone for SMS)
     const { data: vendor } = await admin
       .from('vendor_accounts')
-      .select('id, business_name, phone')
+      .select('id, business_name, phone, user_id')
       .eq('id', dto.vendorAccountId)
       .eq('is_active', true)
       .single();
 
     if (!vendor) throw new NotFoundException('Vendor not found');
+
+    // Resolve the vendor's phone: prefer vendor_accounts.phone, fall back to users.phone_number
+    let vendorPhone: string | null = vendor.phone || null;
+    if (!vendorPhone && vendor.user_id) {
+      const { data: vendorUser } = await admin
+        .from('users')
+        .select('phone_number')
+        .eq('id', vendor.user_id)
+        .single();
+      if (vendorUser?.phone_number) {
+        vendorPhone = normalizePhone(vendorUser.phone_number);
+        // Backfill vendor_accounts.phone so future lookups don't need the extra query
+        await admin
+          .from('vendor_accounts')
+          .update({ phone: vendorPhone })
+          .eq('id', vendor.id);
+        this.logger.log(`Backfilled phone ${vendorPhone} for vendor ${vendor.business_name}`);
+      }
+    }
 
     const { data, error } = await admin
       .from('vendor_bookings')
@@ -294,23 +342,25 @@ export class VendorsService {
     this.logger.log(`Vendor booking created: vendor ${dto.vendorAccountId} by user ${bookedByUserId}`);
 
     // Send SMS notification to vendor if they have a phone number
-    if (vendor.phone) {
+    if (vendorPhone) {
       const dateStr = new Date(dto.eventDate + 'T00:00:00').toLocaleDateString('en-US', {
         weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
       });
       try {
         await this.smsNotifications.vendorBookingCreated(
-          vendor.phone,
+          vendorPhone,
           vendor.business_name,
           dto.eventName,
           dateStr,
           dto.agreedAmount ? Number(dto.agreedAmount) : undefined,
         );
-        this.logger.log(`SMS sent to vendor ${vendor.business_name} at ${vendor.phone}`);
+        this.logger.log(`SMS sent to vendor ${vendor.business_name} at ${vendorPhone}`);
       } catch (smsErr) {
         // Don't fail the booking if SMS fails
         this.logger.warn(`Failed to send SMS to vendor ${vendor.business_name}: ${smsErr.message}`);
       }
+    } else {
+      this.logger.warn(`No phone number for vendor ${vendor.business_name} (${vendor.id}) — SMS skipped`);
     }
 
     // Auto-create an owner-facing invoice when agreed_amount is set
@@ -412,7 +462,7 @@ export class VendorsService {
 
     let query = admin
       .from('vendor_bookings')
-      .select('*, vendor_invoices(id, status, invoice_type, vendor_booking_id)')
+      .select('*, vendor_invoices(id, status, invoice_type, vendor_booking_id, total_amount, amount_paid), owner_accounts!owner_account_id(id, business_name)')
       .eq('vendor_account_id', vendor.id)
       .order('event_date', { ascending: true });
 
@@ -422,6 +472,23 @@ export class VendorsService {
 
     const { data, error } = await query;
     if (error) throw new BadRequestException(error.message);
+
+    // Bulk-resolve booked_by_user emails and phones for platform bookings that have no client_email
+    const bookerIds = [...new Set(
+      (data || [])
+        .filter((b: any) => (!b.client_email || !b.client_phone) && b.booked_by_user_id)
+        .map((b: any) => b.booked_by_user_id as string)
+    )];
+    const bookerInfoMap: Record<string, { email?: string; phone?: string }> = {};
+    if (bookerIds.length > 0) {
+      const { data: bookerRows } = await admin
+        .from('users')
+        .select('id, email, phone_number')
+        .in('id', bookerIds);
+      for (const row of bookerRows ?? []) {
+        bookerInfoMap[row.id] = { email: row.email ?? undefined, phone: row.phone_number ?? undefined };
+      }
+    }
 
     // Derive effective status: if any linked owner_booking invoice is paid → show as paid
     const rows = (data || []).map((b: any) => {
@@ -440,13 +507,56 @@ export class VendorsService {
         })().catch(() => {});
       }
 
-      const { vendor_invoices: _inv, ...rest } = b;
-      return { ...rest, status: effectiveStatus };
+      const { vendor_invoices: _inv, owner_accounts: ownerAcc, ...rest } = b;
+
+      // For platform bookings (owner booked vendor), resolve owner info as client fallback
+      const resolvedClientName: string | null =
+        rest.client_name ||
+        (ownerAcc as any)?.business_name ||
+        null;
+      const resolvedClientEmail: string | null =
+        rest.client_email ||
+        (rest.booked_by_user_id ? bookerInfoMap[rest.booked_by_user_id]?.email : null) ||
+        null;
+      const resolvedClientPhone: string | null =
+        rest.client_phone ||
+        (rest.booked_by_user_id ? bookerInfoMap[rest.booked_by_user_id]?.phone : null) ||
+        null;
+
+      // Surface all vendor-created invoices (not owner_booking type) for this booking
+      const vendorInvoices = invoices
+        .filter((inv: any) => inv.invoice_type !== 'owner_booking' && inv.vendor_booking_id === b.id)
+        .map((inv: any) => ({
+          id: inv.id,
+          status: inv.status,
+          total_amount: inv.total_amount,
+          amount_paid: inv.amount_paid,
+        }));
+
+      return {
+        ...rest,
+        client_name: resolvedClientName,
+        client_email: resolvedClientEmail,
+        client_phone: resolvedClientPhone,
+        status: effectiveStatus,
+        vendorInvoices,
+      };
     });
 
     // Apply paid filter after derivation
     if (status === 'paid') return rows.filter((r: any) => r.status === 'paid');
     return rows;
+  }
+
+  async getVendorBookingsByBooker(bookedByUserId: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const { data, error } = await admin
+      .from('vendor_bookings')
+      .select('*, vendor_accounts(id, business_name, category, profile_image_url, phone, email)')
+      .eq('booked_by_user_id', bookedByUserId)
+      .order('event_date', { ascending: true });
+    if (error) throw new BadRequestException(error.message);
+    return data ?? [];
   }
 
   async getOwnerVendorBookings(ownerAccountId: string) {
@@ -477,8 +587,18 @@ export class VendorsService {
         })().catch(() => {});
       }
 
+      // Surface the owner_booking invoice so the owner can see status/id
+      const ownerInvoice = invoices.find(
+        (inv: any) => inv.invoice_type === 'owner_booking' && inv.vendor_booking_id === b.id,
+      );
+
       const { vendor_invoices: _inv, ...rest } = b;
-      return { ...rest, status: effectiveStatus };
+      return {
+        ...rest,
+        status: effectiveStatus,
+        invoiceId: ownerInvoice?.id ?? null,
+        invoiceStatus: ownerInvoice?.status ?? null,
+      };
     });
 
     return rows;
@@ -650,6 +770,7 @@ export class VendorsService {
       { value: 'photographer', label: 'Photographer' },
       { value: 'musicians', label: 'Musicians' },
       { value: 'mc_host', label: 'MC / Host' },
+      { value: 'graphic_designer', label: 'Graphic Designer' },
       { value: 'other', label: 'Other' },
     ];
   }
@@ -835,6 +956,71 @@ export class VendorsService {
     return data;
   }
 
+  /** Public: submit a booking inquiry directly to a vendor by their account ID (no auth, no booking link required). */
+  async submitPublicInquiry(vendorId: string, dto: {
+    clientName: string;
+    clientEmail?: string;
+    clientPhone?: string;
+    smsOptIn?: boolean;
+    eventName: string;
+    eventDate: string;
+    startTime?: string;
+    endTime?: string;
+    notes?: string;
+    agreedAmount?: number;
+  }) {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: vendor } = await admin
+      .from('vendor_accounts')
+      .select('id, phone, business_name')
+      .eq('id', vendorId)
+      .eq('is_active', true)
+      .single();
+
+    if (!vendor) throw new NotFoundException('Vendor not found');
+
+    const { data: request, error } = await admin
+      .from('vendor_booking_requests')
+      .insert({
+        vendor_account_id: vendorId,
+        client_name: dto.clientName,
+        client_email: dto.clientEmail ?? null,
+        client_phone: dto.clientPhone ? normalizePhone(dto.clientPhone) : null,
+        event_name: dto.eventName ?? null,
+        event_date: dto.eventDate ?? null,
+        start_time: dto.startTime ?? null,
+        end_time: dto.endTime ?? null,
+        notes: dto.notes ?? null,
+        sms_opt_in: dto.smsOptIn ?? false,
+        quoted_amount: dto.agreedAmount ?? null,
+        status: 'pending',
+      })
+      .select()
+      .single();
+
+    if (error) throw new BadRequestException(error.message);
+
+    // Notify vendor via SMS
+    if (vendor.phone) {
+      try {
+        const formattedDate = dto.eventDate
+          ? new Date(dto.eventDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+          : '';
+        await this.smsNotifications.vendorBookingCreated(
+          vendor.phone,
+          vendor.business_name ?? 'Vendor',
+          dto.eventName ?? 'New Event',
+          formattedDate,
+        );
+      } catch (err) {
+        this.logger.warn('Failed to send SMS for public inquiry', (err as Error).message);
+      }
+    }
+
+    return request;
+  }
+
   /** Public: submit a booking request via a booking link. */
   async submitBookingRequest(slug: string, dto: SubmitBookingRequestDto) {
     const admin = this.supabaseService.getAdminClient();
@@ -930,18 +1116,55 @@ export class VendorsService {
       .from('vendor_booking_requests')
       .update(update)
       .eq('id', requestId)
-      .select('*, vendor_accounts(business_name)')
+      .select('*, vendor_accounts(business_name, phone)')
       .single();
 
     if (error) throw new BadRequestException(error.message);
 
-    // Notify client if request was confirmed or declined
-    if (dto.status && (data.client_phone || dto.status === 'confirmed' || dto.status === 'declined')) {
+    // When confirmed, create a vendor_bookings record so it shows in the main bookings list
+    if (dto.status === 'confirmed') {
+      const { error: bookingError } = await admin
+        .from('vendor_bookings')
+        .insert({
+          vendor_account_id: vendorAccountId,
+          owner_account_id: null,
+          booked_by_user_id: null,
+          event_id: null,
+          event_name: data.event_name ?? 'Booking Request',
+          event_date: data.event_date ?? new Date().toISOString().split('T')[0],
+          start_time: data.start_time ?? null,
+          end_time: data.end_time ?? null,
+          venue_name: data.venue_name ?? null,
+          venue_address: data.venue_address ?? null,
+          notes: data.notes ?? null,
+          agreed_amount: data.quoted_amount ?? null,
+          deposit_amount: null,
+          client_name: data.client_name ?? null,
+          client_email: data.client_email ?? null,
+          client_phone: data.client_phone ?? null,
+          status: 'confirmed',
+        });
+      if (bookingError) {
+        this.logger.warn('Failed to create vendor_bookings from booking request', bookingError.message);
+      }
+    }
+
+    // Notify client — but never send to the vendor's own phone
+    const vendorPhone = (data.vendor_accounts as any)?.phone ?? null;
+    const rawClientPhone: string | null = data.client_phone ?? null;
+    const normalize = (p: string) => p.replace(/\D/g, '').slice(-10);
+    const clientPhoneToNotify =
+      rawClientPhone &&
+      (!vendorPhone || normalize(rawClientPhone) !== normalize(vendorPhone))
+        ? rawClientPhone
+        : null;
+
+    if (dto.status && clientPhoneToNotify) {
       try {
         const vendorName: string =
           (data.vendor_accounts as any)?.business_name ?? 'Your vendor';
         await this.smsNotifications.vendorBookingRequestUpdated(
-          data.client_phone ?? null,
+          clientPhoneToNotify,
           data.client_name ?? 'Client',
           dto.status,
           vendorName,

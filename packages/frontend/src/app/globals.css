@@ -6,6 +6,11 @@
   --foreground-rgb: 0, 0, 0;
   --background-start-rgb: 249, 250, 251;
   --background-end-rgb: 255, 255, 255;
+
+  /* Brand colors */
+  --color-primary:   #2d3693; /* Dark Moderate Blue  */
+  --color-accent:    #35c178; /* Cyan-Lime Green     */
+  --color-secondary: #01cec7; /* Vivid Aqua          */
 }
 
 body {

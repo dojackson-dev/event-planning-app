@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Delete, Body, Param, Headers, UnauthorizedException, Query, HttpCode, InternalServerErrorException, Logger } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Patch, Body, Param, Headers, UnauthorizedException, Query, HttpCode, InternalServerErrorException, Logger } from '@nestjs/common';
 import { MessagingService } from './messaging.service.js';
 import { SupabaseService } from '../supabase/supabase.service.js';
 
@@ -37,6 +37,67 @@ export class MessagingController {
     const { supabase, ownerId } = await this.getAuth(authHeader);
     return this.messagingService.getMessageStats(supabase, ownerId);
   }
+
+  // ── Client Chat Inbox — registered BEFORE @Get(':id') to prevent route shadowing ──
+
+  @Get('client-inbox')
+  async getClientInbox(@Headers('authorization') authHeader: string) {
+    const { ownerId } = await this.getAuth(authHeader);
+    return this.messagingService.getClientInbox(ownerId);
+  }
+
+  @Get('client-inbox/unread-count')
+  async getClientInboxUnreadCount(@Headers('authorization') authHeader: string) {
+    const { ownerId } = await this.getAuth(authHeader);
+    const count = await this.messagingService.getClientInboxUnreadCount(ownerId);
+    return { count };
+  }
+
+  @Get('client-inbox/:eventId')
+  async getClientThread(
+    @Param('eventId') eventId: string,
+    @Headers('authorization') authHeader: string,
+  ) {
+    const { ownerId } = await this.getAuth(authHeader);
+    return this.messagingService.getClientThread(ownerId, eventId);
+  }
+
+  @Post('client-inbox/:eventId/reply')
+  async sendClientMessage(
+    @Param('eventId') eventId: string,
+    @Headers('authorization') authHeader: string,
+    @Body() body: { content: string },
+  ) {
+    if (!body?.content?.trim()) {
+      throw new InternalServerErrorException('content is required');
+    }
+    const { ownerId } = await this.getAuth(authHeader);
+    try {
+      return await this.messagingService.sendClientMessage(ownerId, eventId, body.content.trim());
+    } catch (err: any) {
+      this.logger.error('sendClientMessage failed', err?.message);
+      throw new InternalServerErrorException(err?.message || 'Failed to send message');
+    }
+  }
+
+  @Patch('client-inbox/:eventId/read')
+  async markClientThreadRead(
+    @Param('eventId') eventId: string,
+    @Headers('authorization') authHeader: string,
+  ) {
+    const { ownerId } = await this.getAuth(authHeader);
+    const supabase = this.supabaseService.getAdminClient();
+    await supabase
+      .from('client_messages')
+      .update({ is_read: true })
+      .eq('owner_id', ownerId)
+      .eq('event_id', eventId)
+      .eq('sender_type', 'client')
+      .eq('is_read', false);
+    return { ok: true };
+  }
+
+  // ── Individual SMS message (dynamic — must stay after all static routes) ──────────
 
   @Get(':id')
   async findOne(
@@ -109,4 +170,5 @@ export class MessagingController {
     // Return empty TwiML — no auto-reply (Twilio handles STOP responses natively)
     return '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
   }
+
 }

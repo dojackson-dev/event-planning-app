@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
 import {
   FileText, Send, Trash2, Loader2, CheckCircle2, Clock, Eye,
-  AlertCircle, XCircle, Copy, ExternalLink, DollarSign,
+  AlertCircle, XCircle, Copy, ExternalLink, DollarSign, Pencil,
 } from 'lucide-react'
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
@@ -18,7 +18,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
   cancelled: { label: 'Cancelled', color: 'bg-gray-100 text-gray-500',       icon: <XCircle className="w-4 h-4" /> },
 }
 
-export default function VendorInvoiceDetailPage() {
+function VendorInvoiceDetailPageContent() {
   const params = useParams()
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -106,6 +106,7 @@ export default function VendorInvoiceDetailPage() {
   const cfg = STATUS_CONFIG[invoice.status] ?? STATUS_CONFIG.draft
   const canSend = ['draft', 'sent', 'viewed', 'overdue'].includes(invoice.status)
   const isPaid = invoice.status === 'paid'
+  const canEdit = !['paid', 'cancelled'].includes(invoice.status)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -163,6 +164,15 @@ export default function VendorInvoiceDetailPage() {
                   {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                   {sending ? 'Sending…' : 'Send to Client'}
                 </button>
+              )}
+
+              {canEdit && (
+                <Link
+                  href={`/vendor-portal/invoices/${id}/edit`}
+                  className="inline-flex items-center gap-2 px-4 py-2 border border-gray-200 text-sm font-medium rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
+                >
+                  <Pencil className="w-4 h-4" /> Edit
+                </Link>
               )}
 
               {/* Copy payment link */}
@@ -288,5 +298,13 @@ export default function VendorInvoiceDetailPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function VendorInvoiceDetailPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="animate-spin h-8 w-8 border-4 border-indigo-500 border-t-transparent rounded-full" /></div>}>
+      <VendorInvoiceDetailPageContent />
+    </Suspense>
   )
 }

@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import { AffiliatesService } from './affiliates.service';
 import { AffiliateGuard } from './guards/affiliate.guard';
-import { RegisterAffiliateDto, LoginAffiliateDto, UpdateAffiliateDto } from './dto/affiliate.dto';
+import { RegisterAffiliateDto, LoginAffiliateDto, UpdateAffiliateDto, InviteAffiliateDto } from './dto/affiliate.dto';
 
 @Controller('affiliates')
 export class AffiliatesController {
@@ -21,7 +21,14 @@ export class AffiliatesController {
 
   // ─── Public ──────────────────────────────────────────────────────────────
 
-  /** Register a new affiliate account */
+  /** Validate an invite token before showing the register form */
+  @Get('invite/validate')
+  async validateInvite(@Query('token') token: string) {
+    if (!token) return { valid: false, reason: 'No token provided' };
+    return this.affiliatesService.validateInviteToken(token);
+  }
+
+  /** Register a new affiliate account (requires a valid invite token) */
   @Post('register')
   async register(@Body() dto: RegisterAffiliateDto) {
     return this.affiliatesService.register(dto);
@@ -87,5 +94,19 @@ export class AffiliatesController {
   @UseGuards(AffiliateGuard)
   async getManagerUserDetail(@Req() req: any, @Param('id') id: string) {
     return this.affiliatesService.getManagerUserDetail(req.affiliate.email, id);
+  }
+
+  /** Sales manager: invite a new affiliate by email */
+  @Post('manager/invite')
+  @UseGuards(AffiliateGuard)
+  async inviteAffiliate(@Req() req: any, @Body() dto: InviteAffiliateDto) {
+    return this.affiliatesService.inviteAffiliate(dto.email, req.affiliate.email);
+  }
+
+  /** Sales manager: all registered affiliates with stats */
+  @Get('manager/affiliates')
+  @UseGuards(AffiliateGuard)
+  async getManagerAffiliates(@Req() req: any) {
+    return this.affiliatesService.getManagerAffiliates(req.affiliate.email);
   }
 }

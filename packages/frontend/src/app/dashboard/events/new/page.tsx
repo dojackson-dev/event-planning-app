@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { EventType, EventStatus, Event } from '@/types'
+import { useVenue } from '@/contexts/VenueContext'
 
 interface IntakeClient {
   id: string
@@ -35,6 +36,7 @@ const eventTypeLabels: Record<EventType, string> = {
 
 export default function NewEventPage() {
   const router = useRouter()
+  const { activeVenue } = useVenue()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showConflictWarning, setShowConflictWarning] = useState(false)
@@ -116,10 +118,11 @@ export default function NewEventPage() {
         date: formData.date,
         startTime: formData.startTime,
         endTime: formData.endTime,
-        venue: formData.venue,
+        venue: formData.venue || (activeVenue ? activeVenue.name : ''),
         maxGuests: formData.maxGuests ? parseInt(formData.maxGuests) : null,
         status: formData.status,
         clientId: clientId || undefined,
+        venueId: activeVenue ? activeVenue.id : undefined,
       }
 
       console.log('Creating event with payload:', payload)

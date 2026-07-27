@@ -73,7 +73,7 @@ export default function CustomerBookPage() {
     startTime: '',
     endTime: '',
     guestCount: 50,
-    venueName: 'DoVenue Event Center',
+    venueName: 'EventEcos Event Center',
     notes: '',
     contactName: user?.firstName ? `${user.firstName} ${user.lastName}` : '',
     contactEmail: user?.email || '',
@@ -441,8 +441,22 @@ export default function CustomerBookPage() {
             <p className="text-gray-500 mb-6">Please confirm all details are correct</p>
             
             <div className="space-y-4">
-              <div className="bg-primary-50 rounded-xl p-4">
-                <h3 className="font-semibold text-primary-900 mb-3">Event Details</h3>
+              <div className="bg-accent-50 rounded-xl p-4 border border-accent-100">
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-accent-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-accent-900">Booking Confirmation</p>
+                    <p className="text-sm text-accent-700 mt-1">Your event details are confirmed. You can now proceed with payment.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border border-gray-200 rounded-xl p-6 bg-white">
+                <h3 className="font-semibold text-gray-900 mb-3">Event Details</h3>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <p className="text-gray-500">Event Type</p>

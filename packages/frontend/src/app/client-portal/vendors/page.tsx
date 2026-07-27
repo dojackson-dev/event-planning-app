@@ -47,6 +47,7 @@ const CATEGORIES = [
   { value: 'photographer', label: '📷 Photographer' },
   { value: 'musicians', label: '🎵 Musicians' },
   { value: 'mc_host', label: '🎤 MC / Host' },
+  { value: 'graphic_designer', label: '🖌️ Graphic Designer' },
   { value: 'other', label: '⭐ Other' },
 ]
 
@@ -98,6 +99,7 @@ function ClientVendorsPageContent() {
   const [bookSubmitting, setBookSubmitting] = useState(false)
   const [bookError, setBookError] = useState('')
   const [bookSuccess, setBookSuccess] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   useEffect(() => {
     clientApi.get('/vendors')
@@ -161,6 +163,19 @@ function ClientVendorsPageContent() {
       setBookError(err.response?.data?.message || 'Failed to send booking request')
     } finally {
       setBookSubmitting(false)
+    }
+  }
+
+  const handleCancelRequest = async (id: string) => {
+    if (!confirm('Cancel this vendor request?')) return
+    setDeletingId(id)
+    try {
+      await clientApi.delete(`/vendors/requests/${id}`)
+      setVendorBookings(prev => prev.filter(b => b.id !== id))
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to cancel request')
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -264,9 +279,23 @@ function ClientVendorsPageContent() {
                             </p>
                           )}
                         </div>
-                        <span className={`text-xs font-medium px-2.5 py-1 rounded-full border flex-shrink-0 ${bookingStatusColor[vb.status] ?? 'bg-gray-100 text-gray-600 border-gray-200'}`}>
-                          {vb.status}
-                        </span>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${bookingStatusColor[vb.status] ?? 'bg-gray-100 text-gray-600 border-gray-200'}`}>
+                            {vb.status}
+                          </span>
+                          {vb._source === 'booking_request' && vb.status === 'pending' && (
+                            <button
+                              onClick={() => handleCancelRequest(vb.id)}
+                              disabled={deletingId === vb.id}
+                              className="p-1 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                              title="Cancel request"
+                            >
+                              {deletingId === vb.id
+                                ? <Loader2 className="h-4 w-4 animate-spin" />
+                                : <X className="h-4 w-4" />}
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       {v?.bio && <p className="mt-3 text-sm text-gray-600 line-clamp-2">{v.bio}</p>}

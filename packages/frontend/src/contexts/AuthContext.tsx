@@ -3,7 +3,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { User, AuthResponse, LoginCredentials, UserRole } from '@/types'
+import { performTokenRefresh } from '@/lib/refreshAuth'
+import { User, AuthResponse, LoginCredentials, UserRole } from '@/types/index'
 
 interface AuthContextType {
   user: User | null
@@ -27,12 +28,15 @@ function getRoleDashboard(role: UserRole): string {
   if (role === UserRole.ADMIN)     return '/admin'
   if (role === UserRole.VENDOR)    return '/vendors/dashboard'
   if (role === UserRole.AFFILIATE) return '/sales-portal/dashboard'
+  if (role === UserRole.PROMOTER)  return '/dashboard/promoter'
+  if (role === UserRole.ARTIST)    return '/artist/dashboard'
+  if (role === UserRole.ASSOCIATE) return '/dashboard'
   return '/dashboard'
 }
 
 function resolveRoles(backendRoles: string[], dbUser: any, email?: string): UserRole[] {
   // Always override for known admin e-mail
-  if (email?.toLowerCase() === 'admin@dovenuesuite.com') return [UserRole.ADMIN]
+  if (email?.toLowerCase() === 'admin@eventecos.com') return [UserRole.ADMIN]
 
   if (backendRoles && backendRoles.length > 0) {
     return backendRoles as UserRole[]
@@ -49,6 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roles, setRoles]                 = useState<UserRole[]>([])
   const [activeRole, setActiveRoleState]  = useState<UserRole | null>(null)
   const [isClient, setIsClient]           = useState(false)
+  const [authLoading, setAuthLoading]     = useState(true)
   const router = useRouter()
 
   // ── Load from localStorage (client only) ─────────────────────────────────
@@ -67,7 +72,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const storedActive = localStorage.getItem('active_role')
         const refreshTok   = localStorage.getItem('refresh_token')
 
-        if (!stored || !token) return
+        if (!token) { setAuthLoading(false); return }
+
+        // ── If we have a token but no stored user, fetch from backend ─────────
+        if (!stored) {
+          try {
+            const meRes = await api.get('/auth/flow/unified/me', {
+              headers: { Authorization: `Bearer ${token}` },
+            })
+            if (meRes.data?.roles?.length) {
+              const fetchedRoles: UserRole[] = meRes.data.roles
+              const fetchedActive = (storedActive as UserRole) || fetchedRoles[0]
+              localStorage.setItem('user_roles', JSON.stringify(fetchedRoles))
+              localStorage.setItem('active_role', fetchedActive)
+              setRoles(fetchedRoles)
+              setActiveRoleState(fetchedActive)
+            }
+          } catch { /* ignore — user may not be authenticated */ }
+          setAuthLoading(false); return
+        }
 
         // ── Proactively refresh if the JWT is expired ────────────────────────
         // Decoding the exp claim client-side avoids the 401 flash on page load
@@ -79,36 +102,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (!refreshTok) {
               console.warn('⚠️ [INIT] Token expired, no refresh token — clearing session')
               clearSession()
-              return
+              setAuthLoading(false); return
             }
             console.log('🔄 [INIT] Token expired — refreshing proactively...')
-            const res = await api.post('/auth/refresh', { refresh_token: refreshTok })
-            const { access_token, refresh_token: newRefresh } = res.data
+            const { access_token, refresh_token: newRefresh } = await performTokenRefresh(refreshTok)
             activeToken = access_token
-            localStorage.setItem('access_token', access_token)
-            if (newRefresh) localStorage.setItem('refresh_token', newRefresh)
             console.log('✅ [INIT] Token refreshed successfully')
           }
-        } catch (refreshErr) {
-          console.warn('⚠️ [INIT] Token refresh failed — clearing session', refreshErr)
-          clearSession()
-          return
+        } catch (refreshErr: any) {
+          // Only clear session on actual auth failures, not network errors
+          const status = refreshErr?.response?.status
+          if (status === 401 || status === 403) {
+            console.warn('⚠️ [INIT] Token refresh rejected by server — clearing session', refreshErr)
+            clearSession()
+          } else {
+            // Network error (backend down/restarting) — keep session, retry later
+            console.warn('⚠️ [INIT] Token refresh failed (network error) — keeping session', refreshErr)
+          }
+          setAuthLoading(false); return
         }
         // ─────────────────────────────────────────────────────────────────────
 
         const parsed: User = JSON.parse(stored)
 
-        // Legacy e-mail overrides
-        if (parsed.email?.toLowerCase() === 'admin@dovenuesuite.com') {
+        // Legacy e-mail override
+        if (parsed.email?.toLowerCase() === 'admin@eventecos.com') {
           parsed.role = UserRole.ADMIN
         }
-        if (parsed.email?.toLowerCase() === 'larry@curesicklecell.org') {
-          if (!storedRoles) parsed.role = UserRole.VENDOR
-        }
 
-        const parsedRoles: UserRole[] = storedRoles
-          ? JSON.parse(storedRoles)
-          : [parsed.role]
+        // Parse stored roles — if empty/missing, fetch fresh roles from backend
+        let parsedRoles: UserRole[] = []
+        const rawStored = storedRoles ? JSON.parse(storedRoles) : []
+        if (Array.isArray(rawStored) && rawStored.length > 0) {
+          parsedRoles = rawStored
+        } else {
+          // Stale session — fetch roles from backend using the valid token
+          try {
+            const meRes = await api.get('/auth/flow/unified/me', {
+              headers: { Authorization: `Bearer ${activeToken}` },
+            }).catch(() => null)
+            if (meRes?.data?.roles?.length > 0) {
+              parsedRoles = meRes!.data.roles
+            } else {
+              // Fallback: re-run unified login isn't possible without password,
+              // so derive from stored user or single role
+              parsedRoles = parsed.roles as UserRole[] || [parsed.role as UserRole]
+            }
+          } catch {
+            parsedRoles = [parsed.role as UserRole]
+          }
+          // Persist the resolved roles so next load is instant
+          localStorage.setItem('user_roles', JSON.stringify(parsedRoles))
+          console.log('🔄 [INIT] Refreshed roles from backend:', parsedRoles)
+        }
 
         const parsedActive: UserRole = (storedActive as UserRole) || parsedRoles[0]
 
@@ -118,6 +164,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setActiveRoleState(parsedActive)
       } catch (e) {
         console.error('[INIT] Error loading from localStorage:', e)
+      } finally {
+        setAuthLoading(false)
       }
     }
 
@@ -131,15 +179,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Use the unified login endpoint — handles all role types and returns roles[]
       const response = await api.post('/auth/flow/unified/login', credentials)
-      const { session, user: dbUser, roles: backendRoles } = response.data
+      const { session, user: dbUser, roles: backendRoles, ownerAccountId: backendOwnerAccountId } = response.data
 
       console.log('✅ [LOGIN] Got response:', dbUser?.email, 'roles:', backendRoles)
 
       const resolvedRoles = resolveRoles(backendRoles, dbUser, credentials.email)
 
-      // Determine primary active role
-      let activeR: UserRole = resolvedRoles[0]
-      if (credentials.email?.toLowerCase() === 'admin@dovenuesuite.com') {
+      // Determine primary active role — prefer previously stored role if still valid
+      const storedPreviousRole = typeof window !== 'undefined' ? localStorage.getItem('active_role') as UserRole : null
+      let activeR: UserRole = (storedPreviousRole && resolvedRoles.includes(storedPreviousRole))
+        ? storedPreviousRole
+        : resolvedRoles[0]
+      if (credentials.email?.toLowerCase() === 'admin@eventecos.com') {
         activeR = UserRole.ADMIN
       }
 
@@ -148,6 +199,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email:      dbUser.email || '',
         firstName:  dbUser.first_name  || dbUser.user_metadata?.first_name  || '',
         lastName:   dbUser.last_name   || dbUser.user_metadata?.last_name   || '',
+        phone:      dbUser.phone_number || dbUser.user_metadata?.phone || '',
         role:       activeR,
         roles:      resolvedRoles,
         createdAt:  dbUser.created_at  || new Date().toISOString(),
@@ -164,6 +216,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (session.refresh_token) {
         localStorage.setItem('refresh_token', session.refresh_token)
       }
+      if (backendOwnerAccountId) {
+        localStorage.setItem('owner_account_id', backendOwnerAccountId)
+      }
 
       setUser(newUser)
       setRoles(resolvedRoles)
@@ -172,14 +227,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await new Promise(r => setTimeout(r, 100))
 
       // ── Navigate ───────────────────────────────────────────────────────────
-      if (resolvedRoles.length > 1 && activeR !== UserRole.ADMIN) {
-        console.log('🚀 [LOGIN] Multiple roles — navigating to /choose-role')
-        router.push('/choose-role')
+      // Multi-role users go to the role picker; single-role users go straight to their dashboard.
+      let dest: string
+      const nonAdminRoles = resolvedRoles.filter(r => r !== UserRole.ADMIN)
+      if (nonAdminRoles.length > 1) {
+        dest = '/choose-role'
       } else {
-        const dest = getRoleDashboard(activeR)
-        console.log('🚀 [LOGIN] Navigating to', dest)
-        router.push(dest)
+        dest = getRoleDashboard(activeR)
       }
+      console.log('🚀 [LOGIN] Navigating to', dest, '(roles:', resolvedRoles, ')')
+      router.push(dest)
 
     } catch (error: any) {
       console.error('❌ [LOGIN] Error:', error?.response?.data?.message || error?.message)
@@ -219,7 +276,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{
       user,
-      loading: !isClient,
+      loading: !isClient || authLoading,
       roles,
       activeRole,
       login,

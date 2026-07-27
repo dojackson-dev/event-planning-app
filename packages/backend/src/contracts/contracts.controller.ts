@@ -51,14 +51,15 @@ export class ContractsController {
     @Headers('authorization') authorization: string,
     @Query('ownerId') ownerId?: string,
     @Query('clientId') clientId?: string,
+    @Query('venueId') venueId?: string,
   ): Promise<any[]> {
     const userId = await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabase = this.supabaseService.setAuthContext(token);
 
-    if (ownerId) return this.contractsService.findByOwner(supabase, ownerId);
+    if (ownerId) return this.contractsService.findByOwner(supabase, ownerId, venueId);
     if (clientId) return this.contractsService.findByClient(supabase, clientId);
-    return this.contractsService.findByOwner(supabase, userId);
+    return this.contractsService.findByOwner(supabase, userId, venueId);
   }
 
   @Get(':id')
@@ -169,6 +170,21 @@ export class ContractsController {
     return this.contractsService.signContract(supabase, id, signatureData);
   }
 
+  @Post(':id/owner-sign')
+  async ownerSignContract(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+    @Body() body: { signatureData: string; signerName: string },
+  ): Promise<any | null> {
+    const userId = await this.getUserId(authorization);
+    const token = this.extractToken(authorization);
+    const supabase = this.supabaseService.setAuthContext(token);
+    if (!body?.signatureData || !body?.signerName) {
+      throw new BadRequestException('signatureData and signerName are required');
+    }
+    return this.contractsService.ownerSignContract(supabase, id, body.signatureData, body.signerName, userId);
+  }
+
   @Post(':id/send')
   async sendContract(
     @Headers('authorization') authorization: string,
@@ -178,6 +194,78 @@ export class ContractsController {
     const token = this.extractToken(authorization);
     const supabase = this.supabaseService.setAuthContext(token);
     return this.contractsService.sendContract(supabase, id);
+  }
+
+  @Post(':id/regenerate')
+  async regenerateBody(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+    @Body() body: { template_data: any; contract_type: string },
+  ): Promise<{ body: string }> {
+    await this.getUserId(authorization);
+    const html = this.contractsService.generateBody(body.contract_type, body.template_data);
+    return { body: html };
+  }
+
+  // Public endpoint — no auth required. Marks a contract as viewed by the client (first open only).
+  @Post(':id/viewed')
+  async markViewed(@Param('id') id: string): Promise<void> {
+    const admin = this.supabaseService.getAdminClient();
+    await admin
+      .from('contracts')
+      .update({ viewed_at: new Date().toISOString() })
+      .eq('id', id)
+      .is('viewed_at', null);
+  }
+
+  // ── Vendor-specific endpoints ─────────────────────────────────────────────
+
+  @Get('vendor/mine')
+  async getVendorContracts(
+    @Headers('authorization') authorization: string,
+  ): Promise<any[]> {
+    const userId = await this.getUserId(authorization);
+    return this.contractsService.findByVendorUser(userId);
+  }
+
+  @Post(':id/vendor-sign')
+  async vendorSignContract(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+    @Body() body: { signatureData: string; signerName: string },
+  ): Promise<any> {
+    const userId = await this.getUserId(authorization);
+    if (!body?.signatureData || !body?.signerName) {
+      throw new BadRequestException('signatureData and signerName are required');
+    }
+    return this.contractsService.signContractAsVendor(
+      userId,
+      id,
+      body.signatureData,
+      body.signerName,
+    );
+  }
+
+  @Post(':id/vendor-send')
+  async vendorSendContract(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+    @Body() body: { sendTo: 'client' | 'owner' },
+  ): Promise<any> {
+    const userId = await this.getUserId(authorization);
+    if (!body?.sendTo || !['client', 'owner'].includes(body.sendTo)) {
+      throw new BadRequestException('sendTo must be "client" or "owner"');
+    }
+    return this.contractsService.sendContractAsVendor(userId, id, body.sendTo);
+  }
+
+  @Post(':id/void')
+  async voidContract(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+  ): Promise<any> {
+    const userId = await this.getUserId(authorization);
+    return this.contractsService.voidContract(null as any, id, userId);
   }
 
   @Delete(':id')

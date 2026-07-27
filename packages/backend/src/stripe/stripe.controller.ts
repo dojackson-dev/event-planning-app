@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
   Body,
   Headers,
   RawBody,
@@ -104,7 +105,68 @@ export class StripeController {
     return { url };
   }
 
-  // ─── Subscription Status (authenticated) ─────────────────────────────────
+  // ─── Promoter Subscription Checkout (authenticated) ─────────────────────
+
+  /**
+   * POST /stripe/promoter-checkout
+   * Body: { plan: 'pro' | 'premium' }
+   * Requires Bearer token (promoter's own JWT).
+   */
+  @Post('promoter-checkout')
+  async createPromoterCheckoutSession(
+    @Headers('authorization') authorization: string,
+    @Body() body: { plan: 'pro' | 'premium' },
+  ): Promise<{ url: string }> {
+    if (!body.plan || !['pro', 'premium'].includes(body.plan)) {
+      throw new BadRequestException("plan must be 'pro' or 'premium'");
+    }
+    const userId = await this.getUserIdFromAuth(authorization);
+
+    // Look up promoter account for this user
+    const admin = this.supabaseService.getAdminClient();
+    const { data: promoter } = await admin
+      .from('promoter_accounts')
+      .select('id, email, name')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!promoter) {
+      throw new BadRequestException('No promoter account found for this user');
+    }
+
+    const url = await this.stripeService.createPromoterCheckoutSession(
+      promoter.id,
+      body.plan,
+      promoter.email,
+      promoter.name,
+    );
+    return { url };
+  }
+
+  /**
+   * POST /stripe/promoter-billing-portal
+   * Requires Bearer token. Returns URL for Stripe Billing Portal.
+   */
+  @Post('promoter-billing-portal')
+  async createPromoterBillingPortal(
+    @Headers('authorization') authorization: string,
+  ): Promise<{ url: string }> {
+    const userId = await this.getUserIdFromAuth(authorization);
+
+    const admin = this.supabaseService.getAdminClient();
+    const { data: promoter } = await admin
+      .from('promoter_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!promoter) {
+      throw new BadRequestException('No promoter account found for this user');
+    }
+
+    const url = await this.stripeService.createPromoterBillingPortalSession(promoter.id);
+    return { url };
+  }
 
   /**
    * GET /stripe/subscription?ownerAccountId=xxx
@@ -176,7 +238,7 @@ export class StripeController {
   @Get('connect/owner/status')
   async ownerConnectStatus(
     @Headers('authorization') authorization: string,
-  ): Promise<{ status: string; connectId: string | null }> {
+  ): Promise<{ status: string; connectId: string | null; accountCreatedAt: string | null; planName: string | null; subscriptionStatus: string | null }> {
     const userId = await this.getUserIdFromAuth(authorization);
     return this.stripeService.getOwnerConnectStatus(userId);
   }
@@ -190,6 +252,106 @@ export class StripeController {
   ): Promise<{ status: string; connectId: string | null }> {
     const userId = await this.getUserIdFromAuth(authorization);
     return this.stripeService.getVendorConnectStatus(userId);
+  }
+
+  /**
+   * DELETE /stripe/connect/owner/reset — Clear stuck Connect account so a fresh one is created
+   */
+  @Delete('connect/owner/reset')
+  async resetOwnerConnect(
+    @Headers('authorization') authorization: string,
+  ): Promise<{ success: boolean }> {
+    const userId = await this.getUserIdFromAuth(authorization);
+    return this.stripeService.resetOwnerConnect(userId);
+  }
+
+  /**
+   * DELETE /stripe/connect/vendor/reset — Clear stuck Connect account so a fresh one is created
+   */
+  @Delete('connect/vendor/reset')
+  async resetVendorConnect(
+    @Headers('authorization') authorization: string,
+  ): Promise<{ success: boolean }> {
+    const userId = await this.getUserIdFromAuth(authorization);
+    return this.stripeService.resetVendorConnect(userId);
+  }
+
+  // ─── Promoter Connect ─────────────────────────────────────────────────────
+
+  /**
+   * POST /stripe/connect/promoter
+   * Starts Connect Express onboarding for a promoter.
+   */
+  @Post('connect/promoter')
+  async promoterConnectOnboarding(
+    @Headers('authorization') authorization: string,
+    @Body() body: { email: string },
+  ): Promise<{ url: string }> {
+    if (!body.email) throw new BadRequestException('email is required');
+    const userId = await this.getUserIdFromAuth(authorization);
+    const url = await this.stripeService.createPromoterConnectOnboarding(userId, body.email);
+    return { url };
+  }
+
+  /**
+   * GET /stripe/connect/promoter/status
+   */
+  @Get('connect/promoter/status')
+  async promoterConnectStatus(
+    @Headers('authorization') authorization: string,
+  ): Promise<{ status: string; connectId: string | null }> {
+    const userId = await this.getUserIdFromAuth(authorization);
+    return this.stripeService.getPromoterConnectStatus(userId);
+  }
+
+  /**
+   * DELETE /stripe/connect/promoter/reset — Clear stuck Connect account
+   */
+  @Delete('connect/promoter/reset')
+  async resetPromoterConnect(
+    @Headers('authorization') authorization: string,
+  ): Promise<{ success: boolean }> {
+    const userId = await this.getUserIdFromAuth(authorization);
+    return this.stripeService.resetPromoterConnect(userId);
+  }
+
+  // ─── Artist Connect ───────────────────────────────────────────────────────
+
+  /**
+   * POST /stripe/connect/artist
+   * Starts Connect Express onboarding for an artist.
+   */
+  @Post('connect/artist')
+  async artistConnectOnboarding(
+    @Headers('authorization') authorization: string,
+    @Body() body: { email: string },
+  ): Promise<{ url: string }> {
+    if (!body.email) throw new BadRequestException('email is required');
+    const userId = await this.getUserIdFromAuth(authorization);
+    const url = await this.stripeService.createArtistConnectOnboarding(userId, body.email);
+    return { url };
+  }
+
+  /**
+   * GET /stripe/connect/artist/status
+   */
+  @Get('connect/artist/status')
+  async artistConnectStatus(
+    @Headers('authorization') authorization: string,
+  ): Promise<{ status: string; connectId: string | null }> {
+    const userId = await this.getUserIdFromAuth(authorization);
+    return this.stripeService.getArtistConnectStatus(userId);
+  }
+
+  /**
+   * DELETE /stripe/connect/artist/reset — Clear stuck Connect account
+   */
+  @Delete('connect/artist/reset')
+  async resetArtistConnect(
+    @Headers('authorization') authorization: string,
+  ): Promise<{ success: boolean }> {
+    const userId = await this.getUserIdFromAuth(authorization);
+    return this.stripeService.resetArtistConnect(userId);
   }
 
   // ─── Payments ─────────────────────────────────────────────────────────────
@@ -279,5 +441,31 @@ export class StripeController {
     }
     const url = await this.stripeService.createPublicInvoiceCheckout(token, amountCents);
     return { url };
+  }
+
+  /**
+   * POST /stripe/invoice-pay/:token/verify-payment?sid=<stripeSessionId>
+   * Public endpoint — webhook fallback. Confirms payment with Stripe and marks invoice paid.
+   */
+  @Post('invoice-pay/:token/verify-payment')
+  async verifyPublicInvoicePayment(
+    @Param('token') token: string,
+    @Query('sid') sid: string,
+  ) {
+    if (!sid) throw new BadRequestException('sid is required');
+    return this.stripeService.verifyPublicInvoicePayment(token, sid);
+  }
+
+  /**
+   * POST /stripe/invoice-verify/:invoiceId?sid=<stripeSessionId>
+   * Webhook fallback for the client portal. Verifies payment with Stripe by session ID.
+   */
+  @Post('invoice-verify/:invoiceId')
+  async verifyInvoicePaymentById(
+    @Param('invoiceId') invoiceId: string,
+    @Query('sid') sid: string,
+  ) {
+    if (!sid) throw new BadRequestException('sid is required');
+    return this.stripeService.verifyInvoicePaymentById(invoiceId, sid);
   }
 }

@@ -152,7 +152,7 @@ export class AuthService {
         first_name: updateProfileDto.firstName,
         last_name: updateProfileDto.lastName,
         ...(updateProfileDto.email ? { email: updateProfileDto.email } : {}),
-        phone: updateProfileDto.phone,
+        phone_number: updateProfileDto.phone,
         updated_at: new Date().toISOString(),
       })
       .eq('id', userId);
@@ -223,7 +223,7 @@ export class AuthService {
     }
 
     // Delete the auth user using admin client
-    const adminSupabase = this.supabaseService.getClient();
+    const adminSupabase = this.supabaseService.getAdminClient();
     const { error } = await adminSupabase.auth.admin.deleteUser(userId);
 
     if (error) {

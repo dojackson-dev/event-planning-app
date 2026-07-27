@@ -8,6 +8,7 @@ import {
 import { SupabaseService } from '../supabase/supabase.service';
 import { RegisterAffiliateDto, UpdateAffiliateDto } from './dto/affiliate.dto';
 import { randomBytes } from 'crypto';
+import { MailService } from '../mail/mail.service';
 
 /** Commission rates */
 const CONVERSION_RATE = 0.50;  // 50% of first subscription payment
@@ -16,12 +17,103 @@ const MAX_COMMISSION_YEARS = 3;
 
 @Injectable()
 export class AffiliatesService {
-  constructor(private readonly supabaseService: SupabaseService) {}
+  constructor(
+    private readonly supabaseService: SupabaseService,
+    private readonly mailService: MailService,
+  ) {}
+
+  // ─── Invite Flow ─────────────────────────────────────────────────────────
+
+  async inviteAffiliate(email: string, managerEmail: string) {
+    const admin = this.supabaseService.getAdminClient();
+
+    // Only the sales manager can send invites
+    if (managerEmail !== 'sales@eventecos.com') {
+      throw new ForbiddenException('Only the sales manager can send invites');
+    }
+
+    const normalizedEmail = email.toLowerCase();
+
+    // Check if already an affiliate
+    const { data: existing } = await admin
+      .from('affiliates')
+      .select('id')
+      .eq('email', normalizedEmail)
+      .maybeSingle();
+
+    if (existing) {
+      throw new BadRequestException('This email is already registered as an affiliate');
+    }
+
+    // Revoke any previous unused invite for this email
+    await admin
+      .from('affiliate_invites')
+      .update({ used_at: new Date().toISOString() })
+      .eq('email', normalizedEmail)
+      .is('used_at', null);
+
+    // Generate a secure token
+    const token = randomBytes(32).toString('hex');
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
+    const { error: insertErr } = await admin.from('affiliate_invites').insert({
+      email: normalizedEmail,
+      token,
+      invited_by: managerEmail,
+      expires_at: expiresAt.toISOString(),
+    });
+
+    if (insertErr) {
+      throw new BadRequestException(insertErr.message);
+    }
+
+    // Send the invite email
+    await this.mailService.sendAffiliateInvite({ toEmail: normalizedEmail, inviteToken: token });
+
+    return { message: `Invite sent to ${normalizedEmail}` };
+  }
+
+  async validateInviteToken(token: string) {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: invite } = await admin
+      .from('affiliate_invites')
+      .select('email, used_at, expires_at')
+      .eq('token', token)
+      .maybeSingle();
+
+    if (!invite) return { valid: false, reason: 'Invalid invite link' };
+    if (invite.used_at) return { valid: false, reason: 'This invite link has already been used' };
+    if (new Date(invite.expires_at) < new Date()) return { valid: false, reason: 'This invite link has expired' };
+
+    return { valid: true, email: invite.email };
+  }
 
   // ─── Registration ────────────────────────────────────────────────────────
 
   async register(dto: RegisterAffiliateDto) {
     const admin = this.supabaseService.getAdminClient();
+
+    // Validate invite token
+    const { data: invite, error: inviteErr } = await admin
+      .from('affiliate_invites')
+      .select('id, email, used_at, expires_at')
+      .eq('token', dto.inviteToken)
+      .maybeSingle();
+
+    if (inviteErr || !invite) {
+      throw new BadRequestException('Invalid or expired invite link');
+    }
+    if (invite.used_at) {
+      throw new BadRequestException('This invite link has already been used');
+    }
+    if (new Date(invite.expires_at) < new Date()) {
+      throw new BadRequestException('This invite link has expired');
+    }
+    if (invite.email.toLowerCase() !== dto.email.toLowerCase()) {
+      throw new BadRequestException('This invite was sent to a different email address');
+    }
 
     // Check email uniqueness in users table
     const { data: existing } = await admin
@@ -34,11 +126,11 @@ export class AffiliatesService {
       throw new BadRequestException('An account with this email already exists');
     }
 
-    // Create Supabase auth user
+    // Create Supabase auth user — auto-confirm email so affiliates can login immediately
     const { data: authData, error: authError } = await admin.auth.admin.createUser({
       email: dto.email,
       password: dto.password,
-      email_confirm: false,
+      email_confirm: true,
       user_metadata: {
         first_name: dto.firstName,
         last_name: dto.lastName,
@@ -91,6 +183,12 @@ export class AffiliatesService {
       await admin.auth.admin.deleteUser(userId);
       throw new BadRequestException(affError.message);
     }
+
+    // Mark invite as used
+    await admin
+      .from('affiliate_invites')
+      .update({ used_at: new Date().toISOString() })
+      .eq('token', dto.inviteToken);
 
     // Sign in to get a session for the new affiliate
     const anonClient = this.supabaseService.getClient();
@@ -604,6 +702,61 @@ export class AffiliatesService {
       referred_by: referredBy,
       stats,
     };
+  }
+
+  // ─── Sales Manager: All-affiliates view ─────────────────────────────────
+
+  async getManagerAffiliates(affiliateEmail: string) {
+    if (affiliateEmail !== 'sales@eventecos.com') {
+      throw new ForbiddenException('Manager access only');
+    }
+
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: affiliates, error } = await admin
+      .from('affiliates')
+      .select('id, first_name, last_name, email, referral_code, status, created_at')
+      .neq('email', 'sales@eventecos.com')
+      .order('created_at', { ascending: false });
+
+    if (error) throw new BadRequestException(error.message);
+
+    const affiliateIds = (affiliates ?? []).map((a: any) => a.id);
+
+    if (!affiliateIds.length) return { affiliates: [] };
+
+    const [{ data: referrals }, { data: commissions }] = await Promise.all([
+      admin
+        .from('affiliate_referrals')
+        .select('affiliate_id, status')
+        .in('affiliate_id', affiliateIds),
+      admin
+        .from('affiliate_commissions')
+        .select('affiliate_id, commission_amount, status')
+        .in('affiliate_id', affiliateIds),
+    ]);
+
+    const enriched = (affiliates ?? []).map((a: any) => {
+      const refs  = (referrals   ?? []).filter((r: any) => r.affiliate_id === a.id);
+      const comms = (commissions ?? []).filter((c: any) => c.affiliate_id === a.id);
+      return {
+        id:            a.id,
+        first_name:    a.first_name,
+        last_name:     a.last_name,
+        email:         a.email,
+        referral_code: a.referral_code,
+        status:        a.status,
+        joined_at:     a.created_at,
+        stats: {
+          totalReferred:   refs.length,
+          totalConverted:  refs.filter((r: any) => r.status === 'converted').length,
+          totalEarned:     Number(comms.reduce((s: number, c: any) => s + Number(c.commission_amount), 0).toFixed(2)),
+          pendingEarnings: Number(comms.filter((c: any) => c.status === 'pending').reduce((s: number, c: any) => s + Number(c.commission_amount), 0).toFixed(2)),
+        },
+      };
+    });
+
+    return { affiliates: enriched };
   }
 
   // ─── Referral Code Lookup ─────────────────────────────────────────────────

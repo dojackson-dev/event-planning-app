@@ -31,3 +31,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# compiled JS alongside source (should not be committed)
+src/app/**/page.js
+src/app/**/layout.js
+src/app/**/route.js

@@ -11,24 +11,28 @@ import {
   Store,
   FileText,
   MessageSquare,
-  Package,
+  Receipt,
   Bell,
   LogOut,
   Menu,
   X,
   ChevronRight,
+  Users,
 } from 'lucide-react'
 import { ClientAuthProvider } from '@/contexts/ClientAuthContext'
+import ClientPortalTour from '@/components/ClientPortalTour'
+import { ClientNotificationProvider, useClientNotifications } from '@/contexts/ClientNotificationContext'
 
 const navItems = [
-  { name: 'Overview',        href: '/client-portal',           icon: LayoutDashboard },
-  { name: 'My Events',       href: '/client-portal/events',    icon: Calendar },
-  { name: 'Vendors',         href: '/client-portal/vendors',   icon: Store },
-  { name: 'Items & Packages',href: '/client-portal/items',     icon: Package },
-  { name: 'Estimates',       href: '/client-portal/estimates', icon: FileText },
-  { name: 'Contracts',       href: '/client-portal/contracts', icon: FileText },
-  { name: 'Messages',        href: '/client-portal/messages',  icon: MessageSquare },
-  { name: 'Notifications',   href: '/client-portal/notifications', icon: Bell },
+  { name: 'Overview',      href: '/client-portal',               icon: LayoutDashboard },
+  { name: 'Invoices',      href: '/client-portal/invoices',      icon: Receipt },
+  { name: 'My Events',     href: '/client-portal/events',        icon: Calendar },
+  { name: 'RSVP',          href: '/client-portal/rsvp',          icon: Users },
+  { name: 'Contracts',     href: '/client-portal/contracts',     icon: FileText },
+  { name: 'Estimates',     href: '/client-portal/estimates',     icon: FileText },
+  { name: 'Vendors',       href: '/client-portal/vendors',       icon: Store },
+  { name: 'Messages',      href: '/client-portal/messages',      icon: MessageSquare },
+  { name: 'Notifications', href: '/client-portal/notifications', icon: Bell },
 ]
 
 function ClientPortalLayoutInner({ children }: { children: React.ReactNode }) {
@@ -36,6 +40,7 @@ function ClientPortalLayoutInner({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const { client, isClientAuthenticated, loading, clientLogout } = useClientAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const { unreadCount } = useClientNotifications()
 
   useEffect(() => {
     if (!loading && !isClientAuthenticated) {
@@ -58,7 +63,7 @@ function ClientPortalLayoutInner({ children }: { children: React.ReactNode }) {
       {/* Mobile top bar */}
       <div className="lg:hidden fixed top-0 inset-x-0 z-50 bg-white border-b border-gray-200 h-16 flex items-center justify-between px-4">
         <div className="flex items-center gap-2">
-          <img src="/lib/LogoDVS.png" alt="DoVenueSuite" style={{ height: '40px', width: 'auto' }} />
+          <img src="/lib/EventEcos-Logo-Only.jpg" alt="EventEcos" style={{ height: '40px', width: 'auto' }} />
           <span className="text-primary-600 text-[10px] font-semibold tracking-widest uppercase">ClientSuite</span>
         </div>
         <button
@@ -84,7 +89,7 @@ function ClientPortalLayoutInner({ children }: { children: React.ReactNode }) {
       >
         {/* Logo */}
         <div className="hidden lg:flex flex-col items-center justify-center h-20 px-4 bg-primary-600 gap-1">
-          <img src="/lib/LogoDVS.png" alt="DoVenueSuite" style={{ height: '48px', width: 'auto' }} />
+          <img src="/lib/EventEcos-Logo-Only.jpg" alt="EventEcos" style={{ height: '48px', width: 'auto' }} />
           <span className="text-white/60 text-[10px] font-semibold tracking-widest uppercase">ClientSuite</span>
         </div>
 
@@ -111,6 +116,7 @@ function ClientPortalLayoutInner({ children }: { children: React.ReactNode }) {
           {navItems.map((item) => {
             const isActive = pathname === item.href
             const Icon = item.icon
+            const isNotifications = item.href === '/client-portal/notifications'
             return (
               <Link
                 key={item.name}
@@ -124,7 +130,13 @@ function ClientPortalLayoutInner({ children }: { children: React.ReactNode }) {
               >
                 <Icon className={`h-5 w-5 flex-shrink-0 ${isActive ? 'text-primary-600' : 'text-gray-400'}`} />
                 {item.name}
-                {isActive && <ChevronRight className="ml-auto h-4 w-4 text-primary-400" />}
+                {isNotifications && unreadCount > 0 && (
+                  <span className="ml-auto inline-flex items-center justify-center h-5 w-5 rounded-full bg-red-500 text-white text-xs font-bold">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+                {isActive && !isNotifications && <ChevronRight className="ml-auto h-4 w-4 text-primary-400" />}
+                {isActive && isNotifications && unreadCount === 0 && <ChevronRight className="ml-auto h-4 w-4 text-primary-400" />}
               </Link>
             )
           })}
@@ -146,6 +158,9 @@ function ClientPortalLayoutInner({ children }: { children: React.ReactNode }) {
       <div className="lg:pl-64 pt-16 lg:pt-0 min-h-screen">
         <main className="p-6">{children}</main>
       </div>
+
+      {/* Client Portal Tour */}
+      <ClientPortalTour />
     </div>
   )
 }
@@ -153,7 +168,9 @@ function ClientPortalLayoutInner({ children }: { children: React.ReactNode }) {
 export default function ClientPortalLayout({ children }: { children: React.ReactNode }) {
   return (
     <ClientAuthProvider>
-      <ClientPortalLayoutInner>{children}</ClientPortalLayoutInner>
+      <ClientNotificationProvider>
+        <ClientPortalLayoutInner>{children}</ClientPortalLayoutInner>
+      </ClientNotificationProvider>
     </ClientAuthProvider>
   )
 }

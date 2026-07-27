@@ -1,9 +1,22 @@
 // Shared types and constants for vendor pages
 
+export const VENDOR_CATEGORIES = [
+  { value: 'dj', label: 'DJ', icon: '🎧' },
+  { value: 'decorator', label: 'Decorator', icon: '🎨' },
+  { value: 'planner_coordinator', label: 'Planner / Coordinator', icon: '📋' },
+  { value: 'furniture', label: 'Furniture', icon: '🪑' },
+  { value: 'photographer', label: 'Photographer', icon: '📷' },
+  { value: 'musicians', label: 'Musicians', icon: '🎵' },
+  { value: 'mc_host', label: 'MC / Host', icon: '🎤' },
+  { value: 'graphic_designer', label: 'Graphic Designer', icon: '🖌️' },
+  { value: 'other', label: 'Other', icon: '⭐' },
+]
+
 export interface VendorProfile {
   id: string
   business_name: string
   category: string
+  categories?: string[]
   bio: string
   address: string
   city: string
@@ -24,6 +37,13 @@ export interface VendorProfile {
   reviewCount?: number
 }
 
+export interface VendorInvoiceSummary {
+  id: string
+  status: string
+  total_amount: number
+  amount_paid: number
+}
+
 export interface Booking {
   id: string
   event_name: string
@@ -31,11 +51,15 @@ export interface Booking {
   start_time: string
   end_time: string
   venue_name: string
+  client_name: string
+  client_email?: string
+  client_phone?: string
   status: string
   agreed_amount: number
   deposit_amount: number
   payment_status: string
   notes: string
+  vendorInvoices?: VendorInvoiceSummary[]
 }
 
 export interface VendorInvoice {

@@ -2,7 +2,14 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service.js';
 import { TwilioService } from './twilio.service.js';
 
-export type MessageType = 'reminder' | 'invoice' | 'confirmation' | 'update' | 'support' | 'announcement' | 'custom';
+export type MessageType =
+  | 'reminder'
+  | 'invoice'
+  | 'confirmation'
+  | 'update'
+  | 'support'
+  | 'announcement'
+  | 'custom';
 export type RecipientType = 'client' | 'guest' | 'security' | 'custom';
 
 @Injectable()
@@ -53,18 +60,23 @@ export class MessagingService {
     return this.mapRow(data);
   }
 
-  async sendMessage(supabase: any, ownerId: string, messageData: {
-    recipientPhone: string;
-    recipientName: string;
-    recipientType: RecipientType;
-    userId?: string;
-    eventId?: string;
-    messageType: MessageType;
-    content: string;
-    skipOptInCheck?: boolean;
-  }) {
+  async sendMessage(
+    supabase: any,
+    ownerId: string,
+    messageData: {
+      recipientPhone: string;
+      recipientName: string;
+      recipientType: RecipientType;
+      userId?: string;
+      eventId?: string;
+      messageType: MessageType;
+      content: string;
+      skipOptInCheck?: boolean;
+    },
+  ) {
     // Enforce opt-in for named users (client/guest recipient types)
-    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const UUID_REGEX =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
     // When skipOptInCheck is true the caller is sending to an intake-form client.
     // The "userId" in that case is the intake_form row UUID, NOT an auth.users UUID,
@@ -76,7 +88,11 @@ export class MessagingService {
         ? messageData.userId
         : null;
 
-    if (!messageData.skipOptInCheck && messageData.userId && UUID_REGEX.test(messageData.userId)) {
+    if (
+      !messageData.skipOptInCheck &&
+      messageData.userId &&
+      UUID_REGEX.test(messageData.userId)
+    ) {
       const { data: recipient } = await supabase
         .from('users')
         .select('sms_opt_in')
@@ -110,7 +126,11 @@ export class MessagingService {
       .single();
 
     if (insertError) {
-      this.logger.error('messages insert failed', insertError.message, insertError);
+      this.logger.error(
+        'messages insert failed',
+        insertError.message,
+        insertError,
+      );
       throw new Error(`DB insert failed: ${insertError.message}`);
     }
 
@@ -131,7 +151,11 @@ export class MessagingService {
       );
       const { data: updated } = await supabase
         .from('messages')
-        .update({ status: 'sent', twilio_sid: result.sid, sent_at: new Date().toISOString() })
+        .update({
+          status: 'sent',
+          twilio_sid: result.sid,
+          sent_at: new Date().toISOString(),
+        })
         .eq('id', savedMessage.id)
         .select()
         .single();
@@ -171,7 +195,9 @@ export class MessagingService {
     if (!message || !message.twilio_sid) return this.mapRow(message);
 
     try {
-      const status = await this.twilioService.getMessageStatus(message.twilio_sid);
+      const status = await this.twilioService.getMessageStatus(
+        message.twilio_sid,
+      );
       const { data: updated } = await supabase
         .from('messages')
         .update({ status })
@@ -216,7 +242,11 @@ export class MessagingService {
    * sms_opt_in flag on the matching user record — using the admin Supabase
    * client so the webhook can run without a user JWT.
    */
-  async handleInboundMessage(adminSupabase: any, body: string, from: string): Promise<void> {
+  async handleInboundMessage(
+    adminSupabase: any,
+    body: string,
+    from: string,
+  ): Promise<void> {
     const { action } = this.twilioService.parseInboundMessage(body, from);
     if (!action) return;
 
@@ -235,9 +265,253 @@ export class MessagingService {
       .eq('phone', from);
 
     if (error) {
-      this.logger.error(`Failed to update opt-in for ${from}: ${error.message}`);
+      this.logger.error(
+        `Failed to update opt-in for ${from}: ${error.message}`,
+      );
     } else {
       this.logger.log(`SMS opt-${optIn ? 'in' : 'out'} processed for ${from}`);
     }
+  }
+
+  // ── Client Chat Inbox (owner side) ────────────────────────────────────────
+
+  /**
+   * Returns all client threads for the owner, grouped by event.
+   * Each thread entry includes: event details, client name/email,
+   * last message preview, and unread count.
+   */
+  async getClientInbox(ownerId: string) {
+    const supabase = this.supabaseService.getAdminClient();
+
+    // Fetch all distinct event+client pairs for this owner
+    const { data: msgs, error } = await supabase
+      .from('client_messages')
+      .select('event_id, client_id, content, sender_type, is_read, created_at')
+      .eq('owner_id', ownerId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      this.logger.error('getClientInbox error', error.message);
+      return [];
+    }
+    if (!msgs || msgs.length === 0) return [];
+
+    // Build per-thread map (keyed by event_id+client_id)
+    const threadMap: Record<
+      string,
+      {
+        eventId: string;
+        clientId: string;
+        lastMessage: string;
+        lastMessageAt: string;
+        lastMessageSender: string;
+        unreadCount: number;
+      }
+    > = {};
+
+    for (const m of msgs) {
+      const key = `${m.event_id}::${m.client_id}`;
+      if (!threadMap[key]) {
+        threadMap[key] = {
+          eventId: m.event_id,
+          clientId: m.client_id,
+          lastMessage: m.content,
+          lastMessageAt: m.created_at,
+          lastMessageSender: m.sender_type,
+          unreadCount: 0,
+        };
+      }
+      if (m.sender_type === 'client' && !m.is_read) {
+        threadMap[key].unreadCount += 1;
+      }
+    }
+
+    const threads = Object.values(threadMap);
+    const eventIds = [...new Set(threads.map((t) => t.eventId))];
+
+    // Step 1: Fetch events (without FK join — FK join is unreliable in this codebase)
+    const { data: events } = await supabase
+      .from('event')
+      .select('id, name, date, intake_form_id')
+      .in('id', eventIds);
+
+    // Step 2: Fetch intake form names separately using the collected intake_form_ids
+    const intakeFormIds = (events || [])
+      .map((ev: any) => ev.intake_form_id)
+      .filter(Boolean);
+
+    const intakeFormMap: Record<
+      string,
+      { contactName: string; contactEmail: string }
+    > = {};
+    if (intakeFormIds.length > 0) {
+      const { data: intakeForms } = await supabase
+        .from('intake_forms')
+        .select('id, contact_name, contact_email')
+        .in('id', intakeFormIds);
+      for (const f of (intakeForms || []) as any[]) {
+        intakeFormMap[f.id] = {
+          contactName: f.contact_name || '',
+          contactEmail: f.contact_email || '',
+        };
+      }
+    }
+
+    const eventInfoMap: Record<
+      string,
+      { name: string; date: string; clientName: string; clientEmail: string }
+    > = {};
+    for (const ev of (events || []) as any[]) {
+      const form = ev.intake_form_id ? intakeFormMap[ev.intake_form_id] : null;
+      eventInfoMap[ev.id] = {
+        name: ev.name || 'Event',
+        date: ev.date,
+        clientName: form?.contactName || '',
+        clientEmail: form?.contactEmail || '',
+      };
+    }
+
+    return threads
+      .map((t) => ({
+        eventId: t.eventId,
+        eventName: eventInfoMap[t.eventId]?.name || 'Event',
+        eventDate: eventInfoMap[t.eventId]?.date || null,
+        clientId: t.clientId,
+        clientName: eventInfoMap[t.eventId]?.clientName || 'Client',
+        clientEmail: eventInfoMap[t.eventId]?.clientEmail || '',
+        lastMessage: t.lastMessage,
+        lastMessageAt: t.lastMessageAt,
+        lastMessageSender: t.lastMessageSender,
+        unreadCount: t.unreadCount,
+      }))
+      .sort(
+        (a, b) =>
+          new Date(b.lastMessageAt).getTime() -
+          new Date(a.lastMessageAt).getTime(),
+      );
+  }
+
+  /** Returns the full message thread for one event and marks client messages as read. */
+  async getClientThread(ownerId: string, eventId: string) {
+    const supabase = this.supabaseService.getAdminClient();
+
+    const { data, error } = await supabase
+      .from('client_messages')
+      .select(
+        'id, event_id, owner_id, client_id, sender_type, content, is_read, created_at',
+      )
+      .eq('owner_id', ownerId)
+      .eq('event_id', eventId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      this.logger.error('getClientThread error', error.message);
+      return [];
+    }
+
+    // Mark unread client messages as read
+    const unreadIds = (data || [])
+      .filter((m: any) => m.sender_type === 'client' && !m.is_read)
+      .map((m: any) => m.id);
+
+    if (unreadIds.length) {
+      await supabase
+        .from('client_messages')
+        .update({ is_read: true })
+        .in('id', unreadIds);
+    }
+
+    return data || [];
+  }
+
+  /** Owner sends a message to the client for a specific event. */
+  async sendClientMessage(ownerId: string, eventId: string, content: string) {
+    const supabase = this.supabaseService.getAdminClient();
+
+    // Resolve the client_id from existing messages in this thread
+    const { data: existing } = await supabase
+      .from('client_messages')
+      .select('client_id')
+      .eq('owner_id', ownerId)
+      .eq('event_id', eventId)
+      .limit(1)
+      .maybeSingle();
+
+    if (!existing) {
+      // No prior messages — look up client via intake_form linked to event
+      const { data: ev } = await supabase
+        .from('event')
+        .select('intake_form_id')
+        .eq('id', eventId)
+        .eq('owner_id', ownerId)
+        .maybeSingle();
+
+      if (!ev?.intake_form_id) {
+        throw new BadRequestException(
+          'Event not found or does not belong to this owner.',
+        );
+      }
+
+      // Use intake_form id as client_id (consistent with client-auth.service derivation)
+      const { data, error } = await supabase
+        .from('client_messages')
+        .insert([
+          {
+            event_id: eventId,
+            owner_id: ownerId,
+            client_id: ev.intake_form_id,
+            sender_type: 'owner',
+            content,
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) {
+        this.logger.error(
+          'sendClientMessage (new thread) error',
+          error.message,
+        );
+        throw new Error('Failed to send message.');
+      }
+      return data;
+    }
+
+    const { data, error } = await supabase
+      .from('client_messages')
+      .insert([
+        {
+          event_id: eventId,
+          owner_id: ownerId,
+          client_id: existing.client_id,
+          sender_type: 'owner',
+          content,
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      this.logger.error('sendClientMessage error', error.message);
+      throw new Error('Failed to send message.');
+    }
+    return data;
+  }
+
+  /** Total unread client-message count for the owner (for nav badge). */
+  async getClientInboxUnreadCount(ownerId: string): Promise<number> {
+    const supabase = this.supabaseService.getAdminClient();
+    const { count, error } = await supabase
+      .from('client_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('owner_id', ownerId)
+      .eq('sender_type', 'client')
+      .eq('is_read', false);
+
+    if (error) {
+      this.logger.error('getClientInboxUnreadCount error', error.message);
+      return 0;
+    }
+    return count || 0;
   }
 }

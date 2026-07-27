@@ -97,9 +97,9 @@ function NewVendorInvoicePageContent() {
         setSelectedBookingId(preselectedBookingId)
         const opt = combined.find(o => o.id === preselectedBookingId)
         if (opt) {
-          if (opt.client_name) setClientName(opt.client_name)
-          if (opt.client_email) setClientEmail(opt.client_email)
-          if (opt.client_phone) setClientPhone(opt.client_phone)
+          setClientName(opt.client_name || '')
+          setClientEmail(opt.client_email || '')
+          setClientPhone(opt.client_phone || '')
           if (opt.amount) {
             setItems([{ description: opt.event_name || 'Vendor Services', quantity: 1, unit_price: opt.amount }])
           }
@@ -115,9 +115,9 @@ function NewVendorInvoicePageContent() {
     if (!bookingId) return
     const opt = bookingOptions.find(o => o.id === bookingId)
     if (!opt) return
-    if (opt.client_name) setClientName(opt.client_name)
-    if (opt.client_email) setClientEmail(opt.client_email)
-    if (opt.client_phone) setClientPhone(opt.client_phone)
+    setClientName(opt.client_name || '')
+    setClientEmail(opt.client_email || '')
+    setClientPhone(opt.client_phone || '')
     if (opt.amount && items.length === 1 && !items[0].description) {
       setItems([{ description: opt.event_name || 'Vendor Services', quantity: 1, unit_price: opt.amount }])
     }

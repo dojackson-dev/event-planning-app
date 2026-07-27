@@ -1,14 +1,18 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
+import { MailService } from '../mail/mail.service';
+import { SupabaseService } from '../supabase/supabase.service';
 
 export interface Estimate {
   id?: string;
   estimate_number: string;
   owner_id?: string;
+  event_id?: string;
   booking_id?: string;
   intake_form_id?: string;
   created_by?: string;
+  client_name?: string;
   client_phone?: string;
   client_email?: string;
   subtotal: number;
@@ -48,7 +52,11 @@ export interface EstimateItem {
 
 @Injectable()
 export class EstimatesService {
-  constructor(private readonly smsNotifications: SmsNotificationsService) {}
+  constructor(
+    private readonly smsNotifications: SmsNotificationsService,
+    private readonly mailService: MailService,
+    private readonly supabaseService: SupabaseService,
+  ) {}
 
   /**
    * Look up the client phone + email from an estimate's linked booking or intake form.
@@ -65,16 +73,6 @@ export class EstimatesService {
 
     let phone: string | null = null;
     let email: string | null = null;
-
-    if ((estimate as any).booking_id) {
-      const { data: booking } = await supabase
-        .from('booking')
-        .select('contact_phone, contact_email')
-        .eq('id', (estimate as any).booking_id)
-        .single();
-      phone = (booking as any)?.contact_phone ?? null;
-      email = (booking as any)?.contact_email ?? null;
-    }
 
     if (!phone && (estimate as any).intake_form_id) {
       const { data: form } = await supabase
@@ -139,34 +137,112 @@ export class EstimatesService {
 
   // ─── Finders ────────────────────────────────────────────────────────────────
 
+  async findByEvent(supabase: SupabaseClient, eventId: string): Promise<Estimate[]> {
+    try {
+      // Get event's intake_form_id, owner_id, and any booking IDs linked to this event
+      const [eventResult, bookingsResult] = await Promise.all([
+        supabase.from('event').select('id, intake_form_id, owner_id').eq('id', eventId).single(),
+        supabase.from('bookings').select('id').eq('event_id', eventId),
+      ]);
+
+      const filters: string[] = [`event_id.eq.${eventId}`];
+
+      if (eventResult.data?.intake_form_id) {
+        filters.push(`intake_form_id.eq.${eventResult.data.intake_form_id}`);
+      }
+
+      const bookingIds: string[] = (bookingsResult.data || []).map((b: any) => b.id);
+      if (bookingIds.length > 0) {
+        filters.push(`booking_id.in.(${bookingIds.join(',')})`);
+      }
+
+      const { data, error } = await supabase
+        .from('estimates')
+        .select('*, items:estimate_items(*)')
+        .or(filters.join(','))
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+
+      return data || [];
+    } catch {
+      return [];
+    }
+  }
+
   async findAll(supabase: SupabaseClient, userId: string): Promise<Estimate[]> {
     try {
       const { data, error } = await supabase
         .from('estimates')
-        .select('*, booking:booking(id, contact_name, contact_email, contact_phone, event_id, total_amount), intake_form:intake_forms(*), items:estimate_items(*)')
+        .select('*, intake_form:intake_forms!intake_form_id(*), items:estimate_items!estimate_id(*)')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
     } catch {
-      return [];
+      // Fallback without joins
+      try {
+        const { data, error } = await supabase
+          .from('estimates')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        return (data || []).map((e: any) => ({ ...e, items: [], intake_form: null }));
+      } catch {
+        return [];
+      }
     }
   }
 
-  async findByOwner(supabase: SupabaseClient, ownerId: string): Promise<Estimate[]> {
+  async findByOwner(supabase: SupabaseClient, ownerId: string, venueId?: string): Promise<Estimate[]> {
+    const buildVenueFilter = async (q: any) => {
+      if (!venueId) return q;
+      const { data: venueEvents } = await supabase.from('event').select('id, intake_form_id').eq('venue_id', venueId);
+      if (!venueEvents || venueEvents.length === 0) return null; // no events → return empty
+      const intakeIds = venueEvents.map((e: any) => e.intake_form_id).filter(Boolean);
+      const eventIds = venueEvents.map((e: any) => e.id);
+      // OR both conditions so estimates matched by either intake_form_id or event_id show up
+      const filters: string[] = [];
+      if (intakeIds.length > 0) filters.push(`intake_form_id.in.(${intakeIds.join(',')})`);
+      if (eventIds.length > 0) filters.push(`event_id.in.(${eventIds.join(',')})`);
+      if (filters.length === 0) return null;
+      return q.or(filters.join(','));
+    };
+
+    // Attempt 1: full query with FK-hinted joins
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('estimates')
-        .select('*, booking:booking(id, contact_name, contact_email, contact_phone, event_id, total_amount), intake_form:intake_forms(*), items:estimate_items(*)')
+        .select('*, intake_form:intake_forms!intake_form_id(*), items:estimate_items!estimate_id(*)')
         .eq('owner_id', ownerId)
         .order('created_at', { ascending: false });
+
+      const filtered = await buildVenueFilter(query);
+      if (filtered === null) return [];
+
+      const { data, error } = await filtered;
       if (error) throw error;
       return data || [];
-    } catch {
-      return [];
+    } catch (e1) {
+      // Attempt 2: simpler query without joins (still returns estimates, just without nested data)
+      try {
+        let query = supabase
+          .from('estimates')
+          .select('*')
+          .eq('owner_id', ownerId)
+          .order('created_at', { ascending: false });
+
+        const filtered = await buildVenueFilter(query);
+        if (filtered === null) return [];
+
+        const { data, error } = await filtered;
+        if (error) throw error;
+        return (data || []).map((e: any) => ({ ...e, items: [], intake_form: null }));
+      } catch {
+        return [];
+      }
     }
   }
 
-  async findByIntakeForm(supabase: SupabaseClient, intakeFormId: string): Promise<Estimate[]> {
+  async findByIntakeForm(supabase: SupabaseClient, intakeFormId: string, ownerId?: string): Promise<Estimate[]> {
     try {
       const { data, error } = await supabase
         .from('estimates')
@@ -174,6 +250,14 @@ export class EstimatesService {
         .eq('intake_form_id', intakeFormId)
         .order('created_at', { ascending: false });
       if (error) throw error;
+      if ((!data || data.length === 0) && ownerId) {
+        const { data: ownerData } = await supabase
+          .from('estimates')
+          .select('*, items:estimate_items(*)')
+          .eq('owner_id', ownerId)
+          .order('created_at', { ascending: false });
+        return ownerData || [];
+      }
       return data || [];
     } catch {
       return [];
@@ -183,11 +267,57 @@ export class EstimatesService {
   async findOne(supabase: SupabaseClient, id: string): Promise<Estimate> {
     const { data, error } = await supabase
       .from('estimates')
-      .select('*, booking:booking(id, contact_name, contact_email, contact_phone, event_id, total_amount), intake_form:intake_forms(*), items:estimate_items(*)')
+      .select('*, intake_form:intake_forms(*), items:estimate_items(*)')
       .eq('id', id)
       .single();
     if (error) throw new NotFoundException('Estimate not found');
-    return data;
+
+    // Enrich with owner info (business name, address, phone for letterhead)
+    const estimate = data as any;
+    if (estimate.owner_id) {
+      const { data: ownerAcc } = await supabase
+        .from('owner_accounts')
+        .select('id, business_name')
+        .eq('primary_owner_id', estimate.owner_id)
+        .single();
+
+      estimate.owner_business_name = (ownerAcc as any)?.business_name || null;
+
+      // Pull address + phone from the owner's first venue
+      if (ownerAcc) {
+        const { data: venues } = await supabase
+          .from('venues')
+          .select('address, city, state, zip_code, phone')
+          .eq('owner_account_id', (ownerAcc as any).id)
+          .eq('is_active', true)
+          .order('created_at', { ascending: true })
+          .limit(1);
+        const venue = (venues as any)?.[0];
+        if (venue) {
+          estimate.owner_address = venue.address || null;
+          estimate.owner_city = venue.city || null;
+          estimate.owner_state = venue.state || null;
+          estimate.owner_zip = venue.zip_code || null;
+          estimate.owner_phone = venue.phone || null;
+        }
+      }
+
+      // Fall back to user's name if no business name
+      if (!estimate.owner_business_name) {
+        const { data: ownerUser } = await supabase
+          .from('users')
+          .select('first_name, last_name, phone_number')
+          .eq('id', estimate.owner_id)
+          .single();
+        if (ownerUser) {
+          const u = ownerUser as any;
+          estimate.owner_business_name = [u.first_name, u.last_name].filter(Boolean).join(' ') || null;
+          if (!estimate.owner_phone) estimate.owner_phone = u.phone_number || null;
+        }
+      }
+    }
+
+    return estimate;
   }
 
   // ─── Create ──────────────────────────────────────────────────────────────────
@@ -221,14 +351,9 @@ export class EstimatesService {
       Number(estimateData.discount_amount) || 0,
     );
 
-    // Resolve client contact info from booking or intake form
+    // Resolve client contact info from intake form or event
     let clientPhone: string | null = estimateData.client_phone || null;
     let clientEmail: string | null = estimateData.client_email || null;
-    if (!clientPhone && estimateData.booking_id) {
-      const { data: bk } = await supabase.from('booking').select('contact_phone, contact_email').eq('id', estimateData.booking_id).single();
-      clientPhone = (bk as any)?.contact_phone ?? null;
-      clientEmail = (bk as any)?.contact_email ?? null;
-    }
     if (!clientPhone && estimateData.intake_form_id) {
       const { data: fm } = await supabase.from('intake_forms').select('contact_phone, contact_email').eq('id', estimateData.intake_form_id).single();
       clientPhone = (fm as any)?.contact_phone ?? null;
@@ -241,8 +366,9 @@ export class EstimatesService {
         estimate_number: estimateNumber,
         owner_id: ownerId,
         created_by: userId,
-        booking_id: estimateData.booking_id || null,
+        event_id: estimateData.event_id || null,
         intake_form_id: estimateData.intake_form_id || null,
+        client_name: estimateData.client_name || null,
         client_phone: clientPhone,
         client_email: clientEmail,
         subtotal,
@@ -273,7 +399,7 @@ export class EstimatesService {
         .from('estimates')
         .update({ subtotal: totals.subtotal, tax_amount: totals.taxAmount, total_amount: totals.totalAmount })
         .eq('id', estimate.id)
-        .select('*, booking:booking(id, contact_name, contact_email, contact_phone, event_id, total_amount), intake_form:intake_forms(*), items:estimate_items(*)')
+        .select('*, intake_form:intake_forms(*), items:estimate_items(*)')
         .single();
       if (upErr) throw upErr;
       return updated;
@@ -337,9 +463,9 @@ export class EstimatesService {
 
     // ── Persist client contact + SMS notifications ──────────────────────────
     try {
-      const { phone } = await this.lookupAndPersistClientContact(supabase, updated);
+      const { phone, email } = await this.lookupAndPersistClientContact(supabase, updated);
       const clientName =
-        (updated as any).booking?.contact_name || 'Valued Client';
+        (updated as any).intake_form?.contact_name || 'Valued Client';
       if (status === 'sent') {
         await this.smsNotifications.estimateSent(
           phone,
@@ -347,6 +473,50 @@ export class EstimatesService {
           updated.estimate_number,
           updated.total_amount,
         );
+        // Email: send estimate-ready notification to client
+        if (email) {
+          try {
+            const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+            const estimateUrl = `${frontendUrl}/client-portal/estimates`;
+
+            // Look up event type & date from intake form
+            let eventType: string | null = null;
+            let eventDate: string | null = null;
+            if ((updated as any).intake_form_id) {
+              const admin = this.supabaseService.getAdminClient();
+              const { data: form } = await admin
+                .from('intake_forms')
+                .select('event_type, event_date')
+                .eq('id', (updated as any).intake_form_id)
+                .maybeSingle();
+              eventType = (form as any)?.event_type ?? null;
+              eventDate = (form as any)?.event_date ?? null;
+            }
+
+            // Look up owner/venue name
+            let venueName: string | undefined;
+            if (updated.owner_id) {
+              const admin = this.supabaseService.getAdminClient();
+              const { data: ownerAcct } = await admin
+                .from('owner_accounts')
+                .select('business_name')
+                .eq('primary_owner_id', updated.owner_id)
+                .maybeSingle();
+              if (ownerAcct?.business_name) venueName = ownerAcct.business_name;
+            }
+
+            await this.mailService.sendEstimateReady({
+              clientName,
+              clientEmail: email,
+              estimateNumber: updated.estimate_number,
+              totalAmount: updated.total_amount,
+              estimateUrl,
+              eventType,
+              eventDate,
+              venueName,
+            });
+          } catch { /* email errors are non-fatal */ }
+        }
       } else if (status === 'rejected') {
         await this.smsNotifications.estimateRejected(
           phone,
@@ -449,7 +619,6 @@ export class EstimatesService {
         invoice_number: invoiceNumber,
         owner_id: estimate.owner_id,
         created_by: userId,
-        booking_id: estimate.booking_id || null,
         intake_form_id: estimate.intake_form_id || null,
         subtotal: estimate.subtotal,
         tax_rate: estimate.tax_rate,

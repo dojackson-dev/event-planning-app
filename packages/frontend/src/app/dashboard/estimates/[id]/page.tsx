@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { Estimate, EstimateStatus, DiscountType } from '@/types'
+import { Eye } from 'lucide-react'
 
 type EditItem = {
   id: string
@@ -31,10 +32,16 @@ export default function EstimateDetailPage() {
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
   const [editMode, setEditMode] = useState(false)
-  const [editData, setEditData] = useState({ issue_date: '', expiration_date: '', tax_rate: 0, discount_amount: 0, notes: '', terms: '' })
+  const [editData, setEditData] = useState({ client_name: '', client_phone: '', issue_date: '', expiration_date: '', tax_rate: 0, discount_amount: 0, notes: '', terms: '' })
   const [editItems, setEditItems] = useState<EditItem[]>([])
   const [deletedItemIds, setDeletedItemIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
+  const [toast, setToast] = useState('')
+
+  const showToast = (msg: string) => {
+    setToast(msg)
+    setTimeout(() => setToast(''), 4000)
+  }
 
   useEffect(() => {
     if (params.id) fetchEstimate()
@@ -56,7 +63,11 @@ export default function EstimateDetailPage() {
     setActionLoading(true)
     try {
       await api.put(`/estimates/${estimate.id}/status`, { status })
-      fetchEstimate()
+      await fetchEstimate()
+      if (status === EstimateStatus.SENT) showToast('Estimate sent to client!')
+      else if (status === EstimateStatus.APPROVED) showToast('Estimate marked as approved.')
+      else if (status === EstimateStatus.REJECTED) showToast('Estimate marked as rejected.')
+      else if (status === EstimateStatus.EXPIRED) showToast('Estimate marked as expired.')
     } catch (err) {
       console.error('Failed to update status:', err)
       alert('Failed to update status')
@@ -96,6 +107,8 @@ export default function EstimateDetailPage() {
   const enterEditMode = () => {
     if (!estimate) return
     setEditData({
+      client_name: (estimate as any).client_name || '',
+      client_phone: (estimate as any).client_phone || '',
       issue_date: estimate.issue_date,
       expiration_date: estimate.expiration_date,
       tax_rate: estimate.tax_rate || 0,
@@ -197,11 +210,23 @@ export default function EstimateDetailPage() {
   return (
     <div className="p-6 max-w-4xl mx-auto">
 
+      {/* Toast */}
+      {toast && (
+        <div className="fixed top-4 right-4 z-50 bg-green-600 text-white px-5 py-3 rounded-lg shadow-lg text-sm font-medium print:hidden">
+          {toast}
+        </div>
+      )}
+
       {/* Action Bar */}
       <div className="flex justify-between items-center mb-6 print:hidden">
-        <button onClick={() => router.push('/dashboard/estimates')} className="text-gray-600 hover:text-gray-900">
-          ← Back to Estimates
-        </button>
+        <div className="flex flex-col gap-1">
+          <button onClick={() => router.push('/dashboard/events')} className="text-gray-600 hover:text-gray-900 text-sm">
+            ← Back to Events
+          </button>
+          <button onClick={() => router.push('/dashboard/estimates')} className="text-xs text-gray-400 hover:text-gray-600">
+            View All Estimates →
+          </button>
+        </div>
         <div className="flex flex-wrap gap-2">
           {!editMode && estimate.status !== EstimateStatus.CONVERTED && (
             <button onClick={enterEditMode}
@@ -213,40 +238,6 @@ export default function EstimateDetailPage() {
             <button onClick={() => updateStatus(EstimateStatus.SENT)} disabled={actionLoading}
               className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 text-sm">
               Send to Client
-            </button>
-          )}
-          {canApprove && (
-            <button onClick={() => updateStatus(EstimateStatus.APPROVED)} disabled={actionLoading}
-              className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:opacity-50 text-sm">
-              Mark Approved
-            </button>
-          )}
-          {canReject && (
-            <button onClick={() => updateStatus(EstimateStatus.REJECTED)} disabled={actionLoading}
-              className="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 disabled:opacity-50 text-sm">
-              Mark Rejected
-            </button>
-          )}
-          {canConvert && (
-            <button onClick={convertToInvoice} disabled={actionLoading}
-              className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 disabled:opacity-50 text-sm font-semibold">
-              Convert to Invoice
-            </button>
-          )}
-          {estimate.status === EstimateStatus.CONVERTED && estimate.converted_invoice_id && (
-            <button onClick={() => router.push(`/dashboard/invoices/${estimate.converted_invoice_id}`)}
-              className="bg-purple-100 text-purple-700 px-4 py-2 rounded-md hover:bg-purple-200 text-sm">
-              View Invoice →
-            </button>
-          )}
-          <button onClick={() => window.print()}
-            className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 text-sm">
-            Print
-          </button>
-          {estimate.status === EstimateStatus.DRAFT && (
-            <button onClick={handleDelete}
-              className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 text-sm">
-              Delete
             </button>
           )}
         </div>
@@ -266,6 +257,24 @@ export default function EstimateDetailPage() {
       {editMode ? (
         <div className="bg-white shadow-lg rounded-lg p-8">
           <h2 className="text-xl font-bold text-gray-900 mb-6">Edit Estimate</h2>
+
+          {/* Client Info */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Client Name <span className="text-red-500">*</span></label>
+              <input type="text" value={editData.client_name}
+                onChange={e => setEditData(d => ({ ...d, client_name: e.target.value }))}
+                placeholder="Enter client name"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Client Phone</label>
+              <input type="tel" value={editData.client_phone}
+                onChange={e => setEditData(d => ({ ...d, client_phone: e.target.value }))}
+                placeholder="e.g. 555-867-5309"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
+            </div>
+          </div>
 
           {/* Dates */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -410,9 +419,20 @@ export default function EstimateDetailPage() {
             </span>
           </div>
           <div className="text-right">
-            <p className="font-semibold">Your Company Name</p>
-            <p className="text-sm text-gray-500">123 Business St</p>
-            <p className="text-sm text-gray-500">City, State 12345</p>
+            {(estimate as any).owner_business_name ? (
+              <p className="font-semibold">{(estimate as any).owner_business_name}</p>
+            ) : null}
+            {(estimate as any).owner_address && (
+              <p className="text-sm text-gray-500">{(estimate as any).owner_address}</p>
+            )}
+            {((estimate as any).owner_city || (estimate as any).owner_state) && (
+              <p className="text-sm text-gray-500">
+                {[(estimate as any).owner_city, (estimate as any).owner_state, (estimate as any).owner_zip].filter(Boolean).join(', ')}
+              </p>
+            )}
+            {(estimate as any).owner_phone && (
+              <p className="text-sm text-gray-500">{(estimate as any).owner_phone}</p>
+            )}
           </div>
         </div>
 
@@ -420,12 +440,14 @@ export default function EstimateDetailPage() {
         <div className="grid grid-cols-2 gap-8 mb-8">
           <div>
             <h3 className="font-semibold text-gray-700 mb-2">Prepared For:</h3>
-            {(estimate as any).booking?.user && (
-              <div className="text-gray-600 text-sm">
-                <p>{(estimate as any).booking.user.firstName} {(estimate as any).booking.user.lastName}</p>
-                <p>{(estimate as any).booking.user.email}</p>
-              </div>
-            )}
+            <div className="text-gray-600 text-sm">
+              {(estimate as any).client_name && <p className="font-medium text-gray-800">{(estimate as any).client_name}</p>}
+              {(estimate as any).client_email && <p>{(estimate as any).client_email}</p>}
+              {(estimate as any).client_phone && <p>{(estimate as any).client_phone}</p>}
+              {!(estimate as any).client_name && !(estimate as any).client_email && !(estimate as any).client_phone && (
+                <p className="text-gray-400 italic">No client info</p>
+              )}
+            </div>
           </div>
           <div className="text-right text-sm">
             <div className="mb-1">
@@ -440,6 +462,12 @@ export default function EstimateDetailPage() {
               <div className="mt-1 text-green-600">
                 <span>Approved: </span>
                 <span className="font-semibold">{new Date(estimate.approved_date + 'T12:00:00').toLocaleDateString()}</span>
+              </div>
+            )}
+            {(estimate as any).viewed_at && (
+              <div className="mt-1 text-emerald-700 flex items-center justify-end gap-1 print:hidden">
+                <Eye className="h-3.5 w-3.5" />
+                <span className="text-xs">Viewed {new Date((estimate as any).viewed_at).toLocaleString()}</span>
               </div>
             )}
           </div>

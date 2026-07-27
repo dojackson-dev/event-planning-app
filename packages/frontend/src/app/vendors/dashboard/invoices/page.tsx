@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import VendorNav from '@/components/VendorNav'
 import { Clock, Send, Eye, CheckCircle2, AlertCircle, XCircle, ChevronRight, DollarSign, Plus, FileText } from 'lucide-react'
 import type { VendorProfile, VendorInvoice } from '@/lib/vendorTypes'
 
@@ -63,9 +62,7 @@ export default function InvoicesPage() {
   )
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <VendorNav profile={profile} currentPage="Invoices" />
-
+    <div className="bg-gray-50">
       <div className="max-w-6xl mx-auto px-4 py-8">
         <Link href="/vendors/dashboard" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-6">
           ← Back to Dashboard

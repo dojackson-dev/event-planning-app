@@ -62,9 +62,9 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
         <div className="flex items-center justify-between h-16 px-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-primary-600 rounded-full flex items-center justify-center">
-              <span className="text-white font-bold text-sm">DV</span>
+              <span className="text-white font-bold text-sm">EE</span>
             </div>
-            <span className="font-semibold text-gray-900">DoVenue</span>
+            <span className="font-semibold text-gray-900">EventEcos</span>
           </div>
           <div className="flex items-center gap-3">
             {/* Notification Bell */}
@@ -102,9 +102,9 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
           <div className="hidden lg:flex items-center justify-center h-20 bg-gradient-to-r from-primary-600 to-primary-700 px-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center">
-                <span className="text-primary-600 font-bold">DV</span>
+                <span className="text-primary-600 font-bold">EE</span>
               </div>
-              <span className="text-white font-bold text-xl">DoVenue</span>
+              <span className="text-white font-bold text-xl">EventEcos</span>
             </div>
           </div>
 
@@ -119,9 +119,9 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
                   {displayUser.firstName || 'User'} {displayUser.lastName || ''}
                 </p>
                 <p className="text-xs text-gray-600 truncate">{displayUser.email}</p>
-                <span className="inline-flex items-center mt-1 px-2.5 py-0.5 text-xs font-medium bg-primary-100 text-primary-700 rounded-full">
+                <span className="inline-flex items-center mt-1 px-2.5 py-0.5 text-xs font-medium bg-accent-100 text-accent-700 rounded-full">
                   <Star className="w-3 h-3 mr-1" />
-                  Customer
+                  {displayUser.role || 'Customer'}
                 </span>
               </div>
             </div>

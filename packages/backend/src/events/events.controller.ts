@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Headers, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Patch, Param, Delete, Headers, UnauthorizedException, Query } from '@nestjs/common';
 import { EventsService } from './events.service';
 import { Event } from '../entities/event.entity';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -50,11 +50,14 @@ export class EventsController {
   }
 
   @Get()
-  async findAll(@Headers('authorization') authorization: string): Promise<any[]> {
-    await this.getUserId(authorization);
+  async findAll(
+    @Headers('authorization') authorization: string,
+    @Query('venueId') venueId?: string,
+  ): Promise<any[]> {
+    const userId = await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.eventsService.findAll(supabaseWithAuth);
+    return this.eventsService.findAll(supabaseWithAuth, userId, venueId || undefined);
   }
 
   @Get(':id')
@@ -62,10 +65,10 @@ export class EventsController {
     @Headers('authorization') authorization: string,
     @Param('id') id: string
   ): Promise<any | null> {
-    await this.getUserId(authorization);
+    const userId = await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.eventsService.findOne(supabaseWithAuth, id);
+    return this.eventsService.findOne(supabaseWithAuth, id, userId);
   }
 
   @Patch(':id')
@@ -74,10 +77,10 @@ export class EventsController {
     @Param('id') id: string,
     @Body() updateEventDto: any
   ): Promise<any | null> {
-    await this.getUserId(authorization);
+    const userId = await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.eventsService.update(supabaseWithAuth, id, updateEventDto);
+    return this.eventsService.update(supabaseWithAuth, id, updateEventDto, userId);
   }
 
   @Delete(':id')
@@ -85,9 +88,28 @@ export class EventsController {
     @Headers('authorization') authorization: string,
     @Param('id') id: string
   ): Promise<void> {
-    await this.getUserId(authorization);
+    const userId = await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.eventsService.remove(supabaseWithAuth, id);
+    return this.eventsService.remove(supabaseWithAuth, id, userId);
+  }
+
+  @Get(':id/management')
+  async getManagement(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+  ): Promise<any> {
+    const userId = await this.getUserId(authorization);
+    return this.eventsService.getManagementData(userId, id);
+  }
+
+  @Put(':id/management')
+  async updateManagement(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+    @Body() body: any,
+  ): Promise<any> {
+    const userId = await this.getUserId(authorization);
+    return this.eventsService.saveManagementData(userId, id, body);
   }
 }

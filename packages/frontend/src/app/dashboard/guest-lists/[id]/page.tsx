@@ -13,6 +13,7 @@ interface Guest {
   plus_one_count: number
   has_arrived: boolean
   arrived_at?: string
+  is_vip: boolean
 }
 
 interface GuestList {
@@ -42,6 +43,7 @@ export default function GuestListDetailPage() {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [plusOnes, setPlusOnes] = useState(0)
+  const [isVip, setIsVip] = useState(false)
 
   useEffect(() => {
     fetchGuestList()
@@ -79,6 +81,7 @@ export default function GuestListDetailPage() {
         name,
         phone: phone || undefined,
         plusOnes: Number(plusOnes),
+        isVip,
       }
 
       await api.post(`/guest-lists/${params.id}/guests`, guestData)
@@ -87,6 +90,7 @@ export default function GuestListDetailPage() {
       setName('')
       setPhone('')
       setPlusOnes(0)
+      setIsVip(false)
       setShowAddForm(false)
       
       // Refresh guest list
@@ -232,6 +236,20 @@ export default function GuestListDetailPage() {
               />
             </div>
             
+            <div className="col-span-2">
+              <label className="flex items-center gap-3 cursor-pointer select-none">
+                <div
+                  onClick={() => setIsVip(!isVip)}
+                  className={`w-10 h-6 rounded-full transition-colors flex items-center px-1 ${
+                    isVip ? 'bg-amber-500' : 'bg-gray-300'
+                  }`}
+                >
+                  <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform ${isVip ? 'translate-x-4' : ''}`} />
+                </div>
+                <span className="text-sm font-medium text-gray-700">👑 Mark as VIP</span>
+              </label>
+            </div>
+
             <div className="col-span-2 flex justify-end gap-3">
               <button
                 type="button"
@@ -267,9 +285,16 @@ export default function GuestListDetailPage() {
         ) : (
           <div className="divide-y divide-gray-200">
             {guests.map((guest) => (
-              <div key={guest.id} className="px-6 py-4 hover:bg-gray-50 flex items-center justify-between">
+              <div key={guest.id} className={`px-6 py-4 hover:bg-gray-50 flex items-center justify-between ${guest.is_vip ? 'bg-amber-50' : ''}`}>
                 <div className="flex-1">
-                  <h3 className="font-medium">{guest.name}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-medium">{guest.name}</h3>
+                    {guest.is_vip && (
+                      <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-full border border-amber-300">
+                        👑 VIP
+                      </span>
+                    )}
+                  </div>
                   <div className="text-sm text-gray-600 space-y-1">
                     {guest.phone && <p>Phone: {guest.phone}</p>}
                     <p>Plus Ones: {guest.plus_one_count}</p>

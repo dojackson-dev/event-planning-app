@@ -71,7 +71,7 @@ export default function CustomerMessagesPage() {
       setConversations([
         {
           id: '1',
-          name: 'DoVenue Support',
+          name: 'EventEcos Support',
           role: 'Event Coordinator',
           lastMessage: 'Your event is confirmed for March 15th!',
           lastMessageTime: '10:30 AM',
@@ -101,7 +101,7 @@ export default function CustomerMessagesPage() {
       // Auto-select first conversation
       setSelectedConversation({
         id: '1',
-        name: 'DoVenue Support',
+        name: 'EventEcos Support',
         role: 'Event Coordinator',
         lastMessage: 'Your event is confirmed for March 15th!',
         lastMessageTime: '10:30 AM',
@@ -124,7 +124,7 @@ export default function CustomerMessagesPage() {
           id: '2',
           content: 'Hello! Thanks for reaching out. Let me check on that for you.',
           senderId: 'coordinator',
-          senderName: 'DoVenue Support',
+          senderName: 'EventEcos Support',
           timestamp: '10:15 AM',
           status: 'read',
           isOwn: false
@@ -133,7 +133,7 @@ export default function CustomerMessagesPage() {
           id: '3',
           content: 'Your event is confirmed for March 15th! Everything looks great. The Grand Ballroom is reserved from 6 PM to 11 PM.',
           senderId: 'coordinator',
-          senderName: 'DoVenue Support',
+          senderName: 'EventEcos Support',
           timestamp: '10:30 AM',
           status: 'read',
           isOwn: false
@@ -142,7 +142,7 @@ export default function CustomerMessagesPage() {
           id: '4',
           content: 'We\'ll also have the sound system and catering team ready as requested. Is there anything else you need?',
           senderId: 'coordinator',
-          senderName: 'DoVenue Support',
+          senderName: 'EventEcos Support',
           timestamp: '10:30 AM',
           status: 'delivered',
           isOwn: false

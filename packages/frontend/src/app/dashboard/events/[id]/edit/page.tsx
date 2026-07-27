@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { EventStatus, Event } from '@/types'
 import { Trash2, X } from 'lucide-react'
+import { useVenue } from '@/contexts/VenueContext'
 
 const formatTime = (timeString: string | undefined): string => {
   if (!timeString) return 'Not set'
@@ -24,6 +25,7 @@ export default function EditEventPage() {
   const params = useParams()
   const router = useRouter()
   const eventId = params.id as string
+  const { venues } = useVenue()
   
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -46,6 +48,7 @@ export default function EditEventPage() {
     notes: '',
     specialRequirements: '',
     status: EventStatus.DRAFT,
+    venueId: null as string | null,
   })
 
   useEffect(() => {
@@ -71,6 +74,7 @@ export default function EditEventPage() {
         notes: event.notes || '',
         specialRequirements: event.specialRequirements || '',
         status: event.status,
+        venueId: (event as any).venueId ?? null,
       })
     } catch (err: any) {
       setError('Failed to load event')
@@ -132,6 +136,7 @@ export default function EditEventPage() {
         ...formData,
         maxGuests: formData.maxGuests ? parseInt(formData.maxGuests) : null,
         budget: formData.budget ? parseInt(formData.budget) : null,
+        venueId: formData.venueId,
       }
 
       await api.patch(`/events/${eventId}`, payload)
@@ -271,6 +276,23 @@ export default function EditEventPage() {
           <div>
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Venue & Location</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {venues.length > 0 && (
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Assign to Venue
+                  </label>
+                  <select
+                    value={formData.venueId ?? ''}
+                    onChange={e => setFormData(prev => ({ ...prev, venueId: e.target.value || null }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                  >
+                    <option value="">No venue assigned</option>
+                    {venues.map(v => (
+                      <option key={v.id} value={v.id}>{v.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Venue

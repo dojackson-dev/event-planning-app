@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
-import { FileText, Plus, Send, Eye, CheckCircle2, Clock, XCircle, AlertCircle, DollarSign, ChevronRight, Building2 } from 'lucide-react'
+import { FileText, Plus, Send, Eye, CheckCircle2, Clock, XCircle, AlertCircle, DollarSign, ChevronRight, Building2, Search } from 'lucide-react'
 
 interface VendorInvoice {
   id: string
@@ -36,6 +36,7 @@ export default function VendorInvoicesPage() {
   const [invoices, setInvoices] = useState<VendorInvoice[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('')
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
     if (!user) { router.push('/login'); return }
@@ -53,7 +54,18 @@ export default function VendorInvoicesPage() {
     }
   }
 
-  const filtered = filter ? invoices.filter(i => i.status === filter) : invoices
+  const filtered = invoices.filter(i => {
+    if (filter && i.status !== filter) return false
+    if (search) {
+      const q = search.toLowerCase()
+      return (
+        i.invoice_number.toLowerCase().includes(q) ||
+        i.client_name.toLowerCase().includes(q) ||
+        i.client_email.toLowerCase().includes(q)
+      )
+    }
+    return true
+  })
 
   const totals = invoices.reduce(
     (acc, inv) => {
@@ -101,27 +113,30 @@ export default function VendorInvoicesPage() {
           ))}
         </div>
 
-        {/* Filter pills */}
-        <div className="flex gap-2 flex-wrap mb-4">
-          {[
-            { value: '', label: `All (${invoices.length})` },
-            ...Object.entries(STATUS_CONFIG).map(([k, v]) => ({
-              value: k,
-              label: `${v.label} (${invoices.filter(i => i.status === k).length})`,
-            })),
-          ].map(f => (
-            <button
-              key={f.value}
-              onClick={() => setFilter(f.value)}
-              className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-all ${
-                filter === f.value
-                  ? 'bg-primary-600 text-white border-primary-600'
-                  : 'bg-white text-gray-600 border-gray-300 hover:border-primary-300'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
+        {/* Search + Status filter */}
+        <div className="flex gap-3 mb-4 flex-col sm:flex-row">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search by invoice #, client name or email…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent"
+            />
+          </div>
+          <select
+            value={filter}
+            onChange={e => setFilter(e.target.value)}
+            className="px-4 py-2 text-sm border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent min-w-[160px]"
+          >
+            <option value="">All Statuses ({invoices.length})</option>
+            {Object.entries(STATUS_CONFIG).map(([k, v]) => (
+              <option key={k} value={k}>
+                {v.label} ({invoices.filter(i => i.status === k).length})
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* List */}

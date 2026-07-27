@@ -50,13 +50,38 @@ export class InvoicesService {
     return data || [];
   }
 
-  async findByOwner(supabase: any, ownerId: string): Promise<Invoice[]> {
-    const { data, error } = await supabase
+  async findByOwner(supabase: any, ownerId: string, venueId?: string): Promise<Invoice[]> {
+    let query = supabase
       .from('invoices')
       .select('*')
       .eq('owner_id', ownerId)
       .order('created_at', { ascending: false });
 
+    if (venueId) {
+      const { data: venueEvents } = await supabase.from('event').select('id').eq('venue_id', venueId);
+      const eventIds = (venueEvents || []).map((e: any) => e.id);
+      if (eventIds.length === 0) return [];
+      // Match invoices linked to these events via event_id or intake_form_id
+      const { data: formIds } = await supabase.from('event').select('intake_form_id').in('id', eventIds).not('intake_form_id', 'is', null);
+      const intakeIds = (formIds || []).map((r: any) => r.intake_form_id).filter(Boolean);
+      const conditions: any[] = [query];
+      // Re-query with OR filter
+      let filteredQuery = supabase
+        .from('invoices')
+        .select('*')
+        .eq('owner_id', ownerId)
+        .order('created_at', { ascending: false });
+      if (intakeIds.length > 0) {
+        filteredQuery = filteredQuery.in('intake_form_id', intakeIds);
+      } else {
+        filteredQuery = filteredQuery.in('event_id', eventIds);
+      }
+      const { data, error } = await filteredQuery;
+      if (error) throw error;
+      return data || [];
+    }
+
+    const { data, error } = await query;
     if (error) throw error;
     return data || [];
   }

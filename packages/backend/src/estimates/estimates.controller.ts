@@ -32,12 +32,15 @@ export class EstimatesController {
     @Headers('authorization') authorization: string,
     @Query('ownerId') ownerId?: string,
     @Query('intakeFormId') intakeFormId?: string,
+    @Query('venueId') venueId?: string,
+    @Query('eventId') eventId?: string,
   ): Promise<Estimate[]> {
     const userId = await this.getUserId(authorization);
     const supabaseAdmin = this.supabaseService.getAdminClient();
-    if (intakeFormId) return this.estimatesService.findByIntakeForm(supabaseAdmin, intakeFormId);
-    if (ownerId) return this.estimatesService.findByOwner(supabaseAdmin, ownerId);
-    return this.estimatesService.findByOwner(supabaseAdmin, userId);
+    if (eventId) return this.estimatesService.findByEvent(supabaseAdmin, eventId);
+    if (intakeFormId) return this.estimatesService.findByIntakeForm(supabaseAdmin, intakeFormId, userId);
+    if (ownerId) return this.estimatesService.findByOwner(supabaseAdmin, ownerId, venueId);
+    return this.estimatesService.findByOwner(supabaseAdmin, userId, venueId);
   }
 
   @Get(':id')
@@ -122,6 +125,17 @@ export class EstimatesController {
     const userId = await this.getUserId(authorization);
     const supabaseAdmin = this.supabaseService.getAdminClient();
     return this.estimatesService.convertToInvoice(supabaseAdmin, userId, id);
+  }
+
+  // Public endpoint — no auth required. Marks an estimate as viewed by the client (first open only).
+  @Post(':id/viewed')
+  async markViewed(@Param('id') id: string): Promise<void> {
+    const admin = this.supabaseService.getAdminClient();
+    await admin
+      .from('estimates')
+      .update({ viewed_at: new Date().toISOString() })
+      .eq('id', id)
+      .is('viewed_at', null);
   }
 
   @Delete(':id')

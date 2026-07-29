@@ -31,12 +31,36 @@ export function AffiliateAuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter()
 
   useEffect(() => {
-    const stored = localStorage.getItem('affiliate_data')
-    const token  = localStorage.getItem('access_token')
-    if (stored && token) {
-      setAffiliate(JSON.parse(stored))
+    const init = async () => {
+      const stored = localStorage.getItem('affiliate_data')
+      const token  = localStorage.getItem('access_token')
+
+      if (!token) { setLoading(false); return }
+
+      if (stored) {
+        setAffiliate(JSON.parse(stored))
+        setLoading(false)
+        return
+      }
+
+      // Token exists (e.g. from the main-site login) but we haven't cached the
+      // affiliate profile yet — fetch it so users landing here via the main
+      // login page (not /sales-portal/login) are still recognized.
+      try {
+        const affRes = await api.get('/affiliates/me', {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const aff = affRes.data
+        localStorage.setItem('affiliate_data', JSON.stringify(aff))
+        setAffiliate(aff)
+      } catch {
+        // Not an affiliate account, or token invalid — leave unauthenticated
+      } finally {
+        setLoading(false)
+      }
     }
-    setLoading(false)
+
+    init()
   }, [])
 
   const login = async (email: string, password: string) => {

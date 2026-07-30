@@ -16,13 +16,39 @@ function ResetPasswordForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  // This app's Supabase client (@supabase/ssr) uses the PKCE flow, so recovery
-  // links arrive as `?code=...` (not the old implicit-flow `#access_token=...`
-  // hash fragment). We must explicitly exchange the code for a session —
-  // it isn't picked up automatically.
+  // Recovery links can arrive in two different shapes depending on how they
+  // were generated:
+  //   1. PKCE: `?code=...` (from the client-side resetPasswordForEmail call)
+  //   2. Implicit: `#access_token=...&refresh_token=...&type=recovery`
+  //      (from Supabase's admin.generateLink / verify redirect)
+  // @supabase/ssr's browser client is built around the PKCE/cookie flow and
+  // does NOT auto-parse the implicit-flow hash fragment, so we must handle
+  // both cases explicitly instead of relying on SDK auto-detection.
   useEffect(() => {
     const supabase = createClient()
     const code = searchParams.get('code')
+
+    const hash = typeof window !== 'undefined' ? window.location.hash : ''
+    const hashParams = new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : hash)
+    const accessToken = hashParams.get('access_token')
+
+    if (accessToken) {
+      const refreshToken = hashParams.get('refresh_token') || ''
+      supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken }).then(
+        ({ data, error: sessionError }) => {
+          if (sessionError || !data.session) {
+            setLinkError(
+              sessionError?.message ||
+                'This reset link is invalid or has expired. Please request a new one.',
+            )
+            return
+          }
+          window.history.replaceState(null, '', window.location.pathname)
+          setSessionReady(true)
+        },
+      )
+      return
+    }
 
     if (code) {
       supabase.auth.exchangeCodeForSession(code).then(({ data, error: exchangeError }) => {
@@ -41,7 +67,6 @@ function ResetPasswordForm() {
     }
 
     // Fallback: check if there's already an active recovery session
-    // (covers the implicit-flow hash fragment case, if ever used)
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) {
         setSessionReady(true)

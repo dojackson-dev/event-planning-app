@@ -1,4 +1,13 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  OneToMany,
+  JoinColumn,
+} from 'typeorm';
 import { User } from './user.entity';
 import { Event } from './event.entity';
 import { Guest } from './guest.entity';
@@ -37,7 +46,7 @@ export class GuestList {
   @Column({ name: 'is_locked', default: false })
   isLocked: boolean;
 
-  @OneToMany(() => Guest, guest => guest.guestList)
+  @OneToMany(() => Guest, (guest) => guest.guestList)
   guests: Guest[];
 
   @CreateDateColumn({ name: 'created_at' })

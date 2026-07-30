@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, ParseIntPipe, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  ParseIntPipe,
+  Query,
+} from '@nestjs/common';
 import { GuestListsService } from './guest-lists.service';
 
 @Controller('guest-lists')
@@ -14,7 +24,9 @@ export class GuestListsController {
   }
 
   @Get('by-event/:eventId')
-  async findByEvent(@Param('eventId', ParseIntPipe) eventId: number): Promise<any | null> {
+  async findByEvent(
+    @Param('eventId', ParseIntPipe) eventId: number,
+  ): Promise<any | null> {
     return this.guestListsService.findByEvent(eventId);
   }
 
@@ -30,11 +42,11 @@ export class GuestListsController {
 
   @Post('validate-access')
   async validateAccess(
-    @Body() body: { guestListId: number; accessCode: string }
+    @Body() body: { guestListId: number; accessCode: string },
   ): Promise<{ valid: boolean }> {
     const valid = await this.guestListsService.validateAccessCode(
       body.guestListId,
-      body.accessCode
+      body.accessCode,
     );
     return { valid };
   }
@@ -51,7 +63,10 @@ export class GuestListsController {
 
   @Post()
   async create(@Body() guestList: any): Promise<any> {
-    console.log('Received guest list data:', JSON.stringify(guestList, null, 2));
+    console.log(
+      'Received guest list data:',
+      JSON.stringify(guestList, null, 2),
+    );
     return this.guestListsService.create(guestList);
   }
 
@@ -80,7 +95,9 @@ export class GuestListsController {
 
   // Guest endpoints
   @Get(':id/guests')
-  async getGuests(@Param('id', ParseIntPipe) guestListId: number): Promise<any[]> {
+  async getGuests(
+    @Param('id', ParseIntPipe) guestListId: number,
+  ): Promise<any[]> {
     return this.guestListsService.getGuests(guestListId);
   }
 
@@ -101,27 +118,37 @@ export class GuestListsController {
   }
 
   @Delete('guests/:guestId')
-  async deleteGuest(@Param('guestId', ParseIntPipe) guestId: number): Promise<void> {
+  async deleteGuest(
+    @Param('guestId', ParseIntPipe) guestId: number,
+  ): Promise<void> {
     return this.guestListsService.deleteGuest(guestId);
   }
 
   @Post('guests/:guestId/arrive')
-  async markArrival(@Param('guestId', ParseIntPipe) guestId: number): Promise<any | null> {
+  async markArrival(
+    @Param('guestId', ParseIntPipe) guestId: number,
+  ): Promise<any | null> {
     return this.guestListsService.markArrival(guestId);
   }
 
   @Post('guests/:guestId/unarrive')
-  async unmarkArrival(@Param('guestId', ParseIntPipe) guestId: number): Promise<any | null> {
+  async unmarkArrival(
+    @Param('guestId', ParseIntPipe) guestId: number,
+  ): Promise<any | null> {
     return this.guestListsService.unmarkArrival(guestId);
   }
 
   @Post(':id/sms-client')
-  async smsClientInvite(@Param('id', ParseIntPipe) id: number): Promise<{ sent: boolean; to?: string; error?: string }> {
+  async smsClientInvite(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<{ sent: boolean; to?: string; error?: string }> {
     return this.guestListsService.smsClientInvite(id);
   }
 
   @Post(':id/import-rsvp')
-  async importFromRsvp(@Param('id', ParseIntPipe) id: number): Promise<{ imported: number; skipped: number }> {
+  async importFromRsvp(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<{ imported: number; skipped: number }> {
     return this.guestListsService.importFromRsvp(id);
   }
 }

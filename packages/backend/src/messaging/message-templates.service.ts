@@ -27,12 +27,17 @@ export class MessageTemplatesService {
     return this.templateRepository.findOne({ where: { id } });
   }
 
-  async create(templateData: Partial<MessageTemplate>): Promise<MessageTemplate> {
+  async create(
+    templateData: Partial<MessageTemplate>,
+  ): Promise<MessageTemplate> {
     const template = this.templateRepository.create(templateData);
     return this.templateRepository.save(template);
   }
 
-  async update(id: number, templateData: Partial<MessageTemplate>): Promise<MessageTemplate | null> {
+  async update(
+    id: number,
+    templateData: Partial<MessageTemplate>,
+  ): Promise<MessageTemplate | null> {
     await this.templateRepository.update(id, templateData);
     return this.findOne(id);
   }

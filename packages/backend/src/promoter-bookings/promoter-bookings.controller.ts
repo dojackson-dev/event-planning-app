@@ -1,9 +1,22 @@
 import {
-  Controller, Get, Post, Put, Patch, Delete, Body, Param, Headers, UnauthorizedException, Logger,
+  Controller,
+  Get,
+  Post,
+  Put,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Headers,
+  UnauthorizedException,
+  Logger,
 } from '@nestjs/common';
 import { PromoterBookingsService } from './promoter-bookings.service';
 import { SupabaseService } from '../supabase/supabase.service';
-import { CreatePromoterBookingDto, UpdatePromoterBookingDto } from './dto/promoter-booking.dto';
+import {
+  CreatePromoterBookingDto,
+  UpdatePromoterBookingDto,
+} from './dto/promoter-booking.dto';
 
 @Controller('promoter-bookings')
 export class PromoterBookingsController {
@@ -15,17 +28,24 @@ export class PromoterBookingsController {
   ) {}
 
   private async getUserId(authorization: string): Promise<string> {
-    if (!authorization) throw new UnauthorizedException('No authorization header');
+    if (!authorization)
+      throw new UnauthorizedException('No authorization header');
     const token = authorization.replace('Bearer ', '');
     if (token.startsWith('local-')) return token.replace('local-', '');
     const supabase = this.supabaseService.setAuthContext(token);
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
     if (error || !user) throw new UnauthorizedException('Invalid token');
     return user.id;
   }
 
   @Post()
-  async createBooking(@Headers('authorization') auth: string, @Body() dto: CreatePromoterBookingDto) {
+  async createBooking(
+    @Headers('authorization') auth: string,
+    @Body() dto: CreatePromoterBookingDto,
+  ) {
     const userId = await this.getUserId(auth);
     return this.promoterBookingsService.createBooking(userId, dto);
   }
@@ -55,7 +75,11 @@ export class PromoterBookingsController {
     @Body() body: { action: 'accept' | 'decline' },
   ) {
     const userId = await this.getUserId(auth);
-    return this.promoterBookingsService.artistRespondToBooking(userId, id, body.action);
+    return this.promoterBookingsService.artistRespondToBooking(
+      userId,
+      id,
+      body.action,
+    );
   }
 
   @Post(':id/send-rider')
@@ -68,7 +92,10 @@ export class PromoterBookingsController {
   }
 
   @Get(':id')
-  async getBooking(@Headers('authorization') auth: string, @Param('id') id: string) {
+  async getBooking(
+    @Headers('authorization') auth: string,
+    @Param('id') id: string,
+  ) {
     const userId = await this.getUserId(auth);
     return this.promoterBookingsService.getBooking(userId, id);
   }
@@ -84,7 +111,10 @@ export class PromoterBookingsController {
   }
 
   @Delete(':id')
-  async deleteBooking(@Headers('authorization') auth: string, @Param('id') id: string) {
+  async deleteBooking(
+    @Headers('authorization') auth: string,
+    @Param('id') id: string,
+  ) {
     const userId = await this.getUserId(auth);
     return this.promoterBookingsService.deleteBooking(userId, id);
   }

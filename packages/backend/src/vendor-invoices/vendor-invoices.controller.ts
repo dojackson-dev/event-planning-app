@@ -12,7 +12,11 @@ import {
 } from '@nestjs/common';
 import { VendorInvoicesService } from './vendor-invoices.service';
 import { SupabaseService } from '../supabase/supabase.service';
-import { CreateVendorInvoiceDto, UpdateVendorInvoiceDto, VendorInvoiceItemDto } from './dto/vendor-invoice.dto';
+import {
+  CreateVendorInvoiceDto,
+  UpdateVendorInvoiceDto,
+  VendorInvoiceItemDto,
+} from './dto/vendor-invoice.dto';
 
 @Controller('vendor-invoices')
 export class VendorInvoicesController {
@@ -26,13 +30,17 @@ export class VendorInvoicesController {
   // ─── Auth helpers ────────────────────────────────────────────────────────────
 
   private async getUserId(authorization: string): Promise<string> {
-    if (!authorization) throw new UnauthorizedException('No authorization header');
+    if (!authorization)
+      throw new UnauthorizedException('No authorization header');
     const token = authorization.replace('Bearer ', '');
 
     if (token.startsWith('local-')) return token.replace('local-', '');
 
     const supabase = this.supabaseService.setAuthContext(token);
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
     if (error || !user) throw new UnauthorizedException('Invalid token');
     return user.id;
   }
@@ -99,8 +107,12 @@ export class VendorInvoicesController {
   async listOwnerBookingInvoices(@Headers('authorization') auth: string) {
     const userId = await this.getUserId(auth);
     const ownerAccountId = await this.getOwnerAccountId(userId);
-    if (!ownerAccountId) throw new UnauthorizedException('Not an owner account');
-    return this.vendorInvoicesService.listOwnerBookingInvoices(ownerAccountId, userId);
+    if (!ownerAccountId)
+      throw new UnauthorizedException('Not an owner account');
+    return this.vendorInvoicesService.listOwnerBookingInvoices(
+      ownerAccountId,
+      userId,
+    );
   }
 
   /** GET /vendor-invoices/owner/:id — Owner views a specific vendor invoice they owe */
@@ -111,7 +123,8 @@ export class VendorInvoicesController {
   ) {
     const userId = await this.getUserId(auth);
     const ownerAccountId = await this.getOwnerAccountId(userId);
-    if (!ownerAccountId) throw new UnauthorizedException('Not an owner account');
+    if (!ownerAccountId)
+      throw new UnauthorizedException('Not an owner account');
     return this.vendorInvoicesService.getInvoiceAsOwner(ownerAccountId, id);
   }
 

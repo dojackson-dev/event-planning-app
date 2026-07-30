@@ -13,7 +13,12 @@ import {
 } from '@nestjs/common';
 import { AffiliatesService } from './affiliates.service';
 import { AffiliateGuard } from './guards/affiliate.guard';
-import { RegisterAffiliateDto, LoginAffiliateDto, UpdateAffiliateDto, InviteAffiliateDto } from './dto/affiliate.dto';
+import {
+  RegisterAffiliateDto,
+  LoginAffiliateDto,
+  UpdateAffiliateDto,
+  InviteAffiliateDto,
+} from './dto/affiliate.dto';
 
 @Controller('affiliates')
 export class AffiliatesController {
@@ -86,7 +91,11 @@ export class AffiliatesController {
     @Query('search') search = '',
     @Query('role') role = '',
   ) {
-    return this.affiliatesService.getManagerUsers(req.affiliate.email, search, role);
+    return this.affiliatesService.getManagerUsers(
+      req.affiliate.email,
+      search,
+      role,
+    );
   }
 
   /** Sales manager: full detail for a single platform user */
@@ -100,7 +109,10 @@ export class AffiliatesController {
   @Post('manager/invite')
   @UseGuards(AffiliateGuard)
   async inviteAffiliate(@Req() req: any, @Body() dto: InviteAffiliateDto) {
-    return this.affiliatesService.inviteAffiliate(dto.email, req.affiliate.email);
+    return this.affiliatesService.inviteAffiliate(
+      dto.email,
+      req.affiliate.email,
+    );
   }
 
   /** Sales manager: all registered affiliates with stats */

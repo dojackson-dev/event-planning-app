@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Headers, UnauthorizedException, NotFoundException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Headers,
+  UnauthorizedException,
+  NotFoundException,
+} from '@nestjs/common';
 import { IntakeFormsService } from './intake-forms.service';
 import { SupabaseService } from '../supabase/supabase.service';
 
@@ -18,17 +29,20 @@ export class IntakeFormsController {
 
   private async getUserId(authorization: string): Promise<string> {
     const token = this.extractToken(authorization);
-    
+
     // Handle dev tokens (local-<uuid> format)
     if (token.startsWith('local-')) {
       const userId = token.replace('local-', '');
       if (userId) return userId;
       throw new UnauthorizedException('Invalid dev token format');
     }
-    
+
     // Handle Supabase tokens
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    const { data: { user }, error } = await supabaseWithAuth.auth.getUser();
+    const {
+      data: { user },
+      error,
+    } = await supabaseWithAuth.auth.getUser();
     if (error || !user) {
       throw new UnauthorizedException('Invalid token');
     }
@@ -39,7 +53,10 @@ export class IntakeFormsController {
    *  Returns the primary_owner_id (UUID) in both cases. */
   private async resolveOwnerIdentifier(identifier: string): Promise<string> {
     const admin = this.supabaseService.getAdminClient();
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        identifier,
+      );
 
     if (isUuid) {
       const { data, error } = await admin
@@ -73,7 +90,11 @@ export class IntakeFormsController {
       .eq('primary_owner_id', resolvedId)
       .single();
     if (error || !data) throw new NotFoundException('Owner not found');
-    return { businessName: data.business_name, logoUrl: data.logo_url, intakeSlug: data.intake_slug };
+    return {
+      businessName: data.business_name,
+      logoUrl: data.logo_url,
+      intakeSlug: data.intake_slug,
+    };
   }
 
   /** Public: submit a client intake form.
@@ -86,13 +107,23 @@ export class IntakeFormsController {
   }
 
   @Post()
-  async create(@Headers('authorization') authorization: string, @Body() createDto: any) {
+  async create(
+    @Headers('authorization') authorization: string,
+    @Body() createDto: any,
+  ) {
     try {
-      console.log('Received intake form data:', JSON.stringify(createDto, null, 2));
+      console.log(
+        'Received intake form data:',
+        JSON.stringify(createDto, null, 2),
+      );
       const token = this.extractToken(authorization);
       const userId = await this.getUserId(authorization);
       const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-      const result = await this.intakeFormsService.create(supabaseWithAuth, userId, createDto);
+      const result = await this.intakeFormsService.create(
+        supabaseWithAuth,
+        userId,
+        createDto,
+      );
       console.log('Successfully created intake form:', result);
       return result;
     } catch (error: any) {
@@ -112,7 +143,10 @@ export class IntakeFormsController {
   // ── Authenticated routes ───────────────────────────────────────────────────
 
   @Get(':id')
-  async findOne(@Headers('authorization') authorization: string, @Param('id') id: string) {
+  async findOne(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+  ) {
     const token = this.extractToken(authorization);
     const userId = await this.getUserId(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
@@ -120,15 +154,27 @@ export class IntakeFormsController {
   }
 
   @Put(':id')
-  async update(@Headers('authorization') authorization: string, @Param('id') id: string, @Body() updateDto: any) {
+  async update(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+    @Body() updateDto: any,
+  ) {
     const token = this.extractToken(authorization);
     const userId = await this.getUserId(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.intakeFormsService.update(supabaseWithAuth, userId, id, updateDto);
+    return this.intakeFormsService.update(
+      supabaseWithAuth,
+      userId,
+      id,
+      updateDto,
+    );
   }
 
   @Delete(':id')
-  async remove(@Headers('authorization') authorization: string, @Param('id') id: string) {
+  async remove(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+  ) {
     const token = this.extractToken(authorization);
     const userId = await this.getUserId(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
@@ -136,14 +182,21 @@ export class IntakeFormsController {
   }
 
   @Post(':id/convert-to-booking')
-  async convertToBooking(@Headers('authorization') authorization: string, @Param('id') id: string) {
+  async convertToBooking(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+  ) {
     try {
       console.log('Converting intake form to booking:', id);
       const token = this.extractToken(authorization);
       const userId = await this.getUserId(authorization);
       console.log('User ID:', userId);
       const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-      const result = await this.intakeFormsService.convertToBooking(supabaseWithAuth, userId, id);
+      const result = await this.intakeFormsService.convertToBooking(
+        supabaseWithAuth,
+        userId,
+        id,
+      );
       console.log('Successfully converted to booking:', result);
       return result;
     } catch (error) {
@@ -153,13 +206,20 @@ export class IntakeFormsController {
   }
 
   @Post(':id/recreate-event')
-  async recreateEvent(@Headers('authorization') authorization: string, @Param('id') id: string) {
+  async recreateEvent(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+  ) {
     try {
       console.log('Recreating event for intake form:', id);
       const token = this.extractToken(authorization);
       const userId = await this.getUserId(authorization);
       const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-      const result = await this.intakeFormsService.recreateEvent(supabaseWithAuth, userId, id);
+      const result = await this.intakeFormsService.recreateEvent(
+        supabaseWithAuth,
+        userId,
+        id,
+      );
       console.log('Successfully recreated event:', result);
       return result;
     } catch (error) {
@@ -169,11 +229,18 @@ export class IntakeFormsController {
   }
 
   @Post(':id/resend-invitation')
-  async resendInvitation(@Headers('authorization') authorization: string, @Param('id') id: string) {
+  async resendInvitation(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+  ) {
     const token = this.extractToken(authorization);
     const userId = await this.getUserId(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.intakeFormsService.resendInvitation(supabaseWithAuth, userId, id);
+    return this.intakeFormsService.resendInvitation(
+      supabaseWithAuth,
+      userId,
+      id,
+    );
   }
 }
 
@@ -191,7 +258,10 @@ export class IntakeFormsPublicController {
 
   private async resolveOwnerIdentifier(identifier: string): Promise<string> {
     const admin = this.supabaseService.getAdminClient();
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        identifier,
+      );
 
     if (isUuid) {
       const { data, error } = await admin

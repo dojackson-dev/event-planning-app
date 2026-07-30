@@ -31,10 +31,14 @@ export class VipController {
   ) {}
 
   private async getUserId(authorization: string): Promise<string> {
-    if (!authorization) throw new UnauthorizedException('No authorization header');
+    if (!authorization)
+      throw new UnauthorizedException('No authorization header');
     const token = authorization.replace('Bearer ', '');
     const supabase = this.supabaseService.setAuthContext(token);
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
     if (error || !user) throw new UnauthorizedException('Invalid token');
     return user.id;
   }
@@ -75,14 +79,26 @@ export class VipController {
     @Param('qrCode') qrCode: string,
     @Body() body: { recipient_email: string; recipient_name?: string },
   ) {
-    return this.service.transferVipOrder(qrCode, body.recipient_email, body.recipient_name);
+    return this.service.transferVipOrder(
+      qrCode,
+      body.recipient_email,
+      body.recipient_name,
+    );
   }
 
   /** Send individual guest passes via SMS or email */
   @Post('public/orders/qr/:qrCode/passes/assign')
   assignGuestPasses(
     @Param('qrCode') qrCode: string,
-    @Body() body: { assignments: { pass_index: number; guest_name?: string; guest_phone?: string; guest_email?: string }[] },
+    @Body()
+    body: {
+      assignments: {
+        pass_index: number;
+        guest_name?: string;
+        guest_phone?: string;
+        guest_email?: string;
+      }[];
+    },
   ) {
     return this.service.assignGuestPasses(qrCode, body.assignments);
   }
@@ -187,10 +203,17 @@ export class VipController {
   async saveLayout(
     @Headers('authorization') auth: string,
     @Param('eventId') eventId: string,
-    @Body() body: { file_url: string; file_type?: string; description?: string },
+    @Body()
+    body: { file_url: string; file_type?: string; description?: string },
   ) {
     const userId = await this.getUserId(auth);
-    return this.service.saveLayout(userId, eventId, body.file_url, body.file_type || 'image', body.description);
+    return this.service.saveLayout(
+      userId,
+      eventId,
+      body.file_url,
+      body.file_type || 'image',
+      body.description,
+    );
   }
 
   @Get('events/:eventId/layout')
@@ -244,7 +267,11 @@ export class VipController {
     @Param('accessCode') accessCode: string,
     @Body() body: { qr_code: string; check_in_mode?: 'single' | 'full' },
   ) {
-    return this.service.scanVipByAccessCode(accessCode, body.qr_code, body.check_in_mode ?? 'single');
+    return this.service.scanVipByAccessCode(
+      accessCode,
+      body.qr_code,
+      body.check_in_mode ?? 'single',
+    );
   }
 
   @Post('events/:eventId/concierges')

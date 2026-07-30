@@ -68,7 +68,10 @@ export class EstimatesService {
   ): Promise<{ phone: string | null; email: string | null }> {
     // Already stored directly — use it
     if ((estimate as any).client_phone) {
-      return { phone: (estimate as any).client_phone, email: (estimate as any).client_email ?? null };
+      return {
+        phone: (estimate as any).client_phone,
+        email: (estimate as any).client_email ?? null,
+      };
     }
 
     let phone: string | null = null;
@@ -112,8 +115,15 @@ export class EstimatesService {
     }
   }
 
-  private calculateTotals(items: Partial<EstimateItem>[], taxRate: number, discountAmount: number) {
-    const subtotal = items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  private calculateTotals(
+    items: Partial<EstimateItem>[],
+    taxRate: number,
+    discountAmount: number,
+  ) {
+    const subtotal = items.reduce(
+      (sum, item) => sum + (Number(item.amount) || 0),
+      0,
+    );
     const taxAmount = subtotal * (taxRate / 100);
     const totalAmount = subtotal + taxAmount - discountAmount;
     return { subtotal, taxAmount, totalAmount };
@@ -137,11 +147,18 @@ export class EstimatesService {
 
   // ─── Finders ────────────────────────────────────────────────────────────────
 
-  async findByEvent(supabase: SupabaseClient, eventId: string): Promise<Estimate[]> {
+  async findByEvent(
+    supabase: SupabaseClient,
+    eventId: string,
+  ): Promise<Estimate[]> {
     try {
       // Get event's intake_form_id, owner_id, and any booking IDs linked to this event
       const [eventResult, bookingsResult] = await Promise.all([
-        supabase.from('event').select('id, intake_form_id, owner_id').eq('id', eventId).single(),
+        supabase
+          .from('event')
+          .select('id, intake_form_id, owner_id')
+          .eq('id', eventId)
+          .single(),
         supabase.from('bookings').select('id').eq('event_id', eventId),
       ]);
 
@@ -151,7 +168,9 @@ export class EstimatesService {
         filters.push(`intake_form_id.eq.${eventResult.data.intake_form_id}`);
       }
 
-      const bookingIds: string[] = (bookingsResult.data || []).map((b: any) => b.id);
+      const bookingIds: string[] = (bookingsResult.data || []).map(
+        (b: any) => b.id,
+      );
       if (bookingIds.length > 0) {
         filters.push(`booking_id.in.(${bookingIds.join(',')})`);
       }
@@ -173,7 +192,9 @@ export class EstimatesService {
     try {
       const { data, error } = await supabase
         .from('estimates')
-        .select('*, intake_form:intake_forms!intake_form_id(*), items:estimate_items!estimate_id(*)')
+        .select(
+          '*, intake_form:intake_forms!intake_form_id(*), items:estimate_items!estimate_id(*)',
+        )
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
@@ -185,33 +206,50 @@ export class EstimatesService {
           .select('*')
           .order('created_at', { ascending: false });
         if (error) throw error;
-        return (data || []).map((e: any) => ({ ...e, items: [], intake_form: null }));
+        return (data || []).map((e: any) => ({
+          ...e,
+          items: [],
+          intake_form: null,
+        }));
       } catch {
         return [];
       }
     }
   }
 
-  async findByOwner(supabase: SupabaseClient, ownerId: string, venueId?: string): Promise<Estimate[]> {
+  async findByOwner(
+    supabase: SupabaseClient,
+    ownerId: string,
+    venueId?: string,
+  ): Promise<Estimate[]> {
     const buildVenueFilter = async (q: any) => {
       if (!venueId) return q;
-      const { data: venueEvents } = await supabase.from('event').select('id, intake_form_id').eq('venue_id', venueId);
+      const { data: venueEvents } = await supabase
+        .from('event')
+        .select('id, intake_form_id')
+        .eq('venue_id', venueId);
       if (!venueEvents || venueEvents.length === 0) return null; // no events → return empty
-      const intakeIds = venueEvents.map((e: any) => e.intake_form_id).filter(Boolean);
+      const intakeIds = venueEvents
+        .map((e: any) => e.intake_form_id)
+        .filter(Boolean);
       const eventIds = venueEvents.map((e: any) => e.id);
       // OR both conditions so estimates matched by either intake_form_id or event_id show up
       const filters: string[] = [];
-      if (intakeIds.length > 0) filters.push(`intake_form_id.in.(${intakeIds.join(',')})`);
-      if (eventIds.length > 0) filters.push(`event_id.in.(${eventIds.join(',')})`);
+      if (intakeIds.length > 0)
+        filters.push(`intake_form_id.in.(${intakeIds.join(',')})`);
+      if (eventIds.length > 0)
+        filters.push(`event_id.in.(${eventIds.join(',')})`);
       if (filters.length === 0) return null;
       return q.or(filters.join(','));
     };
 
     // Attempt 1: full query with FK-hinted joins
     try {
-      let query = supabase
+      const query = supabase
         .from('estimates')
-        .select('*, intake_form:intake_forms!intake_form_id(*), items:estimate_items!estimate_id(*)')
+        .select(
+          '*, intake_form:intake_forms!intake_form_id(*), items:estimate_items!estimate_id(*)',
+        )
         .eq('owner_id', ownerId)
         .order('created_at', { ascending: false });
 
@@ -224,7 +262,7 @@ export class EstimatesService {
     } catch (e1) {
       // Attempt 2: simpler query without joins (still returns estimates, just without nested data)
       try {
-        let query = supabase
+        const query = supabase
           .from('estimates')
           .select('*')
           .eq('owner_id', ownerId)
@@ -235,14 +273,22 @@ export class EstimatesService {
 
         const { data, error } = await filtered;
         if (error) throw error;
-        return (data || []).map((e: any) => ({ ...e, items: [], intake_form: null }));
+        return (data || []).map((e: any) => ({
+          ...e,
+          items: [],
+          intake_form: null,
+        }));
       } catch {
         return [];
       }
     }
   }
 
-  async findByIntakeForm(supabase: SupabaseClient, intakeFormId: string, ownerId?: string): Promise<Estimate[]> {
+  async findByIntakeForm(
+    supabase: SupabaseClient,
+    intakeFormId: string,
+    ownerId?: string,
+  ): Promise<Estimate[]> {
     try {
       const { data, error } = await supabase
         .from('estimates')
@@ -273,7 +319,7 @@ export class EstimatesService {
     if (error) throw new NotFoundException('Estimate not found');
 
     // Enrich with owner info (business name, address, phone for letterhead)
-    const estimate = data as any;
+    const estimate = data;
     if (estimate.owner_id) {
       const { data: ownerAcc } = await supabase
         .from('owner_accounts')
@@ -311,8 +357,10 @@ export class EstimatesService {
           .single();
         if (ownerUser) {
           const u = ownerUser as any;
-          estimate.owner_business_name = [u.first_name, u.last_name].filter(Boolean).join(' ') || null;
-          if (!estimate.owner_phone) estimate.owner_phone = u.phone_number || null;
+          estimate.owner_business_name =
+            [u.first_name, u.last_name].filter(Boolean).join(' ') || null;
+          if (!estimate.owner_phone)
+            estimate.owner_phone = u.phone_number || null;
         }
       }
     }
@@ -355,7 +403,11 @@ export class EstimatesService {
     let clientPhone: string | null = estimateData.client_phone || null;
     let clientEmail: string | null = estimateData.client_email || null;
     if (!clientPhone && estimateData.intake_form_id) {
-      const { data: fm } = await supabase.from('intake_forms').select('contact_phone, contact_email').eq('id', estimateData.intake_form_id).single();
+      const { data: fm } = await supabase
+        .from('intake_forms')
+        .select('contact_phone, contact_email')
+        .eq('id', estimateData.intake_form_id)
+        .single();
       clientPhone = (fm as any)?.contact_phone ?? null;
       clientEmail = (fm as any)?.contact_email ?? null;
     }
@@ -389,7 +441,11 @@ export class EstimatesService {
     const estimate = data as Estimate;
 
     if (items && items.length > 0) {
-      const createdItems = await this.createItems(supabase, estimate.id!, items);
+      const createdItems = await this.createItems(
+        supabase,
+        estimate.id!,
+        items,
+      );
       const totals = this.calculateTotals(
         createdItems,
         Number(estimateData.tax_rate) || 0,
@@ -397,7 +453,11 @@ export class EstimatesService {
       );
       const { data: updated, error: upErr } = await supabase
         .from('estimates')
-        .update({ subtotal: totals.subtotal, tax_amount: totals.taxAmount, total_amount: totals.totalAmount })
+        .update({
+          subtotal: totals.subtotal,
+          tax_amount: totals.taxAmount,
+          total_amount: totals.totalAmount,
+        })
         .eq('id', estimate.id)
         .select('*, intake_form:intake_forms(*), items:estimate_items(*)')
         .single();
@@ -414,7 +474,8 @@ export class EstimatesService {
     items: Partial<EstimateItem>[],
   ): Promise<EstimateItem[]> {
     const rows = items.map((item, index) => {
-      const { subtotal, discountAmount, amount } = this.calculateItemAmounts(item);
+      const { subtotal, discountAmount, amount } =
+        this.calculateItemAmounts(item);
       return {
         estimate_id: estimateId,
         service_item_id: item.service_item_id || null,
@@ -431,14 +492,21 @@ export class EstimatesService {
       };
     });
 
-    const { data, error } = await supabase.from('estimate_items').insert(rows).select();
+    const { data, error } = await supabase
+      .from('estimate_items')
+      .insert(rows)
+      .select();
     if (error) throw error;
     return data || [];
   }
 
   // ─── Update ──────────────────────────────────────────────────────────────────
 
-  async update(supabase: SupabaseClient, id: string, estimateData: Partial<Estimate>): Promise<Estimate> {
+  async update(
+    supabase: SupabaseClient,
+    id: string,
+    estimateData: Partial<Estimate>,
+  ): Promise<Estimate> {
     const { data, error } = await supabase
       .from('estimates')
       .update(estimateData)
@@ -447,13 +515,20 @@ export class EstimatesService {
       .single();
     if (error) throw error;
 
-    if (estimateData.tax_rate !== undefined || estimateData.discount_amount !== undefined) {
+    if (
+      estimateData.tax_rate !== undefined ||
+      estimateData.discount_amount !== undefined
+    ) {
       return this.recalculate(supabase, id);
     }
     return data;
   }
 
-  async updateStatus(supabase: SupabaseClient, id: string, status: string): Promise<Estimate> {
+  async updateStatus(
+    supabase: SupabaseClient,
+    id: string,
+    status: string,
+  ): Promise<Estimate> {
     const updateData: any = { status };
     const today = new Date().toISOString().split('T')[0];
     if (status === 'approved') updateData.approved_date = today;
@@ -463,7 +538,10 @@ export class EstimatesService {
 
     // ── Persist client contact + SMS notifications ──────────────────────────
     try {
-      const { phone, email } = await this.lookupAndPersistClientContact(supabase, updated);
+      const { phone, email } = await this.lookupAndPersistClientContact(
+        supabase,
+        updated,
+      );
       const clientName =
         (updated as any).intake_form?.contact_name || 'Valued Client';
       if (status === 'sent') {
@@ -476,7 +554,8 @@ export class EstimatesService {
         // Email: send estimate-ready notification to client
         if (email) {
           try {
-            const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+            const frontendUrl =
+              process.env.FRONTEND_URL || 'https://eventecos.com';
             const estimateUrl = `${frontendUrl}/client-portal/estimates`;
 
             // Look up event type & date from intake form
@@ -515,7 +594,9 @@ export class EstimatesService {
               eventDate,
               venueName,
             });
-          } catch { /* email errors are non-fatal */ }
+          } catch {
+            /* email errors are non-fatal */
+          }
         }
       } else if (status === 'rejected') {
         await this.smsNotifications.estimateRejected(
@@ -530,7 +611,10 @@ export class EstimatesService {
           updated.estimate_number,
         );
       } else if (status === 'approved') {
-        const ownerPhone = await this.lookupOwnerPhone(supabase, updated.owner_id!);
+        const ownerPhone = await this.lookupOwnerPhone(
+          supabase,
+          updated.owner_id!,
+        );
         await this.smsNotifications.estimateApproved(
           ownerPhone,
           clientName,
@@ -544,11 +628,22 @@ export class EstimatesService {
     return updated;
   }
 
-  async updateItem(supabase: SupabaseClient, itemId: string, itemData: Partial<EstimateItem>): Promise<EstimateItem> {
-    const { subtotal, discountAmount, amount } = this.calculateItemAmounts({ ...itemData });
+  async updateItem(
+    supabase: SupabaseClient,
+    itemId: string,
+    itemData: Partial<EstimateItem>,
+  ): Promise<EstimateItem> {
+    const { subtotal, discountAmount, amount } = this.calculateItemAmounts({
+      ...itemData,
+    });
     const { data, error } = await supabase
       .from('estimate_items')
-      .update({ ...itemData, subtotal, discount_amount: discountAmount, amount })
+      .update({
+        ...itemData,
+        subtotal,
+        discount_amount: discountAmount,
+        amount,
+      })
       .eq('id', itemId)
       .select()
       .single();
@@ -558,13 +653,23 @@ export class EstimatesService {
   }
 
   async deleteItem(supabase: SupabaseClient, itemId: string): Promise<void> {
-    const { data: item } = await supabase.from('estimate_items').select('estimate_id').eq('id', itemId).single();
-    const { error } = await supabase.from('estimate_items').delete().eq('id', itemId);
+    const { data: item } = await supabase
+      .from('estimate_items')
+      .select('estimate_id')
+      .eq('id', itemId)
+      .single();
+    const { error } = await supabase
+      .from('estimate_items')
+      .delete()
+      .eq('id', itemId);
     if (error) throw error;
     if (item) await this.recalculate(supabase, item.estimate_id);
   }
 
-  async recalculate(supabase: SupabaseClient, estimateId: string): Promise<Estimate> {
+  async recalculate(
+    supabase: SupabaseClient,
+    estimateId: string,
+  ): Promise<Estimate> {
     const estimate = await this.findOne(supabase, estimateId);
     const { subtotal, taxAmount, totalAmount } = this.calculateTotals(
       (estimate as any).items || [],
@@ -590,7 +695,11 @@ export class EstimatesService {
 
   // ─── Convert to Invoice ──────────────────────────────────────────────────────
 
-  async convertToInvoice(supabase: SupabaseClient, userId: string, estimateId: string): Promise<any> {
+  async convertToInvoice(
+    supabase: SupabaseClient,
+    userId: string,
+    estimateId: string,
+  ): Promise<any> {
     const estimate = await this.findOne(supabase, estimateId);
     const items: EstimateItem[] = (estimate as any).items || [];
 
@@ -654,16 +763,21 @@ export class EstimatesService {
         amount: item.amount,
         sort_order: item.sort_order,
       }));
-      const { error: itemErr } = await supabase.from('invoice_items').insert(invoiceItems);
+      const { error: itemErr } = await supabase
+        .from('invoice_items')
+        .insert(invoiceItems);
       if (itemErr) throw itemErr;
     }
 
     // Update estimate → converted
-    await supabase.from('estimates').update({
-      status: 'converted',
-      converted_invoice_id: invoice.id,
-      converted_at: new Date().toISOString(),
-    }).eq('id', estimateId);
+    await supabase
+      .from('estimates')
+      .update({
+        status: 'converted',
+        converted_invoice_id: invoice.id,
+        converted_at: new Date().toISOString(),
+      })
+      .eq('id', estimateId);
 
     return invoice;
   }

@@ -32,8 +32,11 @@ export class IntakeFormsService {
       const supabaseAdmin = this.supabaseService.getAdminClient();
 
       // Deduplicate: skip if an event with the same owner, date, and name already exists
-      const eventName = intakeForm.event_name || `${intakeForm.event_type || 'Event'} - ${intakeForm.contact_name || 'Client'}`;
-      const eventDate = intakeForm.event_date || new Date().toISOString().split('T')[0];
+      const eventName =
+        intakeForm.event_name ||
+        `${intakeForm.event_type || 'Event'} - ${intakeForm.contact_name || 'Client'}`;
+      const eventDate =
+        intakeForm.event_date || new Date().toISOString().split('T')[0];
       const { data: existing } = await supabaseAdmin
         .from('event')
         .select('id')
@@ -43,34 +46,45 @@ export class IntakeFormsService {
         .limit(1)
         .maybeSingle();
       if (existing) {
-        console.log(`[IntakeFormsService] Skipping auto-create — event already exists (${existing.id})`);
+        console.log(
+          `[IntakeFormsService] Skipping auto-create — event already exists (${existing.id})`,
+        );
         return;
       }
 
       // Resolve venue: use explicitly provided venueId first, then fall back to owner's primary venue
-      const resolvedVenueId = venueId || await this.resolveOwnerVenueId(ownerId, supabaseAdmin);
-      await supabaseAdmin.from('event').insert([{
-        name: eventName,
-        date: eventDate,
-        start_time: intakeForm.event_time || null,
-        end_time: intakeForm.event_end_time || null,
-        venue: intakeForm.venue_preference || null,
-        guest_count: intakeForm.guest_count || null,
-        description: intakeForm.event_description || intakeForm.special_requests || null,
-        status: 'scheduled',
-        owner_id: ownerId,
-        client_id: intakeForm.id,
-        intake_form_id: intakeForm.id,
-        ...(resolvedVenueId ? { venue_id: resolvedVenueId } : {}),
-      }]);
-      console.log(`[IntakeFormsService] Auto-created event for intake form ${intakeForm.id}`);
+      const resolvedVenueId =
+        venueId || (await this.resolveOwnerVenueId(ownerId, supabaseAdmin));
+      await supabaseAdmin.from('event').insert([
+        {
+          name: eventName,
+          date: eventDate,
+          start_time: intakeForm.event_time || null,
+          end_time: intakeForm.event_end_time || null,
+          venue: intakeForm.venue_preference || null,
+          guest_count: intakeForm.guest_count || null,
+          description:
+            intakeForm.event_description || intakeForm.special_requests || null,
+          status: 'scheduled',
+          owner_id: ownerId,
+          client_id: intakeForm.id,
+          intake_form_id: intakeForm.id,
+          ...(resolvedVenueId ? { venue_id: resolvedVenueId } : {}),
+        },
+      ]);
+      console.log(
+        `[IntakeFormsService] Auto-created event for intake form ${intakeForm.id}`,
+      );
     } catch (err) {
       console.warn('[IntakeFormsService] Auto-create event failed:', err);
     }
   }
 
   /** Looks up the primary venue_id for an owner (used when auto-creating events). */
-  private async resolveOwnerVenueId(userId: string, admin: any): Promise<string | null> {
+  private async resolveOwnerVenueId(
+    userId: string,
+    admin: any,
+  ): Promise<string | null> {
     try {
       const { data: membership } = await admin
         .from('memberships')
@@ -103,7 +117,14 @@ export class IntakeFormsService {
 
   async create(supabase: SupabaseClient, userId: string, createDto: any) {
     // Remove columns that don't exist in the intake_forms table
-    const { accessibility_requirements, preferred_contact, event_name, event_end_time, event_description, ...rest } = createDto;
+    const {
+      accessibility_requirements,
+      preferred_contact,
+      event_name,
+      event_end_time,
+      event_description,
+      ...rest
+    } = createDto;
 
     // Normalize phone to E.164 on the way in
     if (rest.contact_phone) {
@@ -130,7 +151,11 @@ export class IntakeFormsService {
       .single();
 
     // Retry without the migration-gated columns if they don't exist yet
-    if (insertResult.error && (insertResult.error.message.includes('column') || insertResult.error.code === '42703')) {
+    if (
+      insertResult.error &&
+      (insertResult.error.message.includes('column') ||
+        insertResult.error.code === '42703')
+    ) {
       const basePayload = { ...rest, user_id: userId };
       insertResult = await supabaseAdmin
         .from('intake_forms')
@@ -140,7 +165,10 @@ export class IntakeFormsService {
     }
 
     const { data, error } = insertResult;
-    if (error) throw new Error(`Intake form insert failed: ${error.message} (code: ${error.code})`);
+    if (error)
+      throw new Error(
+        `Intake form insert failed: ${error.message} (code: ${error.code})`,
+      );
 
     // Auto-create an event from the intake form so it appears on the owner's calendar
     // and can be linked to estimates/invoices immediately without manual conversion.
@@ -156,10 +184,15 @@ export class IntakeFormsService {
       } else {
         // Look up the owner's primary venue so the event is linked and always
         // visible even when the events page filters by venue.
-        const ownerVenueId = await this.resolveOwnerVenueId(userId, supabaseAdmin);
+        const ownerVenueId = await this.resolveOwnerVenueId(
+          userId,
+          supabaseAdmin,
+        );
 
         const eventData = {
-          name: data.event_name || `${data.event_type ? data.event_type.charAt(0).toUpperCase() + data.event_type.slice(1).replace(/_/g, ' ') : 'Event'} - ${data.contact_name}`,
+          name:
+            data.event_name ||
+            `${data.event_type ? data.event_type.charAt(0).toUpperCase() + data.event_type.slice(1).replace(/_/g, ' ') : 'Event'} - ${data.contact_name}`,
           date: data.event_date,
           start_time: data.event_time || '00:00',
           end_time: data.event_end_time || '23:59',
@@ -187,7 +220,10 @@ export class IntakeFormsService {
       }
     } catch (eventErr) {
       // Non-fatal — intake form was saved, event creation failed silently
-      console.warn('[IntakeFormsService] Auto-event creation failed:', eventErr);
+      console.warn(
+        '[IntakeFormsService] Auto-event creation failed:',
+        eventErr,
+      );
     }
 
     // Send invitation email to client if contact_email is present
@@ -211,7 +247,10 @@ export class IntakeFormsService {
         );
       }
     } catch (ownerSmsErr) {
-      console.warn('[IntakeFormsService] Owner SMS notification failed:', ownerSmsErr);
+      console.warn(
+        '[IntakeFormsService] Owner SMS notification failed:',
+        ownerSmsErr,
+      );
     }
 
     return data;
@@ -240,7 +279,12 @@ export class IntakeFormsService {
     return data;
   }
 
-  async update(supabase: SupabaseClient, userId: string, id: string, updateDto: any) {
+  async update(
+    supabase: SupabaseClient,
+    userId: string,
+    id: string,
+    updateDto: any,
+  ) {
     // Normalize phone on update too
     if (updateDto.contact_phone) {
       updateDto.contact_phone = normalizePhone(updateDto.contact_phone);
@@ -283,7 +327,8 @@ export class IntakeFormsService {
       .single();
 
     if (error || !form) throw new Error('Intake form not found');
-    if (!form.contact_email) throw new Error('This intake form has no client email address');
+    if (!form.contact_email)
+      throw new Error('This intake form has no client email address');
 
     let ownerName: string | undefined;
     try {
@@ -292,8 +337,13 @@ export class IntakeFormsService {
         .select('first_name, last_name')
         .eq('id', userId)
         .maybeSingle();
-      if (owner) ownerName = [owner.first_name, owner.last_name].filter(Boolean).join(' ');
-    } catch { /* ignore */ }
+      if (owner)
+        ownerName = [owner.first_name, owner.last_name]
+          .filter(Boolean)
+          .join(' ');
+    } catch {
+      /* ignore */
+    }
 
     await this.mailService.sendClientInvitation({
       clientName: form.contact_name || 'Valued Client',
@@ -309,7 +359,10 @@ export class IntakeFormsService {
 
     await supabaseAdmin
       .from('intake_forms')
-      .update({ invite_sent_at: new Date().toISOString(), invite_status: 'sent' })
+      .update({
+        invite_sent_at: new Date().toISOString(),
+        invite_status: 'sent',
+      })
       .eq('id', id);
 
     // Also resend via SMS if phone is available (independent channel)
@@ -331,10 +384,14 @@ export class IntakeFormsService {
     return { success: true, message: 'Invitation resent successfully' };
   }
 
-  async convertToBooking(supabase: SupabaseClient, userId: string, intakeFormId: string) {
+  async convertToBooking(
+    supabase: SupabaseClient,
+    userId: string,
+    intakeFormId: string,
+  ) {
     // Use admin client to bypass RLS for events and bookings tables
     const supabaseAdmin = this.supabaseService.getAdminClient();
-    
+
     // Get the intake form
     const { data: intakeForm, error: intakeError } = await supabase
       .from('intake_forms')
@@ -369,9 +426,14 @@ export class IntakeFormsService {
       event = updatedEvent || existingEvent;
     } else {
       // No event exists yet — create one and link it to the intake form
-      const ownerVenueId = await this.resolveOwnerVenueId(userId, supabaseAdmin);
+      const ownerVenueId = await this.resolveOwnerVenueId(
+        userId,
+        supabaseAdmin,
+      );
       const eventData = {
-        name: intakeForm.event_name || `${intakeForm.event_type ? intakeForm.event_type.charAt(0).toUpperCase() + intakeForm.event_type.slice(1).replace(/_/g, ' ') : 'Event'} - ${intakeForm.contact_name}`,
+        name:
+          intakeForm.event_name ||
+          `${intakeForm.event_type ? intakeForm.event_type.charAt(0).toUpperCase() + intakeForm.event_type.slice(1).replace(/_/g, ' ') : 'Event'} - ${intakeForm.contact_name}`,
         date: intakeForm.event_date,
         start_time: intakeForm.event_time || '00:00',
         end_time: intakeForm.event_end_time || '23:59',
@@ -395,7 +457,11 @@ export class IntakeFormsService {
     }
 
     // Guard: event is already a booking (deposit paid) — just mark intake form converted.
-    if (event.client_status === 'deposit_paid' || event.client_status === 'completed' || Number(event.deposit_amount ?? 0) > 0) {
+    if (
+      event.client_status === 'deposit_paid' ||
+      event.client_status === 'completed' ||
+      Number(event.deposit_amount ?? 0) > 0
+    ) {
       await supabase
         .from('intake_forms')
         .update({ status: 'converted' })
@@ -415,11 +481,21 @@ export class IntakeFormsService {
       .update({
         special_requests: [
           intakeForm.special_requests,
-          intakeForm.catering_requirements ? `Catering: ${intakeForm.catering_requirements}` : null,
-          intakeForm.equipment_needs ? `Equipment: ${intakeForm.equipment_needs}` : null,
-          intakeForm.dietary_restrictions ? `Dietary: ${intakeForm.dietary_restrictions}` : null,
-          intakeForm.accessibility_requirements ? `Accessibility: ${intakeForm.accessibility_requirements}` : null,
-        ].filter(Boolean).join('\n'),
+          intakeForm.catering_requirements
+            ? `Catering: ${intakeForm.catering_requirements}`
+            : null,
+          intakeForm.equipment_needs
+            ? `Equipment: ${intakeForm.equipment_needs}`
+            : null,
+          intakeForm.dietary_restrictions
+            ? `Dietary: ${intakeForm.dietary_restrictions}`
+            : null,
+          intakeForm.accessibility_requirements
+            ? `Accessibility: ${intakeForm.accessibility_requirements}`
+            : null,
+        ]
+          .filter(Boolean)
+          .join('\n'),
         notes: `Converted from intake form. Budget range: ${intakeForm.budget_range || 'Not specified'}`,
         client_status: 'pending',
         client_confirmation_status: intakeForm.contact_phone ? 'pending' : null,
@@ -446,8 +522,13 @@ export class IntakeFormsService {
         .select('first_name, last_name')
         .eq('id', userId)
         .maybeSingle();
-      if (owner) ownerName = [owner.first_name, owner.last_name].filter(Boolean).join(' ');
-    } catch { /* ignore */ }
+      if (owner)
+        ownerName = [owner.first_name, owner.last_name]
+          .filter(Boolean)
+          .join(' ');
+    } catch {
+      /* ignore */
+    }
 
     // Try to fetch the business/venue name from owner_accounts
     try {
@@ -469,7 +550,9 @@ export class IntakeFormsService {
         const bizName = (membership as any)?.owner_accounts?.business_name;
         if (bizName) venueName = bizName;
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     if (intakeForm.contact_email && intakeForm.invite_token) {
       try {
@@ -487,7 +570,10 @@ export class IntakeFormsService {
         });
         await supabaseAdmin
           .from('intake_forms')
-          .update({ invite_sent_at: new Date().toISOString(), invite_status: 'sent' })
+          .update({
+            invite_sent_at: new Date().toISOString(),
+            invite_status: 'sent',
+          })
           .eq('id', intakeFormId);
       } catch (emailErr) {
         console.warn('[convertToBooking] Email invitation failed:', emailErr);
@@ -499,7 +585,8 @@ export class IntakeFormsService {
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
         const inviteUrl = `${frontendUrl}/invite?token=${intakeForm.invite_token}`;
         const clientName = intakeForm.contact_name || 'there';
-        const eventLabel = intakeForm.event_name || intakeForm.event_type || 'your event';
+        const eventLabel =
+          intakeForm.event_name || intakeForm.event_type || 'your event';
         await this.twilioService.sendSMS(
           normalizePhone(intakeForm.contact_phone),
           `Hi ${clientName}! Your event (${eventLabel}) has been confirmed. Tap the link to access your client portal: ${inviteUrl}`,
@@ -525,7 +612,9 @@ export class IntakeFormsService {
         .filter('event_date', 'lt', `${eventDateStr}T23:59:59`);
 
       if (conflicting && conflicting.length > 0) {
-        const formattedDate = new Date(`${eventDateStr}T12:00:00`).toLocaleDateString('en-US', {
+        const formattedDate = new Date(
+          `${eventDateStr}T12:00:00`,
+        ).toLocaleDateString('en-US', {
           weekday: 'long',
           month: 'long',
           day: 'numeric',
@@ -542,13 +631,19 @@ export class IntakeFormsService {
           try {
             await this.twilioService.sendSMS(phone, message);
           } catch (smsErr) {
-            console.warn(`[convertToBooking] SMS failed for lead ${lead.id}:`, smsErr);
+            console.warn(
+              `[convertToBooking] SMS failed for lead ${lead.id}:`,
+              smsErr,
+            );
           }
         }
       }
     } catch (notifyErr) {
       // Non-fatal — booking was already confirmed; just log
-      console.warn('[convertToBooking] Conflict notification error:', notifyErr);
+      console.warn(
+        '[convertToBooking] Conflict notification error:',
+        notifyErr,
+      );
     }
 
     return {
@@ -562,7 +657,11 @@ export class IntakeFormsService {
    * Recreate an event from an intake form if it was deleted.
    * Links the newly created event back to the intake form via intake_form_id.
    */
-  async recreateEvent(supabase: SupabaseClient, userId: string, intakeFormId: string) {
+  async recreateEvent(
+    supabase: SupabaseClient,
+    userId: string,
+    intakeFormId: string,
+  ) {
     const supabaseAdmin = this.supabaseService.getAdminClient();
 
     // Get the intake form
@@ -593,7 +692,9 @@ export class IntakeFormsService {
     // Create the event using the same logic as convertToBooking
     const ownerVenueId = await this.resolveOwnerVenueId(userId, supabaseAdmin);
     const eventData = {
-      name: intakeForm.event_name || `${intakeForm.event_type ? intakeForm.event_type.charAt(0).toUpperCase() + intakeForm.event_type.slice(1).replace(/_/g, ' ') : 'Event'} - ${intakeForm.contact_name}`,
+      name:
+        intakeForm.event_name ||
+        `${intakeForm.event_type ? intakeForm.event_type.charAt(0).toUpperCase() + intakeForm.event_type.slice(1).replace(/_/g, ' ') : 'Event'} - ${intakeForm.contact_name}`,
       date: intakeForm.event_date,
       start_time: intakeForm.event_time || '00:00',
       end_time: intakeForm.event_end_time || '23:59',
@@ -635,14 +736,22 @@ export class IntakeFormsService {
       .maybeSingle();
     if (error || !owner) throw new Error('Owner not found');
     return {
-      ownerName: [owner.first_name, owner.last_name].filter(Boolean).join(' ') || 'Event Planner',
+      ownerName:
+        [owner.first_name, owner.last_name].filter(Boolean).join(' ') ||
+        'Event Planner',
     };
   }
 
   async createPublic(ownerId: string, dto: any) {
     const supabaseAdmin = this.supabaseService.getAdminClient();
     // Strip columns not in intake_forms schema; venue_id is handled separately
-    const { accessibility_requirements, preferred_contact, venue_id, event_description, ...safeDto } = dto;
+    const {
+      accessibility_requirements,
+      preferred_contact,
+      venue_id,
+      event_description,
+      ...safeDto
+    } = dto;
     const venueId: string | null = venue_id || null;
 
     if (safeDto.contact_phone) {
@@ -670,7 +779,8 @@ export class IntakeFormsService {
         .insert([{ ...safeDto, user_id: ownerId }])
         .select()
         .single();
-      if (e2) throw new Error(`Public intake form insert failed: ${e2.message}`);
+      if (e2)
+        throw new Error(`Public intake form insert failed: ${e2.message}`);
       data = d2;
     } else {
       data = d1;
@@ -687,9 +797,14 @@ export class IntakeFormsService {
       const ownerPhone = (owner as any)?.phone_number ?? null;
       const ownerEmail = (owner as any)?.email ?? null;
       const eventDate = safeDto.event_date
-        ? new Date(safeDto.event_date + 'T12:00:00').toLocaleDateString('en-US', {
-            month: 'short', day: 'numeric', year: 'numeric',
-          })
+        ? new Date(safeDto.event_date + 'T12:00:00').toLocaleDateString(
+            'en-US',
+            {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            },
+          )
         : 'TBD';
 
       // SMS
@@ -714,10 +829,12 @@ export class IntakeFormsService {
         });
       }
     } catch (smsErr) {
-      console.warn('[IntakeFormsService.createPublic] Owner notification failed:', smsErr);
+      console.warn(
+        '[IntakeFormsService.createPublic] Owner notification failed:',
+        smsErr,
+      );
     }
 
     return data;
   }
 }
-

@@ -30,7 +30,8 @@ export class ArtistInvoicesController {
   // ─── Auth helper ──────────────────────────────────────────────────────────
 
   private async getUserId(authorization: string): Promise<string> {
-    if (!authorization) throw new UnauthorizedException('No authorization header');
+    if (!authorization)
+      throw new UnauthorizedException('No authorization header');
     const token = authorization.replace('Bearer ', '');
 
     if (token.startsWith('local-')) return token.replace('local-', '');
@@ -85,7 +86,10 @@ export class ArtistInvoicesController {
 
   /** GET /artist-invoices/:id — Get single invoice */
   @Get(':id')
-  async getInvoice(@Headers('authorization') auth: string, @Param('id') id: string) {
+  async getInvoice(
+    @Headers('authorization') auth: string,
+    @Param('id') id: string,
+  ) {
     const userId = await this.getUserId(auth);
     return this.artistInvoicesService.getInvoice(userId, id);
   }
@@ -103,14 +107,20 @@ export class ArtistInvoicesController {
 
   /** DELETE /artist-invoices/:id — Delete invoice */
   @Delete(':id')
-  async deleteInvoice(@Headers('authorization') auth: string, @Param('id') id: string) {
+  async deleteInvoice(
+    @Headers('authorization') auth: string,
+    @Param('id') id: string,
+  ) {
     const userId = await this.getUserId(auth);
     return this.artistInvoicesService.deleteInvoice(userId, id);
   }
 
   /** POST /artist-invoices/:id/send — Email invoice to client */
   @Post(':id/send')
-  async sendInvoice(@Headers('authorization') auth: string, @Param('id') id: string) {
+  async sendInvoice(
+    @Headers('authorization') auth: string,
+    @Param('id') id: string,
+  ) {
     const userId = await this.getUserId(auth);
     return this.artistInvoicesService.sendInvoice(userId, id);
   }
@@ -139,7 +149,10 @@ export class ArtistInvoicesController {
 
   /** DELETE /artist-invoices/items/:itemId — Delete a line item */
   @Delete('items/:itemId')
-  async deleteItem(@Headers('authorization') auth: string, @Param('itemId') itemId: string) {
+  async deleteItem(
+    @Headers('authorization') auth: string,
+    @Param('itemId') itemId: string,
+  ) {
     const userId = await this.getUserId(auth);
     return this.artistInvoicesService.deleteItem(userId, itemId);
   }

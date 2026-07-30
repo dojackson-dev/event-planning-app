@@ -1,4 +1,14 @@
-import { Controller, Get, Patch, Post, Param, Query, Body, Req, UnauthorizedException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Patch,
+  Post,
+  Param,
+  Query,
+  Body,
+  Req,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { AdminService } from './admin.service';
 import type { Request } from 'express';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -16,7 +26,10 @@ export class AdminController {
     const token = req.headers.authorization?.replace('Bearer ', '');
     if (!token) throw new UnauthorizedException('No token provided');
 
-    const { data: { user }, error } = await this.supabaseService.getAdminClient().auth.getUser(token);
+    const {
+      data: { user },
+      error,
+    } = await this.supabaseService.getAdminClient().auth.getUser(token);
     if (error || !user || user.email !== ADMIN_EMAIL) {
       throw new UnauthorizedException('Admin access required');
     }
@@ -63,7 +76,10 @@ export class AdminController {
   }
 
   @Post('trial-settings')
-  async updateTrialSettings(@Req() req: Request, @Body() body: { trialDays: number }) {
+  async updateTrialSettings(
+    @Req() req: Request,
+    @Body() body: { trialDays: number },
+  ) {
     await this.verifyAdmin(req);
     return this.adminService.updateTrialSettings(body.trialDays);
   }
@@ -77,7 +93,12 @@ export class AdminController {
     @Query('ownerId') ownerId = '',
   ) {
     await this.verifyAdmin(req);
-    return this.adminService.getEvents(parseInt(page), parseInt(limit), search, ownerId);
+    return this.adminService.getEvents(
+      parseInt(page),
+      parseInt(limit),
+      search,
+      ownerId,
+    );
   }
 
   @Get('bookings')
@@ -89,7 +110,12 @@ export class AdminController {
     @Query('ownerId') ownerId = '',
   ) {
     await this.verifyAdmin(req);
-    return this.adminService.getBookings(parseInt(page), parseInt(limit), search, ownerId);
+    return this.adminService.getBookings(
+      parseInt(page),
+      parseInt(limit),
+      search,
+      ownerId,
+    );
   }
 
   @Get('clients')
@@ -100,7 +126,11 @@ export class AdminController {
     @Query('search') search = '',
   ) {
     await this.verifyAdmin(req);
-    return this.adminService.getClients(parseInt(page), parseInt(limit), search);
+    return this.adminService.getClients(
+      parseInt(page),
+      parseInt(limit),
+      search,
+    );
   }
 
   @Get('revenue')
@@ -124,7 +154,12 @@ export class AdminController {
     @Query('role') role = '',
   ) {
     await this.verifyAdmin(req);
-    return this.adminService.getActivity(parseInt(page), parseInt(limit), search, role);
+    return this.adminService.getActivity(
+      parseInt(page),
+      parseInt(limit),
+      search,
+      role,
+    );
   }
 
   @Get('trials')
@@ -157,6 +192,11 @@ export class AdminController {
     @Query('status') status = '',
   ) {
     await this.verifyAdmin(req);
-    return this.adminService.getUnconvertedAccounts(parseInt(page), parseInt(limit), search, status);
+    return this.adminService.getUnconvertedAccounts(
+      parseInt(page),
+      parseInt(limit),
+      search,
+      status,
+    );
   }
 }

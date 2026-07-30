@@ -51,9 +51,12 @@ export class InvoicesService {
     const invoiceNumber = `INV-${new Date().getFullYear()}-${String(count + 1).padStart(5, '0')}`;
 
     // Calculate totals
-    const subtotal = invoiceData.items?.reduce((sum, item) => sum + Number(item.amount), 0) || 0;
-    const taxAmount = subtotal * (Number(invoiceData.taxRate) || 0) / 100;
-    const totalAmount = subtotal + taxAmount - Number(invoiceData.discountAmount || 0);
+    const subtotal =
+      invoiceData.items?.reduce((sum, item) => sum + Number(item.amount), 0) ||
+      0;
+    const taxAmount = (subtotal * (Number(invoiceData.taxRate) || 0)) / 100;
+    const totalAmount =
+      subtotal + taxAmount - Number(invoiceData.discountAmount || 0);
     const amountDue = totalAmount - Number(invoiceData.amountPaid || 0);
 
     const invoice = this.invoiceRepository.create({
@@ -69,22 +72,41 @@ export class InvoicesService {
     return this.invoiceRepository.save(invoice);
   }
 
-  async update(id: number, invoiceData: Partial<Invoice>): Promise<Invoice | null> {
+  async update(
+    id: number,
+    invoiceData: Partial<Invoice>,
+  ): Promise<Invoice | null> {
     const invoice = await this.findOne(id);
-    
+
     if (!invoice) {
       return null;
     }
 
     // Recalculate totals if items or rates changed
-    if (invoiceData.items || invoiceData.taxRate !== undefined || invoiceData.discountAmount !== undefined) {
+    if (
+      invoiceData.items ||
+      invoiceData.taxRate !== undefined ||
+      invoiceData.discountAmount !== undefined
+    ) {
       const items = invoiceData.items || invoice.items;
-      const subtotal = items.reduce((sum, item) => sum + Number(item.amount), 0);
-      const taxRate = invoiceData.taxRate !== undefined ? invoiceData.taxRate : invoice.taxRate;
-      const discountAmount = invoiceData.discountAmount !== undefined ? invoiceData.discountAmount : invoice.discountAmount;
-      const taxAmount = subtotal * Number(taxRate) / 100;
+      const subtotal = items.reduce(
+        (sum, item) => sum + Number(item.amount),
+        0,
+      );
+      const taxRate =
+        invoiceData.taxRate !== undefined
+          ? invoiceData.taxRate
+          : invoice.taxRate;
+      const discountAmount =
+        invoiceData.discountAmount !== undefined
+          ? invoiceData.discountAmount
+          : invoice.discountAmount;
+      const taxAmount = (subtotal * Number(taxRate)) / 100;
       const totalAmount = subtotal + taxAmount - Number(discountAmount);
-      const amountPaid = invoiceData.amountPaid !== undefined ? invoiceData.amountPaid : invoice.amountPaid;
+      const amountPaid =
+        invoiceData.amountPaid !== undefined
+          ? invoiceData.amountPaid
+          : invoice.amountPaid;
       const amountDue = totalAmount - Number(amountPaid);
 
       invoiceData = {
@@ -115,16 +137,27 @@ export class InvoicesService {
 
     // Notify user if invoice transitioned to PAID
     try {
-      if (invoiceData.status === InvoiceStatus.PAID && prevStatus !== InvoiceStatus.PAID && updated) {
+      if (
+        invoiceData.status === InvoiceStatus.PAID &&
+        prevStatus !== InvoiceStatus.PAID &&
+        updated
+      ) {
         const userId = updated.booking?.userId;
         if (userId) {
           const msg = `Your invoice ${updated.invoiceNumber} has been paid in full. Thank you!`;
-          await this.messagingService.sendInvoiceUpdate(userId, updated.id, msg);
+          await this.messagingService.sendInvoiceUpdate(
+            userId,
+            updated.id,
+            msg,
+          );
         }
       }
     } catch (err) {
       // Log and continue — messaging failures should not break invoice update
-      console.error('Failed to send invoice-paid notification:', err?.message || err);
+      console.error(
+        'Failed to send invoice-paid notification:',
+        err?.message || err,
+      );
     }
 
     return updated;
@@ -136,11 +169,11 @@ export class InvoicesService {
 
   async recordPayment(id: number, amount: number): Promise<Invoice | null> {
     const invoice = await this.findOne(id);
-    
+
     if (!invoice) {
       return null;
     }
-    
+
     const prevAmountPaid = Number(invoice.amountPaid) || 0;
     const newAmountPaid = prevAmountPaid + amount;
 
@@ -150,16 +183,27 @@ export class InvoicesService {
     try {
       if (updated && updated.booking) {
         const depositAmount = Number(updated.booking.deposit || 0);
-        if (depositAmount > 0 && prevAmountPaid < depositAmount && newAmountPaid >= depositAmount) {
+        if (
+          depositAmount > 0 &&
+          prevAmountPaid < depositAmount &&
+          newAmountPaid >= depositAmount
+        ) {
           const userId = updated.booking.userId;
           if (userId) {
-            const msg = `Deposit of $${depositAmount.toFixed(2)} received for booking associated with invoice ${updated.invoiceNumber}.`; 
-            await this.messagingService.sendInvoiceUpdate(userId, updated.id, msg);
+            const msg = `Deposit of $${depositAmount.toFixed(2)} received for booking associated with invoice ${updated.invoiceNumber}.`;
+            await this.messagingService.sendInvoiceUpdate(
+              userId,
+              updated.id,
+              msg,
+            );
           }
         }
       }
     } catch (err) {
-      console.error('Failed to send deposit notification:', err?.message || err);
+      console.error(
+        'Failed to send deposit notification:',
+        err?.message || err,
+      );
     }
 
     return updated;

@@ -5,13 +5,11 @@ import { Event } from '../entities/event.entity';
 
 @Injectable()
 export class EventsService {
-  constructor(
-    private readonly supabaseService: SupabaseService,
-  ) {}
+  constructor(private readonly supabaseService: SupabaseService) {}
 
   private camelToSnakeCase(obj: any): any {
     if (!obj || typeof obj !== 'object') return obj;
-    
+
     // Field mapping for special cases where frontend field doesn't match database column
     const fieldMapping: Record<string, string> = {
       maxGuests: 'guest_count',
@@ -22,12 +20,14 @@ export class EventsService {
       ownerId: 'owner_id',
       venueId: 'venue_id',
     };
-    
+
     const result = {};
     for (const key in obj) {
       if (obj.hasOwnProperty(key)) {
         // Use field mapping if available, otherwise convert camelCase to snake_case
-        const snakeKey = fieldMapping[key] || key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+        const snakeKey =
+          fieldMapping[key] ||
+          key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
         result[snakeKey] = obj[key];
       }
     }
@@ -36,7 +36,7 @@ export class EventsService {
 
   private snakeToCamelCase(obj: any): any {
     if (!obj || typeof obj !== 'object') return obj;
-    
+
     // Reverse field mapping
     const reverseFieldMapping: Record<string, string> = {
       guest_count: 'maxGuests',
@@ -47,12 +47,14 @@ export class EventsService {
       owner_id: 'ownerId',
       venue_id: 'venueId',
     };
-    
+
     const result = {};
     for (const key in obj) {
       if (obj.hasOwnProperty(key)) {
         // Use reverse field mapping if available, otherwise convert snake_case to camelCase
-        const camelKey = reverseFieldMapping[key] || key.replace(/_([a-z])/g, (match, letter) => letter.toUpperCase());
+        const camelKey =
+          reverseFieldMapping[key] ||
+          key.replace(/_([a-z])/g, (match, letter) => letter.toUpperCase());
         // Preserve date as string, don't convert to Date object
         result[camelKey] = obj[key];
       }
@@ -83,15 +85,24 @@ export class EventsService {
       memorial_service: 'Memorial Service',
       other: 'Other',
     };
-    return labels[type] || type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, ' ');
+    return (
+      labels[type] ||
+      type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, ' ')
+    );
   }
 
-  async findAll(supabase: SupabaseClient, userId: string, venueId?: string): Promise<Event[]> {
+  async findAll(
+    supabase: SupabaseClient,
+    userId: string,
+    venueId?: string,
+  ): Promise<Event[]> {
     // Use admin client so the intake_forms join isn't blocked by RLS
     const adminClient = this.supabaseService.getAdminClient();
     let query = adminClient
       .from('event')
-      .select('*, intake_form:intake_forms!intake_form_id(contact_name, event_name, event_type, status, guest_count, budget_range, event_date, event_time, special_requests, venue_preference, contact_email, contact_phone)')
+      .select(
+        '*, intake_form:intake_forms!intake_form_id(contact_name, event_name, event_type, status, guest_count, budget_range, event_date, event_time, special_requests, venue_preference, contact_email, contact_phone)',
+      )
       .eq('owner_id', userId)
       .order('date', { ascending: true });
     if (venueId) query = query.eq('venue_id', venueId);
@@ -113,12 +124,14 @@ export class EventsService {
           .select('*')
           .eq('owner_id', userId)
           .order('date', { ascending: true });
-        return (fallbackData || []).map(event => this.snakeToCamelCase(event));
+        return (fallbackData || []).map((event) =>
+          this.snakeToCamelCase(event),
+        );
       }
-      return (basicData || []).map(event => this.snakeToCamelCase(event));
+      return (basicData || []).map((event) => this.snakeToCamelCase(event));
     }
 
-    return (data || []).map(event => {
+    return (data || []).map((event) => {
       const converted = this.snakeToCamelCase(event);
       // Flatten intake form fields onto the event
       if (event.intake_form) {
@@ -135,7 +148,9 @@ export class EventsService {
         converted.venuePreference = event.intake_form.venue_preference || null;
         // If no explicit event_name, derive a readable title from event_type
         if (!converted.intakeEventName && event.intake_form.event_type) {
-          converted.intakeEventName = this.formatEventType(event.intake_form.event_type);
+          converted.intakeEventName = this.formatEventType(
+            event.intake_form.event_type,
+          );
         }
       }
       delete converted.intakeForm;
@@ -143,12 +158,18 @@ export class EventsService {
     });
   }
 
-  async findOne(supabase: SupabaseClient, id: string, userId: string): Promise<Event | null> {
+  async findOne(
+    supabase: SupabaseClient,
+    id: string,
+    userId: string,
+  ): Promise<Event | null> {
     // Try with intake_form join for client name + event name display
     const adminClient = this.supabaseService.getAdminClient();
     const { data, error } = await adminClient
       .from('event')
-      .select('*, intake_form:intake_forms!intake_form_id(contact_name, contact_phone, contact_email, event_name, event_type, status, guest_count, budget_range, event_date, event_time, special_requests, venue_preference)')
+      .select(
+        '*, intake_form:intake_forms!intake_form_id(contact_name, contact_phone, contact_email, event_name, event_type, status, guest_count, budget_range, event_date, event_time, special_requests, venue_preference)',
+      )
       .eq('id', id)
       .eq('owner_id', userId)
       .single();
@@ -181,17 +202,25 @@ export class EventsService {
       converted.intakeEventTime = data.intake_form.event_time || null;
       converted.venuePreference = data.intake_form.venue_preference || null;
       if (!converted.intakeEventName && data.intake_form.event_type) {
-        converted.intakeEventName = this.formatEventType(data.intake_form.event_type);
+        converted.intakeEventName = this.formatEventType(
+          data.intake_form.event_type,
+        );
       }
     }
     delete converted.intakeForm;
     return converted;
   }
 
-  async create(supabase: SupabaseClient, event: Partial<Event>): Promise<Event> {
+  async create(
+    supabase: SupabaseClient,
+    event: Partial<Event>,
+  ): Promise<Event> {
     const convertedEvent = this.camelToSnakeCase(event);
-    console.log('Creating event with converted data:', JSON.stringify(convertedEvent, null, 2));
-    
+    console.log(
+      'Creating event with converted data:',
+      JSON.stringify(convertedEvent, null, 2),
+    );
+
     const { data, error } = await supabase
       .from('event')
       .insert([convertedEvent])
@@ -205,7 +234,12 @@ export class EventsService {
     return this.snakeToCamelCase(data);
   }
 
-  async update(supabase: SupabaseClient, id: string, event: Partial<Event>, userId: string): Promise<Event | null> {
+  async update(
+    supabase: SupabaseClient,
+    id: string,
+    event: Partial<Event>,
+    userId: string,
+  ): Promise<Event | null> {
     const convertedEvent = this.camelToSnakeCase(event);
     const { data, error } = await supabase
       .from('event')
@@ -219,7 +253,11 @@ export class EventsService {
     return data ? this.snakeToCamelCase(data) : null;
   }
 
-  async remove(supabase: SupabaseClient, id: string, userId: string): Promise<void> {
+  async remove(
+    supabase: SupabaseClient,
+    id: string,
+    userId: string,
+  ): Promise<void> {
     const { error } = await supabase
       .from('event')
       .delete()
@@ -245,7 +283,11 @@ export class EventsService {
     return (data as any)?.management_data || {};
   }
 
-  async saveManagementData(userId: string, eventId: string, payload: any): Promise<any> {
+  async saveManagementData(
+    userId: string,
+    eventId: string,
+    payload: any,
+  ): Promise<any> {
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('event')

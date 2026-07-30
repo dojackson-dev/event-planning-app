@@ -1,4 +1,9 @@
-import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { SupabaseService } from '../../supabase/supabase.service';
 
@@ -19,7 +24,10 @@ export class SubscriptionGuard implements CanActivate {
     }
 
     const supabase = this.supabaseService.setAuthContext(token);
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
 
     if (error || !user) {
       throw new UnauthorizedException('Invalid token');
@@ -28,13 +36,15 @@ export class SubscriptionGuard implements CanActivate {
     // Get user with membership and subscription info
     const { data: userData, error: userError } = await supabase
       .from('users')
-      .select(`
+      .select(
+        `
         *,
         memberships!inner(
           owner_account_id,
           owner_accounts!inner(subscription_status)
         )
-      `)
+      `,
+      )
       .eq('id', user.id)
       .single();
 
@@ -85,7 +95,10 @@ export class RoleGuard implements CanActivate {
     }
 
     const supabase = this.supabaseService.setAuthContext(token);
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
 
     if (error || !user) {
       throw new UnauthorizedException('Invalid token');
@@ -97,10 +110,18 @@ export class RoleGuard implements CanActivate {
       .eq('id', user.id)
       .single();
 
-    const requiredRoles = this.reflector.get<string[]>('roles', context.getHandler());
-    
-    if (!userData || (requiredRoles && !requiredRoles.includes(userData.role))) {
-      throw new UnauthorizedException(`Required role: ${requiredRoles?.join(' or ')}`);
+    const requiredRoles = this.reflector.get<string[]>(
+      'roles',
+      context.getHandler(),
+    );
+
+    if (
+      !userData ||
+      (requiredRoles && !requiredRoles.includes(userData.role))
+    ) {
+      throw new UnauthorizedException(
+        `Required role: ${requiredRoles?.join(' or ')}`,
+      );
     }
 
     request.user = userData;

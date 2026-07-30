@@ -1,4 +1,12 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
 import { GuestList } from './guest-list.entity';
 
 @Entity('guests')
@@ -9,7 +17,7 @@ export class Guest {
   @Column({ name: 'guest_list_id' })
   guestListId: number;
 
-  @ManyToOne(() => GuestList, guestList => guestList.guests)
+  @ManyToOne(() => GuestList, (guestList) => guestList.guests)
   @JoinColumn({ name: 'guest_list_id' })
   guestList: GuestList;
 

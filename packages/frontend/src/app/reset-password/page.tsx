@@ -12,15 +12,36 @@ function ResetPasswordForm() {
   const [success, setSuccess]           = useState(false)
   const [loading, setLoading]           = useState(false)
   const [sessionReady, setSessionReady] = useState(false)
+  const [linkError, setLinkError]       = useState('')
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  // Supabase sends the recovery token as a hash fragment (#access_token=...&type=recovery)
-  // The client SDK picks it up automatically on load — we just need to wait for the session.
+  // This app's Supabase client (@supabase/ssr) uses the PKCE flow, so recovery
+  // links arrive as `?code=...` (not the old implicit-flow `#access_token=...`
+  // hash fragment). We must explicitly exchange the code for a session —
+  // it isn't picked up automatically.
   useEffect(() => {
     const supabase = createClient()
+    const code = searchParams.get('code')
 
-    // Check if there's already an active recovery session
+    if (code) {
+      supabase.auth.exchangeCodeForSession(code).then(({ data, error: exchangeError }) => {
+        if (exchangeError || !data.session) {
+          setLinkError(
+            exchangeError?.message ||
+              'This reset link is invalid or has expired. Please request a new one.',
+          )
+          return
+        }
+        // Remove the code from the URL now that it's been consumed
+        window.history.replaceState(null, '', window.location.pathname)
+        setSessionReady(true)
+      })
+      return
+    }
+
+    // Fallback: check if there's already an active recovery session
+    // (covers the implicit-flow hash fragment case, if ever used)
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) {
         setSessionReady(true)
@@ -35,7 +56,7 @@ function ResetPasswordForm() {
     })
 
     return () => subscription.unsubscribe()
-  }, [])
+  }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -85,6 +106,18 @@ function ResetPasswordForm() {
               </div>
               <p className="text-green-700 font-medium">Password updated successfully!</p>
               <p className="text-gray-500 text-sm">Redirecting you to sign in…</p>
+            </div>
+          ) : linkError ? (
+            <div className="text-center py-6 space-y-3">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-red-100">
+                <svg className="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </div>
+              <p className="text-red-700 font-medium text-sm">{linkError}</p>
+              <p className="text-gray-400 text-xs">
+                <Link href="/login" className="text-indigo-600 hover:underline">Request a new reset link</Link>.
+              </p>
             </div>
           ) : !sessionReady ? (
             <div className="text-center py-6">

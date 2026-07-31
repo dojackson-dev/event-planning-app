@@ -10,7 +10,8 @@
 
 | Agent | Task | Branch / Worktree | PR / Commit | Notes |
 |-------|------|-------------------|-------------|-------|
-|       |      |                   |             |       |
+| Copilot | Signup email automation (email_jobs queue + CRON + 4 signup hooks) | main (direct) | pending commit | See scheduled-emails module; weekly digest metrics are stubbed pending analytics work |
+
 
 ## Blocked
 

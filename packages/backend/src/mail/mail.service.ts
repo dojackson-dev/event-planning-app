@@ -1711,4 +1711,30 @@ export class MailService {
       throw error;
     }
   }
+
+  /**
+   * Send a pre-rendered HTML email via Resend. Used by callers (e.g. the
+   * scheduled-emails CRON) that build their own template HTML rather than
+   * one of the purpose-built senders above.
+   */
+  async sendResendEmail(params: {
+    to: string;
+    subject: string;
+    html: string;
+  }): Promise<void> {
+    if (!process.env.RESEND_API_KEY) {
+      console.warn(
+        '[MailService] RESEND_API_KEY not set — skipping Resend email to',
+        params.to,
+      );
+      return;
+    }
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    await resend.emails.send({
+      from: this.resendFrom,
+      to: params.to,
+      subject: params.subject,
+      html: params.html,
+    });
+  }
 }

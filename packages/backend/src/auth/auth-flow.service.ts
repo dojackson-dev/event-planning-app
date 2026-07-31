@@ -11,6 +11,7 @@ import { SmsService } from '../sms/sms.service';
 import { TrialService } from '../trial/trial.service';
 import { TwilioService } from '../messaging/twilio.service.js';
 import { AffiliatesService } from '../affiliates/affiliates.service';
+import { ScheduledEmailsService } from '../scheduled-emails/scheduled-emails.service';
 import {
   OwnerSignupDto,
   OwnerLoginDto,
@@ -31,6 +32,7 @@ export class AuthFlowService {
     private readonly smsService: SmsService,
     private readonly trialService: TrialService,
     private readonly twilioService: TwilioService,
+    private readonly scheduledEmailsService: ScheduledEmailsService,
     @Inject(forwardRef(() => AffiliatesService))
     private readonly affiliatesService: AffiliatesService,
   ) {}
@@ -155,18 +157,22 @@ export class AuthFlowService {
     if (memberError) throw new BadRequestException(memberError.message);
 
     // 5. Create first venue (required)
-    const { error: venueError } = await supabase.from('venues').insert({
-      owner_account_id: ownerAccount.id,
-      name: dto.venueName,
-      address: dto.venueAddress,
-      city: dto.venueCity,
-      state: dto.venueState,
-      zip_code: dto.venueZipCode,
-      phone: dto.venuePhone,
-      email: dto.venueEmail,
-      capacity: dto.venueCapacity,
-      description: dto.venueDescription,
-    });
+    const { data: venue, error: venueError } = await supabase
+      .from('venues')
+      .insert({
+        owner_account_id: ownerAccount.id,
+        name: dto.venueName,
+        address: dto.venueAddress,
+        city: dto.venueCity,
+        state: dto.venueState,
+        zip_code: dto.venueZipCode,
+        phone: dto.venuePhone,
+        email: dto.venueEmail,
+        capacity: dto.venueCapacity,
+        description: dto.venueDescription,
+      })
+      .select('id')
+      .single();
 
     if (venueError) throw new BadRequestException(venueError.message);
 
@@ -181,6 +187,16 @@ export class AuthFlowService {
         // Non-fatal — don't block account creation if SMS fails
       }
     }
+
+    const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+    await this.scheduledEmailsService.enqueueSignupSequence({
+      userId,
+      email: dto.email,
+      firstName: dto.firstName,
+      portalType: 'owner',
+      shareableUrl: venue?.id ? `${frontendUrl}/venues/${venue.id}` : undefined,
+      dashboardUrl: `${frontendUrl}/dashboard`,
+    });
 
     // Note: Stripe checkout would happen here in Phase 2
     // const checkoutUrl = await this.stripeService.createCheckoutSession(ownerAccount.id, 'price_xxx');
@@ -623,6 +639,14 @@ export class AuthFlowService {
       }
     }
 
+    await this.scheduledEmailsService.enqueueSignupSequence({
+      userId,
+      email: dto.email,
+      firstName: dto.firstName,
+      portalType: 'vendor',
+      dashboardUrl: `${process.env.FRONTEND_URL || 'https://eventecos.com'}/vendor/dashboard`,
+    });
+
     return {
       userId,
       message:
@@ -695,6 +719,14 @@ export class AuthFlowService {
 
     if (userError) throw new BadRequestException(userError.message);
 
+    await this.scheduledEmailsService.enqueueSignupSequence({
+      userId,
+      email: dto.email,
+      firstName: dto.firstName,
+      portalType: 'promoter',
+      dashboardUrl: `${process.env.FRONTEND_URL || 'https://eventecos.com'}/promoter/dashboard`,
+    });
+
     return {
       userId,
       message:
@@ -766,6 +798,14 @@ export class AuthFlowService {
     });
 
     if (userError) throw new BadRequestException(userError.message);
+
+    await this.scheduledEmailsService.enqueueSignupSequence({
+      userId,
+      email: dto.email,
+      firstName: dto.firstName,
+      portalType: 'artist',
+      dashboardUrl: `${process.env.FRONTEND_URL || 'https://eventecos.com'}/artist/dashboard`,
+    });
 
     return {
       userId,

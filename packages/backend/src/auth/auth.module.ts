@@ -11,6 +11,7 @@ import { SmsModule } from '../sms/sms.module';
 import { TrialModule } from '../trial/trial.module';
 import { MessagingModule } from '../messaging/messaging.module';
 import { AffiliatesModule } from '../affiliates/affiliates.module';
+import { ScheduledEmailsModule } from '../scheduled-emails/scheduled-emails.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { AffiliatesModule } from '../affiliates/affiliates.module';
     SmsModule,
     TrialModule,
     MessagingModule,
+    ScheduledEmailsModule,
     forwardRef(() => AffiliatesModule),
   ],
   controllers: [AuthController, DevAuthController, AuthFlowController],

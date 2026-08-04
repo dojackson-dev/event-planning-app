@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
+import { Colors, Radius } from '@/lib/theme';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -25,7 +27,9 @@ export default function LoginScreen() {
       if (error) throw error;
 
       if (data.session) {
-        router.replace('/(tabs)/events');
+        // Role-based routing handled by _layout.tsx onAuthStateChange
+        // Just navigate to tabs root — the layout will redirect based on role
+        router.replace('/(tabs)/');
       }
     } catch (error: any) {
       // Check if error is related to email verification
@@ -46,89 +50,165 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.title}>Event Planning</Text>
-        <Text style={styles.subtitle}>Sign in to continue</Text>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        {/* Brand Header */}
+        <View style={styles.brand}>
+          <View style={styles.logoCircle}>
+            <Ionicons name="earth" size={36} color={Colors.textWhite} />
+          </View>
+          <Text style={styles.brandName}>EventEcos</Text>
+          <Text style={styles.tagline}>Your event ecosystem — all roles welcome</Text>
+        </View>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          autoComplete="email"
-        />
+        {/* Form */}
+        <View style={styles.form}>
+          <Text style={styles.formTitle}>Welcome Back</Text>
+          <Text style={styles.formSubtitle}>Sign in to your EventEcos account</Text>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          autoComplete="password"
-        />
+          <TextInput
+            style={styles.input}
+            placeholder="Email address"
+            placeholderTextColor={Colors.textMuted}
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            autoComplete="email"
+          />
 
-        <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={handleLogin}
-          disabled={loading}
-        >
-          <Text style={styles.buttonText}>
-            {loading ? 'Signing in...' : 'Sign In'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+          <TextInput
+            style={styles.input}
+            placeholder="Password"
+            placeholderTextColor={Colors.textMuted}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            autoComplete="password"
+          />
+
+          <TouchableOpacity onPress={() => router.push('/(auth)/forgot-password')} style={styles.forgotRow}>
+            <Text style={styles.forgotText}>Forgot password?</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            <Text style={styles.buttonText}>{loading ? 'Signing in...' : 'Sign In'}</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>Don't have an account? </Text>
+          <TouchableOpacity onPress={() => router.push('/(auth)/signup')}>
+            <Text style={styles.footerLink}>Sign Up</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.background,
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 48,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
+  brand: {
+    alignItems: 'center',
     marginBottom: 40,
+  },
+  logoCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  brandName: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+    letterSpacing: -0.5,
+  },
+  tagline: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    marginTop: 4,
+  },
+  form: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.xl,
+    padding: 24,
+    gap: 12,
+  },
+  formTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    marginBottom: 2,
+  },
+  formSubtitle: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    marginBottom: 4,
   },
   input: {
     height: 50,
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
+    borderColor: Colors.border,
+    borderRadius: Radius.lg,
     paddingHorizontal: 16,
-    marginBottom: 16,
-    fontSize: 16,
+    fontSize: 15,
+    color: Colors.textPrimary,
+    backgroundColor: Colors.background,
+  },
+  forgotRow: {
+    alignSelf: 'flex-end',
+  },
+  forgotText: {
+    fontSize: 13,
+    color: Colors.primary,
+    fontWeight: '500',
   },
   button: {
     height: 50,
-    backgroundColor: '#007AFF',
-    borderRadius: 8,
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.lg,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: 4,
   },
   buttonDisabled: {
-    backgroundColor: '#999',
+    opacity: 0.6,
   },
   buttonText: {
-    color: '#fff',
+    color: Colors.textWhite,
     fontSize: 16,
     fontWeight: '600',
+  },
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 28,
+  },
+  footerText: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+  },
+  footerLink: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.primary,
   },
 });

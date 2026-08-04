@@ -143,4 +143,64 @@ export class ArtistsController {
   async getPublicRider(@Param('id') id: string) {
     return this.artistsService.getPublicRider(id);
   }
+
+  // ─────────────────────────────────────────────
+  // BOOKING LINKS
+  // ─────────────────────────────────────────────
+
+  /** POST /artists/booking-links — create or update booking link */
+  @Post('booking-links')
+  async upsertBookingLink(
+    @Headers('authorization') authorization: string,
+    @Body() dto: { slug: string; isActive?: boolean; customMessage?: string },
+  ) {
+    const userId = await this.getUserId(authorization);
+    return this.artistsService.upsertBookingLink(userId, dto);
+  }
+
+  /** GET /artists/booking-links/mine */
+  @Get('booking-links/mine')
+  async getMyBookingLink(@Headers('authorization') authorization: string) {
+    const userId = await this.getUserId(authorization);
+    return this.artistsService.getMyBookingLink(userId);
+  }
+
+  /** GET /artists/booking-links/requests — list incoming booking requests */
+  @Get('booking-links/requests')
+  async getMyBookingRequests(@Headers('authorization') authorization: string) {
+    const userId = await this.getUserId(authorization);
+    return this.artistsService.getMyBookingRequests(userId);
+  }
+
+  /** PUT /artists/booking-links/requests/:id — accept or decline a request */
+  @Put('booking-links/requests/:id')
+  async updateBookingRequest(
+    @Headers('authorization') authorization: string,
+    @Param('id') requestId: string,
+    @Body() body: { status: string },
+  ) {
+    const userId = await this.getUserId(authorization);
+    return this.artistsService.updateBookingRequest(userId, requestId, body.status);
+  }
+
+  /** GET /artists/booking-link/s/:code — public: resolve short code */
+  @Get('booking-link/s/:code')
+  async getPublicBookingLinkByShortCode(@Param('code') code: string) {
+    return this.artistsService.getPublicBookingLinkByShortCode(code);
+  }
+
+  /** GET /artists/booking-link/:slug — public: view booking link */
+  @Get('booking-link/:slug')
+  async getPublicBookingLink(@Param('slug') slug: string) {
+    return this.artistsService.getPublicBookingLink(slug);
+  }
+
+  /** POST /artists/booking-link/:slug/request — public: submit booking request */
+  @Post('booking-link/:slug/request')
+  async submitBookingRequest(
+    @Param('slug') slug: string,
+    @Body() dto: any,
+  ) {
+    return this.artistsService.submitArtistBookingRequest(slug, dto);
+  }
 }

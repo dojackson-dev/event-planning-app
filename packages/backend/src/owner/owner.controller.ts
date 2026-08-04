@@ -725,5 +725,173 @@ export class OwnerController {
     if (error) throw new BadRequestException(error.message);
     return { success: true };
   }
+
+  // ─────────────────────────────────────────────
+  // BOOKING LINKS
+  // ─────────────────────────────────────────────
+
+  private async generateOwnerShortCode(admin: any): Promise<string> {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    for (let attempt = 0; attempt < 10; attempt++) {
+      let code = '';
+      for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+      const { data } = await admin
+        .from('owner_booking_links').select('id').eq('short_code', code).maybeSingle();
+      if (!data) return code;
+    }
+    throw new Error('Could not generate a unique short code');
+  }
+
+  /** POST /owner/booking-links */
+  @Post('booking-links')
+  async upsertBookingLink(
+    @Headers('authorization') authorization: string,
+    @Body() body: { slug: string; isActive?: boolean; customMessage?: string },
+  ) {
+    const userId = await this.getUserId(authorization);
+    const admin = this.supabaseService.getAdminClient();
+
+    if (!/^[a-z0-9-]{3,60}$/.test(body.slug)) {
+      throw new BadRequestException('Slug must be 3-60 characters: lowercase letters, numbers, and hyphens only');
+    }
+
+    const ownerAccountId = await this.getOwnerAccountId(userId, admin);
+    if (!ownerAccountId) throw new BadRequestException('Owner account not found');
+
+    const { data: conflict } = await admin
+      .from('owner_booking_links').select('id, owner_account_id').eq('slug', body.slug).maybeSingle();
+    if (conflict && conflict.owner_account_id !== ownerAccountId) {
+      throw new BadRequestException('This slug is already taken');
+    }
+
+    const { data: existing } = await admin
+      .from('owner_booking_links').select('id, short_code').eq('owner_account_id', ownerAccountId).maybeSingle();
+
+    const shortCode = existing?.short_code ?? await this.generateOwnerShortCode(admin);
+    const payload = {
+      owner_account_id: ownerAccountId,
+      slug: body.slug,
+      short_code: shortCode,
+      is_active: body.isActive ?? true,
+      custom_message: body.customMessage ?? null,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (existing) {
+      const { data, error } = await admin
+        .from('owner_booking_links').update(payload).eq('id', existing.id).select().single();
+      if (error) throw new BadRequestException(error.message);
+      return data;
+    } else {
+      const { data, error } = await admin
+        .from('owner_booking_links').insert(payload).select().single();
+      if (error) throw new BadRequestException(error.message);
+      return data;
+    }
+  }
+
+  /** GET /owner/booking-links/mine */
+  @Get('booking-links/mine')
+  async getMyBookingLink(@Headers('authorization') authorization: string) {
+    const userId = await this.getUserId(authorization);
+    const admin = this.supabaseService.getAdminClient();
+    const ownerAccountId = await this.getOwnerAccountId(userId, admin);
+    if (!ownerAccountId) return null;
+    const { data } = await admin
+      .from('owner_booking_links').select('*').eq('owner_account_id', ownerAccountId).maybeSingle();
+    return data ?? null;
+  }
+
+  /** GET /owner/booking-links/requests */
+  @Get('booking-links/requests')
+  async getBookingRequests(@Headers('authorization') authorization: string) {
+    const userId = await this.getUserId(authorization);
+    const admin = this.supabaseService.getAdminClient();
+    const ownerAccountId = await this.getOwnerAccountId(userId, admin);
+    if (!ownerAccountId) return [];
+    const { data } = await admin
+      .from('owner_booking_requests')
+      .select('*').eq('owner_account_id', ownerAccountId).order('created_at', { ascending: false });
+    return data ?? [];
+  }
+
+  /** PUT /owner/booking-links/requests/:id */
+  @Put('booking-links/requests/:id')
+  async updateBookingRequest(
+    @Headers('authorization') authorization: string,
+    @Param('id') requestId: string,
+    @Body() body: { status: string },
+  ) {
+    const userId = await this.getUserId(authorization);
+    const admin = this.supabaseService.getAdminClient();
+    const ownerAccountId = await this.getOwnerAccountId(userId, admin);
+    if (!ownerAccountId) throw new BadRequestException('Owner account not found');
+
+    const { data, error } = await admin
+      .from('owner_booking_requests')
+      .update({ status: body.status, updated_at: new Date().toISOString() })
+      .eq('id', requestId)
+      .eq('owner_account_id', ownerAccountId)
+      .select().single();
+    if (error) throw new BadRequestException(error.message);
+    return data;
+  }
+
+  /** GET /owner/booking-link/s/:code — public: resolve short code */
+  @Get('booking-link/s/:code')
+  async getPublicBookingLinkByShortCode(@Param('code') code: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const { data, error } = await admin
+      .from('owner_booking_links').select('slug').eq('short_code', code).eq('is_active', true).single();
+    if (error || !data) throw new NotFoundException('Booking link not found or inactive');
+    return { slug: data.slug };
+  }
+
+  /** GET /owner/booking-link/:slug — public: view booking link */
+  @Get('booking-link/:slug')
+  async getPublicBookingLink(@Param('slug') slug: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const { data, error } = await admin
+      .from('owner_booking_links')
+      .select('*, owner_accounts(business_name, logo_url)')
+      .eq('slug', slug)
+      .eq('is_active', true)
+      .single();
+    if (error || !data) throw new NotFoundException('Booking link not found or inactive');
+    return data;
+  }
+
+  /** POST /owner/booking-link/:slug/request — public: submit booking request */
+  @Post('booking-link/:slug/request')
+  async submitBookingRequest(
+    @Param('slug') slug: string,
+    @Body() dto: any,
+  ) {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: link } = await admin
+      .from('owner_booking_links').select('id, owner_account_id, is_active').eq('slug', slug).single();
+    if (!link || !link.is_active) throw new NotFoundException('Booking link not found or inactive');
+
+    const { data, error } = await admin
+      .from('owner_booking_requests')
+      .insert({
+        owner_account_id: link.owner_account_id,
+        booking_link_id: link.id,
+        client_name: dto.clientName,
+        client_email: dto.clientEmail,
+        client_phone: dto.clientPhone ?? null,
+        sms_opt_in: dto.smsOptIn ?? false,
+        event_name: dto.eventName ?? null,
+        event_date: dto.eventDate ?? null,
+        start_time: dto.startTime ?? null,
+        end_time: dto.endTime ?? null,
+        venue_name: dto.venueName ?? null,
+        venue_address: dto.venueAddress ?? null,
+        notes: dto.notes ?? null,
+      })
+      .select().single();
+    if (error) throw new BadRequestException(error.message);
+    return data;
+  }
 }
 

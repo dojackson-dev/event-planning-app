@@ -1,105 +1,35 @@
-import { useEffect, useState } from 'react';
+﻿import { useState } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  ActivityIndicator, RefreshControl,
+  RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '@/lib/supabase';
-import { Colors, Shadow, Radius } from '@/lib/theme';
-
-interface Stats {
-  upcomingEvents: number;
-  confirmedBookings: number;
-  totalClients: number;
-  unpaidInvoices: number;
-  unpaidAmount: number;
-  revenue: number;
-}
-
-interface UpcomingEvent {
-  id: string;
-  name: string;
-  date: string;
-  venue: string;
-}
+import { Colors, Radius, Shadow } from '@/lib/theme';
+import { MOCK_EVENTS, MOCK_VENUES } from '@/lib/mockData';
+import { EVENT_CATEGORIES, CATEGORY_ICONS } from '@/lib/constants';
+import EventCard from '@/components/EventCard';
+import VenueCard from '@/components/VenueCard';
+import SectionHeader from '@/components/SectionHeader';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const [stats, setStats] = useState<Stats>({
-    upcomingEvents: 0,
-    confirmedBookings: 0,
-    totalClients: 0,
-    unpaidInvoices: 0,
-    unpaidAmount: 0,
-    revenue: 0,
-  });
-  const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
-  const [userName, setUserName] = useState('');
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [favorites, setFavorites] = useState<string[]>([]);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const featuredEvents = MOCK_EVENTS.slice(0, 4);
+  const tonightEvents = MOCK_EVENTS.filter((e) => {
+    const diff = new Date(e.startDate).getTime() - Date.now();
+    return diff > 0 && diff < 2 * 24 * 60 * 60 * 1000;
+  });
 
-  const loadData = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      setUserName(user.email?.split('@')[0] || 'there');
-
-      const today = new Date().toISOString().split('T')[0];
-
-      const [eventsRes, bookingsRes, clientsRes, invoicesRes] = await Promise.all([
-        supabase.from('event').select('id, name, date, venue').eq('owner_id', user.id).gte('date', today).order('date').limit(5),
-        supabase.from('booking').select('id, client_status, total_amount').eq('user_id', user.id).in('client_status', ['deposit_paid', 'completed']),
-        supabase.from('intake_forms').select('id').eq('user_id', user.id),
-        supabase.from('invoices').select('id, status, amount_due, amount_paid').eq('owner_id', user.id),
-      ]);
-
-      const events = eventsRes.data || [];
-      const bookings = bookingsRes.data || [];
-      const clients = clientsRes.data || [];
-      const invoices = invoicesRes.data || [];
-
-      const unpaid = invoices.filter(inv => inv.status !== 'paid' && inv.status !== 'cancelled' && Number(inv.amount_due ?? 0) > 0);
-      const revenue = invoices.reduce((sum, inv) => sum + Number(inv.amount_paid ?? 0), 0);
-
-      setStats({
-        upcomingEvents: events.length,
-        confirmedBookings: bookings.length,
-        totalClients: clients.length,
-        unpaidInvoices: unpaid.length,
-        unpaidAmount: unpaid.reduce((sum, inv) => sum + Number(inv.amount_due ?? 0), 0),
-        revenue,
-      });
-
-      setUpcomingEvents(events.slice(0, 3));
-    } catch (err: any) {
-      console.error('Error loading dashboard:', err.message);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    loadData();
+    setTimeout(() => setRefreshing(false), 800);
   };
 
-  const fmt = (n: number) =>
-    n >= 1000 ? `$${(n / 1000).toFixed(1)}k` : `$${n.toFixed(0)}`;
-
-  if (loading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-      </View>
-    );
-  }
+  const toggleFavorite = (id: string) =>
+    setFavorites((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
   return (
     <ScrollView
@@ -107,188 +37,145 @@ export default function HomeScreen() {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
     >
-      {/* Greeting */}
-      <View style={styles.greeting}>
-        <Text style={styles.greetingText}>Welcome back, {userName} 👋</Text>
-        <Text style={styles.greetingSubtext}>Here's what's happening today</Text>
-      </View>
-
-      {/* Stats Grid */}
-      <View style={styles.statsGrid}>
-        <TouchableOpacity style={[styles.statCard, styles.statBlue]} onPress={() => router.push('/(tabs)/events')}>
-          <Ionicons name="calendar-outline" size={22} color={Colors.primary} />
-          <Text style={styles.statNumber}>{stats.upcomingEvents}</Text>
-          <Text style={styles.statLabel}>Upcoming Events</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={[styles.statCard, styles.statGreen]} onPress={() => router.push('/(tabs)/bookings')}>
-          <Ionicons name="checkmark-circle-outline" size={22} color={Colors.success} />
-          <Text style={[styles.statNumber, { color: Colors.success }]}>{stats.confirmedBookings}</Text>
-          <Text style={styles.statLabel}>Booked Events</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={[styles.statCard, styles.statPurple]} onPress={() => router.push('/(tabs)/clients')}>
-          <Ionicons name="people-outline" size={22} color={Colors.purple} />
-          <Text style={[styles.statNumber, { color: Colors.purple }]}>{stats.totalClients}</Text>
-          <Text style={styles.statLabel}>Total Clients</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={[styles.statCard, styles.statRed]} onPress={() => router.push('/(tabs)/invoices')}>
-          <Ionicons name="receipt-outline" size={22} color={Colors.error} />
-          <Text style={[styles.statNumber, { color: Colors.error }]}>{stats.unpaidInvoices}</Text>
-          <Text style={styles.statLabel}>Unpaid Invoices</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Revenue Card */}
-      <View style={styles.revenueCard}>
-        <View style={styles.revenueRow}>
-          <View>
-            <Text style={styles.revenueLabel}>Total Revenue</Text>
-            <Text style={styles.revenueValue}>{fmt(stats.revenue)}</Text>
-          </View>
-          <View style={styles.revenueBadge}>
-            <Ionicons name="trending-up" size={18} color={Colors.success} />
-          </View>
+      {/* Hero greeting */}
+      <View style={styles.hero}>
+        <View>
+          <Text style={styles.heroGreeting}>Good evening ðŸ‘‹</Text>
+          <Text style={styles.heroTitle}>What's happening?</Text>
         </View>
-        {stats.unpaidAmount > 0 && (
-          <Text style={styles.revenueNote}>
-            {fmt(stats.unpaidAmount)} pending collection
-          </Text>
-        )}
+        <TouchableOpacity style={styles.searchBtn} onPress={() => router.push('/(tabs)/events')}>
+          <Ionicons name="search" size={20} color={Colors.textPrimary} />
+        </TouchableOpacity>
       </View>
 
-      {/* Upcoming Events */}
-      {upcomingEvents.length > 0 && (
+      {/* Category chips */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+        {EVENT_CATEGORIES.map((cat) => (
+          <TouchableOpacity
+            key={cat}
+            style={styles.chip}
+            onPress={() => router.push({ pathname: '/(tabs)/events', params: { category: cat } })}
+          >
+            <Ionicons name={(CATEGORY_ICONS[cat] as any) || 'grid'} size={14} color={Colors.primary} />
+            <Text style={styles.chipText}>{cat}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      {/* Tonight / This Weekend */}
+      {tonightEvents.length > 0 && (
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Upcoming Events</Text>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/events')}>
-              <Text style={styles.sectionLink}>View all</Text>
-            </TouchableOpacity>
-          </View>
-          {upcomingEvents.map(event => (
-            <TouchableOpacity key={event.id} style={styles.eventRow} onPress={() => router.push(`/(tabs)/events/${event.id}` as any)} activeOpacity={0.7}>
-              <View style={styles.eventDateBadge}>
-                <Text style={styles.eventDateDay}>
-                  {new Date(event.date + 'T00:00:00').toLocaleDateString('en-US', { day: 'numeric' })}
-                </Text>
-                <Text style={styles.eventDateMonth}>
-                  {new Date(event.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short' })}
-                </Text>
-              </View>
-              <View style={styles.eventInfo}>
-                <Text style={styles.eventName} numberOfLines={1}>{event.name}</Text>
-                {event.venue && (
-                  <Text style={styles.eventVenue} numberOfLines={1}>
-                    <Ionicons name="location-outline" size={12} color={Colors.textMuted} /> {event.venue}
-                  </Text>
-                )}
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
-            </TouchableOpacity>
-          ))}
+          <SectionHeader
+            title="Tonight"
+            subtitle="Don't miss these"
+            action={{ label: 'See all', onPress: () => router.push('/(tabs)/events') }}
+          />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
+            {tonightEvents.map((event) => (
+              <EventCard
+                key={event.id}
+                event={event}
+                onPress={() => router.push({ pathname: '/events/[eventId]', params: { eventId: event.id } })}
+                onFavorite={() => toggleFavorite(event.id)}
+                isFavorited={favorites.includes(event.id)}
+              />
+            ))}
+          </ScrollView>
         </View>
       )}
 
-      {/* My Workspace — all tabs as nav cards */}
+      {/* Featured Events */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>My Workspace</Text>
-        <View style={styles.navGrid}>
-          {([
-            { icon: 'calendar',                 color: Colors.primary,  light: Colors.primaryLight,  label: 'Events',    desc: 'View & manage events',    route: '/(tabs)/events'    },
-            { icon: 'checkmark-circle',         color: Colors.success,  light: Colors.successLight,  label: 'Booked',    desc: 'Confirmed bookings',      route: '/(tabs)/bookings'  },
-            { icon: 'people',                   color: Colors.purple,   light: Colors.purpleLight,   label: 'Clients',   desc: 'Intake & client leads',   route: '/(tabs)/clients'   },
-            { icon: 'calendar-outline',         color: '#0EA5E9',       light: '#E0F2FE',            label: 'Calendar',  desc: 'Month view',              route: '/(tabs)/calendar'  },
-            { icon: 'document-text-outline',    color: '#F59E0B',       light: '#FEF3C7',            label: 'Estimates', desc: 'Quotes & proposals',      route: '/(tabs)/estimates' },
-            { icon: 'receipt-outline',          color: Colors.warning,  light: Colors.warningLight,  label: 'Invoices',  desc: 'Invoices & payments',     route: '/(tabs)/invoices'  },
-            { icon: 'chatbubble-ellipses-outline', color: '#10B981',    light: '#D1FAE5',            label: 'Messages',  desc: 'SMS clients',             route: '/(tabs)/messages'  },
-            { icon: 'settings-outline',         color: '#6B7280',       light: '#F3F4F6',            label: 'Settings',  desc: 'Profile & billing',       route: '/(tabs)/settings'  },
-            { icon: 'person',                   color: Colors.info,     light: Colors.infoLight,     label: 'Profile',   desc: 'Account & settings',      route: '/(tabs)/profile'   },
-          ] as const).map(item => (
-            <TouchableOpacity
-              key={item.label}
-              style={styles.navCard}
-              onPress={() => router.push(item.route as any)}
-              activeOpacity={0.75}
-            >
-              <View style={[styles.navIcon, { backgroundColor: item.light }]}>
-                <Ionicons name={item.icon as any} size={24} color={item.color} />
-              </View>
-              <View style={styles.navCardText}>
-                <Text style={styles.navCardLabel}>{item.label}</Text>
-                <Text style={styles.navCardDesc} numberOfLines={1}>{item.desc}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
-            </TouchableOpacity>
+        <SectionHeader
+          title="Featured Events"
+          action={{ label: 'See all', onPress: () => router.push('/(tabs)/events') }}
+        />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
+          {featuredEvents.map((event) => (
+            <EventCard
+              key={event.id}
+              event={event}
+              onPress={() => router.push({ pathname: '/events/[eventId]', params: { eventId: event.id } })}
+              onFavorite={() => toggleFavorite(event.id)}
+              isFavorited={favorites.includes(event.id)}
+            />
           ))}
-        </View>
+        </ScrollView>
       </View>
 
+      {/* Featured Venues */}
+      <View style={styles.section}>
+        <SectionHeader title="Popular Venues" />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
+          {MOCK_VENUES.map((venue) => (
+            <VenueCard
+              key={venue.id}
+              venue={venue}
+              onPress={() => router.push({ pathname: '/venues/[venueId]', params: { venueId: venue.id } })}
+            />
+          ))}
+        </ScrollView>
+      </View>
+
+      {/* CTA Banner */}
+      <TouchableOpacity style={[styles.ctaBanner, Shadow.md]} onPress={() => router.push('/(tabs)/tickets')}>
+        <View>
+          <Text style={styles.ctaTitle}>Your Tickets</Text>
+          <Text style={styles.ctaSubtitle}>View your upcoming events</Text>
+        </View>
+        <Ionicons name="ticket" size={28} color={Colors.textWhite} />
+      </TouchableOpacity>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  content: { padding: 16, paddingBottom: 32 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background },
-
-  greeting: { marginBottom: 20 },
-  greetingText: { fontSize: 22, fontWeight: '700', color: Colors.textPrimary },
-  greetingSubtext: { fontSize: 14, color: Colors.textSecondary, marginTop: 2 },
-
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 16 },
-  statCard: {
-    width: '47%', backgroundColor: Colors.surface, borderRadius: Radius.lg,
-    padding: 16, gap: 6, ...Shadow.md,
+  content: { paddingBottom: 32 },
+  hero: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
   },
-  statBlue: { borderLeftWidth: 3, borderLeftColor: Colors.primary },
-  statGreen: { borderLeftWidth: 3, borderLeftColor: Colors.success },
-  statPurple: { borderLeftWidth: 3, borderLeftColor: Colors.purple },
-  statRed: { borderLeftWidth: 3, borderLeftColor: Colors.error },
-  statNumber: { fontSize: 28, fontWeight: '700', color: Colors.primary },
-  statLabel: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500' },
-
-  revenueCard: {
-    backgroundColor: Colors.primary, borderRadius: Radius.lg, padding: 20,
-    marginBottom: 20, ...Shadow.md,
+  heroGreeting: { fontSize: 14, color: Colors.textSecondary },
+  heroTitle: { fontSize: 26, fontWeight: '800', color: Colors.textPrimary, letterSpacing: -0.5 },
+  searchBtn: {
+    width: 44,
+    height: 44,
+    backgroundColor: Colors.surface,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadow.sm,
   },
-  revenueRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  revenueLabel: { fontSize: 13, color: 'rgba(255,255,255,0.8)', fontWeight: '500' },
-  revenueValue: { fontSize: 32, fontWeight: '700', color: Colors.textWhite, marginTop: 4 },
-  revenueBadge: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center',
+  chips: { paddingHorizontal: 16, paddingBottom: 8, gap: 8 },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: Colors.surface,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  revenueNote: { fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 8 },
-
-  section: { marginBottom: 20 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: Colors.textPrimary },
-  sectionLink: { fontSize: 14, color: Colors.primary, fontWeight: '600' },
-
-  eventRow: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface,
-    borderRadius: Radius.md, padding: 12, marginBottom: 8, ...Shadow.sm,
+  chipText: { fontSize: 12, fontWeight: '600', color: Colors.textPrimary },
+  section: { marginTop: 20 },
+  hScroll: { paddingHorizontal: 16, paddingBottom: 4 },
+  ctaBanner: {
+    marginHorizontal: 16,
+    marginTop: 24,
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.xl,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  eventDateBadge: {
-    width: 44, height: 44, backgroundColor: Colors.primaryLight, borderRadius: Radius.sm,
-    justifyContent: 'center', alignItems: 'center', marginRight: 12,
-  },
-  eventDateDay: { fontSize: 16, fontWeight: '700', color: Colors.primary },
-  eventDateMonth: { fontSize: 10, fontWeight: '600', color: Colors.primaryText, textTransform: 'uppercase' },
-  eventInfo: { flex: 1 },
-  eventName: { fontSize: 14, fontWeight: '600', color: Colors.textPrimary },
-  eventVenue: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
-
-  navGrid: { gap: 8 },
-  navCard: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface,
-    borderRadius: Radius.lg, padding: 14, gap: 12, ...Shadow.sm,
-  },
-  navIcon: { width: 44, height: 44, borderRadius: Radius.md, justifyContent: 'center', alignItems: 'center' },
-  navCardText: { flex: 1 },
-  navCardLabel: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary },
-  navCardDesc: { fontSize: 12, color: Colors.textMuted, marginTop: 1 },
+  ctaTitle: { fontSize: 17, fontWeight: '700', color: Colors.textWhite },
+  ctaSubtitle: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 3 },
 });

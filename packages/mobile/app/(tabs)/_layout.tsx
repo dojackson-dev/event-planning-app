@@ -12,8 +12,8 @@ export default function TabsLayout() {
           backgroundColor: Colors.surface,
           borderTopColor: Colors.border,
           borderTopWidth: 1,
-          height: 60,
-          paddingBottom: 8,
+          height: 64,
+          paddingBottom: 10,
           paddingTop: 6,
         },
         tabBarLabelStyle: {
@@ -21,20 +21,22 @@ export default function TabsLayout() {
           fontWeight: '500',
         },
         headerStyle: {
-          backgroundColor: Colors.primary,
+          backgroundColor: Colors.surface,
         },
-        headerTintColor: Colors.textWhite,
+        headerTintColor: Colors.textPrimary,
         headerTitleStyle: {
           fontWeight: '700',
-          fontSize: 17,
+          fontSize: 18,
+          color: Colors.textPrimary,
         },
+        headerShadowVisible: false,
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
           title: 'Home',
-          headerTitle: 'OwnerSuite',
+          headerTitle: 'EventEcos',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="home" size={size} color={color} />
           ),
@@ -45,41 +47,26 @@ export default function TabsLayout() {
         options={{
           title: 'Events',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar" size={size} color={color} />
+            <Ionicons name="search" size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="bookings"
+        name="tickets"
         options={{
-          title: 'Booked',
-          headerTitle: 'Booked Events',
+          title: 'Tickets',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="checkmark-circle" size={size} color={color} />
+            <Ionicons name="ticket" size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="clients"
+        name="favorites"
         options={{
-          title: 'Clients',
+          title: 'Favorites',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="people" size={size} color={color} />
+            <Ionicons name="heart" size={size} color={color} />
           ),
-        }}
-      />
-      <Tabs.Screen name="invoices" options={{ href: null, headerShown: false }} />
-      <Tabs.Screen name="estimates" options={{ href: null, headerShown: false }} />
-      <Tabs.Screen name="messages" options={{ href: null, headerShown: false }} />
-      <Tabs.Screen name="calendar" options={{ href: null }} />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          href: null,
-          title: 'Settings',
-          headerStyle: { backgroundColor: Colors.surface },
-          headerTintColor: Colors.textPrimary,
-          headerShadowVisible: false,
         }}
       />
       <Tabs.Screen
@@ -91,6 +78,16 @@ export default function TabsLayout() {
           ),
         }}
       />
+
+      {/* Hide legacy screens + dashboard (accessed directly, not via tab) */}
+      <Tabs.Screen name="dashboard" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="bookings" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="clients" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="invoices" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="estimates" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="messages" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="calendar" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="settings" options={{ href: null, headerShown: false }} />
     </Tabs>
   );
 }

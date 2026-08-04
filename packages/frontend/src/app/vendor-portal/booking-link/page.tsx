@@ -8,6 +8,7 @@ import { Link2, Copy, CheckCircle2, Loader2, Globe, MessageSquare, Percent, Save
 interface BookingLink {
   id: string
   slug: string
+  short_code: string | null
   is_active: boolean
   custom_message: string | null
   default_deposit_percentage: number | null
@@ -18,6 +19,7 @@ export default function VendorBookingLinkPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [copiedShort, setCopiedShort] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -80,11 +82,18 @@ export default function VendorBookingLinkPage() {
   }
 
   const bookingUrl = link ? `${window.location.origin}/book/${link.slug}` : ''
+  const shortUrl = link?.short_code ? `${window.location.origin}/b/${link.short_code}` : ''
 
   const copyLink = () => {
     navigator.clipboard.writeText(bookingUrl)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const copyShortLink = () => {
+    navigator.clipboard.writeText(shortUrl)
+    setCopiedShort(true)
+    setTimeout(() => setCopiedShort(false), 2000)
   }
 
   const suggestSlug = () => {
@@ -103,22 +112,47 @@ export default function VendorBookingLinkPage() {
           Booking Link
         </h1>
 
-        {/* Live booking link badge */}
+        {/* Live booking link badges */}
         {link && link.is_active && (
-          <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-green-700 text-sm font-medium">
-              <Globe className="w-4 h-4" />
-              <a href={bookingUrl} target="_blank" rel="noreferrer" className="hover:underline truncate">
-                {bookingUrl}
-              </a>
+          <div className="space-y-2 mb-6">
+            {/* Full URL */}
+            <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-green-700 text-sm font-medium min-w-0">
+                <Globe className="w-4 h-4 flex-shrink-0" />
+                <a href={bookingUrl} target="_blank" rel="noreferrer" className="hover:underline truncate">
+                  {bookingUrl}
+                </a>
+              </div>
+              <button
+                onClick={copyLink}
+                className="flex-shrink-0 inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-white border border-green-200 text-green-700 hover:bg-green-50 transition-colors"
+              >
+                {copied ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                {copied ? 'Copied!' : 'Copy'}
+              </button>
             </div>
-            <button
-              onClick={copyLink}
-              className="flex-shrink-0 inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-white border border-green-200 text-green-700 hover:bg-green-50 transition-colors"
-            >
-              {copied ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-              {copied ? 'Copied!' : 'Copy'}
-            </button>
+
+            {/* Short URL */}
+            {shortUrl && (
+              <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Link2 className="w-4 h-4 flex-shrink-0 text-indigo-500" />
+                  <div className="min-w-0">
+                    <p className="text-xs text-indigo-400 mb-0.5">Short link</p>
+                    <a href={shortUrl} target="_blank" rel="noreferrer" className="text-sm font-medium text-indigo-700 hover:underline truncate block">
+                      {shortUrl}
+                    </a>
+                  </div>
+                </div>
+                <button
+                  onClick={copyShortLink}
+                  className="flex-shrink-0 inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 transition-colors"
+                >
+                  {copiedShort ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copiedShort ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+            )}
           </div>
         )}
 

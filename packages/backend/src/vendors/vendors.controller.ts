@@ -372,6 +372,12 @@ export class VendorsController {
     return this.vendorsService.updateBookingRequest(userId, requestId, dto);
   }
 
+  /** GET /vendors/booking-link/s/:code — Public: resolve a short code to its slug */
+  @Get('booking-link/s/:code')
+  async getPublicBookingLinkByShortCode(@Param('code') code: string) {
+    return this.vendorsService.getPublicBookingLinkByShortCode(code);
+  }
+
   /** GET /vendors/booking-link/:slug — Public: view booking link (no auth) */
   @Get('booking-link/:slug')
   async getPublicBookingLink(@Param('slug') slug: string) {

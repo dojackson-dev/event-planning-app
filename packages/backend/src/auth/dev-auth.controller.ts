@@ -1,4 +1,10 @@
-import { Controller, Post, Body, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  BadRequestException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import * as bcrypt from 'bcrypt';
@@ -27,7 +33,16 @@ async function writeUsers(users: any[]) {
 @Controller('auth')
 export class DevAuthController {
   @Post('dev-register')
-  async register(@Body() body: { email: string; password: string; firstName?: string; lastName?: string; role?: string }) {
+  async register(
+    @Body()
+    body: {
+      email: string;
+      password: string;
+      firstName?: string;
+      lastName?: string;
+      role?: string;
+    },
+  ) {
     if (!body?.email || !body?.password) {
       throw new BadRequestException('email and password are required');
     }

@@ -8,6 +8,6 @@ import { MessagingModule } from '../messaging/messaging.module';
   imports: [SupabaseModule, MessagingModule],
   controllers: [BookingsController],
   providers: [BookingsService],
-  exports: [BookingsService]
+  exports: [BookingsService],
 })
 export class BookingsModule {}

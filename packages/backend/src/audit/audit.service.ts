@@ -4,8 +4,8 @@ import { SupabaseService } from '../supabase/supabase.service';
 export interface AuditLogEntry {
   actor_user_id: string;
   owner_account_id?: string | null;
-  action: string;          // e.g. 'invoice.created', 'contract.signed', 'event.updated'
-  entity_type: string;     // e.g. 'invoice', 'contract', 'event'
+  action: string; // e.g. 'invoice.created', 'contract.signed', 'event.updated'
+  entity_type: string; // e.g. 'invoice', 'contract', 'event'
   entity_id?: string | null;
   metadata?: Record<string, any>;
   ip_address?: string | null;
@@ -25,20 +25,24 @@ export class AuditService {
     try {
       const admin = this.supabaseService.getAdminClient();
       const { error } = await admin.from('activity_log').insert({
-        actor_user_id:   entry.actor_user_id,
+        actor_user_id: entry.actor_user_id,
         owner_account_id: entry.owner_account_id ?? null,
-        action:          entry.action,
-        entity_type:     entry.entity_type,
-        entity_id:       entry.entity_id ?? null,
-        metadata:        entry.metadata ?? {},
-        ip_address:      entry.ip_address ?? null,
-        created_at:      new Date().toISOString(),
+        action: entry.action,
+        entity_type: entry.entity_type,
+        entity_id: entry.entity_id ?? null,
+        metadata: entry.metadata ?? {},
+        ip_address: entry.ip_address ?? null,
+        created_at: new Date().toISOString(),
       });
       if (error) {
-        this.logger.error(`AuditService: failed to log "${entry.action}" — ${error.message}`);
+        this.logger.error(
+          `AuditService: failed to log "${entry.action}" — ${error.message}`,
+        );
       }
     } catch (err: any) {
-      this.logger.error(`AuditService: exception logging "${entry.action}" — ${err.message}`);
+      this.logger.error(
+        `AuditService: exception logging "${entry.action}" — ${err.message}`,
+      );
     }
   }
 
@@ -50,7 +54,9 @@ export class AuditService {
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('activity_log')
-      .select('id, actor_user_id, action, entity_type, entity_id, metadata, ip_address, created_at, actor:users(first_name, last_name, email)')
+      .select(
+        'id, actor_user_id, action, entity_type, entity_id, metadata, ip_address, created_at, actor:users(first_name, last_name, email)',
+      )
       .eq('owner_account_id', ownerAccountId)
       .order('created_at', { ascending: false })
       .limit(limit);

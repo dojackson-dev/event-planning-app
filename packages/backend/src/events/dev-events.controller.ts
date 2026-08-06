@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Headers, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Headers,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
@@ -34,55 +45,65 @@ export class DevEventsController {
 
   private getUserId(authorization?: string): string {
     const token = this.extractToken(authorization);
-    
+
     // Handle dev tokens (local-<uuid> format)
     if (token.startsWith('local-')) {
       const userId = token.replace('local-', '');
       if (userId) return userId;
       throw new UnauthorizedException('Invalid dev token format');
     }
-    
+
     throw new UnauthorizedException('Only dev tokens supported in dev mode');
   }
 
   @Post()
   async create(
     @Headers('authorization') authorization: string,
-    @Body() body: any
+    @Body() body: any,
   ): Promise<any> {
     const userId = this.getUserId(authorization);
-    
-    if (!body?.name || !body?.date || !body?.startTime || !body?.endTime || !body?.venue) {
-      throw new BadRequestException('name, date, startTime, endTime, and venue are required');
+
+    if (
+      !body?.name ||
+      !body?.date ||
+      !body?.startTime ||
+      !body?.endTime ||
+      !body?.venue
+    ) {
+      throw new BadRequestException(
+        'name, date, startTime, endTime, and venue are required',
+      );
     }
 
     const events = await readEvents();
-    
+
     // Check for time conflicts on the same date and venue
     const conflicting = events.filter((e) => {
       if (e.date !== body.date || e.venue !== body.venue) {
         return false;
       }
-      
+
       // Check if time ranges overlap
       const toMinutes = (time: string) => {
         const parts = time.split(':').map((p: string) => parseInt(p, 10));
         return (parts[0] || 0) * 60 + (parts[1] || 0);
       };
-      
+
       const newStart = toMinutes(body.startTime);
       const newEnd = toMinutes(body.endTime);
       const existingStart = toMinutes(e.startTime);
       const existingEnd = toMinutes(e.endTime);
-      
+
       // Times overlap if: max(start1, start2) < min(end1, end2)
       return Math.max(newStart, existingStart) < Math.min(newEnd, existingEnd);
     });
-    
+
     if (conflicting.length > 0) {
-      const conflicts = conflicting.map((c) => `${c.name} (${c.startTime}-${c.endTime})`).join(', ');
+      const conflicts = conflicting
+        .map((c) => `${c.name} (${c.startTime}-${c.endTime})`)
+        .join(', ');
       throw new BadRequestException(
-        `Cannot create event at this time. Conflicts with: ${conflicts}`
+        `Cannot create event at this time. Conflicts with: ${conflicts}`,
       );
     }
 
@@ -102,7 +123,9 @@ export class DevEventsController {
   }
 
   @Get()
-  async findAll(@Headers('authorization') authorization: string): Promise<any[]> {
+  async findAll(
+    @Headers('authorization') authorization: string,
+  ): Promise<any[]> {
     this.getUserId(authorization);
     const events = await readEvents();
     return events;
@@ -111,7 +134,7 @@ export class DevEventsController {
   @Get(':id')
   async findOne(
     @Headers('authorization') authorization: string,
-    @Param('id') id: string
+    @Param('id') id: string,
   ): Promise<any | null> {
     this.getUserId(authorization);
     const events = await readEvents();
@@ -122,12 +145,12 @@ export class DevEventsController {
   async update(
     @Headers('authorization') authorization: string,
     @Param('id') id: string,
-    @Body() body: any
+    @Body() body: any,
   ): Promise<any | null> {
     this.getUserId(authorization);
     const events = await readEvents();
     const index = events.findIndex((e) => e.id === parseInt(id));
-    
+
     if (index === -1) return null;
 
     const updated = {
@@ -144,7 +167,7 @@ export class DevEventsController {
   @Delete(':id')
   async remove(
     @Headers('authorization') authorization: string,
-    @Param('id') id: string
+    @Param('id') id: string,
   ): Promise<void> {
     this.getUserId(authorization);
     const events = await readEvents();

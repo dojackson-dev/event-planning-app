@@ -29,7 +29,13 @@ export class ClientPortalController {
 
   @Post('auth/request-otp')
   async requestOtp(
-    @Body() body: { phone: string; agreedToSms: boolean; agreedToTerms: boolean; name?: string },
+    @Body()
+    body: {
+      phone: string;
+      agreedToSms: boolean;
+      agreedToTerms: boolean;
+      name?: string;
+    },
   ) {
     if (!body?.phone) throw new BadRequestException('phone is required');
     return this.clientAuthService.requestOtp(
@@ -41,11 +47,17 @@ export class ClientPortalController {
   }
 
   @Post('auth/verify-otp')
-  async verifyOtp(@Body() body: { phone: string; code: string; name?: string }) {
+  async verifyOtp(
+    @Body() body: { phone: string; code: string; name?: string },
+  ) {
     if (!body?.phone || !body?.code) {
       throw new BadRequestException('phone and code are required');
     }
-    return this.clientAuthService.verifyOtp(body.phone, body.code, body.name?.trim() || undefined);
+    return this.clientAuthService.verifyOtp(
+      body.phone,
+      body.code,
+      body.name?.trim() || undefined,
+    );
   }
 
   @Post('auth/logout')
@@ -67,7 +79,10 @@ export class ClientPortalController {
   @Get('overview')
   async getOverview(@Headers('x-client-token') token: string) {
     const session = this.requireSession(token);
-    return this.clientPortalService.getOverview(session.clientId, session.phone);
+    return this.clientPortalService.getOverview(
+      session.clientId,
+      session.phone,
+    );
   }
 
   // ── Bookings ──────────────────────────────────────────────────────────────
@@ -75,7 +90,10 @@ export class ClientPortalController {
   @Get('bookings')
   async getBookings(@Headers('x-client-token') token: string) {
     const session = this.requireSession(token);
-    return this.clientPortalService.getBookings(session.clientId, session.phone);
+    return this.clientPortalService.getBookings(
+      session.clientId,
+      session.phone,
+    );
   }
 
   // ── Events ────────────────────────────────────────────────────────────────
@@ -100,7 +118,8 @@ export class ClientPortalController {
   @Post('vendors/book')
   async bookVendor(
     @Headers('x-client-token') token: string,
-    @Body() body: {
+    @Body()
+    body: {
       vendorAccountId: string;
       eventName: string;
       eventDate: string;
@@ -113,9 +132,13 @@ export class ClientPortalController {
   ) {
     const session = this.requireSession(token);
     if (!body?.vendorAccountId || !body?.eventName || !body?.eventDate) {
-      throw new BadRequestException('vendorAccountId, eventName, and eventDate are required');
+      throw new BadRequestException(
+        'vendorAccountId, eventName, and eventDate are required',
+      );
     }
-    const clientName = [session.firstName, session.lastName].filter(Boolean).join(' ') || session.phone;
+    const clientName =
+      [session.firstName, session.lastName].filter(Boolean).join(' ') ||
+      session.phone;
     return this.clientPortalService.bookVendor(
       session.clientId,
       session.phone,
@@ -130,7 +153,10 @@ export class ClientPortalController {
     @Param('id') requestId: string,
   ) {
     const session = this.requireSession(token);
-    return this.clientPortalService.cancelBookingRequest(requestId, session.phone);
+    return this.clientPortalService.cancelBookingRequest(
+      requestId,
+      session.phone,
+    );
   }
 
   @Get('vendors')
@@ -144,7 +170,10 @@ export class ClientPortalController {
   @Get('confirmations')
   async getPendingConfirmations(@Headers('x-client-token') token: string) {
     const session = this.requireSession(token);
-    return this.clientPortalService.getPendingConfirmations(session.clientId, session.phone);
+    return this.clientPortalService.getPendingConfirmations(
+      session.clientId,
+      session.phone,
+    );
   }
 
   @Post('confirmations/:bookingId')
@@ -157,7 +186,11 @@ export class ClientPortalController {
     if (body.action !== 'confirmed' && body.action !== 'rejected') {
       throw new BadRequestException('action must be "confirmed" or "rejected"');
     }
-    return this.clientPortalService.respondToConfirmation(session.phone, bookingId, body.action);
+    return this.clientPortalService.respondToConfirmation(
+      session.phone,
+      bookingId,
+      body.action,
+    );
   }
 
   // ── Contracts ─────────────────────────────────────────────────────────────
@@ -165,7 +198,10 @@ export class ClientPortalController {
   @Get('contracts')
   async getContracts(@Headers('x-client-token') token: string) {
     const session = this.requireSession(token);
-    return this.clientPortalService.getContracts(session.clientId, session.phone);
+    return this.clientPortalService.getContracts(
+      session.clientId,
+      session.phone,
+    );
   }
 
   @Get('contracts/:id')
@@ -174,7 +210,11 @@ export class ClientPortalController {
     @Param('id') id: string,
   ) {
     const session = this.requireSession(token);
-    return this.clientPortalService.getContractById(id, session.clientId, session.phone);
+    return this.clientPortalService.getContractById(
+      id,
+      session.clientId,
+      session.phone,
+    );
   }
 
   @Post('contracts/:id/sign')
@@ -185,7 +225,9 @@ export class ClientPortalController {
   ) {
     const session = this.requireSession(token);
     if (!body?.signatureData || !body?.signerName) {
-      throw new BadRequestException('signatureData and signerName are required');
+      throw new BadRequestException(
+        'signatureData and signerName are required',
+      );
     }
     return this.clientPortalService.signClientContract(
       id,
@@ -196,12 +238,13 @@ export class ClientPortalController {
     );
   }
 
-
-
   @Get('estimates')
   async getEstimates(@Headers('x-client-token') token: string) {
     const session = this.requireSession(token);
-    return this.clientPortalService.getEstimates(session.clientId, session.phone);
+    return this.clientPortalService.getEstimates(
+      session.clientId,
+      session.phone,
+    );
   }
 
   @Get('estimates/:id')
@@ -210,7 +253,11 @@ export class ClientPortalController {
     @Param('id') id: string,
   ) {
     const session = this.requireSession(token);
-    return this.clientPortalService.getEstimateById(id, session.clientId, session.phone);
+    return this.clientPortalService.getEstimateById(
+      id,
+      session.clientId,
+      session.phone,
+    );
   }
 
   @Post('estimates/:id/viewed')
@@ -231,7 +278,9 @@ export class ClientPortalController {
     try {
       const session = this.requireSession(token);
       if (body.action !== 'approved' && body.action !== 'rejected') {
-        throw new BadRequestException('action must be "approved" or "rejected"');
+        throw new BadRequestException(
+          'action must be "approved" or "rejected"',
+        );
       }
       return await this.clientPortalService.respondToEstimate(
         id,
@@ -240,7 +289,9 @@ export class ClientPortalController {
         body.action,
       );
     } catch (err: any) {
-      this.logger.error(`[respondToEstimate] Error: ${err?.message || 'Unknown error'}`);
+      this.logger.error(
+        `[respondToEstimate] Error: ${err?.message || 'Unknown error'}`,
+      );
       throw err;
     }
   }
@@ -259,7 +310,10 @@ export class ClientPortalController {
   @Get('invoices')
   async getInvoices(@Headers('x-client-token') token: string) {
     const session = this.requireSession(token);
-    return this.clientPortalService.getInvoices(session.clientId, session.phone);
+    return this.clientPortalService.getInvoices(
+      session.clientId,
+      session.phone,
+    );
   }
 
   @Post('invoices/:id/checkout')
@@ -289,7 +343,10 @@ export class ClientPortalController {
   @Get('contacts')
   async getContacts(@Headers('x-client-token') token: string) {
     const session = this.requireSession(token);
-    return this.clientPortalService.getContacts(session.clientId, session.phone);
+    return this.clientPortalService.getContacts(
+      session.clientId,
+      session.phone,
+    );
   }
 
   @Get('messages')
@@ -308,7 +365,9 @@ export class ClientPortalController {
   ) {
     const session = this.requireSession(token);
     if (!body?.recipientId || !body?.content || !body?.eventId) {
-      throw new BadRequestException('recipientId, eventId, and content are required');
+      throw new BadRequestException(
+        'recipientId, eventId, and content are required',
+      );
     }
     return this.clientPortalService.sendMessage(
       session.clientId,
@@ -326,7 +385,10 @@ export class ClientPortalController {
   ) {
     const session = this.requireSession(token);
     if (!body?.eventId) throw new BadRequestException('eventId is required');
-    return this.clientPortalService.markMessagesRead(session.clientId, body.eventId);
+    return this.clientPortalService.markMessagesRead(
+      session.clientId,
+      body.eventId,
+    );
   }
 
   // ── Notifications ─────────────────────────────────────────────────────────
@@ -334,7 +396,10 @@ export class ClientPortalController {
   @Get('notifications')
   async getNotifications(@Headers('x-client-token') token: string) {
     const session = this.requireSession(token);
-    return this.clientPortalService.getNotifications(session.clientId, session.phone);
+    return this.clientPortalService.getNotifications(
+      session.clientId,
+      session.phone,
+    );
   }
 
   @Put('notifications/:id/read')
@@ -368,7 +433,11 @@ export class ClientPortalController {
     @Param('token') inviteToken: string,
   ) {
     const session = this.requireSession(clientToken);
-    return this.clientPortalService.confirmInvite(inviteToken, session.phone, session.clientId);
+    return this.clientPortalService.confirmInvite(
+      inviteToken,
+      session.phone,
+      session.clientId,
+    );
   }
 
   /**
@@ -388,13 +457,16 @@ export class ClientPortalController {
   @Post('vendors/review')
   async leaveVendorReview(
     @Headers('x-client-token') token: string,
-    @Body() body: { vendorAccountId: string; rating: number; reviewText?: string },
+    @Body()
+    body: { vendorAccountId: string; rating: number; reviewText?: string },
   ) {
     const session = this.requireSession(token);
     if (!body?.vendorAccountId || !body?.rating) {
       throw new BadRequestException('vendorAccountId and rating are required');
     }
-    const reviewerName = [session.firstName, session.lastName].filter(Boolean).join(' ') || 'Client';
+    const reviewerName =
+      [session.firstName, session.lastName].filter(Boolean).join(' ') ||
+      'Client';
     return this.clientPortalService.leaveVendorReview(
       session.clientId,
       reviewerName,

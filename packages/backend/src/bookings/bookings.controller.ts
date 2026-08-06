@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Headers, Query, UnauthorizedException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  Headers,
+  Query,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { BookingsService } from './bookings.service';
 import { SupabaseService } from '../supabase/supabase.service';
 
@@ -18,34 +29,40 @@ export class BookingsController {
 
   private async getUserId(authorization?: string): Promise<string> {
     const token = this.extractToken(authorization);
-    
+
     // Handle dev tokens (local-<uuid> format)
     if (token.startsWith('local-')) {
       const userId = token.replace('local-', '');
       if (userId) return userId;
       throw new UnauthorizedException('Invalid dev token format');
     }
-    
+
     // Handle Supabase tokens
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    const { data: { user }, error } = await supabaseWithAuth.auth.getUser();
-    
+    const {
+      data: { user },
+      error,
+    } = await supabaseWithAuth.auth.getUser();
+
     if (error || !user) {
       throw new UnauthorizedException('Invalid token');
     }
-    
+
     return user.id;
   }
 
   @Post()
   async create(
     @Headers('authorization') authorization: string,
-    @Body() createBookingDto: any
+    @Body() createBookingDto: any,
   ): Promise<any> {
     const userId = await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.bookingsService.create(supabaseWithAuth, { ...createBookingDto, userId });
+    return this.bookingsService.create(supabaseWithAuth, {
+      ...createBookingDto,
+      userId,
+    });
   }
 
   @Get()
@@ -62,7 +79,7 @@ export class BookingsController {
   @Get(':id')
   async findOne(
     @Headers('authorization') authorization: string,
-    @Param('id') id: string
+    @Param('id') id: string,
   ): Promise<any | null> {
     await this.getUserId(authorization);
     const token = this.extractToken(authorization);
@@ -74,7 +91,7 @@ export class BookingsController {
   async update(
     @Headers('authorization') authorization: string,
     @Param('id') id: string,
-    @Body() updateBookingDto: any
+    @Body() updateBookingDto: any,
   ): Promise<any | null> {
     await this.getUserId(authorization);
     const token = this.extractToken(authorization);
@@ -85,7 +102,7 @@ export class BookingsController {
   @Delete(':id')
   async remove(
     @Headers('authorization') authorization: string,
-    @Param('id') id: string
+    @Param('id') id: string,
   ): Promise<void> {
     await this.getUserId(authorization);
     const token = this.extractToken(authorization);

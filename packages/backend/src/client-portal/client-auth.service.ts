@@ -1,4 +1,9 @@
-import { Injectable, UnauthorizedException, BadRequestException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+  Logger,
+} from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { TwilioService } from '../messaging/twilio.service';
 import { randomBytes, createHash, createHmac } from 'crypto';
@@ -67,12 +72,8 @@ export class ClientAuthService {
     // 1. Check users table with all phone variants
     let clientFound = false;
     const userResults = await Promise.all(
-      phoneVariants.map(p =>
-        supabase
-          .from('users')
-          .select('id')
-          .eq('phone_number', p)
-          .limit(1),
+      phoneVariants.map((p) =>
+        supabase.from('users').select('id').eq('phone_number', p).limit(1),
       ),
     );
     if (userResults.some((r: any) => r.data?.length > 0)) {
@@ -82,7 +83,7 @@ export class ClientAuthService {
     // 2. Check intake_forms by phone variants (+ optional name match)
     if (!clientFound) {
       const intakeResults = await Promise.all(
-        phoneVariants.map(p =>
+        phoneVariants.map((p) =>
           supabase
             .from('intake_forms')
             .select('id, contact_name, contact_phone')
@@ -92,14 +93,19 @@ export class ClientAuthService {
       );
       const allIntakeForms = intakeResults.flatMap((r: any) => r.data || []);
       if (allIntakeForms.length > 0) {
-        clientFound = name ? this.nameMatches(name, allIntakeForms.map((f: any) => f.contact_name)) : true;
+        clientFound = name
+          ? this.nameMatches(
+              name,
+              allIntakeForms.map((f: any) => f.contact_name),
+            )
+          : true;
       }
     }
 
     // 3. Check vendor_booking_requests.client_phone (submitted via vendor public booking form)
     if (!clientFound) {
       const vendorRequestResults = await Promise.all(
-        phoneVariants.map(p =>
+        phoneVariants.map((p) =>
           supabase
             .from('vendor_booking_requests')
             .select('id, client_name, client_phone')
@@ -107,14 +113,23 @@ export class ClientAuthService {
             .limit(10),
         ),
       );
-      const allVendorRequests = vendorRequestResults.flatMap((r: any) => r.data || []);
+      const allVendorRequests = vendorRequestResults.flatMap(
+        (r: any) => r.data || [],
+      );
       if (allVendorRequests.length > 0) {
-        clientFound = name ? this.nameMatches(name, allVendorRequests.map((r: any) => r.client_name)) : true;
+        clientFound = name
+          ? this.nameMatches(
+              name,
+              allVendorRequests.map((r: any) => r.client_name),
+            )
+          : true;
       }
     }
 
     if (!clientFound) {
-      this.logger.log(`New phone login attempt: ${normalized} — will create client record on verify`);
+      this.logger.log(
+        `New phone login attempt: ${normalized} — will create client record on verify`,
+      );
     }
 
     const otp = this.generateOtp();
@@ -155,12 +170,16 @@ export class ClientAuthService {
     const record = this.otpStore.get(normalized);
 
     if (!record) {
-      throw new UnauthorizedException('No verification code was requested for this number.');
+      throw new UnauthorizedException(
+        'No verification code was requested for this number.',
+      );
     }
 
     if (new Date() > record.expiresAt) {
       this.otpStore.delete(normalized);
-      throw new UnauthorizedException('Verification code has expired. Please request a new one.');
+      throw new UnauthorizedException(
+        'Verification code has expired. Please request a new one.',
+      );
     }
 
     if (record.code !== code.trim()) {
@@ -209,26 +228,38 @@ export class ClientAuthService {
       } else {
         // Try intake forms first
         const intakeResults = await Promise.all(
-          phoneVariants.map(p =>
-            supabase.from('intake_forms').select('contact_name').eq('contact_phone', p).limit(1),
+          phoneVariants.map((p) =>
+            supabase
+              .from('intake_forms')
+              .select('contact_name')
+              .eq('contact_phone', p)
+              .limit(1),
           ),
         );
-        const intakeName = intakeResults.flatMap((r: any) => r.data || [])[0]?.contact_name || '';
+        const intakeName =
+          intakeResults.flatMap((r: any) => r.data || [])[0]?.contact_name ||
+          '';
         if (intakeName) {
           const parts = intakeName.split(/\s+/);
           firstName = parts[0] || '';
           lastName = parts.slice(1).join(' ') || '';
         } else {
-            // Try vendor_booking_requests (submitted via vendor public booking form)
-            const vendorRequestResults = await Promise.all(
-              phoneVariants.map(p =>
-                supabase.from('vendor_booking_requests').select('client_name').eq('client_phone', p).limit(1),
-              ),
-            );
-            const vendorRequestName = vendorRequestResults.flatMap((r: any) => r.data || [])[0]?.client_name || '';
-            const parts = vendorRequestName.split(/\s+/);
-            firstName = parts[0] || '';
-            lastName = parts.slice(1).join(' ') || '';
+          // Try vendor_booking_requests (submitted via vendor public booking form)
+          const vendorRequestResults = await Promise.all(
+            phoneVariants.map((p) =>
+              supabase
+                .from('vendor_booking_requests')
+                .select('client_name')
+                .eq('client_phone', p)
+                .limit(1),
+            ),
+          );
+          const vendorRequestName =
+            vendorRequestResults.flatMap((r: any) => r.data || [])[0]
+              ?.client_name || '';
+          const parts = vendorRequestName.split(/\s+/);
+          firstName = parts[0] || '';
+          lastName = parts.slice(1).join(' ') || '';
         }
       }
       // Generate a stable, UUID-format client ID derived from the phone number
@@ -243,8 +274,12 @@ export class ClientAuthService {
       lastName,
       expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
     };
-    const payload = Buffer.from(JSON.stringify(sessionData)).toString('base64url');
-    const sig = createHmac('sha256', this.sessionSecret).update(payload).digest('base64url');
+    const payload = Buffer.from(JSON.stringify(sessionData)).toString(
+      'base64url',
+    );
+    const sig = createHmac('sha256', this.sessionSecret)
+      .update(payload)
+      .digest('base64url');
     const token = `${payload}.${sig}`;
 
     this.logger.log(`Client session created for ${normalized}`);
@@ -258,13 +293,17 @@ export class ClientAuthService {
    */
   validateSession(token: string): ClientSession {
     const dotIndex = token.lastIndexOf('.');
-    if (dotIndex === -1) throw new UnauthorizedException('Invalid session token.');
+    if (dotIndex === -1)
+      throw new UnauthorizedException('Invalid session token.');
 
     const payload = token.substring(0, dotIndex);
     const sig = token.substring(dotIndex + 1);
-    const expectedSig = createHmac('sha256', this.sessionSecret).update(payload).digest('base64url');
+    const expectedSig = createHmac('sha256', this.sessionSecret)
+      .update(payload)
+      .digest('base64url');
 
-    if (sig !== expectedSig) throw new UnauthorizedException('Invalid session token.');
+    if (sig !== expectedSig)
+      throw new UnauthorizedException('Invalid session token.');
 
     let session: ClientSession;
     try {
@@ -304,7 +343,9 @@ export class ClientAuthService {
   private buildPhoneVariants(phone: string): string[] {
     const digits = phone.replace(/\D/g, '');
     const last10 = digits.slice(-10);
-    return [...new Set([phone, last10, `1${last10}`, `+1${last10}`])].filter(Boolean);
+    return [...new Set([phone, last10, `1${last10}`, `+1${last10}`])].filter(
+      Boolean,
+    );
   }
 
   /**
@@ -314,7 +355,7 @@ export class ClientAuthService {
   private nameMatches(input: string, candidates: string[]): boolean {
     const inputLower = input.toLowerCase().trim();
     const inputFirst = inputLower.split(/\s+/)[0];
-    return candidates.some(candidate => {
+    return candidates.some((candidate) => {
       const c = (candidate || '').toLowerCase().trim();
       const cFirst = c.split(/\s+/)[0];
       return (
@@ -332,7 +373,9 @@ export class ClientAuthService {
    * Queries against booking.user_id won't match (intentional); phone-based queries handle lookup.
    */
   private generatePhoneClientId(phone: string): string {
-    const hash = createHash('sha256').update(`dovenue:client:${phone}`).digest('hex');
+    const hash = createHash('sha256')
+      .update(`dovenue:client:${phone}`)
+      .digest('hex');
     return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-b${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
   }
 }

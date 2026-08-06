@@ -24,7 +24,9 @@ export class UsersService {
   async findAll(supabase: any, ownerId: string) {
     const { data, error } = await supabase
       .from('intake_forms')
-      .select('id, contact_name, contact_email, contact_phone, sms_opt_in, preferred_contact')
+      .select(
+        'id, contact_name, contact_email, contact_phone, sms_opt_in, preferred_contact',
+      )
       .eq('user_id', ownerId)
       .order('created_at', { ascending: false });
 
@@ -39,7 +41,10 @@ export class UsersService {
       const seen = new Set<string>();
       return (fallback || []).reduce((acc: any[], form: any) => {
         const key = form.contact_email || form.contact_phone || form.id;
-        if (!seen.has(key)) { seen.add(key); acc.push(this.toUser(form)); }
+        if (!seen.has(key)) {
+          seen.add(key);
+          acc.push(this.toUser(form));
+        }
         return acc;
       }, []);
     }
@@ -59,7 +64,9 @@ export class UsersService {
   async findOne(supabase: any, ownerId: string, id: string) {
     const { data, error } = await supabase
       .from('intake_forms')
-      .select('id, contact_name, contact_email, contact_phone, sms_opt_in, preferred_contact')
+      .select(
+        'id, contact_name, contact_email, contact_phone, sms_opt_in, preferred_contact',
+      )
       .eq('user_id', ownerId)
       .eq('id', id)
       .single();

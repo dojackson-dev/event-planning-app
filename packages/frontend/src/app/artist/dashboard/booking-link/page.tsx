@@ -91,29 +91,35 @@ export default function ArtistBookingLinkPage() {
 
         {link && link.is_active && (
           <div className="space-y-2 mb-6">
-            <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-green-700 text-sm font-medium min-w-0">
-                <Globe className="w-4 h-4 flex-shrink-0" />
-                <a href={bookingUrl} target="_blank" rel="noreferrer" className="hover:underline truncate">{bookingUrl}</a>
+            <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-green-700 text-sm font-medium min-w-0">
+                  <Globe className="w-4 h-4 flex-shrink-0" />
+                  <a href={bookingUrl} target="_blank" rel="noreferrer" className="hover:underline truncate">{bookingUrl}</a>
+                </div>
+                <button onClick={copyLink} className="flex-shrink-0 inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-white border border-green-200 text-green-700 hover:bg-green-50 transition-colors">
+                  {copied ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copied ? 'Copied!' : 'Copy'}
+                </button>
               </div>
-              <button onClick={copyLink} className="flex-shrink-0 inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-white border border-green-200 text-green-700 hover:bg-green-50 transition-colors">
-                {copied ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                {copied ? 'Copied!' : 'Copy'}
-              </button>
+              <p className="text-xs text-green-600/70 mt-1.5">Best for your website, email, or social media — the readable slug adds context.</p>
             </div>
             {shortUrl && (
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Link2 className="w-4 h-4 flex-shrink-0 text-blue-500" />
-                  <div className="min-w-0">
-                    <p className="text-xs text-blue-400 mb-0.5">Short link</p>
-                    <a href={shortUrl} target="_blank" rel="noreferrer" className="text-sm font-medium text-blue-700 hover:underline truncate block">{shortUrl}</a>
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Link2 className="w-4 h-4 flex-shrink-0 text-blue-500" />
+                    <div className="min-w-0">
+                      <p className="text-xs text-blue-400 mb-0.5">Short link</p>
+                      <a href={shortUrl} target="_blank" rel="noreferrer" className="text-sm font-medium text-blue-700 hover:underline truncate block">{shortUrl}</a>
+                    </div>
                   </div>
+                  <button onClick={copyShortLink} className="flex-shrink-0 inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 transition-colors">
+                    {copiedShort ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copiedShort ? 'Copied!' : 'Copy'}
+                  </button>
                 </div>
-                <button onClick={copyShortLink} className="flex-shrink-0 inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 transition-colors">
-                  {copiedShort ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                  {copiedShort ? 'Copied!' : 'Copy'}
-                </button>
+                <p className="text-xs text-blue-600/70 mt-1.5">Best for texting, printing, or QR codes — shorter and easier to share.</p>
               </div>
             )}
           </div>

@@ -1,5 +1,8 @@
 import { Module } from '@nestjs/common';
-import { IntakeFormsController, IntakeFormsPublicController } from './intake-forms.controller';
+import {
+  IntakeFormsController,
+  IntakeFormsPublicController,
+} from './intake-forms.controller';
 import { IntakeFormsService } from './intake-forms.service';
 import { SupabaseModule } from '../supabase/supabase.module';
 import { MailModule } from '../mail/mail.module';

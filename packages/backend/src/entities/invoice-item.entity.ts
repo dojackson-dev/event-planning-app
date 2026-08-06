@@ -1,4 +1,10 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
 import { Invoice } from './invoice.entity';
 
 export enum DiscountType {
@@ -15,7 +21,7 @@ export class InvoiceItem {
   @Column()
   invoiceId: number;
 
-  @ManyToOne(() => Invoice, invoice => invoice.items)
+  @ManyToOne(() => Invoice, (invoice) => invoice.items)
   @JoinColumn({ name: 'invoiceId' })
   invoice: Invoice;
 

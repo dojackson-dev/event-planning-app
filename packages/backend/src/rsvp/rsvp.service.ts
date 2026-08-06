@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import { MailService } from '../mail/mail.service';
@@ -10,7 +15,9 @@ function phoneLastFour(phone: string): string {
 function buildPhoneVariants(phone: string): string[] {
   const digits = phone.replace(/\D/g, '');
   const last10 = digits.slice(-10);
-  return [...new Set([phone, last10, `1${last10}`, `+1${last10}`])].filter(Boolean);
+  return [...new Set([phone, last10, `1${last10}`, `+1${last10}`])].filter(
+    Boolean,
+  );
 }
 
 @Injectable()
@@ -24,7 +31,10 @@ export class RsvpService {
   // ── Helpers ─────────────────────────────────────────────────────────────
 
   /** Verify client phone matches intake form and return the form. */
-  private async verifyClientOwnsForm(intakeFormId: string, clientPhone: string): Promise<any> {
+  private async verifyClientOwnsForm(
+    intakeFormId: string,
+    clientPhone: string,
+  ): Promise<any> {
     const admin = this.supabaseService.getAdminClient();
     const { data: form } = await admin
       .from('intake_forms')
@@ -35,8 +45,11 @@ export class RsvpService {
 
     const variants = buildPhoneVariants(clientPhone);
     const storedVariants = buildPhoneVariants(form.contact_phone ?? '');
-    const match = variants.some(v => storedVariants.includes(v));
-    if (!match) throw new UnauthorizedException('You are not authorised to manage this event');
+    const match = variants.some((v) => storedVariants.includes(v));
+    if (!match)
+      throw new UnauthorizedException(
+        'You are not authorised to manage this event',
+      );
     return form;
   }
 
@@ -47,11 +60,18 @@ export class RsvpService {
     const admin = this.supabaseService.getAdminClient();
     const variants = buildPhoneVariants(clientPhone);
     const results = await Promise.all(
-      variants.map(v => admin.from('intake_forms').select('id, user_id, contact_name, event_id').eq('contact_phone', v)),
+      variants.map((v) =>
+        admin
+          .from('intake_forms')
+          .select('id, user_id, contact_name, event_id')
+          .eq('contact_phone', v),
+      ),
     );
-    const forms = [...new Map(
-      results.flatMap(r => r.data || []).map((f: any) => [f.id, f])
-    ).values()];
+    const forms = [
+      ...new Map(
+        results.flatMap((r) => r.data || []).map((f: any) => [f.id, f]),
+      ).values(),
+    ];
 
     if (!forms.length) return [];
 
@@ -60,17 +80,39 @@ export class RsvpService {
 
     const [eventsRes, countRes] = await Promise.all([
       eventIds.length
-        ? admin.from('event').select('id, name, date, intake_form_id').in('id', eventIds)
+        ? admin
+            .from('event')
+            .select('id, name, date, intake_form_id')
+            .in('id', eventIds)
         : { data: [] },
-      admin.from('rsvp_guests').select('intake_form_id, status, plus_ones').in('intake_form_id', intakeIds),
+      admin
+        .from('rsvp_guests')
+        .select('intake_form_id, status, plus_ones')
+        .in('intake_form_id', intakeIds),
     ]);
 
     // Build summary per intake form
     const guestRows: any[] = countRes.data || [];
-    const summary: Record<string, { total: number; attending: number; declined: number; pending: number; headcount: number }> = {};
+    const summary: Record<
+      string,
+      {
+        total: number;
+        attending: number;
+        declined: number;
+        pending: number;
+        headcount: number;
+      }
+    > = {};
     for (const row of guestRows) {
       const id = row.intake_form_id;
-      if (!summary[id]) summary[id] = { total: 0, attending: 0, declined: 0, pending: 0, headcount: 0 };
+      if (!summary[id])
+        summary[id] = {
+          total: 0,
+          attending: 0,
+          declined: 0,
+          pending: 0,
+          headcount: 0,
+        };
       summary[id].total++;
       if (row.status === 'attending') {
         summary[id].attending++;
@@ -80,14 +122,22 @@ export class RsvpService {
     }
 
     return forms.map((form: any) => {
-      const event = (eventsRes.data || []).find((e: any) => e.id === form.event_id);
+      const event = (eventsRes.data || []).find(
+        (e: any) => e.id === form.event_id,
+      );
       return {
         intake_form_id: form.id,
         contact_name: form.contact_name,
         event_id: form.event_id,
         event_name: event?.name ?? null,
         event_date: event?.date ?? null,
-        rsvp_summary: summary[form.id] ?? { total: 0, attending: 0, declined: 0, pending: 0, headcount: 0 },
+        rsvp_summary: summary[form.id] ?? {
+          total: 0,
+          attending: 0,
+          declined: 0,
+          pending: 0,
+          headcount: 0,
+        },
       };
     });
   }
@@ -98,7 +148,9 @@ export class RsvpService {
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('rsvp_guests')
-      .select('id, rsvp_token, guest_name, guest_phone, guest_email, status, plus_ones, meal_preference, table_assignment, responded_at, sms_sent_at, created_at')
+      .select(
+        'id, rsvp_token, guest_name, guest_phone, guest_email, status, plus_ones, meal_preference, table_assignment, responded_at, sms_sent_at, created_at',
+      )
       .eq('intake_form_id', intakeFormId)
       .order('created_at', { ascending: true });
     if (error) throw error;
@@ -106,11 +158,19 @@ export class RsvpService {
   }
 
   /** Add a single RSVP guest. */
-  async addGuest(intakeFormId: string, clientPhone: string, guestData: {
-    guest_name: string; guest_phone?: string; guest_email?: string; table_assignment?: string;
-  }): Promise<any> {
+  async addGuest(
+    intakeFormId: string,
+    clientPhone: string,
+    guestData: {
+      guest_name: string;
+      guest_phone?: string;
+      guest_email?: string;
+      table_assignment?: string;
+    },
+  ): Promise<any> {
     const form = await this.verifyClientOwnsForm(intakeFormId, clientPhone);
-    if (!guestData.guest_name?.trim()) throw new BadRequestException('guest_name is required');
+    if (!guestData.guest_name?.trim())
+      throw new BadRequestException('guest_name is required');
 
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
@@ -130,31 +190,51 @@ export class RsvpService {
   }
 
   /** Bulk add guests (array of names + optional phone). */
-  async bulkAddGuests(intakeFormId: string, clientPhone: string, guests: Array<{
-    guest_name: string; guest_phone?: string; guest_email?: string; table_assignment?: string;
-  }>): Promise<any[]> {
+  async bulkAddGuests(
+    intakeFormId: string,
+    clientPhone: string,
+    guests: Array<{
+      guest_name: string;
+      guest_phone?: string;
+      guest_email?: string;
+      table_assignment?: string;
+    }>,
+  ): Promise<any[]> {
     const form = await this.verifyClientOwnsForm(intakeFormId, clientPhone);
     if (!guests.length) return [];
 
     const admin = this.supabaseService.getAdminClient();
-    const rows = guests.map(g => ({
-      intake_form_id: intakeFormId,
-      owner_id: form.user_id,
-      guest_name: g.guest_name.trim(),
-      guest_phone: g.guest_phone?.trim() || null,
-      guest_email: g.guest_email?.trim() || null,
-      table_assignment: g.table_assignment?.trim() || null,
-    })).filter(g => g.guest_name);
+    const rows = guests
+      .map((g) => ({
+        intake_form_id: intakeFormId,
+        owner_id: form.user_id,
+        guest_name: g.guest_name.trim(),
+        guest_phone: g.guest_phone?.trim() || null,
+        guest_email: g.guest_email?.trim() || null,
+        table_assignment: g.table_assignment?.trim() || null,
+      }))
+      .filter((g) => g.guest_name);
 
-    const { data, error } = await admin.from('rsvp_guests').insert(rows).select();
+    const { data, error } = await admin
+      .from('rsvp_guests')
+      .insert(rows)
+      .select();
     if (error) throw error;
     return data || [];
   }
 
   /** Update a guest (table assignment, etc.) */
-  async updateGuest(guestId: string, intakeFormId: string, clientPhone: string, updates: Partial<{
-    guest_name: string; guest_phone: string; guest_email: string; table_assignment: string;
-  }>): Promise<any> {
+  async updateGuest(
+    guestId: string,
+    intakeFormId: string,
+    clientPhone: string,
+    updates: Partial<{
+      guest_name: string;
+      guest_phone: string;
+      guest_email: string;
+      table_assignment: string;
+    }>,
+  ): Promise<any> {
     await this.verifyClientOwnsForm(intakeFormId, clientPhone);
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
@@ -169,7 +249,11 @@ export class RsvpService {
   }
 
   /** Delete a guest. */
-  async deleteGuest(guestId: string, intakeFormId: string, clientPhone: string): Promise<void> {
+  async deleteGuest(
+    guestId: string,
+    intakeFormId: string,
+    clientPhone: string,
+  ): Promise<void> {
     await this.verifyClientOwnsForm(intakeFormId, clientPhone);
     const admin = this.supabaseService.getAdminClient();
     const { error } = await admin
@@ -181,19 +265,30 @@ export class RsvpService {
   }
 
   /** Send RSVP invite link to a single guest via SMS (and email if available). */
-  async sendInvite(guestId: string, intakeFormId: string, clientPhone: string): Promise<any> {
+  async sendInvite(
+    guestId: string,
+    intakeFormId: string,
+    clientPhone: string,
+  ): Promise<any> {
     const form = await this.verifyClientOwnsForm(intakeFormId, clientPhone);
     const admin = this.supabaseService.getAdminClient();
 
     const { data: guest } = await admin
-      .from('rsvp_guests').select('*').eq('id', guestId).eq('intake_form_id', intakeFormId).single();
+      .from('rsvp_guests')
+      .select('*')
+      .eq('id', guestId)
+      .eq('intake_form_id', intakeFormId)
+      .single();
     if (!guest) throw new NotFoundException('Guest not found');
 
     await this.doSendInvite(guest, form);
 
     const { data, error } = await admin
       .from('rsvp_guests')
-      .update({ sms_sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .update({
+        sms_sent_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', guestId)
       .select()
       .single();
@@ -202,7 +297,10 @@ export class RsvpService {
   }
 
   /** Send RSVP invites to all guests that haven't been sent one yet. */
-  async sendAllInvites(intakeFormId: string, clientPhone: string): Promise<{ sent: number; skipped: number }> {
+  async sendAllInvites(
+    intakeFormId: string,
+    clientPhone: string,
+  ): Promise<{ sent: number; skipped: number }> {
     const form = await this.verifyClientOwnsForm(intakeFormId, clientPhone);
     const admin = this.supabaseService.getAdminClient();
 
@@ -218,7 +316,10 @@ export class RsvpService {
     let skipped = 0;
 
     for (const guest of guests) {
-      if (!guest.guest_phone && !guest.guest_email) { skipped++; continue; }
+      if (!guest.guest_phone && !guest.guest_email) {
+        skipped++;
+        continue;
+      }
       try {
         await this.doSendInvite(guest, form);
         await admin
@@ -226,7 +327,9 @@ export class RsvpService {
           .update({ sms_sent_at: new Date().toISOString() })
           .eq('id', guest.id);
         sent++;
-      } catch { skipped++; }
+      } catch {
+        skipped++;
+      }
     }
 
     return { sent, skipped };
@@ -241,7 +344,11 @@ export class RsvpService {
     let eventName = 'the event';
     let eventDate = '';
     if (form.event_id) {
-      const { data: ev } = await admin.from('event').select('name, date').eq('id', form.event_id).single();
+      const { data: ev } = await admin
+        .from('event')
+        .select('name, date')
+        .eq('id', form.event_id)
+        .single();
       if (ev) {
         eventName = ev.name ?? eventName;
         if (ev.date) {
@@ -257,55 +364,86 @@ export class RsvpService {
     }
 
     if (guest.guest_email) {
-      await this.mailService.sendContractWithResend({
-        clientName: guest.guest_name,
-        clientEmail: guest.guest_email,
-        ownerName: form.contact_name || 'Your Host',
-        contractNumber: '',
-        contractTitle: `RSVP: ${eventName}${eventDate}`,
-        contractUrl: rsvpUrl,
-      }).catch(() => {});
+      await this.mailService
+        .sendContractWithResend({
+          clientName: guest.guest_name,
+          clientEmail: guest.guest_email,
+          ownerName: form.contact_name || 'Your Host',
+          contractNumber: '',
+          contractTitle: `RSVP: ${eventName}${eventDate}`,
+          contractUrl: rsvpUrl,
+        })
+        .catch(() => {});
     }
   }
 
   // ── Invitation images (client-portal) ────────────────────────────────────
 
   /** Get invitation images for an event. */
-  async getInvitationImages(intakeFormId: string, clientPhone: string): Promise<string[]> {
+  async getInvitationImages(
+    intakeFormId: string,
+    clientPhone: string,
+  ): Promise<string[]> {
     const form = await this.verifyClientOwnsForm(intakeFormId, clientPhone);
     const admin = this.supabaseService.getAdminClient();
     let eventData: any = null;
     if (form.event_id) {
-      const { data } = await admin.from('event').select('management_data').eq('id', form.event_id).single();
+      const { data } = await admin
+        .from('event')
+        .select('management_data')
+        .eq('id', form.event_id)
+        .single();
       eventData = data;
     }
     if (!eventData) {
       // Fallback: find event by intake_form_id (handles older forms without event_id set)
-      const { data } = await admin.from('event').select('management_data').eq('intake_form_id', intakeFormId).maybeSingle();
+      const { data } = await admin
+        .from('event')
+        .select('management_data')
+        .eq('intake_form_id', intakeFormId)
+        .maybeSingle();
       eventData = data;
     }
-    return (eventData as any)?.management_data?.invitationImages ?? [];
+    return eventData?.management_data?.invitationImages ?? [];
   }
 
   /** Set invitation images for an event (replaces existing list). */
-  async setInvitationImages(intakeFormId: string, clientPhone: string, images: string[]): Promise<string[]> {
+  async setInvitationImages(
+    intakeFormId: string,
+    clientPhone: string,
+    images: string[],
+  ): Promise<string[]> {
     const form = await this.verifyClientOwnsForm(intakeFormId, clientPhone);
     const admin = this.supabaseService.getAdminClient();
     // Resolve the event (prefer form.event_id, fallback to event.intake_form_id)
     let targetEventId: string | null = form.event_id ?? null;
     let existingMgmt: any = {};
     if (targetEventId) {
-      const { data } = await admin.from('event').select('id, management_data').eq('id', targetEventId).single();
+      const { data } = await admin
+        .from('event')
+        .select('id, management_data')
+        .eq('id', targetEventId)
+        .single();
       existingMgmt = (data as any)?.management_data ?? {};
     } else {
-      const { data } = await admin.from('event').select('id, management_data').eq('intake_form_id', intakeFormId).maybeSingle();
+      const { data } = await admin
+        .from('event')
+        .select('id, management_data')
+        .eq('intake_form_id', intakeFormId)
+        .maybeSingle();
       if (!data) throw new NotFoundException('No linked event found');
       targetEventId = data.id;
       existingMgmt = (data as any)?.management_data ?? {};
     }
-    await admin.from('event').update({
-      management_data: { ...existingMgmt, invitationImages: images.slice(0, 2) },
-    }).eq('id', targetEventId);
+    await admin
+      .from('event')
+      .update({
+        management_data: {
+          ...existingMgmt,
+          invitationImages: images.slice(0, 2),
+        },
+      })
+      .eq('id', targetEventId);
     return images.slice(0, 2);
   }
 
@@ -316,7 +454,9 @@ export class RsvpService {
     const admin = this.supabaseService.getAdminClient();
     const { data: guest } = await admin
       .from('rsvp_guests')
-      .select('id, guest_name, status, plus_ones, meal_preference, table_assignment, responded_at, guest_phone, intake_form_id')
+      .select(
+        'id, guest_name, status, plus_ones, meal_preference, table_assignment, responded_at, guest_phone, intake_form_id',
+      )
       .eq('rsvp_token', token)
       .single();
     if (!guest) throw new NotFoundException('RSVP link not found or expired');
@@ -330,12 +470,20 @@ export class RsvpService {
       .single();
 
     if (form?.event_id) {
-      const { data: ev } = await admin.from('event').select('name, date, start_time, venue, management_data').eq('id', form.event_id).single();
+      const { data: ev } = await admin
+        .from('event')
+        .select('name, date, start_time, venue, management_data')
+        .eq('id', form.event_id)
+        .single();
       event = ev;
     }
     if (!event && guest.intake_form_id) {
       // Fallback: find event by intake_form_id (handles older forms without event_id set)
-      const { data: ev } = await admin.from('event').select('name, date, start_time, venue, management_data').eq('intake_form_id', guest.intake_form_id).maybeSingle();
+      const { data: ev } = await admin
+        .from('event')
+        .select('name, date, start_time, venue, management_data')
+        .eq('intake_form_id', guest.intake_form_id)
+        .maybeSingle();
       event = ev;
     }
 
@@ -348,7 +496,7 @@ export class RsvpService {
       responded_at: guest.responded_at,
       // Only indicate whether phone verification is required (don't expose the phone)
       requires_phone_verify: !!guest.guest_phone,
-      invitation_images: (event as any)?.management_data?.invitationImages ?? [],
+      invitation_images: event?.management_data?.invitationImages ?? [],
       event: {
         name: event?.name ?? null,
         date: event?.date ?? form?.event_date ?? null,
@@ -381,10 +529,17 @@ export class RsvpService {
 
     // Phone verification if a phone was stored
     if (guest.guest_phone) {
-      if (!phoneLastFourInput) throw new BadRequestException('Please enter the last 4 digits of your phone number to verify your identity.');
+      if (!phoneLastFourInput)
+        throw new BadRequestException(
+          'Please enter the last 4 digits of your phone number to verify your identity.',
+        );
       const storedLast4 = phoneLastFour(guest.guest_phone);
-      if (storedLast4 !== phoneLastFourInput.trim().replace(/\D/g, '').slice(-4)) {
-        throw new UnauthorizedException('Phone number does not match our records. Please check and try again.');
+      if (
+        storedLast4 !== phoneLastFourInput.trim().replace(/\D/g, '').slice(-4)
+      ) {
+        throw new UnauthorizedException(
+          'Phone number does not match our records. Please check and try again.',
+        );
       }
     }
 
@@ -396,9 +551,16 @@ export class RsvpService {
       .from('rsvp_guests')
       .update({
         status: response.status,
-        plus_ones: response.status === 'attending' ? (response.plus_ones ?? 0) : 0,
-        meal_preference: response.status === 'attending' ? (response.meal_preference || 'standard') : guest.meal_preference,
-        sms_opt_in: response.status === 'attending' ? (response.sms_opt_in ?? false) : false,
+        plus_ones:
+          response.status === 'attending' ? (response.plus_ones ?? 0) : 0,
+        meal_preference:
+          response.status === 'attending'
+            ? response.meal_preference || 'standard'
+            : guest.meal_preference,
+        sms_opt_in:
+          response.status === 'attending'
+            ? (response.sms_opt_in ?? false)
+            : false,
         responded_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
@@ -415,13 +577,18 @@ export class RsvpService {
         .eq('id', guest.intake_form_id)
         .single();
       if (form?.contact_phone) {
-        const action = response.status === 'attending' ? '✅ will be attending' : '❌ has declined';
+        const action =
+          response.status === 'attending'
+            ? '✅ will be attending'
+            : '❌ has declined';
         await this.smsNotifications.trySend(
           form.contact_phone,
           `RSVP update: ${guest.guest_name} ${action}${response.plus_ones ? ` (+${response.plus_ones})` : ''}.`,
         );
       }
-    } catch { /* non-fatal */ }
+    } catch {
+      /* non-fatal */
+    }
 
     return { success: true, status: data.status };
   }

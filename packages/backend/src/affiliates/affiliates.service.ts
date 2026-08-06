@@ -11,8 +11,8 @@ import { randomBytes } from 'crypto';
 import { MailService } from '../mail/mail.service';
 
 /** Commission rates */
-const CONVERSION_RATE = 0.50;  // 50% of first subscription payment
-const RECURRING_RATE  = 0.03;  // 3% of each subsequent payment
+const CONVERSION_RATE = 0.5; // 50% of first subscription payment
+const RECURRING_RATE = 0.03; // 3% of each subsequent payment
 const MAX_COMMISSION_YEARS = 3;
 
 @Injectable()
@@ -42,7 +42,9 @@ export class AffiliatesService {
       .maybeSingle();
 
     if (existing) {
-      throw new BadRequestException('This email is already registered as an affiliate');
+      throw new BadRequestException(
+        'This email is already registered as an affiliate',
+      );
     }
 
     // Revoke any previous unused invite for this email
@@ -69,7 +71,10 @@ export class AffiliatesService {
     }
 
     // Send the invite email
-    await this.mailService.sendAffiliateInvite({ toEmail: normalizedEmail, inviteToken: token });
+    await this.mailService.sendAffiliateInvite({
+      toEmail: normalizedEmail,
+      inviteToken: token,
+    });
 
     return { message: `Invite sent to ${normalizedEmail}` };
   }
@@ -84,8 +89,10 @@ export class AffiliatesService {
       .maybeSingle();
 
     if (!invite) return { valid: false, reason: 'Invalid invite link' };
-    if (invite.used_at) return { valid: false, reason: 'This invite link has already been used' };
-    if (new Date(invite.expires_at) < new Date()) return { valid: false, reason: 'This invite link has expired' };
+    if (invite.used_at)
+      return { valid: false, reason: 'This invite link has already been used' };
+    if (new Date(invite.expires_at) < new Date())
+      return { valid: false, reason: 'This invite link has expired' };
 
     return { valid: true, email: invite.email };
   }
@@ -112,7 +119,9 @@ export class AffiliatesService {
       throw new BadRequestException('This invite link has expired');
     }
     if (invite.email.toLowerCase() !== dto.email.toLowerCase()) {
-      throw new BadRequestException('This invite was sent to a different email address');
+      throw new BadRequestException(
+        'This invite was sent to a different email address',
+      );
     }
 
     // Check email uniqueness in users table
@@ -123,23 +132,28 @@ export class AffiliatesService {
       .maybeSingle();
 
     if (existing) {
-      throw new BadRequestException('An account with this email already exists');
+      throw new BadRequestException(
+        'An account with this email already exists',
+      );
     }
 
     // Create Supabase auth user — auto-confirm email so affiliates can login immediately
-    const { data: authData, error: authError } = await admin.auth.admin.createUser({
-      email: dto.email,
-      password: dto.password,
-      email_confirm: true,
-      user_metadata: {
-        first_name: dto.firstName,
-        last_name: dto.lastName,
-        role: 'affiliate',
-      },
-    });
+    const { data: authData, error: authError } =
+      await admin.auth.admin.createUser({
+        email: dto.email,
+        password: dto.password,
+        email_confirm: true,
+        user_metadata: {
+          first_name: dto.firstName,
+          last_name: dto.lastName,
+          role: 'affiliate',
+        },
+      });
 
     if (authError || !authData.user) {
-      throw new BadRequestException(authError?.message || 'Failed to create user');
+      throw new BadRequestException(
+        authError?.message || 'Failed to create user',
+      );
     }
 
     const userId = authData.user.id;
@@ -192,10 +206,11 @@ export class AffiliatesService {
 
     // Sign in to get a session for the new affiliate
     const anonClient = this.supabaseService.getClient();
-    const { data: sessionData, error: sessionError } = await anonClient.auth.signInWithPassword({
-      email: dto.email,
-      password: dto.password,
-    });
+    const { data: sessionData, error: sessionError } =
+      await anonClient.auth.signInWithPassword({
+        email: dto.email,
+        password: dto.password,
+      });
 
     if (sessionError) {
       // Registration succeeded but auto-login failed — not critical
@@ -210,7 +225,10 @@ export class AffiliatesService {
 
   async login(email: string, password: string) {
     const anonClient = this.supabaseService.getClient();
-    const { data, error } = await anonClient.auth.signInWithPassword({ email, password });
+    const { data, error } = await anonClient.auth.signInWithPassword({
+      email,
+      password,
+    });
 
     if (error || !data.session) {
       throw new UnauthorizedException('Invalid email or password');
@@ -259,8 +277,8 @@ export class AffiliatesService {
     const admin = this.supabaseService.getAdminClient();
     const update: Record<string, unknown> = {};
     if (dto.firstName !== undefined) update.first_name = dto.firstName;
-    if (dto.lastName  !== undefined) update.last_name  = dto.lastName;
-    if (dto.phone     !== undefined) update.phone       = dto.phone;
+    if (dto.lastName !== undefined) update.last_name = dto.lastName;
+    if (dto.phone !== undefined) update.phone = dto.phone;
 
     const { data, error } = await admin
       .from('affiliates')
@@ -309,15 +327,15 @@ export class AffiliatesService {
       0,
     );
     const pendingEarnings = (commissionTotals ?? [])
-      .filter(c => c.status === 'pending')
+      .filter((c) => c.status === 'pending')
       .reduce((sum, c) => sum + Number(c.commission_amount), 0);
 
     return {
       affiliate,
       stats: {
-        totalReferred:   totalReferred   ?? 0,
-        totalConverted:  totalConverted  ?? 0,
-        totalEarned:     Number(totalEarned.toFixed(2)),
+        totalReferred: totalReferred ?? 0,
+        totalConverted: totalConverted ?? 0,
+        totalEarned: Number(totalEarned.toFixed(2)),
         pendingEarnings: Number(pendingEarnings.toFixed(2)),
       },
     };
@@ -330,7 +348,8 @@ export class AffiliatesService {
 
     const { data, error } = await admin
       .from('affiliate_referrals')
-      .select(`
+      .select(
+        `
         id,
         status,
         converted_at,
@@ -341,7 +360,8 @@ export class AffiliatesService {
           business_name,
           subscription_status
         )
-      `)
+      `,
+      )
       .eq('affiliate_id', affiliateId)
       .order('created_at', { ascending: false });
 
@@ -356,7 +376,8 @@ export class AffiliatesService {
 
     const { data, error } = await admin
       .from('affiliate_commissions')
-      .select(`
+      .select(
+        `
         id,
         commission_type,
         commission_rate,
@@ -367,7 +388,8 @@ export class AffiliatesService {
         period_end,
         created_at,
         owner_accounts!inner(business_name)
-      `)
+      `,
+      )
       .eq('affiliate_id', affiliateId)
       .order('created_at', { ascending: false });
 
@@ -407,10 +429,10 @@ export class AffiliatesService {
       .from('affiliate_referrals')
       .upsert(
         {
-          affiliate_id:          affiliateId,
-          owner_account_id:      ownerAccountId,
-          status:                'converted',
-          converted_at:          now.toISOString(),
+          affiliate_id: affiliateId,
+          owner_account_id: ownerAccountId,
+          status: 'converted',
+          converted_at: now.toISOString(),
           commission_expires_at: expiresAt.toISOString(),
         },
         { onConflict: 'affiliate_id,owner_account_id' },
@@ -419,7 +441,10 @@ export class AffiliatesService {
       .single();
 
     if (refError) {
-      console.error('[AffiliatesService] Failed to upsert referral:', refError.message);
+      console.error(
+        '[AffiliatesService] Failed to upsert referral:',
+        refError.message,
+      );
       return;
     }
 
@@ -433,18 +458,20 @@ export class AffiliatesService {
 
     if (existing) return; // Already recorded
 
-    const commissionAmount = Number((amountDollars * CONVERSION_RATE).toFixed(2));
+    const commissionAmount = Number(
+      (amountDollars * CONVERSION_RATE).toFixed(2),
+    );
 
     await admin.from('affiliate_commissions').insert({
-      affiliate_id:           affiliateId,
-      referral_id:            referral.id,
-      owner_account_id:       ownerAccountId,
+      affiliate_id: affiliateId,
+      referral_id: referral.id,
+      owner_account_id: ownerAccountId,
       stripe_subscription_id: stripeSubscriptionId,
-      subscription_amount:    amountDollars,
-      commission_rate:        CONVERSION_RATE,
-      commission_amount:      commissionAmount,
-      commission_type:        'conversion',
-      status:                 'pending',
+      subscription_amount: amountDollars,
+      commission_rate: CONVERSION_RATE,
+      commission_amount: commissionAmount,
+      commission_type: 'conversion',
+      status: 'pending',
     });
   }
 
@@ -489,21 +516,23 @@ export class AffiliatesService {
 
     if (existing) return;
 
-    const commissionAmount = Number((amountDollars * RECURRING_RATE).toFixed(2));
+    const commissionAmount = Number(
+      (amountDollars * RECURRING_RATE).toFixed(2),
+    );
 
     await admin.from('affiliate_commissions').insert({
-      affiliate_id:           referral.affiliate_id,
-      referral_id:            referral.id,
-      owner_account_id:       ownerAccountId,
-      stripe_invoice_id:      stripeInvoiceId,
+      affiliate_id: referral.affiliate_id,
+      referral_id: referral.id,
+      owner_account_id: ownerAccountId,
+      stripe_invoice_id: stripeInvoiceId,
       stripe_subscription_id: stripeSubscriptionId,
-      subscription_amount:    amountDollars,
-      commission_rate:        RECURRING_RATE,
-      commission_amount:      commissionAmount,
-      commission_type:        'recurring',
-      period_start:           periodStart.toISOString(),
-      period_end:             periodEnd.toISOString(),
-      status:                 'pending',
+      subscription_amount: amountDollars,
+      commission_rate: RECURRING_RATE,
+      commission_amount: commissionAmount,
+      commission_type: 'recurring',
+      period_start: periodStart.toISOString(),
+      period_end: periodEnd.toISOString(),
+      status: 'pending',
     });
   }
 
@@ -526,14 +555,18 @@ export class AffiliatesService {
 
     let usersQuery = admin
       .from('users')
-      .select('id, email, first_name, last_name, role, roles, last_sign_in_at, created_at')
+      .select(
+        'id, email, first_name, last_name, role, roles, last_sign_in_at, created_at',
+      )
       .in('role', INCLUDED_ROLES)
       .order('created_at', { ascending: false });
 
     if (roleFilter && roleFilter !== 'all') {
       usersQuery = admin
         .from('users')
-        .select('id, email, first_name, last_name, role, roles, last_sign_in_at, created_at')
+        .select(
+          'id, email, first_name, last_name, role, roles, last_sign_in_at, created_at',
+        )
         .eq('role', roleFilter)
         .order('created_at', { ascending: false });
     }
@@ -549,16 +582,24 @@ export class AffiliatesService {
     const { data: accounts } = ownerIds.length
       ? await admin
           .from('owner_accounts')
-          .select('primary_owner_id, business_name, subscription_status, trial_ends_at, referred_by_affiliate_id')
+          .select(
+            'primary_owner_id, business_name, subscription_status, trial_ends_at, referred_by_affiliate_id',
+          )
           .in('primary_owner_id', ownerIds)
       : { data: [] };
 
-    const accountMap = new Map((accounts || []).map((a: any) => [a.primary_owner_id, a]));
+    const accountMap = new Map(
+      (accounts || []).map((a: any) => [a.primary_owner_id, a]),
+    );
 
     // Load affiliate names for referred owners
-    const affiliateIds = [...new Set(
-      (accounts || []).map((a: any) => a.referred_by_affiliate_id).filter(Boolean),
-    )];
+    const affiliateIds = [
+      ...new Set(
+        (accounts || [])
+          .map((a: any) => a.referred_by_affiliate_id)
+          .filter(Boolean),
+      ),
+    ];
     const { data: affiliates } = affiliateIds.length
       ? await admin
           .from('affiliates')
@@ -569,20 +610,25 @@ export class AffiliatesService {
 
     let enriched = (allUsers || []).map((u: any) => {
       const acct = accountMap.get(u.id) || null;
-      const ref  = acct ? affiliateMap.get(acct.referred_by_affiliate_id) || null : null;
+      const ref = acct
+        ? affiliateMap.get(acct.referred_by_affiliate_id) || null
+        : null;
       return {
-        id:                  u.id,
-        email:               u.email ?? null,
-        first_name:          u.first_name ?? null,
-        last_name:           u.last_name ?? null,
-        role:                u.role,
-        business_name:       acct?.business_name ?? null,
+        id: u.id,
+        email: u.email ?? null,
+        first_name: u.first_name ?? null,
+        last_name: u.last_name ?? null,
+        role: u.role,
+        business_name: acct?.business_name ?? null,
         subscription_status: acct?.subscription_status ?? null,
-        trial_ends_at:       acct?.trial_ends_at ?? null,
-        account_created_at:  u.created_at,
-        last_login:          u.last_sign_in_at ?? null,
-        referred_by:         ref
-          ? { name: `${ref.first_name} ${ref.last_name}`, code: ref.referral_code }
+        trial_ends_at: acct?.trial_ends_at ?? null,
+        account_created_at: u.created_at,
+        last_login: u.last_sign_in_at ?? null,
+        referred_by: ref
+          ? {
+              name: `${ref.first_name} ${ref.last_name}`,
+              code: ref.referral_code,
+            }
           : null,
       };
     });
@@ -605,20 +651,36 @@ export class AffiliatesService {
       { count: totalArtists },
       { count: totalVendors },
     ] = await Promise.all([
-      admin.from('users').select('*', { count: 'exact', head: true }).eq('role', 'owner'),
-      admin.from('users').select('*', { count: 'exact', head: true }).eq('role', 'promoter'),
-      admin.from('users').select('*', { count: 'exact', head: true }).eq('role', 'artist'),
-      admin.from('users').select('*', { count: 'exact', head: true }).eq('role', 'vendor'),
+      admin
+        .from('users')
+        .select('*', { count: 'exact', head: true })
+        .eq('role', 'owner'),
+      admin
+        .from('users')
+        .select('*', { count: 'exact', head: true })
+        .eq('role', 'promoter'),
+      admin
+        .from('users')
+        .select('*', { count: 'exact', head: true })
+        .eq('role', 'artist'),
+      admin
+        .from('users')
+        .select('*', { count: 'exact', head: true })
+        .eq('role', 'vendor'),
     ]);
 
     return {
       users: enriched,
       summary: {
-        total:     (totalOwners ?? 0) + (totalPromoters ?? 0) + (totalArtists ?? 0) + (totalVendors ?? 0),
-        owners:    totalOwners    ?? 0,
+        total:
+          (totalOwners ?? 0) +
+          (totalPromoters ?? 0) +
+          (totalArtists ?? 0) +
+          (totalVendors ?? 0),
+        owners: totalOwners ?? 0,
         promoters: totalPromoters ?? 0,
-        artists:   totalArtists   ?? 0,
-        vendors:   totalVendors   ?? 0,
+        artists: totalArtists ?? 0,
+        vendors: totalVendors ?? 0,
       },
     };
   }
@@ -637,7 +699,9 @@ export class AffiliatesService {
 
     const { data: user, error: userError } = await admin
       .from('users')
-      .select('id, email, first_name, last_name, role, roles, created_at, last_sign_in_at')
+      .select(
+        'id, email, first_name, last_name, role, roles, created_at, last_sign_in_at',
+      )
       .eq('id', userId)
       .maybeSingle();
 
@@ -649,11 +713,22 @@ export class AffiliatesService {
     let stats: Record<string, any> = {};
 
     if (user.role === 'owner') {
-      const [{ data: acct }, { count: eventCount }, { data: invoices }] = await Promise.all([
-        admin.from('owner_accounts').select('*').eq('primary_owner_id', userId).maybeSingle(),
-        admin.from('events').select('*', { count: 'exact', head: true }).eq('owner_id', userId),
-        admin.from('invoices').select('total_amount, status').eq('owner_id', userId),
-      ]);
+      const [{ data: acct }, { count: eventCount }, { data: invoices }] =
+        await Promise.all([
+          admin
+            .from('owner_accounts')
+            .select('*')
+            .eq('primary_owner_id', userId)
+            .maybeSingle(),
+          admin
+            .from('events')
+            .select('*', { count: 'exact', head: true })
+            .eq('owner_id', userId),
+          admin
+            .from('invoices')
+            .select('total_amount, status')
+            .eq('owner_id', userId),
+        ]);
 
       account = acct;
       const totalRevenue = (invoices || [])
@@ -672,17 +747,33 @@ export class AffiliatesService {
           .select('first_name, last_name, referral_code')
           .eq('id', acct.referred_by_affiliate_id)
           .maybeSingle();
-        if (ref) referredBy = { name: `${ref.first_name} ${ref.last_name}`, code: ref.referral_code };
+        if (ref)
+          referredBy = {
+            name: `${ref.first_name} ${ref.last_name}`,
+            code: ref.referral_code,
+          };
       }
     } else if (user.role === 'vendor') {
-      const { data: acct } = await admin.from('vendor_accounts').select('*').eq('user_id', userId).maybeSingle();
+      const { data: acct } = await admin
+        .from('vendor_accounts')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
       account = acct;
 
       if (acct?.id) {
-        const [{ count: bookingCount }, { data: invoices }] = await Promise.all([
-          admin.from('vendor_bookings').select('*', { count: 'exact', head: true }).eq('vendor_account_id', acct.id),
-          admin.from('vendor_invoices').select('total_amount, status').eq('vendor_account_id', acct.id),
-        ]);
+        const [{ count: bookingCount }, { data: invoices }] = await Promise.all(
+          [
+            admin
+              .from('vendor_bookings')
+              .select('*', { count: 'exact', head: true })
+              .eq('vendor_account_id', acct.id),
+            admin
+              .from('vendor_invoices')
+              .select('total_amount, status')
+              .eq('vendor_account_id', acct.id),
+          ],
+        );
 
         const totalRevenue = (invoices || [])
           .filter((i: any) => i.status === 'paid')
@@ -715,7 +806,9 @@ export class AffiliatesService {
 
     const { data: affiliates, error } = await admin
       .from('affiliates')
-      .select('id, first_name, last_name, email, referral_code, status, created_at')
+      .select(
+        'id, first_name, last_name, email, referral_code, status, created_at',
+      )
       .neq('email', 'sales@eventecos.com')
       .order('created_at', { ascending: false });
 
@@ -737,21 +830,35 @@ export class AffiliatesService {
     ]);
 
     const enriched = (affiliates ?? []).map((a: any) => {
-      const refs  = (referrals   ?? []).filter((r: any) => r.affiliate_id === a.id);
-      const comms = (commissions ?? []).filter((c: any) => c.affiliate_id === a.id);
+      const refs = (referrals ?? []).filter(
+        (r: any) => r.affiliate_id === a.id,
+      );
+      const comms = (commissions ?? []).filter(
+        (c: any) => c.affiliate_id === a.id,
+      );
       return {
-        id:            a.id,
-        first_name:    a.first_name,
-        last_name:     a.last_name,
-        email:         a.email,
+        id: a.id,
+        first_name: a.first_name,
+        last_name: a.last_name,
+        email: a.email,
         referral_code: a.referral_code,
-        status:        a.status,
-        joined_at:     a.created_at,
+        status: a.status,
+        joined_at: a.created_at,
         stats: {
-          totalReferred:   refs.length,
-          totalConverted:  refs.filter((r: any) => r.status === 'converted').length,
-          totalEarned:     Number(comms.reduce((s: number, c: any) => s + Number(c.commission_amount), 0).toFixed(2)),
-          pendingEarnings: Number(comms.filter((c: any) => c.status === 'pending').reduce((s: number, c: any) => s + Number(c.commission_amount), 0).toFixed(2)),
+          totalReferred: refs.length,
+          totalConverted: refs.filter((r: any) => r.status === 'converted')
+            .length,
+          totalEarned: Number(
+            comms
+              .reduce((s: number, c: any) => s + Number(c.commission_amount), 0)
+              .toFixed(2),
+          ),
+          pendingEarnings: Number(
+            comms
+              .filter((c: any) => c.status === 'pending')
+              .reduce((s: number, c: any) => s + Number(c.commission_amount), 0)
+              .toFixed(2),
+          ),
         },
       };
     });
@@ -776,8 +883,14 @@ export class AffiliatesService {
 
   // ─── Helpers ─────────────────────────────────────────────────────────────
 
-  private async generateReferralCode(firstName: string, admin: any): Promise<string> {
-    const base = firstName.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+  private async generateReferralCode(
+    firstName: string,
+    admin: any,
+  ): Promise<string> {
+    const base = firstName
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '')
+      .slice(0, 8);
     let code: string;
     let attempts = 0;
 

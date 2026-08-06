@@ -62,11 +62,15 @@ export class ScheduledMessagesService {
     content: string;
     scheduledFor: Date;
   }): Promise<ScheduledMessage> {
-    const scheduledMessage = this.scheduledMessageRepository.create(scheduledMessageData);
+    const scheduledMessage =
+      this.scheduledMessageRepository.create(scheduledMessageData);
     return this.scheduledMessageRepository.save(scheduledMessage);
   }
 
-  async scheduleFromTemplate(eventId: string, templateId: number): Promise<ScheduledMessage> {
+  async scheduleFromTemplate(
+    eventId: string,
+    templateId: number,
+  ): Promise<ScheduledMessage> {
     const event = await this.eventRepository.findOne({
       where: { id: eventId },
     });
@@ -85,7 +89,7 @@ export class ScheduledMessagesService {
 
     // Calculate scheduled time
     const eventDate = new Date(event.date);
-    let scheduledFor = new Date(eventDate);
+    const scheduledFor = new Date(eventDate);
 
     if (template.sendBeforeDays) {
       scheduledFor.setDate(scheduledFor.getDate() - template.sendBeforeDays);
@@ -108,7 +112,10 @@ export class ScheduledMessagesService {
     });
   }
 
-  async scheduleMultipleFromTemplate(eventId: string, templateId: number): Promise<ScheduledMessage[]> {
+  async scheduleMultipleFromTemplate(
+    eventId: string,
+    templateId: number,
+  ): Promise<ScheduledMessage[]> {
     const template = await this.templateRepository.findOne({
       where: { id: templateId },
     });
@@ -127,14 +134,19 @@ export class ScheduledMessagesService {
 
     const scheduledMessages: ScheduledMessage[] = [];
     const eventDate = new Date(event.date);
-    let currentDate = new Date();
+    const currentDate = new Date();
 
     // Schedule recurring messages
     while (currentDate < eventDate) {
-      let scheduledFor = new Date(eventDate);
-      const daysUntilEvent = Math.floor((eventDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
+      const scheduledFor = new Date(eventDate);
+      const daysUntilEvent = Math.floor(
+        (eventDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24),
+      );
 
-      if (template.sendBeforeDays && daysUntilEvent >= template.sendBeforeDays) {
+      if (
+        template.sendBeforeDays &&
+        daysUntilEvent >= template.sendBeforeDays
+      ) {
         scheduledFor.setDate(scheduledFor.getDate() - template.sendBeforeDays);
 
         if (template.sendTime) {
@@ -191,7 +203,10 @@ export class ScheduledMessagesService {
       try {
         await this.sendScheduledMessage(scheduledMessage);
       } catch (error) {
-        console.error(`Failed to send scheduled message ${scheduledMessage.id}:`, error);
+        console.error(
+          `Failed to send scheduled message ${scheduledMessage.id}:`,
+          error,
+        );
         scheduledMessage.status = 'failed';
         scheduledMessage.errorMessage = error.message;
         await this.scheduledMessageRepository.save(scheduledMessage);
@@ -199,7 +214,9 @@ export class ScheduledMessagesService {
     }
   }
 
-  private async sendScheduledMessage(scheduledMessage: ScheduledMessage): Promise<void> {
+  private async sendScheduledMessage(
+    scheduledMessage: ScheduledMessage,
+  ): Promise<void> {
     const event = scheduledMessage.event;
     const messages: Array<{
       recipientPhone: string;
@@ -207,12 +224,20 @@ export class ScheduledMessagesService {
       recipientType: 'client' | 'guest' | 'security' | 'custom';
       userId?: number;
       eventId?: string;
-      messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom';
+      messageType:
+        | 'reminder'
+        | 'invoice'
+        | 'confirmation'
+        | 'update'
+        | 'custom';
       content: string;
     }> = [];
 
     // Determine recipients based on recipientType
-    if (scheduledMessage.recipientType === 'client' || scheduledMessage.recipientType === 'all') {
+    if (
+      scheduledMessage.recipientType === 'client' ||
+      scheduledMessage.recipientType === 'all'
+    ) {
       const owner = await this.userRepository.findOne({
         where: { id: parseInt(event.ownerId) },
       });
@@ -232,7 +257,8 @@ export class ScheduledMessagesService {
     // TODO: Add guest and security recipients when needed
 
     if (messages.length > 0) {
-      const sentMessages = await this.messagingService.sendBulkMessages(messages);
+      const sentMessages =
+        await this.messagingService.sendBulkMessages(messages);
       scheduledMessage.status = 'sent';
       scheduledMessage.sentAt = new Date();
       scheduledMessage.messageId = sentMessages[0]?.id;

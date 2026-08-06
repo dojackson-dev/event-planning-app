@@ -32,7 +32,10 @@ export class ArtistInvoicesService {
     const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (!secretKey) throw new Error('STRIPE_SECRET_KEY is not set');
     this.stripe = new Stripe(secretKey);
-    this.frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://eventecos.com');
+    this.frontendUrl = this.configService.get<string>(
+      'FRONTEND_URL',
+      'https://eventecos.com',
+    );
   }
 
   // ─── Invoice number generation ────────────────────────────────────────────
@@ -52,15 +55,27 @@ export class ArtistInvoicesService {
     taxRate: number,
     discountAmount: number,
   ) {
-    const subtotal = items.reduce((sum, i) => sum + i.quantity * i.unit_price, 0);
+    const subtotal = items.reduce(
+      (sum, i) => sum + i.quantity * i.unit_price,
+      0,
+    );
     const taxAmount = subtotal * (taxRate / 100);
     const baseAmount = Math.max(0, subtotal + taxAmount - discountAmount);
     // Platform fee is charged to the artist (deducted from payout via application_fee_amount).
     // Stripe processing fee is still passed through to the client.
     const platformFeeAmount = Math.round(baseAmount * APP_FEE_RATE * 100) / 100;
-    const totalAmount = Math.round(((baseAmount + 0.30) / 0.971) * 100) / 100;
-    const processingFeeAmount = Math.round((totalAmount - baseAmount) * 100) / 100;
-    return { subtotal, taxAmount, baseAmount, platformFeeAmount, processingFeeAmount, totalAmount, amountDue: totalAmount };
+    const totalAmount = Math.round(((baseAmount + 0.3) / 0.971) * 100) / 100;
+    const processingFeeAmount =
+      Math.round((totalAmount - baseAmount) * 100) / 100;
+    return {
+      subtotal,
+      taxAmount,
+      baseAmount,
+      platformFeeAmount,
+      processingFeeAmount,
+      totalAmount,
+      amountDue: totalAmount,
+    };
   }
 
   // ─── Artist account helper ────────────────────────────────────────────────
@@ -72,7 +87,8 @@ export class ArtistInvoicesService {
       .select('id')
       .eq('user_id', userId)
       .maybeSingle();
-    if (error || !data) throw new ForbiddenException('No artist account found for this user');
+    if (error || !data)
+      throw new ForbiddenException('No artist account found for this user');
     return data.id;
   }
 
@@ -84,11 +100,8 @@ export class ArtistInvoicesService {
     const invoiceNumber = await this.generateInvoiceNumber();
     const taxRate = dto.tax_rate ?? 0;
     const discountAmount = dto.discount_amount ?? 0;
-    const { subtotal, taxAmount, totalAmount, amountDue } = this.calculateTotals(
-      dto.items,
-      taxRate,
-      discountAmount,
-    );
+    const { subtotal, taxAmount, totalAmount, amountDue } =
+      this.calculateTotals(dto.items, taxRate, discountAmount);
 
     const { data: invoice, error: invErr } = await admin
       .from('artist_invoices')
@@ -114,18 +127,22 @@ export class ArtistInvoicesService {
       .select()
       .single();
 
-    if (invErr || !invoice) throw new Error(invErr?.message ?? 'Failed to create invoice');
+    if (invErr || !invoice)
+      throw new Error(invErr?.message ?? 'Failed to create invoice');
 
     if (dto.items.length > 0) {
-      const lineItems = dto.items.map(item => ({
+      const lineItems = dto.items.map((item) => ({
         artist_invoice_id: invoice.id,
         description: item.description,
         quantity: item.quantity,
         unit_price: item.unit_price,
         amount: item.quantity * item.unit_price,
       }));
-      const { error: itemsErr } = await admin.from('artist_invoice_items').insert(lineItems);
-      if (itemsErr) this.logger.error('Failed to insert invoice items', itemsErr);
+      const { error: itemsErr } = await admin
+        .from('artist_invoice_items')
+        .insert(lineItems);
+      if (itemsErr)
+        this.logger.error('Failed to insert invoice items', itemsErr);
     }
 
     return this.getInvoice(userId, invoice.id);
@@ -150,14 +167,15 @@ export class ArtistInvoicesService {
     return data ?? [];
   }
 
-
   async getInvoice(userId: string, invoiceId: string) {
     const admin = this.supabaseService.getAdminClient();
 
     // Fetch the invoice first (no artist filter yet)
     const { data, error } = await admin
       .from('artist_invoices')
-      .select('*, artist_invoice_items(*), artist_accounts(artist_name, stage_name, booking_email, booking_phone, location)')
+      .select(
+        '*, artist_invoice_items(*), artist_accounts(artist_name, stage_name, booking_email, booking_phone, location)',
+      )
       .eq('id', invoiceId)
       .maybeSingle();
 
@@ -194,7 +212,11 @@ export class ArtistInvoicesService {
     return data;
   }
 
-  async updateInvoice(userId: string, invoiceId: string, dto: UpdateArtistInvoiceDto) {
+  async updateInvoice(
+    userId: string,
+    invoiceId: string,
+    dto: UpdateArtistInvoiceDto,
+  ) {
     const admin = this.supabaseService.getAdminClient();
     const artistAccountId = await this.getArtistAccountId(userId);
 
@@ -253,21 +275,31 @@ export class ArtistInvoicesService {
     });
     if (error) throw new Error(error.message);
 
-    await this.recalcAndSaveInvoiceTotals(invoiceId, invoice.tax_rate, invoice.discount_amount);
+    await this.recalcAndSaveInvoiceTotals(
+      invoiceId,
+      invoice.tax_rate,
+      invoice.discount_amount,
+    );
     return this.getInvoice(userId, invoiceId);
   }
 
-  async updateItem(userId: string, itemId: string, item: Partial<ArtistInvoiceItemDto>) {
+  async updateItem(
+    userId: string,
+    itemId: string,
+    item: Partial<ArtistInvoiceItemDto>,
+  ) {
     const admin = this.supabaseService.getAdminClient();
     const artistAccountId = await this.getArtistAccountId(userId);
 
     const { data: existing } = await admin
       .from('artist_invoice_items')
-      .select('*, artist_invoices!inner(artist_account_id, tax_rate, discount_amount)')
+      .select(
+        '*, artist_invoices!inner(artist_account_id, tax_rate, discount_amount)',
+      )
       .eq('id', itemId)
       .single();
 
-    const parentInvoice = existing ? (existing.artist_invoices as any) : null;
+    const parentInvoice = existing ? existing.artist_invoices : null;
     if (!existing || parentInvoice?.artist_account_id !== artistAccountId) {
       throw new NotFoundException('Item not found');
     }
@@ -295,7 +327,9 @@ export class ArtistInvoicesService {
 
     const { data: existing } = await admin
       .from('artist_invoice_items')
-      .select('artist_invoice_id, artist_invoices!inner(artist_account_id, tax_rate, discount_amount)')
+      .select(
+        'artist_invoice_id, artist_invoices!inner(artist_account_id, tax_rate, discount_amount)',
+      )
       .eq('id', itemId)
       .single();
 
@@ -324,11 +358,12 @@ export class ArtistInvoicesService {
       .select('quantity, unit_price')
       .eq('artist_invoice_id', invoiceId);
 
-    const { subtotal, taxAmount, totalAmount, amountDue } = this.calculateTotals(
-      (items ?? []) as { quantity: number; unit_price: number }[],
-      Number(taxRate),
-      Number(discountAmount),
-    );
+    const { subtotal, taxAmount, totalAmount, amountDue } =
+      this.calculateTotals(
+        (items ?? []) as { quantity: number; unit_price: number }[],
+        Number(taxRate),
+        Number(discountAmount),
+      );
 
     await admin
       .from('artist_invoices')
@@ -344,15 +379,23 @@ export class ArtistInvoicesService {
 
   // ─── Send invoice email ───────────────────────────────────────────────────
 
-  async sendInvoice(userId: string, invoiceId: string): Promise<{ success: boolean }> {
+  async sendInvoice(
+    userId: string,
+    invoiceId: string,
+  ): Promise<{ success: boolean }> {
     const admin = this.supabaseService.getAdminClient();
     const artistAccountId = await this.getArtistAccountId(userId);
     const { data: artistAccount } = await admin
       .from('artist_accounts')
-      .select('stripe_account_id, stripe_connect_status, artist_name, stage_name')
+      .select(
+        'stripe_account_id, stripe_connect_status, artist_name, stage_name',
+      )
       .eq('id', artistAccountId)
       .single();
-    if (!artistAccount?.stripe_account_id || artistAccount.stripe_connect_status !== 'active') {
+    if (
+      !artistAccount?.stripe_account_id ||
+      artistAccount.stripe_connect_status !== 'active'
+    ) {
       throw new BadRequestException(
         'You must connect a Stripe account before sending invoices. Go to your dashboard to set up payouts.',
       );
@@ -361,8 +404,8 @@ export class ArtistInvoicesService {
     const invoice = await this.getInvoice(userId, invoiceId);
     const payUrl = `${this.frontendUrl}/artist-pay/${invoice.public_token}`;
     const artistName =
-      (invoice.artist_accounts as any)?.stage_name ||
-      (invoice.artist_accounts as any)?.artist_name ||
+      invoice.artist_accounts?.stage_name ||
+      invoice.artist_accounts?.artist_name ||
       'Your Artist';
 
     const emailSent = await this.sendInvoiceEmail({
@@ -382,7 +425,7 @@ export class ArtistInvoicesService {
         .eq('id', invoiceId);
     }
 
-    const clientPhone = (invoice as any).client_phone as string | null;
+    const clientPhone = invoice.client_phone as string | null;
     try {
       if (clientPhone) {
         await this.smsNotifications.vendorInvoiceSent(
@@ -453,7 +496,10 @@ export class ArtistInvoicesService {
       this.logger.log(`Artist invoice email sent to ${params.to}`);
       return true;
     } catch (err) {
-      this.logger.error('Failed to send artist invoice email', (err as Error).message);
+      this.logger.error(
+        'Failed to send artist invoice email',
+        (err as Error).message,
+      );
       return false;
     }
   }
@@ -491,7 +537,9 @@ export class ArtistInvoicesService {
 
   // ─── Stripe Checkout for public invoice payment ────────────────────────────
 
-  async createCheckoutSession(token: string): Promise<{ url: string; feeCents: number }> {
+  async createCheckoutSession(
+    token: string,
+  ): Promise<{ url: string; feeCents: number }> {
     const admin = this.supabaseService.getAdminClient();
 
     const { data: invoice, error } = await admin
@@ -503,14 +551,18 @@ export class ArtistInvoicesService {
       .single();
 
     if (error || !invoice) throw new NotFoundException('Invoice not found');
-    if (invoice.status === 'paid') throw new ForbiddenException('Invoice is already paid');
-    if (invoice.status === 'cancelled') throw new ForbiddenException('Invoice has been cancelled');
+    if (invoice.status === 'paid')
+      throw new ForbiddenException('Invoice is already paid');
+    if (invoice.status === 'cancelled')
+      throw new ForbiddenException('Invoice has been cancelled');
 
     const amountCents = Math.round(Number(invoice.amount_due) * 100);
-    if (amountCents <= 0) throw new ForbiddenException('Invoice amount must be greater than zero');
+    if (amountCents <= 0)
+      throw new ForbiddenException('Invoice amount must be greater than zero');
 
-    const artist = invoice.artist_accounts as any;
-    const hasConnect = artist?.stripe_account_id && artist?.stripe_connect_status === 'active';
+    const artist = invoice.artist_accounts;
+    const hasConnect =
+      artist?.stripe_account_id && artist?.stripe_connect_status === 'active';
 
     if (!hasConnect) {
       throw new BadRequestException(
@@ -521,7 +573,10 @@ export class ArtistInvoicesService {
     const artistName = artist?.stage_name || artist?.artist_name || 'Artist';
     // Platform fee is 3% of the base (subtotal + tax - discount), NOT of the gross total
     const baseCents = Math.round(
-      (Number(invoice.subtotal) + Number(invoice.tax_amount) - Number(invoice.discount_amount)) * 100
+      (Number(invoice.subtotal) +
+        Number(invoice.tax_amount) -
+        Number(invoice.discount_amount)) *
+        100,
     );
     const feeCents = Math.round(baseCents * APP_FEE_RATE);
 
@@ -554,16 +609,24 @@ export class ArtistInvoicesService {
 
     await admin
       .from('artist_invoices')
-      .update({ stripe_checkout_session_id: session.id, updated_at: new Date().toISOString() })
+      .update({
+        stripe_checkout_session_id: session.id,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', invoice.id);
 
-    this.logger.log(`Artist invoice checkout: ${session.id} for invoice ${invoice.id}`);
+    this.logger.log(
+      `Artist invoice checkout: ${session.id} for invoice ${invoice.id}`,
+    );
     return { url: session.url!, feeCents };
   }
 
   // ─── Called from webhook when payment succeeds ─────────────────────────────
 
-  async markInvoicePaidBySession(sessionId: string, paymentIntentId: string | null) {
+  async markInvoicePaidBySession(
+    sessionId: string,
+    paymentIntentId: string | null,
+  ) {
     const admin = this.supabaseService.getAdminClient();
     const { data: invoice } = await admin
       .from('artist_invoices')
@@ -574,7 +637,9 @@ export class ArtistInvoicesService {
       .maybeSingle();
 
     if (!invoice) {
-      this.logger.warn(`No artist invoice found for Stripe session ${sessionId}`);
+      this.logger.warn(
+        `No artist invoice found for Stripe session ${sessionId}`,
+      );
       return;
     }
 
@@ -596,12 +661,15 @@ export class ArtistInvoicesService {
       .update({ status: 'deposit_paid', updated_at: new Date().toISOString() })
       .eq('artist_invoice_id', invoice.id);
 
-    this.logger.log(`Artist invoice ${invoice.id} marked paid via session ${sessionId}`);
+    this.logger.log(
+      `Artist invoice ${invoice.id} marked paid via session ${sessionId}`,
+    );
 
     try {
       const artistAccount = invoice.artist_accounts as any;
       const artistPhone: string | null = artistAccount?.booking_phone ?? null;
-      const artistName: string = artistAccount?.stage_name || artistAccount?.artist_name || 'Artist';
+      const artistName: string =
+        artistAccount?.stage_name || artistAccount?.artist_name || 'Artist';
       await this.smsNotifications.vendorInvoicePaid(
         artistPhone,
         artistName,
@@ -621,7 +689,9 @@ export class ArtistInvoicesService {
 
   // ─── Verify payment via Stripe (webhook fallback) ─────────────────────────
 
-  async verifyPayment(token: string): Promise<{ status: string; paid: boolean }> {
+  async verifyPayment(
+    token: string,
+  ): Promise<{ status: string; paid: boolean }> {
     const admin = this.supabaseService.getAdminClient();
     const { data: invoice } = await admin
       .from('artist_invoices')
@@ -633,17 +703,19 @@ export class ArtistInvoicesService {
 
     if (!invoice) throw new NotFoundException('Invoice not found');
     if (invoice.status === 'paid') return { status: 'paid', paid: true };
-    if (!invoice.stripe_checkout_session_id) return { status: invoice.status, paid: false };
+    if (!invoice.stripe_checkout_session_id)
+      return { status: invoice.status, paid: false };
 
     const session = await this.stripe.checkout.sessions.retrieve(
       invoice.stripe_checkout_session_id,
     );
-    if (session.payment_status !== 'paid') return { status: invoice.status, paid: false };
+    if (session.payment_status !== 'paid')
+      return { status: invoice.status, paid: false };
 
     const paymentIntentId =
       typeof session.payment_intent === 'string'
         ? session.payment_intent
-        : (session.payment_intent as Stripe.PaymentIntent | null)?.id ?? null;
+        : (session.payment_intent?.id ?? null);
 
     await admin
       .from('artist_invoices')
@@ -662,7 +734,9 @@ export class ArtistInvoicesService {
       .update({ status: 'deposit_paid', updated_at: new Date().toISOString() })
       .eq('artist_invoice_id', invoice.id);
 
-    this.logger.log(`Artist invoice ${invoice.id} verified and marked paid (webhook fallback)`);
+    this.logger.log(
+      `Artist invoice ${invoice.id} verified and marked paid (webhook fallback)`,
+    );
 
     try {
       const artistAccount = invoice.artist_accounts as any;

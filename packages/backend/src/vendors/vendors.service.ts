@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  Logger,
+} from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import {
@@ -46,7 +51,9 @@ export class VendorsService {
       .single();
 
     if (existing) {
-      throw new BadRequestException('Vendor account already exists for this user');
+      throw new BadRequestException(
+        'Vendor account already exists for this user',
+      );
     }
 
     const { data, error } = await admin
@@ -54,7 +61,9 @@ export class VendorsService {
       .insert({
         user_id: userId,
         business_name: dto.businessName,
-        category: dto.categories?.length ? dto.categories[0] : (dto.category ?? null),
+        category: dto.categories?.length
+          ? dto.categories[0]
+          : (dto.category ?? null),
         categories: dto.categories ?? (dto.category ? [dto.category] : []),
         bio: dto.bio,
         website: dto.website,
@@ -79,12 +88,11 @@ export class VendorsService {
     if (error) throw new BadRequestException(error.message);
 
     // Update user role to vendor
-    await admin
-      .from('users')
-      .update({ role: 'vendor' })
-      .eq('id', userId);
+    await admin.from('users').update({ role: 'vendor' }).eq('id', userId);
 
-    this.logger.log(`Vendor account created for user ${userId}: ${dto.businessName}`);
+    this.logger.log(
+      `Vendor account created for user ${userId}: ${dto.businessName}`,
+    );
     return data;
   }
 
@@ -104,7 +112,9 @@ export class VendorsService {
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('vendor_accounts')
-      .select('*, vendor_reviews(id, rating, review_text, created_at, reviewer_user_id), vendor_gallery(id, image_url, caption, display_order)')
+      .select(
+        '*, vendor_reviews(id, rating, review_text, created_at, reviewer_user_id), vendor_gallery(id, image_url, caption, display_order)',
+      )
       .eq('id', vendorId)
       .eq('is_active', true)
       .single();
@@ -125,7 +135,8 @@ export class VendorsService {
     if (!vendor) throw new NotFoundException('Vendor account not found');
 
     const updatePayload: Record<string, any> = {};
-    if (dto.businessName !== undefined) updatePayload.business_name = dto.businessName;
+    if (dto.businessName !== undefined)
+      updatePayload.business_name = dto.businessName;
     if (dto.categories !== undefined) {
       updatePayload.categories = dto.categories;
       updatePayload.category = dto.categories.length ? dto.categories[0] : null;
@@ -136,7 +147,8 @@ export class VendorsService {
     if (dto.website !== undefined) updatePayload.website = dto.website;
     if (dto.instagram !== undefined) updatePayload.instagram = dto.instagram;
     if (dto.facebook !== undefined) updatePayload.facebook = dto.facebook;
-    if (dto.phone !== undefined) updatePayload.phone = normalizePhone(dto.phone);
+    if (dto.phone !== undefined)
+      updatePayload.phone = normalizePhone(dto.phone);
     if (dto.email !== undefined) updatePayload.email = dto.email;
     if (dto.address !== undefined) updatePayload.address = dto.address;
     if (dto.city !== undefined) updatePayload.city = dto.city;
@@ -144,11 +156,15 @@ export class VendorsService {
     if (dto.zipCode !== undefined) updatePayload.zip_code = dto.zipCode;
     if (dto.latitude !== undefined) updatePayload.latitude = dto.latitude;
     if (dto.longitude !== undefined) updatePayload.longitude = dto.longitude;
-    if (dto.hourlyRate !== undefined) updatePayload.hourly_rate = dto.hourlyRate;
+    if (dto.hourlyRate !== undefined)
+      updatePayload.hourly_rate = dto.hourlyRate;
     if (dto.flatRate !== undefined) updatePayload.flat_rate = dto.flatRate;
-    if (dto.rateDescription !== undefined) updatePayload.rate_description = dto.rateDescription;
-    if (dto.profileImageUrl !== undefined) updatePayload.profile_image_url = dto.profileImageUrl;
-    if (dto.coverImageUrl !== undefined) updatePayload.cover_image_url = dto.coverImageUrl;
+    if (dto.rateDescription !== undefined)
+      updatePayload.rate_description = dto.rateDescription;
+    if (dto.profileImageUrl !== undefined)
+      updatePayload.profile_image_url = dto.profileImageUrl;
+    if (dto.coverImageUrl !== undefined)
+      updatePayload.cover_image_url = dto.coverImageUrl;
     updatePayload.updated_at = new Date().toISOString();
 
     const { data, error } = await admin
@@ -171,12 +187,15 @@ export class VendorsService {
     const radius = searchDto.radiusMiles || 30;
 
     // Use the geo search function
-    const { data: vendors, error } = await admin.rpc('search_vendors_by_location', {
-      search_lat: searchDto.lat,
-      search_lng: searchDto.lng,
-      radius_miles: radius,
-      filter_category: searchDto.category || null,
-    });
+    const { data: vendors, error } = await admin.rpc(
+      'search_vendors_by_location',
+      {
+        search_lat: searchDto.lat,
+        search_lng: searchDto.lng,
+        radius_miles: radius,
+        filter_category: searchDto.category || null,
+      },
+    );
 
     if (error) {
       this.logger.error('Vendor geo search error:', error);
@@ -189,11 +208,14 @@ export class VendorsService {
   async searchVenuesByLocation(lat: number, lng: number, radiusMiles = 30) {
     const admin = this.supabaseService.getAdminClient();
 
-    const { data: venues, error } = await admin.rpc('search_venues_by_location', {
-      search_lat: lat,
-      search_lng: lng,
-      radius_miles: radiusMiles,
-    });
+    const { data: venues, error } = await admin.rpc(
+      'search_venues_by_location',
+      {
+        search_lat: lat,
+        search_lng: lng,
+        radius_miles: radiusMiles,
+      },
+    );
 
     if (error) {
       this.logger.error('Venue geo search error:', error);
@@ -208,7 +230,9 @@ export class VendorsService {
     const client = this.supabaseService.getClient();
     let query = client
       .from('vendor_accounts')
-      .select('id, business_name, category, bio, city, state, zip_code, profile_image_url, hourly_rate, flat_rate, rate_description, phone, email, website, instagram, facebook, is_verified, vendor_reviews(rating)')
+      .select(
+        'id, business_name, category, bio, city, state, zip_code, profile_image_url, hourly_rate, flat_rate, rate_description, phone, email, website, instagram, facebook, is_verified, vendor_reviews(rating)',
+      )
       .or('is_active.is.null,is_active.eq.true')
       .eq('zip_code', zipCode)
       .order('business_name');
@@ -220,14 +244,16 @@ export class VendorsService {
       this.logger.error('getVendorsByZip error:', error.message);
       return [];
     }
-    return (data || []).map(v => this.enrichWithRating(v));
+    return (data || []).map((v) => this.enrichWithRating(v));
   }
 
   async getAllVendors(category?: string) {
     const client = this.supabaseService.getClient();
     let query = client
       .from('vendor_accounts')
-      .select('id, business_name, category, bio, city, state, zip_code, profile_image_url, hourly_rate, flat_rate, rate_description, phone, email, website, instagram, facebook, is_verified, vendor_reviews(rating)')
+      .select(
+        'id, business_name, category, bio, city, state, zip_code, profile_image_url, hourly_rate, flat_rate, rate_description, phone, email, website, instagram, facebook, is_verified, vendor_reviews(rating)',
+      )
       .or('is_active.is.null,is_active.eq.true')
       .order('business_name');
 
@@ -241,14 +267,16 @@ export class VendorsService {
       return [];
     }
 
-    return (data || []).map(v => this.enrichWithRating(v));
+    return (data || []).map((v) => this.enrichWithRating(v));
   }
 
   async getAllVenues() {
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('venues')
-      .select('id, name, address, city, state, zip_code, capacity, description, profile_image_url, website, phone, latitude, longitude')
+      .select(
+        'id, name, address, city, state, zip_code, capacity, description, profile_image_url, website, phone, latitude, longitude',
+      )
       .not('name', 'is', null)
       .order('name');
 
@@ -263,7 +291,9 @@ export class VendorsService {
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('venues')
-      .select('id, name, address, city, state, zip_code, capacity, description, profile_image_url, website, phone, latitude, longitude, owner_account_id')
+      .select(
+        'id, name, address, city, state, zip_code, capacity, description, profile_image_url, website, phone, latitude, longitude, owner_account_id',
+      )
       .eq('id', id)
       .single();
 
@@ -277,7 +307,11 @@ export class VendorsService {
   // VENDOR BOOKINGS
   // ─────────────────────────────────────────────
 
-  async createVendorBooking(bookedByUserId: string, dto: CreateVendorBookingDto, ownerAccountId?: string) {
+  async createVendorBooking(
+    bookedByUserId: string,
+    dto: CreateVendorBookingDto,
+    ownerAccountId?: string,
+  ) {
     const admin = this.supabaseService.getAdminClient();
 
     // Verify vendor exists (include phone for SMS)
@@ -305,7 +339,9 @@ export class VendorsService {
           .from('vendor_accounts')
           .update({ phone: vendorPhone })
           .eq('id', vendor.id);
-        this.logger.log(`Backfilled phone ${vendorPhone} for vendor ${vendor.business_name}`);
+        this.logger.log(
+          `Backfilled phone ${vendorPhone} for vendor ${vendor.business_name}`,
+        );
       }
     }
 
@@ -334,18 +370,30 @@ export class VendorsService {
       .single();
 
     if (error) {
-      this.logger.error(`Vendor booking insert failed: ${JSON.stringify({ code: error.code, message: error.message, details: error.details, hint: error.hint })}`);
-      this.logger.error(`Insert payload: vendor=${dto.vendorAccountId}, owner=${ownerAccountId}, user=${bookedByUserId}, event=${dto.eventName}, date=${dto.eventDate}`);
+      this.logger.error(
+        `Vendor booking insert failed: ${JSON.stringify({ code: error.code, message: error.message, details: error.details, hint: error.hint })}`,
+      );
+      this.logger.error(
+        `Insert payload: vendor=${dto.vendorAccountId}, owner=${ownerAccountId}, user=${bookedByUserId}, event=${dto.eventName}, date=${dto.eventDate}`,
+      );
       throw new BadRequestException(error.message);
     }
 
-    this.logger.log(`Vendor booking created: vendor ${dto.vendorAccountId} by user ${bookedByUserId}`);
+    this.logger.log(
+      `Vendor booking created: vendor ${dto.vendorAccountId} by user ${bookedByUserId}`,
+    );
 
     // Send SMS notification to vendor if they have a phone number
     if (vendorPhone) {
-      const dateStr = new Date(dto.eventDate + 'T00:00:00').toLocaleDateString('en-US', {
-        weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
-      });
+      const dateStr = new Date(dto.eventDate + 'T00:00:00').toLocaleDateString(
+        'en-US',
+        {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        },
+      );
       try {
         await this.smsNotifications.vendorBookingCreated(
           vendorPhone,
@@ -354,22 +402,38 @@ export class VendorsService {
           dateStr,
           dto.agreedAmount ? Number(dto.agreedAmount) : undefined,
         );
-        this.logger.log(`SMS sent to vendor ${vendor.business_name} at ${vendorPhone}`);
+        this.logger.log(
+          `SMS sent to vendor ${vendor.business_name} at ${vendorPhone}`,
+        );
       } catch (smsErr) {
         // Don't fail the booking if SMS fails
-        this.logger.warn(`Failed to send SMS to vendor ${vendor.business_name}: ${smsErr.message}`);
+        this.logger.warn(
+          `Failed to send SMS to vendor ${vendor.business_name}: ${smsErr.message}`,
+        );
       }
     } else {
-      this.logger.warn(`No phone number for vendor ${vendor.business_name} (${vendor.id}) — SMS skipped`);
+      this.logger.warn(
+        `No phone number for vendor ${vendor.business_name} (${vendor.id}) — SMS skipped`,
+      );
     }
 
     // Auto-create an owner-facing invoice when agreed_amount is set
     if (ownerAccountId && dto.agreedAmount && Number(dto.agreedAmount) > 0) {
       try {
-        await this.autoCreateOwnerBookingInvoice(data.id, vendor, dto, ownerAccountId, bookedByUserId);
-        this.logger.log(`Owner booking invoice auto-created for booking ${data.id}`);
+        await this.autoCreateOwnerBookingInvoice(
+          data.id,
+          vendor,
+          dto,
+          ownerAccountId,
+          bookedByUserId,
+        );
+        this.logger.log(
+          `Owner booking invoice auto-created for booking ${data.id}`,
+        );
       } catch (invErr) {
-        this.logger.warn(`Failed to auto-create owner booking invoice: ${(invErr as Error).message}`);
+        this.logger.warn(
+          `Failed to auto-create owner booking invoice: ${(invErr as Error).message}`,
+        );
       }
     }
 
@@ -390,13 +454,17 @@ export class VendorsService {
     const admin = this.supabaseService.getAdminClient();
 
     // Fetch owner email from Supabase auth
-    const { data: { user }, error: userErr } = await admin.auth.admin.getUserById(ownerUserId);
-    if (userErr || !user?.email) throw new Error('Could not resolve owner email');
+    const {
+      data: { user },
+      error: userErr,
+    } = await admin.auth.admin.getUserById(ownerUserId);
+    if (userErr || !user?.email)
+      throw new Error('Could not resolve owner email');
 
-    const ownerName = [
-      user.user_metadata?.first_name,
-      user.user_metadata?.last_name,
-    ].filter(Boolean).join(' ') || user.email;
+    const ownerName =
+      [user.user_metadata?.first_name, user.user_metadata?.last_name]
+        .filter(Boolean)
+        .join(' ') || user.email;
 
     // Sequential invoice number
     const year = new Date().getFullYear();
@@ -437,7 +505,10 @@ export class VendorsService {
       .select()
       .single();
 
-    if (invErr || !invoice) throw new Error(invErr?.message ?? 'Failed to insert owner booking invoice');
+    if (invErr || !invoice)
+      throw new Error(
+        invErr?.message ?? 'Failed to insert owner booking invoice',
+      );
 
     await admin.from('vendor_invoice_items').insert({
       vendor_invoice_id: invoice.id,
@@ -458,11 +529,13 @@ export class VendorsService {
       .eq('user_id', vendorUserId)
       .single();
 
-    if (!vendor) return [];  // user has no vendor account — return empty instead of 404
+    if (!vendor) return []; // user has no vendor account — return empty instead of 404
 
     let query = admin
       .from('vendor_bookings')
-      .select('*, vendor_invoices(id, status, invoice_type, vendor_booking_id, total_amount, amount_paid), owner_accounts!owner_account_id(id, business_name)')
+      .select(
+        '*, vendor_invoices(id, status, invoice_type, vendor_booking_id, total_amount, amount_paid), owner_accounts!owner_account_id(id, business_name)',
+      )
       .eq('vendor_account_id', vendor.id)
       .order('event_date', { ascending: true });
 
@@ -474,19 +547,28 @@ export class VendorsService {
     if (error) throw new BadRequestException(error.message);
 
     // Bulk-resolve booked_by_user emails and phones for platform bookings that have no client_email
-    const bookerIds = [...new Set(
-      (data || [])
-        .filter((b: any) => (!b.client_email || !b.client_phone) && b.booked_by_user_id)
-        .map((b: any) => b.booked_by_user_id as string)
-    )];
-    const bookerInfoMap: Record<string, { email?: string; phone?: string }> = {};
+    const bookerIds = [
+      ...new Set(
+        (data || [])
+          .filter(
+            (b: any) =>
+              (!b.client_email || !b.client_phone) && b.booked_by_user_id,
+          )
+          .map((b: any) => b.booked_by_user_id as string),
+      ),
+    ];
+    const bookerInfoMap: Record<string, { email?: string; phone?: string }> =
+      {};
     if (bookerIds.length > 0) {
       const { data: bookerRows } = await admin
         .from('users')
         .select('id, email, phone_number')
         .in('id', bookerIds);
       for (const row of bookerRows ?? []) {
-        bookerInfoMap[row.id] = { email: row.email ?? undefined, phone: row.phone_number ?? undefined };
+        bookerInfoMap[row.id] = {
+          email: row.email ?? undefined,
+          phone: row.phone_number ?? undefined,
+        };
       }
     }
 
@@ -494,14 +576,18 @@ export class VendorsService {
     const rows = (data || []).map((b: any) => {
       const invoices: any[] = b.vendor_invoices ?? [];
       const hasPaidInvoice = invoices.some(
-        (inv: any) => inv.invoice_type === 'owner_booking' && inv.status === 'paid' && inv.vendor_booking_id === b.id,
+        (inv: any) =>
+          inv.invoice_type === 'owner_booking' &&
+          inv.status === 'paid' &&
+          inv.vendor_booking_id === b.id,
       );
       const effectiveStatus = hasPaidInvoice ? 'paid' : b.status;
 
       // If effective status changed, backfill the DB row so future queries are correct
       if (hasPaidInvoice && b.status !== 'paid') {
         void (async () => {
-          await admin.from('vendor_bookings')
+          await admin
+            .from('vendor_bookings')
             .update({ status: 'paid', updated_at: new Date().toISOString() })
             .eq('id', b.id);
         })().catch(() => {});
@@ -511,21 +597,27 @@ export class VendorsService {
 
       // For platform bookings (owner booked vendor), resolve owner info as client fallback
       const resolvedClientName: string | null =
-        rest.client_name ||
-        (ownerAcc as any)?.business_name ||
-        null;
+        rest.client_name || ownerAcc?.business_name || null;
       const resolvedClientEmail: string | null =
         rest.client_email ||
-        (rest.booked_by_user_id ? bookerInfoMap[rest.booked_by_user_id]?.email : null) ||
+        (rest.booked_by_user_id
+          ? bookerInfoMap[rest.booked_by_user_id]?.email
+          : null) ||
         null;
       const resolvedClientPhone: string | null =
         rest.client_phone ||
-        (rest.booked_by_user_id ? bookerInfoMap[rest.booked_by_user_id]?.phone : null) ||
+        (rest.booked_by_user_id
+          ? bookerInfoMap[rest.booked_by_user_id]?.phone
+          : null) ||
         null;
 
       // Surface all vendor-created invoices (not owner_booking type) for this booking
       const vendorInvoices = invoices
-        .filter((inv: any) => inv.invoice_type !== 'owner_booking' && inv.vendor_booking_id === b.id)
+        .filter(
+          (inv: any) =>
+            inv.invoice_type !== 'owner_booking' &&
+            inv.vendor_booking_id === b.id,
+        )
         .map((inv: any) => ({
           id: inv.id,
           status: inv.status,
@@ -552,7 +644,9 @@ export class VendorsService {
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('vendor_bookings')
-      .select('*, vendor_accounts(id, business_name, category, profile_image_url, phone, email)')
+      .select(
+        '*, vendor_accounts(id, business_name, category, profile_image_url, phone, email)',
+      )
       .eq('booked_by_user_id', bookedByUserId)
       .order('event_date', { ascending: true });
     if (error) throw new BadRequestException(error.message);
@@ -564,7 +658,9 @@ export class VendorsService {
 
     const { data, error } = await admin
       .from('vendor_bookings')
-      .select('*, vendor_accounts(id, business_name, category, profile_image_url, phone, email), vendor_invoices(id, status, invoice_type, vendor_booking_id)')
+      .select(
+        '*, vendor_accounts(id, business_name, category, profile_image_url, phone, email), vendor_invoices(id, status, invoice_type, vendor_booking_id)',
+      )
       .eq('owner_account_id', ownerAccountId)
       .order('event_date', { ascending: true });
 
@@ -574,14 +670,18 @@ export class VendorsService {
     const rows = (data || []).map((b: any) => {
       const invoices: any[] = b.vendor_invoices ?? [];
       const hasPaidInvoice = invoices.some(
-        (inv: any) => inv.invoice_type === 'owner_booking' && inv.status === 'paid' && inv.vendor_booking_id === b.id,
+        (inv: any) =>
+          inv.invoice_type === 'owner_booking' &&
+          inv.status === 'paid' &&
+          inv.vendor_booking_id === b.id,
       );
       const effectiveStatus = hasPaidInvoice ? 'paid' : b.status;
 
       // Backfill DB so future reads are consistent
       if (hasPaidInvoice && b.status !== 'paid') {
         void (async () => {
-          await admin.from('vendor_bookings')
+          await admin
+            .from('vendor_bookings')
             .update({ status: 'paid', updated_at: new Date().toISOString() })
             .eq('id', b.id);
         })().catch(() => {});
@@ -589,7 +689,9 @@ export class VendorsService {
 
       // Surface the owner_booking invoice so the owner can see status/id
       const ownerInvoice = invoices.find(
-        (inv: any) => inv.invoice_type === 'owner_booking' && inv.vendor_booking_id === b.id,
+        (inv: any) =>
+          inv.invoice_type === 'owner_booking' &&
+          inv.vendor_booking_id === b.id,
       );
 
       const { vendor_invoices: _inv, ...rest } = b;
@@ -608,7 +710,9 @@ export class VendorsService {
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('vendor_bookings')
-      .select('*, vendor_accounts(id, business_name, category, profile_image_url, hourly_rate, flat_rate, phone, email)')
+      .select(
+        '*, vendor_accounts(id, business_name, category, profile_image_url, hourly_rate, flat_rate, phone, email)',
+      )
       .eq('id', bookingId)
       .single();
 
@@ -620,7 +724,9 @@ export class VendorsService {
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('vendor_bookings')
-      .select('*, vendor_accounts(id, business_name, category, profile_image_url)')
+      .select(
+        '*, vendor_accounts(id, business_name, category, profile_image_url)',
+      )
       .eq('event_id', eventId)
       .eq('owner_account_id', ownerAccountId)
       .order('event_date', { ascending: true });
@@ -629,7 +735,11 @@ export class VendorsService {
     return data || [];
   }
 
-  async updateVendorBooking(bookingId: string, userId: string, dto: UpdateVendorBookingDto) {
+  async updateVendorBooking(
+    bookingId: string,
+    userId: string,
+    dto: UpdateVendorBookingDto,
+  ) {
     const admin = this.supabaseService.getAdminClient();
 
     // Verify the user owns the vendor account for this booking (or booked it)
@@ -641,18 +751,22 @@ export class VendorsService {
 
     if (!booking) throw new NotFoundException('Booking not found');
 
-    const isVendor = (booking.vendor_accounts as any)?.user_id === userId;
+    const isVendor = booking.vendor_accounts?.user_id === userId;
     const isBooker = booking.booked_by_user_id === userId;
 
     if (!isVendor && !isBooker) {
       throw new BadRequestException('Not authorized to update this booking');
     }
 
-    const updatePayload: Record<string, any> = { updated_at: new Date().toISOString() };
+    const updatePayload: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
     if (dto.status !== undefined) updatePayload.status = dto.status;
     if (dto.notes !== undefined) updatePayload.notes = dto.notes;
-    if (dto.agreedAmount !== undefined) updatePayload.agreed_amount = dto.agreedAmount;
-    if (dto.depositAmount !== undefined) updatePayload.deposit_amount = dto.depositAmount;
+    if (dto.agreedAmount !== undefined)
+      updatePayload.agreed_amount = dto.agreedAmount;
+    if (dto.depositAmount !== undefined)
+      updatePayload.deposit_amount = dto.depositAmount;
 
     const { data, error } = await admin
       .from('vendor_bookings')
@@ -666,7 +780,7 @@ export class VendorsService {
     // SMS notification when status changes
     if (dto.status) {
       try {
-        const vendor = (data.vendor_accounts as any);
+        const vendor = data.vendor_accounts;
         const eventLabel = data.event_name ?? 'your event';
         if (isVendor) {
           // Vendor changed the status — look up the owner's phone from users table
@@ -680,11 +794,19 @@ export class VendorsService {
               .maybeSingle();
             if (ownerUser?.phone_number) {
               ownerPhone = ownerUser.phone_number;
-              ownerName = [ownerUser.first_name, ownerUser.last_name].filter(Boolean).join(' ') || 'Owner';
+              ownerName =
+                [ownerUser.first_name, ownerUser.last_name]
+                  .filter(Boolean)
+                  .join(' ') || 'Owner';
             }
           }
           await this.smsNotifications.vendorBookingStatusChanged(
-            ownerPhone, ownerName, eventLabel, dto.status, false, '/dashboard',
+            ownerPhone,
+            ownerName,
+            eventLabel,
+            dto.status,
+            false,
+            '/dashboard',
           );
         } else {
           // Owner changed the status — notify the vendor
@@ -733,12 +855,16 @@ export class VendorsService {
       .single();
 
     if (vendorAccount?.phone) {
-      this.smsNotifications.vendorReviewReceived(
-        normalizePhone(vendorAccount.phone),
-        vendorAccount.business_name || 'Vendor',
-        dto.rating,
-        dto.vendorAccountId,
-      ).catch((err: any) => this.logger.warn(`Review SMS failed: ${err?.message}`));
+      this.smsNotifications
+        .vendorReviewReceived(
+          normalizePhone(vendorAccount.phone),
+          vendorAccount.business_name || 'Vendor',
+          dto.rating,
+          dto.vendorAccountId,
+        )
+        .catch((err: any) =>
+          this.logger.warn(`Review SMS failed: ${err?.message}`),
+        );
     }
 
     return data;
@@ -783,7 +909,11 @@ export class VendorsService {
     const reviews = vendor.vendor_reviews || [];
     const ratings = reviews.map((r: any) => r.rating).filter(Boolean);
     const avg = ratings.length
-      ? Math.round((ratings.reduce((a: number, b: number) => a + b, 0) / ratings.length) * 10) / 10
+      ? Math.round(
+          (ratings.reduce((a: number, b: number) => a + b, 0) /
+            ratings.length) *
+            10,
+        ) / 10
       : null;
 
     const { vendor_reviews, ...rest } = vendor;
@@ -795,13 +925,15 @@ export class VendorsService {
   }
 
   // Geocode zip code to lat/lng using public API (no key required)
-  async geocodeZip(zipCode: string): Promise<{ lat: number; lng: number } | null> {
+  async geocodeZip(
+    zipCode: string,
+  ): Promise<{ lat: number; lng: number } | null> {
     try {
       const response = await fetch(
         `https://nominatim.openstreetmap.org/search?postalcode=${zipCode}&country=US&format=json&limit=1`,
-        { headers: { 'User-Agent': 'DoVenueSuite/1.0' } }
+        { headers: { 'User-Agent': 'DoVenueSuite/1.0' } },
       );
-      const data = await response.json() as any[];
+      const data = (await response.json()) as any[];
       if (data && data.length > 0) {
         return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
       }
@@ -812,13 +944,21 @@ export class VendorsService {
   }
 
   // Reverse geocode lat/lng to address components
-  async reverseGeocode(lat: number, lng: number): Promise<{ city: string; state: string; zip: string; displayName: string } | null> {
+  async reverseGeocode(
+    lat: number,
+    lng: number,
+  ): Promise<{
+    city: string;
+    state: string;
+    zip: string;
+    displayName: string;
+  } | null> {
     try {
       const response = await fetch(
         `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
-        { headers: { 'User-Agent': 'DoVenueSuite/1.0' } }
+        { headers: { 'User-Agent': 'DoVenueSuite/1.0' } },
       );
-      const data = await response.json() as any;
+      const data = await response.json();
       if (!data?.address) return null;
       const addr = data.address;
       return {
@@ -834,13 +974,24 @@ export class VendorsService {
   }
 
   // Address autocomplete — returns up to 5 US address suggestions
-  async geocodeAutocomplete(query: string): Promise<Array<{ displayName: string; city: string; state: string; zip: string; lat: number; lng: number }>> {
+  async geocodeAutocomplete(query: string): Promise<
+    Array<{
+      displayName: string;
+      city: string;
+      state: string;
+      zip: string;
+      lat: number;
+      lng: number;
+    }>
+  > {
     try {
       const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&countrycodes=us&format=json&limit=5&addressdetails=1`;
-      const response = await fetch(url, { headers: { 'User-Agent': 'DoVenueSuite/1.0' } });
-      const data = await response.json() as any[];
+      const response = await fetch(url, {
+        headers: { 'User-Agent': 'DoVenueSuite/1.0' },
+      });
+      const data = (await response.json()) as any[];
       if (!Array.isArray(data)) return [];
-      return data.map(item => {
+      return data.map((item) => {
         const addr = item.address || {};
         return {
           displayName: item.display_name,
@@ -868,7 +1019,8 @@ export class VendorsService {
       .select('id')
       .eq('user_id', userId)
       .maybeSingle();
-    if (error || !data) throw new BadRequestException('No vendor account found for this user');
+    if (error || !data)
+      throw new BadRequestException('No vendor account found for this user');
     return data.id;
   }
 
@@ -888,7 +1040,9 @@ export class VendorsService {
         .maybeSingle();
       if (!data) return code;
     }
-    throw new Error('Could not generate a unique short code. Please try again.');
+    throw new Error(
+      'Could not generate a unique short code. Please try again.',
+    );
   }
 
   async upsertBookingLink(userId: string, dto: UpsertBookingLinkDto) {
@@ -897,7 +1051,9 @@ export class VendorsService {
 
     // Validate slug — alphanumeric and hyphens only
     if (!/^[a-z0-9-]{3,60}$/.test(dto.slug)) {
-      throw new BadRequestException('Slug must be 3-60 characters: lowercase letters, numbers, and hyphens only');
+      throw new BadRequestException(
+        'Slug must be 3-60 characters: lowercase letters, numbers, and hyphens only',
+      );
     }
 
     // Check slug uniqueness (exclude own if updating)
@@ -918,7 +1074,8 @@ export class VendorsService {
       .maybeSingle();
 
     // Preserve existing short_code or generate one for new links
-    const shortCode = existing?.short_code ?? await this.generateShortCode(admin);
+    const shortCode =
+      existing?.short_code ?? (await this.generateShortCode(admin));
 
     const payload = {
       vendor_account_id: vendorAccountId,
@@ -969,12 +1126,15 @@ export class VendorsService {
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('vendor_booking_links')
-      .select('*, vendor_accounts(business_name, category, city, state, bio, profile_image_url, hourly_rate, flat_rate, rate_description)')
+      .select(
+        '*, vendor_accounts(business_name, category, city, state, bio, profile_image_url, hourly_rate, flat_rate, rate_description)',
+      )
       .eq('slug', slug)
       .eq('is_active', true)
       .single();
 
-    if (error || !data) throw new NotFoundException('Booking link not found or inactive');
+    if (error || !data)
+      throw new NotFoundException('Booking link not found or inactive');
     return data;
   }
 
@@ -988,23 +1148,27 @@ export class VendorsService {
       .eq('is_active', true)
       .single();
 
-    if (error || !data) throw new NotFoundException('Booking link not found or inactive');
+    if (error || !data)
+      throw new NotFoundException('Booking link not found or inactive');
     return { slug: data.slug };
   }
 
   /** Public: submit a booking inquiry directly to a vendor by their account ID (no auth, no booking link required). */
-  async submitPublicInquiry(vendorId: string, dto: {
-    clientName: string;
-    clientEmail?: string;
-    clientPhone?: string;
-    smsOptIn?: boolean;
-    eventName: string;
-    eventDate: string;
-    startTime?: string;
-    endTime?: string;
-    notes?: string;
-    agreedAmount?: number;
-  }) {
+  async submitPublicInquiry(
+    vendorId: string,
+    dto: {
+      clientName: string;
+      clientEmail?: string;
+      clientPhone?: string;
+      smsOptIn?: boolean;
+      eventName: string;
+      eventDate: string;
+      startTime?: string;
+      endTime?: string;
+      notes?: string;
+      agreedAmount?: number;
+    },
+  ) {
     const admin = this.supabaseService.getAdminClient();
 
     const { data: vendor } = await admin
@@ -1041,7 +1205,12 @@ export class VendorsService {
     if (vendor.phone) {
       try {
         const formattedDate = dto.eventDate
-          ? new Date(dto.eventDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+          ? new Date(dto.eventDate + 'T00:00:00').toLocaleDateString('en-US', {
+              weekday: 'short',
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            })
           : '';
         await this.smsNotifications.vendorBookingCreated(
           vendor.phone,
@@ -1050,7 +1219,10 @@ export class VendorsService {
           formattedDate,
         );
       } catch (err) {
-        this.logger.warn('Failed to send SMS for public inquiry', (err as Error).message);
+        this.logger.warn(
+          'Failed to send SMS for public inquiry',
+          (err as Error).message,
+        );
       }
     }
 
@@ -1068,7 +1240,8 @@ export class VendorsService {
       .eq('is_active', true)
       .single();
 
-    if (!link) throw new NotFoundException('Booking link not found or inactive');
+    if (!link)
+      throw new NotFoundException('Booking link not found or inactive');
 
     const { data: request, error } = await admin
       .from('vendor_booking_requests')
@@ -1098,7 +1271,12 @@ export class VendorsService {
     if (vendorPhone) {
       try {
         const formattedDate = dto.eventDate
-          ? new Date(dto.eventDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+          ? new Date(dto.eventDate + 'T00:00:00').toLocaleDateString('en-US', {
+              weekday: 'short',
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            })
           : '';
         await this.smsNotifications.vendorBookingCreated(
           vendorPhone,
@@ -1107,7 +1285,10 @@ export class VendorsService {
           formattedDate,
         );
       } catch (err) {
-        this.logger.warn('Failed to send SMS for booking request', (err as Error).message);
+        this.logger.warn(
+          'Failed to send SMS for booking request',
+          (err as Error).message,
+        );
       }
     }
 
@@ -1130,7 +1311,11 @@ export class VendorsService {
   }
 
   /** Update a booking request status (confirm / decline). */
-  async updateBookingRequest(userId: string, requestId: string, dto: UpdateBookingRequestDto) {
+  async updateBookingRequest(
+    userId: string,
+    requestId: string,
+    dto: UpdateBookingRequestDto,
+  ) {
     const admin = this.supabaseService.getAdminClient();
     const vendorAccountId = await this.getVendorAccountIdByUserId(userId);
 
@@ -1143,7 +1328,9 @@ export class VendorsService {
 
     if (!existing) throw new NotFoundException('Booking request not found');
 
-    const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    const update: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
     if (dto.status) update.status = dto.status;
     if (dto.quotedAmount !== undefined) update.quoted_amount = dto.quotedAmount;
     if (dto.notes !== undefined) update.notes = dto.notes;
@@ -1181,12 +1368,15 @@ export class VendorsService {
           status: 'confirmed',
         });
       if (bookingError) {
-        this.logger.warn('Failed to create vendor_bookings from booking request', bookingError.message);
+        this.logger.warn(
+          'Failed to create vendor_bookings from booking request',
+          bookingError.message,
+        );
       }
     }
 
     // Notify client — but never send to the vendor's own phone
-    const vendorPhone = (data.vendor_accounts as any)?.phone ?? null;
+    const vendorPhone = data.vendor_accounts?.phone ?? null;
     const rawClientPhone: string | null = data.client_phone ?? null;
     const normalize = (p: string) => p.replace(/\D/g, '').slice(-10);
     const clientPhoneToNotify =
@@ -1198,7 +1388,7 @@ export class VendorsService {
     if (dto.status && clientPhoneToNotify) {
       try {
         const vendorName: string =
-          (data.vendor_accounts as any)?.business_name ?? 'Your vendor';
+          data.vendor_accounts?.business_name ?? 'Your vendor';
         await this.smsNotifications.vendorBookingRequestUpdated(
           clientPhoneToNotify,
           data.client_name ?? 'Client',

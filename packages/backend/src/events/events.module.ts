@@ -13,6 +13,6 @@ const eventsControllers = useDevEvents
   imports: [SupabaseModule],
   controllers: eventsControllers,
   providers: [EventsService],
-  exports: [EventsService]
+  exports: [EventsService],
 })
 export class EventsModule {}

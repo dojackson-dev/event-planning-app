@@ -1,4 +1,13 @@
-import { Controller, Post, Body, Get, Query, Req, UseGuards, Headers } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  Query,
+  Req,
+  UseGuards,
+  Headers,
+} from '@nestjs/common';
 import { AuthFlowService } from './auth-flow.service';
 import { OwnerSignupDto, OwnerLoginDto } from './dto/owner-signup.dto';
 import { CreateInviteDto, AcceptInviteDto } from './dto/client-invite.dto';
@@ -36,31 +45,22 @@ export class AuthFlowController {
    * CLIENT INVITE ROUTES
    */
   @Post('client/invite')
-  async createInvite(
-    @Body() dto: CreateInviteDto,
-    @Req() req: Request,
-  ) {
+  async createInvite(@Body() dto: CreateInviteDto, @Req() req: Request) {
     // Get owner user ID from auth token (would use guard in production)
     const ownerUserId = req.headers.authorization?.split('Bearer ')[1] || '';
     return this.authFlowService.createClientInvite(dto, ownerUserId);
   }
 
   @Post('client/accept-invite')
-  async acceptInvite(
-    @Body() dto: AcceptInviteDto,
-    @Req() req: Request,
-  ) {
-    const ipAddress = req.ip || req.headers['x-forwarded-for'] as string;
+  async acceptInvite(@Body() dto: AcceptInviteDto, @Req() req: Request) {
+    const ipAddress = req.ip || (req.headers['x-forwarded-for'] as string);
     const userAgent = req.headers['user-agent'];
-    
+
     return this.authFlowService.acceptClientInvite(dto, ipAddress, userAgent);
   }
 
   @Post('client/sms-consent')
-  async recordSmsConsent(
-    @Body() dto: any,
-    @Req() req: Request,
-  ) {
+  async recordSmsConsent(@Body() dto: any, @Req() req: Request) {
     dto.ipAddress = req.ip || req.headers['x-forwarded-for'];
     dto.userAgent = req.headers['user-agent'];
     return this.authFlowService.recordSmsConsent(dto);
@@ -98,9 +98,7 @@ export class AuthFlowController {
    * ADMIN ROUTES
    */
   @Post('admin/login')
-  async adminLogin(
-    @Body() body: { email: string; password: string },
-  ) {
+  async adminLogin(@Body() body: { email: string; password: string }) {
     return this.authFlowService.adminLogin(body.email, body.password);
   }
 

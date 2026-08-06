@@ -55,7 +55,11 @@ export class VipCheckoutDto {
   buyer_name?: string;
   buyer_email: string;
   buyer_phone?: string;
-  service_items?: { service_item_id: string; quantity: number; special_request?: string }[];
+  service_items?: {
+    service_item_id: string;
+    quantity: number;
+    special_request?: string;
+  }[];
   return_url?: string;
 }
 

@@ -8,6 +8,7 @@ import { Event } from '@/types'
 import { Calendar, Clock, MapPin, Users, ArrowLeft, Edit, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { parseLocalDate } from '@/lib/dateUtils'
+import EventNotes from '@/components/events/EventNotes'
 
 const formatTime = (timeString: string | undefined): string => {
   if (!timeString) return 'Not set'
@@ -211,6 +212,8 @@ export default function EventDetailsPage() {
             </div>
           </div>
         )}
+
+        <EventNotes eventId={eventId} />
       </div>
     </div>
   )

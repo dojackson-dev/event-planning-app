@@ -56,7 +56,9 @@ export class TrialService {
       })
       .eq('id', ownerAccountId);
 
-    this.logger.log(`Trial created for owner ${ownerAccountId}, expires at ${trialEndsAt}`);
+    this.logger.log(
+      `Trial created for owner ${ownerAccountId}, expires at ${trialEndsAt}`,
+    );
     return trialEndsAt;
   }
 
@@ -87,9 +89,7 @@ export class TrialService {
   /**
    * Get trial info for an owner
    */
-  async getTrialInfo(
-    ownerAccountId: string,
-  ): Promise<{
+  async getTrialInfo(ownerAccountId: string): Promise<{
     isActive: boolean;
     endsAt: Date | null;
     daysRemaining: number | null;
@@ -101,7 +101,11 @@ export class TrialService {
       .eq('id', ownerAccountId)
       .single();
 
-    if (!owner || owner.subscription_status !== 'trial' || !owner.trial_ends_at) {
+    if (
+      !owner ||
+      owner.subscription_status !== 'trial' ||
+      !owner.trial_ends_at
+    ) {
       return {
         isActive: false,
         endsAt: null,
@@ -112,7 +116,9 @@ export class TrialService {
     const now = new Date();
     const trialEnds = new Date(owner.trial_ends_at);
     const isActive = now < trialEnds;
-    const daysRemaining = Math.ceil((trialEnds.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const daysRemaining = Math.ceil(
+      (trialEnds.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+    );
 
     return {
       isActive,

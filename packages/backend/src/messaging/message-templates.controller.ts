@@ -1,10 +1,21 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, ParseIntPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  ParseIntPipe,
+} from '@nestjs/common';
 import { MessageTemplatesService } from './message-templates.service';
 import { MessageTemplate } from '../entities/message-template.entity';
 
 @Controller('message-templates')
 export class MessageTemplatesController {
-  constructor(private readonly messageTemplatesService: MessageTemplatesService) {}
+  constructor(
+    private readonly messageTemplatesService: MessageTemplatesService,
+  ) {}
 
   @Get()
   async findAll(): Promise<MessageTemplate[]> {
@@ -17,12 +28,16 @@ export class MessageTemplatesController {
   }
 
   @Get(':id')
-  async findOne(@Param('id', ParseIntPipe) id: number): Promise<MessageTemplate | null> {
+  async findOne(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<MessageTemplate | null> {
     return this.messageTemplatesService.findOne(id);
   }
 
   @Post()
-  async create(@Body() template: Partial<MessageTemplate>): Promise<MessageTemplate> {
+  async create(
+    @Body() template: Partial<MessageTemplate>,
+  ): Promise<MessageTemplate> {
     return this.messageTemplatesService.create(template);
   }
 
@@ -35,7 +50,9 @@ export class MessageTemplatesController {
   }
 
   @Post(':id/toggle')
-  async toggleActive(@Param('id', ParseIntPipe) id: number): Promise<MessageTemplate | null> {
+  async toggleActive(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<MessageTemplate | null> {
     return this.messageTemplatesService.toggleActive(id);
   }
 

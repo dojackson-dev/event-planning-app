@@ -171,7 +171,7 @@ CREATE POLICY promoter_booking_requests_public_insert ON promoter_booking_reques
 
 CREATE TABLE IF NOT EXISTS owner_booking_links (
   id                          UUID    DEFAULT gen_random_uuid() PRIMARY KEY,
-  owner_account_id            INTEGER NOT NULL REFERENCES owner_accounts(id) ON DELETE CASCADE,
+  owner_account_id            UUID    NOT NULL REFERENCES owner_accounts(id) ON DELETE CASCADE,
   slug                        TEXT    UNIQUE NOT NULL,
   short_code                  TEXT    UNIQUE,
   is_active                   BOOLEAN DEFAULT true,
@@ -189,7 +189,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_owner_booking_links_short_code
 
 CREATE TABLE IF NOT EXISTS owner_booking_requests (
   id                  UUID    DEFAULT gen_random_uuid() PRIMARY KEY,
-  owner_account_id    INTEGER NOT NULL REFERENCES owner_accounts(id) ON DELETE CASCADE,
+  owner_account_id    UUID    NOT NULL REFERENCES owner_accounts(id) ON DELETE CASCADE,
   booking_link_id     UUID    REFERENCES owner_booking_links(id) ON DELETE SET NULL,
   client_name         TEXT    NOT NULL,
   client_email        TEXT    NOT NULL,

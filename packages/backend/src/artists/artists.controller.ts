@@ -28,7 +28,8 @@ export class ArtistsController {
   // ─────────────────────────────────────────────
 
   private async getUserId(authorization: string): Promise<string> {
-    if (!authorization) throw new UnauthorizedException('No authorization header');
+    if (!authorization)
+      throw new UnauthorizedException('No authorization header');
     const token = authorization.replace('Bearer ', '');
 
     if (token.startsWith('local-')) {
@@ -36,7 +37,10 @@ export class ArtistsController {
     }
 
     const supabase = this.supabaseService.setAuthContext(token);
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
     if (error || !user) throw new UnauthorizedException('Invalid token');
     return user.id;
   }
@@ -67,7 +71,10 @@ export class ArtistsController {
       artistType: artistType || undefined,
       genre: genre || undefined,
       location: location || undefined,
-      availableForBooking: availableForBooking !== undefined ? availableForBooking === 'true' : undefined,
+      availableForBooking:
+        availableForBooking !== undefined
+          ? availableForBooking === 'true'
+          : undefined,
       travelAvailability: travelAvailability || undefined,
     });
   }
@@ -98,9 +105,7 @@ export class ArtistsController {
    * GET /artists/me/profile
    */
   @Get('me/profile')
-  async getMyProfile(
-    @Headers('authorization') authorization: string,
-  ) {
+  async getMyProfile(@Headers('authorization') authorization: string) {
     const userId = await this.getUserId(authorization);
     return this.artistsService.getArtistProfile(userId);
   }
@@ -180,7 +185,11 @@ export class ArtistsController {
     @Body() body: { status: string },
   ) {
     const userId = await this.getUserId(authorization);
-    return this.artistsService.updateBookingRequest(userId, requestId, body.status);
+    return this.artistsService.updateBookingRequest(
+      userId,
+      requestId,
+      body.status,
+    );
   }
 
   /** GET /artists/booking-link/s/:code — public: resolve short code */
@@ -197,10 +206,7 @@ export class ArtistsController {
 
   /** POST /artists/booking-link/:slug/request — public: submit booking request */
   @Post('booking-link/:slug/request')
-  async submitBookingRequest(
-    @Param('slug') slug: string,
-    @Body() dto: any,
-  ) {
+  async submitBookingRequest(@Param('slug') slug: string, @Body() dto: any) {
     return this.artistsService.submitArtistBookingRequest(slug, dto);
   }
 }

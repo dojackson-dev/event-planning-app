@@ -21,4 +21,3 @@ export class UpdateAffiliateDto {
 export class InviteAffiliateDto {
   email: string;
 }
-

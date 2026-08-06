@@ -1,6 +1,14 @@
-import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  Logger,
+} from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
-import { CreateArtistBookingDto, UpdateArtistBookingDto } from './dto/artist-booking.dto';
+import {
+  CreateArtistBookingDto,
+  UpdateArtistBookingDto,
+} from './dto/artist-booking.dto';
 
 @Injectable()
 export class ArtistBookingsService {
@@ -17,7 +25,8 @@ export class ArtistBookingsService {
       .select('id')
       .eq('user_id', userId)
       .maybeSingle();
-    if (error || !data) throw new ForbiddenException('No artist account found for this user');
+    if (error || !data)
+      throw new ForbiddenException('No artist account found for this user');
     return data.id;
   }
 
@@ -49,7 +58,8 @@ export class ArtistBookingsService {
       .select('*, artist_invoices(invoice_number, total_amount, status)')
       .single();
 
-    if (error || !data) throw new Error(error?.message ?? 'Failed to create booking');
+    if (error || !data)
+      throw new Error(error?.message ?? 'Failed to create booking');
     return data;
   }
 
@@ -78,7 +88,9 @@ export class ArtistBookingsService {
 
     const { data, error } = await admin
       .from('artist_bookings')
-      .select('*, artist_invoices(id, invoice_number, total_amount, amount_due, status, public_token)')
+      .select(
+        '*, artist_invoices(id, invoice_number, total_amount, amount_due, status, public_token)',
+      )
       .eq('id', bookingId)
       .eq('artist_account_id', artistAccountId)
       .single();
@@ -87,7 +99,11 @@ export class ArtistBookingsService {
     return data;
   }
 
-  async updateBooking(userId: string, bookingId: string, dto: UpdateArtistBookingDto) {
+  async updateBooking(
+    userId: string,
+    bookingId: string,
+    dto: UpdateArtistBookingDto,
+  ) {
     const admin = this.supabaseService.getAdminClient();
     const artistAccountId = await this.getArtistAccountId(userId);
 

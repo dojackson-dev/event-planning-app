@@ -1,6 +1,14 @@
 import {
-  Controller, Get, Post, Put, Delete, Body, Param, Headers,
-  UnauthorizedException, BadRequestException,
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Headers,
+  UnauthorizedException,
+  BadRequestException,
 } from '@nestjs/common';
 import { RsvpService } from './rsvp.service';
 import { ClientAuthService } from '../client-portal/client-auth.service';
@@ -41,9 +49,16 @@ export class RsvpController {
   async addGuest(
     @Headers('x-client-token') token: string,
     @Param('intakeFormId') intakeFormId: string,
-    @Body() body: { guest_name: string; guest_phone?: string; guest_email?: string; table_assignment?: string },
+    @Body()
+    body: {
+      guest_name: string;
+      guest_phone?: string;
+      guest_email?: string;
+      table_assignment?: string;
+    },
   ) {
-    if (!body?.guest_name) throw new BadRequestException('guest_name is required');
+    if (!body?.guest_name)
+      throw new BadRequestException('guest_name is required');
     const session = this.requireSession(token);
     return this.rsvpService.addGuest(intakeFormId, session.phone, body);
   }
@@ -53,11 +68,24 @@ export class RsvpController {
   async bulkAddGuests(
     @Headers('x-client-token') token: string,
     @Param('intakeFormId') intakeFormId: string,
-    @Body() body: { guests: Array<{ guest_name: string; guest_phone?: string; guest_email?: string; table_assignment?: string }> },
+    @Body()
+    body: {
+      guests: Array<{
+        guest_name: string;
+        guest_phone?: string;
+        guest_email?: string;
+        table_assignment?: string;
+      }>;
+    },
   ) {
     const session = this.requireSession(token);
-    if (!Array.isArray(body?.guests)) throw new BadRequestException('guests array is required');
-    return this.rsvpService.bulkAddGuests(intakeFormId, session.phone, body.guests);
+    if (!Array.isArray(body?.guests))
+      throw new BadRequestException('guests array is required');
+    return this.rsvpService.bulkAddGuests(
+      intakeFormId,
+      session.phone,
+      body.guests,
+    );
   }
 
   /** Update a guest (table assignment, phone, etc.). */
@@ -66,10 +94,21 @@ export class RsvpController {
     @Headers('x-client-token') token: string,
     @Param('intakeFormId') intakeFormId: string,
     @Param('guestId') guestId: string,
-    @Body() body: Partial<{ guest_name: string; guest_phone: string; guest_email: string; table_assignment: string }>,
+    @Body()
+    body: Partial<{
+      guest_name: string;
+      guest_phone: string;
+      guest_email: string;
+      table_assignment: string;
+    }>,
   ) {
     const session = this.requireSession(token);
-    return this.rsvpService.updateGuest(guestId, intakeFormId, session.phone, body);
+    return this.rsvpService.updateGuest(
+      guestId,
+      intakeFormId,
+      session.phone,
+      body,
+    );
   }
 
   /** Delete a guest. */
@@ -124,9 +163,14 @@ export class RsvpController {
     @Param('intakeFormId') intakeFormId: string,
     @Body() body: { images: string[] },
   ) {
-    if (!Array.isArray(body?.images)) throw new BadRequestException('images array is required');
+    if (!Array.isArray(body?.images))
+      throw new BadRequestException('images array is required');
     const session = this.requireSession(token);
-    return this.rsvpService.setInvitationImages(intakeFormId, session.phone, body.images);
+    return this.rsvpService.setInvitationImages(
+      intakeFormId,
+      session.phone,
+      body.images,
+    );
   }
 
   /** Get public invite info (guest name, event, table). */
@@ -139,7 +183,8 @@ export class RsvpController {
   @Post(':token/respond')
   async respond(
     @Param('token') token: string,
-    @Body() body: {
+    @Body()
+    body: {
       phone_last_four?: string;
       status: 'attending' | 'declined';
       plus_ones?: number;

@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException, InternalServerErrorException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
@@ -121,14 +127,23 @@ export class InvoicesService {
     return null;
   }
 
-  private calculateInvoiceTotals(items: Partial<InvoiceItem>[], taxRate: number, discountAmount: number) {
+  private calculateInvoiceTotals(
+    items: Partial<InvoiceItem>[],
+    taxRate: number,
+    discountAmount: number,
+  ) {
     // Only revenue items count toward the client-facing invoice total
-    const revenueItems = items.filter(i => !i.item_type || i.item_type === 'revenue');
-    const subtotal = revenueItems.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    const revenueItems = items.filter(
+      (i) => !i.item_type || i.item_type === 'revenue',
+    );
+    const subtotal = revenueItems.reduce(
+      (sum, item) => sum + (Number(item.amount) || 0),
+      0,
+    );
     const taxAmount = subtotal * (taxRate / 100);
     const totalAmount = subtotal + taxAmount - discountAmount;
     const amountDue = totalAmount;
-    
+
     return { subtotal, taxAmount, totalAmount, amountDue };
   }
 
@@ -136,40 +151,54 @@ export class InvoicesService {
     const quantity = Number(item.quantity) || 1;
     const unitPrice = Number(item.unit_price) || 0;
     const subtotal = quantity * unitPrice;
-    
+
     let discountAmount = 0;
     if (item.discount_type === 'percentage') {
       discountAmount = subtotal * (Number(item.discount_value) / 100);
     } else if (item.discount_type === 'fixed') {
       discountAmount = Number(item.discount_value) || 0;
     }
-    
+
     const amount = subtotal - discountAmount;
-    
+
     return { subtotal, discountAmount, amount };
   }
 
-  async findAll(supabase: SupabaseClient, userId: string, venueId?: string): Promise<Invoice[]> {
+  async findAll(
+    supabase: SupabaseClient,
+    userId: string,
+    venueId?: string,
+  ): Promise<Invoice[]> {
     try {
       let query = supabase
         .from('invoices')
-        .select(`
+        .select(
+          `
           *,
           event!event_id(id, name, date),
           intake_form:intake_forms(*),
           items:invoice_items(*)
-        `)
+        `,
+        )
         .eq('owner_id', userId)
         .order('created_at', { ascending: false });
 
       if (venueId) {
-        const { data: venueEvents } = await supabase.from('event').select('id, intake_form_id').eq('venue_id', venueId).eq('owner_id', userId);
+        const { data: venueEvents } = await supabase
+          .from('event')
+          .select('id, intake_form_id')
+          .eq('venue_id', venueId)
+          .eq('owner_id', userId);
         const eventIds = (venueEvents || []).map((e: any) => e.id);
-        const formIds = (venueEvents || []).map((e: any) => e.intake_form_id).filter(Boolean);
+        const formIds = (venueEvents || [])
+          .map((e: any) => e.intake_form_id)
+          .filter(Boolean);
         if (eventIds.length === 0 && formIds.length === 0) return [];
         const orParts: string[] = [];
-        if (eventIds.length > 0) orParts.push(`event_id.in.(${eventIds.join(',')})`);
-        if (formIds.length > 0) orParts.push(`intake_form_id.in.(${formIds.join(',')})`);
+        if (eventIds.length > 0)
+          orParts.push(`event_id.in.(${eventIds.join(',')})`);
+        if (formIds.length > 0)
+          orParts.push(`intake_form_id.in.(${formIds.join(',')})`);
         query = query.or(orParts.join(','));
       }
 
@@ -185,27 +214,42 @@ export class InvoicesService {
     }
   }
 
-  async findByOwner(supabase: SupabaseClient, userId: string, ownerId: string, venueId?: string): Promise<Invoice[]> {
+  async findByOwner(
+    supabase: SupabaseClient,
+    userId: string,
+    ownerId: string,
+    venueId?: string,
+  ): Promise<Invoice[]> {
     try {
       let query = supabase
         .from('invoices')
-        .select(`
+        .select(
+          `
           *,
           event!event_id(id, name, date),
           intake_form:intake_forms(*),
           items:invoice_items(*)
-        `)
+        `,
+        )
         .eq('owner_id', ownerId)
         .order('created_at', { ascending: false });
 
       if (venueId) {
-        const { data: venueEvents } = await supabase.from('event').select('id, intake_form_id').eq('venue_id', venueId).eq('owner_id', ownerId);
+        const { data: venueEvents } = await supabase
+          .from('event')
+          .select('id, intake_form_id')
+          .eq('venue_id', venueId)
+          .eq('owner_id', ownerId);
         const eventIds = (venueEvents || []).map((e: any) => e.id);
-        const formIds = (venueEvents || []).map((e: any) => e.intake_form_id).filter(Boolean);
+        const formIds = (venueEvents || [])
+          .map((e: any) => e.intake_form_id)
+          .filter(Boolean);
         if (eventIds.length === 0 && formIds.length === 0) return [];
         const orParts: string[] = [];
-        if (eventIds.length > 0) orParts.push(`event_id.in.(${eventIds.join(',')})`);
-        if (formIds.length > 0) orParts.push(`intake_form_id.in.(${formIds.join(',')})`);
+        if (eventIds.length > 0)
+          orParts.push(`event_id.in.(${eventIds.join(',')})`);
+        if (formIds.length > 0)
+          orParts.push(`intake_form_id.in.(${formIds.join(',')})`);
         query = query.or(orParts.join(','));
       }
 
@@ -221,16 +265,22 @@ export class InvoicesService {
     }
   }
 
-  async findByIntakeForm(supabase: SupabaseClient, userId: string, intakeFormId: string): Promise<Invoice[]> {
+  async findByIntakeForm(
+    supabase: SupabaseClient,
+    userId: string,
+    intakeFormId: string,
+  ): Promise<Invoice[]> {
     try {
       const { data, error } = await supabase
         .from('invoices')
-        .select(`
+        .select(
+          `
           *,
           event!event_id(id, name, date),
           intake_form:intake_forms(*),
           items:invoice_items(*)
-        `)
+        `,
+        )
         .eq('intake_form_id', intakeFormId)
         .order('created_at', { ascending: false });
 
@@ -245,15 +295,21 @@ export class InvoicesService {
     }
   }
 
-  async findOne(supabase: SupabaseClient, userId: string, id: string): Promise<Invoice> {
+  async findOne(
+    supabase: SupabaseClient,
+    userId: string,
+    id: string,
+  ): Promise<Invoice> {
     const { data, error } = await supabase
       .from('invoices')
-      .select(`
+      .select(
+        `
         *,
 event!event_id(id, name, date),
         intake_form:intake_forms(*),
         items:invoice_items(*)
-      `)
+      `,
+      )
       .eq('id', id)
       .single();
 
@@ -261,7 +317,11 @@ event!event_id(id, name, date),
     return data;
   }
 
-  async findInvoiceItems(supabase: SupabaseClient, userId: string, invoiceId: string): Promise<InvoiceItem[]> {
+  async findInvoiceItems(
+    supabase: SupabaseClient,
+    userId: string,
+    invoiceId: string,
+  ): Promise<InvoiceItem[]> {
     const { data, error } = await supabase
       .from('invoice_items')
       .select('*')
@@ -281,7 +341,10 @@ event!event_id(id, name, date),
       .eq('primary_owner_id', ownerId)
       .maybeSingle();
     if (directOwner) {
-      return !!(directOwner.stripe_connect_id && directOwner.stripe_connect_status === 'active');
+      return !!(
+        directOwner.stripe_connect_id &&
+        directOwner.stripe_connect_status === 'active'
+      );
     }
     const { data: membership } = await adminClient
       .from('memberships')
@@ -295,12 +358,20 @@ event!event_id(id, name, date),
         .select('stripe_connect_id, stripe_connect_status')
         .eq('id', membership.owner_account_id)
         .maybeSingle();
-      return !!(ownerById?.stripe_connect_id && ownerById.stripe_connect_status === 'active');
+      return !!(
+        ownerById?.stripe_connect_id &&
+        ownerById.stripe_connect_status === 'active'
+      );
     }
     return false;
   }
 
-  async create(supabase: SupabaseClient, userId: string, invoiceData: Partial<Invoice>, items?: Partial<InvoiceItem>[]): Promise<Invoice> {
+  async create(
+    supabase: SupabaseClient,
+    userId: string,
+    invoiceData: Partial<Invoice>,
+    items?: Partial<InvoiceItem>[],
+  ): Promise<Invoice> {
     // Determine the owner_id to use
     const ownerId = invoiceData.owner_id || userId;
 
@@ -315,24 +386,27 @@ event!event_id(id, name, date),
 
     if (!ownerUser) {
       // Owner not in public.users yet — bootstrap from auth.users via admin client
-      const { data: authData } = await adminClient.auth.admin.getUserById(ownerId);
+      const { data: authData } =
+        await adminClient.auth.admin.getUserById(ownerId);
       if (authData?.user) {
-        const { error: insertError } = await adminClient
-          .from('users')
-          .insert({
-            id: ownerId,
-            email: authData.user.email,
-            role: 'owner',
-            status: 'active',
-            first_name: authData.user.user_metadata?.first_name || '',
-            last_name: authData.user.user_metadata?.last_name || '',
-          });
+        const { error: insertError } = await adminClient.from('users').insert({
+          id: ownerId,
+          email: authData.user.email,
+          role: 'owner',
+          status: 'active',
+          first_name: authData.user.user_metadata?.first_name || '',
+          last_name: authData.user.user_metadata?.last_name || '',
+        });
         if (insertError) {
           console.error('Failed to create user record:', insertError);
-          throw new BadRequestException(`Cannot create invoice: user record missing. ${insertError.message}`);
+          throw new BadRequestException(
+            `Cannot create invoice: user record missing. ${insertError.message}`,
+          );
         }
       } else {
-        throw new BadRequestException(`Cannot create invoice: owner user ID ${ownerId} not found.`);
+        throw new BadRequestException(
+          `Cannot create invoice: owner user ID ${ownerId} not found.`,
+        );
       }
     }
 
@@ -343,7 +417,7 @@ event!event_id(id, name, date),
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    
+
     let nextNumber = 1;
     if (maxInvoice?.invoice_number) {
       const match = maxInvoice.invoice_number.match(/INV-\d{4}-(\d+)/);
@@ -351,37 +425,38 @@ event!event_id(id, name, date),
         nextNumber = parseInt(match[1], 10) + 1;
       }
     }
-    
+
     const invoiceNumber = `INV-${new Date().getFullYear()}-${String(nextNumber).padStart(5, '0')}`;
 
     // Calculate totals
-    const { subtotal, taxAmount, totalAmount, amountDue } = this.calculateInvoiceTotals(
-      items || [],
-      Number(invoiceData.tax_rate) || 0,
-      Number(invoiceData.discount_amount) || 0
-    );
+    const { subtotal, taxAmount, totalAmount, amountDue } =
+      this.calculateInvoiceTotals(
+        items || [],
+        Number(invoiceData.tax_rate) || 0,
+        Number(invoiceData.discount_amount) || 0,
+      );
 
     // Insert invoice using snake_case column names
     // Core required fields only — optional columns added below when non-null
     const insertPayload: any = {
-        invoice_number: invoiceNumber,
-        owner_id: ownerId,
-        created_by: userId,
-        booking_id: invoiceData.booking_id || null,
-        intake_form_id: invoiceData.intake_form_id || null,
-        client_name: (invoiceData as any).client_name || null,
-        subtotal: subtotal,
-        tax_rate: Number(invoiceData.tax_rate) || 0,
-        tax_amount: taxAmount,
-        discount_amount: Number(invoiceData.discount_amount) || 0,
-        total_amount: totalAmount,
-        amount_paid: Number(invoiceData.amount_paid) || 0,
-        amount_due: amountDue,
-        status: invoiceData.status || 'draft',
-        issue_date: invoiceData.issue_date,
-        due_date: invoiceData.due_date,
-        notes: invoiceData.notes || null,
-        terms: invoiceData.terms || null,
+      invoice_number: invoiceNumber,
+      owner_id: ownerId,
+      created_by: userId,
+      booking_id: invoiceData.booking_id || null,
+      intake_form_id: invoiceData.intake_form_id || null,
+      client_name: (invoiceData as any).client_name || null,
+      subtotal: subtotal,
+      tax_rate: Number(invoiceData.tax_rate) || 0,
+      tax_amount: taxAmount,
+      discount_amount: Number(invoiceData.discount_amount) || 0,
+      total_amount: totalAmount,
+      amount_paid: Number(invoiceData.amount_paid) || 0,
+      amount_due: amountDue,
+      status: invoiceData.status || 'draft',
+      issue_date: invoiceData.issue_date,
+      due_date: invoiceData.due_date,
+      notes: invoiceData.notes || null,
+      terms: invoiceData.terms || null,
     };
 
     // Optional columns that require migrations — only include when non-null
@@ -391,55 +466,100 @@ event!event_id(id, name, date),
     const eventId = (invoiceData as any).event_id;
     if (eventId) insertPayload.event_id = eventId;
 
-    if (invoiceData.deposit_percentage != null) insertPayload.deposit_percentage = Number(invoiceData.deposit_percentage);
-    if (invoiceData.deposit_due_days_before != null) insertPayload.deposit_due_days_before = Number(invoiceData.deposit_due_days_before);
-    if (invoiceData.final_payment_due_days_before != null) insertPayload.final_payment_due_days_before = Number(invoiceData.final_payment_due_days_before);
+    if (invoiceData.deposit_percentage != null)
+      insertPayload.deposit_percentage = Number(invoiceData.deposit_percentage);
+    if (invoiceData.deposit_due_days_before != null)
+      insertPayload.deposit_due_days_before = Number(
+        invoiceData.deposit_due_days_before,
+      );
+    if (invoiceData.final_payment_due_days_before != null)
+      insertPayload.final_payment_due_days_before = Number(
+        invoiceData.final_payment_due_days_before,
+      );
 
     // public_token has a DB default (gen_random_uuid()) — only include if column exists
     insertPayload.public_token = randomUUID();
 
     // Optional columns that may not exist if a migration hasn't been run yet
-    const optionalColumns = ['client_phone', 'event_id', 'deposit_percentage', 'deposit_due_days_before', 'final_payment_due_days_before', 'public_token'];
+    const optionalColumns = [
+      'client_phone',
+      'event_id',
+      'deposit_percentage',
+      'deposit_due_days_before',
+      'final_payment_due_days_before',
+      'public_token',
+    ];
 
     let data: any, error: any;
 
-    ({ data, error } = await adminClient.from('invoices').insert(insertPayload).select().single());
+    ({ data, error } = await adminClient
+      .from('invoices')
+      .insert(insertPayload)
+      .select()
+      .single());
 
     // Column not found (schema cache miss or migration not run) — strip optional columns and retry
     if (error?.code === 'PGRST204') {
-      this.logger.warn(`Invoice insert PGRST204 (column not found): ${error.message} — retrying without optional columns`);
+      this.logger.warn(
+        `Invoice insert PGRST204 (column not found): ${error.message} — retrying without optional columns`,
+      );
       for (const col of optionalColumns) delete insertPayload[col];
-      ({ data, error } = await adminClient.from('invoices').insert(insertPayload).select().single());
+      ({ data, error } = await adminClient
+        .from('invoices')
+        .insert(insertPayload)
+        .select()
+        .single());
     }
 
     // FK violation on event_id (event row not in referenced table) — retry without it
     if (error?.code === '23503' && insertPayload.event_id) {
-      this.logger.warn(`event_id ${insertPayload.event_id} failed FK check — inserting invoice without event_id`);
+      this.logger.warn(
+        `event_id ${insertPayload.event_id} failed FK check — inserting invoice without event_id`,
+      );
       delete insertPayload.event_id;
-      ({ data, error } = await adminClient.from('invoices').insert(insertPayload).select().single());
+      ({ data, error } = await adminClient
+        .from('invoices')
+        .insert(insertPayload)
+        .select()
+        .single());
     }
 
     if (error) {
       console.error('Invoice insert failed:', error);
-      this.logger.error('Invoice insert failed', { code: error.code, message: error.message, details: error.details, hint: error.hint });
-      throw new InternalServerErrorException(`Failed to create invoice: ${error.message}`);
+      this.logger.error('Invoice insert failed', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      });
+      throw new InternalServerErrorException(
+        `Failed to create invoice: ${error.message}`,
+      );
     }
     if (!data) {
-      throw new InternalServerErrorException('Failed to create invoice: no data returned');
+      throw new InternalServerErrorException(
+        'Failed to create invoice: no data returned',
+      );
     }
-    
+
     const invoice = data as Invoice;
 
     // Create invoice items if provided
     if (items && items.length > 0) {
-      const createdItems = await this.createInvoiceItems(supabase, userId, invoice.id!, items);
-      
-      // Recalculate totals based on actual created items
-      const { subtotal, taxAmount, totalAmount, amountDue } = this.calculateInvoiceTotals(
-        createdItems,
-        Number(invoiceData.tax_rate) || 0,
-        Number(invoiceData.discount_amount) || 0
+      const createdItems = await this.createInvoiceItems(
+        supabase,
+        userId,
+        invoice.id!,
+        items,
       );
+
+      // Recalculate totals based on actual created items
+      const { subtotal, taxAmount, totalAmount, amountDue } =
+        this.calculateInvoiceTotals(
+          createdItems,
+          Number(invoiceData.tax_rate) || 0,
+          Number(invoiceData.discount_amount) || 0,
+        );
 
       // Update invoice with correct totals
       const { data: updatedInvoice, error: updateError } = await supabase
@@ -451,17 +571,21 @@ event!event_id(id, name, date),
           amount_due: amountDue,
         })
         .eq('id', invoice.id)
-        .select(`
+        .select(
+          `
           *,
           event!event_id(id, name, date),
           intake_form:intake_forms(*),
           items:invoice_items(*)
-        `)
+        `,
+        )
         .single();
 
       if (updateError) throw updateError;
       const finalInvoice = updatedInvoice as Invoice;
-      await this.sendInvoiceNotifications(supabase, finalInvoice).catch(() => {});
+      await this.sendInvoiceNotifications(supabase, finalInvoice).catch(
+        () => {},
+      );
       return finalInvoice;
     }
 
@@ -474,7 +598,10 @@ event!event_id(id, name, date),
    * Looks up client contact info from the linked intake form or booking.
    * All errors are swallowed so notifications never break invoice creation.
    */
-  private async sendInvoiceNotifications(supabase: SupabaseClient, invoice: Invoice): Promise<void> {
+  private async sendInvoiceNotifications(
+    supabase: SupabaseClient,
+    invoice: Invoice,
+  ): Promise<void> {
     const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
     // Link to the invoices list — no individual invoice detail page exists in the client portal
     const invoiceUrl = `${frontendUrl}/client-portal/invoices`;
@@ -539,10 +666,16 @@ event!event_id(id, name, date),
     }
   }
 
-  async createInvoiceItems(supabase: SupabaseClient, userId: string, invoiceId: string, items: Partial<InvoiceItem>[]): Promise<InvoiceItem[]> {
+  async createInvoiceItems(
+    supabase: SupabaseClient,
+    userId: string,
+    invoiceId: string,
+    items: Partial<InvoiceItem>[],
+  ): Promise<InvoiceItem[]> {
     const itemsWithCalculations = items.map((item, index) => {
-      const { subtotal, discountAmount, amount } = this.calculateItemAmounts(item);
-      
+      const { subtotal, discountAmount, amount } =
+        this.calculateItemAmounts(item);
+
       return {
         invoice_id: invoiceId,
         service_item_id: item.service_item_id || null,
@@ -572,7 +705,13 @@ event!event_id(id, name, date),
     return data || [];
   }
 
-  async addItemFromServiceItem(supabase: SupabaseClient, userId: string, invoiceId: string, serviceItemId: string, quantity: number = 1): Promise<InvoiceItem> {
+  async addItemFromServiceItem(
+    supabase: SupabaseClient,
+    userId: string,
+    invoiceId: string,
+    serviceItemId: string,
+    quantity: number = 1,
+  ): Promise<InvoiceItem> {
     // Get service item details
     const { data: serviceItem, error: serviceError } = await supabase
       .from('service_items')
@@ -626,7 +765,12 @@ event!event_id(id, name, date),
     return data;
   }
 
-  async updateInvoiceItem(supabase: SupabaseClient, userId: string, itemId: string, itemData: Partial<InvoiceItem>): Promise<InvoiceItem> {
+  async updateInvoiceItem(
+    supabase: SupabaseClient,
+    userId: string,
+    itemId: string,
+    itemData: Partial<InvoiceItem>,
+  ): Promise<InvoiceItem> {
     const { subtotal, discountAmount, amount } = this.calculateItemAmounts({
       ...itemData,
       quantity: itemData.quantity,
@@ -657,7 +801,11 @@ event!event_id(id, name, date),
     return data;
   }
 
-  async deleteInvoiceItem(supabase: SupabaseClient, userId: string, itemId: string): Promise<void> {
+  async deleteInvoiceItem(
+    supabase: SupabaseClient,
+    userId: string,
+    itemId: string,
+  ): Promise<void> {
     // Get invoice_id before deleting
     const { data: item } = await supabase
       .from('invoice_items')
@@ -678,15 +826,20 @@ event!event_id(id, name, date),
     }
   }
 
-  async recalculateInvoice(supabase: SupabaseClient, userId: string, invoiceId: string): Promise<Invoice> {
+  async recalculateInvoice(
+    supabase: SupabaseClient,
+    userId: string,
+    invoiceId: string,
+  ): Promise<Invoice> {
     const invoice = await this.findOne(supabase, userId, invoiceId);
     const items = await this.findInvoiceItems(supabase, userId, invoiceId);
 
-    const { subtotal, taxAmount, totalAmount, amountDue } = this.calculateInvoiceTotals(
-      items,
-      invoice.tax_rate,
-      invoice.discount_amount
-    );
+    const { subtotal, taxAmount, totalAmount, amountDue } =
+      this.calculateInvoiceTotals(
+        items,
+        invoice.tax_rate,
+        invoice.discount_amount,
+      );
 
     const actualAmountDue = totalAmount - invoice.amount_paid;
 
@@ -706,7 +859,12 @@ event!event_id(id, name, date),
     return data;
   }
 
-  async update(supabase: SupabaseClient, userId: string, id: string, invoiceData: Partial<Invoice>): Promise<Invoice> {
+  async update(
+    supabase: SupabaseClient,
+    userId: string,
+    id: string,
+    invoiceData: Partial<Invoice>,
+  ): Promise<Invoice> {
     const { data, error } = await supabase
       .from('invoices')
       .update(invoiceData)
@@ -719,7 +877,10 @@ event!event_id(id, name, date),
     let result = data;
 
     // Recalculate if tax_rate or discount_amount changed
-    if (invoiceData.tax_rate !== undefined || invoiceData.discount_amount !== undefined) {
+    if (
+      invoiceData.tax_rate !== undefined ||
+      invoiceData.discount_amount !== undefined
+    ) {
       result = await this.recalculateInvoice(supabase, userId, id);
     }
 
@@ -727,8 +888,12 @@ event!event_id(id, name, date),
     if (result.status === 'sent') {
       try {
         const phone = await this.lookupClientPhone(supabase, result);
-        const clientName = (result as any).client_name || 'Valued Client';
-        await this.smsNotifications.invoiceUpdated(phone, clientName, result.invoice_number);
+        const clientName = result.client_name || 'Valued Client';
+        await this.smsNotifications.invoiceUpdated(
+          phone,
+          clientName,
+          result.invoice_number,
+        );
       } catch {
         // SMS errors must never break the invoice update
       }
@@ -737,13 +902,18 @@ event!event_id(id, name, date),
     return result;
   }
 
-  async updateStatus(supabase: SupabaseClient, userId: string, id: string, status: string): Promise<Invoice> {
+  async updateStatus(
+    supabase: SupabaseClient,
+    userId: string,
+    id: string,
+    status: string,
+  ): Promise<Invoice> {
     const updateData: any = { status };
-    
+
     if (status === 'sent' && !updateData.issue_date) {
       updateData.issue_date = new Date().toISOString().split('T')[0];
     }
-    
+
     if (status === 'paid') {
       updateData.paid_date = new Date().toISOString().split('T')[0];
     }
@@ -773,7 +943,8 @@ event!event_id(id, name, date),
         try {
           const clientEmail = await this.lookupClientEmail(supabase, updated);
           if (clientEmail) {
-            const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+            const frontendUrl =
+              process.env.FRONTEND_URL || 'https://eventecos.com';
             let eventType: string | null = null;
             let eventDate: string | null = null;
             let venueName: string | undefined;
@@ -807,7 +978,9 @@ event!event_id(id, name, date),
               portalUrl: `${frontendUrl}/client-portal`,
             });
           }
-        } catch { /* email errors are non-fatal */ }
+        } catch {
+          /* email errors are non-fatal */
+        }
       } else if (status === 'overdue') {
         await this.smsNotifications.invoiceOverdue(
           phone,
@@ -823,13 +996,18 @@ event!event_id(id, name, date),
     return updated;
   }
 
-  async recordPayment(supabase: SupabaseClient, userId: string, id: string, amount: number): Promise<Invoice> {
+  async recordPayment(
+    supabase: SupabaseClient,
+    userId: string,
+    id: string,
+    amount: number,
+  ): Promise<Invoice> {
     const invoice = await this.findOne(supabase, userId, id);
     const newAmountPaid = Number(invoice.amount_paid) + amount;
-    
+
     const updateData: any = { amount_paid: newAmountPaid };
     const isFullyPaid = newAmountPaid >= invoice.total_amount;
-    
+
     if (isFullyPaid) {
       updateData.status = 'paid';
       updateData.paid_date = new Date().toISOString().split('T')[0];
@@ -852,7 +1030,8 @@ event!event_id(id, name, date),
         try {
           const clientEmail = await this.lookupClientEmail(supabase, updated);
           if (clientEmail) {
-            const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+            const frontendUrl =
+              process.env.FRONTEND_URL || 'https://eventecos.com';
             let eventType: string | null = null;
             let eventDate: string | null = null;
             let venueName: string | undefined;
@@ -886,7 +1065,9 @@ event!event_id(id, name, date),
               portalUrl: `${frontendUrl}/client-portal`,
             });
           }
-        } catch { /* email errors are non-fatal */ }
+        } catch {
+          /* email errors are non-fatal */
+        }
       } else {
         await this.smsNotifications.invoicePartialPayment(
           phone,
@@ -903,16 +1084,21 @@ event!event_id(id, name, date),
     return updated;
   }
 
-  async delete(supabase: SupabaseClient, userId: string, id: string): Promise<void> {
-    const { error } = await supabase
-      .from('invoices')
-      .delete()
-      .eq('id', id);
+  async delete(
+    supabase: SupabaseClient,
+    userId: string,
+    id: string,
+  ): Promise<void> {
+    const { error } = await supabase.from('invoices').delete().eq('id', id);
 
     if (error) throw error;
   }
 
-  async createQuoteFromIntakeForm(supabase: SupabaseClient, userId: string, intakeFormId: string): Promise<Invoice> {
+  async createQuoteFromIntakeForm(
+    supabase: SupabaseClient,
+    userId: string,
+    intakeFormId: string,
+  ): Promise<Invoice> {
     const issueDate = new Date().toISOString().split('T')[0];
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 30);
@@ -927,7 +1113,8 @@ event!event_id(id, name, date),
       discount_amount: 0,
       amount_paid: 0,
       terms: 'Payment due within 30 days of acceptance',
-      notes: 'This is a quote for your event. Once accepted, it will be converted to an invoice.',
+      notes:
+        'This is a quote for your event. Once accepted, it will be converted to an invoice.',
     });
   }
 }

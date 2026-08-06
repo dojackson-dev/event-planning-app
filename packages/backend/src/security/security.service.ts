@@ -20,7 +20,11 @@ export class SecurityService {
     return data ?? [];
   }
 
-  async findOne(supabase: SupabaseClient, ownerId: string, id: string): Promise<any | null> {
+  async findOne(
+    supabase: SupabaseClient,
+    ownerId: string,
+    id: string,
+  ): Promise<any | null> {
     const { data, error } = await supabase
       .from('security')
       .select('*, event:event(*)')
@@ -31,7 +35,11 @@ export class SecurityService {
     return data;
   }
 
-  async findByEvent(supabase: SupabaseClient, ownerId: string, eventId: string): Promise<any[]> {
+  async findByEvent(
+    supabase: SupabaseClient,
+    ownerId: string,
+    eventId: string,
+  ): Promise<any[]> {
     const { data, error } = await supabase
       .from('security')
       .select('*, event:event(*)')
@@ -42,7 +50,11 @@ export class SecurityService {
     return data ?? [];
   }
 
-  async create(supabase: SupabaseClient, ownerId: string, securityData: any): Promise<any> {
+  async create(
+    supabase: SupabaseClient,
+    ownerId: string,
+    securityData: any,
+  ): Promise<any> {
     // Normalise camelCase keys from the frontend to snake_case for Supabase
     const { eventId, arrivalTime, ...rest } = securityData;
     const row: any = {
@@ -73,16 +85,26 @@ export class SecurityService {
     // Notify the security personnel of their assignment
     try {
       const phone: string | null = data.phone ?? null;
-      const name: string = data.name ?? data.officer_name ?? 'Security Personnel';
-      const eventName: string = (data.event as any)?.name ?? 'the upcoming event';
-      const eventDate: string = (data.event as any)?.date
-        ? new Date((data.event as any).date).toLocaleDateString('en-US', {
-            weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+      const name: string =
+        data.name ?? data.officer_name ?? 'Security Personnel';
+      const eventName: string = data.event?.name ?? 'the upcoming event';
+      const eventDate: string = data.event?.date
+        ? new Date(data.event.date).toLocaleDateString('en-US', {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
           })
         : '';
       const location: string | undefined =
-        (data.event as any)?.venue_name ?? (data.event as any)?.location ?? undefined;
-      await this.smsNotifications.securityAssigned(phone, name, eventName, eventDate, location);
+        data.event?.venue_name ?? data.event?.location ?? undefined;
+      await this.smsNotifications.securityAssigned(
+        phone,
+        name,
+        eventName,
+        eventDate,
+        location,
+      );
     } catch {
       // SMS errors must never break security creation
     }
@@ -90,7 +112,12 @@ export class SecurityService {
     return data;
   }
 
-  async update(supabase: SupabaseClient, ownerId: string, id: string, securityData: any): Promise<any | null> {
+  async update(
+    supabase: SupabaseClient,
+    ownerId: string,
+    id: string,
+    securityData: any,
+  ): Promise<any | null> {
     const { eventId, arrivalTime, owner_id: _ownerId, ...rest } = securityData;
     const row: any = {
       ...rest,
@@ -110,8 +137,9 @@ export class SecurityService {
     // Notify the security personnel of the update
     try {
       const phone: string | null = data.phone ?? null;
-      const name: string = data.name ?? data.officer_name ?? 'Security Personnel';
-      const eventName: string = (data.event as any)?.name ?? 'the upcoming event';
+      const name: string =
+        data.name ?? data.officer_name ?? 'Security Personnel';
+      const eventName: string = data.event?.name ?? 'the upcoming event';
       await this.smsNotifications.securityUpdated(phone, name, eventName);
     } catch {
       // SMS errors must never break the update
@@ -120,7 +148,11 @@ export class SecurityService {
     return data;
   }
 
-  async recordArrival(supabase: SupabaseClient, ownerId: string, id: string): Promise<any | null> {
+  async recordArrival(
+    supabase: SupabaseClient,
+    ownerId: string,
+    id: string,
+  ): Promise<any | null> {
     const { data, error } = await supabase
       .from('security')
       .update({ arrival_time: new Date().toISOString() })
@@ -133,9 +165,14 @@ export class SecurityService {
     // Send arrival confirmation SMS
     try {
       const phone: string | null = data.phone ?? null;
-      const name: string = data.name ?? data.officer_name ?? 'Security Personnel';
-      const eventName: string = (data.event as any)?.name ?? 'the event';
-      await this.smsNotifications.securityArrivalRecorded(phone, name, eventName);
+      const name: string =
+        data.name ?? data.officer_name ?? 'Security Personnel';
+      const eventName: string = data.event?.name ?? 'the event';
+      await this.smsNotifications.securityArrivalRecorded(
+        phone,
+        name,
+        eventName,
+      );
     } catch {
       // SMS errors must never break arrival recording
     }
@@ -143,7 +180,11 @@ export class SecurityService {
     return data;
   }
 
-  async remove(supabase: SupabaseClient, ownerId: string, id: string): Promise<void> {
+  async remove(
+    supabase: SupabaseClient,
+    ownerId: string,
+    id: string,
+  ): Promise<void> {
     const { error } = await supabase
       .from('security')
       .delete()

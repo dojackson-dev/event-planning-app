@@ -1,4 +1,10 @@
-import { Controller, Get, Param, Headers, UnauthorizedException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  Headers,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { UsersService } from './users.service.js';
 import { SupabaseService } from '../supabase/supabase.service.js';
 
@@ -13,7 +19,10 @@ export class UsersController {
     if (!authHeader) throw new UnauthorizedException();
     const token = authHeader.replace('Bearer ', '');
     const supabase = this.supabaseService.setAuthContext(token);
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
     if (error || !user) throw new UnauthorizedException();
     return { supabase, ownerId: user.id };
   }

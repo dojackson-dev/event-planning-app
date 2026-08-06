@@ -24,10 +24,10 @@ const sharp = require('sharp') as typeof import('sharp');
 import { SupabaseService } from '../supabase/supabase.service';
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-const MAX_VENDOR_LOGO_BYTES = 2 * 1024 * 1024;   // 2 MB
-const MAX_SERVICE_ITEM_BYTES = 5 * 1024 * 1024;  // 5 MB
-const MAX_OWNER_LOGO_BYTES = 3 * 1024 * 1024;    // 3 MB
-const MAX_COVER_BYTES = 5 * 1024 * 1024;          // 5 MB
+const MAX_VENDOR_LOGO_BYTES = 2 * 1024 * 1024; // 2 MB
+const MAX_SERVICE_ITEM_BYTES = 5 * 1024 * 1024; // 5 MB
+const MAX_OWNER_LOGO_BYTES = 3 * 1024 * 1024; // 3 MB
+const MAX_COVER_BYTES = 5 * 1024 * 1024; // 5 MB
 
 @Controller('upload')
 export class UploadController {
@@ -41,11 +41,15 @@ export class UploadController {
   // ─────────────────────────────────────────────
 
   private async getUserId(authorization: string): Promise<string> {
-    if (!authorization) throw new UnauthorizedException('No authorization header');
+    if (!authorization)
+      throw new UnauthorizedException('No authorization header');
     const token = authorization.replace('Bearer ', '');
     if (token.startsWith('local-')) return token.replace('local-', '');
     const supabase = this.supabaseService.setAuthContext(token);
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
     if (error || !user) throw new UnauthorizedException('Invalid token');
     return user.id;
   }
@@ -97,11 +101,12 @@ export class UploadController {
       .from('vendor-images')
       .upload(path, processed, { contentType: 'image/webp', upsert: true });
 
-    if (uploadError) throw new BadRequestException('Upload failed: ' + uploadError.message);
+    if (uploadError)
+      throw new BadRequestException('Upload failed: ' + uploadError.message);
 
-    const { data: { publicUrl } } = admin.storage
-      .from('vendor-images')
-      .getPublicUrl(path);
+    const {
+      data: { publicUrl },
+    } = admin.storage.from('vendor-images').getPublicUrl(path);
 
     return { url: publicUrl };
   }
@@ -142,11 +147,12 @@ export class UploadController {
       .from('service-item-images')
       .upload(path, processed, { contentType: 'image/webp', upsert: true });
 
-    if (uploadError) throw new BadRequestException('Upload failed: ' + uploadError.message);
+    if (uploadError)
+      throw new BadRequestException('Upload failed: ' + uploadError.message);
 
-    const { data: { publicUrl } } = admin.storage
-      .from('service-item-images')
-      .getPublicUrl(path);
+    const {
+      data: { publicUrl },
+    } = admin.storage.from('service-item-images').getPublicUrl(path);
 
     return { url: publicUrl };
   }
@@ -187,11 +193,12 @@ export class UploadController {
       .from('owner-images')
       .upload(path, processed, { contentType: 'image/webp', upsert: true });
 
-    if (uploadError) throw new BadRequestException('Upload failed: ' + uploadError.message);
+    if (uploadError)
+      throw new BadRequestException('Upload failed: ' + uploadError.message);
 
-    const { data: { publicUrl } } = admin.storage
-      .from('owner-images')
-      .getPublicUrl(path);
+    const {
+      data: { publicUrl },
+    } = admin.storage.from('owner-images').getPublicUrl(path);
 
     return { url: publicUrl };
   }
@@ -209,8 +216,10 @@ export class UploadController {
   ) {
     const userId = await this.getUserId(authorization);
     if (!file) throw new BadRequestException('No file provided');
-    if (!ALLOWED_TYPES.includes(file.mimetype)) throw new BadRequestException('File must be JPEG, PNG, or WebP');
-    if (file.size > MAX_COVER_BYTES) throw new BadRequestException('Cover image must be under 5 MB');
+    if (!ALLOWED_TYPES.includes(file.mimetype))
+      throw new BadRequestException('File must be JPEG, PNG, or WebP');
+    if (file.size > MAX_COVER_BYTES)
+      throw new BadRequestException('Cover image must be under 5 MB');
 
     const admin = this.supabaseService.getAdminClient();
     await this.ensureBucket(admin, 'owner-images');
@@ -225,8 +234,11 @@ export class UploadController {
       .from('owner-images')
       .upload(path, processed, { contentType: 'image/webp', upsert: true });
 
-    if (uploadError) throw new BadRequestException('Upload failed: ' + uploadError.message);
-    const { data: { publicUrl } } = admin.storage.from('owner-images').getPublicUrl(path);
+    if (uploadError)
+      throw new BadRequestException('Upload failed: ' + uploadError.message);
+    const {
+      data: { publicUrl },
+    } = admin.storage.from('owner-images').getPublicUrl(path);
     return { url: publicUrl };
   }
 
@@ -243,8 +255,10 @@ export class UploadController {
   ) {
     const userId = await this.getUserId(authorization);
     if (!file) throw new BadRequestException('No file provided');
-    if (!ALLOWED_TYPES.includes(file.mimetype)) throw new BadRequestException('File must be JPEG, PNG, or WebP');
-    if (file.size > MAX_COVER_BYTES) throw new BadRequestException('Cover image must be under 5 MB');
+    if (!ALLOWED_TYPES.includes(file.mimetype))
+      throw new BadRequestException('File must be JPEG, PNG, or WebP');
+    if (file.size > MAX_COVER_BYTES)
+      throw new BadRequestException('Cover image must be under 5 MB');
 
     const admin = this.supabaseService.getAdminClient();
     await this.ensureBucket(admin, 'vendor-images');
@@ -259,8 +273,11 @@ export class UploadController {
       .from('vendor-images')
       .upload(path, processed, { contentType: 'image/webp', upsert: true });
 
-    if (uploadError) throw new BadRequestException('Upload failed: ' + uploadError.message);
-    const { data: { publicUrl } } = admin.storage.from('vendor-images').getPublicUrl(path);
+    if (uploadError)
+      throw new BadRequestException('Upload failed: ' + uploadError.message);
+    const {
+      data: { publicUrl },
+    } = admin.storage.from('vendor-images').getPublicUrl(path);
     return { url: publicUrl };
   }
 
@@ -276,8 +293,10 @@ export class UploadController {
   ) {
     const userId = await this.getUserId(authorization);
     if (!file) throw new BadRequestException('No file provided');
-    if (!ALLOWED_TYPES.includes(file.mimetype)) throw new BadRequestException('File must be JPEG, PNG, or WebP');
-    if (file.size > MAX_VENDOR_LOGO_BYTES) throw new BadRequestException('Image must be under 2 MB');
+    if (!ALLOWED_TYPES.includes(file.mimetype))
+      throw new BadRequestException('File must be JPEG, PNG, or WebP');
+    if (file.size > MAX_VENDOR_LOGO_BYTES)
+      throw new BadRequestException('Image must be under 2 MB');
 
     const admin = this.supabaseService.getAdminClient();
     await this.ensureBucket(admin, 'artist-images');
@@ -292,8 +311,11 @@ export class UploadController {
       .from('artist-images')
       .upload(path, processed, { contentType: 'image/webp', upsert: true });
 
-    if (uploadError) throw new BadRequestException('Upload failed: ' + uploadError.message);
-    const { data: { publicUrl } } = admin.storage.from('artist-images').getPublicUrl(path);
+    if (uploadError)
+      throw new BadRequestException('Upload failed: ' + uploadError.message);
+    const {
+      data: { publicUrl },
+    } = admin.storage.from('artist-images').getPublicUrl(path);
     return { url: publicUrl };
   }
 
@@ -309,8 +331,10 @@ export class UploadController {
   ) {
     const userId = await this.getUserId(authorization);
     if (!file) throw new BadRequestException('No file provided');
-    if (!ALLOWED_TYPES.includes(file.mimetype)) throw new BadRequestException('File must be JPEG, PNG, or WebP');
-    if (file.size > MAX_COVER_BYTES) throw new BadRequestException('Cover image must be under 5 MB');
+    if (!ALLOWED_TYPES.includes(file.mimetype))
+      throw new BadRequestException('File must be JPEG, PNG, or WebP');
+    if (file.size > MAX_COVER_BYTES)
+      throw new BadRequestException('Cover image must be under 5 MB');
 
     const admin = this.supabaseService.getAdminClient();
     await this.ensureBucket(admin, 'artist-images');
@@ -325,8 +349,11 @@ export class UploadController {
       .from('artist-images')
       .upload(path, processed, { contentType: 'image/webp', upsert: true });
 
-    if (uploadError) throw new BadRequestException('Upload failed: ' + uploadError.message);
-    const { data: { publicUrl } } = admin.storage.from('artist-images').getPublicUrl(path);
+    if (uploadError)
+      throw new BadRequestException('Upload failed: ' + uploadError.message);
+    const {
+      data: { publicUrl },
+    } = admin.storage.from('artist-images').getPublicUrl(path);
     return { url: publicUrl };
   }
 
@@ -342,8 +369,10 @@ export class UploadController {
   ) {
     const userId = await this.getUserId(authorization);
     if (!file) throw new BadRequestException('No file provided');
-    if (!ALLOWED_TYPES.includes(file.mimetype)) throw new BadRequestException('File must be JPEG, PNG, or WebP');
-    if (file.size > MAX_VENDOR_LOGO_BYTES) throw new BadRequestException('Image must be under 2 MB');
+    if (!ALLOWED_TYPES.includes(file.mimetype))
+      throw new BadRequestException('File must be JPEG, PNG, or WebP');
+    if (file.size > MAX_VENDOR_LOGO_BYTES)
+      throw new BadRequestException('Image must be under 2 MB');
 
     const admin = this.supabaseService.getAdminClient();
     await this.ensureBucket(admin, 'promoter-images');
@@ -358,8 +387,11 @@ export class UploadController {
       .from('promoter-images')
       .upload(path, processed, { contentType: 'image/webp', upsert: true });
 
-    if (uploadError) throw new BadRequestException('Upload failed: ' + uploadError.message);
-    const { data: { publicUrl } } = admin.storage.from('promoter-images').getPublicUrl(path);
+    if (uploadError)
+      throw new BadRequestException('Upload failed: ' + uploadError.message);
+    const {
+      data: { publicUrl },
+    } = admin.storage.from('promoter-images').getPublicUrl(path);
     return { url: publicUrl };
   }
 
@@ -375,8 +407,10 @@ export class UploadController {
   ) {
     const userId = await this.getUserId(authorization);
     if (!file) throw new BadRequestException('No file provided');
-    if (!ALLOWED_TYPES.includes(file.mimetype)) throw new BadRequestException('File must be JPEG, PNG, or WebP');
-    if (file.size > MAX_COVER_BYTES) throw new BadRequestException('Cover image must be under 5 MB');
+    if (!ALLOWED_TYPES.includes(file.mimetype))
+      throw new BadRequestException('File must be JPEG, PNG, or WebP');
+    if (file.size > MAX_COVER_BYTES)
+      throw new BadRequestException('Cover image must be under 5 MB');
 
     const admin = this.supabaseService.getAdminClient();
     await this.ensureBucket(admin, 'promoter-images');
@@ -391,8 +425,11 @@ export class UploadController {
       .from('promoter-images')
       .upload(path, processed, { contentType: 'image/webp', upsert: true });
 
-    if (uploadError) throw new BadRequestException('Upload failed: ' + uploadError.message);
-    const { data: { publicUrl } } = admin.storage.from('promoter-images').getPublicUrl(path);
+    if (uploadError)
+      throw new BadRequestException('Upload failed: ' + uploadError.message);
+    const {
+      data: { publicUrl },
+    } = admin.storage.from('promoter-images').getPublicUrl(path);
     return { url: publicUrl };
   }
 
@@ -409,8 +446,10 @@ export class UploadController {
   ) {
     const userId = await this.getUserId(authorization);
     if (!file) throw new BadRequestException('No file provided');
-    if (!ALLOWED_TYPES.includes(file.mimetype)) throw new BadRequestException('File must be JPEG, PNG, or WebP');
-    if (file.size > MAX_COVER_BYTES) throw new BadRequestException('Banner must be under 5 MB');
+    if (!ALLOWED_TYPES.includes(file.mimetype))
+      throw new BadRequestException('File must be JPEG, PNG, or WebP');
+    if (file.size > MAX_COVER_BYTES)
+      throw new BadRequestException('Banner must be under 5 MB');
 
     const admin = this.supabaseService.getAdminClient();
     await this.ensureBucket(admin, 'event-banners');
@@ -425,8 +464,11 @@ export class UploadController {
       .from('event-banners')
       .upload(path, processed, { contentType: 'image/webp', upsert: true });
 
-    if (uploadError) throw new BadRequestException('Upload failed: ' + uploadError.message);
-    const { data: { publicUrl } } = admin.storage.from('event-banners').getPublicUrl(path);
+    if (uploadError)
+      throw new BadRequestException('Upload failed: ' + uploadError.message);
+    const {
+      data: { publicUrl },
+    } = admin.storage.from('event-banners').getPublicUrl(path);
     return { url: publicUrl };
   }
 
@@ -453,13 +495,18 @@ export class UploadController {
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'application/vnd.ms-excel',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+      'image/webp',
       'text/plain',
       'text/csv',
     ];
 
     if (!ALLOWED_ATTACHMENT_TYPES.includes(file.mimetype)) {
-      throw new BadRequestException('Unsupported file type. Allowed: PDF, Word, Excel, images, CSV, TXT');
+      throw new BadRequestException(
+        'Unsupported file type. Allowed: PDF, Word, Excel, images, CSV, TXT',
+      );
     }
     if (file.size > MAX_BYTES) {
       throw new BadRequestException('File must be under 20 MB');
@@ -476,14 +523,17 @@ export class UploadController {
       .from('attachments')
       .upload(path, file.buffer, { contentType: file.mimetype, upsert: false });
 
-    if (uploadError) throw new BadRequestException('Upload failed: ' + uploadError.message);
+    if (uploadError)
+      throw new BadRequestException('Upload failed: ' + uploadError.message);
 
-    const { data: { publicUrl } } = admin.storage.from('attachments').getPublicUrl(path);
+    const {
+      data: { publicUrl },
+    } = admin.storage.from('attachments').getPublicUrl(path);
 
     return {
-      url:       publicUrl,
-      fileName:  safeName,
-      mimeType:  file.mimetype,
+      url: publicUrl,
+      fileName: safeName,
+      mimeType: file.mimetype,
       sizeBytes: file.size,
     };
   }
@@ -505,8 +555,10 @@ export class UploadController {
   ) {
     const userId = await this.getUserId(authorization);
     if (!file) throw new BadRequestException('No file provided');
-    if (!ALLOWED_TYPES.includes(file.mimetype)) throw new BadRequestException('File must be JPEG, PNG, or WebP');
-    if (file.size > 8 * 1024 * 1024) throw new BadRequestException('Image must be under 8 MB');
+    if (!ALLOWED_TYPES.includes(file.mimetype))
+      throw new BadRequestException('File must be JPEG, PNG, or WebP');
+    if (file.size > 8 * 1024 * 1024)
+      throw new BadRequestException('Image must be under 8 MB');
 
     const admin = this.supabaseService.getAdminClient();
     await this.ensureBucket(admin, 'event-images');
@@ -526,18 +578,33 @@ export class UploadController {
       .toBuffer();
 
     const bannerPath = `banners/${userId}-${stamp}.webp`;
-    const thumbPath  = `thumbs/${userId}-${stamp}.webp`;
+    const thumbPath = `thumbs/${userId}-${stamp}.webp`;
 
     const [bannerUpload, thumbUpload] = await Promise.all([
-      admin.storage.from('event-images').upload(bannerPath, banner, { contentType: 'image/webp', upsert: true }),
-      admin.storage.from('event-images').upload(thumbPath,  thumb,  { contentType: 'image/webp', upsert: true }),
+      admin.storage.from('event-images').upload(bannerPath, banner, {
+        contentType: 'image/webp',
+        upsert: true,
+      }),
+      admin.storage
+        .from('event-images')
+        .upload(thumbPath, thumb, { contentType: 'image/webp', upsert: true }),
     ]);
 
-    if (bannerUpload.error) throw new BadRequestException('Banner upload failed: ' + bannerUpload.error.message);
-    if (thumbUpload.error)  throw new BadRequestException('Thumb upload failed: '  + thumbUpload.error.message);
+    if (bannerUpload.error)
+      throw new BadRequestException(
+        'Banner upload failed: ' + bannerUpload.error.message,
+      );
+    if (thumbUpload.error)
+      throw new BadRequestException(
+        'Thumb upload failed: ' + thumbUpload.error.message,
+      );
 
-    const { data: { publicUrl } }      = admin.storage.from('event-images').getPublicUrl(bannerPath);
-    const { data: { publicUrl: thumbUrl } } = admin.storage.from('event-images').getPublicUrl(thumbPath);
+    const {
+      data: { publicUrl },
+    } = admin.storage.from('event-images').getPublicUrl(bannerPath);
+    const {
+      data: { publicUrl: thumbUrl },
+    } = admin.storage.from('event-images').getPublicUrl(thumbPath);
 
     return { url: publicUrl, thumbUrl };
   }
@@ -589,9 +656,12 @@ export class UploadController {
       .from('rsvp-invitations')
       .upload(path, processed, { contentType: 'image/webp', upsert: true });
 
-    if (uploadError) throw new BadRequestException('Upload failed: ' + uploadError.message);
+    if (uploadError)
+      throw new BadRequestException('Upload failed: ' + uploadError.message);
 
-    const { data: { publicUrl } } = admin.storage.from('rsvp-invitations').getPublicUrl(path);
+    const {
+      data: { publicUrl },
+    } = admin.storage.from('rsvp-invitations').getPublicUrl(path);
 
     return { url: publicUrl };
   }

@@ -4,8 +4,16 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { Colors } from '@/lib/theme';
 
-// Roles that get the OwnerSuite dashboard instead of attendee home
-const OWNER_ROLES = ['owner', 'admin', 'promoter', 'venue_owner', 'concierge', 'vendor', 'artist'];
+// Roles that get the OwnerSuite dashboard (owner-equivalent roles)
+const OWNER_ROLES = ['owner', 'admin', 'venue_owner', 'concierge'];
+
+function getDashboardRoute(role: string): string {
+  if (role === 'vendor') return '/(tabs)/vendor-dashboard';
+  if (role === 'promoter') return '/(tabs)/promoter-dashboard';
+  if (role === 'artist') return '/(tabs)/artist-dashboard';
+  if (OWNER_ROLES.includes(role)) return '/(tabs)/dashboard';
+  return '/(tabs)/';
+}
 
 async function getUserRole(userId: string): Promise<string> {
   try {
@@ -49,11 +57,7 @@ export default function RootLayout() {
           session.user.user_metadata?.role ||
           session.user.app_metadata?.role;
         const role = metaRole || await getUserRole(session.user.id);
-        if (OWNER_ROLES.includes(role)) {
-          routerRef.current.replace('/(tabs)/dashboard');
-        } else {
-          routerRef.current.replace('/(tabs)/');
-        }
+        routerRef.current.replace(getDashboardRoute(role) as any);
       }
     });
     return () => subscription.unsubscribe();

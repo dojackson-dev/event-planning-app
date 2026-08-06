@@ -88,6 +88,25 @@ export default function TabsLayout() {
       <Tabs.Screen name="messages" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="calendar" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="settings" options={{ href: null, headerShown: false }} />
+
+      {/* Vendor role screens (accessed directly, not via tab) */}
+      <Tabs.Screen name="vendor-dashboard" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="vendor-bookings" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="vendor-invoices" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="vendor-profile" options={{ href: null, headerShown: false }} />
+
+      {/* Artist role screens (accessed directly, not via tab) */}
+      <Tabs.Screen name="artist-dashboard" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="artist-bookings" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="artist-invoices" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="artist-profile" options={{ href: null, headerShown: false }} />
+
+      {/* Promoter role screens (accessed directly, not via tab) */}
+      <Tabs.Screen name="promoter-dashboard" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="promoter-events" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="promoter-bookings" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="promoter-invoices" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="promoter-profile" options={{ href: null, headerShown: false }} />
     </Tabs>
   );
 }

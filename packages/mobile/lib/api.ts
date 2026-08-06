@@ -1,6 +1,9 @@
 import { supabase } from './supabase';
 
-export const BACKEND_URL = 'https://event-planning-app-backend-dq3s.onrender.com';
+// Defaults to production; override locally via EXPO_PUBLIC_BACKEND_URL in
+// .env.local (gitignored) to point at a local/demo backend for testing.
+export const BACKEND_URL =
+  process.env.EXPO_PUBLIC_BACKEND_URL || 'https://event-planning-app-backend-dq3s.onrender.com';
 
 export async function apiRequest<T = any>(
   path: string,

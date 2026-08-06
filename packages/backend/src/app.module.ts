@@ -44,6 +44,10 @@ import { VipModule } from './vip/vip.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      // When NODE_ENV=demo, load .env.demo (falls back to .env for any vars
+      // it doesn't define). Default behavior (plain `.env`, production DB)
+      // is unchanged for every other NODE_ENV value.
+      envFilePath: process.env.NODE_ENV === 'demo' ? ['.env.demo', '.env'] : '.env',
     }),
     ScheduleModule.forRoot(),
     SupabaseModule,

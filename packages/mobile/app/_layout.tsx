@@ -3,38 +3,7 @@ import { useEffect, useRef } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { Colors } from '@/lib/theme';
-
-// Roles that get the OwnerSuite dashboard (owner-equivalent roles)
-const OWNER_ROLES = ['owner', 'admin', 'venue_owner', 'concierge'];
-
-function getDashboardRoute(role: string): string {
-  if (role === 'vendor') return '/(tabs)/vendor-dashboard';
-  if (role === 'promoter') return '/(tabs)/promoter-dashboard';
-  if (role === 'artist') return '/(tabs)/artist-dashboard';
-  if (OWNER_ROLES.includes(role)) return '/(tabs)/dashboard';
-  return '/(tabs)/';
-}
-
-async function getUserRole(userId: string): Promise<string> {
-  try {
-    // Try users table first (requires RLS policy allowing self-read)
-    const { data, error } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', userId)
-      .maybeSingle();
-    if (!error && data?.role) return data.role;
-
-    // Fallback: check user_metadata set at signup or by admin
-    const { data: { user } } = await supabase.auth.getUser();
-    const metaRole = user?.user_metadata?.role || user?.app_metadata?.role;
-    if (metaRole) return metaRole;
-
-    return 'attendee';
-  } catch {
-    return 'attendee';
-  }
-}
+import { resolveDashboardRouteForSession } from '@/lib/roleRouting';
 
 export default function RootLayout() {
   const router = useRouter();
@@ -51,13 +20,8 @@ export default function RootLayout() {
       if (!session && !inAuthGroup) {
         routerRef.current.replace('/(auth)/login');
       } else if (session && (inAuthGroup || onIndex)) {
-        // Check user_metadata/app_metadata first (no RLS needed),
-        // then fall back to DB lookup
-        const metaRole =
-          session.user.user_metadata?.role ||
-          session.user.app_metadata?.role;
-        const role = metaRole || await getUserRole(session.user.id);
-        routerRef.current.replace(getDashboardRoute(role) as any);
+        const route = await resolveDashboardRouteForSession(session);
+        routerRef.current.replace(route as any);
       }
     });
     return () => subscription.unsubscribe();

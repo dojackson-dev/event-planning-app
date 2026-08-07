@@ -18,6 +18,17 @@
         "simulator": false
       }
     },
+    "demo": {
+      "distribution": "internal",
+      "ios": {
+        "simulator": false
+      },
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://rrljixodciaptldnzeoc.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJybGppeG9kY2lhcHRsZG56ZW9jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzNjMxNzAsImV4cCI6MjA5ODkzOTE3MH0.uqHxO5LF0j82perx2LaWnpFag29_1-V7pqvGQAJrcZY",
+        "EXPO_PUBLIC_BACKEND_URL": "https://event-planning-app-34yf.onrender.com"
+      }
+    },
     "production": {
       "environment": "production",
       "ios": {

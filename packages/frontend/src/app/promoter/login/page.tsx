@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
 import { createClient } from '@/lib/supabase/client'
-import { Megaphone, Loader2 } from 'lucide-react'
+import { Megaphone, Loader2, Eye, EyeOff } from 'lucide-react'
 
 export default function PromoterLogin() {
   const [email, setEmail] = useState('')
@@ -14,6 +14,7 @@ export default function PromoterLogin() {
   const [forgotMode, setForgotMode] = useState(false)
   const [resetSent, setResetSent] = useState(false)
   const [resetLoading, setResetLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault()

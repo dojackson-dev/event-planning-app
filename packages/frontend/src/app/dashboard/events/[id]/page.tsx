@@ -180,6 +180,8 @@ export default function EventDetailsPage() {
           )}
         </div>
 
+        <EventNotes eventId={eventId} />
+
         {/* Services Section */}
         {((event as any).caterer || (event as any).decorator || (event as any).musicType || (event as any).barOption) && (
           <div className="mt-8 pt-8 border-t">
@@ -212,8 +214,6 @@ export default function EventDetailsPage() {
             </div>
           </div>
         )}
-
-        <EventNotes eventId={eventId} />
       </div>
     </div>
   )

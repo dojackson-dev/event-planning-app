@@ -87,11 +87,18 @@ export class OwnerController {
     );
     if (!ownerAccountId) return { businessName: '', logoUrl: null };
 
-    const { data, error } = await admin
-      .from('owner_accounts')
-      .select('business_name, logo_url, cover_image_url')
-      .eq('id', ownerAccountId)
-      .maybeSingle();
+    const [{ data, error }, { data: userData }] = await Promise.all([
+      admin
+        .from('owner_accounts')
+        .select('business_name, logo_url, cover_image_url')
+        .eq('id', ownerAccountId)
+        .maybeSingle(),
+      admin
+        .from('users')
+        .select('phone_number')
+        .eq('id', userId)
+        .maybeSingle(),
+    ]);
 
     if (error) {
       console.error('[owner/profile] DB error:', error.message);
@@ -101,6 +108,7 @@ export class OwnerController {
       businessName: data?.business_name || '',
       logoUrl: data?.logo_url || null,
       coverImageUrl: (data as any)?.cover_image_url || null,
+      phoneNumber: (userData as any)?.phone_number || null,
     };
   }
 

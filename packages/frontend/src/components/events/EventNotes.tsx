@@ -77,8 +77,17 @@ export default function EventNotes({ eventId, eventDate }: { eventId: string; ev
   const [sendingReminder, setSendingReminder] = useState<string | null>(null)
   const [editingReminder, setEditingReminder] = useState<string | null>(null)
   const [editReminderForm, setEditReminderForm] = useState<ReminderForm>(defaultReminder())
+  const [ownerPhone, setOwnerPhone] = useState<string>('')
 
   useEffect(() => { fetchNotes() }, [eventId])
+
+  useEffect(() => {
+    api.get('/owner/profile').then(res => {
+      const phone = res.data?.phoneNumber || ''
+      setOwnerPhone(phone)
+      setReminder(r => ({ ...r, phone }))
+    }).catch(() => {})
+  }, [])
 
   const fetchNotes = async () => {
     try {
@@ -156,7 +165,7 @@ export default function EventNotes({ eventId, eventDate }: { eventId: string; ev
       value: note.reminder_value || 1,
       date: note.reminder_date ? note.reminder_date.slice(0, 16) : '',
       message: note.reminder_message || '',
-      phone: note.reminder_phone || '',
+      phone: note.reminder_phone || ownerPhone,
     })
   }
 

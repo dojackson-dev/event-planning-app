@@ -131,6 +131,8 @@ export default function EventDetailsPage() {
           </span>
         </div>
 
+        <EventNotes eventId={eventId} />
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Date & Time */}
           <div className="bg-gray-50 rounded-lg p-6">
@@ -179,8 +181,6 @@ export default function EventDetailsPage() {
             </div>
           )}
         </div>
-
-        <EventNotes eventId={eventId} />
 
         {/* Services Section */}
         {((event as any).caterer || (event as any).decorator || (event as any).musicType || (event as any).barOption) && (

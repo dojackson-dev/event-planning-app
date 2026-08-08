@@ -131,7 +131,7 @@ export default function EventDetailsPage() {
           </span>
         </div>
 
-        <EventNotes eventId={eventId} />
+        <EventNotes eventId={eventId} eventDate={event.date} />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Date & Time */}

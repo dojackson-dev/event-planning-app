@@ -4,11 +4,15 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
-import { CreateEventNoteDto } from './dto/event-note.dto';
+import { CreateEventNoteDto, UpdateEventNoteDto } from './dto/event-note.dto';
+import { TwilioService } from '../messaging/twilio.service';
 
 @Injectable()
 export class EventNotesService {
-  constructor(private readonly supabaseService: SupabaseService) {}
+  constructor(
+    private readonly supabaseService: SupabaseService,
+    private readonly twilioService: TwilioService,
+  ) {}
 
   /**
    * Confirms the user has access to the event before allowing
@@ -107,6 +111,8 @@ export class EventNotesService {
     await this.assertEventAccess(eventId, userId);
     const author = await this.getAuthorProfile(userId);
 
+    const reminderFields = this.buildReminderFields(dto);
+
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('event_notes')
@@ -116,12 +122,111 @@ export class EventNotesService {
         author_name: author.name,
         author_role: author.role,
         content: dto.content.trim(),
+        updated_at: new Date().toISOString(),
+        ...reminderFields,
       })
       .select()
       .single();
 
     if (error) throw error;
     return data;
+  }
+
+  async update(
+    noteId: string,
+    userId: string,
+    dto: UpdateEventNoteDto,
+  ): Promise<any> {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: note } = await admin
+      .from('event_notes')
+      .select('id, author_id, event_id')
+      .eq('id', noteId)
+      .maybeSingle();
+
+    if (!note) throw new NotFoundException('Note not found');
+    if (note.author_id !== userId) {
+      await this.assertEventAccess(note.event_id, userId);
+    }
+
+    const reminderFields = this.buildReminderFields(dto);
+    const updates: any = { updated_at: new Date().toISOString(), ...reminderFields };
+    if (dto.content !== undefined) updates.content = dto.content.trim();
+
+    const { data, error } = await admin
+      .from('event_notes')
+      .update(updates)
+      .eq('id', noteId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  async sendReminder(noteId: string, userId: string): Promise<{ sent: boolean; message?: string }> {
+    const admin = this.supabaseService.getAdminClient();
+
+    const { data: note } = await admin
+      .from('event_notes')
+      .select('*')
+      .eq('id', noteId)
+      .maybeSingle();
+
+    if (!note) throw new NotFoundException('Note not found');
+    await this.assertEventAccess(note.event_id, userId);
+
+    if (!note.reminder_enabled) {
+      return { sent: false, message: 'Reminder not enabled on this note' };
+    }
+    if (!note.reminder_phone) {
+      return { sent: false, message: 'No phone number set for reminder' };
+    }
+    if (note.reminder_sent_at) {
+      return { sent: false, message: 'Reminder already sent' };
+    }
+
+    const smsBody = note.reminder_message || note.content;
+    try {
+      await this.twilioService.sendSMS(note.reminder_phone, smsBody);
+      await admin
+        .from('event_notes')
+        .update({ reminder_sent_at: new Date().toISOString() })
+        .eq('id', noteId);
+      return { sent: true };
+    } catch (err: any) {
+      return { sent: false, message: err.message };
+    }
+  }
+
+  private buildReminderFields(dto: CreateEventNoteDto | UpdateEventNoteDto): Record<string, any> {
+    const fields: Record<string, any> = {
+      reminder_enabled: dto.reminder_enabled ?? false,
+      reminder_type: dto.reminder_type ?? null,
+      reminder_value: dto.reminder_value ?? null,
+      reminder_date: dto.reminder_date ?? null,
+      reminder_message: dto.reminder_message ?? null,
+      reminder_phone: dto.reminder_phone ?? null,
+      reminder_sent_at: null, // reset whenever reminder settings change
+    };
+
+    // Compute the absolute send time
+    if (dto.reminder_enabled && dto.reminder_type) {
+      if (dto.reminder_type === 'date' && dto.reminder_date) {
+        fields.reminder_send_at = new Date(dto.reminder_date).toISOString();
+      } else if ((dto.reminder_type === 'days' || dto.reminder_type === 'weeks') && dto.event_date && dto.reminder_value) {
+        const eventDate = new Date(dto.event_date);
+        const offsetMs = dto.reminder_type === 'weeks'
+          ? dto.reminder_value * 7 * 24 * 60 * 60 * 1000
+          : dto.reminder_value * 24 * 60 * 60 * 1000;
+        fields.reminder_send_at = new Date(eventDate.getTime() - offsetMs).toISOString();
+      }
+    } else {
+      fields.reminder_send_at = null;
+    }
+
+    return fields;
   }
 
   async remove(noteId: string, userId: string): Promise<void> {

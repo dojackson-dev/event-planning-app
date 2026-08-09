@@ -17,6 +17,7 @@ interface VenueProfile {
   capacity: number
   description: string
   profile_image_url: string
+  cover_image_url?: string
   website: string
   phone: string
   latitude: number
@@ -72,6 +73,13 @@ export default function VenueProfilePage({ params }: { params: { id: string } })
       </nav>
 
       <div className="max-w-5xl mx-auto px-4 py-8">
+        {/* Cover banner */}
+        {venue.cover_image_url && (
+          <div className="w-full h-40 sm:h-56 rounded-2xl overflow-hidden mb-6 border border-gray-100">
+            <img src={venue.cover_image_url} alt={`${venue.name} banner`} className="w-full h-full object-cover" />
+          </div>
+        )}
+
         {/* Header card */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
           <div className="flex items-start gap-6">

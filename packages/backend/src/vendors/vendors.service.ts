@@ -222,7 +222,31 @@ export class VendorsService {
       return [];
     }
 
-    return venues || [];
+    if (!venues?.length) return [];
+
+    // The RPC doesn't return owner branding, so fetch it separately and merge
+    // in the owner's logo/cover as a fallback for venues without their own image.
+    const venueIds = venues.map((v: any) => v.id);
+    const { data: branding } = await admin
+      .from('venues')
+      .select('id, owner_accounts(logo_url, cover_image_url)')
+      .in('id', venueIds);
+
+    const brandingById = new Map(
+      (branding || []).map((b: any) => [
+        b.id,
+        Array.isArray(b.owner_accounts) ? b.owner_accounts[0] : b.owner_accounts,
+      ]),
+    );
+
+    return venues.map((v: any) => {
+      const ownerAccount = brandingById.get(v.id);
+      return {
+        ...v,
+        profile_image_url: v.profile_image_url || ownerAccount?.logo_url || null,
+        cover_image_url: ownerAccount?.cover_image_url || null,
+      };
+    });
   }
 
   /** Zip-code-based vendor search — used as fallback when geo RPC returns no results. */
@@ -270,12 +294,27 @@ export class VendorsService {
     return (data || []).map((v) => this.enrichWithRating(v));
   }
 
+  /** Fall back to the owner's branding logo/cover (Settings > Branding) when the venue has no image of its own. */
+  private applyOwnerBranding<T extends { profile_image_url?: string | null; owner_accounts?: any }>(
+    venue: T,
+  ) {
+    const ownerAccount = Array.isArray(venue.owner_accounts)
+      ? venue.owner_accounts[0]
+      : venue.owner_accounts;
+    const { owner_accounts, ...rest } = venue as any;
+    return {
+      ...rest,
+      profile_image_url: rest.profile_image_url || ownerAccount?.logo_url || null,
+      cover_image_url: ownerAccount?.cover_image_url || null,
+    };
+  }
+
   async getAllVenues() {
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('venues')
       .select(
-        'id, name, address, city, state, zip_code, capacity, description, profile_image_url, website, phone, latitude, longitude',
+        'id, name, address, city, state, zip_code, capacity, description, profile_image_url, website, phone, latitude, longitude, owner_accounts(logo_url, cover_image_url)',
       )
       .not('name', 'is', null)
       .order('name');
@@ -284,7 +323,7 @@ export class VendorsService {
       this.logger.error('getAllVenues error:', error.message);
       return [];
     }
-    return data || [];
+    return (data || []).map((v) => this.applyOwnerBranding(v as any));
   }
 
   async getVenueById(id: string) {
@@ -292,7 +331,7 @@ export class VendorsService {
     const { data, error } = await admin
       .from('venues')
       .select(
-        'id, name, address, city, state, zip_code, capacity, description, profile_image_url, website, phone, latitude, longitude, owner_account_id',
+        'id, name, address, city, state, zip_code, capacity, description, profile_image_url, website, phone, latitude, longitude, owner_account_id, owner_accounts(logo_url, cover_image_url)',
       )
       .eq('id', id)
       .single();
@@ -300,7 +339,7 @@ export class VendorsService {
     if (error || !data) {
       throw new NotFoundException('Venue not found');
     }
-    return data;
+    return this.applyOwnerBranding(data as any);
   }
 
   // ─────────────────────────────────────────────

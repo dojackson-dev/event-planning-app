@@ -106,7 +106,11 @@ export default function EventNotes({ eventId, eventDate }: { eventId: string; ev
     reminder_enabled: r.enabled,
     reminder_type: r.enabled ? r.type : undefined,
     reminder_value: r.enabled && (r.type === 'days' || r.type === 'weeks') ? r.value : undefined,
-    reminder_date: r.enabled && r.type === 'date' ? r.date : undefined,
+    // Convert the datetime-local value (naive wall-clock string) to a proper
+    // UTC ISO string using the browser's own timezone, so the backend never
+    // has to guess an offset (it previously used the server's UTC timezone,
+    // shifting the saved time by several hours).
+    reminder_date: r.enabled && r.type === 'date' && r.date ? new Date(r.date).toISOString() : undefined,
     reminder_message: r.enabled && r.message ? r.message : undefined,
     reminder_phone: r.enabled && r.phone ? r.phone : undefined,
     event_date: eventDate,
@@ -163,7 +167,10 @@ export default function EventNotes({ eventId, eventDate }: { eventId: string; ev
       enabled: note.reminder_enabled,
       type: note.reminder_type || 'days',
       value: note.reminder_value || 1,
-      date: note.reminder_date ? note.reminder_date.slice(0, 16) : '',
+      // Convert the stored UTC ISO timestamp back to the browser's local
+      // wall-clock time for the datetime-local input (inverse of the ISO
+      // conversion done in buildReminderPayload).
+      date: note.reminder_date ? format(new Date(note.reminder_date), "yyyy-MM-dd'T'HH:mm") : '',
       message: note.reminder_message || '',
       phone: note.reminder_phone || ownerPhone,
     })

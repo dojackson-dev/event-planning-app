@@ -59,6 +59,11 @@ export class ClientAuthService {
     }
 
     const normalized = this.normalizePhone(phone);
+    if (!/^\+1\d{10}$/.test(normalized)) {
+      throw new BadRequestException(
+        'Please enter a valid 10-digit U.S. phone number.',
+      );
+    }
     const phoneVariants = this.buildPhoneVariants(normalized);
 
     // Prefer admin client (bypasses RLS); fall back to anon if service key not configured
@@ -149,10 +154,21 @@ export class ClientAuthService {
       this.logger.warn(`[DEV] OTP for ${normalized}: ${otp}`);
     }
 
-    await this.twilioService.sendSMS(
-      normalized,
-      `Your EventEcos verification code is: ${otp}. Valid for 10 minutes.`,
-    );
+    try {
+      await this.twilioService.sendSMS(
+        normalized,
+        `Your EventEcos verification code is: ${otp}. Valid for 10 minutes.`,
+      );
+    } catch (error) {
+      this.otpStore.delete(normalized);
+      this.logger.error(
+        `Failed to send OTP SMS to ${normalized}: ${(error as Error)?.message}`,
+        (error as Error)?.stack,
+      );
+      throw new BadRequestException(
+        'We couldn\'t send a text to that number. Please double-check it and try again.',
+      );
+    }
 
     return { message: 'Verification code sent.' };
   }

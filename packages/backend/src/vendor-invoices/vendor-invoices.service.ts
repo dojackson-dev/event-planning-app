@@ -44,11 +44,20 @@ export class VendorInvoicesService {
   private async generateInvoiceNumber(): Promise<string> {
     const admin = this.supabaseService.getAdminClient();
     const year = new Date().getFullYear();
-    const { count } = await admin
+    const prefix = `VINV-${year}-`;
+    const { data } = await admin
       .from('vendor_invoices')
-      .select('*', { count: 'exact', head: true });
-    const seq = String((count ?? 0) + 1).padStart(5, '0');
-    return `VINV-${year}-${seq}`;
+      .select('invoice_number')
+      .like('invoice_number', `${prefix}%`)
+      .order('invoice_number', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    let seq = 1;
+    if (data?.invoice_number) {
+      const match = data.invoice_number.match(/VINV-\d{4}-(\d+)/);
+      if (match) seq = parseInt(match[1], 10) + 1;
+    }
+    return `${prefix}${String(seq).padStart(5, '0')}`;
   }
 
   private calculateTotals(
@@ -248,11 +257,20 @@ export class VendorInvoicesService {
         .join(' ') || user.email;
 
     const year = new Date().getFullYear();
-    const { count } = await admin
+    const binvPrefix = `BINV-${year}-`;
+    const { data: maxBinv } = await admin
       .from('vendor_invoices')
-      .select('*', { count: 'exact', head: true });
-    const seq = String((count ?? 0) + 1).padStart(5, '0');
-    const invoiceNumber = `BINV-${year}-${seq}`;
+      .select('invoice_number')
+      .like('invoice_number', `${binvPrefix}%`)
+      .order('invoice_number', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    let binvSeq = 1;
+    if (maxBinv?.invoice_number) {
+      const match = maxBinv.invoice_number.match(/BINV-\d{4}-(\d+)/);
+      if (match) binvSeq = parseInt(match[1], 10) + 1;
+    }
+    const invoiceNumber = `${binvPrefix}${String(binvSeq).padStart(5, '0')}`;
 
     const amount = Number(dto.agreedAmount);
     const issueDate = new Date().toISOString().split('T')[0];

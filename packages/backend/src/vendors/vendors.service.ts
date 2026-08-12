@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
+import { MailService } from '../mail/mail.service';
 import {
   CreateVendorDto,
   UpdateVendorDto,
@@ -18,13 +19,21 @@ import {
   UpdateBookingRequestDto,
 } from './dto/vendor.dto';
 
+/**
+ * Normalizes a phone number to E.164 US format (+1XXXXXXXXXX).
+ * Returns null (instead of the raw, un-normalized input) when the value
+ * cannot be confidently normalized to a valid 10-digit US number — this
+ * prevents obviously-invalid numbers (e.g. wrong country code, typos) from
+ * being silently stored and later passed to Twilio, where they fail at
+ * send-time with no useful signal to the user.
+ */
 function normalizePhone(phone: string | null | undefined): string | null {
   if (!phone) return null;
+  if (/^\+1\d{10}$/.test(phone)) return phone;
   const digits = phone.replace(/\D/g, '');
-  if (phone.match(/^\+1\d{10}$/)) return phone;
   if (digits.length === 10) return `+1${digits}`;
   if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
-  return phone;
+  return null;
 }
 
 @Injectable()
@@ -34,6 +43,7 @@ export class VendorsService {
   constructor(
     private readonly supabaseService: SupabaseService,
     private readonly smsNotifications: SmsNotificationsService,
+    private readonly mailService: MailService,
   ) {}
 
   // ─────────────────────────────────────────────
@@ -1435,8 +1445,40 @@ export class VendorsService {
           vendorName,
           dto.quotedAmount != null ? Number(dto.quotedAmount) : undefined,
         );
-      } catch {
+      } catch (err) {
+        this.logger.warn(
+          `Failed to send booking-status SMS to client: ${(err as Error)?.message}`,
+        );
         // SMS errors must never break the booking request update
+      }
+    }
+
+    // Notify client by email too, if we have an address on file
+    if (dto.status && data.client_email) {
+      try {
+        const vendorName: string =
+          data.vendor_accounts?.business_name ?? 'Your vendor';
+        const statusText =
+          dto.status === 'confirmed'
+            ? 'confirmed'
+            : dto.status === 'declined'
+              ? 'declined'
+              : dto.status;
+        const amountText =
+          dto.quotedAmount != null
+            ? ` The quoted amount is $${Number(dto.quotedAmount).toFixed(2)}.`
+            : '';
+        await this.mailService.sendReminderEmail({
+          toEmail: data.client_email,
+          toName: data.client_name ?? 'there',
+          subject: `Your booking request with ${vendorName} was ${statusText}`,
+          body: `Your booking request with ${vendorName} has been ${statusText}.${amountText}`,
+        });
+      } catch (err) {
+        this.logger.warn(
+          `Failed to send booking-status email to client: ${(err as Error)?.message}`,
+        );
+        // Email errors must never break the booking request update
       }
     }
 

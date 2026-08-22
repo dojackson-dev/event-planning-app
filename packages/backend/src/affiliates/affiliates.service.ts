@@ -574,6 +574,22 @@ export class AffiliatesService {
     const { data: allUsers, error } = await usersQuery;
     if (error) throw new BadRequestException(error.message);
 
+    // Fetch last_sign_in_at from auth.users (public.users is not synced on login)
+    const authSignInMap = new Map<string, string | null>();
+    try {
+      let page = 1;
+      while (true) {
+        const { data: authPage } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+        for (const u of authPage?.users ?? []) {
+          authSignInMap.set(u.id, u.last_sign_in_at ?? null);
+        }
+        if ((authPage?.users?.length ?? 0) < 1000) break;
+        page++;
+      }
+    } catch {
+      // Non-fatal — fall back to public.users value
+    }
+
     // For owners — fetch owner_accounts to get subscription info
     const ownerIds = (allUsers || [])
       .filter((u: any) => u.role === 'owner')
@@ -623,7 +639,7 @@ export class AffiliatesService {
         subscription_status: acct?.subscription_status ?? null,
         trial_ends_at: acct?.trial_ends_at ?? null,
         account_created_at: u.created_at,
-        last_login: u.last_sign_in_at ?? null,
+        last_login: authSignInMap.get(u.id) ?? u.last_sign_in_at ?? null,
         referred_by: ref
           ? {
               name: `${ref.first_name} ${ref.last_name}`,

@@ -463,7 +463,27 @@ export class AdminService {
 
     const { data, count, error } = await query;
     if (error) throw error;
-    return { activity: data || [], total: count || 0, page, limit };
+
+    // Merge last_sign_in_at from auth.users since public.users is not synced on login
+    const authSignInMap = new Map<string, string | null>();
+    try {
+      let authPage = 1;
+      while (true) {
+        const { data: authData } = await supabase.auth.admin.listUsers({ page: authPage, perPage: 1000 });
+        for (const u of authData?.users ?? []) {
+          authSignInMap.set(u.id, u.last_sign_in_at ?? null);
+        }
+        if ((authData?.users?.length ?? 0) < 1000) break;
+        authPage++;
+      }
+    } catch { /* non-fatal */ }
+
+    const activity = (data || []).map((u: any) => ({
+      ...u,
+      last_sign_in_at: authSignInMap.get(u.id) ?? u.last_sign_in_at ?? null,
+    }));
+
+    return { activity, total: count || 0, page, limit };
   }
 
   async getTrials(page = 1, limit = 50, search = '') {

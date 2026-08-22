@@ -3,6 +3,7 @@ import {
   Post,
   Get,
   Delete,
+  Patch,
   Body,
   Headers,
   RawBody,
@@ -75,7 +76,9 @@ export class StripeController {
     const { ownerAccountId, priceId, email, businessName } = body;
 
     if (!ownerAccountId || !priceId || !email || !businessName) {
-      throw new BadRequestException('ownerAccountId, priceId, email, and businessName are required');
+      throw new BadRequestException(
+        'ownerAccountId, priceId, email, and businessName are required',
+      );
     }
 
     const url = await this.stripeService.createCheckoutSession(
@@ -101,7 +104,9 @@ export class StripeController {
       throw new BadRequestException('ownerAccountId is required');
     }
 
-    const url = await this.stripeService.createBillingPortalSession(body.ownerAccountId);
+    const url = await this.stripeService.createBillingPortalSession(
+      body.ownerAccountId,
+    );
     return { url };
   }
 
@@ -164,7 +169,9 @@ export class StripeController {
       throw new BadRequestException('No promoter account found for this user');
     }
 
-    const url = await this.stripeService.createPromoterBillingPortalSession(promoter.id);
+    const url = await this.stripeService.createPromoterBillingPortalSession(
+      promoter.id,
+    );
     return { url };
   }
 
@@ -191,10 +198,14 @@ export class StripeController {
   // ─── Helpers ─────────────────────────────────────────────────────────────
 
   private async getUserIdFromAuth(authorization: string): Promise<string> {
-    if (!authorization) throw new UnauthorizedException('No authorization header');
+    if (!authorization)
+      throw new UnauthorizedException('No authorization header');
     const token = authorization.replace('Bearer ', '');
     const supabase = this.supabaseService.setAuthContext(token);
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
     if (error || !user) throw new UnauthorizedException('Invalid token');
     return user.id;
   }
@@ -213,7 +224,10 @@ export class StripeController {
   ): Promise<{ url: string }> {
     if (!body.email) throw new BadRequestException('email is required');
     const userId = await this.getUserIdFromAuth(authorization);
-    const url = await this.stripeService.createOwnerConnectOnboarding(userId, body.email);
+    const url = await this.stripeService.createOwnerConnectOnboarding(
+      userId,
+      body.email,
+    );
     return { url };
   }
 
@@ -228,7 +242,10 @@ export class StripeController {
   ): Promise<{ url: string }> {
     if (!body.email) throw new BadRequestException('email is required');
     const userId = await this.getUserIdFromAuth(authorization);
-    const url = await this.stripeService.createVendorConnectOnboarding(userId, body.email);
+    const url = await this.stripeService.createVendorConnectOnboarding(
+      userId,
+      body.email,
+    );
     return { url };
   }
 
@@ -238,7 +255,13 @@ export class StripeController {
   @Get('connect/owner/status')
   async ownerConnectStatus(
     @Headers('authorization') authorization: string,
-  ): Promise<{ status: string; connectId: string | null; accountCreatedAt: string | null; planName: string | null; subscriptionStatus: string | null }> {
+  ): Promise<{
+    status: string;
+    connectId: string | null;
+    accountCreatedAt: string | null;
+    planName: string | null;
+    subscriptionStatus: string | null;
+  }> {
     const userId = await this.getUserIdFromAuth(authorization);
     return this.stripeService.getOwnerConnectStatus(userId);
   }
@@ -289,7 +312,10 @@ export class StripeController {
   ): Promise<{ url: string }> {
     if (!body.email) throw new BadRequestException('email is required');
     const userId = await this.getUserIdFromAuth(authorization);
-    const url = await this.stripeService.createPromoterConnectOnboarding(userId, body.email);
+    const url = await this.stripeService.createPromoterConnectOnboarding(
+      userId,
+      body.email,
+    );
     return { url };
   }
 
@@ -328,7 +354,10 @@ export class StripeController {
   ): Promise<{ url: string }> {
     if (!body.email) throw new BadRequestException('email is required');
     const userId = await this.getUserIdFromAuth(authorization);
-    const url = await this.stripeService.createArtistConnectOnboarding(userId, body.email);
+    const url = await this.stripeService.createArtistConnectOnboarding(
+      userId,
+      body.email,
+    );
     return { url };
   }
 
@@ -354,6 +383,33 @@ export class StripeController {
     return this.stripeService.resetArtistConnect(userId);
   }
 
+  // ─── BNPL preference ──────────────────────────────────────────────────────
+
+  /**
+   * PATCH /stripe/connect/:role/bnpl
+   * Saves the user's opt-in/out for buy-now-pay-later payment methods.
+   * Body: { enabled: boolean }
+   */
+  @Patch('connect/:role/bnpl')
+  async setBnplPreference(
+    @Headers('authorization') authorization: string,
+    @Param('role') role: string,
+    @Body() body: { enabled: boolean },
+  ): Promise<{ success: boolean }> {
+    if (!['owner', 'vendor', 'artist', 'promoter'].includes(role)) {
+      throw new BadRequestException('Invalid role');
+    }
+    if (typeof body.enabled !== 'boolean') {
+      throw new BadRequestException('enabled must be a boolean');
+    }
+    const userId = await this.getUserIdFromAuth(authorization);
+    return this.stripeService.setBnplPreference(
+      userId,
+      role as 'owner' | 'vendor' | 'artist' | 'promoter',
+      body.enabled,
+    );
+  }
+
   // ─── Payments ─────────────────────────────────────────────────────────────
 
   /**
@@ -364,13 +420,33 @@ export class StripeController {
    */
   @Post('payments/charge-client')
   async chargeClient(
-    @Body() body: { amountCents: number; ownerUserId: string; description?: string; invoiceId?: string },
-  ): Promise<{ clientSecret: string; paymentIntentId: string; feeCents: number }> {
-    const { amountCents, ownerUserId, description = 'Event booking payment', invoiceId } = body;
+    @Body()
+    body: {
+      amountCents: number;
+      ownerUserId: string;
+      description?: string;
+      invoiceId?: string;
+    },
+  ): Promise<{
+    clientSecret: string;
+    paymentIntentId: string;
+    feeCents: number;
+  }> {
+    const {
+      amountCents,
+      ownerUserId,
+      description = 'Event booking payment',
+      invoiceId,
+    } = body;
     if (!amountCents || !ownerUserId) {
       throw new BadRequestException('amountCents and ownerUserId are required');
     }
-    return this.stripeService.createClientPaymentIntent(amountCents, ownerUserId, description, invoiceId);
+    return this.stripeService.createClientPaymentIntent(
+      amountCents,
+      ownerUserId,
+      description,
+      invoiceId,
+    );
   }
 
   /**
@@ -381,7 +457,8 @@ export class StripeController {
   @Post('payments/pay-vendor')
   async payVendor(
     @Headers('authorization') authorization: string,
-    @Body() body: {
+    @Body()
+    body: {
       amountCents: number;
       vendorAccountId: string;
       vendorBookingId: string;
@@ -389,11 +466,24 @@ export class StripeController {
     },
   ): Promise<{ transferId: string; feeCents: number; netCents: number }> {
     const userId = await this.getUserIdFromAuth(authorization);
-    const { amountCents, vendorAccountId, vendorBookingId, description = 'Vendor payment' } = body;
+    const {
+      amountCents,
+      vendorAccountId,
+      vendorBookingId,
+      description = 'Vendor payment',
+    } = body;
     if (!amountCents || !vendorAccountId || !vendorBookingId) {
-      throw new BadRequestException('amountCents, vendorAccountId, and vendorBookingId are required');
+      throw new BadRequestException(
+        'amountCents, vendorAccountId, and vendorBookingId are required',
+      );
     }
-    return this.stripeService.payVendor(amountCents, userId, vendorAccountId, vendorBookingId, description);
+    return this.stripeService.payVendor(
+      amountCents,
+      userId,
+      vendorAccountId,
+      vendorBookingId,
+      description,
+    );
   }
   /**
    * POST /stripe/payment-link
@@ -404,14 +494,24 @@ export class StripeController {
   @Post('payment-link')
   async createPaymentLink(
     @Headers('authorization') authorization: string,
-    @Body() body: { invoiceId: string; amountCents?: number; description?: string },
+    @Body()
+    body: { invoiceId: string; amountCents?: number; description?: string },
   ): Promise<{ url: string }> {
     const userId = await this.getUserIdFromAuth(authorization);
-    const { invoiceId, amountCents = 0, description = 'Invoice Payment' } = body;
+    const {
+      invoiceId,
+      amountCents = 0,
+      description = 'Invoice Payment',
+    } = body;
     if (!invoiceId) {
       throw new BadRequestException('invoiceId is required');
     }
-    const url = await this.stripeService.createInvoicePaymentLink(invoiceId, amountCents, description, userId);
+    const url = await this.stripeService.createInvoicePaymentLink(
+      invoiceId,
+      amountCents,
+      description,
+      userId,
+    );
     return { url };
   }
 
@@ -437,9 +537,14 @@ export class StripeController {
   ): Promise<{ url: string }> {
     const { amountCents } = body;
     if (!amountCents || amountCents < 50) {
-      throw new BadRequestException('amountCents must be at least 50 (i.e. $0.50)');
+      throw new BadRequestException(
+        'amountCents must be at least 50 (i.e. $0.50)',
+      );
     }
-    const url = await this.stripeService.createPublicInvoiceCheckout(token, amountCents);
+    const url = await this.stripeService.createPublicInvoiceCheckout(
+      token,
+      amountCents,
+    );
     return { url };
   }
 

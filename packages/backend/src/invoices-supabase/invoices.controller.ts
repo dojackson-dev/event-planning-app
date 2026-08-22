@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, Headers } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  Headers,
+} from '@nestjs/common';
 import { InvoicesService, Invoice, InvoiceItem } from './invoices.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
@@ -45,7 +55,8 @@ export class InvoicesController {
   @Post()
   async create(
     @Headers('authorization') auth: string,
-    @Body() body: { invoice?: Partial<Invoice>; items?: any[] } & Partial<Invoice>,
+    @Body()
+    body: { invoice?: Partial<Invoice>; items?: any[] } & Partial<Invoice>,
   ): Promise<Invoice> {
     const supabase = this.getSupabase(auth);
 
@@ -89,11 +100,18 @@ export class InvoicesController {
     @Body('status') status: string,
   ): Promise<Invoice | null> {
     const supabase = this.getSupabase(auth);
-    const updated = await this.invoicesService.update(supabase, id, { status: status as Invoice['status'] });
+    const updated = await this.invoicesService.update(supabase, id, {
+      status: status as Invoice['status'],
+    });
     if (status === 'sent' && updated) {
       const phone = updated.client_phone;
       const name = updated.client_name || 'Valued Client';
-      await this.smsService.invoiceSent(phone, name, updated.invoice_number!, updated.total_amount);
+      await this.smsService.invoiceSent(
+        phone,
+        name,
+        updated.invoice_number!,
+        updated.total_amount,
+      );
     }
     return updated;
   }
@@ -111,8 +129,13 @@ export class InvoicesController {
     // Notify client when an already-sent invoice is edited
     if (existing?.status === 'sent' && updated) {
       const phone = updated.client_phone || existing.client_phone;
-      const name = updated.client_name || existing.client_name || 'Valued Client';
-      await this.smsService.invoiceUpdated(phone, name, updated.invoice_number!);
+      const name =
+        updated.client_name || existing.client_name || 'Valued Client';
+      await this.smsService.invoiceUpdated(
+        phone,
+        name,
+        updated.invoice_number!,
+      );
     }
     return updated;
   }
@@ -153,7 +176,10 @@ export class InvoicesController {
     @Body() item: Partial<InvoiceItem>,
   ): Promise<InvoiceItem> {
     const supabase = this.getSupabase(auth);
-    return this.invoicesService.addItem(supabase, { ...item, invoice_id: invoiceId });
+    return this.invoicesService.addItem(supabase, {
+      ...item,
+      invoice_id: invoiceId,
+    });
   }
 
   @Put('items/:id')

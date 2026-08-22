@@ -31,33 +31,60 @@ export function AffiliateAuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter()
 
   useEffect(() => {
-    const stored = localStorage.getItem('affiliate_data')
-    const token  = localStorage.getItem('affiliate_token')
-    if (stored && token) {
-      setAffiliate(JSON.parse(stored))
+    const init = async () => {
+      const stored = localStorage.getItem('affiliate_data')
+      const token  = localStorage.getItem('access_token')
+
+      if (!token) { setLoading(false); return }
+
+      if (stored) {
+        setAffiliate(JSON.parse(stored))
+        setLoading(false)
+        return
+      }
+
+      // Token exists (e.g. from the main-site login) but we haven't cached the
+      // affiliate profile yet — fetch it so users landing here via the main
+      // login page (not /sales-portal/login) are still recognized.
+      try {
+        const affRes = await api.get('/affiliates/me', {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const aff = affRes.data
+        localStorage.setItem('affiliate_data', JSON.stringify(aff))
+        setAffiliate(aff)
+      } catch {
+        // Not an affiliate account, or token invalid — leave unauthenticated
+      } finally {
+        setLoading(false)
+      }
     }
-    setLoading(false)
+
+    init()
   }, [])
 
   const login = async (email: string, password: string) => {
-    const res = await api.post('/affiliates/login', { email, password })
-    const { access_token, refresh_token, affiliate: aff } = res.data
+    // Use the same unified login as the main app
+    const res = await api.post('/auth/flow/unified/login', { email, password })
+    const { session } = res.data
 
-    localStorage.setItem('affiliate_token',         access_token)
-    localStorage.setItem('affiliate_refresh_token', refresh_token)
-    localStorage.setItem('affiliate_data',          JSON.stringify(aff))
+    localStorage.setItem('access_token',  session.access_token)
+    localStorage.setItem('refresh_token', session.refresh_token)
 
-    // Also set the shared access_token so the api interceptor picks it up
-    localStorage.setItem('access_token',  access_token)
-    localStorage.setItem('refresh_token', refresh_token)
+    // Fetch affiliate profile with the new token
+    const affRes = await api.get('/affiliates/me', {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+    const aff = affRes.data
+
+    localStorage.setItem('affiliate_data', JSON.stringify(aff))
 
     setAffiliate(aff)
     router.push('/sales-portal/dashboard')
   }
 
   const logout = () => {
-    ;['affiliate_token', 'affiliate_refresh_token', 'affiliate_data',
-      'access_token', 'refresh_token'].forEach(k => localStorage.removeItem(k))
+    ;['affiliate_data', 'access_token', 'refresh_token'].forEach(k => localStorage.removeItem(k))
     setAffiliate(null)
     router.push('/sales-portal/login')
   }

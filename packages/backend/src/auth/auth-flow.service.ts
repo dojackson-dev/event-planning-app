@@ -1,12 +1,26 @@
-import { Injectable, UnauthorizedException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { StripeService } from '../stripe/stripe.service';
 import { SmsService } from '../sms/sms.service';
 import { TrialService } from '../trial/trial.service';
 import { TwilioService } from '../messaging/twilio.service.js';
 import { AffiliatesService } from '../affiliates/affiliates.service';
-import { OwnerSignupDto, OwnerLoginDto, VerifyPhoneDto } from './dto/owner-signup.dto';
-import { CreateInviteDto, AcceptInviteDto, ClientSmsOptInDto } from './dto/client-invite.dto';
+import {
+  OwnerSignupDto,
+  OwnerLoginDto,
+  VerifyPhoneDto,
+} from './dto/owner-signup.dto';
+import {
+  CreateInviteDto,
+  AcceptInviteDto,
+  ClientSmsOptInDto,
+} from './dto/client-invite.dto';
 import { randomBytes } from 'crypto';
 
 @Injectable()
@@ -37,7 +51,9 @@ export class AuthFlowService {
       .single();
 
     if (existingUser) {
-      throw new BadRequestException('An account with this email already exists');
+      throw new BadRequestException(
+        'An account with this email already exists',
+      );
     }
 
     // 1. Create auth user
@@ -53,40 +69,44 @@ export class AuthFlowService {
     });
 
     if (authError || !authData.user) {
-      throw new BadRequestException(authError?.message || 'Failed to create user');
+      throw new BadRequestException(
+        authError?.message || 'Failed to create user',
+      );
     }
 
     // Check for Supabase's "fake success" response when email already exists
     if (!authData.user.identities || authData.user.identities.length === 0) {
-      throw new BadRequestException('An account with this email already exists');
+      throw new BadRequestException(
+        'An account with this email already exists',
+      );
     }
 
     const userId = authData.user.id;
 
     // 2. Create user record first (owner_accounts FK references users.id)
-    const { error: userError } = await supabase
-      .from('users')
-      .insert({
-        id: userId,
-        email: dto.email,
-        first_name: dto.firstName,
-        last_name: dto.lastName,
-        role: 'owner',
-        roles: ['owner'],
-        phone_number: dto.phoneNumber,
-        email_verified: false, // Will be verified via Supabase email
-        phone_verified: false, // Skip SMS for now
-        sms_opt_in: dto.smsOptIn === true,
-        sms_opt_in_at: dto.smsOptIn === true ? new Date().toISOString() : null,
-        status: 'active',
-      });
+    const { error: userError } = await supabase.from('users').insert({
+      id: userId,
+      email: dto.email,
+      first_name: dto.firstName,
+      last_name: dto.lastName,
+      role: 'owner',
+      roles: ['owner'],
+      phone_number: dto.phoneNumber,
+      email_verified: false, // Will be verified via Supabase email
+      phone_verified: false, // Skip SMS for now
+      sms_opt_in: dto.smsOptIn === true,
+      sms_opt_in_at: dto.smsOptIn === true ? new Date().toISOString() : null,
+      status: 'active',
+    });
 
     if (userError) throw new BadRequestException(userError.message);
 
     // Resolve affiliate referral code if provided
     let referredByAffiliateId: string | null = null;
     if (dto.referralCode) {
-      referredByAffiliateId = await this.affiliatesService.getAffiliateIdByCode(dto.referralCode);
+      referredByAffiliateId = await this.affiliatesService.getAffiliateIdByCode(
+        dto.referralCode,
+      );
     }
 
     // 3. Create owner_account with trial (FK primary_owner_id → users.id)
@@ -113,9 +133,9 @@ export class AuthFlowService {
       const admin = this.supabaseService.getAdminClient();
       await admin.from('affiliate_referrals').upsert(
         {
-          affiliate_id:     referredByAffiliateId,
+          affiliate_id: referredByAffiliateId,
           owner_account_id: ownerAccount.id,
-          status:           'pending',
+          status: 'pending',
         },
         { onConflict: 'affiliate_id,owner_account_id' },
       );
@@ -125,32 +145,28 @@ export class AuthFlowService {
     await this.trialService.createTrial(ownerAccount.id);
 
     // 4. Create membership
-    const { error: memberError } = await supabase
-      .from('memberships')
-      .insert({
-        user_id: userId,
-        owner_account_id: ownerAccount.id,
-        role: 'owner',
-        is_active: true,
-      });
+    const { error: memberError } = await supabase.from('memberships').insert({
+      user_id: userId,
+      owner_account_id: ownerAccount.id,
+      role: 'owner',
+      is_active: true,
+    });
 
     if (memberError) throw new BadRequestException(memberError.message);
 
     // 5. Create first venue (required)
-    const { error: venueError } = await supabase
-      .from('venues')
-      .insert({
-        owner_account_id: ownerAccount.id,
-        name: dto.venueName,
-        address: dto.venueAddress,
-        city: dto.venueCity,
-        state: dto.venueState,
-        zip_code: dto.venueZipCode,
-        phone: dto.venuePhone,
-        email: dto.venueEmail,
-        capacity: dto.venueCapacity,
-        description: dto.venueDescription,
-      });
+    const { error: venueError } = await supabase.from('venues').insert({
+      owner_account_id: ownerAccount.id,
+      name: dto.venueName,
+      address: dto.venueAddress,
+      city: dto.venueCity,
+      state: dto.venueState,
+      zip_code: dto.venueZipCode,
+      phone: dto.venuePhone,
+      email: dto.venueEmail,
+      capacity: dto.venueCapacity,
+      description: dto.venueDescription,
+    });
 
     if (venueError) throw new BadRequestException(venueError.message);
 
@@ -183,7 +199,7 @@ export class AuthFlowService {
    */
   async verifyPhone(dto: VerifyPhoneDto) {
     const isValid = await this.smsService.verifyCode(dto.userId, dto.otp);
-    
+
     if (!isValid) {
       throw new BadRequestException('Invalid or expired OTP');
     }
@@ -191,7 +207,7 @@ export class AuthFlowService {
     const supabase = this.supabaseService.getClient();
     const { error } = await supabase
       .from('users')
-      .update({ 
+      .update({
         phone_verified: true,
         status: 'active',
       })
@@ -203,7 +219,10 @@ export class AuthFlowService {
   }
 
   /** Converts a business name to a URL-safe slug and ensures it's unique in owner_accounts. */
-  private async generateUniqueSlug(businessName: string, supabase: any): Promise<string> {
+  private async generateUniqueSlug(
+    businessName: string,
+    supabase: any,
+  ): Promise<string> {
     const base = businessName
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
@@ -236,9 +255,12 @@ export class AuthFlowService {
    * Helper: get all roles for a user as a clean string array
    */
   private getUserRoles(user: any): string[] {
-    const rolesArray: string[] = Array.isArray(user.roles) && user.roles.length > 0
-      ? user.roles
-      : user.role ? [user.role] : [];
+    const rolesArray: string[] =
+      Array.isArray(user.roles) && user.roles.length > 0
+        ? user.roles
+        : user.role
+          ? [user.role]
+          : [];
     // Deduplicate
     return [...new Set(rolesArray)];
   }
@@ -248,7 +270,10 @@ export class AuthFlowService {
     const supabase = this.supabaseService.getClient();
     const adminClient = this.supabaseService.getAdminClient();
 
-    const { data: { user: authUser }, error } = await supabase.auth.getUser(accessToken);
+    const {
+      data: { user: authUser },
+      error,
+    } = await supabase.auth.getUser(accessToken);
     if (error || !authUser) throw new UnauthorizedException('Invalid token');
 
     const { data: dbUser } = await adminClient
@@ -257,7 +282,9 @@ export class AuthFlowService {
       .eq('id', authUser.id)
       .single();
 
-    const roles = this.getUserRoles(dbUser ?? { role: authUser.user_metadata?.role ?? 'owner' });
+    const roles = this.getUserRoles(
+      dbUser ?? { role: authUser.user_metadata?.role ?? 'owner' },
+    );
     return { id: authUser.id, email: authUser.email, roles };
   }
 
@@ -268,10 +295,11 @@ export class AuthFlowService {
   async ownerLogin(dto: OwnerLoginDto) {
     const supabase = this.supabaseService.getClient();
 
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email: dto.email,
-      password: dto.password,
-    });
+    const { data: authData, error: authError } =
+      await supabase.auth.signInWithPassword({
+        email: dto.email,
+        password: dto.password,
+      });
 
     if (authError) throw new UnauthorizedException(authError.message);
 
@@ -279,7 +307,9 @@ export class AuthFlowService {
     // when a user exists in auth but their membership record is incomplete
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('*, memberships(owner_account_id, owner_accounts(subscription_status))')
+      .select(
+        '*, memberships(owner_account_id, owner_accounts(subscription_status))',
+      )
       .eq('id', authData.user.id)
       .single();
 
@@ -290,8 +320,9 @@ export class AuthFlowService {
     }
 
     // Check subscription (would gate here in Phase 2)
-    const subscriptionStatus = user.memberships[0]?.owner_accounts?.subscription_status;
-    
+    const subscriptionStatus =
+      user.memberships[0]?.owner_accounts?.subscription_status;
+
     // Phase 2: Redirect to billing if not active
     // if (!['trialing', 'active'].includes(subscriptionStatus)) {
     //   const billingUrl = await this.stripeService.createBillingPortalSession(
@@ -299,7 +330,7 @@ export class AuthFlowService {
     //   );
     //   return { accessGranted: false, billingUrl };
     // }
-    
+
     return {
       session: authData.session,
       user,
@@ -314,7 +345,7 @@ export class AuthFlowService {
    */
   async getBillingPortal(ownerUserId: string) {
     const supabase = this.supabaseService.getClient();
-    
+
     const { data: membership } = await supabase
       .from('memberships')
       .select('owner_accounts(stripe_customer_id)')
@@ -327,7 +358,7 @@ export class AuthFlowService {
     }
 
     const portalUrl = await this.stripeService.createBillingPortalSession(
-      ownerAccounts.stripe_customer_id
+      ownerAccounts.stripe_customer_id,
     );
 
     return { portalUrl };
@@ -369,7 +400,7 @@ export class AuthFlowService {
     if (error) throw new BadRequestException(error.message);
 
     // TODO: Send email with invite link containing token
-    
+
     return {
       inviteId: invite.id,
       inviteToken,
@@ -378,7 +409,11 @@ export class AuthFlowService {
     };
   }
 
-  async acceptClientInvite(dto: AcceptInviteDto, ipAddress?: string, userAgent?: string) {
+  async acceptClientInvite(
+    dto: AcceptInviteDto,
+    ipAddress?: string,
+    userAgent?: string,
+  ) {
     const supabase = this.supabaseService.getClient();
 
     // 1. Validate invite token
@@ -398,7 +433,9 @@ export class AuthFlowService {
     }
 
     if (!dto.smsOptIn) {
-      throw new BadRequestException('SMS opt-in is required for client accounts');
+      throw new BadRequestException(
+        'SMS opt-in is required for client accounts',
+      );
     }
 
     let userId: string;
@@ -424,26 +461,26 @@ export class AuthFlowService {
       });
 
       if (authError || !authData.user) {
-        throw new BadRequestException(authError?.message || 'Failed to create user');
+        throw new BadRequestException(
+          authError?.message || 'Failed to create user',
+        );
       }
       userId = authData.user.id;
 
       // Create user record
-      const { error: userError } = await supabase
-        .from('users')
-        .insert({
-          id: userId,
-          email: invite.email,
-          role: 'client',
-          phone_number: invite.phone,
-          email_verified: false,
-          phone_verified: false,
-          sms_opt_in: dto.smsOptIn,
-          sms_opt_in_date: new Date().toISOString(),
-          sms_opt_in_ip: ipAddress,
-          sms_opt_in_user_agent: userAgent,
-          status: 'active',
-        });
+      const { error: userError } = await supabase.from('users').insert({
+        id: userId,
+        email: invite.email,
+        role: 'client',
+        phone_number: invite.phone,
+        email_verified: false,
+        phone_verified: false,
+        sms_opt_in: dto.smsOptIn,
+        sms_opt_in_date: new Date().toISOString(),
+        sms_opt_in_ip: ipAddress,
+        sms_opt_in_user_agent: userAgent,
+        status: 'active',
+      });
 
       if (userError) throw new BadRequestException(userError.message);
     }
@@ -527,7 +564,9 @@ export class AuthFlowService {
       .single();
 
     if (existing) {
-      throw new BadRequestException('An account with this email already exists');
+      throw new BadRequestException(
+        'An account with this email already exists',
+      );
     }
 
     const { data: authData, error: authError } = await adminClient.auth.signUp({
@@ -542,31 +581,33 @@ export class AuthFlowService {
     });
 
     if (authError || !authData.user) {
-      throw new BadRequestException(authError?.message || 'Failed to create user');
+      throw new BadRequestException(
+        authError?.message || 'Failed to create user',
+      );
     }
 
     if (!authData.user.identities || authData.user.identities.length === 0) {
-      throw new BadRequestException('An account with this email already exists');
+      throw new BadRequestException(
+        'An account with this email already exists',
+      );
     }
 
     const userId = authData.user.id;
 
-    const { error: userError } = await adminClient
-      .from('users')
-      .insert({
-        id: userId,
-        email: dto.email,
-        first_name: dto.firstName,
-        last_name: dto.lastName,
-        role: 'vendor',
-        roles: ['vendor'],
-        phone_number: dto.phoneNumber,
-        email_verified: false,
-        phone_verified: false,
-        sms_opt_in: dto.smsOptIn === true,
-        sms_opt_in_at: dto.smsOptIn === true ? new Date().toISOString() : null,
-        status: 'active',
-      });
+    const { error: userError } = await adminClient.from('users').insert({
+      id: userId,
+      email: dto.email,
+      first_name: dto.firstName,
+      last_name: dto.lastName,
+      role: 'vendor',
+      roles: ['vendor'],
+      phone_number: dto.phoneNumber,
+      email_verified: false,
+      phone_verified: false,
+      sms_opt_in: dto.smsOptIn === true,
+      sms_opt_in_at: dto.smsOptIn === true ? new Date().toISOString() : null,
+      status: 'active',
+    });
 
     if (userError) throw new BadRequestException(userError.message);
 
@@ -584,7 +625,8 @@ export class AuthFlowService {
 
     return {
       userId,
-      message: 'Vendor account created. Please verify your email and complete your profile.',
+      message:
+        'Vendor account created. Please verify your email and complete your profile.',
       session: authData.session,
     };
   }
@@ -606,7 +648,9 @@ export class AuthFlowService {
       .single();
 
     if (existing) {
-      throw new BadRequestException('An account with this email already exists');
+      throw new BadRequestException(
+        'An account with this email already exists',
+      );
     }
 
     const { data: authData, error: authError } = await adminClient.auth.signUp({
@@ -621,37 +665,40 @@ export class AuthFlowService {
     });
 
     if (authError || !authData.user) {
-      throw new BadRequestException(authError?.message || 'Failed to create user');
+      throw new BadRequestException(
+        authError?.message || 'Failed to create user',
+      );
     }
 
     if (!authData.user.identities || authData.user.identities.length === 0) {
-      throw new BadRequestException('An account with this email already exists');
+      throw new BadRequestException(
+        'An account with this email already exists',
+      );
     }
 
     const userId = authData.user.id;
 
-    const { error: userError } = await adminClient
-      .from('users')
-      .insert({
-        id: userId,
-        email: dto.email,
-        first_name: dto.firstName,
-        last_name: dto.lastName,
-        role: 'promoter',
-        roles: ['promoter'],
-        phone_number: dto.phoneNumber,
-        email_verified: false,
-        phone_verified: false,
-        sms_opt_in: dto.smsOptIn === true,
-        sms_opt_in_at: dto.smsOptIn === true ? new Date().toISOString() : null,
-        status: 'active',
-      });
+    const { error: userError } = await adminClient.from('users').insert({
+      id: userId,
+      email: dto.email,
+      first_name: dto.firstName,
+      last_name: dto.lastName,
+      role: 'promoter',
+      roles: ['promoter'],
+      phone_number: dto.phoneNumber,
+      email_verified: false,
+      phone_verified: false,
+      sms_opt_in: dto.smsOptIn === true,
+      sms_opt_in_at: dto.smsOptIn === true ? new Date().toISOString() : null,
+      status: 'active',
+    });
 
     if (userError) throw new BadRequestException(userError.message);
 
     return {
       userId,
-      message: 'Promoter account created. Please verify your email and complete your profile.',
+      message:
+        'Promoter account created. Please verify your email and complete your profile.',
       session: authData.session,
     };
   }
@@ -673,7 +720,9 @@ export class AuthFlowService {
       .single();
 
     if (existing) {
-      throw new BadRequestException('An account with this email already exists');
+      throw new BadRequestException(
+        'An account with this email already exists',
+      );
     }
 
     const { data: authData, error: authError } = await adminClient.auth.signUp({
@@ -688,37 +737,40 @@ export class AuthFlowService {
     });
 
     if (authError || !authData.user) {
-      throw new BadRequestException(authError?.message || 'Failed to create user');
+      throw new BadRequestException(
+        authError?.message || 'Failed to create user',
+      );
     }
 
     if (!authData.user.identities || authData.user.identities.length === 0) {
-      throw new BadRequestException('An account with this email already exists');
+      throw new BadRequestException(
+        'An account with this email already exists',
+      );
     }
 
     const userId = authData.user.id;
 
-    const { error: userError } = await adminClient
-      .from('users')
-      .insert({
-        id: userId,
-        email: dto.email,
-        first_name: dto.firstName,
-        last_name: dto.lastName,
-        role: 'artist',
-        roles: ['artist'],
-        phone_number: dto.phoneNumber,
-        email_verified: false,
-        phone_verified: false,
-        sms_opt_in: dto.smsOptIn === true,
-        sms_opt_in_at: dto.smsOptIn === true ? new Date().toISOString() : null,
-        status: 'active',
-      });
+    const { error: userError } = await adminClient.from('users').insert({
+      id: userId,
+      email: dto.email,
+      first_name: dto.firstName,
+      last_name: dto.lastName,
+      role: 'artist',
+      roles: ['artist'],
+      phone_number: dto.phoneNumber,
+      email_verified: false,
+      phone_verified: false,
+      sms_opt_in: dto.smsOptIn === true,
+      sms_opt_in_at: dto.smsOptIn === true ? new Date().toISOString() : null,
+      status: 'active',
+    });
 
     if (userError) throw new BadRequestException(userError.message);
 
     return {
       userId,
-      message: 'Artist account created. Please verify your email and complete your profile.',
+      message:
+        'Artist account created. Please verify your email and complete your profile.',
       session: authData.session,
     };
   }
@@ -726,10 +778,11 @@ export class AuthFlowService {
   async vendorLogin(email: string, password: string) {
     const supabase = this.supabaseService.getClient();
 
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { data: authData, error: authError } =
+      await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
     if (authError) throw new UnauthorizedException(authError.message);
 
@@ -769,10 +822,11 @@ export class AuthFlowService {
     const supabase = this.supabaseService.getClient();
     const adminClient = this.supabaseService.getAdminClient();
 
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { data: authData, error: authError } =
+      await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
     if (authError) throw new UnauthorizedException(authError.message);
 
@@ -784,14 +838,14 @@ export class AuthFlowService {
 
     // Fall back to Supabase auth metadata if no users-table row exists yet
     const user = dbUser ?? {
-      id:            authData.user.id,
-      email:         authData.user.email,
-      first_name:    authData.user.user_metadata?.first_name ?? '',
-      last_name:     authData.user.user_metadata?.last_name ?? '',
-      role:          authData.user.user_metadata?.role ?? 'owner',
-      roles:         authData.user.user_metadata?.roles ?? null,
-      created_at:    authData.user.created_at,
-      updated_at:    authData.user.updated_at,
+      id: authData.user.id,
+      email: authData.user.email,
+      first_name: authData.user.user_metadata?.first_name ?? '',
+      last_name: authData.user.user_metadata?.last_name ?? '',
+      role: authData.user.user_metadata?.role ?? 'owner',
+      roles: authData.user.user_metadata?.roles ?? null,
+      created_at: authData.user.created_at,
+      updated_at: authData.user.updated_at,
     };
 
     const roles = this.getUserRoles(user);
@@ -806,7 +860,8 @@ export class AuthFlowService {
         .eq('user_id', user.id)
         .limit(1)
         .single();
-      subscriptionStatus = (membership?.owner_accounts as any)?.subscription_status ?? null;
+      subscriptionStatus =
+        (membership?.owner_accounts as any)?.subscription_status ?? null;
       ownerAccountId = membership?.owner_account_id ?? null;
     }
 
@@ -821,7 +876,8 @@ export class AuthFlowService {
         .limit(1)
         .maybeSingle();
       ownerAccountId = membership?.owner_account_id ?? null;
-      subscriptionStatus = (membership?.owner_accounts as any)?.subscription_status ?? null;
+      subscriptionStatus =
+        (membership?.owner_accounts as any)?.subscription_status ?? null;
     }
 
     // Fetch vendor account if user is a vendor
@@ -857,8 +913,12 @@ export class AuthFlowService {
     const adminClient = this.supabaseService.getAdminClient();
 
     // Verify token and get user id
-    const { data: { user: authUser }, error: authErr } = await supabase.auth.getUser(accessToken);
-    if (authErr || !authUser) throw new UnauthorizedException('Invalid or expired token');
+    const {
+      data: { user: authUser },
+      error: authErr,
+    } = await supabase.auth.getUser(accessToken);
+    if (authErr || !authUser)
+      throw new UnauthorizedException('Invalid or expired token');
 
     const { data: user, error: userErr } = await adminClient
       .from('users')
@@ -894,10 +954,11 @@ export class AuthFlowService {
   async adminLogin(email: string, password: string) {
     const supabase = this.supabaseService.getClient();
 
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { data: authData, error: authError } =
+      await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
     if (authError) throw new UnauthorizedException(authError.message);
 

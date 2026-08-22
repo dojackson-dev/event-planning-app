@@ -12,7 +12,10 @@ import {
 } from '@nestjs/common';
 import { ArtistBookingsService } from './artist-bookings.service';
 import { SupabaseService } from '../supabase/supabase.service';
-import { CreateArtistBookingDto, UpdateArtistBookingDto } from './dto/artist-booking.dto';
+import {
+  CreateArtistBookingDto,
+  UpdateArtistBookingDto,
+} from './dto/artist-booking.dto';
 
 @Controller('artist-bookings')
 export class ArtistBookingsController {
@@ -24,18 +27,25 @@ export class ArtistBookingsController {
   ) {}
 
   private async getUserId(authorization: string): Promise<string> {
-    if (!authorization) throw new UnauthorizedException('No authorization header');
+    if (!authorization)
+      throw new UnauthorizedException('No authorization header');
     const token = authorization.replace('Bearer ', '');
     if (token.startsWith('local-')) return token.replace('local-', '');
     const supabase = this.supabaseService.setAuthContext(token);
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
     if (error || !user) throw new UnauthorizedException('Invalid token');
     return user.id;
   }
 
   /** POST /artist-bookings */
   @Post()
-  async createBooking(@Headers('authorization') auth: string, @Body() dto: CreateArtistBookingDto) {
+  async createBooking(
+    @Headers('authorization') auth: string,
+    @Body() dto: CreateArtistBookingDto,
+  ) {
     const userId = await this.getUserId(auth);
     return this.artistBookingsService.createBooking(userId, dto);
   }
@@ -49,7 +59,10 @@ export class ArtistBookingsController {
 
   /** GET /artist-bookings/:id */
   @Get(':id')
-  async getBooking(@Headers('authorization') auth: string, @Param('id') id: string) {
+  async getBooking(
+    @Headers('authorization') auth: string,
+    @Param('id') id: string,
+  ) {
     const userId = await this.getUserId(auth);
     return this.artistBookingsService.getBooking(userId, id);
   }
@@ -67,7 +80,10 @@ export class ArtistBookingsController {
 
   /** DELETE /artist-bookings/:id */
   @Delete(':id')
-  async deleteBooking(@Headers('authorization') auth: string, @Param('id') id: string) {
+  async deleteBooking(
+    @Headers('authorization') auth: string,
+    @Param('id') id: string,
+  ) {
     const userId = await this.getUserId(auth);
     return this.artistBookingsService.deleteBooking(userId, id);
   }

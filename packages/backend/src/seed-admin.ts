@@ -16,11 +16,14 @@ async function seedAdmin() {
 
   const hashedPassword = await bcrypt.hash('admin123', 10);
 
-  await dataSource.query(`
+  await dataSource.query(
+    `
     INSERT INTO "user" (email, password, "firstName", "lastName", role, "createdAt", "updatedAt")
     VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
     ON CONFLICT (email) DO NOTHING
-  `, ['admin@dovenue.com', hashedPassword, 'Admin', 'User', 'owner']);
+  `,
+    ['admin@dovenue.com', hashedPassword, 'Admin', 'User', 'owner'],
+  );
 
   console.log('Admin user created successfully!');
   console.log('Email: admin@dovenue.com');

@@ -1,4 +1,9 @@
-import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  Logger,
+} from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { CreatePromoterDto, UpdatePromoterDto } from './dto/promoter.dto';
 
@@ -12,7 +17,11 @@ export class PromoterService {
   // PROMOTER ACCOUNT
   // ─────────────────────────────────────────────
 
-  async createPromoterAccount(userId: string, dto: CreatePromoterDto, ownerAccountId?: string | null) {
+  async createPromoterAccount(
+    userId: string,
+    dto: CreatePromoterDto,
+    ownerAccountId?: string | null,
+  ) {
     const admin = this.supabaseService.getAdminClient();
 
     const { data: existing } = await admin
@@ -22,7 +31,9 @@ export class PromoterService {
       .maybeSingle();
 
     if (existing) {
-      throw new BadRequestException('Promoter account already exists for this user');
+      throw new BadRequestException(
+        'Promoter account already exists for this user',
+      );
     }
 
     const { data, error } = await admin
@@ -70,7 +81,9 @@ export class PromoterService {
 
     const { data: profile, error } = await admin
       .from('promoter_accounts')
-      .select('id, company_name, contact_name, location, bio, website, instagram, profile_image_url, cover_image_url')
+      .select(
+        'id, company_name, contact_name, location, bio, website, instagram, profile_image_url, cover_image_url',
+      )
       .eq('id', promoterId)
       .eq('is_active', true)
       .maybeSingle();
@@ -79,7 +92,9 @@ export class PromoterService {
 
     const { data: events } = await admin
       .from('public_events')
-      .select('id, title, event_date, start_time, venue_name, city, state, category, image_url, ticket_tiers(id, name, price, quantity, quantity_sold)')
+      .select(
+        'id, title, event_date, start_time, venue_name, city, state, category, image_url, ticket_tiers(id, name, price, quantity, quantity_sold)',
+      )
       .eq('promoter_account_id', promoterId)
       .eq('status', 'published')
       .gte('event_date', new Date().toISOString().split('T')[0])
@@ -110,8 +125,12 @@ export class PromoterService {
         ...(dto.bio !== undefined && { bio: dto.bio }),
         ...(dto.website !== undefined && { website: dto.website }),
         ...(dto.instagram !== undefined && { instagram: dto.instagram }),
-        ...(dto.profileImageUrl !== undefined && { profile_image_url: dto.profileImageUrl }),
-        ...(dto.coverImageUrl !== undefined && { cover_image_url: dto.coverImageUrl }),
+        ...(dto.profileImageUrl !== undefined && {
+          profile_image_url: dto.profileImageUrl,
+        }),
+        ...(dto.coverImageUrl !== undefined && {
+          cover_image_url: dto.coverImageUrl,
+        }),
         updated_at: new Date().toISOString(),
       })
       .eq('id', promoter.id)
@@ -131,7 +150,13 @@ export class PromoterService {
       .eq('user_id', userId)
       .maybeSingle();
 
-    if (!promoter) return { totalEvents: 0, publishedEvents: 0, totalTicketsSold: 0, totalRevenue: 0 };
+    if (!promoter)
+      return {
+        totalEvents: 0,
+        publishedEvents: 0,
+        totalTicketsSold: 0,
+        totalRevenue: 0,
+      };
 
     const { data: events } = await admin
       .from('public_events')
@@ -139,11 +164,17 @@ export class PromoterService {
       .eq('promoter_account_id', promoter.id);
 
     const totalEvents = events?.length ?? 0;
-    const publishedEvents = events?.filter((e: any) => e.status === 'published').length ?? 0;
+    const publishedEvents =
+      events?.filter((e: any) => e.status === 'published').length ?? 0;
 
     const eventIds = events?.map((e: any) => e.id) ?? [];
     if (eventIds.length === 0) {
-      return { totalEvents, publishedEvents, totalTicketsSold: 0, totalRevenue: 0 };
+      return {
+        totalEvents,
+        publishedEvents,
+        totalTicketsSold: 0,
+        totalRevenue: 0,
+      };
     }
 
     const { data: tickets } = await admin
@@ -153,7 +184,11 @@ export class PromoterService {
       .in('status', ['valid', 'checked_in']);
 
     const totalTicketsSold = tickets?.length ?? 0;
-    const totalRevenue = tickets?.reduce((sum: number, t: any) => sum + Number(t.amount_paid ?? 0), 0) ?? 0;
+    const totalRevenue =
+      tickets?.reduce(
+        (sum: number, t: any) => sum + Number(t.amount_paid ?? 0),
+        0,
+      ) ?? 0;
 
     return { totalEvents, publishedEvents, totalTicketsSold, totalRevenue };
   }
@@ -196,11 +231,16 @@ export class PromoterService {
     }
 
     const dto: CreatePromoterDto = {
-      contactName: `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim() || 'Promoter',
+      contactName:
+        `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim() || 'Promoter',
       email: user.email,
     };
 
-    const promoterAccount = await this.createPromoterAccount(userId, dto, ownerAccountId);
+    const promoterAccount = await this.createPromoterAccount(
+      userId,
+      dto,
+      ownerAccountId,
+    );
     return { promoterAccount, alreadyExisted: false };
   }
 
@@ -211,7 +251,9 @@ export class PromoterService {
   async updatePlan(userId: string, plan: string) {
     const VALID_PLANS = ['free', 'pro', 'premium'];
     if (!VALID_PLANS.includes(plan)) {
-      throw new BadRequestException(`Invalid plan "${plan}". Must be one of: ${VALID_PLANS.join(', ')}`);
+      throw new BadRequestException(
+        `Invalid plan "${plan}". Must be one of: ${VALID_PLANS.join(', ')}`,
+      );
     }
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
@@ -222,6 +264,208 @@ export class PromoterService {
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException('Promoter account not found');
+    return data;
+  }
+
+  // ─────────────────────────────────────────────
+  // BOOKING LINKS
+  // ─────────────────────────────────────────────
+
+  private async generateShortCode(admin: any): Promise<string> {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    for (let attempt = 0; attempt < 10; attempt++) {
+      let code = '';
+      for (let i = 0; i < 6; i++)
+        code += chars[Math.floor(Math.random() * chars.length)];
+      const { data } = await admin
+        .from('promoter_booking_links')
+        .select('id')
+        .eq('short_code', code)
+        .maybeSingle();
+      if (!data) return code;
+    }
+    throw new Error('Could not generate a unique short code');
+  }
+
+  async upsertBookingLink(
+    userId: string,
+    dto: { slug: string; isActive?: boolean; customMessage?: string },
+  ) {
+    const admin = this.supabaseService.getAdminClient();
+
+    if (!/^[a-z0-9-]{3,60}$/.test(dto.slug)) {
+      throw new BadRequestException(
+        'Slug must be 3-60 characters: lowercase letters, numbers, and hyphens only',
+      );
+    }
+
+    const { data: promoter } = await admin
+      .from('promoter_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (!promoter) throw new BadRequestException('No promoter account found');
+
+    const { data: conflict } = await admin
+      .from('promoter_booking_links')
+      .select('id, promoter_account_id')
+      .eq('slug', dto.slug)
+      .maybeSingle();
+    if (conflict && conflict.promoter_account_id !== promoter.id) {
+      throw new BadRequestException('This slug is already taken');
+    }
+
+    const { data: existing } = await admin
+      .from('promoter_booking_links')
+      .select('id, short_code')
+      .eq('promoter_account_id', promoter.id)
+      .maybeSingle();
+
+    const shortCode =
+      existing?.short_code ?? (await this.generateShortCode(admin));
+    const payload = {
+      promoter_account_id: promoter.id,
+      slug: dto.slug,
+      short_code: shortCode,
+      is_active: dto.isActive ?? true,
+      custom_message: dto.customMessage ?? null,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (existing) {
+      const { data, error } = await admin
+        .from('promoter_booking_links')
+        .update(payload)
+        .eq('id', existing.id)
+        .select()
+        .single();
+      if (error) throw new BadRequestException(error.message);
+      return data;
+    } else {
+      const { data, error } = await admin
+        .from('promoter_booking_links')
+        .insert(payload)
+        .select()
+        .single();
+      if (error) throw new BadRequestException(error.message);
+      return data;
+    }
+  }
+
+  async getMyBookingLink(userId: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: promoter } = await admin
+      .from('promoter_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (!promoter) return null;
+    const { data } = await admin
+      .from('promoter_booking_links')
+      .select('*')
+      .eq('promoter_account_id', promoter.id)
+      .maybeSingle();
+    return data ?? null;
+  }
+
+  async getPublicBookingLink(slug: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const { data, error } = await admin
+      .from('promoter_booking_links')
+      .select(
+        '*, promoter_accounts(company_name, contact_name, location, bio, profile_image_url)',
+      )
+      .eq('slug', slug)
+      .eq('is_active', true)
+      .single();
+    if (error || !data)
+      throw new NotFoundException('Booking link not found or inactive');
+    return data;
+  }
+
+  async getPublicBookingLinkByShortCode(code: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const { data, error } = await admin
+      .from('promoter_booking_links')
+      .select('slug')
+      .eq('short_code', code)
+      .eq('is_active', true)
+      .single();
+    if (error || !data)
+      throw new NotFoundException('Booking link not found or inactive');
+    return { slug: data.slug };
+  }
+
+  async submitBookingRequest(slug: string, dto: any) {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: link } = await admin
+      .from('promoter_booking_links')
+      .select('id, promoter_account_id, is_active')
+      .eq('slug', slug)
+      .single();
+    if (!link || !link.is_active)
+      throw new NotFoundException('Booking link not found or inactive');
+
+    const { data, error } = await admin
+      .from('promoter_booking_requests')
+      .insert({
+        promoter_account_id: link.promoter_account_id,
+        booking_link_id: link.id,
+        client_name: dto.clientName,
+        client_email: dto.clientEmail,
+        client_phone: dto.clientPhone ?? null,
+        sms_opt_in: dto.smsOptIn ?? false,
+        event_name: dto.eventName ?? null,
+        event_date: dto.eventDate ?? null,
+        start_time: dto.startTime ?? null,
+        end_time: dto.endTime ?? null,
+        venue_name: dto.venueName ?? null,
+        venue_address: dto.venueAddress ?? null,
+        notes: dto.notes ?? null,
+      })
+      .select()
+      .single();
+    if (error) throw new BadRequestException(error.message);
+    return data;
+  }
+
+  async getPromoterBookingRequests(userId: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: promoter } = await admin
+      .from('promoter_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (!promoter) return [];
+    const { data } = await admin
+      .from('promoter_booking_requests')
+      .select('*')
+      .eq('promoter_account_id', promoter.id)
+      .order('created_at', { ascending: false });
+    return data ?? [];
+  }
+
+  async updatePromoterBookingRequest(
+    userId: string,
+    requestId: string,
+    status: string,
+  ) {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: promoter } = await admin
+      .from('promoter_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (!promoter) throw new BadRequestException('No promoter account found');
+
+    const { data, error } = await admin
+      .from('promoter_booking_requests')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', requestId)
+      .eq('promoter_account_id', promoter.id)
+      .select()
+      .single();
+    if (error) throw new BadRequestException(error.message);
     return data;
   }
 }

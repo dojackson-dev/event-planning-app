@@ -8,6 +8,7 @@ import { Event } from '@/types'
 import { Calendar, Clock, MapPin, Users, ArrowLeft, Edit, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { parseLocalDate } from '@/lib/dateUtils'
+import EventNotes from '@/components/events/EventNotes'
 
 const formatTime = (timeString: string | undefined): string => {
   if (!timeString) return 'Not set'
@@ -129,6 +130,8 @@ export default function EventDetailsPage() {
             {event.status || 'Draft'}
           </span>
         </div>
+
+        <EventNotes eventId={eventId} eventDate={event.date} />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Date & Time */}

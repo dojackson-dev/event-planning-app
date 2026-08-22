@@ -16,10 +16,15 @@ import {
   CreateTicketTierDto,
   UpdateTicketTierDto,
 } from './dto/promoter-event.dto';
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+
 const zipcodes = require('zipcodes');
 
-function haversineDistanceMiles(lat1: number, lon1: number, lat2: number, lon2: number): number {
+function haversineDistanceMiles(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+): number {
   const R = 3958.8; // Earth radius in miles
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLon = ((lon2 - lon1) * Math.PI) / 180;
@@ -31,9 +36,9 @@ function haversineDistanceMiles(lat1: number, lon1: number, lat2: number, lon2: 
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-const APP_FEE_RATE   = 0.03;   // 3% platform fee → goes to our account
-const STRIPE_PCT     = 0.029;  // Stripe's % fee
-const STRIPE_FIXED   = 30;     // Stripe's fixed fee in cents ($0.30)
+const APP_FEE_RATE = 0.03; // 3% platform fee → goes to our account
+const STRIPE_PCT = 0.029; // Stripe's % fee
+const STRIPE_FIXED = 30; // Stripe's fixed fee in cents ($0.30)
 
 /**
  * Gross-up helper: calculates the total charge so that after Stripe's
@@ -41,7 +46,9 @@ const STRIPE_FIXED   = 30;     // Stripe's fixed fee in cents ($0.30)
  *   totalCharge = ceil((ticketTotal + 0.30) / (1 - 0.029 - 0.03))
  */
 function grossUp(ticketTotalCents: number): number {
-  return Math.ceil((ticketTotalCents + STRIPE_FIXED) / (1 - STRIPE_PCT - APP_FEE_RATE));
+  return Math.ceil(
+    (ticketTotalCents + STRIPE_FIXED) / (1 - STRIPE_PCT - APP_FEE_RATE),
+  );
 }
 
 @Injectable()
@@ -56,10 +63,14 @@ export class PromoterEventsService {
     private readonly mailService: MailService,
     private readonly smsNotifications: SmsNotificationsService,
   ) {
-    this.stripe = new Stripe(this.configService.get<string>('STRIPE_SECRET_KEY') || '', {
-      apiVersion: '2024-04-10' as any,
-    });
-    this.frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+    this.stripe = new Stripe(
+      this.configService.get<string>('STRIPE_SECRET_KEY') || '',
+      {
+        apiVersion: '2024-04-10' as any,
+      },
+    );
+    this.frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
   }
 
   // ── helpers ──────────────────────────────────────────────────
@@ -68,10 +79,13 @@ export class PromoterEventsService {
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('promoter_accounts')
-      .select('id, stripe_account_id, stripe_connect_status, company_name, contact_name, email')
+      .select(
+        'id, stripe_account_id, stripe_connect_status, company_name, contact_name, email',
+      )
       .eq('user_id', userId)
       .maybeSingle();
-    if (error || !data) throw new NotFoundException('Promoter account not found');
+    if (error || !data)
+      throw new NotFoundException('Promoter account not found');
     return data;
   }
 
@@ -142,7 +156,11 @@ export class PromoterEventsService {
     return data;
   }
 
-  async updateEvent(userId: string, eventId: string, dto: UpdatePromoterEventDto) {
+  async updateEvent(
+    userId: string,
+    eventId: string,
+    dto: UpdatePromoterEventDto,
+  ) {
     const admin = this.supabaseService.getAdminClient();
     const promoter = await this.getPromoterAccount(userId);
 
@@ -161,13 +179,15 @@ export class PromoterEventsService {
     if (dto.start_time !== undefined) updates.start_time = dto.start_time;
     if (dto.end_time !== undefined) updates.end_time = dto.end_time;
     if (dto.venue_name !== undefined) updates.venue_name = dto.venue_name;
-    if (dto.venue_address !== undefined) updates.venue_address = dto.venue_address;
+    if (dto.venue_address !== undefined)
+      updates.venue_address = dto.venue_address;
     if (dto.city !== undefined) updates.city = dto.city;
     if (dto.state !== undefined) updates.state = dto.state;
     if (dto.zip_code !== undefined) updates.zip_code = dto.zip_code;
     if (dto.category !== undefined) updates.category = dto.category;
     if (dto.image_url !== undefined) updates.image_url = dto.image_url;
-    if (dto.age_restriction !== undefined) updates.age_restriction = dto.age_restriction;
+    if (dto.age_restriction !== undefined)
+      updates.age_restriction = dto.age_restriction;
     if (dto.status !== undefined) updates.status = dto.status;
 
     const { data, error } = await admin
@@ -199,7 +219,7 @@ export class PromoterEventsService {
 
   async createTicketTiers(eventId: string, tiers: CreateTicketTierDto[]) {
     const admin = this.supabaseService.getAdminClient();
-    const rows = tiers.map(t => ({
+    const rows = tiers.map((t) => ({
       public_event_id: eventId,
       name: t.name,
       price: t.price,
@@ -207,12 +227,19 @@ export class PromoterEventsService {
       quantity_sold: 0,
       description: t.description ?? null,
     }));
-    const { data, error } = await admin.from('ticket_tiers').insert(rows).select();
+    const { data, error } = await admin
+      .from('ticket_tiers')
+      .insert(rows)
+      .select();
     if (error) throw new BadRequestException(error.message);
     return data;
   }
 
-  async addTicketTier(userId: string, eventId: string, dto: CreateTicketTierDto) {
+  async addTicketTier(
+    userId: string,
+    eventId: string,
+    dto: CreateTicketTierDto,
+  ) {
     const admin = this.supabaseService.getAdminClient();
     const promoter = await this.getPromoterAccount(userId);
 
@@ -224,20 +251,28 @@ export class PromoterEventsService {
       .maybeSingle();
     if (!event) throw new ForbiddenException('Event not found');
 
-    const { data, error } = await admin.from('ticket_tiers').insert({
-      public_event_id: eventId,
-      name: dto.name,
-      price: dto.price,
-      quantity: dto.quantity,
-      quantity_sold: 0,
-      description: dto.description ?? null,
-    }).select().single();
+    const { data, error } = await admin
+      .from('ticket_tiers')
+      .insert({
+        public_event_id: eventId,
+        name: dto.name,
+        price: dto.price,
+        quantity: dto.quantity,
+        quantity_sold: 0,
+        description: dto.description ?? null,
+      })
+      .select()
+      .single();
 
     if (error) throw new BadRequestException(error.message);
     return data;
   }
 
-  async updateTicketTier(userId: string, tierId: string, dto: UpdateTicketTierDto) {
+  async updateTicketTier(
+    userId: string,
+    tierId: string,
+    dto: UpdateTicketTierDto,
+  ) {
     const admin = this.supabaseService.getAdminClient();
     const promoter = await this.getPromoterAccount(userId);
 
@@ -293,18 +328,27 @@ export class PromoterEventsService {
       .maybeSingle();
     if (!event) throw new ForbiddenException('Access denied');
 
-    const { error } = await admin.from('ticket_tiers').delete().eq('id', tierId);
+    const { error } = await admin
+      .from('ticket_tiers')
+      .delete()
+      .eq('id', tierId);
     if (error) throw new BadRequestException(error.message);
     return { success: true };
   }
 
   // ── PUBLIC ROUTES (no auth) ───────────────────────────────────
 
-  async listPublicEvents(zipCode?: string, category?: string, radiusMiles = 30) {
+  async listPublicEvents(
+    zipCode?: string,
+    category?: string,
+    radiusMiles = 30,
+  ) {
     const admin = this.supabaseService.getAdminClient();
     let query = admin
       .from('public_events')
-      .select('*, ticket_tiers(id, name, price, quantity, quantity_sold), promoter_accounts(company_name, contact_name, profile_image_url)')
+      .select(
+        '*, ticket_tiers(id, name, price, quantity, quantity_sold), promoter_accounts(company_name, contact_name, profile_image_url)',
+      )
       .eq('status', 'published')
       .gte('event_date', new Date().toISOString().split('T')[0])
       .order('event_date', { ascending: true });
@@ -323,8 +367,10 @@ export class PromoterEventsService {
           const eventLoc = zipcodes.lookup(event.zip_code);
           if (!eventLoc) return false;
           const dist = haversineDistanceMiles(
-            searchLoc.latitude, searchLoc.longitude,
-            eventLoc.latitude, eventLoc.longitude,
+            searchLoc.latitude,
+            searchLoc.longitude,
+            eventLoc.latitude,
+            eventLoc.longitude,
           );
           return dist <= radiusMiles;
         });
@@ -340,7 +386,9 @@ export class PromoterEventsService {
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('public_events')
-      .select('*, ticket_tiers(id, name, price, quantity, quantity_sold, description), promoter_accounts(company_name, contact_name, profile_image_url, location, instagram, website)')
+      .select(
+        '*, ticket_tiers(id, name, price, quantity, quantity_sold, description), promoter_accounts(company_name, contact_name, profile_image_url, location, instagram, website)',
+      )
       .eq('id', eventId)
       .neq('status', 'cancelled')
       .maybeSingle();
@@ -351,12 +399,22 @@ export class PromoterEventsService {
 
   // ── STRIPE CHECKOUT for tickets ───────────────────────────────
 
-  async createTicketCheckout(eventId: string, tierId: string, quantity: number, buyerPhone?: string, buyerEmail?: string, returnUrl?: string, buyerName?: string) {
+  async createTicketCheckout(
+    eventId: string,
+    tierId: string,
+    quantity: number,
+    buyerPhone?: string,
+    buyerEmail?: string,
+    returnUrl?: string,
+    buyerName?: string,
+  ) {
     const admin = this.supabaseService.getAdminClient();
 
     const { data: event } = await admin
       .from('public_events')
-      .select('*, promoter_accounts(stripe_account_id, stripe_connect_status, company_name, contact_name)')
+      .select(
+        '*, promoter_accounts(stripe_account_id, stripe_connect_status, company_name, contact_name, enable_bnpl)',
+      )
       .eq('id', eventId)
       .eq('status', 'published')
       .maybeSingle();
@@ -373,17 +431,21 @@ export class PromoterEventsService {
     if (!tier) throw new NotFoundException('Ticket tier not found');
 
     const available = tier.quantity - tier.quantity_sold;
-    if (quantity > available) throw new BadRequestException(`Only ${available} tickets remaining`);
+    if (quantity > available)
+      throw new BadRequestException(`Only ${available} tickets remaining`);
 
     const promoter = event.promoter_accounts;
-    if (!promoter?.stripe_account_id || promoter.stripe_connect_status !== 'active') {
+    if (
+      !promoter?.stripe_account_id ||
+      promoter.stripe_connect_status !== 'active'
+    ) {
       throw new BadRequestException('Payments not enabled for this event');
     }
 
-    const unitAmount   = Math.round(Number(tier.price) * 100);
-    const ticketTotal  = unitAmount * quantity;
-    const totalCharge  = grossUp(ticketTotal);
-    const serviceFee   = totalCharge - ticketTotal;
+    const unitAmount = Math.round(Number(tier.price) * 100);
+    const ticketTotal = unitAmount * quantity;
+    const totalCharge = grossUp(ticketTotal);
+    const serviceFee = totalCharge - ticketTotal;
     const appFeeAmount = Math.round(totalCharge * APP_FEE_RATE);
 
     const successUrl = returnUrl
@@ -394,7 +456,9 @@ export class PromoterEventsService {
       : `${this.frontendUrl}/events/${eventId}?canceled=true`;
 
     const session = await this.stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
+      payment_method_types: promoter?.enable_bnpl
+        ? ['card', 'afterpay_clearpay', 'klarna', 'affirm']
+        : ['card'],
       mode: 'payment',
       ...(buyerEmail ? { customer_email: buyerEmail } : {}),
       // Collect billing address so Stripe Tax can determine the correct jurisdiction
@@ -407,7 +471,9 @@ export class PromoterEventsService {
             currency: 'usd',
             product_data: {
               name: `${event.title} — ${tier.name}`,
-              description: event.venue_name ? `${event.event_date} at ${event.venue_name}` : event.event_date,
+              description: event.venue_name
+                ? `${event.event_date} at ${event.venue_name}`
+                : event.event_date,
               // Tax code: general admission / live event ticket
               tax_code: 'txcd_90000001',
             },
@@ -465,12 +531,29 @@ export class PromoterEventsService {
       return;
     }
 
-    const { public_event_id, ticket_tier_id, quantity, buyer_email, buyer_phone, buyer_name, items: itemsJson } = session.metadata || {};
+    const {
+      public_event_id,
+      ticket_tier_id,
+      quantity,
+      buyer_email,
+      buyer_phone,
+      buyer_name,
+      items: itemsJson,
+    } = session.metadata || {};
     if (!public_event_id) return;
 
     // ── Multi-tier checkout path ──────────────────────────────
     if (!ticket_tier_id && itemsJson) {
-      await this.markMultiTierTicketsSold(admin, session, sessionId, public_event_id, itemsJson, buyer_email, buyer_phone, buyer_name);
+      await this.markMultiTierTicketsSold(
+        admin,
+        session,
+        sessionId,
+        public_event_id,
+        itemsJson,
+        buyer_email,
+        buyer_phone,
+        buyer_name,
+      );
       return;
     }
 
@@ -519,7 +602,9 @@ export class PromoterEventsService {
       try {
         const { data: event } = await admin
           .from('public_events')
-          .select('title, event_date, start_time, venue_name, promoter_accounts(company_name)')
+          .select(
+            'title, event_date, start_time, venue_name, promoter_accounts(company_name)',
+          )
           .eq('id', public_event_id)
           .single();
 
@@ -537,29 +622,42 @@ export class PromoterEventsService {
           sessionId,
         });
       } catch (emailErr) {
-        this.logger.warn(`Ticket confirmation email failed for session ${sessionId}: ${emailErr}`);
+        this.logger.warn(
+          `Ticket confirmation email failed for session ${sessionId}: ${emailErr}`,
+        );
       }
     }
 
-    this.logger.log(`Recorded ${qty} ticket(s) sold for event ${public_event_id}`);
+    this.logger.log(
+      `Recorded ${qty} ticket(s) sold for event ${public_event_id}`,
+    );
 
     // ── Send email + SMS confirmation ───────────────────────────
     try {
       const { data: event } = await admin
         .from('public_events')
-        .select('title, event_date, start_time, venue_name, promoter_accounts(company_name, contact_name)')
+        .select(
+          'title, event_date, start_time, venue_name, promoter_accounts(company_name, contact_name)',
+        )
         .eq('id', public_event_id)
         .single();
 
       if (event) {
-        const promoterName = (event.promoter_accounts as any)?.company_name
-          || (event.promoter_accounts as any)?.contact_name
-          || null;
+        const promoterName =
+          (event.promoter_accounts as any)?.company_name ||
+          (event.promoter_accounts as any)?.contact_name ||
+          null;
         const toEmail = buyer_email ?? session.customer_email;
         const formattedDate = event.event_date
-          ? new Date(event.event_date + 'T12:00:00').toLocaleDateString('en-US', {
-              weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
-            })
+          ? new Date(event.event_date + 'T12:00:00').toLocaleDateString(
+              'en-US',
+              {
+                weekday: 'long',
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric',
+              },
+            )
           : 'TBD';
 
         if (toEmail) {
@@ -592,7 +690,9 @@ export class PromoterEventsService {
         }
       }
     } catch (notifyErr) {
-      this.logger.warn(`Ticket confirmation notifications failed for session ${sessionId}: ${notifyErr}`);
+      this.logger.warn(
+        `Ticket confirmation notifications failed for session ${sessionId}: ${notifyErr}`,
+      );
     }
   }
 
@@ -617,10 +717,16 @@ export class PromoterEventsService {
     if (existing && existing.length > 0) return;
 
     let items: { tier_id: string; quantity: number }[] = [];
-    try { items = JSON.parse(itemsJson); } catch { return; }
+    try {
+      items = JSON.parse(itemsJson);
+    } catch {
+      return;
+    }
 
     const totalQty = items.reduce((s, i) => s + i.quantity, 0);
-    const perTicketAmount = session.amount_total ? session.amount_total / 100 / totalQty : 0;
+    const perTicketAmount = session.amount_total
+      ? session.amount_total / 100 / totalQty
+      : 0;
     const toEmail = buyer_email ?? session.customer_email ?? undefined;
 
     // Insert tickets and update tier counts
@@ -650,24 +756,32 @@ export class PromoterEventsService {
       }
     }
 
-    this.logger.log(`Recorded ${totalQty} multi-tier ticket(s) for event ${public_event_id}`);
+    this.logger.log(
+      `Recorded ${totalQty} multi-tier ticket(s) for event ${public_event_id}`,
+    );
 
     // Notifications
     try {
       const { data: event } = await admin
         .from('public_events')
-        .select('title, event_date, start_time, venue_name, promoter_accounts(company_name, contact_name)')
+        .select(
+          'title, event_date, start_time, venue_name, promoter_accounts(company_name, contact_name)',
+        )
         .eq('id', public_event_id)
         .single();
 
       if (!event) return;
 
-      const promoterName = (event.promoter_accounts as any)?.company_name
-        || (event.promoter_accounts as any)?.contact_name
-        || null;
+      const promoterName =
+        event.promoter_accounts?.company_name ||
+        event.promoter_accounts?.contact_name ||
+        null;
       const formattedDate = event.event_date
         ? new Date(event.event_date + 'T12:00:00').toLocaleDateString('en-US', {
-            weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+            weekday: 'long',
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric',
           })
         : 'TBD';
       const tierSummary = tierNames.join(', ');
@@ -701,7 +815,9 @@ export class PromoterEventsService {
         );
       }
     } catch (err) {
-      this.logger.warn(`Multi-tier notifications failed for session ${sessionId}: ${err}`);
+      this.logger.warn(
+        `Multi-tier notifications failed for session ${sessionId}: ${err}`,
+      );
     }
   }
 
@@ -735,7 +851,9 @@ export class PromoterEventsService {
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('tickets')
-      .select('*, ticket_tiers(name, price), public_events(title, event_date, venue_name, city, state)')
+      .select(
+        '*, ticket_tiers(name, price), public_events(title, event_date, venue_name, city, state)',
+      )
       .eq('stripe_checkout_session_id', sessionId);
     if (error) throw new BadRequestException(error.message);
     return data || [];
@@ -745,14 +863,20 @@ export class PromoterEventsService {
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('tickets')
-      .select('*, ticket_tiers(name, price), public_events(title, event_date, venue_name, city, state, promoter_accounts(company_name))')
+      .select(
+        '*, ticket_tiers(name, price), public_events(title, event_date, venue_name, city, state, promoter_accounts(company_name))',
+      )
       .eq('id', ticketId)
       .maybeSingle();
     if (error || !data) throw new NotFoundException('Ticket not found');
     return data;
   }
 
-  async forwardTicket(ticketId: string, recipientPhone?: string, recipientEmail?: string) {
+  async forwardTicket(
+    ticketId: string,
+    recipientPhone?: string,
+    recipientEmail?: string,
+  ) {
     const admin = this.supabaseService.getAdminClient();
     const { data: ticket } = await admin
       .from('tickets')
@@ -760,22 +884,24 @@ export class PromoterEventsService {
       .eq('id', ticketId)
       .maybeSingle();
     if (!ticket) throw new NotFoundException('Ticket not found');
-    if (ticket.status === 'used') throw new BadRequestException('Ticket has already been used');
+    if (ticket.status === 'used')
+      throw new BadRequestException('Ticket has already been used');
 
     // Generate a short 8-char code to match the ticket_forward_codes table schema
-    const forwardCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+    const forwardCode = Math.random()
+      .toString(36)
+      .substring(2, 10)
+      .toUpperCase();
 
     // Delete any existing forward code for this ticket before creating a new one
     await admin.from('ticket_forward_codes').delete().eq('ticket_id', ticketId);
 
-    const { error } = await admin
-      .from('ticket_forward_codes')
-      .insert({
-        ticket_id: ticketId,
-        code: forwardCode,
-        ...(recipientPhone ? { recipient_phone: recipientPhone } : {}),
-        ...(recipientEmail ? { recipient_email: recipientEmail } : {}),
-      });
+    const { error } = await admin.from('ticket_forward_codes').insert({
+      ticket_id: ticketId,
+      code: forwardCode,
+      ...(recipientPhone ? { recipient_phone: recipientPhone } : {}),
+      ...(recipientEmail ? { recipient_email: recipientEmail } : {}),
+    });
     if (error) throw new BadRequestException(error.message);
     return { forwardCode };
   }
@@ -784,21 +910,33 @@ export class PromoterEventsService {
     const admin = this.supabaseService.getAdminClient();
     const { data: forwardRecord, error: fwErr } = await admin
       .from('ticket_forward_codes')
-      .select('ticket_id, recipient_phone, recipient_email, expires_at, claimed_at')
+      .select(
+        'ticket_id, recipient_phone, recipient_email, expires_at, claimed_at',
+      )
       .eq('code', code)
       .maybeSingle();
-    if (fwErr || !forwardRecord) throw new NotFoundException('Invalid or expired forward code');
-    if (forwardRecord.expires_at && new Date(forwardRecord.expires_at) < new Date()) {
+    if (fwErr || !forwardRecord)
+      throw new NotFoundException('Invalid or expired forward code');
+    if (
+      forwardRecord.expires_at &&
+      new Date(forwardRecord.expires_at) < new Date()
+    ) {
       throw new BadRequestException('This forward link has expired');
     }
 
     const { data, error } = await admin
       .from('tickets')
-      .select('*, ticket_tiers(name, price), public_events(title, event_date, venue_name, city, state)')
+      .select(
+        '*, ticket_tiers(name, price), public_events(title, event_date, venue_name, city, state)',
+      )
       .eq('id', forwardRecord.ticket_id)
       .maybeSingle();
     if (error || !data) throw new NotFoundException('Ticket not found');
-    return { ...data, forward_recipient_phone: forwardRecord.recipient_phone, forward_recipient_email: forwardRecord.recipient_email };
+    return {
+      ...data,
+      forward_recipient_phone: forwardRecord.recipient_phone,
+      forward_recipient_email: forwardRecord.recipient_email,
+    };
   }
 
   // ── MULTI-TIER CHECKOUT ───────────────────────────────────────
@@ -815,14 +953,19 @@ export class PromoterEventsService {
 
     const { data: event } = await admin
       .from('public_events')
-      .select('*, promoter_accounts(stripe_account_id, stripe_connect_status, company_name)')
+      .select(
+        '*, promoter_accounts(stripe_account_id, stripe_connect_status, company_name, enable_bnpl)',
+      )
       .eq('id', eventId)
       .eq('status', 'published')
       .maybeSingle();
     if (!event) throw new NotFoundException('Event not found');
 
     const promoter = event.promoter_accounts;
-    if (!promoter?.stripe_account_id || promoter.stripe_connect_status !== 'active') {
+    if (
+      !promoter?.stripe_account_id ||
+      promoter.stripe_connect_status !== 'active'
+    ) {
       throw new BadRequestException('Payments not enabled for this event');
     }
 
@@ -837,10 +980,14 @@ export class PromoterEventsService {
         .eq('id', item.tier_id)
         .eq('public_event_id', eventId)
         .maybeSingle();
-      if (!tier) throw new NotFoundException(`Ticket tier ${item.tier_id} not found`);
+      if (!tier)
+        throw new NotFoundException(`Ticket tier ${item.tier_id} not found`);
 
       const available = tier.quantity - tier.quantity_sold;
-      if (item.quantity > available) throw new BadRequestException(`Only ${available} tickets remaining for ${tier.name}`);
+      if (item.quantity > available)
+        throw new BadRequestException(
+          `Only ${available} tickets remaining for ${tier.name}`,
+        );
 
       const unitAmount = Math.round(Number(tier.price) * 100);
       ticketTotal += unitAmount * item.quantity;
@@ -849,7 +996,9 @@ export class PromoterEventsService {
           currency: 'usd',
           product_data: {
             name: `${event.title} — ${tier.name}`,
-            description: event.venue_name ? `${event.event_date} at ${event.venue_name}` : event.event_date,
+            description: event.venue_name
+              ? `${event.event_date} at ${event.venue_name}`
+              : event.event_date,
             // Tax code: general admission / live event ticket
             tax_code: 'txcd_90000001',
           },
@@ -861,8 +1010,8 @@ export class PromoterEventsService {
       });
     }
 
-    const totalCharge  = grossUp(ticketTotal);
-    const serviceFee   = totalCharge - ticketTotal;
+    const totalCharge = grossUp(ticketTotal);
+    const serviceFee = totalCharge - ticketTotal;
     const appFeeAmount = Math.round(totalCharge * APP_FEE_RATE);
 
     lineItems.push({
@@ -887,7 +1036,9 @@ export class PromoterEventsService {
       : `${this.frontendUrl}/events/${eventId}?canceled=true`;
 
     const session = await this.stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
+      payment_method_types: promoter?.enable_bnpl
+        ? ['card', 'afterpay_clearpay', 'klarna', 'affirm']
+        : ['card'],
       mode: 'payment',
       ...(buyerEmail ? { customer_email: buyerEmail } : {}),
       // Collect billing address so Stripe Tax can determine the correct jurisdiction
@@ -930,12 +1081,15 @@ export class PromoterEventsService {
 
     const { data: ticket } = await admin
       .from('tickets')
-      .select('id, status, public_event_id, buyer_phone, buyer_email, amount_paid, ticket_tiers(name)')
+      .select(
+        'id, status, public_event_id, buyer_phone, buyer_email, amount_paid, ticket_tiers(name)',
+      )
       .eq('id', ticketId)
       .eq('public_event_id', eventId)
       .maybeSingle();
     if (!ticket) throw new NotFoundException('Ticket not found for this event');
-    if (ticket.status === 'used') throw new BadRequestException('Ticket has already been scanned');
+    if (ticket.status === 'used')
+      throw new BadRequestException('Ticket has already been scanned');
 
     const { error } = await admin
       .from('tickets')
@@ -1005,7 +1159,11 @@ export class PromoterEventsService {
     return { success: true, ticket: newTicket };
   }
 
-  async resendTicketConfirmation(userId: string, eventId: string, ticketId: string): Promise<void> {
+  async resendTicketConfirmation(
+    userId: string,
+    eventId: string,
+    ticketId: string,
+  ): Promise<void> {
     const admin = this.supabaseService.getAdminClient();
     const promoter = await this.getPromoterAccount(userId);
 
@@ -1020,7 +1178,9 @@ export class PromoterEventsService {
 
     const { data: ticket } = await admin
       .from('tickets')
-      .select('id, buyer_email, buyer_name, stripe_checkout_session_id, ticket_tiers(name, price), amount_paid')
+      .select(
+        'id, buyer_email, buyer_name, stripe_checkout_session_id, ticket_tiers(name, price), amount_paid',
+      )
       .eq('id', ticketId)
       .eq('public_event_id', eventId)
       .maybeSingle();
@@ -1028,14 +1188,17 @@ export class PromoterEventsService {
 
     const toEmail = ticket.buyer_email;
     if (!toEmail || !process.env.RESEND_API_KEY) {
-      this.logger.warn(`[resendTicketConfirmation] No email or RESEND_API_KEY for ticket ${ticketId}`);
+      this.logger.warn(
+        `[resendTicketConfirmation] No email or RESEND_API_KEY for ticket ${ticketId}`,
+      );
       return;
     }
 
     try {
       const { Resend } = await import('resend');
       const resend = new Resend(process.env.RESEND_API_KEY);
-      const tierName = (ticket.ticket_tiers as any)?.name || 'General Admission';
+      const tierName =
+        (ticket.ticket_tiers as any)?.name || 'General Admission';
       const eventUrl = `${this.frontendUrl}/events/${eventId}`;
       await resend.emails.send({
         from: `Eventecos Tickets <${process.env.RESEND_FROM || 'noreply@eventecos.com'}>`,
@@ -1043,9 +1206,14 @@ export class PromoterEventsService {
         subject: `Your ticket to ${event.title} (resent)`,
         html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;"><h2>Your Ticket</h2><p>Here is your ticket for <strong>${event.title}</strong>.</p><table style="font-size:14px;"><tr><td style="color:#6b7280;padding:4px 12px 4px 0">Event</td><td><strong>${event.title}</strong></td></tr><tr><td style="color:#6b7280;padding:4px 12px 4px 0">Date</td><td>${event.event_date || 'TBD'}</td></tr><tr><td style="color:#6b7280;padding:4px 12px 4px 0">Venue</td><td>${event.venue_name || 'TBD'}</td></tr><tr><td style="color:#6b7280;padding:4px 12px 4px 0">Ticket</td><td>${tierName}</td></tr></table><br/><a href="${eventUrl}" style="display:inline-block;background:#7c3aed;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">View Event</a></div>`,
       });
-      this.logger.log(`[resendTicketConfirmation] Resent confirmation to ${toEmail} for ticket ${ticketId}`);
+      this.logger.log(
+        `[resendTicketConfirmation] Resent confirmation to ${toEmail} for ticket ${ticketId}`,
+      );
     } catch (err) {
-      this.logger.error(`[resendTicketConfirmation] Failed to resend for ticket ${ticketId}:`, err);
+      this.logger.error(
+        `[resendTicketConfirmation] Failed to resend for ticket ${ticketId}:`,
+        err,
+      );
     }
   }
 }

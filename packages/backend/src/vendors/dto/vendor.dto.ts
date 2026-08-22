@@ -1,4 +1,4 @@
-export type VendorCategory = 
+export type VendorCategory =
   | 'dj'
   | 'decorator'
   | 'planner_coordinator'

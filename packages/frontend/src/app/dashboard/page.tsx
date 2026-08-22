@@ -336,8 +336,12 @@ export default function DashboardPage() {
         {venues.length > 0 ? (
           <div className="space-y-2">
             {venues.map(venue => {
-              const link = `https://eventecos.com/intake/${intakeSlug ?? user?.id}?venueId=${venue.id}`
-              const display = `eventecos.com/intake/${intakeSlug ?? user?.id}?venueId=${venue.id}`
+              // Only append ?venueId= when the owner has multiple venues to disambiguate.
+              // With a single venue the backend already falls back to it automatically,
+              // so we can keep the link short.
+              const venueQuery = venues.length > 1 ? `?venueId=${venue.id}` : ''
+              const link = `https://eventecos.com/intake/${intakeSlug ?? user?.id}${venueQuery}`
+              const display = `eventecos.com/intake/${intakeSlug ?? user?.id}${venueQuery}`
               return (
                 <div key={venue.id}>
                   {venues.length > 1 && (

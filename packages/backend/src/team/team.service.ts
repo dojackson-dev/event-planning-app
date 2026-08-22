@@ -1,4 +1,9 @@
-import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { MailService } from '../mail/mail.service';
 import { randomBytes } from 'crypto';
@@ -31,7 +36,9 @@ export class TeamService {
 
     const { data, error } = await admin
       .from('memberships')
-      .select('id, role, is_active, created_at, user:users(id, email, first_name, last_name)')
+      .select(
+        'id, role, is_active, created_at, user:users(id, email, first_name, last_name)',
+      )
       .eq('owner_account_id', ownerAccountId)
       .eq('role', 'associate')
       .order('created_at', { ascending: false });
@@ -82,11 +89,11 @@ export class TeamService {
         const planName = (ownerAccount?.plan_name ?? 'free') as string;
         if (planName === 'free') {
           throw new BadRequestException(
-            `Your Free plan includes 0 team members. Add team members for $15/mo each, or upgrade to Pro (3 members) or Premium (5 members).`
+            `Your Free plan includes 0 team members. Add team members for $15/mo each, or upgrade to Pro (3 members) or Premium (5 members).`,
           );
         }
         throw new BadRequestException(
-          `Your ${planName.charAt(0).toUpperCase() + planName.slice(1)} plan includes up to ${limit} team member${limit !== 1 ? 's' : ''}. Upgrade to add more.`
+          `Your ${planName.charAt(0).toUpperCase() + planName.slice(1)} plan includes up to ${limit} team member${limit !== 1 ? 's' : ''}. Upgrade to add more.`,
         );
       }
     }
@@ -107,7 +114,9 @@ export class TeamService {
         .eq('owner_account_id', ownerAccountId)
         .maybeSingle();
       if (existingMember) {
-        throw new BadRequestException('This person is already a member of your team');
+        throw new BadRequestException(
+          'This person is already a member of your team',
+        );
       }
     }
 
@@ -121,7 +130,9 @@ export class TeamService {
       .maybeSingle();
 
     if (existingInvite) {
-      throw new BadRequestException('An invitation has already been sent to this email');
+      throw new BadRequestException(
+        'An invitation has already been sent to this email',
+      );
     }
 
     // Get owner info for the email
@@ -139,26 +150,28 @@ export class TeamService {
 
     // Create invitation
     const token = randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const expiresAt = new Date(
+      Date.now() + 7 * 24 * 60 * 60 * 1000,
+    ).toISOString();
 
-    const { error: inviteError } = await admin
-      .from('team_invitations')
-      .insert({
-        owner_account_id: ownerAccountId,
-        invited_by_user_id: userId,
-        email: email.toLowerCase(),
-        role: 'associate',
-        token,
-        status: 'pending',
-        expires_at: expiresAt,
-      });
+    const { error: inviteError } = await admin.from('team_invitations').insert({
+      owner_account_id: ownerAccountId,
+      invited_by_user_id: userId,
+      email: email.toLowerCase(),
+      role: 'associate',
+      token,
+      status: 'pending',
+      expires_at: expiresAt,
+    });
 
     if (inviteError) throw new BadRequestException(inviteError.message);
 
     // Send invite email
     const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
     const inviteUrl = `${frontendUrl}/team/accept?token=${token}`;
-    const ownerName = [owner?.first_name, owner?.last_name].filter(Boolean).join(' ') || 'Your venue owner';
+    const ownerName =
+      [owner?.first_name, owner?.last_name].filter(Boolean).join(' ') ||
+      'Your venue owner';
     const businessName = ownerAccountInfo?.business_name || 'DoVenueSuite';
 
     // Send invite email — non-fatal: invite is already saved
@@ -185,7 +198,12 @@ export class TeamService {
   }
 
   /** POST /team/accept — accept invite and create/link account */
-  async acceptInvite(token: string, password: string, firstName: string, lastName: string) {
+  async acceptInvite(
+    token: string,
+    password: string,
+    firstName: string,
+    lastName: string,
+  ) {
     const admin = this.supabaseService.getAdminClient();
 
     // Look up and validate token
@@ -196,10 +214,16 @@ export class TeamService {
       .eq('status', 'pending')
       .maybeSingle();
 
-    if (invErr || !invite) throw new BadRequestException('Invalid or expired invitation link');
+    if (invErr || !invite)
+      throw new BadRequestException('Invalid or expired invitation link');
     if (new Date(invite.expires_at) < new Date()) {
-      await admin.from('team_invitations').update({ status: 'expired' }).eq('id', invite.id);
-      throw new BadRequestException('This invitation has expired. Please ask the owner to resend it.');
+      await admin
+        .from('team_invitations')
+        .update({ status: 'expired' })
+        .eq('id', invite.id);
+      throw new BadRequestException(
+        'This invitation has expired. Please ask the owner to resend it.',
+      );
     }
 
     const supabase = this.supabaseService.getClient();
@@ -225,7 +249,9 @@ export class TeamService {
       });
 
       if (authErr || !authData.user) {
-        throw new BadRequestException(authErr?.message || 'Failed to create account');
+        throw new BadRequestException(
+          authErr?.message || 'Failed to create account',
+        );
       }
       userId = authData.user.id;
 
@@ -276,7 +302,7 @@ export class TeamService {
 
     return {
       success: true,
-      message: `You have joined ${(invite.owner_account as any)?.business_name || 'the team'}!`,
+      message: `You have joined ${invite.owner_account?.business_name || 'the team'}!`,
       session,
       user: userRow,
       roles: ['associate'],
@@ -289,13 +315,19 @@ export class TeamService {
     const admin = this.supabaseService.getAdminClient();
     const { data: invite, error } = await admin
       .from('team_invitations')
-      .select('email, status, expires_at, invited_by_user_id, owner_account:owner_accounts(business_name)')
+      .select(
+        'email, status, expires_at, invited_by_user_id, owner_account:owner_accounts(business_name)',
+      )
       .eq('token', token)
       .maybeSingle();
 
     if (error || !invite) throw new NotFoundException('Invitation not found');
-    if (invite.status !== 'pending') throw new BadRequestException('This invitation has already been used or expired');
-    if (new Date(invite.expires_at) < new Date()) throw new BadRequestException('This invitation has expired');
+    if (invite.status !== 'pending')
+      throw new BadRequestException(
+        'This invitation has already been used or expired',
+      );
+    if (new Date(invite.expires_at) < new Date())
+      throw new BadRequestException('This invitation has expired');
 
     const { data: inviter } = await admin
       .from('users')
@@ -306,7 +338,9 @@ export class TeamService {
     return {
       email: invite.email,
       businessName: (invite.owner_account as any)?.business_name,
-      ownerName: [inviter?.first_name, inviter?.last_name].filter(Boolean).join(' ') || 'Your venue owner',
+      ownerName:
+        [inviter?.first_name, inviter?.last_name].filter(Boolean).join(' ') ||
+        'Your venue owner',
       role: 'associate',
     };
   }
@@ -355,10 +389,13 @@ export class TeamService {
       .maybeSingle();
 
     if (error || !invite) throw new NotFoundException('Invitation not found');
-    if (invite.status !== 'pending') throw new BadRequestException('Invitation is no longer pending');
+    if (invite.status !== 'pending')
+      throw new BadRequestException('Invitation is no longer pending');
 
     // Refresh expiry by 7 days
-    const newExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const newExpiresAt = new Date(
+      Date.now() + 7 * 24 * 60 * 60 * 1000,
+    ).toISOString();
     await admin
       .from('team_invitations')
       .update({ expires_at: newExpiresAt })
@@ -378,13 +415,22 @@ export class TeamService {
 
     const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
     const inviteUrl = `${frontendUrl}/team/accept?token=${invite.token}`;
-    const ownerName = [owner?.first_name, owner?.last_name].filter(Boolean).join(' ') || 'Your venue owner';
+    const ownerName =
+      [owner?.first_name, owner?.last_name].filter(Boolean).join(' ') ||
+      'Your venue owner';
     const businessName = ownerAccount?.business_name || 'EventEcos';
 
     try {
-      await this.mailService.sendTeamInvitation({ toEmail: invite.email, inviteUrl, ownerName, businessName });
+      await this.mailService.sendTeamInvitation({
+        toEmail: invite.email,
+        inviteUrl,
+        ownerName,
+        businessName,
+      });
     } catch (err: any) {
-      throw new BadRequestException(`Email delivery failed: ${err?.message ?? 'unknown error'}`);
+      throw new BadRequestException(
+        `Email delivery failed: ${err?.message ?? 'unknown error'}`,
+      );
     }
 
     return { success: true, message: `Invitation resent to ${invite.email}` };

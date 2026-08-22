@@ -71,8 +71,8 @@ function VenueFormFields({ form, onChange }: { form: any; onChange: (field: stri
         </div>
         <div>
           <label className="block text-xs text-gray-600 mb-1">Website</label>
-          <input type="url" value={form.website} onChange={e => onChange('website', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" placeholder="https://myvenue.com" />
+          <input type="text" value={form.website} onChange={e => onChange('website', e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" placeholder="myvenue.com" />
         </div>
       </div>
       <div>
@@ -208,6 +208,10 @@ function SettingsPageContent() {
     setVenueSaving(true)
     setMessage(null)
     try {
+      // Users shouldn't have to type the protocol themselves — default to https://
+      // if they entered a bare domain like "myvenue.com".
+      const website = venueForm.website.trim()
+      const normalizedWebsite = website && !/^https?:\/\//i.test(website) ? `https://${website}` : website
       const payload = {
         name: venueForm.name,
         address: venueForm.address,
@@ -215,16 +219,16 @@ function SettingsPageContent() {
         state: venueForm.state,
         zipCode: venueForm.zip_code,
         phone: venueForm.phone,
-        website: venueForm.website,
+        website: normalizedWebsite,
         capacity: venueForm.capacity ? parseInt(venueForm.capacity, 10) : undefined,
         description: venueForm.description,
       }
       if (editingVenueId === 'new') {
         const res = await api.post('/owner/venues', payload)
-        setVenues(prev => [...prev, { ...venueForm, id: res.data.venue.id }])
+        setVenues(prev => [...prev, { ...venueForm, website: normalizedWebsite, id: res.data.venue.id }])
       } else {
         await api.put(`/owner/venues/${editingVenueId}`, payload)
-        setVenues(prev => prev.map(v => v.id === editingVenueId ? { ...venueForm, id: editingVenueId } : v))
+        setVenues(prev => prev.map(v => v.id === editingVenueId ? { ...venueForm, website: normalizedWebsite, id: editingVenueId } : v))
       }
       setMessage({ type: 'success', text: editingVenueId === 'new' ? 'Venue added!' : 'Venue saved!' })
       cancelVenueEdit()

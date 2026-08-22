@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Body, Headers, UnauthorizedException, Logger } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Headers,
+  UnauthorizedException,
+  Logger,
+} from '@nestjs/common';
 import { TrialService } from './trial.service';
 import { SupabaseService } from '../supabase/supabase.service';
 
@@ -20,7 +28,7 @@ export class TrialController {
 
   private async getOwnerAccountId(authorization: string): Promise<string> {
     const token = this.extractToken(authorization);
-    
+
     // Handle dev tokens
     if (token.startsWith('local-')) {
       const userId = token.replace('local-', '');
@@ -32,19 +40,22 @@ export class TrialController {
         .eq('user_id', userId)
         .eq('role', 'owner')
         .single();
-      
+
       if (!data) throw new UnauthorizedException('Owner account not found');
       return data.owner_account_id;
     }
-    
+
     // Handle Supabase tokens
     const supabase = this.supabaseService.setAuthContext(token);
-    const { data: { user }, error } = await supabase.auth.getUser();
-    
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
+
     if (error || !user) {
       throw new UnauthorizedException('Invalid token');
     }
-    
+
     // Get owner account from user ID
     const adminClient = this.supabaseService.getAdminClient();
     const { data } = await adminClient
@@ -53,7 +64,7 @@ export class TrialController {
       .eq('user_id', user.id)
       .eq('role', 'owner')
       .single();
-    
+
     if (!data) throw new UnauthorizedException('Owner account not found');
     return data.owner_account_id;
   }
@@ -89,6 +100,9 @@ export class TrialController {
       throw new Error('Trial days must be between 1 and 365');
     }
     await this.trialService.setDefaultTrialDays(body.days);
-    return { message: `Trial days set to ${body.days}`, defaultTrialDays: body.days };
+    return {
+      message: `Trial days set to ${body.days}`,
+      defaultTrialDays: body.days,
+    };
   }
 }

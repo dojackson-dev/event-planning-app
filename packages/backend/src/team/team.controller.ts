@@ -1,5 +1,12 @@
 import {
-  Controller, Get, Post, Delete, Body, Param, Headers, UnauthorizedException,
+  Controller,
+  Get,
+  Post,
+  Delete,
+  Body,
+  Param,
+  Headers,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { TeamService } from './team.service';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -12,10 +19,14 @@ export class TeamController {
   ) {}
 
   private async getUserId(authorization?: string): Promise<string> {
-    if (!authorization) throw new UnauthorizedException('No authorization header');
+    if (!authorization)
+      throw new UnauthorizedException('No authorization header');
     const token = authorization.replace('Bearer ', '');
     const supabase = this.supabaseService.setAuthContext(token);
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
     if (error || !user) throw new UnauthorizedException('Invalid token');
     return user.id;
   }

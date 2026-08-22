@@ -1,6 +1,20 @@
-import { Controller, Post, Body, Get, Put, Delete, Headers, UnauthorizedException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  Put,
+  Delete,
+  Headers,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { RegisterDto, LoginDto, UpdateProfileDto, ChangePasswordDto } from './dto/auth.dto';
+import {
+  RegisterDto,
+  LoginDto,
+  UpdateProfileDto,
+  ChangePasswordDto,
+} from './dto/auth.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -45,7 +59,7 @@ export class AuthController {
   @Put('profile')
   async updateProfile(
     @Headers('authorization') authorization: string,
-    @Body() updateProfileDto: UpdateProfileDto
+    @Body() updateProfileDto: UpdateProfileDto,
   ) {
     if (!authorization) {
       throw new UnauthorizedException('No authorization header');
@@ -57,7 +71,7 @@ export class AuthController {
   @Put('password')
   async changePassword(
     @Headers('authorization') authorization: string,
-    @Body() changePasswordDto: ChangePasswordDto
+    @Body() changePasswordDto: ChangePasswordDto,
   ) {
     if (!authorization) {
       throw new UnauthorizedException('No authorization header');

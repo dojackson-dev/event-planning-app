@@ -28,11 +28,15 @@ export class PromoterInvoicesController {
   ) {}
 
   private async getUserId(authorization: string): Promise<string> {
-    if (!authorization) throw new UnauthorizedException('No authorization header');
+    if (!authorization)
+      throw new UnauthorizedException('No authorization header');
     const token = authorization.replace('Bearer ', '');
     if (token.startsWith('local-')) return token.replace('local-', '');
     const supabase = this.supabaseService.setAuthContext(token);
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
     if (error || !user) throw new UnauthorizedException('Invalid token');
     return user.id;
   }
@@ -57,7 +61,10 @@ export class PromoterInvoicesController {
   // ─── AUTHENTICATED ────────────────────────────────────────────────────────
 
   @Post()
-  async createInvoice(@Headers('authorization') auth: string, @Body() dto: CreatePromoterInvoiceDto) {
+  async createInvoice(
+    @Headers('authorization') auth: string,
+    @Body() dto: CreatePromoterInvoiceDto,
+  ) {
     const userId = await this.getUserId(auth);
     return this.promoterInvoicesService.createInvoice(userId, dto);
   }
@@ -69,7 +76,10 @@ export class PromoterInvoicesController {
   }
 
   @Get(':id')
-  async getInvoice(@Headers('authorization') auth: string, @Param('id') id: string) {
+  async getInvoice(
+    @Headers('authorization') auth: string,
+    @Param('id') id: string,
+  ) {
     const userId = await this.getUserId(auth);
     return this.promoterInvoicesService.getInvoice(userId, id);
   }
@@ -85,13 +95,19 @@ export class PromoterInvoicesController {
   }
 
   @Delete(':id')
-  async deleteInvoice(@Headers('authorization') auth: string, @Param('id') id: string) {
+  async deleteInvoice(
+    @Headers('authorization') auth: string,
+    @Param('id') id: string,
+  ) {
     const userId = await this.getUserId(auth);
     return this.promoterInvoicesService.deleteInvoice(userId, id);
   }
 
   @Post(':id/send')
-  async sendInvoice(@Headers('authorization') auth: string, @Param('id') id: string) {
+  async sendInvoice(
+    @Headers('authorization') auth: string,
+    @Param('id') id: string,
+  ) {
     const userId = await this.getUserId(auth);
     return this.promoterInvoicesService.sendInvoice(userId, id);
   }
@@ -117,7 +133,10 @@ export class PromoterInvoicesController {
   }
 
   @Delete('items/:itemId')
-  async deleteItem(@Headers('authorization') auth: string, @Param('itemId') itemId: string) {
+  async deleteItem(
+    @Headers('authorization') auth: string,
+    @Param('itemId') itemId: string,
+  ) {
     const userId = await this.getUserId(auth);
     return this.promoterInvoicesService.deleteItem(userId, itemId);
   }

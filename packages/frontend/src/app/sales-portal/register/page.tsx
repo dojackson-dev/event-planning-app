@@ -1,12 +1,13 @@
-'use client'
+﻿'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
 
-export default function SalesPortalRegister() {
+function RegisterForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   const [firstName, setFirstName] = useState('')
   const [lastName,  setLastName]  = useState('')
@@ -18,6 +19,39 @@ export default function SalesPortalRegister() {
   const [error,   setError]   = useState('')
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
+
+  // Invite token state
+  const [token,        setToken]        = useState<string | null>(null)
+  const [tokenValid,   setTokenValid]   = useState<boolean | null>(null)
+  const [tokenReason,  setTokenReason]  = useState('')
+  const [validatingToken, setValidatingToken] = useState(true)
+
+  // Validate token on mount
+  useEffect(() => {
+    const t = searchParams.get('token')
+    if (!t) {
+      setTokenValid(false)
+      setTokenReason('No invite link found. Please use the link from your invitation email.')
+      setValidatingToken(false)
+      return
+    }
+    setToken(t)
+    api.get(`/affiliates/invite/validate?token=${t}`)
+      .then(res => {
+        if (res.data.valid) {
+          setTokenValid(true)
+          setEmail(res.data.email ?? '')
+        } else {
+          setTokenValid(false)
+          setTokenReason(res.data.reason || 'Invalid invite link')
+        }
+      })
+      .catch(() => {
+        setTokenValid(false)
+        setTokenReason('Could not validate invite link. Please try again.')
+      })
+      .finally(() => setValidatingToken(false))
+  }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -40,6 +74,7 @@ export default function SalesPortalRegister() {
         email,
         phone: phone || undefined,
         password,
+        inviteToken: token,
       })
       setSuccess(true)
     } catch (err: any) {
@@ -49,6 +84,36 @@ export default function SalesPortalRegister() {
     }
   }
 
+  // â”€â”€ Loading state while validating token â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  if (validatingToken) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-white px-4">
+        <p className="text-gray-500 text-sm animate-pulse">Verifying your inviteâ€¦</p>
+      </div>
+    )
+  }
+
+  // â”€â”€ Invalid token â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  if (!tokenValid) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-white px-4">
+        <div className="max-w-md w-full text-center bg-white rounded-2xl shadow-sm border border-gray-200 p-10">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 mb-4">
+            <svg className="w-8 h-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Invite Not Valid</h2>
+          <p className="text-gray-500 mb-6">{tokenReason}</p>
+          <p className="text-sm text-gray-400">
+            Contact <a href="mailto:sales@eventecos.com" className="text-indigo-600 underline">sales@eventecos.com</a> to request a new invite.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // â”€â”€ Success â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (success) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-white px-4">
@@ -137,11 +202,11 @@ export default function SalesPortalRegister() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Email address</label>
               <input
                 type="email" required autoComplete="email"
-                value={email} onChange={e => setEmail(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm
-                           focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                placeholder="you@example.com"
+                value={email}
+                readOnly
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-600 cursor-not-allowed"
               />
+              <p className="mt-1 text-xs text-gray-400">Locked to your invite email</p>
             </div>
 
             <div>
@@ -175,7 +240,7 @@ export default function SalesPortalRegister() {
                 value={confirm} onChange={e => setConfirm(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm
                            focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                placeholder="••••••••"
+                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
               />
             </div>
 
@@ -185,7 +250,7 @@ export default function SalesPortalRegister() {
               className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60
                          text-white font-semibold rounded-lg transition-colors text-sm mt-2"
             >
-              {loading ? 'Creating account…' : 'Create Affiliate Account'}
+              {loading ? 'Creating accountâ€¦' : 'Create Affiliate Account'}
             </button>
           </form>
 
@@ -199,5 +264,17 @@ export default function SalesPortalRegister() {
 
       </div>
     </div>
+  )
+}
+
+export default function SalesPortalRegister() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-white px-4">
+        <p className="text-gray-500 text-sm animate-pulse">Loading…</p>
+      </div>
+    }>
+      <RegisterForm />
+    </Suspense>
   )
 }

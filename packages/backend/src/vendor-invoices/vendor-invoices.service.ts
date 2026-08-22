@@ -1,13 +1,23 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import Stripe from 'stripe';
 import * as nodemailer from 'nodemailer';
-import { CreateVendorInvoiceDto, UpdateVendorInvoiceDto, VendorInvoiceItemDto } from './dto/vendor-invoice.dto';
+import {
+  CreateVendorInvoiceDto,
+  UpdateVendorInvoiceDto,
+  VendorInvoiceItemDto,
+} from './dto/vendor-invoice.dto';
 
-const APP_FEE_RATE = 0.03;            // 3% platform fee — vendor-to-client invoices
-const OWNER_BOOKING_FEE_RATE = 0.03;  // 3% platform fee — owner-to-vendor invoices (waived for Pro/Premium subscribers)
+const APP_FEE_RATE = 0.03; // 3% platform fee — vendor-to-client invoices
+const OWNER_BOOKING_FEE_RATE = 0.03; // 3% platform fee — owner-to-vendor invoices (waived for Pro/Premium subscribers)
 
 @Injectable()
 export class VendorInvoicesService {
@@ -23,7 +33,10 @@ export class VendorInvoicesService {
     const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (!secretKey) throw new Error('STRIPE_SECRET_KEY is not set');
     this.stripe = new Stripe(secretKey);
-    this.frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://eventecos.com');
+    this.frontendUrl = this.configService.get<string>(
+      'FRONTEND_URL',
+      'https://eventecos.com',
+    );
   }
 
   // ─── Invoice number generation ──────────────────────────────────────────────
@@ -31,11 +44,20 @@ export class VendorInvoicesService {
   private async generateInvoiceNumber(): Promise<string> {
     const admin = this.supabaseService.getAdminClient();
     const year = new Date().getFullYear();
-    const { count } = await admin
+    const prefix = `VINV-${year}-`;
+    const { data } = await admin
       .from('vendor_invoices')
-      .select('*', { count: 'exact', head: true });
-    const seq = String((count ?? 0) + 1).padStart(5, '0');
-    return `VINV-${year}-${seq}`;
+      .select('invoice_number')
+      .like('invoice_number', `${prefix}%`)
+      .order('invoice_number', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    let seq = 1;
+    if (data?.invoice_number) {
+      const match = data.invoice_number.match(/VINV-\d{4}-(\d+)/);
+      if (match) seq = parseInt(match[1], 10) + 1;
+    }
+    return `${prefix}${String(seq).padStart(5, '0')}`;
   }
 
   private calculateTotals(
@@ -43,7 +65,10 @@ export class VendorInvoicesService {
     taxRate: number,
     discountAmount: number,
   ) {
-    const subtotal = items.reduce((sum, i) => sum + i.quantity * i.unit_price, 0);
+    const subtotal = items.reduce(
+      (sum, i) => sum + i.quantity * i.unit_price,
+      0,
+    );
     const taxAmount = subtotal * (taxRate / 100);
     const totalAmount = Math.max(0, subtotal + taxAmount - discountAmount);
     return { subtotal, taxAmount, totalAmount, amountDue: totalAmount };
@@ -58,7 +83,8 @@ export class VendorInvoicesService {
       .select('id')
       .eq('user_id', userId)
       .maybeSingle();
-    if (error || !data) throw new ForbiddenException('No vendor account found for this user');
+    if (error || !data)
+      throw new ForbiddenException('No vendor account found for this user');
     return data.id;
   }
 
@@ -70,11 +96,8 @@ export class VendorInvoicesService {
     const invoiceNumber = await this.generateInvoiceNumber();
     const taxRate = dto.tax_rate ?? 0;
     const discountAmount = dto.discount_amount ?? 0;
-    const { subtotal, taxAmount, totalAmount, amountDue } = this.calculateTotals(
-      dto.items,
-      taxRate,
-      discountAmount,
-    );
+    const { subtotal, taxAmount, totalAmount, amountDue } =
+      this.calculateTotals(dto.items, taxRate, discountAmount);
 
     const { data: invoice, error: invErr } = await admin
       .from('vendor_invoices')
@@ -101,18 +124,24 @@ export class VendorInvoicesService {
       .select()
       .single();
 
-    if (invErr || !invoice) throw new BadRequestException(invErr?.message ?? 'Failed to create invoice');
+    if (invErr || !invoice)
+      throw new BadRequestException(
+        invErr?.message ?? 'Failed to create invoice',
+      );
 
     if (dto.items.length > 0) {
-      const lineItems = dto.items.map(item => ({
+      const lineItems = dto.items.map((item) => ({
         vendor_invoice_id: invoice.id,
         description: item.description,
         quantity: item.quantity,
         unit_price: item.unit_price,
         amount: item.quantity * item.unit_price,
       }));
-      const { error: itemsErr } = await admin.from('vendor_invoice_items').insert(lineItems);
-      if (itemsErr) this.logger.error('Failed to insert invoice items', itemsErr);
+      const { error: itemsErr } = await admin
+        .from('vendor_invoice_items')
+        .insert(lineItems);
+      if (itemsErr)
+        this.logger.error('Failed to insert invoice items', itemsErr);
     }
 
     return this.getInvoice(userId, invoice.id);
@@ -138,7 +167,9 @@ export class VendorInvoicesService {
     // Find all owner vendor_bookings with an agreed_amount
     const { data: bookings } = await admin
       .from('vendor_bookings')
-      .select('id, vendor_account_id, event_name, event_date, agreed_amount, booked_by_user_id, vendor_accounts(id, business_name, phone)')
+      .select(
+        'id, vendor_account_id, event_name, event_date, agreed_amount, booked_by_user_id, vendor_accounts(id, business_name, phone)',
+      )
       .eq('owner_account_id', ownerAccountId)
       .not('agreed_amount', 'is', null)
       .gt('agreed_amount', 0);
@@ -152,7 +183,9 @@ export class VendorInvoicesService {
         .eq('invoice_type', 'owner_booking')
         .not('vendor_booking_id', 'is', null);
 
-      const invoicedBookingIds = new Set((existingInvoices ?? []).map((i: any) => i.vendor_booking_id));
+      const invoicedBookingIds = new Set(
+        (existingInvoices ?? []).map((i: any) => i.vendor_booking_id),
+      );
 
       // Auto-create invoices for any bookings that don't have one
       for (const booking of bookings) {
@@ -164,13 +197,22 @@ export class VendorInvoicesService {
             await this.autoCreateOwnerBookingInvoice(
               booking.id,
               { id: vendor.id, business_name: vendor.business_name },
-              { vendorAccountId: vendor.id, eventName: booking.event_name ?? 'Vendor Event', eventDate: booking.event_date, agreedAmount: Number(booking.agreed_amount) } as any,
+              {
+                vendorAccountId: vendor.id,
+                eventName: booking.event_name ?? 'Vendor Event',
+                eventDate: booking.event_date,
+                agreedAmount: Number(booking.agreed_amount),
+              } as any,
               ownerAccountId,
               userId,
             );
-            this.logger.log(`Backfilled owner booking invoice for booking ${booking.id}`);
+            this.logger.log(
+              `Backfilled owner booking invoice for booking ${booking.id}`,
+            );
           } catch (e) {
-            this.logger.warn(`Backfill invoice failed for booking ${booking.id}: ${(e as Error).message}`);
+            this.logger.warn(
+              `Backfill invoice failed for booking ${booking.id}: ${(e as Error).message}`,
+            );
           }
         }
       }
@@ -179,7 +221,9 @@ export class VendorInvoicesService {
     // Return all owner_booking invoices for this owner
     const { data, error } = await admin
       .from('vendor_invoices')
-      .select('*, vendor_invoice_items(*), vendor_accounts(business_name, email, phone), vendor_bookings(event_name, event_date, status)')
+      .select(
+        '*, vendor_invoice_items(*), vendor_accounts(business_name, email, phone), vendor_bookings(event_name, event_date, status)',
+      )
       .eq('owner_account_id', ownerAccountId)
       .eq('invoice_type', 'owner_booking')
       .order('created_at', { ascending: false });
@@ -190,21 +234,43 @@ export class VendorInvoicesService {
   private async autoCreateOwnerBookingInvoice(
     bookingId: string,
     vendor: { id: string; business_name: string },
-    dto: { vendorAccountId: string; eventName: string; eventDate?: string; agreedAmount: number },
+    dto: {
+      vendorAccountId: string;
+      eventName: string;
+      eventDate?: string;
+      agreedAmount: number;
+    },
     ownerAccountId: string,
     ownerUserId: string,
   ) {
     const admin = this.supabaseService.getAdminClient();
-    const { data: { user }, error: userErr } = await admin.auth.admin.getUserById(ownerUserId);
-    if (userErr || !user?.email) throw new Error('Could not resolve owner email');
+    const {
+      data: { user },
+      error: userErr,
+    } = await admin.auth.admin.getUserById(ownerUserId);
+    if (userErr || !user?.email)
+      throw new Error('Could not resolve owner email');
 
-    const ownerName = [user.user_metadata?.first_name, user.user_metadata?.last_name]
-      .filter(Boolean).join(' ') || user.email;
+    const ownerName =
+      [user.user_metadata?.first_name, user.user_metadata?.last_name]
+        .filter(Boolean)
+        .join(' ') || user.email;
 
     const year = new Date().getFullYear();
-    const { count } = await admin.from('vendor_invoices').select('*', { count: 'exact', head: true });
-    const seq = String((count ?? 0) + 1).padStart(5, '0');
-    const invoiceNumber = `BINV-${year}-${seq}`;
+    const binvPrefix = `BINV-${year}-`;
+    const { data: maxBinv } = await admin
+      .from('vendor_invoices')
+      .select('invoice_number')
+      .like('invoice_number', `${binvPrefix}%`)
+      .order('invoice_number', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    let binvSeq = 1;
+    if (maxBinv?.invoice_number) {
+      const match = maxBinv.invoice_number.match(/BINV-\d{4}-(\d+)/);
+      if (match) binvSeq = parseInt(match[1], 10) + 1;
+    }
+    const invoiceNumber = `${binvPrefix}${String(binvSeq).padStart(5, '0')}`;
 
     const amount = Number(dto.agreedAmount);
     const issueDate = new Date().toISOString().split('T')[0];
@@ -238,7 +304,10 @@ export class VendorInvoicesService {
       .select()
       .single();
 
-    if (invErr || !invoice) throw new Error(invErr?.message ?? 'Failed to insert owner booking invoice');
+    if (invErr || !invoice)
+      throw new Error(
+        invErr?.message ?? 'Failed to insert owner booking invoice',
+      );
 
     await admin.from('vendor_invoice_items').insert({
       vendor_invoice_id: invoice.id,
@@ -255,7 +324,9 @@ export class VendorInvoicesService {
 
     const { data, error } = await admin
       .from('vendor_invoices')
-      .select('*, vendor_invoice_items(*), vendor_accounts(business_name, email, phone, city, state)')
+      .select(
+        '*, vendor_invoice_items(*), vendor_accounts(business_name, email, phone, city, state)',
+      )
       .eq('id', invoiceId)
       .eq('vendor_account_id', vendorAccountId)
       .single();
@@ -270,7 +341,9 @@ export class VendorInvoicesService {
 
     const { data, error } = await admin
       .from('vendor_invoices')
-      .select('*, vendor_invoice_items(*), vendor_accounts(business_name, email, phone, city, state)')
+      .select(
+        '*, vendor_invoice_items(*), vendor_accounts(business_name, email, phone, city, state)',
+      )
       .eq('id', invoiceId)
       .single();
 
@@ -296,7 +369,11 @@ export class VendorInvoicesService {
     return data;
   }
 
-  async updateInvoice(userId: string, invoiceId: string, dto: UpdateVendorInvoiceDto) {
+  async updateInvoice(
+    userId: string,
+    invoiceId: string,
+    dto: UpdateVendorInvoiceDto,
+  ) {
     const admin = this.supabaseService.getAdminClient();
     const vendorAccountId = await this.getVendorAccountId(userId);
 
@@ -355,21 +432,31 @@ export class VendorInvoicesService {
     });
     if (error) throw new Error(error.message);
 
-    await this.recalcAndSaveInvoiceTotals(invoiceId, invoice.tax_rate, invoice.discount_amount);
+    await this.recalcAndSaveInvoiceTotals(
+      invoiceId,
+      invoice.tax_rate,
+      invoice.discount_amount,
+    );
     return this.getInvoice(userId, invoiceId);
   }
 
-  async updateItem(userId: string, itemId: string, item: Partial<VendorInvoiceItemDto>) {
+  async updateItem(
+    userId: string,
+    itemId: string,
+    item: Partial<VendorInvoiceItemDto>,
+  ) {
     const admin = this.supabaseService.getAdminClient();
     const vendorAccountId = await this.getVendorAccountId(userId);
 
     const { data: existing } = await admin
       .from('vendor_invoice_items')
-      .select('*, vendor_invoices!inner(vendor_account_id, tax_rate, discount_amount)')
+      .select(
+        '*, vendor_invoices!inner(vendor_account_id, tax_rate, discount_amount)',
+      )
       .eq('id', itemId)
       .single();
 
-    const parentInvoice = existing ? (existing.vendor_invoices as any) : null;
+    const parentInvoice = existing ? existing.vendor_invoices : null;
     if (!existing || parentInvoice?.vendor_account_id !== vendorAccountId) {
       throw new NotFoundException('Item not found');
     }
@@ -397,7 +484,9 @@ export class VendorInvoicesService {
 
     const { data: existing } = await admin
       .from('vendor_invoice_items')
-      .select('vendor_invoice_id, vendor_invoices!inner(vendor_account_id, tax_rate, discount_amount)')
+      .select(
+        'vendor_invoice_id, vendor_invoices!inner(vendor_account_id, tax_rate, discount_amount)',
+      )
       .eq('id', itemId)
       .single();
 
@@ -415,28 +504,42 @@ export class VendorInvoicesService {
     return { success: true };
   }
 
-  private async recalcAndSaveInvoiceTotals(invoiceId: string, taxRate: number, discountAmount: number) {
+  private async recalcAndSaveInvoiceTotals(
+    invoiceId: string,
+    taxRate: number,
+    discountAmount: number,
+  ) {
     const admin = this.supabaseService.getAdminClient();
     const { data: items } = await admin
       .from('vendor_invoice_items')
       .select('quantity, unit_price')
       .eq('vendor_invoice_id', invoiceId);
 
-    const { subtotal, taxAmount, totalAmount, amountDue } = this.calculateTotals(
-      (items ?? []) as { quantity: number; unit_price: number }[],
-      Number(taxRate),
-      Number(discountAmount),
-    );
+    const { subtotal, taxAmount, totalAmount, amountDue } =
+      this.calculateTotals(
+        (items ?? []) as { quantity: number; unit_price: number }[],
+        Number(taxRate),
+        Number(discountAmount),
+      );
 
     await admin
       .from('vendor_invoices')
-      .update({ subtotal, tax_amount: taxAmount, total_amount: totalAmount, amount_due: amountDue, updated_at: new Date().toISOString() })
+      .update({
+        subtotal,
+        tax_amount: taxAmount,
+        total_amount: totalAmount,
+        amount_due: amountDue,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', invoiceId);
   }
 
   // ─── Send invoice email ──────────────────────────────────────────────────────
 
-  async sendInvoice(userId: string, invoiceId: string): Promise<{ success: boolean }> {
+  async sendInvoice(
+    userId: string,
+    invoiceId: string,
+  ): Promise<{ success: boolean }> {
     const admin = this.supabaseService.getAdminClient();
     const vendorAccountId = await this.getVendorAccountId(userId);
     const { data: vendorAccount } = await admin
@@ -447,7 +550,9 @@ export class VendorInvoicesService {
 
     // Only block sending if Stripe is not set up AND there is a client_email to send to
     // (allows SMS-only delivery for testing without Stripe)
-    const hasStripe = vendorAccount?.stripe_account_id && vendorAccount.stripe_connect_status === 'active';
+    const hasStripe =
+      vendorAccount?.stripe_account_id &&
+      vendorAccount.stripe_connect_status === 'active';
 
     const invoice = await this.getInvoice(userId, invoiceId);
     const payUrl = `${this.frontendUrl}/pay/${invoice.public_token}`;
@@ -465,7 +570,9 @@ export class VendorInvoicesService {
         payUrl,
       });
     } else {
-      this.logger.warn(`Skipping email for invoice ${invoiceId} — no active Stripe account. Will send SMS only.`);
+      this.logger.warn(
+        `Skipping email for invoice ${invoiceId} — no active Stripe account. Will send SMS only.`,
+      );
     }
 
     // Always mark as sent so the client portal shows it
@@ -475,7 +582,7 @@ export class VendorInvoicesService {
       .eq('id', invoiceId);
 
     // Send SMS with payment link if client has a phone number
-    const clientPhone = (invoice as any).client_phone as string | null;
+    const clientPhone = invoice.client_phone as string | null;
     try {
       await this.smsNotifications.vendorInvoiceSent(
         clientPhone,
@@ -484,9 +591,12 @@ export class VendorInvoicesService {
         invoice.total_amount,
         payUrl,
       );
-      if (clientPhone) this.logger.log(`Invoice SMS sent to client at ${clientPhone}`);
+      if (clientPhone)
+        this.logger.log(`Invoice SMS sent to client at ${clientPhone}`);
     } catch (smsErr: any) {
-      this.logger.warn(`Failed to send invoice SMS to ${clientPhone}: ${smsErr?.message}`);
+      this.logger.warn(
+        `Failed to send invoice SMS to ${clientPhone}: ${smsErr?.message}`,
+      );
     }
 
     return { success: emailSent };
@@ -506,7 +616,9 @@ export class VendorInvoicesService {
     const smtpPass = this.configService.get<string>('SMTP_PASS');
 
     if (!smtpHost || !smtpUser || !smtpPass) {
-      this.logger.warn('SMTP not configured — invoice email not sent. Set SMTP_HOST, SMTP_USER, SMTP_PASS.');
+      this.logger.warn(
+        'SMTP not configured — invoice email not sent. Set SMTP_HOST, SMTP_USER, SMTP_PASS.',
+      );
       this.logger.log(`[DEV] Invoice email to ${params.to}: ${params.payUrl}`);
       return true; // treat as sent in dev so status updates
     }
@@ -556,7 +668,9 @@ export class VendorInvoicesService {
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('vendor_invoices')
-      .select('*, vendor_invoice_items(*), vendor_accounts(business_name, email, phone, city, state, profile_image_url)')
+      .select(
+        '*, vendor_invoice_items(*), vendor_accounts(business_name, email, phone, city, state, profile_image_url)',
+      )
       .eq('public_token', token)
       .single();
 
@@ -572,34 +686,50 @@ export class VendorInvoicesService {
     }
 
     // Strip internal fields before returning to unauthenticated caller
-    const { public_token: _tok, stripe_checkout_session_id: _sess, stripe_payment_intent_id: _pi, ...safe } = data;
+    const {
+      public_token: _tok,
+      stripe_checkout_session_id: _sess,
+      stripe_payment_intent_id: _pi,
+      ...safe
+    } = data;
     return safe;
   }
 
   // ─── Stripe Checkout for public invoice payment ──────────────────────────────
 
-  async createCheckoutSession(token: string): Promise<{ url: string; feeCents: number }> {
+  async createCheckoutSession(
+    token: string,
+  ): Promise<{ url: string; feeCents: number }> {
     const admin = this.supabaseService.getAdminClient();
 
     const { data: invoice, error } = await admin
       .from('vendor_invoices')
-      .select('*, vendor_accounts(stripe_account_id, stripe_connect_status, business_name)')
+      .select(
+        '*, vendor_accounts(stripe_account_id, stripe_connect_status, business_name, enable_bnpl)',
+      )
       .eq('public_token', token)
       .single();
 
     if (error || !invoice) throw new NotFoundException('Invoice not found');
-    if (invoice.status === 'paid') throw new ForbiddenException('Invoice is already paid');
-    if (invoice.status === 'cancelled') throw new ForbiddenException('Invoice has been cancelled');
+    if (invoice.status === 'paid')
+      throw new ForbiddenException('Invoice is already paid');
+    if (invoice.status === 'cancelled')
+      throw new ForbiddenException('Invoice has been cancelled');
 
     const amountCents = Math.round(Number(invoice.amount_due) * 100);
-    if (amountCents <= 0) throw new ForbiddenException('Invoice amount must be greater than zero');
+    if (amountCents <= 0)
+      throw new ForbiddenException('Invoice amount must be greater than zero');
 
     const vendor = invoice.vendor_accounts;
-    const hasConnect = vendor?.stripe_account_id && vendor?.stripe_connect_status === 'active';
+    const hasConnect =
+      vendor?.stripe_account_id && vendor?.stripe_connect_status === 'active';
+    const bnplMethods = ['afterpay_clearpay', 'klarna', 'affirm', 'us_bank_account'] as const;
 
     const sessionParams: Stripe.Checkout.SessionCreateParams = {
       mode: 'payment',
-      payment_method_types: ['card'],
+      payment_method_types: vendor?.enable_bnpl
+        ? ['card', ...bnplMethods]
+        : ['card'],
       customer_email: invoice.client_email,
       line_items: [
         {
@@ -614,12 +744,14 @@ export class VendorInvoicesService {
           quantity: 1,
         },
       ],
-      success_url: invoice.invoice_type === 'owner_booking'
-        ? `${this.frontendUrl}/dashboard/vendors/payments?paid=true&token=${token}`
-        : `${this.frontendUrl}/pay/${token}?paid=true`,
-      cancel_url: invoice.invoice_type === 'owner_booking'
-        ? `${this.frontendUrl}/dashboard/vendors/payments?canceled=true`
-        : `${this.frontendUrl}/pay/${token}?canceled=true`,
+      success_url:
+        invoice.invoice_type === 'owner_booking'
+          ? `${this.frontendUrl}/dashboard/vendors/payments?paid=true&token=${token}`
+          : `${this.frontendUrl}/pay/${token}?paid=true`,
+      cancel_url:
+        invoice.invoice_type === 'owner_booking'
+          ? `${this.frontendUrl}/dashboard/vendors/payments?canceled=true`
+          : `${this.frontendUrl}/pay/${token}?canceled=true`,
       metadata: { vendor_invoice_id: invoice.id, vendor_invoice_token: token },
       client_reference_id: invoice.id,
     };
@@ -667,6 +799,7 @@ export class VendorInvoicesService {
     sessionParams.payment_intent_data = {
       transfer_data: { destination: vendor.stripe_account_id },
       application_fee_amount: platformFeeCents,
+      metadata: { vendor_invoice_id: invoice.id },
     };
 
     const session = await this.stripe.checkout.sessions.create(sessionParams);
@@ -674,25 +807,37 @@ export class VendorInvoicesService {
     // Record session ID so webhook can reconcile
     await admin
       .from('vendor_invoices')
-      .update({ stripe_checkout_session_id: session.id, updated_at: new Date().toISOString() })
+      .update({
+        stripe_checkout_session_id: session.id,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', invoice.id);
 
-    this.logger.log(`Vendor invoice checkout: ${session.id} for invoice ${invoice.id}`);
+    this.logger.log(
+      `Vendor invoice checkout: ${session.id} for invoice ${invoice.id}`,
+    );
     return { url: session.url!, feeCents: stripeFeeCents };
   }
 
   // ─── Called from webhook when payment succeeds ──────────────────────────────
 
-  async markInvoicePaidBySession(sessionId: string, paymentIntentId: string | null) {
+  async markInvoicePaidBySession(
+    sessionId: string,
+    paymentIntentId: string | null,
+  ) {
     const admin = this.supabaseService.getAdminClient();
     const { data: invoice } = await admin
       .from('vendor_invoices')
-      .select('id, total_amount, amount_due, vendor_booking_id, client_name, client_phone, vendor_account_id, vendor_accounts(business_name, phone)')
+      .select(
+        'id, total_amount, amount_due, vendor_booking_id, client_name, client_phone, vendor_account_id, vendor_accounts(business_name, phone)',
+      )
       .eq('stripe_checkout_session_id', sessionId)
       .maybeSingle();
 
     if (!invoice) {
-      this.logger.warn(`No vendor invoice found for Stripe session ${sessionId}`);
+      this.logger.warn(
+        `No vendor invoice found for Stripe session ${sessionId}`,
+      );
       return;
     }
 
@@ -716,12 +861,16 @@ export class VendorInvoicesService {
         .eq('id', invoice.vendor_booking_id);
     }
 
-    this.logger.log(`Vendor invoice ${invoice.id} marked paid via session ${sessionId}`);
+    this.logger.log(
+      `Vendor invoice ${invoice.id} marked paid via session ${sessionId}`,
+    );
 
     // Notify vendor that payment was received
     try {
-      const vendorPhone: string | null = (invoice.vendor_accounts as any)?.phone ?? null;
-      const vendorName: string = (invoice.vendor_accounts as any)?.business_name ?? 'Vendor';
+      const vendorPhone: string | null =
+        (invoice.vendor_accounts as any)?.phone ?? null;
+      const vendorName: string =
+        (invoice.vendor_accounts as any)?.business_name ?? 'Vendor';
       await this.smsNotifications.vendorInvoicePaid(
         vendorPhone,
         vendorName,
@@ -740,13 +889,83 @@ export class VendorInvoicesService {
     }
   }
 
-  // ─── Verify payment via Stripe (webhook fallback) ───────────────────────────
+  // ─── ACH delayed payment handlers ───────────────────────────────────────────
 
-  async verifyPayment(token: string): Promise<{ status: string; paid: boolean }> {
+  async markInvoiceProcessing(sessionId: string, paymentIntentId: string | null) {
+    const admin = this.supabaseService.getAdminClient();
+    await admin
+      .from('vendor_invoices')
+      .update({
+        status: 'processing',
+        stripe_payment_intent_id: paymentIntentId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('stripe_checkout_session_id', sessionId);
+    this.logger.log(`Vendor invoice set to processing via session ${sessionId}`);
+  }
+
+  async markInvoicePaidByPaymentIntent(paymentIntentId: string) {
     const admin = this.supabaseService.getAdminClient();
     const { data: invoice } = await admin
       .from('vendor_invoices')
-      .select('id, status, total_amount, stripe_checkout_session_id, vendor_booking_id, client_name, client_phone, vendor_accounts(business_name, phone)')
+      .select(
+        'id, total_amount, vendor_booking_id, client_name, client_phone, vendor_accounts(business_name, phone)',
+      )
+      .eq('stripe_payment_intent_id', paymentIntentId)
+      .maybeSingle();
+
+    if (!invoice) return;
+
+    await admin
+      .from('vendor_invoices')
+      .update({
+        status: 'paid',
+        amount_paid: invoice.total_amount,
+        amount_due: 0,
+        paid_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', invoice.id);
+
+    if (invoice.vendor_booking_id) {
+      await admin
+        .from('vendor_bookings')
+        .update({ status: 'paid', updated_at: new Date().toISOString() })
+        .eq('id', invoice.vendor_booking_id);
+    }
+
+    this.logger.log(`Vendor invoice ${invoice.id} marked paid via PaymentIntent ${paymentIntentId}`);
+
+    try {
+      const vendorPhone: string | null = (invoice.vendor_accounts as any)?.phone ?? null;
+      const vendorName: string = (invoice.vendor_accounts as any)?.business_name ?? 'Vendor';
+      await this.smsNotifications.vendorInvoicePaid(vendorPhone, vendorName, invoice.client_name ?? 'Client', invoice.total_amount);
+      await this.smsNotifications.paymentReceived(invoice.client_phone ?? null, invoice.client_name ?? 'Valued Client', invoice.total_amount, `your invoice from ${vendorName}`);
+    } catch {
+      // SMS errors must never break payment processing
+    }
+  }
+
+  async revertProcessingStatus(paymentIntentId: string) {
+    const admin = this.supabaseService.getAdminClient();
+    await admin
+      .from('vendor_invoices')
+      .update({ status: 'sent', updated_at: new Date().toISOString() })
+      .eq('stripe_payment_intent_id', paymentIntentId)
+      .eq('status', 'processing');
+  }
+
+  // ─── Verify payment via Stripe (webhook fallback) ───────────────────────────
+
+  async verifyPayment(
+    token: string,
+  ): Promise<{ status: string; paid: boolean }> {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: invoice } = await admin
+      .from('vendor_invoices')
+      .select(
+        'id, status, total_amount, stripe_checkout_session_id, vendor_booking_id, client_name, client_phone, vendor_accounts(business_name, phone)',
+      )
       .eq('public_token', token)
       .maybeSingle();
 
@@ -754,16 +973,21 @@ export class VendorInvoicesService {
     if (invoice.status === 'paid') return { status: 'paid', paid: true };
 
     // No session yet — can't verify
-    if (!invoice.stripe_checkout_session_id) return { status: invoice.status, paid: false };
+    if (!invoice.stripe_checkout_session_id)
+      return { status: invoice.status, paid: false };
 
     // Ask Stripe directly
-    const session = await this.stripe.checkout.sessions.retrieve(invoice.stripe_checkout_session_id);
-    if (session.payment_status !== 'paid') return { status: invoice.status, paid: false };
+    const session = await this.stripe.checkout.sessions.retrieve(
+      invoice.stripe_checkout_session_id,
+    );
+    if (session.payment_status !== 'paid')
+      return { status: invoice.status, paid: false };
 
     // Stripe confirms paid — mark it now (webhook fallback)
-    const paymentIntentId = typeof session.payment_intent === 'string'
-      ? session.payment_intent
-      : (session.payment_intent as Stripe.PaymentIntent | null)?.id ?? null;
+    const paymentIntentId =
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : (session.payment_intent?.id ?? null);
 
     await admin
       .from('vendor_invoices')
@@ -785,12 +1009,16 @@ export class VendorInvoicesService {
         .eq('id', invoice.vendor_booking_id);
     }
 
-    this.logger.log(`Vendor invoice ${invoice.id} verified and marked paid (webhook fallback)`);
+    this.logger.log(
+      `Vendor invoice ${invoice.id} verified and marked paid (webhook fallback)`,
+    );
 
     // Send SMS notifications (same as webhook path)
     try {
-      const vendorPhone: string | null = (invoice.vendor_accounts as any)?.phone ?? null;
-      const vendorName: string = (invoice.vendor_accounts as any)?.business_name ?? 'Vendor';
+      const vendorPhone: string | null =
+        (invoice.vendor_accounts as any)?.phone ?? null;
+      const vendorName: string =
+        (invoice.vendor_accounts as any)?.business_name ?? 'Vendor';
       await this.smsNotifications.vendorInvoicePaid(
         vendorPhone,
         vendorName,

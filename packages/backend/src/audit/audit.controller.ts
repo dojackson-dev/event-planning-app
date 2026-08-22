@@ -1,4 +1,13 @@
-import { Controller, Get, Query, Headers, UnauthorizedException, ParseIntPipe, DefaultValuePipe, Optional } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Query,
+  Headers,
+  UnauthorizedException,
+  ParseIntPipe,
+  DefaultValuePipe,
+  Optional,
+} from '@nestjs/common';
 import { AuditService } from './audit.service';
 import { SupabaseService } from '../supabase/supabase.service';
 
@@ -10,10 +19,14 @@ export class AuditController {
   ) {}
 
   private async getOwnerAccountId(authorization?: string): Promise<string> {
-    if (!authorization) throw new UnauthorizedException('No authorization header');
+    if (!authorization)
+      throw new UnauthorizedException('No authorization header');
     const token = authorization.replace('Bearer ', '');
     const supabase = this.supabaseService.setAuthContext(token);
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
     if (error || !user) throw new UnauthorizedException('Invalid token');
 
     const admin = this.supabaseService.getAdminClient();
@@ -25,7 +38,8 @@ export class AuditController {
       .eq('is_active', true)
       .maybeSingle();
 
-    if (!membership?.owner_account_id) throw new UnauthorizedException('Owner account not found');
+    if (!membership?.owner_account_id)
+      throw new UnauthorizedException('Owner account not found');
     return membership.owner_account_id;
   }
 

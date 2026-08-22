@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   Mic2, Home, Calendar, CalendarDays, FileText, User,
-  Settings, Menu, X, LogOut, Receipt,
+  Settings, Menu, X, LogOut, Receipt, Link2,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import RoleSwitcher from '@/components/RoleSwitcher'
@@ -29,12 +29,13 @@ export default function ArtistDashboardLayout({ children }: { children: React.Re
   }, [user, loading, router])
 
   const navItems: NavItem[] = [
-    { href: '/artist/dashboard',          label: 'Dashboard',  icon: <Home className="h-5 w-5" /> },
-    { href: '/artist/dashboard/bookings', label: 'Bookings',   icon: <Calendar className="h-5 w-5" /> },
-    { href: '/artist/dashboard/invoices', label: 'Invoices',   icon: <Receipt className="h-5 w-5" /> },
-    { href: '/artist/dashboard/calendar', label: 'Calendar',   icon: <CalendarDays className="h-5 w-5" /> },
-    { href: '/artist/dashboard/rider',    label: 'My Rider',   icon: <FileText className="h-5 w-5" /> },
-    { href: '/artist/dashboard/profile',  label: 'Profile',    icon: <Settings className="h-5 w-5" /> },
+    { href: '/artist/dashboard',                label: 'Dashboard',    icon: <Home className="h-5 w-5" /> },
+    { href: '/artist/dashboard/bookings',       label: 'Bookings',     icon: <Calendar className="h-5 w-5" /> },
+    { href: '/artist/dashboard/invoices',       label: 'Invoices',     icon: <Receipt className="h-5 w-5" /> },
+    { href: '/artist/dashboard/calendar',       label: 'Calendar',     icon: <CalendarDays className="h-5 w-5" /> },
+    { href: '/artist/dashboard/rider',          label: 'My Rider',     icon: <FileText className="h-5 w-5" /> },
+    { href: '/artist/dashboard/booking-link',   label: 'Booking Link', icon: <Link2 className="h-5 w-5" /> },
+    { href: '/artist/dashboard/profile',        label: 'Profile',      icon: <Settings className="h-5 w-5" /> },
   ]
 
   return (

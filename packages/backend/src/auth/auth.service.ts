@@ -1,6 +1,15 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
-import { RegisterDto, LoginDto, UpdateProfileDto, ChangePasswordDto } from './dto/auth.dto';
+import {
+  RegisterDto,
+  LoginDto,
+  UpdateProfileDto,
+  ChangePasswordDto,
+} from './dto/auth.dto';
 
 @Injectable()
 export class AuthService {
@@ -17,7 +26,9 @@ export class AuthService {
       .single();
 
     if (existingUser) {
-      throw new UnauthorizedException('An account with this email already exists');
+      throw new UnauthorizedException(
+        'An account with this email already exists',
+      );
     }
 
     const { data, error } = await supabase.auth.signUp({
@@ -39,8 +50,13 @@ export class AuthService {
 
     // Check for Supabase's "fake success" response when email already exists
     // If user has no identities, it means the email already exists in Supabase Auth
-    if (data.user && (!data.user.identities || data.user.identities.length === 0)) {
-      throw new UnauthorizedException('An account with this email already exists');
+    if (
+      data.user &&
+      (!data.user.identities || data.user.identities.length === 0)
+    ) {
+      throw new UnauthorizedException(
+        'An account with this email already exists',
+      );
     }
 
     return {
@@ -135,11 +151,17 @@ export class AuthService {
     // that occurs when calling updateUser() with only a Bearer token (no active session)
     const adminSupabase = this.supabaseService.getAdminClient();
     const updatePayload: any = { data: updateData };
-    if (updateProfileDto.email && updateProfileDto.email !== userData.user.email) {
+    if (
+      updateProfileDto.email &&
+      updateProfileDto.email !== userData.user.email
+    ) {
       updatePayload.email = updateProfileDto.email;
     }
 
-    const { data, error } = await adminSupabase.auth.admin.updateUserById(userId, updatePayload);
+    const { data, error } = await adminSupabase.auth.admin.updateUserById(
+      userId,
+      updatePayload,
+    );
 
     if (error) {
       throw new BadRequestException(error.message);
@@ -167,9 +189,12 @@ export class AuthService {
     };
   }
 
-  async changePassword(accessToken: string, changePasswordDto: ChangePasswordDto) {
+  async changePassword(
+    accessToken: string,
+    changePasswordDto: ChangePasswordDto,
+  ) {
     const supabase = this.supabaseService.setAuthContext(accessToken);
-    
+
     // Get current user to get email
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError) {
@@ -189,9 +214,12 @@ export class AuthService {
 
     // Update password using admin client to avoid "Auth session missing" error
     const adminSupabase = this.supabaseService.getAdminClient();
-    const { error } = await adminSupabase.auth.admin.updateUserById(userData.user.id, {
-      password: changePasswordDto.newPassword,
-    });
+    const { error } = await adminSupabase.auth.admin.updateUserById(
+      userData.user.id,
+      {
+        password: changePasswordDto.newPassword,
+      },
+    );
 
     if (error) {
       throw new BadRequestException(error.message);
@@ -202,7 +230,7 @@ export class AuthService {
 
   async deleteAccount(accessToken: string) {
     const supabase = this.supabaseService.setAuthContext(accessToken);
-    
+
     // Get current user
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError) {
@@ -223,7 +251,7 @@ export class AuthService {
     }
 
     // Delete the auth user using admin client
-    const adminSupabase = this.supabaseService.getClient();
+    const adminSupabase = this.supabaseService.getAdminClient();
     const { error } = await adminSupabase.auth.admin.deleteUser(userId);
 
     if (error) {

@@ -13,7 +13,7 @@ async function main() {
   const { data, error } = await supabase.auth.admin.generateLink({
     type: 'recovery',
     email: EMAIL,
-    options: { redirectTo: 'https://eventecos.com/promoter/reset-password' },
+    options: { redirectTo: 'https://eventecos.com/reset-password' },
   });
 
   if (error) {

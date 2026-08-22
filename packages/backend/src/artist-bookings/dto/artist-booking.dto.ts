@@ -27,6 +27,12 @@ export class UpdateArtistBookingDto {
   agreed_amount?: number;
   deposit_amount?: number;
   notes?: string;
-  status?: 'inquiry' | 'estimate_sent' | 'deposit_paid' | 'confirmed' | 'completed' | 'cancelled';
+  status?:
+    | 'inquiry'
+    | 'estimate_sent'
+    | 'deposit_paid'
+    | 'confirmed'
+    | 'completed'
+    | 'cancelled';
   artist_invoice_id?: string | null;
 }

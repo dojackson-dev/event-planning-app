@@ -1,4 +1,19 @@
-import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Headers, UnauthorizedException, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Query,
+  Headers,
+  UnauthorizedException,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
+} from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { ContractsService } from './contracts.service';
@@ -37,7 +52,10 @@ export class ContractsController {
     }
 
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    const { data: { user }, error } = await supabaseWithAuth.auth.getUser();
+    const {
+      data: { user },
+      error,
+    } = await supabaseWithAuth.auth.getUser();
 
     if (error || !user) {
       throw new UnauthorizedException('Invalid token');
@@ -57,7 +75,8 @@ export class ContractsController {
     const token = this.extractToken(authorization);
     const supabase = this.supabaseService.setAuthContext(token);
 
-    if (ownerId) return this.contractsService.findByOwner(supabase, ownerId, venueId);
+    if (ownerId)
+      return this.contractsService.findByOwner(supabase, ownerId, venueId);
     if (clientId) return this.contractsService.findByClient(supabase, clientId);
     return this.contractsService.findByOwner(supabase, userId, venueId);
   }
@@ -89,7 +108,9 @@ export class ContractsController {
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     ];
     if (!allowedTypes.includes(file.mimetype)) {
-      throw new BadRequestException('File must be a PDF or Word document (.pdf, .doc, .docx)');
+      throw new BadRequestException(
+        'File must be a PDF or Word document (.pdf, .doc, .docx)',
+      );
     }
     if (file.size > 10 * 1024 * 1024) {
       throw new BadRequestException('File must be under 10 MB');
@@ -98,16 +119,26 @@ export class ContractsController {
     const admin = this.supabaseService.getAdminClient();
 
     // Ensure bucket exists
-    await admin.storage.createBucket('contracts', { public: false }).catch(() => {/* already exists */});
+    await admin.storage
+      .createBucket('contracts', { public: false })
+      .catch(() => {
+        /* already exists */
+      });
 
     const ext = file.originalname.split('.').pop() ?? 'pdf';
     const storagePath = `uploads/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
 
     const { error: uploadError } = await admin.storage
       .from('contracts')
-      .upload(storagePath, file.buffer, { contentType: file.mimetype, upsert: false });
+      .upload(storagePath, file.buffer, {
+        contentType: file.mimetype,
+        upsert: false,
+      });
 
-    if (uploadError) throw new BadRequestException('File upload failed: ' + uploadError.message);
+    if (uploadError)
+      throw new BadRequestException(
+        'File upload failed: ' + uploadError.message,
+      );
 
     // Return a signed URL valid for 10 years (contracts need long-lived access)
     const { data: signedData } = await admin.storage
@@ -131,7 +162,10 @@ export class ContractsController {
     const userId = await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabase = this.supabaseService.setAuthContext(token);
-    return this.contractsService.create(supabase, { ...contractData, owner_id: userId });
+    return this.contractsService.create(supabase, {
+      ...contractData,
+      owner_id: userId,
+    });
   }
 
   @Put(':id')
@@ -162,7 +196,12 @@ export class ContractsController {
   async signContract(
     @Headers('authorization') authorization: string,
     @Param('id') id: string,
-    @Body() signatureData: { signatureData: string; signerName: string; ipAddress?: string },
+    @Body()
+    signatureData: {
+      signatureData: string;
+      signerName: string;
+      ipAddress?: string;
+    },
   ): Promise<any | null> {
     await this.getUserId(authorization);
     const token = this.extractToken(authorization);
@@ -180,9 +219,17 @@ export class ContractsController {
     const token = this.extractToken(authorization);
     const supabase = this.supabaseService.setAuthContext(token);
     if (!body?.signatureData || !body?.signerName) {
-      throw new BadRequestException('signatureData and signerName are required');
+      throw new BadRequestException(
+        'signatureData and signerName are required',
+      );
     }
-    return this.contractsService.ownerSignContract(supabase, id, body.signatureData, body.signerName, userId);
+    return this.contractsService.ownerSignContract(
+      supabase,
+      id,
+      body.signatureData,
+      body.signerName,
+      userId,
+    );
   }
 
   @Post(':id/send')
@@ -203,7 +250,10 @@ export class ContractsController {
     @Body() body: { template_data: any; contract_type: string },
   ): Promise<{ body: string }> {
     await this.getUserId(authorization);
-    const html = this.contractsService.generateBody(body.contract_type, body.template_data);
+    const html = this.contractsService.generateBody(
+      body.contract_type,
+      body.template_data,
+    );
     return { body: html };
   }
 
@@ -236,7 +286,9 @@ export class ContractsController {
   ): Promise<any> {
     const userId = await this.getUserId(authorization);
     if (!body?.signatureData || !body?.signerName) {
-      throw new BadRequestException('signatureData and signerName are required');
+      throw new BadRequestException(
+        'signatureData and signerName are required',
+      );
     }
     return this.contractsService.signContractAsVendor(
       userId,

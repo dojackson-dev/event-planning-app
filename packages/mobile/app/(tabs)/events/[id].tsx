@@ -7,6 +7,7 @@ import { Stack, useLocalSearchParams, useRouter, useFocusEffect } from 'expo-rou
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { Colors, Radius, Shadow } from '@/lib/theme';
+import EventNotesSection from '@/components/EventNotesSection';
 
 interface EventDetail {
   id: string;
@@ -429,6 +430,9 @@ export default function EventDetailScreen() {
             </View>
           </View>
         )}
+
+        {/* Notes */}
+        <EventNotesSection eventId={id as string} />
 
         {/* Actions */}
         <View style={styles.section}>

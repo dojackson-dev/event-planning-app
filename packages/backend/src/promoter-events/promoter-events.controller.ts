@@ -27,11 +27,15 @@ export class PromoterEventsController {
   ) {}
 
   private async getUserId(authorization: string): Promise<string> {
-    if (!authorization) throw new UnauthorizedException('No authorization header');
+    if (!authorization)
+      throw new UnauthorizedException('No authorization header');
     const token = authorization.replace('Bearer ', '');
     if (token.startsWith('local-')) return token.replace('local-', '');
     const supabase = this.supabaseService.setAuthContext(token);
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
     if (error || !user) throw new UnauthorizedException('Invalid token');
     return user.id;
   }
@@ -44,7 +48,11 @@ export class PromoterEventsController {
     @Query('category') category?: string,
     @Query('radius_miles') radiusMiles?: string,
   ) {
-    return this.service.listPublicEvents(zipCode, category, radiusMiles ? parseInt(radiusMiles, 10) : undefined);
+    return this.service.listPublicEvents(
+      zipCode,
+      category,
+      radiusMiles ? parseInt(radiusMiles, 10) : undefined,
+    );
   }
 
   /** Returns ticket confirmation details for a given checkout session (public — no auth needed) */
@@ -65,7 +73,11 @@ export class PromoterEventsController {
     @Param('ticketId') ticketId: string,
     @Body() body: { recipientPhone?: string; recipientEmail?: string },
   ) {
-    return this.service.forwardTicket(ticketId, body.recipientPhone, body.recipientEmail);
+    return this.service.forwardTicket(
+      ticketId,
+      body.recipientPhone,
+      body.recipientEmail,
+    );
   }
 
   /** Claim a forwarded ticket using its access code */
@@ -82,7 +94,8 @@ export class PromoterEventsController {
   @Post('public/:id/checkout')
   createCheckout(
     @Param('id') id: string,
-    @Body() body: {
+    @Body()
+    body: {
       items?: { tier_id: string; quantity: number }[];
       tier_id?: string;
       quantity?: number;
@@ -93,17 +106,29 @@ export class PromoterEventsController {
     },
   ) {
     if (body.items && body.items.length > 0) {
-      return this.service.createMultiTierCheckout(id, body.items, body.buyer_phone, body.buyer_email, body.return_url, body.buyer_name);
+      return this.service.createMultiTierCheckout(
+        id,
+        body.items,
+        body.buyer_phone,
+        body.buyer_email,
+        body.return_url,
+        body.buyer_name,
+      );
     }
-    return this.service.createTicketCheckout(id, body.tier_id!, body.quantity || 1, body.buyer_phone, body.buyer_email, body.return_url, body.buyer_name);
+    return this.service.createTicketCheckout(
+      id,
+      body.tier_id!,
+      body.quantity || 1,
+      body.buyer_phone,
+      body.buyer_email,
+      body.return_url,
+      body.buyer_name,
+    );
   }
 
   /** Called from the success redirect — processes session and sends SMS if webhook hasn't already */
   @Post('public/:id/verify-payment')
-  verifyPayment(
-    @Param('id') id: string,
-    @Body() body: { session_id: string },
-  ) {
+  verifyPayment(@Param('id') id: string, @Body() body: { session_id: string }) {
     return this.service.markTicketsSoldBySession(body.session_id);
   }
 
@@ -220,7 +245,8 @@ export class PromoterEventsController {
   async sendCompTicket(
     @Headers('authorization') auth: string,
     @Param('id') eventId: string,
-    @Body() body: {
+    @Body()
+    body: {
       tier_id: string;
       recipient_email: string;
       recipient_phone?: string;

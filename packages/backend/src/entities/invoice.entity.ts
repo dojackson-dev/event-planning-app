@@ -1,4 +1,13 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, OneToMany } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
+  OneToMany,
+} from 'typeorm';
 import { Booking } from './booking.entity';
 import { InvoiceItem } from './invoice-item.entity';
 
@@ -72,7 +81,9 @@ export class Invoice {
   @Column({ type: 'text', nullable: true })
   terms: string;
 
-  @OneToMany(() => InvoiceItem, invoiceItem => invoiceItem.invoice, { cascade: true })
+  @OneToMany(() => InvoiceItem, (invoiceItem) => invoiceItem.invoice, {
+    cascade: true,
+  })
   items: InvoiceItem[];
 
   @CreateDateColumn()

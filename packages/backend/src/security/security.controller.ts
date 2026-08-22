@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, Headers, UnauthorizedException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  Headers,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { SecurityService } from './security.service.js';
 import { SupabaseService } from '../supabase/supabase.service.js';
 
@@ -10,7 +21,8 @@ export class SecurityController {
   ) {}
 
   private extractToken(authorization?: string): string {
-    if (!authorization) throw new UnauthorizedException('No authorization header');
+    if (!authorization)
+      throw new UnauthorizedException('No authorization header');
     return authorization.replace('Bearer ', '');
   }
 
@@ -22,7 +34,10 @@ export class SecurityController {
       throw new UnauthorizedException('Invalid dev token');
     }
     const supabase = this.supabaseService.setAuthContext(token);
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
     if (error || !user) throw new UnauthorizedException('Invalid token');
     return user.id;
   }

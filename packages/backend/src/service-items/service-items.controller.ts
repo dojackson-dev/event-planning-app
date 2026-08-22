@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Headers, UnauthorizedException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Headers,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ServiceItemsService, ServiceItem } from './service-items.service';
 import { ServiceItemCategory } from '../entities/service-item.entity';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -19,22 +29,25 @@ export class ServiceItemsController {
 
   private async getUserId(authorization: string): Promise<string> {
     const token = this.extractToken(authorization);
-    
+
     // Handle dev tokens (local-<uuid> format)
     if (token.startsWith('local-')) {
       const userId = token.replace('local-', '');
       if (userId) return userId;
       throw new UnauthorizedException('Invalid dev token format');
     }
-    
+
     // Handle Supabase tokens
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    const { data: { user }, error } = await supabaseWithAuth.auth.getUser();
-    
+    const {
+      data: { user },
+      error,
+    } = await supabaseWithAuth.auth.getUser();
+
     if (error || !user) {
       throw new UnauthorizedException('Invalid token');
     }
-    
+
     return user.id;
   }
 
@@ -58,7 +71,12 @@ export class ServiceItemsController {
     const userId = await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.serviceItemsService.findByCategory(supabaseWithAuth, userId, category, venueId);
+    return this.serviceItemsService.findByCategory(
+      supabaseWithAuth,
+      userId,
+      category,
+      venueId,
+    );
   }
 
   @Get(':id')

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
 import { createClient } from '@/lib/supabase/client'
-import { Megaphone, Loader2 } from 'lucide-react'
+import { Megaphone, Loader2, Eye, EyeOff } from 'lucide-react'
 
 export default function PromoterLogin() {
   const [email, setEmail] = useState('')
@@ -14,6 +14,7 @@ export default function PromoterLogin() {
   const [forgotMode, setForgotMode] = useState(false)
   const [resetSent, setResetSent] = useState(false)
   const [resetLoading, setResetLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -21,7 +22,7 @@ export default function PromoterLogin() {
     try {
       const supabase = createClient()
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/promoter/reset-password`,
+        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/reset-password`,
       })
       if (error) throw error
       setResetSent(true)
@@ -125,9 +126,20 @@ export default function PromoterLogin() {
                     <label className="block text-sm font-medium text-gray-700">Password</label>
                     <button type="button" onClick={() => setForgotMode(true)} className="text-xs text-purple-600 hover:underline">Forgot password?</button>
                   </div>
-                  <input type="password" value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password"
-                    className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    placeholder="••••••••" />
+                  <div className="relative">
+                    <input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password"
+                      className="w-full border border-gray-300 rounded-xl px-4 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      placeholder="••••••••" />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      tabIndex={-1}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                  </div>
                 </div>
                 <button type="submit" disabled={loading}
                   className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white font-semibold py-3 rounded-xl hover:bg-purple-700 transition-colors disabled:opacity-60 mt-2">

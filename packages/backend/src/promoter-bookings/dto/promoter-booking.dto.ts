@@ -29,7 +29,13 @@ export class UpdatePromoterBookingDto {
   agreed_amount?: number;
   deposit_amount?: number;
   notes?: string;
-  status?: 'inquiry' | 'estimate_sent' | 'deposit_paid' | 'confirmed' | 'completed' | 'cancelled';
+  status?:
+    | 'inquiry'
+    | 'estimate_sent'
+    | 'deposit_paid'
+    | 'confirmed'
+    | 'completed'
+    | 'cancelled';
   promoter_invoice_id?: string | null;
   artist_account_id?: string | null;
   artist_name?: string | null;

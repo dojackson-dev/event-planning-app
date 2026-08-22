@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import api from '@/lib/api'
-import { ExternalLink, CheckCircle, AlertCircle, Loader2, Building2 } from 'lucide-react'
+import { ExternalLink, CheckCircle, AlertCircle, Loader2, Building2, Info, ToggleLeft, ToggleRight } from 'lucide-react'
 
 interface ConnectBankButtonProps {
   role: 'owner' | 'vendor' | 'artist' | 'promoter'
@@ -18,6 +18,8 @@ export default function ConnectBankButton({ role, email }: ConnectBankButtonProp
   const [resetting, setResetting] = useState(false)
   const [error, setError] = useState('')
   const [successBanner, setSuccessBanner] = useState(false)
+  const [enableBnpl, setEnableBnpl] = useState(false)
+  const [bnplSaving, setBnplSaving] = useState(false)
 
   useEffect(() => {
     // Read ?connect=success or ?connect=refresh without requiring Suspense
@@ -34,11 +36,24 @@ export default function ConnectBankButton({ role, email }: ConnectBankButtonProp
     try {
       const res = await api.get(`/stripe/connect/${role}/status`)
       setStatus(res.data.status)
+      setEnableBnpl(res.data.enableBnpl ?? false)
     } catch (err) {
       console.error('Failed to load connect status', err)
       setStatus('not_connected')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleToggleBnpl = async (checked: boolean) => {
+    setBnplSaving(true)
+    try {
+      await api.patch(`/stripe/connect/${role}/bnpl`, { enabled: checked })
+      setEnableBnpl(checked)
+    } catch (err) {
+      console.error('Failed to save BNPL preference', err)
+    } finally {
+      setBnplSaving(false)
     }
   }
 
@@ -114,13 +129,45 @@ export default function ConnectBankButton({ role, email }: ConnectBankButtonProp
 
       {/* ACTIVE — fully onboarded */}
       {status === 'active' && (
-        <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
-          <CheckCircle className="h-6 w-6 text-green-500 flex-shrink-0" />
-          <div>
-            <p className="text-sm font-semibold text-green-800">✓ Payouts Active</p>
-            <p className="text-sm text-green-700 mt-0.5">
-              Your bank account is connected. You can receive payments directly.
-            </p>
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <CheckCircle className="h-6 w-6 text-green-500 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-green-800">✓ Payouts Active</p>
+              <p className="text-sm text-green-700 mt-0.5">
+                Your bank account is connected. You can receive payments directly.
+              </p>
+            </div>
+          </div>
+
+          {/* BNPL toggle */}
+          <div className="border border-gray-200 rounded-lg p-4 space-y-3">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-gray-900">Buy Now, Pay Later options</p>
+                <p className="text-sm text-gray-600 mt-0.5">
+                  Let your clients pay with Afterpay, Klarna, or Affirm. Clients pay nothing extra — you receive the same amount.
+                </p>
+              </div>
+              <button
+                onClick={() => handleToggleBnpl(!enableBnpl)}
+                disabled={bnplSaving}
+                aria-label="Toggle BNPL"
+                className="flex-shrink-0 text-gray-400 hover:text-indigo-600 disabled:opacity-50 transition-colors"
+              >
+                {enableBnpl
+                  ? <ToggleRight className="h-8 w-8 text-indigo-600" />
+                  : <ToggleLeft className="h-8 w-8" />}
+              </button>
+            </div>
+
+            {/* Fee disclosure */}
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-md p-3">
+              <Info className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-800">
+                <strong>Processing fee notice:</strong> Afterpay, Klarna, and Affirm charge <strong>~6%</strong> per transaction (vs. 2.9% + $0.30 for cards). This fee is deducted from your payout by Stripe. ACH Direct Debit charges 0.8% (capped at $5).
+              </p>
+            </div>
           </div>
         </div>
       )}
@@ -166,6 +213,12 @@ export default function ConnectBankButton({ role, email }: ConnectBankButtonProp
             Connect your bank account through Stripe to receive payments from clients
             and pay vendors. Setup is secure, fast, and handled entirely by Stripe.
           </p>
+          <div className="flex items-start gap-2 bg-indigo-50 border border-indigo-200 rounded-md p-3">
+            <Info className="h-4 w-4 text-indigo-600 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-indigo-800">
+              Once connected, you can optionally offer <strong>Afterpay, Klarna, Affirm, and ACH Direct Debit</strong> to your clients. BNPL methods carry a <strong>~6% processing fee</strong>; ACH is 0.8% (capped at $5).
+            </p>
+          </div>
           <button
             onClick={handleConnect}
             disabled={connecting}

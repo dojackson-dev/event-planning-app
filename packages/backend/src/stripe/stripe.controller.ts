@@ -3,6 +3,7 @@ import {
   Post,
   Get,
   Delete,
+  Patch,
   Body,
   Headers,
   RawBody,
@@ -380,6 +381,33 @@ export class StripeController {
   ): Promise<{ success: boolean }> {
     const userId = await this.getUserIdFromAuth(authorization);
     return this.stripeService.resetArtistConnect(userId);
+  }
+
+  // ─── BNPL preference ──────────────────────────────────────────────────────
+
+  /**
+   * PATCH /stripe/connect/:role/bnpl
+   * Saves the user's opt-in/out for buy-now-pay-later payment methods.
+   * Body: { enabled: boolean }
+   */
+  @Patch('connect/:role/bnpl')
+  async setBnplPreference(
+    @Headers('authorization') authorization: string,
+    @Param('role') role: string,
+    @Body() body: { enabled: boolean },
+  ): Promise<{ success: boolean }> {
+    if (!['owner', 'vendor', 'artist', 'promoter'].includes(role)) {
+      throw new BadRequestException('Invalid role');
+    }
+    if (typeof body.enabled !== 'boolean') {
+      throw new BadRequestException('enabled must be a boolean');
+    }
+    const userId = await this.getUserIdFromAuth(authorization);
+    return this.stripeService.setBnplPreference(
+      userId,
+      role as 'owner' | 'vendor' | 'artist' | 'promoter',
+      body.enabled,
+    );
   }
 
   // ─── Payments ─────────────────────────────────────────────────────────────

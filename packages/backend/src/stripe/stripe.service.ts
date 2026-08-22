@@ -311,7 +311,7 @@ export class StripeService {
     const { data: invoice } = await admin
       .from('invoices')
       .select(
-        'id, invoice_number, total_amount, amount_due, amount_paid, owner_id, client_name',
+        'id, invoice_number, total_amount, amount_due, amount_paid, owner_id, client_name, client_email',
       )
       .eq('id', invoiceId)
       .maybeSingle();
@@ -356,8 +356,9 @@ export class StripeService {
     let transferData:
       | Stripe.Checkout.SessionCreateParams['payment_intent_data']
       | undefined;
+    let ownerAccount: any = null;
     if (invoice.owner_id) {
-      let ownerAccount: any = await this.getOwnerAccountByUserId(
+      ownerAccount = await this.getOwnerAccountByUserId(
         invoice.owner_id,
         admin,
       );
@@ -388,13 +389,19 @@ export class StripeService {
     }
 
     const session = await this.stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
+      payment_method_types: ownerAccount?.enable_bnpl
+        ? ['card', 'afterpay_clearpay', 'klarna', 'affirm', 'us_bank_account']
+        : ['card'],
       line_items: lineItems,
       mode: 'payment',
+      ...(invoice.client_email ? { customer_email: invoice.client_email } : {}),
       success_url: `${this.frontendUrl}/client-portal/invoices?paid=true&invoice=${invoice.invoice_number}&iid=${invoiceId}&sid={CHECKOUT_SESSION_ID}`,
       cancel_url: `${this.frontendUrl}/client-portal/invoices?canceled=true`,
       metadata: { invoice_id: invoiceId },
-      ...(transferData ? { payment_intent_data: transferData } : {}),
+      payment_intent_data: {
+        ...transferData,
+        metadata: { invoice_id: invoiceId },
+      },
     });
 
     this.logger.log(
@@ -437,6 +444,12 @@ export class StripeService {
     switch (event.type) {
       case 'checkout.session.completed':
         await this.handleCheckoutComplete(event.data.object);
+        break;
+      case 'checkout.session.async_payment_succeeded':
+        await this.handleAsyncPaymentSucceeded(event.data.object);
+        break;
+      case 'checkout.session.async_payment_failed':
+        await this.handleAsyncPaymentFailed(event.data.object);
         break;
       case 'payment_intent.succeeded':
         await this.handlePaymentIntentSucceeded(event.data.object);
@@ -514,45 +527,65 @@ export class StripeService {
     session: Stripe.Checkout.Session,
   ): Promise<void> {
     const invoiceId = session.metadata?.invoice_id;
+    // ACH Direct Debit: payment_status is 'processing' until funds settle (3-5 days).
+    // payment_intent.succeeded fires when ACH actually clears.
+    const isPaid = session.payment_status === 'paid';
+    // ACH sets payment_status to 'processing' at runtime (not in SDK types yet)
+    const isProcessing = (session.payment_status as string) === 'processing';
+    const paymentIntentId =
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : (session.payment_intent?.id ?? null);
 
     // ── App invoice one-time payment ─────────────────────────────────────────
     if (invoiceId) {
-      await this.markInvoicePaid(invoiceId, session.amount_total ?? 0);
-      this.logger.log(
-        `Invoice ${invoiceId} marked paid via checkout session ${session.id}`,
-      );
+      if (isPaid) {
+        await this.markInvoicePaid(invoiceId, session.amount_total ?? 0);
+        this.logger.log(
+          `Invoice ${invoiceId} marked paid via checkout session ${session.id}`,
+        );
+      } else if (isProcessing) {
+        const admin = this.supabaseService.getAdminClient();
+        await admin
+          .from('invoices')
+          .update({
+            status: 'processing',
+            stripe_payment_intent_id: paymentIntentId,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', invoiceId);
+        this.logger.log(`Invoice ${invoiceId} set to processing (ACH) — session ${session.id}`);
+      }
       return;
     }
 
     // ── Vendor invoice payment ────────────────────────────────────────────────
     if (session.metadata?.vendor_invoice_id) {
-      const paymentIntentId =
-        typeof session.payment_intent === 'string'
-          ? session.payment_intent
-          : (session.payment_intent?.id ?? null);
-      await this.vendorInvoicesService.markInvoicePaidBySession(
-        session.id,
-        paymentIntentId,
-      );
-      this.logger.log(
-        `Vendor invoice checkout complete — session ${session.id}`,
-      );
+      if (isPaid) {
+        await this.vendorInvoicesService.markInvoicePaidBySession(
+          session.id,
+          paymentIntentId,
+        );
+        this.logger.log(`Vendor invoice checkout complete — session ${session.id}`);
+      } else if (isProcessing) {
+        await this.vendorInvoicesService.markInvoiceProcessing(session.id, paymentIntentId);
+        this.logger.log(`Vendor invoice set to processing (ACH) — session ${session.id}`);
+      }
       return;
     }
 
     // ── Artist invoice payment ────────────────────────────────────────────────
     if (session.metadata?.artist_invoice_id) {
-      const paymentIntentId =
-        typeof session.payment_intent === 'string'
-          ? session.payment_intent
-          : (session.payment_intent?.id ?? null);
-      await this.artistInvoicesService.markInvoicePaidBySession(
-        session.id,
-        paymentIntentId,
-      );
-      this.logger.log(
-        `Artist invoice checkout complete — session ${session.id}`,
-      );
+      if (isPaid) {
+        await this.artistInvoicesService.markInvoicePaidBySession(
+          session.id,
+          paymentIntentId,
+        );
+        this.logger.log(`Artist invoice checkout complete — session ${session.id}`);
+      } else if (isProcessing) {
+        await this.artistInvoicesService.markInvoiceProcessing(session.id, paymentIntentId);
+        this.logger.log(`Artist invoice set to processing (ACH) — session ${session.id}`);
+      }
       return;
     }
 
@@ -575,17 +608,16 @@ export class StripeService {
 
     // ── Promoter invoice payment ──────────────────────────────────────────────
     if (session.metadata?.promoter_invoice_id) {
-      const paymentIntentId =
-        typeof session.payment_intent === 'string'
-          ? session.payment_intent
-          : (session.payment_intent?.id ?? null);
-      await this.promoterInvoicesService.markInvoicePaidBySession(
-        session.id,
-        paymentIntentId,
-      );
-      this.logger.log(
-        `Promoter invoice checkout complete — session ${session.id}`,
-      );
+      if (isPaid) {
+        await this.promoterInvoicesService.markInvoicePaidBySession(
+          session.id,
+          paymentIntentId,
+        );
+        this.logger.log(`Promoter invoice checkout complete — session ${session.id}`);
+      } else if (isProcessing) {
+        await this.promoterInvoicesService.markInvoiceProcessing(session.id, paymentIntentId);
+        this.logger.log(`Promoter invoice set to processing (ACH) — session ${session.id}`);
+      }
       return;
     }
 
@@ -674,19 +706,131 @@ export class StripeService {
     }
   }
 
+  /** Handle checkout.session.async_payment_succeeded — ACH cleared after checkout.session.completed. */
+  private async handleAsyncPaymentSucceeded(
+    session: Stripe.Checkout.Session,
+  ): Promise<void> {
+    const paymentIntentId =
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : (session.payment_intent?.id ?? null);
+
+    if (session.metadata?.invoice_id) {
+      await this.markInvoicePaid(session.metadata.invoice_id, session.amount_total ?? 0);
+      this.logger.log(`Invoice ${session.metadata.invoice_id} paid via async ACH — session ${session.id}`);
+      return;
+    }
+    if (session.metadata?.vendor_invoice_id) {
+      await this.vendorInvoicesService.markInvoicePaidBySession(session.id, paymentIntentId);
+      this.logger.log(`Vendor invoice paid via async ACH — session ${session.id}`);
+      return;
+    }
+    if (session.metadata?.artist_invoice_id) {
+      await this.artistInvoicesService.markInvoicePaidBySession(session.id, paymentIntentId);
+      this.logger.log(`Artist invoice paid via async ACH — session ${session.id}`);
+      return;
+    }
+    if (session.metadata?.promoter_invoice_id) {
+      await this.promoterInvoicesService.markInvoicePaidBySession(session.id, paymentIntentId);
+      this.logger.log(`Promoter invoice paid via async ACH — session ${session.id}`);
+    }
+  }
+
+  /** Handle checkout.session.async_payment_failed — ACH debit failed, revert processing status. */
+  private async handleAsyncPaymentFailed(
+    session: Stripe.Checkout.Session,
+  ): Promise<void> {
+    this.logger.warn(`Async payment failed — session ${session.id}`);
+    const admin = this.supabaseService.getAdminClient();
+
+    if (session.metadata?.invoice_id) {
+      await admin
+        .from('invoices')
+        .update({ status: 'sent', updated_at: new Date().toISOString() })
+        .eq('id', session.metadata.invoice_id)
+        .eq('status', 'processing');
+      return;
+    }
+    if (session.metadata?.vendor_invoice_id) {
+      await admin
+        .from('vendor_invoices')
+        .update({ status: 'sent', updated_at: new Date().toISOString() })
+        .eq('stripe_checkout_session_id', session.id)
+        .eq('status', 'processing');
+      return;
+    }
+    if (session.metadata?.artist_invoice_id) {
+      await admin
+        .from('artist_invoices')
+        .update({ status: 'sent', updated_at: new Date().toISOString() })
+        .eq('stripe_checkout_session_id', session.id)
+        .eq('status', 'processing');
+      return;
+    }
+    if (session.metadata?.promoter_invoice_id) {
+      await admin
+        .from('promoter_invoices')
+        .update({ status: 'sent', updated_at: new Date().toISOString() })
+        .eq('stripe_checkout_session_id', session.id)
+        .eq('status', 'processing');
+    }
+  }
+
   /**
-   * Handle payment_intent.succeeded — marks the matching invoice as paid.
-   * Fired for direct PaymentIntents (charge-client flow).
+   * Handle payment_intent.succeeded — fires for direct charges and ACH delayed settlement.
    */
   private async handlePaymentIntentSucceeded(
     paymentIntent: Stripe.PaymentIntent,
   ): Promise<void> {
-    const invoiceId = paymentIntent.metadata?.invoice_id;
-    if (!invoiceId) return;
-    await this.markInvoicePaid(invoiceId, paymentIntent.amount);
-    this.logger.log(
-      `Invoice ${invoiceId} marked paid via PaymentIntent ${paymentIntent.id}`,
-    );
+    const meta = paymentIntent.metadata ?? {};
+
+    if (meta.invoice_id) {
+      await this.markInvoicePaid(meta.invoice_id, paymentIntent.amount);
+      this.logger.log(`Invoice ${meta.invoice_id} marked paid via PaymentIntent ${paymentIntent.id}`);
+      return;
+    }
+    if (meta.vendor_invoice_id) {
+      await this.vendorInvoicesService.markInvoicePaidByPaymentIntent(paymentIntent.id);
+      return;
+    }
+    if (meta.artist_invoice_id) {
+      await this.artistInvoicesService.markInvoicePaidByPaymentIntent(paymentIntent.id);
+      return;
+    }
+    if (meta.promoter_invoice_id) {
+      await this.promoterInvoicesService.markInvoicePaidByPaymentIntent(paymentIntent.id);
+      return;
+    }
+  }
+
+  /** Handle payment_intent.payment_failed — reverts ACH processing status back to sent. */
+  private async handlePaymentIntentFailed(
+    paymentIntent: Stripe.PaymentIntent,
+  ): Promise<void> {
+    const meta = paymentIntent.metadata ?? {};
+    const piId = paymentIntent.id;
+    this.logger.warn(`PaymentIntent ${piId} failed: ${paymentIntent.last_payment_error?.message ?? 'unknown error'}`);
+
+    if (meta.invoice_id) {
+      const admin = this.supabaseService.getAdminClient();
+      await admin
+        .from('invoices')
+        .update({ status: 'sent', updated_at: new Date().toISOString() })
+        .eq('id', meta.invoice_id)
+        .eq('status', 'processing');
+      return;
+    }
+    if (meta.vendor_invoice_id) {
+      await this.vendorInvoicesService.revertProcessingStatus(piId);
+      return;
+    }
+    if (meta.artist_invoice_id) {
+      await this.artistInvoicesService.revertProcessingStatus(piId);
+      return;
+    }
+    if (meta.promoter_invoice_id) {
+      await this.promoterInvoicesService.revertProcessingStatus(piId);
+    }
   }
 
   /**
@@ -1278,6 +1422,7 @@ export class StripeService {
     accountCreatedAt: string | null;
     planName: string | null;
     subscriptionStatus: string | null;
+    enableBnpl: boolean;
   }> {
     const admin = this.supabaseService.getAdminClient();
     const owner = await this.getOwnerAccountByUserId(userId, admin);
@@ -1318,6 +1463,7 @@ export class StripeService {
       accountCreatedAt,
       planName,
       subscriptionStatus,
+      enableBnpl: owner?.enable_bnpl ?? false,
     };
   }
 
@@ -1327,11 +1473,11 @@ export class StripeService {
    */
   async getVendorConnectStatus(
     userId: string,
-  ): Promise<{ status: string; connectId: string | null }> {
+  ): Promise<{ status: string; connectId: string | null; enableBnpl: boolean }> {
     const admin = this.supabaseService.getAdminClient();
     const { data } = await admin
       .from('vendor_accounts')
-      .select('id, stripe_account_id, stripe_connect_status')
+      .select('id, stripe_account_id, stripe_connect_status, enable_bnpl')
       .eq('user_id', userId)
       .maybeSingle();
 
@@ -1362,7 +1508,7 @@ export class StripeService {
       }
     }
 
-    return { status, connectId };
+    return { status, connectId, enableBnpl: data?.enable_bnpl ?? false };
   }
 
   /**
@@ -1463,12 +1609,12 @@ export class StripeService {
    */
   async getPromoterConnectStatus(
     userId: string,
-  ): Promise<{ status: string; connectId: string | null }> {
+  ): Promise<{ status: string; connectId: string | null; enableBnpl: boolean }> {
     const admin = this.supabaseService.getAdminClient();
 
     const { data } = await admin
       .from('promoter_accounts')
-      .select('id, stripe_account_id, stripe_connect_status')
+      .select('id, stripe_account_id, stripe_connect_status, enable_bnpl')
       .eq('user_id', userId)
       .maybeSingle();
 
@@ -1499,7 +1645,7 @@ export class StripeService {
       }
     }
 
-    return { status, connectId };
+    return { status, connectId, enableBnpl: data?.enable_bnpl ?? false };
   }
 
   /**
@@ -1583,12 +1729,12 @@ export class StripeService {
    */
   async getArtistConnectStatus(
     userId: string,
-  ): Promise<{ status: string; connectId: string | null }> {
+  ): Promise<{ status: string; connectId: string | null; enableBnpl: boolean }> {
     const admin = this.supabaseService.getAdminClient();
 
     const { data } = await admin
       .from('artist_accounts')
-      .select('id, stripe_account_id, stripe_connect_status')
+      .select('id, stripe_account_id, stripe_connect_status, enable_bnpl')
       .eq('user_id', userId)
       .maybeSingle();
 
@@ -1619,7 +1765,7 @@ export class StripeService {
       }
     }
 
-    return { status, connectId };
+    return { status, connectId, enableBnpl: data?.enable_bnpl ?? false };
   }
 
   /**
@@ -1640,6 +1786,30 @@ export class StripeService {
         stripe_connect_status: 'not_connected',
       })
       .eq('id', artist.id);
+    return { success: true };
+  }
+
+  /** Save BNPL opt-in preference for any Connect account role. */
+  async setBnplPreference(
+    userId: string,
+    role: 'owner' | 'vendor' | 'artist' | 'promoter',
+    enabled: boolean,
+  ): Promise<{ success: boolean }> {
+    const admin = this.supabaseService.getAdminClient();
+
+    if (role === 'owner') {
+      const owner = await this.getOwnerAccountByUserId(userId, admin);
+      if (!owner) throw new Error('Owner account not found');
+      await admin.from('owner_accounts').update({ enable_bnpl: enabled }).eq('id', owner.id);
+    } else if (role === 'vendor') {
+      await admin.from('vendor_accounts').update({ enable_bnpl: enabled }).eq('user_id', userId);
+    } else if (role === 'artist') {
+      await admin.from('artist_accounts').update({ enable_bnpl: enabled }).eq('user_id', userId);
+    } else if (role === 'promoter') {
+      await admin.from('promoter_accounts').update({ enable_bnpl: enabled }).eq('user_id', userId);
+    }
+
+    this.logger.log(`BNPL preference set to ${enabled} for ${role} user ${userId}`);
     return { success: true };
   }
 
@@ -1903,7 +2073,9 @@ export class StripeService {
 
     const { data: inv, error } = await admin
       .from('invoices')
-      .select('id, invoice_number, amount_due, total_amount, owner_id')
+      .select(
+        'id, invoice_number, amount_due, total_amount, owner_id, client_email',
+      )
       .eq('public_token', token)
       .maybeSingle();
 
@@ -1919,7 +2091,7 @@ export class StripeService {
       const { data } = await admin
         .from('owner_accounts')
         .select(
-          'stripe_connect_id, stripe_connect_status, subscription_status, plan_name, plan_id',
+          'stripe_connect_id, stripe_connect_status, subscription_status, plan_name, plan_id, enable_bnpl',
         )
         .eq('id', inv.owner_id)
         .maybeSingle();
@@ -1936,7 +2108,10 @@ export class StripeService {
 
     const sessionParams: any = {
       mode: 'payment',
-      payment_method_types: ['card'],
+      payment_method_types: owner?.enable_bnpl
+        ? ['card', 'afterpay_clearpay', 'klarna', 'affirm', 'us_bank_account']
+        : ['card'],
+      ...(inv.client_email ? { customer_email: inv.client_email } : {}),
       line_items: [
         {
           price_data: {
@@ -1969,7 +2144,10 @@ export class StripeService {
       sessionParams.payment_intent_data = {
         application_fee_amount: feeCents,
         transfer_data: { destination: owner!.stripe_connect_id! },
+        metadata: { invoice_id: inv.id },
       };
+    } else {
+      sessionParams.payment_intent_data = { metadata: { invoice_id: inv.id } };
     }
 
     const session = await this.stripe.checkout.sessions.create(sessionParams);

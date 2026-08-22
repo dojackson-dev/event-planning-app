@@ -299,7 +299,7 @@ export class VipService {
     const { data: event } = await admin
       .from('public_events')
       .select(
-        '*, promoter_accounts(stripe_account_id, stripe_connect_status, company_name)',
+        '*, promoter_accounts(stripe_account_id, stripe_connect_status, company_name, enable_bnpl)',
       )
       .eq('id', eventId)
       .eq('status', 'published')
@@ -374,7 +374,9 @@ export class VipService {
       : `${this.frontendUrl}/events/${eventId}?vip_canceled=true`;
 
     const session = await this.stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
+      payment_method_types: promoter?.enable_bnpl
+        ? ['card', 'afterpay_clearpay', 'klarna', 'affirm']
+        : ['card'],
       mode: 'payment',
       ...(dto.buyer_email ? { customer_email: dto.buyer_email } : {}),
       // Collect billing address so Stripe Tax can determine the correct jurisdiction

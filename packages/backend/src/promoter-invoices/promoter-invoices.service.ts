@@ -478,7 +478,7 @@ export class PromoterInvoicesService {
     const { data: invoice, error } = await admin
       .from('promoter_invoices')
       .select(
-        '*, promoter_accounts(stripe_account_id, stripe_connect_status, company_name, contact_name, plan)',
+        '*, promoter_accounts(stripe_account_id, stripe_connect_status, company_name, contact_name, plan, enable_bnpl)',
       )
       .eq('public_token', token)
       .single();
@@ -509,9 +509,11 @@ export class PromoterInvoicesService {
       DIRECT_PAYMENT_FEE_BY_PLAN[promoter?.plan] ?? DEFAULT_FEE_RATE;
     const feeCents = Math.round(amountCents * feeRate);
 
+    const bnplMethods = ['afterpay_clearpay', 'klarna', 'affirm', 'us_bank_account'] as const;
+
     const session = await this.stripe.checkout.sessions.create({
       mode: 'payment',
-      payment_method_types: ['card'],
+      payment_method_types: promoter?.enable_bnpl ? ['card', ...bnplMethods] : ['card'],
       customer_email: invoice.client_email,
       line_items: [
         {
@@ -536,6 +538,7 @@ export class PromoterInvoicesService {
       payment_intent_data: {
         application_fee_amount: feeCents,
         transfer_data: { destination: promoter.stripe_account_id },
+        metadata: { promoter_invoice_id: invoice.id },
       },
     });
 
@@ -618,6 +621,71 @@ export class PromoterInvoicesService {
     } catch {
       // SMS errors must never break payment processing
     }
+  }
+
+  // ─── ACH delayed payment handlers ────────────────────────────────────────
+
+  async markInvoiceProcessing(sessionId: string, paymentIntentId: string | null) {
+    const admin = this.supabaseService.getAdminClient();
+    await admin
+      .from('promoter_invoices')
+      .update({
+        status: 'processing',
+        stripe_payment_intent_id: paymentIntentId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('stripe_checkout_session_id', sessionId);
+    this.logger.log(`Promoter invoice set to processing via session ${sessionId}`);
+  }
+
+  async markInvoicePaidByPaymentIntent(paymentIntentId: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: invoice } = await admin
+      .from('promoter_invoices')
+      .select(
+        'id, total_amount, client_name, client_phone, promoter_accounts(company_name, contact_name, phone)',
+      )
+      .eq('stripe_payment_intent_id', paymentIntentId)
+      .maybeSingle();
+
+    if (!invoice) return;
+
+    await admin
+      .from('promoter_invoices')
+      .update({
+        status: 'paid',
+        amount_paid: invoice.total_amount,
+        amount_due: 0,
+        paid_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', invoice.id);
+
+    await admin
+      .from('promoter_bookings')
+      .update({ status: 'deposit_paid', updated_at: new Date().toISOString() })
+      .eq('promoter_invoice_id', invoice.id);
+
+    this.logger.log(`Promoter invoice ${invoice.id} marked paid via PaymentIntent ${paymentIntentId}`);
+
+    try {
+      const promoterAccount = invoice.promoter_accounts as any;
+      const promoterPhone: string | null = promoterAccount?.phone ?? null;
+      const promoterName: string = promoterAccount?.company_name || promoterAccount?.contact_name || 'Promoter';
+      await this.smsNotifications.vendorInvoicePaid(promoterPhone, promoterName, invoice.client_name ?? 'Client', invoice.total_amount);
+      await this.smsNotifications.paymentReceived((invoice as any).client_phone ?? null, invoice.client_name ?? 'Valued Client', invoice.total_amount, `your invoice from ${promoterName}`);
+    } catch {
+      // SMS errors must never break payment processing
+    }
+  }
+
+  async revertProcessingStatus(paymentIntentId: string) {
+    const admin = this.supabaseService.getAdminClient();
+    await admin
+      .from('promoter_invoices')
+      .update({ status: 'sent', updated_at: new Date().toISOString() })
+      .eq('stripe_payment_intent_id', paymentIntentId)
+      .eq('status', 'processing');
   }
 
   // ─── Verify payment (webhook fallback) ───────────────────────────────────

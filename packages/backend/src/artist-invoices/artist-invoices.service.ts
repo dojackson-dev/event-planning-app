@@ -545,7 +545,7 @@ export class ArtistInvoicesService {
     const { data: invoice, error } = await admin
       .from('artist_invoices')
       .select(
-        '*, artist_accounts(stripe_account_id, stripe_connect_status, artist_name, stage_name)',
+        '*, artist_accounts(stripe_account_id, stripe_connect_status, artist_name, stage_name, enable_bnpl)',
       )
       .eq('public_token', token)
       .single();
@@ -580,9 +580,11 @@ export class ArtistInvoicesService {
     );
     const feeCents = Math.round(baseCents * APP_FEE_RATE);
 
+    const bnplMethods = ['afterpay_clearpay', 'klarna', 'affirm', 'us_bank_account'] as const;
+
     const session = await this.stripe.checkout.sessions.create({
       mode: 'payment',
-      payment_method_types: ['card'],
+      payment_method_types: artist?.enable_bnpl ? ['card', ...bnplMethods] : ['card'],
       customer_email: invoice.client_email,
       line_items: [
         {
@@ -604,6 +606,7 @@ export class ArtistInvoicesService {
       payment_intent_data: {
         application_fee_amount: feeCents,
         transfer_data: { destination: artist.stripe_account_id },
+        metadata: { artist_invoice_id: invoice.id },
       },
     });
 
@@ -685,6 +688,71 @@ export class ArtistInvoicesService {
     } catch {
       // SMS errors must never break payment processing
     }
+  }
+
+  // ─── ACH delayed payment handlers ─────────────────────────────────────────
+
+  async markInvoiceProcessing(sessionId: string, paymentIntentId: string | null) {
+    const admin = this.supabaseService.getAdminClient();
+    await admin
+      .from('artist_invoices')
+      .update({
+        status: 'processing',
+        stripe_payment_intent_id: paymentIntentId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('stripe_checkout_session_id', sessionId);
+    this.logger.log(`Artist invoice set to processing via session ${sessionId}`);
+  }
+
+  async markInvoicePaidByPaymentIntent(paymentIntentId: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: invoice } = await admin
+      .from('artist_invoices')
+      .select(
+        'id, total_amount, client_name, client_phone, artist_accounts(artist_name, stage_name, booking_phone)',
+      )
+      .eq('stripe_payment_intent_id', paymentIntentId)
+      .maybeSingle();
+
+    if (!invoice) return;
+
+    await admin
+      .from('artist_invoices')
+      .update({
+        status: 'paid',
+        amount_paid: invoice.total_amount,
+        amount_due: 0,
+        paid_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', invoice.id);
+
+    await admin
+      .from('artist_bookings')
+      .update({ status: 'deposit_paid', updated_at: new Date().toISOString() })
+      .eq('artist_invoice_id', invoice.id);
+
+    this.logger.log(`Artist invoice ${invoice.id} marked paid via PaymentIntent ${paymentIntentId}`);
+
+    try {
+      const artistAccount = invoice.artist_accounts as any;
+      const artistPhone: string | null = artistAccount?.booking_phone ?? null;
+      const artistName: string = artistAccount?.stage_name || artistAccount?.artist_name || 'Artist';
+      await this.smsNotifications.vendorInvoicePaid(artistPhone, artistName, invoice.client_name ?? 'Client', invoice.total_amount);
+      await this.smsNotifications.paymentReceived((invoice as any).client_phone ?? null, invoice.client_name ?? 'Valued Client', invoice.total_amount, `your invoice from ${artistName}`);
+    } catch {
+      // SMS errors must never break payment processing
+    }
+  }
+
+  async revertProcessingStatus(paymentIntentId: string) {
+    const admin = this.supabaseService.getAdminClient();
+    await admin
+      .from('artist_invoices')
+      .update({ status: 'sent', updated_at: new Date().toISOString() })
+      .eq('stripe_payment_intent_id', paymentIntentId)
+      .eq('status', 'processing');
   }
 
   // ─── Verify payment via Stripe (webhook fallback) ─────────────────────────

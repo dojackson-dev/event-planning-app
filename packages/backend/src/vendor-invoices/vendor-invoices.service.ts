@@ -705,7 +705,7 @@ export class VendorInvoicesService {
     const { data: invoice, error } = await admin
       .from('vendor_invoices')
       .select(
-        '*, vendor_accounts(stripe_account_id, stripe_connect_status, business_name)',
+        '*, vendor_accounts(stripe_account_id, stripe_connect_status, business_name, enable_bnpl)',
       )
       .eq('public_token', token)
       .single();
@@ -723,10 +723,13 @@ export class VendorInvoicesService {
     const vendor = invoice.vendor_accounts;
     const hasConnect =
       vendor?.stripe_account_id && vendor?.stripe_connect_status === 'active';
+    const bnplMethods = ['afterpay_clearpay', 'klarna', 'affirm', 'us_bank_account'] as const;
 
     const sessionParams: Stripe.Checkout.SessionCreateParams = {
       mode: 'payment',
-      payment_method_types: ['card'],
+      payment_method_types: vendor?.enable_bnpl
+        ? ['card', ...bnplMethods]
+        : ['card'],
       customer_email: invoice.client_email,
       line_items: [
         {
@@ -796,6 +799,7 @@ export class VendorInvoicesService {
     sessionParams.payment_intent_data = {
       transfer_data: { destination: vendor.stripe_account_id },
       application_fee_amount: platformFeeCents,
+      metadata: { vendor_invoice_id: invoice.id },
     };
 
     const session = await this.stripe.checkout.sessions.create(sessionParams);
@@ -883,6 +887,72 @@ export class VendorInvoicesService {
     } catch {
       // SMS errors must never break payment processing
     }
+  }
+
+  // ─── ACH delayed payment handlers ───────────────────────────────────────────
+
+  async markInvoiceProcessing(sessionId: string, paymentIntentId: string | null) {
+    const admin = this.supabaseService.getAdminClient();
+    await admin
+      .from('vendor_invoices')
+      .update({
+        status: 'processing',
+        stripe_payment_intent_id: paymentIntentId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('stripe_checkout_session_id', sessionId);
+    this.logger.log(`Vendor invoice set to processing via session ${sessionId}`);
+  }
+
+  async markInvoicePaidByPaymentIntent(paymentIntentId: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: invoice } = await admin
+      .from('vendor_invoices')
+      .select(
+        'id, total_amount, vendor_booking_id, client_name, client_phone, vendor_accounts(business_name, phone)',
+      )
+      .eq('stripe_payment_intent_id', paymentIntentId)
+      .maybeSingle();
+
+    if (!invoice) return;
+
+    await admin
+      .from('vendor_invoices')
+      .update({
+        status: 'paid',
+        amount_paid: invoice.total_amount,
+        amount_due: 0,
+        paid_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', invoice.id);
+
+    if (invoice.vendor_booking_id) {
+      await admin
+        .from('vendor_bookings')
+        .update({ status: 'paid', updated_at: new Date().toISOString() })
+        .eq('id', invoice.vendor_booking_id);
+    }
+
+    this.logger.log(`Vendor invoice ${invoice.id} marked paid via PaymentIntent ${paymentIntentId}`);
+
+    try {
+      const vendorPhone: string | null = (invoice.vendor_accounts as any)?.phone ?? null;
+      const vendorName: string = (invoice.vendor_accounts as any)?.business_name ?? 'Vendor';
+      await this.smsNotifications.vendorInvoicePaid(vendorPhone, vendorName, invoice.client_name ?? 'Client', invoice.total_amount);
+      await this.smsNotifications.paymentReceived(invoice.client_phone ?? null, invoice.client_name ?? 'Valued Client', invoice.total_amount, `your invoice from ${vendorName}`);
+    } catch {
+      // SMS errors must never break payment processing
+    }
+  }
+
+  async revertProcessingStatus(paymentIntentId: string) {
+    const admin = this.supabaseService.getAdminClient();
+    await admin
+      .from('vendor_invoices')
+      .update({ status: 'sent', updated_at: new Date().toISOString() })
+      .eq('stripe_payment_intent_id', paymentIntentId)
+      .eq('status', 'processing');
   }
 
   // ─── Verify payment via Stripe (webhook fallback) ───────────────────────────

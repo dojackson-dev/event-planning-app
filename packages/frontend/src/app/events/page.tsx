@@ -51,6 +51,20 @@ interface SeatGeekEvent {
   source: 'seatgeek'
 }
 
+interface PredictHQEvent {
+  id: string
+  title: string
+  event_date: string
+  start_time: string | null
+  venue_name: string | null
+  city: string | null
+  state: string | null
+  category: string | null
+  phq_rank: number | null
+  predicthq_url: string
+  source: 'predicthq'
+}
+
 interface PublicEvent {
   id: string
   title: string
@@ -77,9 +91,11 @@ export default function PublicEventsPage() {
   const [events, setEvents] = useState<PublicEvent[]>([])
   const [tmEvents, setTmEvents] = useState<TicketmasterEvent[]>([])
   const [sgEvents, setSgEvents] = useState<SeatGeekEvent[]>([])
+  const [phqEvents, setPhqEvents] = useState<PredictHQEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [tmLoading, setTmLoading] = useState(false)
   const [sgLoading, setSgLoading] = useState(false)
+  const [phqLoading, setPhqLoading] = useState(false)
   const [zipCode, setZipCode] = useState('')
   const [radiusMiles, setRadiusMiles] = useState('30')
   const [category, setCategory] = useState('')
@@ -120,6 +136,7 @@ export default function PublicEventsPage() {
     setLoading(true)
     setTmLoading(true)
     setSgLoading(true)
+    setPhqLoading(true)
     const params: Record<string, string> = {}
     if (zip) params.zip_code = zip
     if (cat) params.category = cat
@@ -130,14 +147,16 @@ export default function PublicEventsPage() {
       api.get('/promoter-events/public', { params }),
       api.get('/ticketmaster/events', { params: tmParams }),
       api.get('/seatgeek/events', { params: tmParams }),
+      api.get('/predicthq/events', { params: tmParams }),
     ])
-      .then(([platformRes, tmRes, sgRes]) => {
+      .then(([platformRes, tmRes, sgRes, phqRes]) => {
         setEvents(platformRes.data || [])
         setTmEvents(tmRes.data || [])
         setSgEvents(sgRes.data || [])
+        setPhqEvents(phqRes.data || [])
       })
       .catch(() => {})
-      .finally(() => { setLoading(false); setTmLoading(false); setSgLoading(false) })
+      .finally(() => { setLoading(false); setTmLoading(false); setSgLoading(false); setPhqLoading(false) })
   }
 
   useEffect(() => { fetchEvents() }, [])
@@ -536,6 +555,98 @@ export default function PublicEventsPage() {
                               <span className="text-xs text-gray-400">See prices</span>
                             )}
                             <ExternalLink className="w-3 h-3 text-gray-400 ml-1" />
+                          </div>
+                        </div>
+                      </div>
+                    </a>
+                  )
+                })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── PredictHQ Events ─────────────────────────────────────── */}
+      {(phqLoading || phqEvents.length > 0) && (
+        <div className="max-w-6xl mx-auto px-4 pb-10">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Trending Events Near You</h2>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Demand intelligence by{' '}
+                <a href="https://www.predicthq.com" target="_blank" rel="noopener noreferrer"
+                  className="underline hover:text-indigo-600">PredictHQ</a>.
+              </p>
+            </div>
+          </div>
+
+          {phqLoading ? (
+            <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-indigo-400" /></div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {phqEvents
+                .filter(ev => !search ||
+                  ev.title.toLowerCase().includes(search.toLowerCase()) ||
+                  ev.city?.toLowerCase().includes(search.toLowerCase()) ||
+                  ev.venue_name?.toLowerCase().includes(search.toLowerCase()))
+                .map(ev => {
+                  const dateObj = ev.event_date ? new Date(ev.event_date + 'T00:00:00') : null
+                  return (
+                    <a
+                      key={ev.id}
+                      href={ev.predicthq_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-md hover:border-indigo-200 transition-all group block"
+                    >
+                      <div className="h-44 bg-gradient-to-br from-indigo-100 to-purple-100 relative overflow-hidden flex items-center justify-center">
+                        <Calendar className="w-16 h-16 text-indigo-200 group-hover:scale-105 transition-transform duration-300" />
+                        <span className="absolute top-2 left-2 bg-indigo-600 text-white text-xs font-bold px-2 py-0.5 rounded">
+                          PredictHQ
+                        </span>
+                        {ev.phq_rank !== null && (
+                          <span className="absolute top-2 right-2 bg-white/90 text-indigo-700 text-xs font-bold px-2 py-0.5 rounded shadow">
+                            Rank {ev.phq_rank}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="p-4">
+                        <div className="flex items-start justify-between gap-2">
+                          {dateObj && (
+                            <div className="text-center bg-indigo-50 border border-indigo-100 rounded-lg px-2.5 py-1.5 min-w-[44px] shrink-0">
+                              <p className="text-xs font-medium text-indigo-500 uppercase leading-none">
+                                {dateObj.toLocaleString('default', { month: 'short' })}
+                              </p>
+                              <p className="text-lg font-bold text-indigo-700 leading-none mt-0.5">{dateObj.getDate()}</p>
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-bold text-gray-900 truncate">{ev.title}</h3>
+                            {(ev.venue_name || ev.city) && (
+                              <p className="flex items-center gap-1 text-xs text-gray-500 mt-0.5 truncate">
+                                <MapPin className="w-3 h-3 shrink-0" />
+                                {ev.venue_name ? `${ev.venue_name}${ev.city ? ', ' + ev.city : ''}` : ev.city}
+                                {ev.state ? `, ${ev.state}` : ''}
+                              </p>
+                            )}
+                            {ev.start_time && (
+                              <p className="text-xs text-gray-400 mt-0.5">{ev.start_time}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+                          <div>
+                            {ev.category && (
+                              <span className="flex items-center gap-1 text-xs text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+                                <Tag className="w-2.5 h-2.5" />{ev.category}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-gray-400">View details</span>
+                            <ExternalLink className="w-3 h-3 text-gray-400" />
                           </div>
                         </div>
                       </div>

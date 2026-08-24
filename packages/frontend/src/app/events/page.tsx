@@ -35,6 +35,22 @@ interface TicketmasterEvent {
   source: 'ticketmaster'
 }
 
+interface SeatGeekEvent {
+  id: string
+  title: string
+  event_date: string
+  start_time: string | null
+  venue_name: string | null
+  city: string | null
+  state: string | null
+  image_url: string | null
+  category: string | null
+  min_price: number | null
+  max_price: number | null
+  seatgeek_url: string
+  source: 'seatgeek'
+}
+
 interface PublicEvent {
   id: string
   title: string
@@ -60,8 +76,10 @@ const EVENT_CATEGORIES = [
 export default function PublicEventsPage() {
   const [events, setEvents] = useState<PublicEvent[]>([])
   const [tmEvents, setTmEvents] = useState<TicketmasterEvent[]>([])
+  const [sgEvents, setSgEvents] = useState<SeatGeekEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [tmLoading, setTmLoading] = useState(false)
+  const [sgLoading, setSgLoading] = useState(false)
   const [zipCode, setZipCode] = useState('')
   const [radiusMiles, setRadiusMiles] = useState('30')
   const [category, setCategory] = useState('')
@@ -101,6 +119,7 @@ export default function PublicEventsPage() {
   const fetchEvents = (zip?: string, cat?: string, radius?: string) => {
     setLoading(true)
     setTmLoading(true)
+    setSgLoading(true)
     const params: Record<string, string> = {}
     if (zip) params.zip_code = zip
     if (cat) params.category = cat
@@ -110,13 +129,15 @@ export default function PublicEventsPage() {
     Promise.all([
       api.get('/promoter-events/public', { params }),
       api.get('/ticketmaster/events', { params: tmParams }),
+      api.get('/seatgeek/events', { params: tmParams }),
     ])
-      .then(([platformRes, tmRes]) => {
+      .then(([platformRes, tmRes, sgRes]) => {
         setEvents(platformRes.data || [])
         setTmEvents(tmRes.data || [])
+        setSgEvents(sgRes.data || [])
       })
       .catch(() => {})
-      .finally(() => { setLoading(false); setTmLoading(false) })
+      .finally(() => { setLoading(false); setTmLoading(false); setSgLoading(false) })
   }
 
   useEffect(() => { fetchEvents() }, [])
@@ -424,6 +445,107 @@ export default function PublicEventsPage() {
           </div>
         )}
       </div>
+
+      {/* ── SeatGeek Events ──────────────────────────────────────── */}
+      {(sgLoading || sgEvents.length > 0) && (
+        <div className="max-w-6xl mx-auto px-4 pb-10">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">More Events on SeatGeek</h2>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Powered by{' '}
+                <a href="https://www.seatgeek.com" target="_blank" rel="noopener noreferrer"
+                  className="underline hover:text-green-600">SeatGeek</a>
+                . Tickets sold by SeatGeek.
+              </p>
+            </div>
+          </div>
+
+          {sgLoading ? (
+            <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-green-400" /></div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {sgEvents
+                .filter(ev => !search ||
+                  ev.title.toLowerCase().includes(search.toLowerCase()) ||
+                  ev.city?.toLowerCase().includes(search.toLowerCase()) ||
+                  ev.venue_name?.toLowerCase().includes(search.toLowerCase()))
+                .map(ev => {
+                  const dateObj = ev.event_date ? new Date(ev.event_date + 'T00:00:00') : null
+                  return (
+                    <a
+                      key={ev.id}
+                      href={ev.seatgeek_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-md hover:border-green-200 transition-all group block"
+                    >
+                      <div className="h-44 bg-gradient-to-br from-green-100 to-emerald-100 relative overflow-hidden">
+                        {ev.image_url ? (
+                          <img src={ev.image_url} alt={ev.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                        ) : (
+                          <div className="flex items-center justify-center h-full">
+                            <Calendar className="w-12 h-12 text-green-300" />
+                          </div>
+                        )}
+                        <span className="absolute top-2 left-2 bg-green-600 text-white text-xs font-bold px-2 py-0.5 rounded">
+                          SeatGeek
+                        </span>
+                      </div>
+
+                      <div className="p-4">
+                        <div className="flex items-start justify-between gap-2">
+                          {dateObj && (
+                            <div className="text-center bg-green-50 border border-green-100 rounded-lg px-2.5 py-1.5 min-w-[44px] shrink-0">
+                              <p className="text-xs font-medium text-green-500 uppercase leading-none">
+                                {dateObj.toLocaleString('default', { month: 'short' })}
+                              </p>
+                              <p className="text-lg font-bold text-green-700 leading-none mt-0.5">{dateObj.getDate()}</p>
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-bold text-gray-900 truncate">{ev.title}</h3>
+                            {(ev.venue_name || ev.city) && (
+                              <p className="flex items-center gap-1 text-xs text-gray-500 mt-0.5 truncate">
+                                <MapPin className="w-3 h-3 shrink-0" />
+                                {ev.venue_name ? `${ev.venue_name}${ev.city ? ', ' + ev.city : ''}` : ev.city}
+                                {ev.state ? `, ${ev.state}` : ''}
+                              </p>
+                            )}
+                            {ev.start_time && (
+                              <p className="text-xs text-gray-400 mt-0.5">{ev.start_time}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+                          <div>
+                            {ev.category && (
+                              <span className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+                                <Tag className="w-2.5 h-2.5" />{ev.category}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {ev.min_price !== null ? (
+                              <span className="text-sm font-bold text-gray-900">
+                                {ev.min_price === 0 ? 'Free' : `From $${ev.min_price.toFixed(0)}`}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-400">See prices</span>
+                            )}
+                            <ExternalLink className="w-3 h-3 text-gray-400 ml-1" />
+                          </div>
+                        </div>
+                      </div>
+                    </a>
+                  )
+                })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="bg-gray-900 border-t border-gray-800 py-12 px-4 sm:px-6 lg:px-8">

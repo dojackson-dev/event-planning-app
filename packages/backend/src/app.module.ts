@@ -41,6 +41,7 @@ import { ContactModule } from './contact/contact.module';
 import { VipModule } from './vip/vip.module';
 import { EventNotesModule } from './event-notes/event-notes.module';
 import { TicketmasterModule } from './ticketmaster/ticketmaster.module';
+import { SeatGeekModule } from './seatgeek/seatgeek.module';
 
 @Module({
   imports: [
@@ -86,6 +87,7 @@ import { TicketmasterModule } from './ticketmaster/ticketmaster.module';
     VipModule,
     EventNotesModule,
     TicketmasterModule,
+    SeatGeekModule,
   ],
   controllers: [AppController],
   providers: [AppService],

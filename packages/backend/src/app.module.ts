@@ -42,6 +42,7 @@ import { VipModule } from './vip/vip.module';
 import { EventNotesModule } from './event-notes/event-notes.module';
 import { TicketmasterModule } from './ticketmaster/ticketmaster.module';
 import { SeatGeekModule } from './seatgeek/seatgeek.module';
+import { PredictHQModule } from './predicthq/predicthq.module';
 
 @Module({
   imports: [
@@ -88,6 +89,7 @@ import { SeatGeekModule } from './seatgeek/seatgeek.module';
     EventNotesModule,
     TicketmasterModule,
     SeatGeekModule,
+    PredictHQModule,
   ],
   controllers: [AppController],
   providers: [AppService],

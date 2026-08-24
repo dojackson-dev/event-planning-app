@@ -93,11 +93,7 @@ export class OwnerController {
         .select('business_name, logo_url, cover_image_url')
         .eq('id', ownerAccountId)
         .maybeSingle(),
-      admin
-        .from('users')
-        .select('phone_number')
-        .eq('id', userId)
-        .maybeSingle(),
+      admin.from('users').select('phone_number').eq('id', userId).maybeSingle(),
     ]);
 
     if (error) {

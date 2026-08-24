@@ -151,7 +151,10 @@ export class EventNotesService {
     }
 
     const reminderFields = this.buildReminderFields(dto);
-    const updates: any = { updated_at: new Date().toISOString(), ...reminderFields };
+    const updates: any = {
+      updated_at: new Date().toISOString(),
+      ...reminderFields,
+    };
     if (dto.content !== undefined) updates.content = dto.content.trim();
 
     const { data, error } = await admin
@@ -165,7 +168,10 @@ export class EventNotesService {
     return data;
   }
 
-  async sendReminder(noteId: string, userId: string): Promise<{ sent: boolean; message?: string }> {
+  async sendReminder(
+    noteId: string,
+    userId: string,
+  ): Promise<{ sent: boolean; message?: string }> {
     const admin = this.supabaseService.getAdminClient();
 
     const { data: note } = await admin
@@ -200,7 +206,9 @@ export class EventNotesService {
     }
   }
 
-  private buildReminderFields(dto: CreateEventNoteDto | UpdateEventNoteDto): Record<string, any> {
+  private buildReminderFields(
+    dto: CreateEventNoteDto | UpdateEventNoteDto,
+  ): Record<string, any> {
     const fields: Record<string, any> = {
       reminder_enabled: dto.reminder_enabled ?? false,
       reminder_type: dto.reminder_type ?? null,
@@ -215,12 +223,19 @@ export class EventNotesService {
     if (dto.reminder_enabled && dto.reminder_type) {
       if (dto.reminder_type === 'date' && dto.reminder_date) {
         fields.reminder_send_at = new Date(dto.reminder_date).toISOString();
-      } else if ((dto.reminder_type === 'days' || dto.reminder_type === 'weeks') && dto.event_date && dto.reminder_value) {
+      } else if (
+        (dto.reminder_type === 'days' || dto.reminder_type === 'weeks') &&
+        dto.event_date &&
+        dto.reminder_value
+      ) {
         const eventDate = new Date(dto.event_date);
-        const offsetMs = dto.reminder_type === 'weeks'
-          ? dto.reminder_value * 7 * 24 * 60 * 60 * 1000
-          : dto.reminder_value * 24 * 60 * 60 * 1000;
-        fields.reminder_send_at = new Date(eventDate.getTime() - offsetMs).toISOString();
+        const offsetMs =
+          dto.reminder_type === 'weeks'
+            ? dto.reminder_value * 7 * 24 * 60 * 60 * 1000
+            : dto.reminder_value * 24 * 60 * 60 * 1000;
+        fields.reminder_send_at = new Date(
+          eventDate.getTime() - offsetMs,
+        ).toISOString();
       }
     } else {
       fields.reminder_send_at = null;

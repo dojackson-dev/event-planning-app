@@ -40,6 +40,7 @@ import { RsvpModule } from './rsvp/rsvp.module';
 import { ContactModule } from './contact/contact.module';
 import { VipModule } from './vip/vip.module';
 import { EventNotesModule } from './event-notes/event-notes.module';
+import { TicketmasterModule } from './ticketmaster/ticketmaster.module';
 
 @Module({
   imports: [
@@ -84,6 +85,7 @@ import { EventNotesModule } from './event-notes/event-notes.module';
     ContactModule,
     VipModule,
     EventNotesModule,
+    TicketmasterModule,
   ],
   controllers: [AppController],
   providers: [AppService],

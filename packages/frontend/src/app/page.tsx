@@ -38,6 +38,14 @@ export default function Home() {
 
   useEffect(() => {
     if (!loading && isAuthenticated && user) {
+      // A "Back to main site" link inside a role portal (e.g. sales portal)
+      // adds `?portal=exit` so a still-authenticated user (even via a
+      // silently-refreshed session they don't realize is active) can
+      // actually reach the homepage instead of being bounced straight back
+      // into their portal by this same redirect.
+      if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('portal') === 'exit') {
+        return
+      }
       const role = user.role as string
       if (role === 'vendor')    { router.push('/vendors/dashboard'); return }
       if (role === 'admin')     { router.push('/admin'); return }

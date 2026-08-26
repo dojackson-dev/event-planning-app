@@ -158,7 +158,7 @@ export default function SalesPortalLogin() {
         </div>
 
         <p className="text-center text-sm text-gray-400">
-          <Link href="/" className="hover:text-gray-600 transition-colors">← Back to main site</Link>
+          <Link href="/?portal=exit" className="hover:text-gray-600 transition-colors">← Back to main site</Link>
         </p>
 
       </div>

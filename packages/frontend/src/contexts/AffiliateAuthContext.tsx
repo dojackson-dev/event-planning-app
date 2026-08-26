@@ -84,9 +84,19 @@ export function AffiliateAuthProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = () => {
-    ;['affiliate_data', 'access_token', 'refresh_token'].forEach(k => localStorage.removeItem(k))
+    // Clear the affiliate profile AND the shared main-app auth keys. The main
+    // AuthContext (mounted at the root layout) keeps its own in-memory
+    // `user`/role state that doesn't know about this logout — if we leave its
+    // localStorage keys behind and only client-side navigate, the home page's
+    // role-based redirect (still trusting the stale in-memory user) sends the
+    // user straight back into the sales portal, which then bounces them back
+    // to /sales-portal/login since the affiliate session is gone. That looked
+    // like "Back to main site" not working. A hard navigation forces every
+    // auth context to reinitialize from the now-cleared localStorage.
+    ;['affiliate_data', 'access_token', 'refresh_token', 'user', 'user_roles', 'active_role', 'user_role']
+      .forEach(k => localStorage.removeItem(k))
     setAffiliate(null)
-    router.push('/sales-portal/login')
+    window.location.href = '/sales-portal/login'
   }
 
   return (

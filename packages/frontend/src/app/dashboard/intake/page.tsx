@@ -539,9 +539,17 @@ function ClientIntakePageInner() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Alternate Date (if flexible)
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Alternate Date (if flexible)
+                  </label>
+                  {formData.alternateDate && (
+                    <button type="button" onClick={() => setFormData(prev => ({ ...prev, alternateDate: '' }))}
+                      className="text-xs text-primary-600 hover:text-primary-800 font-medium">
+                      Clear
+                    </button>
+                  )}
+                </div>
                 <input
                   type="date"
                   name="alternateDate"
@@ -549,6 +557,7 @@ function ClientIntakePageInner() {
                   onChange={handleChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 />
+                <p className="text-xs text-gray-500 mt-1">Leave blank if there isn&apos;t an alternate date. On some phones, tapping this field may show today&apos;s date by default — use Clear to remove it.</p>
               </div>
 
               <div>

@@ -9,11 +9,11 @@ import {
 import { MailService } from '../mail/mail.service';
 
 class EnterpriseInquiryDto {
-  name: string;
-  email: string;
-  company: string;
+  name!: string;
+  email!: string;
+  company!: string;
   phone?: string;
-  message: string;
+  message!: string;
 }
 
 @Controller('contact')

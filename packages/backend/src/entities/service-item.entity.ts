@@ -26,35 +26,35 @@ export enum ServiceItemCategory {
 @Entity()
 export class ServiceItem {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   @Column()
-  name: string;
+  name!: string;
 
   @Column({ type: 'text' })
-  description: string;
+  description!: string;
 
   @Column({
     type: 'enum',
     enum: ServiceItemCategory,
   })
-  category: ServiceItemCategory;
+  category!: ServiceItemCategory;
 
   @Column('decimal', { precision: 10, scale: 2 })
-  defaultPrice: number;
+  defaultPrice!: number;
 
   @Column({ default: true })
-  isActive: boolean;
+  isActive!: boolean;
 
   @Column({ default: 0 })
-  sortOrder: number;
+  sortOrder!: number;
 
   @Column({ nullable: true })
-  ownerId: string;
+  ownerId!: string;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 }

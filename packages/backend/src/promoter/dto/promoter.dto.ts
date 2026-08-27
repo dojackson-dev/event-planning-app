@@ -1,7 +1,7 @@
 export class CreatePromoterDto {
   companyName?: string;
-  contactName: string;
-  email: string;
+  contactName!: string;
+  email!: string;
   phone?: string;
   location?: string;
   bio?: string;

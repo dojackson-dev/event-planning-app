@@ -15,38 +15,38 @@ export enum UserRole {
 @Entity()
 export class User {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   @Column()
-  email: string;
+  email!: string;
 
   @Column()
-  password: string;
+  password!: string;
 
   @Column()
-  firstName: string;
+  firstName!: string;
 
   @Column()
-  lastName: string;
+  lastName!: string;
 
   @Column({
     type: 'enum',
     enum: UserRole,
   })
-  role: UserRole;
+  role!: UserRole;
 
   @Column({ nullable: true })
   phone?: string;
 
   @Column({ nullable: true })
-  ownerId: number; // References the owner (for customers, planners, and staff)
+  ownerId!: number; // References the owner (for customers, planners, and staff)
 
   @Column({ nullable: true })
-  tenantId: number; // Only for owners who host their website with us (optional)
+  tenantId!: number; // Only for owners who host their website with us (optional)
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 }

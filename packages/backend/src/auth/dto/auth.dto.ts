@@ -1,15 +1,15 @@
 export class RegisterDto {
-  email: string;
-  password: string;
-  firstName: string;
-  lastName: string;
-  role: string;
+  email!: string;
+  password!: string;
+  firstName!: string;
+  lastName!: string;
+  role!: string;
   phone?: string;
 }
 
 export class LoginDto {
-  email: string;
-  password: string;
+  email!: string;
+  password!: string;
 }
 
 export class UpdateProfileDto {
@@ -20,6 +20,6 @@ export class UpdateProfileDto {
 }
 
 export class ChangePasswordDto {
-  currentPassword: string;
-  newPassword: string;
+  currentPassword!: string;
+  newPassword!: string;
 }

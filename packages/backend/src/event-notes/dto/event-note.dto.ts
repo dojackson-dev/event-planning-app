@@ -1,5 +1,5 @@
 export class CreateEventNoteDto {
-  content: string;
+  content!: string;
   reminder_enabled?: boolean;
   reminder_type?: 'days' | 'weeks' | 'date'; // days/weeks before event, or specific date
   reminder_value?: number; // number of days or weeks

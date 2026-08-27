@@ -456,8 +456,9 @@ export class VendorsService {
         );
       } catch (smsErr) {
         // Don't fail the booking if SMS fails
+        const message = smsErr instanceof Error ? smsErr.message : String(smsErr);
         this.logger.warn(
-          `Failed to send SMS to vendor ${vendor.business_name}: ${smsErr.message}`,
+          `Failed to send SMS to vendor ${vendor.business_name}: ${message}`,
         );
       }
     } else {

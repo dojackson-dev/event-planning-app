@@ -21,41 +21,41 @@ export enum BookingStatus {
 @Entity()
 export class Booking {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   @ManyToOne(() => User)
   @JoinColumn({ name: 'userId' })
-  user: User;
+  user!: User;
 
   @Column()
-  userId: number;
+  userId!: number;
 
   @ManyToOne(() => Event)
   @JoinColumn({ name: 'eventId' })
-  event: Event;
+  event!: Event;
 
   @Column()
-  eventId: number;
+  eventId!: number;
 
   @Column({
     type: 'enum',
     enum: BookingStatus,
     default: BookingStatus.PENDING,
   })
-  status: BookingStatus;
+  status!: BookingStatus;
 
   @Column({ type: 'decimal', precision: 10, scale: 2 })
-  totalPrice: number;
+  totalPrice!: number;
 
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
-  deposit: number;
+  deposit!: number;
 
   @Column({ default: 'pending' })
-  paymentStatus: string;
+  paymentStatus!: string;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 }

@@ -63,6 +63,47 @@ packages/mobile/    — React Native / Expo
 
 Key backend modules: `stripe`, `vip`, `promoter-events`, `mail`, `messaging`, `guest-lists`, `vendors`, `invoices`
 
+## Mobile app rules (packages/mobile)
+
+Stack: Expo (SDK 54) + Expo Router + React Native + TypeScript + Supabase JS client.
+
+Current structure (do not restructure into a `src/features/` layout without an
+explicit task to do so):
+
+```
+packages/mobile/
+  app/          — Expo Router screens/routes (file-based routing)
+  components/   — shared UI components (AppButton, EventCard, VenueCard, etc.)
+  lib/          — Supabase client, API helpers
+  types/        — shared TypeScript types
+```
+
+Roles actually used across the backend (source of truth: `role` column /
+`UserRole` checks in `packages/backend/src`): `owner`, `admin`, `promoter`,
+`artist`, `vendor`, `client` (client-portal). Don't invent new role names —
+confirm against backend usage first.
+
+Rules specific to mobile work:
+
+1. Reuse an existing component from `components/` before creating a new one.
+2. Never hardcode or bundle a Supabase service-role key in the mobile app —
+   only the anon/public key belongs client-side. Service-role logic stays in
+   `packages/backend`.
+3. Every list/detail screen must handle loading, empty, error, and success
+   states — don't assume the happy path.
+4. Data access must be scoped to the authenticated user's ownership
+   (`user_id` / `venue_id` / `tenant_id`, whichever applies to that table) —
+   never trust a client-supplied ID alone; rely on Supabase RLS policies plus
+   backend ownership checks, not client-side filtering alone.
+5. Auth, Stripe/payment flows, and RLS policies are high-risk — do not modify
+   them as a side effect of an unrelated UI task.
+6. Before adding a new npm dependency to `packages/mobile`, check it's
+   Expo-compatible (`npx expo install <pkg>` over plain `npm install` when a
+   native module is involved).
+7. Don't touch `packages/mobile/ios/` generated native project files directly;
+   regenerate via `expo prebuild` if a native change is truly required, and
+   say so explicitly in the task summary.
+
 ## Quality gates
 
 Before saying a task is complete, run commands that apply:
@@ -70,7 +111,12 @@ Before saying a task is complete, run commands that apply:
 ```
 cd packages/backend  && npm run lint && npm run build
 cd packages/frontend && npm run lint && npm run build
+cd packages/mobile    && npx tsc --noEmit
 ```
+
+`packages/mobile` currently has no `lint`, `build`, or `test` npm script — use
+`npx tsc --noEmit` for type-checking and say so in the final task note instead
+of claiming lint/build ran.
 
 If a command does not exist, say so in the final task note.
 

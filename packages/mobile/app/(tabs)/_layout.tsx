@@ -84,10 +84,14 @@ export default function TabsLayout() {
       <Tabs.Screen name="bookings" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="clients" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="invoices" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="vendor-invoices" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="estimates" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="venues" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="messages" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="vendors" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="calendar" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="settings" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="booking-link" options={{ href: null, headerShown: false }} />
     </Tabs>
   );
 }

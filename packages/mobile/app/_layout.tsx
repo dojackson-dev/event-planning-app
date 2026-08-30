@@ -3,9 +3,7 @@ import { useEffect, useRef } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { Colors } from '@/lib/theme';
-
-// Roles that get the OwnerSuite dashboard instead of attendee home
-const OWNER_ROLES = ['owner', 'admin', 'promoter', 'venue_owner', 'concierge', 'vendor', 'artist'];
+import { getRoleHomeRoute } from '@/lib/roleRouting';
 
 async function getUserRole(userId: string): Promise<string> {
   try {
@@ -39,7 +37,7 @@ export default function RootLayout() {
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const inAuthGroup = segmentsRef.current[0] === '(auth)';
-      const onIndex = segmentsRef.current[0] === 'index' || segmentsRef.current.length === 0;
+      const onIndex = segmentsRef.current[0] === 'index' || (segmentsRef.current as string[]).length === 0;
       if (!session && !inAuthGroup) {
         routerRef.current.replace('/(auth)/login');
       } else if (session && (inAuthGroup || onIndex)) {
@@ -49,11 +47,7 @@ export default function RootLayout() {
           session.user.user_metadata?.role ||
           session.user.app_metadata?.role;
         const role = metaRole || await getUserRole(session.user.id);
-        if (OWNER_ROLES.includes(role)) {
-          routerRef.current.replace('/(tabs)/dashboard');
-        } else {
-          routerRef.current.replace('/(tabs)/');
-        }
+        routerRef.current.replace(getRoleHomeRoute(role) as never);
       }
     });
     return () => subscription.unsubscribe();
@@ -65,12 +59,15 @@ export default function RootLayout() {
       <Stack.Screen name="index" />
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="(vendor)" />
+      <Stack.Screen name="(artist)" />
+      <Stack.Screen name="(promoter)" />
       <Stack.Screen
         name="events/[eventId]"
         options={{
           headerShown: true,
           headerTitle: 'Event Details',
-          headerBackTitleVisible: false,
+          headerBackButtonDisplayMode: 'minimal',
           headerStyle: { backgroundColor: Colors.surface },
           headerTintColor: Colors.textPrimary,
           headerShadowVisible: false,
@@ -81,7 +78,7 @@ export default function RootLayout() {
         options={{
           headerShown: true,
           headerTitle: 'My Ticket',
-          headerBackTitleVisible: false,
+          headerBackButtonDisplayMode: 'minimal',
           headerStyle: { backgroundColor: Colors.surface },
           headerTintColor: Colors.textPrimary,
           headerShadowVisible: false,

@@ -1,7 +1,7 @@
 import { Stack } from 'expo-router';
 import { Colors } from '@/lib/theme';
 
-export default function EventsLayout() {
+export default function BookingLinkLayout() {
   return (
     <Stack
       screenOptions={{
@@ -10,6 +10,8 @@ export default function EventsLayout() {
         headerTitleStyle: { fontWeight: '700', fontSize: 17 },
         headerBackButtonDisplayMode: 'minimal',
       }}
-    />
+    >
+      <Stack.Screen name="index" options={{ title: 'Booking Link' }} />
+    </Stack>
   );
 }

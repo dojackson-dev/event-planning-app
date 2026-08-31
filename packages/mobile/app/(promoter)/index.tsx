@@ -87,6 +87,13 @@ export default function PromoterDashboardScreen() {
           />
 
           <AppButton
+            title="Calendar"
+            onPress={() => router.push('/(promoter)/calendar' as any)}
+            variant="secondary"
+            style={styles.profileBtn}
+          />
+
+          <AppButton
             title="Book an Artist"
             onPress={() => router.push('/(promoter)/artists' as any)}
             variant="secondary"
@@ -110,6 +117,20 @@ export default function PromoterDashboardScreen() {
           <AppButton
             title="My Vendor Bookings"
             onPress={() => router.push('/(promoter)/vendor-bookings' as any)}
+            variant="secondary"
+            style={styles.profileBtn}
+          />
+
+          <AppButton
+            title="Invoices"
+            onPress={() => router.push('/(promoter)/invoices' as any)}
+            variant="secondary"
+            style={styles.profileBtn}
+          />
+
+          <AppButton
+            title="Artist Bills"
+            onPress={() => router.push('/(promoter)/artist-bills' as any)}
             variant="secondary"
             style={styles.profileBtn}
           />

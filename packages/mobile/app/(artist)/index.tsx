@@ -109,6 +109,16 @@ export default function ArtistDashboardScreen() {
         <Ionicons name="calendar-outline" size={24} color={Colors.primary} />
         <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.textPrimary, marginTop: 6 }}>Calendar</Text>
       </TouchableOpacity>
+      <TouchableOpacity style={styles.navCard} onPress={() => router.push('/(artist)/booking-link' as any)} activeOpacity={0.8}>
+        <View style={[styles.navIcon, { backgroundColor: Colors.primaryLight }]}>
+          <Ionicons name="link-outline" size={22} color={Colors.primary} />
+        </View>
+        <View style={styles.navText}>
+          <Text style={styles.navTitle}>Booking Link</Text>
+          <Text style={styles.navSubtitle}>Share a public link for promoters & clients to book you</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
+      </TouchableOpacity>
       <TouchableOpacity style={styles.navCard} onPress={() => router.push('/(artist)/rider' as any)} activeOpacity={0.8}>
         <View style={[styles.navIcon, { backgroundColor: Colors.purpleLight }]}>
           <Ionicons name="document-text-outline" size={22} color={Colors.purple} />

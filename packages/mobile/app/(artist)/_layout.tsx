@@ -17,6 +17,7 @@ export default function ArtistLayout() {
       <Stack.Screen name="rider" options={{ title: 'My Rider' }} />
       <Stack.Screen name="bookings" options={{ headerShown: false }} />
       <Stack.Screen name="invoices" options={{ headerShown: false }} />
+      <Stack.Screen name="booking-link" options={{ headerShown: false }} />
       <Stack.Screen name="calendar" options={{ title: 'Calendar' }} />
     </Stack>
   );

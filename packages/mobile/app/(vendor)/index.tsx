@@ -213,6 +213,20 @@ export default function VendorDashboardScreen() {
         </View>
         <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
       </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.navCard, Shadow.sm]}
+        onPress={() => router.push('/(vendor)/booking-link' as any)}
+        activeOpacity={0.8}
+      >
+        <View style={styles.navIconWrap}>
+          <Ionicons name="link-outline" size={22} color={Colors.primary} />
+        </View>
+        <View style={styles.navTextWrap}>
+          <Text style={styles.navTitle}>Booking Link</Text>
+          <Text style={styles.navSubtitle}>Share a public link for clients to book you</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+      </TouchableOpacity>
     </ScrollView>
   );
 }

@@ -14,6 +14,7 @@ export default function VendorLayout() {
       <Stack.Screen name="index" options={{ title: 'Dashboard' }} />
       <Stack.Screen name="profile" options={{ title: 'Business Profile' }} />
       <Stack.Screen name="booking-requests" options={{ headerShown: false }} />
+      <Stack.Screen name="booking-link" options={{ headerShown: false }} />
       <Stack.Screen name="invoices" options={{ headerShown: false }} />
       <Stack.Screen name="bookings" options={{ headerShown: false }} />
     </Stack>

@@ -1,30 +1,10 @@
 import 'react-native-url-polyfill/auto';
 import { useEffect, useRef } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
 import { Colors } from '@/lib/theme';
-import { getRoleHomeRoute } from '@/lib/roleRouting';
-
-async function getUserRole(userId: string): Promise<string> {
-  try {
-    // Try users table first (requires RLS policy allowing self-read)
-    const { data, error } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', userId)
-      .maybeSingle();
-    if (!error && data?.role) return data.role;
-
-    // Fallback: check user_metadata set at signup or by admin
-    const { data: { user } } = await supabase.auth.getUser();
-    const metaRole = user?.user_metadata?.role || user?.app_metadata?.role;
-    if (metaRole) return metaRole;
-
-    return 'attendee';
-  } catch {
-    return 'attendee';
-  }
-}
+import { getSessionHomeRoute } from '@/lib/roleRouting';
 
 export default function RootLayout() {
   const router = useRouter();
@@ -37,17 +17,18 @@ export default function RootLayout() {
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const inAuthGroup = segmentsRef.current[0] === '(auth)';
+      const inGuestGroup = segmentsRef.current[0] === '(guest)';
       const onIndex = segmentsRef.current[0] === 'index' || (segmentsRef.current as string[]).length === 0;
-      if (!session && !inAuthGroup) {
-        routerRef.current.replace('/(auth)/login');
-      } else if (session && (inAuthGroup || onIndex)) {
-        // Check user_metadata/app_metadata first (no RLS needed),
-        // then fall back to DB lookup
-        const metaRole =
-          session.user.user_metadata?.role ||
-          session.user.app_metadata?.role;
-        const role = metaRole || await getUserRole(session.user.id);
-        routerRef.current.replace(getRoleHomeRoute(role) as never);
+      const inProtectedGroup = ['(tabs)', '(vendor)', '(artist)', '(promoter)'].includes(
+        segmentsRef.current[0] as string,
+      );
+      if (!session && inProtectedGroup) {
+        // Not logged in but trying to reach a role-gated area (e.g. just logged out) —
+        // send to the public guest landing instead of forcing straight to the login form.
+        routerRef.current.replace('/(guest)');
+      } else if (session && (inAuthGroup || inGuestGroup || onIndex)) {
+        const homeRoute = await getSessionHomeRoute(session.user);
+        routerRef.current.replace(homeRoute as never);
       }
     });
     return () => subscription.unsubscribe();
@@ -55,9 +36,11 @@ export default function RootLayout() {
   }, []);
 
   return (
+    <SafeAreaProvider>
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="(auth)" />
+      <Stack.Screen name="(guest)" />
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="(vendor)" />
       <Stack.Screen name="(artist)" />
@@ -85,5 +68,6 @@ export default function RootLayout() {
         }}
       />
     </Stack>
+    </SafeAreaProvider>
   );
 }

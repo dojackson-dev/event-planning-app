@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Headers, UnauthorizedException, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Headers,
+  UnauthorizedException,
+  Query,
+} from '@nestjs/common';
 import { EstimatesService, Estimate, EstimateItem } from './estimates.service';
 import { SupabaseService } from '../supabase/supabase.service';
 
@@ -10,7 +21,8 @@ export class EstimatesController {
   ) {}
 
   private extractToken(authorization: string): string {
-    if (!authorization) throw new UnauthorizedException('No authorization header');
+    if (!authorization)
+      throw new UnauthorizedException('No authorization header');
     return authorization.replace('Bearer ', '');
   }
 
@@ -22,7 +34,10 @@ export class EstimatesController {
       throw new UnauthorizedException('Invalid dev token format');
     }
     const supabase = this.supabaseService.setAuthContext(token);
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
     if (error || !user) throw new UnauthorizedException('Invalid token');
     return user.id;
   }
@@ -37,9 +52,16 @@ export class EstimatesController {
   ): Promise<Estimate[]> {
     const userId = await this.getUserId(authorization);
     const supabaseAdmin = this.supabaseService.getAdminClient();
-    if (eventId) return this.estimatesService.findByEvent(supabaseAdmin, eventId);
-    if (intakeFormId) return this.estimatesService.findByIntakeForm(supabaseAdmin, intakeFormId, userId);
-    if (ownerId) return this.estimatesService.findByOwner(supabaseAdmin, ownerId, venueId);
+    if (eventId)
+      return this.estimatesService.findByEvent(supabaseAdmin, eventId);
+    if (intakeFormId)
+      return this.estimatesService.findByIntakeForm(
+        supabaseAdmin,
+        intakeFormId,
+        userId,
+      );
+    if (ownerId)
+      return this.estimatesService.findByOwner(supabaseAdmin, ownerId, venueId);
     return this.estimatesService.findByOwner(supabaseAdmin, userId, venueId);
   }
 
@@ -56,11 +78,17 @@ export class EstimatesController {
   @Post()
   async create(
     @Headers('authorization') authorization: string,
-    @Body() body: { estimate: Partial<Estimate>; items?: Partial<EstimateItem>[] },
+    @Body()
+    body: { estimate: Partial<Estimate>; items?: Partial<EstimateItem>[] },
   ): Promise<Estimate> {
     const userId = await this.getUserId(authorization);
     const supabaseAdmin = this.supabaseService.getAdminClient();
-    return this.estimatesService.create(supabaseAdmin, userId, body.estimate, body.items);
+    return this.estimatesService.create(
+      supabaseAdmin,
+      userId,
+      body.estimate,
+      body.items,
+    );
   }
 
   @Put(':id')

@@ -1,18 +1,25 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+  CreateDateColumn,
+} from 'typeorm';
 import { Event } from './event.entity';
 import { MessageTemplate } from './message-template.entity';
 
 @Entity('scheduled_messages')
 export class ScheduledMessage {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   @Column({ name: 'event_id' })
-  eventId: string;
+  eventId!: string;
 
   @ManyToOne(() => Event)
   @JoinColumn({ name: 'event_id' })
-  event: Event;
+  event!: Event;
 
   @Column({ name: 'template_id', nullable: true })
   templateId?: number;
@@ -22,16 +29,16 @@ export class ScheduledMessage {
   template?: MessageTemplate;
 
   @Column({ name: 'recipient_type' })
-  recipientType: 'client' | 'guest' | 'security' | 'all';
+  recipientType!: 'client' | 'guest' | 'security' | 'all';
 
   @Column({ type: 'text' })
-  content: string;
+  content!: string;
 
   @Column({ name: 'scheduled_for', type: 'timestamp' })
-  scheduledFor: Date;
+  scheduledFor!: Date;
 
   @Column({ default: 'pending' })
-  status: 'pending' | 'sent' | 'cancelled' | 'failed';
+  status!: 'pending' | 'sent' | 'cancelled' | 'failed';
 
   @Column({ name: 'message_id', nullable: true })
   messageId?: number; // Reference to sent message
@@ -43,5 +50,5 @@ export class ScheduledMessage {
   errorMessage?: string;
 
   @CreateDateColumn({ name: 'created_at' })
-  createdAt: Date;
+  createdAt!: Date;
 }

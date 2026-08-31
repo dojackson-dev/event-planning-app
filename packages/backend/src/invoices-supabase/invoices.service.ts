@@ -50,20 +50,33 @@ export class InvoicesService {
     return data || [];
   }
 
-  async findByOwner(supabase: any, ownerId: string, venueId?: string): Promise<Invoice[]> {
-    let query = supabase
+  async findByOwner(
+    supabase: any,
+    ownerId: string,
+    venueId?: string,
+  ): Promise<Invoice[]> {
+    const query = supabase
       .from('invoices')
       .select('*')
       .eq('owner_id', ownerId)
       .order('created_at', { ascending: false });
 
     if (venueId) {
-      const { data: venueEvents } = await supabase.from('event').select('id').eq('venue_id', venueId);
+      const { data: venueEvents } = await supabase
+        .from('event')
+        .select('id')
+        .eq('venue_id', venueId);
       const eventIds = (venueEvents || []).map((e: any) => e.id);
       if (eventIds.length === 0) return [];
       // Match invoices linked to these events via event_id or intake_form_id
-      const { data: formIds } = await supabase.from('event').select('intake_form_id').in('id', eventIds).not('intake_form_id', 'is', null);
-      const intakeIds = (formIds || []).map((r: any) => r.intake_form_id).filter(Boolean);
+      const { data: formIds } = await supabase
+        .from('event')
+        .select('intake_form_id')
+        .in('id', eventIds)
+        .not('intake_form_id', 'is', null);
+      const intakeIds = (formIds || [])
+        .map((r: any) => r.intake_form_id)
+        .filter(Boolean);
       const conditions: any[] = [query];
       // Re-query with OR filter
       let filteredQuery = supabase
@@ -108,40 +121,44 @@ export class InvoicesService {
         .select('id')
         .eq('id', invoice.owner_id)
         .single();
-      
+
       // If user doesn't exist, try to create them from auth.users
       if (userError || !ownerUser) {
-        const { data: authUser } = await supabase.auth.admin.getUserById(invoice.owner_id);
-        
+        const { data: authUser } = await supabase.auth.admin.getUserById(
+          invoice.owner_id,
+        );
+
         if (authUser?.user) {
           // Create the user record in public.users
-          const { error: insertError } = await supabase
-            .from('users')
-            .insert({
-              id: invoice.owner_id,
-              email: authUser.user.email,
-              role: 'owner',
-              status: 'active',
-              first_name: authUser.user.user_metadata?.first_name || '',
-              last_name: authUser.user.user_metadata?.last_name || '',
-            });
-          
+          const { error: insertError } = await supabase.from('users').insert({
+            id: invoice.owner_id,
+            email: authUser.user.email,
+            role: 'owner',
+            status: 'active',
+            first_name: authUser.user.user_metadata?.first_name || '',
+            last_name: authUser.user.user_metadata?.last_name || '',
+          });
+
           if (insertError) {
             console.error('Failed to create user record:', insertError);
-            throw new Error(`Cannot create invoice: Failed to create user record. ${insertError.message}`);
+            throw new Error(
+              `Cannot create invoice: Failed to create user record. ${insertError.message}`,
+            );
           }
         } else {
-          throw new Error(`Cannot create invoice: User with ID ${invoice.owner_id} not found.`);
+          throw new Error(
+            `Cannot create invoice: User with ID ${invoice.owner_id} not found.`,
+          );
         }
       }
     }
-    
+
     // Generate invoice number
     const year = new Date().getFullYear();
     const { count } = await supabase
       .from('invoices')
       .select('*', { count: 'exact', head: true });
-    
+
     const invoiceNumber = `INV-${year}-${String((count || 0) + 1).padStart(5, '0')}`;
 
     // Calculate totals
@@ -176,18 +193,38 @@ export class InvoicesService {
     return data;
   }
 
-  async update(supabase: any, id: string, invoice: Partial<Invoice>): Promise<Invoice | null> {
+  async update(
+    supabase: any,
+    id: string,
+    invoice: Partial<Invoice>,
+  ): Promise<Invoice | null> {
     // Recalculate totals if needed
-    if (invoice.subtotal !== undefined || invoice.tax_rate !== undefined || invoice.discount_amount !== undefined) {
+    if (
+      invoice.subtotal !== undefined ||
+      invoice.tax_rate !== undefined ||
+      invoice.discount_amount !== undefined
+    ) {
       const existing = await this.findOne(supabase, id);
       if (!existing) return null;
 
-      const subtotal = invoice.subtotal !== undefined ? Number(invoice.subtotal) : existing.subtotal;
-      const taxRate = invoice.tax_rate !== undefined ? Number(invoice.tax_rate) : existing.tax_rate;
-      const discountAmount = invoice.discount_amount !== undefined ? Number(invoice.discount_amount) : existing.discount_amount;
+      const subtotal =
+        invoice.subtotal !== undefined
+          ? Number(invoice.subtotal)
+          : existing.subtotal;
+      const taxRate =
+        invoice.tax_rate !== undefined
+          ? Number(invoice.tax_rate)
+          : existing.tax_rate;
+      const discountAmount =
+        invoice.discount_amount !== undefined
+          ? Number(invoice.discount_amount)
+          : existing.discount_amount;
       const taxAmount = (subtotal * taxRate) / 100;
       const totalAmount = subtotal + taxAmount - discountAmount;
-      const amountPaid = invoice.amount_paid !== undefined ? Number(invoice.amount_paid) : existing.amount_paid;
+      const amountPaid =
+        invoice.amount_paid !== undefined
+          ? Number(invoice.amount_paid)
+          : existing.amount_paid;
       const amountDue = totalAmount - amountPaid;
 
       invoice = {
@@ -212,7 +249,11 @@ export class InvoicesService {
     return data;
   }
 
-  async recordPayment(supabase: any, id: string, amount: number): Promise<Invoice | null> {
+  async recordPayment(
+    supabase: any,
+    id: string,
+    amount: number,
+  ): Promise<Invoice | null> {
     const invoice = await this.findOne(supabase, id);
     if (!invoice) return null;
 
@@ -221,7 +262,11 @@ export class InvoicesService {
     const amountDue = invoice.total_amount - amountPaid;
     const status = amountDue <= 0 ? 'paid' : invoice.status;
 
-    const updated = await this.update(supabase, id, { amount_paid: amountPaid, amount_due: amountDue, status });
+    const updated = await this.update(supabase, id, {
+      amount_paid: amountPaid,
+      amount_due: amountDue,
+      status,
+    });
 
     // Try to create a message record in the 'messages' table (if present in the DB)
     try {
@@ -247,46 +292,58 @@ export class InvoicesService {
 
       // Deposit notification: if deposit exists and this payment crossed that threshold
       const depositAmount = Number(booking?.deposit || 0);
-      if (depositAmount > 0 && prevAmountPaid < depositAmount && amountPaid >= depositAmount) {
+      if (
+        depositAmount > 0 &&
+        prevAmountPaid < depositAmount &&
+        amountPaid >= depositAmount
+      ) {
         const msg = `Deposit of $${depositAmount.toFixed(2)} received for booking (invoice ${updated?.invoice_number || id}).`;
-        await supabase.from('messages').insert([{
-          recipient_phone: user?.phone || null,
-          recipient_name: user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : null,
-          recipient_type: 'client',
-          user_id: user?.id || null,
-          event_id: booking?.event_id || null,
-          message_type: 'invoice',
-          content: msg,
-          status: 'pending',
-        }]);
+        await supabase.from('messages').insert([
+          {
+            recipient_phone: user?.phone || null,
+            recipient_name: user
+              ? `${user.first_name || ''} ${user.last_name || ''}`.trim()
+              : null,
+            recipient_type: 'client',
+            user_id: user?.id || null,
+            event_id: booking?.event_id || null,
+            message_type: 'invoice',
+            content: msg,
+            status: 'pending',
+          },
+        ]);
       }
 
       // Invoice fully paid notification
       if (status === 'paid' && prevStatus !== 'paid') {
         const msg = `Your invoice ${updated?.invoice_number || id} has been paid in full. Thank you!`;
-        await supabase.from('messages').insert([{
-          recipient_phone: user?.phone || null,
-          recipient_name: user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : null,
-          recipient_type: 'client',
-          user_id: user?.id || null,
-          event_id: booking?.event_id || null,
-          message_type: 'invoice',
-          content: msg,
-          status: 'pending',
-        }]);
+        await supabase.from('messages').insert([
+          {
+            recipient_phone: user?.phone || null,
+            recipient_name: user
+              ? `${user.first_name || ''} ${user.last_name || ''}`.trim()
+              : null,
+            recipient_type: 'client',
+            user_id: user?.id || null,
+            event_id: booking?.event_id || null,
+            message_type: 'invoice',
+            content: msg,
+            status: 'pending',
+          },
+        ]);
       }
     } catch (err) {
-      console.error('Failed to create supabase message record for payment notification:', err?.message || err);
+      console.error(
+        'Failed to create supabase message record for payment notification:',
+        err instanceof Error ? err.message : err,
+      );
     }
 
     return updated;
   }
 
   async delete(supabase: any, id: string): Promise<void> {
-    const { error } = await supabase
-      .from('invoices')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabase.from('invoices').delete().eq('id', id);
 
     if (error) throw error;
   }
@@ -303,7 +360,10 @@ export class InvoicesService {
     return data || [];
   }
 
-  async addItem(supabase: any, item: Partial<InvoiceItem>): Promise<InvoiceItem> {
+  async addItem(
+    supabase: any,
+    item: Partial<InvoiceItem>,
+  ): Promise<InvoiceItem> {
     const { data, error } = await supabase
       .from('invoice_items')
       .insert(item)
@@ -314,7 +374,11 @@ export class InvoicesService {
     return data;
   }
 
-  async updateItem(supabase: any, id: string, item: Partial<InvoiceItem>): Promise<InvoiceItem | null> {
+  async updateItem(
+    supabase: any,
+    id: string,
+    item: Partial<InvoiceItem>,
+  ): Promise<InvoiceItem | null> {
     const { data, error } = await supabase
       .from('invoice_items')
       .update(item)

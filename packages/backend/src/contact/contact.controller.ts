@@ -1,12 +1,19 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  HttpCode,
+  HttpStatus,
+  BadRequestException,
+} from '@nestjs/common';
 import { MailService } from '../mail/mail.service';
 
 class EnterpriseInquiryDto {
-  name: string;
-  email: string;
-  company: string;
+  name!: string;
+  email!: string;
+  company!: string;
   phone?: string;
-  message: string;
+  message!: string;
 }
 
 @Controller('contact')
@@ -18,8 +25,15 @@ export class ContactController {
   async enterpriseInquiry(@Body() body: EnterpriseInquiryDto) {
     const { name, email, company, message } = body;
 
-    if (!name?.trim() || !email?.trim() || !company?.trim() || !message?.trim()) {
-      throw new BadRequestException('Name, email, company, and message are required');
+    if (
+      !name?.trim() ||
+      !email?.trim() ||
+      !company?.trim() ||
+      !message?.trim()
+    ) {
+      throw new BadRequestException(
+        'Name, email, company, and message are required',
+      );
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

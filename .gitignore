@@ -10,8 +10,17 @@ build/
 .next/
 out/
 
+# Stray compiled output accidentally emitted into backend src/ (should only
+# ever exist in dist/); prevents tsc/nest build misconfig from re-committing
+# stale .js next to .ts sources.
+packages/backend/src/**/*.js
+packages/backend/src/**/*.js.map
+
 # Vercel
 .vercel
+
+# Expo (machine-specific device history / dev server settings)
+.expo/
 
 # Environment variables
 .env
@@ -20,6 +29,7 @@ out/
 .env.test.local
 .env.production.local
 .env.demo
+.env.*.local
 
 # IDE
 .vscode/
@@ -43,3 +53,4 @@ android/
 *.ipa
 *.apk
 event-planning-app/
+*.tsbuildinfo

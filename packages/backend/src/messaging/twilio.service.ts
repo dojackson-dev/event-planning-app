@@ -3,7 +3,14 @@ import { ConfigService } from '@nestjs/config';
 import * as twilio from 'twilio';
 
 // STOP keywords per CTIA/carrier guidelines
-const STOP_KEYWORDS = ['STOP', 'STOPALL', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT'];
+const STOP_KEYWORDS = [
+  'STOP',
+  'STOPALL',
+  'UNSUBSCRIBE',
+  'CANCEL',
+  'END',
+  'QUIT',
+];
 const START_KEYWORDS = ['START', 'UNSTOP', 'YES'];
 
 // Compliance footer required by our campaign registration
@@ -12,7 +19,7 @@ const COMPLIANCE_FOOTER = ' Reply STOP to unsubscribe.';
 @Injectable()
 export class TwilioService {
   private readonly logger = new Logger(TwilioService.name);
-  private client: twilio.Twilio;
+  private client!: twilio.Twilio;
 
   constructor(private configService: ConfigService) {
     const accountSid = this.configService.get<string>('TWILIO_ACCOUNT_SID');
@@ -35,11 +42,16 @@ export class TwilioService {
     return normalized + COMPLIANCE_FOOTER;
   }
 
-  async sendSMS(to: string, message: string): Promise<{ sid: string; status: string }> {
+  async sendSMS(
+    to: string,
+    message: string,
+  ): Promise<{ sid: string; status: string }> {
     const from = this.configService.get<string>('TWILIO_PHONE_NUMBER');
 
     if (!this.client) {
-      throw new Error('Twilio client not configured. Please set TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN');
+      throw new Error(
+        'Twilio client not configured. Please set TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN',
+      );
     }
 
     if (!from) {
@@ -85,7 +97,10 @@ export class TwilioService {
    * STOP (opt-out) or START (opt-in) request.
    * Returns: { action: 'stop' | 'start' | null, from: string }
    */
-  parseInboundMessage(body: string, from: string): { action: 'stop' | 'start' | null; from: string } {
+  parseInboundMessage(
+    body: string,
+    from: string,
+  ): { action: 'stop' | 'start' | null; from: string } {
     const keyword = body.trim().toUpperCase();
     if (STOP_KEYWORDS.includes(keyword)) {
       return { action: 'stop', from };

@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { SupabaseService } from '../supabase/supabase.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
@@ -21,7 +25,9 @@ export class BookingsService {
 
     let query = admin
       .from('event')
-      .select('*, intake_form:intake_forms!intake_form_id(contact_name, contact_phone, event_name, event_type)')
+      .select(
+        '*, intake_form:intake_forms!intake_form_id(contact_name, contact_phone, event_name, event_type)',
+      )
       .in('client_status', ['deposit_paid', 'completed'])
       .order('date', { ascending: false });
 
@@ -42,7 +48,9 @@ export class BookingsService {
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('event')
-      .select('*, intake_form:intake_forms!intake_form_id(contact_name, contact_phone, contact_email, event_name, event_type)')
+      .select(
+        '*, intake_form:intake_forms!intake_form_id(contact_name, contact_phone, contact_email, event_name, event_type)',
+      )
       .eq('id', id)
       .maybeSingle();
 
@@ -51,7 +59,10 @@ export class BookingsService {
     return data;
   }
 
-  async create(supabase: SupabaseClient, booking: Record<string, any>): Promise<any> {
+  async create(
+    supabase: SupabaseClient,
+    booking: Record<string, any>,
+  ): Promise<any> {
     const { data, error } = await supabase
       .from('event')
       .insert([booking])
@@ -62,7 +73,11 @@ export class BookingsService {
     return data;
   }
 
-  async update(supabase: SupabaseClient, id: string, booking: Partial<any>): Promise<any> {
+  async update(
+    supabase: SupabaseClient,
+    id: string,
+    booking: Partial<any>,
+  ): Promise<any> {
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('event')
@@ -74,13 +89,25 @@ export class BookingsService {
     if (error) throw error;
 
     // SMS notification when status moves to confirmed
-    if (booking.client_status === 'deposit_paid' || booking.status === 'confirmed') {
+    if (
+      booking.client_status === 'deposit_paid' ||
+      booking.status === 'confirmed'
+    ) {
       try {
         const phone = data?.contact_phone || data?.intake_form?.contact_phone;
-        const name = data?.contact_name || data?.intake_form?.contact_name || 'Valued Client';
+        const name =
+          data?.contact_name ||
+          data?.intake_form?.contact_name ||
+          'Valued Client';
         const eventName = data?.name || 'your event';
         if (phone) {
-          await this.smsNotifications.vendorBookingStatusChanged(phone, name, eventName, 'confirmed', false);
+          await this.smsNotifications.vendorBookingStatusChanged(
+            phone,
+            name,
+            eventName,
+            'confirmed',
+            false,
+          );
         }
       } catch {
         // SMS errors must never break the update
@@ -93,7 +120,10 @@ export class BookingsService {
   /**
    * Cancel an event (was: cancel booking).
    */
-  async cancelBooking(supabase: SupabaseClient, id: string): Promise<{ success: boolean }> {
+  async cancelBooking(
+    supabase: SupabaseClient,
+    id: string,
+  ): Promise<{ success: boolean }> {
     const admin = this.supabaseService.getAdminClient();
 
     const { data: event, error: fetchErr } = await admin
@@ -106,7 +136,11 @@ export class BookingsService {
 
     const { error: cancelErr } = await admin
       .from('event')
-      .update({ status: 'cancelled', client_confirmation_status: 'cancelled', cancelled_at: new Date().toISOString() })
+      .update({
+        status: 'cancelled',
+        client_confirmation_status: 'cancelled',
+        cancelled_at: new Date().toISOString(),
+      })
       .eq('id', id);
 
     if (cancelErr) throw new BadRequestException(cancelErr.message);
@@ -114,7 +148,11 @@ export class BookingsService {
     // Resolve phone from intake_form if not directly on event
     let phone = event.contact_phone;
     if (!phone && event.intake_form_id) {
-      const { data: form } = await admin.from('intake_forms').select('contact_phone').eq('id', event.intake_form_id).maybeSingle();
+      const { data: form } = await admin
+        .from('intake_forms')
+        .select('contact_phone')
+        .eq('id', event.intake_form_id)
+        .maybeSingle();
       phone = form?.contact_phone;
     }
 
@@ -138,17 +176,34 @@ export class BookingsService {
    */
   private async createClientNotification(
     supabase: SupabaseClient,
-    params: { clientPhone?: string | null; eventId?: string | null; type: string; message: string },
+    params: {
+      clientPhone?: string | null;
+      eventId?: string | null;
+      type: string;
+      message: string;
+    },
   ) {
     try {
       if (!params.clientPhone) return;
       // Look up User ID by phone so notification appears in their portal
       const digits = params.clientPhone.replace(/\D/g, '').slice(-10);
-      const variants = [params.clientPhone, digits, `1${digits}`, `+1${digits}`];
+      const variants = [
+        params.clientPhone,
+        digits,
+        `1${digits}`,
+        `+1${digits}`,
+      ];
       let userId: string | null = null;
       for (const v of variants) {
-        const { data: u } = await supabase.from('users').select('id').eq('phone_number', v).maybeSingle();
-        if (u) { userId = u.id; break; }
+        const { data: u } = await supabase
+          .from('users')
+          .select('id')
+          .eq('phone_number', v)
+          .maybeSingle();
+        if (u) {
+          userId = u.id;
+          break;
+        }
       }
       if (!userId) return; // phone-only clients have no users row — skip
       await supabase.from('notifications').insert({
@@ -160,14 +215,19 @@ export class BookingsService {
         created_at: new Date().toISOString(),
       });
     } catch (err) {
-      console.warn('[createClientNotification] failed:', (err as any)?.message);
+      console.warn(
+        '[createClientNotification] failed:',
+        err instanceof Error ? err.message : err,
+      );
     }
   }
 
   /**
    * Resend client confirmation — now targets the event table.
    */
-  async resendClientConfirmation(eventId: string): Promise<{ success: boolean; message: string }> {
+  async resendClientConfirmation(
+    eventId: string,
+  ): Promise<{ success: boolean; message: string }> {
     const admin = this.supabaseService.getAdminClient();
 
     const { data: event, error: fetchErr } = await admin
@@ -180,14 +240,25 @@ export class BookingsService {
 
     let phone = event.contact_phone;
     if (!phone && event.intake_form_id) {
-      const { data: form } = await admin.from('intake_forms').select('contact_phone').eq('id', event.intake_form_id).maybeSingle();
+      const { data: form } = await admin
+        .from('intake_forms')
+        .select('contact_phone')
+        .eq('id', event.intake_form_id)
+        .maybeSingle();
       phone = form?.contact_phone;
     }
 
-    if (!phone) throw new BadRequestException('This event has no client phone number to notify.');
-    if (event.client_confirmation_status === 'confirmed') throw new BadRequestException('Client has already confirmed.');
+    if (!phone)
+      throw new BadRequestException(
+        'This event has no client phone number to notify.',
+      );
+    if (event.client_confirmation_status === 'confirmed')
+      throw new BadRequestException('Client has already confirmed.');
 
-    const { error } = await admin.from('event').update({ client_confirmation_status: 'pending' }).eq('id', eventId);
+    const { error } = await admin
+      .from('event')
+      .update({ client_confirmation_status: 'pending' })
+      .eq('id', eventId);
     if (error) throw new BadRequestException(error.message);
 
     return { success: true, message: 'Event notification resent to client.' };

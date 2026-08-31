@@ -1,4 +1,18 @@
-import { Controller, Get, Post, Delete, Patch, Body, Param, Headers, UnauthorizedException, Query, HttpCode, InternalServerErrorException, Logger } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Delete,
+  Patch,
+  Body,
+  Param,
+  Headers,
+  UnauthorizedException,
+  Query,
+  HttpCode,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { MessagingService } from './messaging.service.js';
 import { SupabaseService } from '../supabase/supabase.service.js';
 
@@ -15,7 +29,10 @@ export class MessagingController {
     if (!authHeader) throw new UnauthorizedException();
     const token = authHeader.replace('Bearer ', '');
     const supabase = this.supabaseService.setAuthContext(token);
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
     if (error || !user) throw new UnauthorizedException();
     return { supabase, ownerId: user.id };
   }
@@ -47,9 +64,12 @@ export class MessagingController {
   }
 
   @Get('client-inbox/unread-count')
-  async getClientInboxUnreadCount(@Headers('authorization') authHeader: string) {
+  async getClientInboxUnreadCount(
+    @Headers('authorization') authHeader: string,
+  ) {
     const { ownerId } = await this.getAuth(authHeader);
-    const count = await this.messagingService.getClientInboxUnreadCount(ownerId);
+    const count =
+      await this.messagingService.getClientInboxUnreadCount(ownerId);
     return { count };
   }
 
@@ -73,10 +93,16 @@ export class MessagingController {
     }
     const { ownerId } = await this.getAuth(authHeader);
     try {
-      return await this.messagingService.sendClientMessage(ownerId, eventId, body.content.trim());
+      return await this.messagingService.sendClientMessage(
+        ownerId,
+        eventId,
+        body.content.trim(),
+      );
     } catch (err: any) {
       this.logger.error('sendClientMessage failed', err?.message);
-      throw new InternalServerErrorException(err?.message || 'Failed to send message');
+      throw new InternalServerErrorException(
+        err?.message || 'Failed to send message',
+      );
     }
   }
 
@@ -115,10 +141,16 @@ export class MessagingController {
   ) {
     const { supabase, ownerId } = await this.getAuth(authHeader);
     try {
-      return await this.messagingService.sendMessage(supabase, ownerId, messageData);
+      return await this.messagingService.sendMessage(
+        supabase,
+        ownerId,
+        messageData,
+      );
     } catch (err: any) {
       this.logger.error('sendMessage failed', err?.message, err?.stack);
-      throw new InternalServerErrorException(err?.message || 'Failed to send message');
+      throw new InternalServerErrorException(
+        err?.message || 'Failed to send message',
+      );
     }
   }
 
@@ -128,7 +160,11 @@ export class MessagingController {
     @Body() data: { messages: any[] },
   ) {
     const { supabase, ownerId } = await this.getAuth(authHeader);
-    return this.messagingService.sendBulkMessages(supabase, ownerId, data.messages);
+    return this.messagingService.sendBulkMessages(
+      supabase,
+      ownerId,
+      data.messages,
+    );
   }
 
   @Post(':id/refresh-status')
@@ -164,11 +200,14 @@ export class MessagingController {
 
     if (from) {
       const adminSupabase = this.supabaseService.getAdminClient();
-      await this.messagingService.handleInboundMessage(adminSupabase, messageBody, from);
+      await this.messagingService.handleInboundMessage(
+        adminSupabase,
+        messageBody,
+        from,
+      );
     }
 
     // Return empty TwiML — no auto-reply (Twilio handles STOP responses natively)
     return '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
   }
-
 }

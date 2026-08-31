@@ -40,7 +40,12 @@ export class AppointmentsService {
     return data;
   }
 
-  async update(supabase: SupabaseClient, ownerId: string, id: string, updateDto: any) {
+  async update(
+    supabase: SupabaseClient,
+    ownerId: string,
+    id: string,
+    updateDto: any,
+  ) {
     const { data, error } = await supabase
       .from('appointments')
       .update(updateDto)

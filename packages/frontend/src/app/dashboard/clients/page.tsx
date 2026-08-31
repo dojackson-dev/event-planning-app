@@ -429,7 +429,13 @@ export default function ClientsPage() {
                       </button>
                     )}
                     <button
-                      onClick={() => { setSelectedClient(client); setShowAppointmentModal(true) }}
+                      onClick={() => {
+                        setSelectedClient(client)
+                        const today = new Date()
+                        const localToday = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+                        setAppointmentData({ date: localToday, time: '10:00', duration: '60', notes: '' })
+                        setShowAppointmentModal(true)
+                      }}
                       className="flex items-center justify-center gap-2 h-11 px-3 bg-gray-100 hover:bg-purple-50 active:bg-purple-100 text-gray-700 hover:text-purple-700 text-sm font-medium rounded-xl col-span-2 transition-colors"
                     >
                       <ClockIcon className="h-4 w-4" />

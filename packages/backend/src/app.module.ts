@@ -39,6 +39,10 @@ import { AuditModule } from './audit/audit.module';
 import { RsvpModule } from './rsvp/rsvp.module';
 import { ContactModule } from './contact/contact.module';
 import { VipModule } from './vip/vip.module';
+import { EventNotesModule } from './event-notes/event-notes.module';
+import { TicketmasterModule } from './ticketmaster/ticketmaster.module';
+import { SeatGeekModule } from './seatgeek/seatgeek.module';
+import { PredictHQModule } from './predicthq/predicthq.module';
 
 @Module({
   imports: [
@@ -86,6 +90,10 @@ import { VipModule } from './vip/vip.module';
     RsvpModule,
     ContactModule,
     VipModule,
+    EventNotesModule,
+    TicketmasterModule,
+    SeatGeekModule,
+    PredictHQModule,
   ],
   controllers: [AppController],
   providers: [AppService],

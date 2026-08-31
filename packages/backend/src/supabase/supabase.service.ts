@@ -4,16 +4,20 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 @Injectable()
 export class SupabaseService {
-  private supabase: SupabaseClient;
-  private supabaseAdmin: SupabaseClient;
+  private supabase!: SupabaseClient;
+  private supabaseAdmin!: SupabaseClient;
 
   constructor(private configService: ConfigService) {
     const supabaseUrl = this.configService.get<string>('SUPABASE_URL');
     const supabaseAnonKey = this.configService.get<string>('SUPABASE_ANON_KEY');
-    const supabaseServiceKey = this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY');
+    const supabaseServiceKey = this.configService.get<string>(
+      'SUPABASE_SERVICE_ROLE_KEY',
+    );
 
     if (!supabaseUrl || !supabaseAnonKey) {
-      throw new Error('Missing Supabase configuration. Please check SUPABASE_URL and SUPABASE_ANON_KEY in .env');
+      throw new Error(
+        'Missing Supabase configuration. Please check SUPABASE_URL and SUPABASE_ANON_KEY in .env',
+      );
     }
 
     // Regular client for user operations (respects RLS)
@@ -47,7 +51,9 @@ export class SupabaseService {
 
   getAdminClient(): SupabaseClient {
     if (!this.supabaseAdmin) {
-      throw new Error('Supabase admin client not configured. Please set SUPABASE_SERVICE_ROLE_KEY in .env');
+      throw new Error(
+        'Supabase admin client not configured. Please set SUPABASE_SERVICE_ROLE_KEY in .env',
+      );
     }
     return this.supabaseAdmin;
   }
@@ -56,7 +62,7 @@ export class SupabaseService {
   setAuthContext(accessToken: string) {
     const supabaseUrl = this.configService.get<string>('SUPABASE_URL');
     const supabaseAnonKey = this.configService.get<string>('SUPABASE_ANON_KEY');
-    
+
     if (!supabaseUrl || !supabaseAnonKey) {
       throw new Error('Missing Supabase configuration');
     }

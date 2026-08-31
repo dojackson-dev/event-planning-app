@@ -1,30 +1,38 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
 import { Event } from './event.entity';
 
 @Entity('security')
 export class Security {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   @Column()
-  name: string;
+  name!: string;
 
   @Column()
-  phone: string;
+  phone!: string;
 
   @Column({ name: 'event_id', nullable: true })
-  eventId: number;
+  eventId!: number;
 
   @ManyToOne(() => Event, { nullable: true })
   @JoinColumn({ name: 'event_id' })
-  event: Event;
+  event!: Event;
 
   @Column({ name: 'arrival_time', type: 'timestamp', nullable: true })
-  arrivalTime: Date;
+  arrivalTime!: Date;
 
   @CreateDateColumn({ name: 'created_at' })
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt: Date;
+  updatedAt!: Date;
 }

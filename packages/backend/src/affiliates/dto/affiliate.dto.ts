@@ -1,15 +1,15 @@
 export class RegisterAffiliateDto {
-  email: string;
-  password: string;
-  firstName: string;
-  lastName: string;
+  email!: string;
+  password!: string;
+  firstName!: string;
+  lastName!: string;
   phone?: string;
-  inviteToken: string;
+  inviteToken!: string;
 }
 
 export class LoginAffiliateDto {
-  email: string;
-  password: string;
+  email!: string;
+  password!: string;
 }
 
 export class UpdateAffiliateDto {
@@ -19,6 +19,5 @@ export class UpdateAffiliateDto {
 }
 
 export class InviteAffiliateDto {
-  email: string;
+  email!: string;
 }
-

@@ -16,6 +16,7 @@ interface Venue {
   zip_code: string
   capacity: number
   profile_image_url: string
+  cover_image_url?: string
   description: string
   website: string
   phone: string

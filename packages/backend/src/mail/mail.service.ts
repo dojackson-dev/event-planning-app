@@ -37,7 +37,7 @@ export class MailService {
   private getEmailHeader(title: string, subtitle: string = ''): string {
     const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
     const logoUrl = `${frontendUrl}/lib/EventEcos-Logo-Only.jpg`;
-    
+
     return `
       <div style="background: linear-gradient(135deg, #00BFA5 0%, #26C485 50%, #1E3A7F 100%); padding: 32px 32px 24px; text-align: center;">
         <img src="${logoUrl}" alt="EventEcos" style="max-width: 80px; height: auto; margin-bottom: 16px; display: inline-block;" />
@@ -47,10 +47,14 @@ export class MailService {
     `;
   }
 
-  async sendContractNotification(contract: Contract, client: User, owner: User): Promise<void> {
+  async sendContractNotification(
+    contract: Contract,
+    client: User,
+    owner: User,
+  ): Promise<void> {
     try {
       const contractUrl = `${process.env.FRONTEND_URL || 'https://eventecos.com'}/dashboard/contracts/${contract.id}`;
-      
+
       const mailOptions = {
         from: `"EventEcos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
         to: client.email,
@@ -71,7 +75,9 @@ export class MailService {
               <p><strong>Created:</strong> ${new Date(contract.createdAt).toLocaleDateString()}</p>
             </div>
             
-            ${contract.booking?.event ? `
+            ${
+              contract.booking?.event
+                ? `
               <div style="background-color: #e8f4f8; padding: 20px; margin: 20px 0; border-radius: 8px;">
                 <h3 style="margin-top: 0; color: #555;">Event Information</h3>
                 <p><strong>Event:</strong> ${contract.booking.event.name}</p>
@@ -79,7 +85,9 @@ export class MailService {
                 ${contract.booking.event.startTime && contract.booking.event.endTime ? `<p><strong>Time:</strong> ${contract.booking.event.startTime} - ${contract.booking.event.endTime}</p>` : ''}
                 ${contract.booking.event.venue ? `<p><strong>Venue:</strong> ${contract.booking.event.venue}</p>` : ''}
               </div>
-            ` : ''}
+            `
+                : ''
+            }
             
             <p>Please review the contract and provide your electronic signature to proceed.</p>
             
@@ -114,13 +122,17 @@ export class MailService {
           ${contract.description ? `- Description: ${contract.description}` : ''}
           - Created: ${new Date(contract.createdAt).toLocaleDateString()}
           
-          ${contract.booking?.event ? `
+          ${
+            contract.booking?.event
+              ? `
           Event Information:
           - Event: ${contract.booking.event.name}
           ${contract.booking.event.date ? `- Date: ${new Date(contract.booking.event.date).toLocaleDateString()}` : ''}
           ${contract.booking.event.startTime && contract.booking.event.endTime ? `- Time: ${contract.booking.event.startTime} - ${contract.booking.event.endTime}` : ''}
           ${contract.booking.event.venue ? `- Venue: ${contract.booking.event.venue}` : ''}
-          ` : ''}
+          `
+              : ''
+          }
           
           Please review the contract and provide your electronic signature to proceed.
           
@@ -132,9 +144,12 @@ export class MailService {
 
       const info = await this.transporter.sendMail(mailOptions);
       console.log('Contract notification sent:', info.messageId);
-      
+
       // In development with Ethereal Email, log the preview URL
-      if (process.env.NODE_ENV !== 'production' && process.env.SMTP_HOST?.includes('ethereal')) {
+      if (
+        process.env.NODE_ENV !== 'production' &&
+        process.env.SMTP_HOST?.includes('ethereal')
+      ) {
         console.log('Preview URL: %s', nodemailer.getTestMessageUrl(info));
       }
     } catch (error) {
@@ -163,10 +178,14 @@ export class MailService {
     try {
       const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
       const inviteUrl = `${frontendUrl}/invite?token=${params.inviteToken}`;
-      const displayName = params.venueName || params.ownerName || 'Your event coordinator';
+      const displayName =
+        params.venueName || params.ownerName || 'Your event coordinator';
       const formattedDate = params.eventDate
         ? new Date(params.eventDate + 'T12:00:00').toLocaleDateString('en-US', {
-            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
           })
         : 'TBD';
       const formatEmailTime = (t: string | null | undefined) => {
@@ -178,7 +197,9 @@ export class MailService {
       const formattedStart = formatEmailTime(params.eventTime);
       const formattedEnd = formatEmailTime(params.endTime);
       const formattedTime = formattedStart
-        ? formattedEnd ? `${formattedStart} – ${formattedEnd}` : formattedStart
+        ? formattedEnd
+          ? `${formattedStart} – ${formattedEnd}`
+          : formattedStart
         : null;
 
       const mailOptions = {
@@ -241,7 +262,10 @@ export class MailService {
       const info = await this.transporter.sendMail(mailOptions);
       console.log('[MailService] Lead activation email sent:', info.messageId);
     } catch (error) {
-      console.error('[MailService] Failed to send lead activation email:', error);
+      console.error(
+        '[MailService] Failed to send lead activation email:',
+        error,
+      );
       // Non-fatal — don't break the booking flow
     }
   }
@@ -259,11 +283,15 @@ export class MailService {
     venueName?: string;
   }): Promise<void> {
     try {
-      const displayName = params.venueName || params.ownerName || 'Your event coordinator';
+      const displayName =
+        params.venueName || params.ownerName || 'Your event coordinator';
       const formattedAmount = `$${Number(params.totalAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
       const formattedDate = params.eventDate
         ? new Date(params.eventDate + 'T12:00:00').toLocaleDateString('en-US', {
-            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
           })
         : null;
 
@@ -318,7 +346,10 @@ export class MailService {
       const info = await this.transporter.sendMail(mailOptions);
       console.log('[MailService] Estimate ready email sent:', info.messageId);
     } catch (error) {
-      console.error('[MailService] Failed to send estimate ready email:', error);
+      console.error(
+        '[MailService] Failed to send estimate ready email:',
+        error,
+      );
     }
   }
 
@@ -333,7 +364,8 @@ export class MailService {
     ownerName?: string;
   }): Promise<void> {
     try {
-      const displayName = params.venueName || params.ownerName || 'your event coordinator';
+      const displayName =
+        params.venueName || params.ownerName || 'your event coordinator';
 
       const mailOptions = {
         from: `"EventEcos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
@@ -382,9 +414,15 @@ export class MailService {
       };
 
       const info = await this.transporter.sendMail(mailOptions);
-      console.log('[MailService] Contract signed confirmation sent to client:', info.messageId);
+      console.log(
+        '[MailService] Contract signed confirmation sent to client:',
+        info.messageId,
+      );
     } catch (error) {
-      console.error('[MailService] Failed to send contract signed confirmation email:', error);
+      console.error(
+        '[MailService] Failed to send contract signed confirmation email:',
+        error,
+      );
     }
   }
 
@@ -401,11 +439,15 @@ export class MailService {
     portalUrl: string;
   }): Promise<void> {
     try {
-      const displayName = params.venueName || params.ownerName || 'Your event coordinator';
+      const displayName =
+        params.venueName || params.ownerName || 'Your event coordinator';
       const formattedAmount = `$${Number(params.totalAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
       const formattedDate = params.eventDate
         ? new Date(params.eventDate + 'T12:00:00').toLocaleDateString('en-US', {
-            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
           })
         : null;
 
@@ -430,7 +472,9 @@ export class MailService {
                   <p style="color: #6b7280; font-size: 13px; margin: 0;">Invoice ${params.invoiceNumber} — ${formattedAmount} paid</p>
                 </div>
 
-                ${(params.eventType || formattedDate) ? `
+                ${
+                  params.eventType || formattedDate
+                    ? `
                 <div style="background: #f0f4ff; border-left: 4px solid #2563eb; border-radius: 8px; padding: 20px 24px; margin: 0 0 28px;">
                   <h3 style="margin: 0 0 12px; color: #1e3a5f; font-size: 15px; font-weight: 700;">Your Event</h3>
                   <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #374151;">
@@ -439,7 +483,9 @@ export class MailService {
                     <tr><td style="padding: 6px 0; color: #6b7280;">Venue</td><td style="padding: 6px 0; font-weight: 600;">${displayName}</td></tr>
                   </table>
                 </div>
-                ` : ''}
+                `
+                    : ''
+                }
 
                 <p style="color: #374151; font-size: 14px; line-height: 1.6; margin: 0 0 28px;">
                   You can view your invoice, contract, and all booking details in your client portal at any time.
@@ -464,9 +510,15 @@ export class MailService {
       };
 
       const info = await this.transporter.sendMail(mailOptions);
-      console.log('[MailService] Invoice paid confirmation sent:', info.messageId);
+      console.log(
+        '[MailService] Invoice paid confirmation sent:',
+        info.messageId,
+      );
     } catch (error) {
-      console.error('[MailService] Failed to send invoice paid confirmation email:', error);
+      console.error(
+        '[MailService] Failed to send invoice paid confirmation email:',
+        error,
+      );
     }
   }
 
@@ -480,7 +532,14 @@ export class MailService {
   }): Promise<void> {
     try {
       const formattedAmount = `$${Number(params.totalAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-      const formattedDue = new Date(params.dueDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+      const formattedDue = new Date(
+        params.dueDate + 'T12:00:00',
+      ).toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      });
 
       const mailOptions = {
         from: `"EventEcos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
@@ -525,10 +584,14 @@ export class MailService {
     }
   }
 
-  async sendContractSignedNotification(contract: Contract, client: User, owner: User): Promise<void> {
+  async sendContractSignedNotification(
+    contract: Contract,
+    client: User,
+    owner: User,
+  ): Promise<void> {
     try {
       const contractUrl = `${process.env.FRONTEND_URL || 'https://eventecos.com'}/dashboard/contracts/${contract.id}`;
-      
+
       const mailOptions = {
         from: `"EventEcos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
         to: owner.email,
@@ -569,7 +632,10 @@ export class MailService {
       const info = await this.transporter.sendMail(mailOptions);
       console.log('Contract signed notification sent:', info.messageId);
     } catch (error) {
-      console.error('Failed to send contract signed notification email:', error);
+      console.error(
+        'Failed to send contract signed notification email:',
+        error,
+      );
     }
   }
 
@@ -590,19 +656,25 @@ export class MailService {
     eventVenue?: string;
   }): Promise<void> {
     if (!process.env.RESEND_API_KEY) {
-      console.warn('[MailService] RESEND_API_KEY not set — skipping Resend contract email');
+      console.warn(
+        '[MailService] RESEND_API_KEY not set — skipping Resend contract email',
+      );
       return;
     }
     try {
       const resend = new Resend(process.env.RESEND_API_KEY);
       const formattedDate = params.eventDate
         ? new Date(params.eventDate + 'T12:00:00').toLocaleDateString('en-US', {
-            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
           })
         : null;
 
-      const eventBlock = (params.eventName || formattedDate || params.eventVenue)
-        ? `
+      const eventBlock =
+        params.eventName || formattedDate || params.eventVenue
+          ? `
           <div style="background:#e8f4f8;border-left:4px solid #2563eb;border-radius:8px;padding:20px 24px;margin:20px 0;">
             <h3 style="margin:0 0 12px;color:#1e3a5f;font-size:15px;">Event Information</h3>
             <table style="width:100%;border-collapse:collapse;font-size:14px;color:#374151;">
@@ -611,7 +683,7 @@ export class MailService {
               ${params.eventVenue ? `<tr><td style="padding:4px 0;color:#6b7280;">Venue</td><td style="padding:4px 0;font-weight:600;">${params.eventVenue}</td></tr>` : ''}
             </table>
           </div>`
-        : '';
+          : '';
 
       const html = `
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f9fafb;padding:32px 16px;">
@@ -659,7 +731,10 @@ export class MailService {
         html,
       });
 
-      console.log('[MailService] Resend contract email sent to', params.clientEmail);
+      console.log(
+        '[MailService] Resend contract email sent to',
+        params.clientEmail,
+      );
     } catch (error) {
       console.error('[MailService] Resend contract email failed:', error);
       // Non-fatal — SMS is already sent; don't break the contract send flow
@@ -674,7 +749,10 @@ export class MailService {
     businessName: string;
   }): Promise<void> {
     if (!process.env.RESEND_API_KEY) {
-      console.warn('[MailService] RESEND_API_KEY not set — team invite email not sent to', params.toEmail);
+      console.warn(
+        '[MailService] RESEND_API_KEY not set — team invite email not sent to',
+        params.toEmail,
+      );
       return;
     }
     try {
@@ -709,7 +787,10 @@ export class MailService {
         subject: `You've been invited to join ${params.businessName} on EventEcos`,
         html,
       });
-      console.log('[MailService] Team invite sent via Resend to', params.toEmail);
+      console.log(
+        '[MailService] Team invite sent via Resend to',
+        params.toEmail,
+      );
     } catch (error) {
       console.error('[MailService] Team invite email failed:', error);
       throw error;
@@ -737,7 +818,12 @@ export class MailService {
     };
     try {
       await this.transporter.sendMail(mailOptions);
-      console.log('[MailService] Reminder sent to', params.toEmail, '—', params.subject);
+      console.log(
+        '[MailService] Reminder sent to',
+        params.toEmail,
+        '—',
+        params.subject,
+      );
     } catch (error) {
       console.error('[MailService] Reminder email failed:', error);
       // Non-fatal — cron jobs should not crash on email failure
@@ -766,16 +852,26 @@ export class MailService {
       const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
       const eventUrl = `${frontendUrl}/events/${params.eventId}`;
       const formattedDate = params.eventDate
-        ? new Date(params.eventDate + (params.eventDate.includes('T') ? '' : 'T12:00:00'))
-            .toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+        ? new Date(
+            params.eventDate +
+              (params.eventDate.includes('T') ? '' : 'T12:00:00'),
+          ).toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })
         : 'TBD';
       const isFree = params.amountTotal === 0;
       const amountStr = isFree ? 'Free' : `$${params.amountTotal.toFixed(2)}`;
-      const fromName = params.promoterName ? `${params.promoterName} via Eventecos` : 'Eventecos Tickets';
+      const fromName = params.promoterName
+        ? `${params.promoterName} via Eventecos`
+        : 'Eventecos Tickets';
 
       // Fetch tickets by session ID if available
-      let ticketQRCodes: Array<{ id: string; buffer: Buffer; cid: string }> = [];
-      let attachments: any[] = [];
+      const ticketQRCodes: Array<{ id: string; buffer: Buffer; cid: string }> =
+        [];
+      const attachments: any[] = [];
       if (params.sessionId) {
         try {
           const admin = this.supabaseService.getAdminClient();
@@ -805,28 +901,36 @@ export class MailService {
             }
           }
         } catch (ticketError) {
-          console.warn('[MailService] Could not fetch tickets for QR codes:', ticketError);
+          console.warn(
+            '[MailService] Could not fetch tickets for QR codes:',
+            ticketError,
+          );
         }
       }
 
       // Build QR codes HTML
-      const qrCodesHtml = ticketQRCodes.length > 0
-        ? `
+      const qrCodesHtml =
+        ticketQRCodes.length > 0
+          ? `
             <div style="margin: 32px 0;">
               <h3 style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0 0 16px;">Your Tickets</h3>
-              ${ticketQRCodes.map((ticket, index) => `
+              ${ticketQRCodes
+                .map(
+                  (ticket, index) => `
                 <div style="background: white; border: 2px dashed #e5e7eb; border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 16px;">
                   <p style="color: #6b7280; font-size: 12px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: 0.5px;">Ticket ${index + 1}</p>
                   <img src="cid:${ticket.cid}" alt="QR Code" style="width: 200px; height: 200px; display: block; margin: 0 auto 12px;" />
                   <p style="color: #9ca3af; font-size: 11px; margin: 0; font-family: monospace; word-break: break-all;">${ticket.id}</p>
                 </div>
-              `).join('')}
+              `,
+                )
+                .join('')}
               <p style="color: #6b7280; font-size: 13px; background: #f3f4f6; border-radius: 8px; padding: 12px; margin: 16px 0 0; line-height: 1.5;">
                 📱 <strong>Show the QR code above at the door.</strong> Each code can only be scanned once. You can also view your tickets anytime by visiting your ticket page.
               </p>
             </div>
           `
-        : '';
+          : '';
 
       const mailOptions = {
         from: `"${fromName}" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
@@ -835,7 +939,7 @@ export class MailService {
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb; padding: 32px 16px;">
             <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08);">
-              ${this.getEmailHeader('You\'re going!', 'Your tickets are confirmed')}
+              ${this.getEmailHeader("You're going!", 'Your tickets are confirmed')}
               <div style="padding: 32px;">
                 <h2 style="margin: 0 0 16px; color: #1f2937; font-size: 20px;">${params.eventTitle}</h2>
                 <div style="background: #f5f3ff; border-left: 4px solid #7c3aed; border-radius: 8px; padding: 20px 24px; margin: 0 0 24px;">
@@ -875,7 +979,12 @@ export class MailService {
       };
 
       const info = await this.transporter.sendMail(mailOptions);
-      console.log('[MailService] Ticket confirmation sent to', params.toEmail, '—', info.messageId);
+      console.log(
+        '[MailService] Ticket confirmation sent to',
+        params.toEmail,
+        '—',
+        info.messageId,
+      );
     } catch (error) {
       console.error('[MailService] Ticket confirmation email failed:', error);
       // Non-fatal — webhook must not throw
@@ -900,12 +1009,21 @@ export class MailService {
       const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
       const eventUrl = `${frontendUrl}/events/${params.eventId}`;
       const formattedDate = params.eventDate
-        ? new Date(params.eventDate + (params.eventDate.includes('T') ? '' : 'T12:00:00'))
-            .toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+        ? new Date(
+            params.eventDate +
+              (params.eventDate.includes('T') ? '' : 'T12:00:00'),
+          ).toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })
         : 'TBD';
       const isFree = params.amountTotal === 0;
       const amountStr = isFree ? 'Free' : `$${params.amountTotal.toFixed(2)}`;
-      const fromName = params.promoterName ? `${params.promoterName} via Eventecos` : 'Eventecos VIP';
+      const fromName = params.promoterName
+        ? `${params.promoterName} via Eventecos`
+        : 'Eventecos VIP';
 
       // Generate QR code image from the order qr_code UUID
       const qrBuffer = await QRCode.toBuffer(params.qrCode, {
@@ -971,7 +1089,12 @@ export class MailService {
       };
 
       const info = await this.transporter.sendMail(mailOptions);
-      console.log('[MailService] VIP confirmation sent to', params.toEmail, '—', info.messageId);
+      console.log(
+        '[MailService] VIP confirmation sent to',
+        params.toEmail,
+        '—',
+        info.messageId,
+      );
     } catch (error) {
       console.error('[MailService] VIP confirmation email failed:', error);
     }
@@ -1030,7 +1153,12 @@ export class MailService {
       };
 
       const info = await this.transporter.sendMail(mailOptions);
-      console.log('[MailService] Ticket forward email sent to', params.toEmail, '—', info.messageId);
+      console.log(
+        '[MailService] Ticket forward email sent to',
+        params.toEmail,
+        '—',
+        info.messageId,
+      );
     } catch (error) {
       console.error('[MailService] Ticket forward email failed:', error);
     }
@@ -1050,7 +1178,10 @@ export class MailService {
     try {
       const dateStr = params.eventDate
         ? new Date(params.eventDate + 'T12:00:00').toLocaleDateString('en-US', {
-            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
           })
         : '';
 
@@ -1098,7 +1229,12 @@ export class MailService {
       };
 
       const info = await this.transporter.sendMail(mailOptions);
-      console.log('[MailService] Comp ticket email sent to', params.toEmail, '—', info.messageId);
+      console.log(
+        '[MailService] Comp ticket email sent to',
+        params.toEmail,
+        '—',
+        info.messageId,
+      );
     } catch (error) {
       console.error('[MailService] Comp ticket email failed:', error);
     }
@@ -1123,16 +1259,26 @@ export class MailService {
       const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
       const eventUrl = `${frontendUrl}/events/${params.eventId}`;
       const formattedDate = params.eventDate
-        ? new Date(params.eventDate + (params.eventDate.includes('T') ? '' : 'T12:00:00'))
-            .toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+        ? new Date(
+            params.eventDate +
+              (params.eventDate.includes('T') ? '' : 'T12:00:00'),
+          ).toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })
         : 'TBD';
       const isFree = params.amountTotal === 0;
       const amountStr = isFree ? 'Free' : `$${params.amountTotal.toFixed(2)}`;
-      const fromName = params.promoterName ? `${params.promoterName} via Eventecos` : 'Eventecos Tickets';
+      const fromName = params.promoterName
+        ? `${params.promoterName} via Eventecos`
+        : 'Eventecos Tickets';
 
       // Fetch tickets by session ID if available
-      let ticketQRCodes: Array<{ id: string; buffer: Buffer; cid: string }> = [];
-      let attachments: any[] = [];
+      const ticketQRCodes: Array<{ id: string; buffer: Buffer; cid: string }> =
+        [];
+      const attachments: any[] = [];
       if (params.sessionId) {
         try {
           const admin = this.supabaseService.getAdminClient();
@@ -1162,38 +1308,50 @@ export class MailService {
             }
           }
         } catch (ticketError) {
-          console.warn('[MailService] Could not fetch tickets for QR codes:', ticketError);
+          console.warn(
+            '[MailService] Could not fetch tickets for QR codes:',
+            ticketError,
+          );
         }
       }
 
       // Build QR codes HTML
-      const qrCodesHtml = ticketQRCodes.length > 0
-        ? `
+      const qrCodesHtml =
+        ticketQRCodes.length > 0
+          ? `
             <div style="margin: 32px 0;">
               <h3 style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0 0 16px;">Your Tickets</h3>
-              ${ticketQRCodes.map((ticket, index) => `
+              ${ticketQRCodes
+                .map(
+                  (ticket, index) => `
                 <div style="background: white; border: 2px dashed #e5e7eb; border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 16px;">
                   <p style="color: #6b7280; font-size: 12px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: 0.5px;">Ticket ${index + 1}</p>
                   <img src="cid:${ticket.cid}" alt="QR Code" style="width: 200px; height: 200px; display: block; margin: 0 auto 12px;" />
                   <p style="color: #9ca3af; font-size: 11px; margin: 0; font-family: monospace; word-break: break-all;">${ticket.id}</p>
                 </div>
-              `).join('')}
+              `,
+                )
+                .join('')}
               <p style="color: #6b7280; font-size: 13px; background: #f3f4f6; border-radius: 8px; padding: 12px; margin: 16px 0 0; line-height: 1.5;">
                 📱 <strong>Show the QR code above at the door.</strong> Each code can only be scanned once. You can also view your tickets anytime by visiting your ticket page.
               </p>
             </div>
           `
-        : '';
+          : '';
 
       // Build ticket tier summary HTML
       const tierSummaryHtml = `
         <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #374151;">
-          ${params.tiers.map(tier => `
+          ${params.tiers
+            .map(
+              (tier) => `
             <tr>
               <td style="padding: 8px 0; color: #6b7280; border-bottom: 1px solid #e5e7eb;">${tier.tier_name}</td>
               <td style="padding: 8px 0; font-weight: 600; text-align: right; border-bottom: 1px solid #e5e7eb;">${tier.quantity} ${tier.quantity === 1 ? 'ticket' : 'tickets'}</td>
             </tr>
-          `).join('')}
+          `,
+            )
+            .join('')}
           <tr>
             <td style="padding: 12px 0; color: #1f2937; font-weight: 700;">Total</td>
             <td style="padding: 12px 0; font-weight: 700; text-align: right;">${params.tiers.reduce((s, t) => s + t.quantity, 0)} ${params.tiers.reduce((s, t) => s + t.quantity, 0) === 1 ? 'ticket' : 'tickets'}</td>
@@ -1208,7 +1366,7 @@ export class MailService {
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb; padding: 32px 16px;">
             <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08);">
-              ${this.getEmailHeader('You\'re going!', 'Your tickets are confirmed')}
+              ${this.getEmailHeader("You're going!", 'Your tickets are confirmed')}
               <div style="padding: 32px;">
                 <h2 style="margin: 0 0 16px; color: #1f2937; font-size: 20px;">${params.eventTitle}</h2>
                 <div style="background: #f5f3ff; border-left: 4px solid #7c3aed; border-radius: 8px; padding: 20px 24px; margin: 0 0 24px;">
@@ -1249,14 +1407,22 @@ export class MailService {
             </div>
           </div>
         `,
-        text: `Your tickets are confirmed!\n\n${params.eventTitle}\nDate: ${formattedDate}${params.eventTime ? `\nTime: ${params.eventTime}` : ''}${params.venueName ? `\nVenue: ${params.venueName}` : ''}\n\nTickets:\n${params.tiers.map(t => `- ${t.tier_name}: ${t.quantity}`).join('\n')}\n\nTotal: ${params.tiers.reduce((s, t) => s + t.quantity, 0)} tickets - ${amountStr}\n\nShow the QR code above at the door. Each code can only be scanned once.\n\nIMPORTANT: Eventecos is not responsible for event cancellations, postponements, or refunds. The event organizer is solely liable for these matters.\n\nView event: ${eventUrl}`,
+        text: `Your tickets are confirmed!\n\n${params.eventTitle}\nDate: ${formattedDate}${params.eventTime ? `\nTime: ${params.eventTime}` : ''}${params.venueName ? `\nVenue: ${params.venueName}` : ''}\n\nTickets:\n${params.tiers.map((t) => `- ${t.tier_name}: ${t.quantity}`).join('\n')}\n\nTotal: ${params.tiers.reduce((s, t) => s + t.quantity, 0)} tickets - ${amountStr}\n\nShow the QR code above at the door. Each code can only be scanned once.\n\nIMPORTANT: Eventecos is not responsible for event cancellations, postponements, or refunds. The event organizer is solely liable for these matters.\n\nView event: ${eventUrl}`,
         attachments: attachments,
       };
 
       const info = await this.transporter.sendMail(mailOptions);
-      console.log('[MailService] Consolidated ticket confirmation sent to', params.toEmail, '—', info.messageId);
+      console.log(
+        '[MailService] Consolidated ticket confirmation sent to',
+        params.toEmail,
+        '—',
+        info.messageId,
+      );
     } catch (error) {
-      console.error('[MailService] Consolidated ticket confirmation email failed:', error);
+      console.error(
+        '[MailService] Consolidated ticket confirmation email failed:',
+        error,
+      );
       // Non-fatal — webhook must not throw
     }
   }
@@ -1383,18 +1549,29 @@ export class MailService {
     promoterName?: string | null;
   }): Promise<void> {
     if (!process.env.RESEND_API_KEY) {
-      console.warn('[MailService] RESEND_API_KEY not set — skipping VIP confirmation email');
+      console.warn(
+        '[MailService] RESEND_API_KEY not set — skipping VIP confirmation email',
+      );
       return;
     }
     try {
       const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
       const eventUrl = `${frontendUrl}/events/${params.eventId}`;
       const formattedDate = params.eventDate
-        ? new Date(params.eventDate + (params.eventDate.includes('T') ? '' : 'T12:00:00'))
-            .toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+        ? new Date(
+            params.eventDate +
+              (params.eventDate.includes('T') ? '' : 'T12:00:00'),
+          ).toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })
         : 'TBD';
       const amountStr = `$${Number(params.totalAmount).toFixed(2)}`;
-      const fromName = params.promoterName ? `${params.promoterName} via Eventecos` : 'Eventecos VIP';
+      const fromName = params.promoterName
+        ? `${params.promoterName} via Eventecos`
+        : 'Eventecos VIP';
       const greeting = params.buyerName ? `Hi ${params.buyerName},` : 'Hello,';
 
       const qrBuffer = await QRCode.toBuffer(params.qrCode, {
@@ -1462,7 +1639,10 @@ export class MailService {
           },
         ],
       });
-      console.log('[MailService] VIP confirmation sent via Resend to', params.toEmail);
+      console.log(
+        '[MailService] VIP confirmation sent via Resend to',
+        params.toEmail,
+      );
     } catch (error) {
       console.error('[MailService] VIP confirmation email failed:', error);
     }
@@ -1473,7 +1653,8 @@ export class MailService {
     inviteToken: string;
   }): Promise<void> {
     try {
-      const salesPortalUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+      const salesPortalUrl =
+        process.env.FRONTEND_URL || 'https://eventecos.com';
       const registerUrl = `${salesPortalUrl}/sales-portal/register?token=${params.inviteToken}`;
 
       const mailOptions = {
@@ -1517,9 +1698,16 @@ export class MailService {
       };
 
       const info = await this.transporter.sendMail(mailOptions);
-      console.log('[MailService] Affiliate invite sent to', params.toEmail, info.messageId);
+      console.log(
+        '[MailService] Affiliate invite sent to',
+        params.toEmail,
+        info.messageId,
+      );
     } catch (error) {
-      console.error('[MailService] Failed to send affiliate invite email:', error);
+      console.error(
+        '[MailService] Failed to send affiliate invite email:',
+        error,
+      );
       throw error;
     }
   }

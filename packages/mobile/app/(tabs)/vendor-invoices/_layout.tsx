@@ -8,11 +8,10 @@ export default function VendorInvoicesLayout() {
         headerStyle: { backgroundColor: Colors.primary },
         headerTintColor: '#FFFFFF',
         headerTitleStyle: { fontWeight: '700', fontSize: 17 },
-        headerBackTitle: 'Invoices',
+        headerBackTitle: 'Vendor Invoices',
       }}
     >
-      <Stack.Screen name="index" options={{ title: 'Invoices' }} />
-      <Stack.Screen name="new" options={{ title: 'New Invoice', headerBackTitle: 'Back' }} />
+      <Stack.Screen name="index" options={{ title: 'Vendor Invoices' }} />
       <Stack.Screen name="[id]" options={{ title: 'Invoice' }} />
     </Stack>
   );

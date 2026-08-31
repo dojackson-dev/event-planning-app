@@ -1,6 +1,15 @@
-import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  Logger,
+} from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
-import { CreateArtistDto, UpdateArtistDto, ArtistSearchDto } from './dto/artist.dto';
+import {
+  CreateArtistDto,
+  UpdateArtistDto,
+  ArtistSearchDto,
+} from './dto/artist.dto';
 
 @Injectable()
 export class ArtistsService {
@@ -22,7 +31,9 @@ export class ArtistsService {
       .maybeSingle();
 
     if (existing) {
-      throw new BadRequestException('Artist account already exists for this user');
+      throw new BadRequestException(
+        'Artist account already exists for this user',
+      );
     }
 
     const { data, error } = await admin
@@ -102,11 +113,14 @@ export class ArtistsService {
 
     if (!artist) throw new NotFoundException('Artist account not found');
 
-    const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    const update: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
     if (dto.artistName !== undefined) update.artist_name = dto.artistName;
     if (dto.stageName !== undefined) update.stage_name = dto.stageName;
     if (dto.agentName !== undefined) update.agent_name = dto.agentName;
-    if (dto.bookingContactName !== undefined) update.booking_contact_name = dto.bookingContactName;
+    if (dto.bookingContactName !== undefined)
+      update.booking_contact_name = dto.bookingContactName;
     if (dto.bookingEmail !== undefined) update.booking_email = dto.bookingEmail;
     if (dto.bookingPhone !== undefined) update.booking_phone = dto.bookingPhone;
     if (dto.agency !== undefined) update.agency = dto.agency;
@@ -114,20 +128,29 @@ export class ArtistsService {
     if (dto.artistType !== undefined) update.artist_type = dto.artistType;
     if (dto.genres !== undefined) update.genres = dto.genres;
     if (dto.description !== undefined) update.description = dto.description;
-    if (dto.performanceFeeMin !== undefined) update.performance_fee_min = dto.performanceFeeMin;
-    if (dto.performanceFeeMax !== undefined) update.performance_fee_max = dto.performanceFeeMax;
-    if (dto.travelAvailability !== undefined) update.travel_availability = dto.travelAvailability;
-    if (dto.setLengthMinutes !== undefined) update.set_length_minutes = dto.setLengthMinutes;
-    if (dto.equipmentNeeds !== undefined) update.equipment_needs = dto.equipmentNeeds;
-    if (dto.hospitalityRequirements !== undefined) update.hospitality_requirements = dto.hospitalityRequirements;
-    if (dto.profileImageUrl !== undefined) update.profile_image_url = dto.profileImageUrl;
-    if (dto.coverImageUrl !== undefined) update.cover_image_url = dto.coverImageUrl;
+    if (dto.performanceFeeMin !== undefined)
+      update.performance_fee_min = dto.performanceFeeMin;
+    if (dto.performanceFeeMax !== undefined)
+      update.performance_fee_max = dto.performanceFeeMax;
+    if (dto.travelAvailability !== undefined)
+      update.travel_availability = dto.travelAvailability;
+    if (dto.setLengthMinutes !== undefined)
+      update.set_length_minutes = dto.setLengthMinutes;
+    if (dto.equipmentNeeds !== undefined)
+      update.equipment_needs = dto.equipmentNeeds;
+    if (dto.hospitalityRequirements !== undefined)
+      update.hospitality_requirements = dto.hospitalityRequirements;
+    if (dto.profileImageUrl !== undefined)
+      update.profile_image_url = dto.profileImageUrl;
+    if (dto.coverImageUrl !== undefined)
+      update.cover_image_url = dto.coverImageUrl;
     if (dto.website !== undefined) update.website = dto.website;
     if (dto.instagram !== undefined) update.instagram = dto.instagram;
     if (dto.youtube !== undefined) update.youtube = dto.youtube;
     if (dto.spotify !== undefined) update.spotify = dto.spotify;
     if (dto.epkUrl !== undefined) update.epk_url = dto.epkUrl;
-    if (dto.availableForBooking !== undefined) update.available_for_booking = dto.availableForBooking;
+    if (dto.availableForBooking !== undefined)
+      update.available_for_booking = dto.availableForBooking;
 
     const { data, error } = await admin
       .from('artist_accounts')
@@ -149,7 +172,9 @@ export class ArtistsService {
 
     let query = admin
       .from('artist_accounts')
-      .select('id, artist_name, stage_name, artist_type, genres, location, profile_image_url, performance_fee_min, performance_fee_max, travel_availability, description, instagram, available_for_booking')
+      .select(
+        'id, artist_name, stage_name, artist_type, genres, location, profile_image_url, performance_fee_min, performance_fee_max, travel_availability, description, instagram, available_for_booking',
+      )
       .eq('is_active', true);
 
     if (dto.artistType) {
@@ -169,7 +194,11 @@ export class ArtistsService {
       if (dto.travelAvailability === 'Local') {
         query = query.eq('travel_availability', 'Local only');
       } else if (dto.travelAvailability === 'Regional') {
-        query = query.in('travel_availability', ['Regional (within 200 miles)', 'National', 'International']);
+        query = query.in('travel_availability', [
+          'Regional (within 200 miles)',
+          'National',
+          'International',
+        ]);
       } else if (dto.travelAvailability === 'National') {
         query = query.in('travel_availability', ['National', 'International']);
       } else if (dto.travelAvailability === 'International') {
@@ -177,7 +206,9 @@ export class ArtistsService {
       }
     }
 
-    const { data, error } = await query.order('created_at', { ascending: false }).limit(100);
+    const { data, error } = await query
+      .order('created_at', { ascending: false })
+      .limit(100);
 
     if (error) throw new BadRequestException(error.message);
     return data ?? [];
@@ -216,7 +247,10 @@ export class ArtistsService {
       .eq('user_id', userId)
       .maybeSingle();
 
-    if (!artist) throw new BadRequestException('No artist account found. Please complete your artist profile first.');
+    if (!artist)
+      throw new BadRequestException(
+        'No artist account found. Please complete your artist profile first.',
+      );
 
     const { data: existing } = await admin
       .from('artist_riders')
@@ -226,9 +260,13 @@ export class ArtistsService {
 
     // Strip empty strings to null so numeric/boolean columns don't fail type checks
     const sanitized = Object.fromEntries(
-      Object.entries(dto).map(([k, v]) => [k, v === '' ? null : v])
+      Object.entries(dto).map(([k, v]) => [k, v === '' ? null : v]),
     );
-    const payload = { ...sanitized, artist_account_id: artist.id, updated_at: new Date().toISOString() };
+    const payload = {
+      ...sanitized,
+      artist_account_id: artist.id,
+      updated_at: new Date().toISOString(),
+    };
 
     if (existing) {
       const { data, error } = await admin
@@ -281,7 +319,8 @@ export class ArtistsService {
     const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
     for (let attempt = 0; attempt < 10; attempt++) {
       let code = '';
-      for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+      for (let i = 0; i < 6; i++)
+        code += chars[Math.floor(Math.random() * chars.length)];
       const { data } = await admin
         .from('artist_booking_links')
         .select('id')
@@ -292,11 +331,16 @@ export class ArtistsService {
     throw new Error('Could not generate a unique short code');
   }
 
-  async upsertBookingLink(userId: string, dto: { slug: string; isActive?: boolean; customMessage?: string }) {
+  async upsertBookingLink(
+    userId: string,
+    dto: { slug: string; isActive?: boolean; customMessage?: string },
+  ) {
     const admin = this.supabaseService.getAdminClient();
 
     if (!/^[a-z0-9-]{3,60}$/.test(dto.slug)) {
-      throw new BadRequestException('Slug must be 3-60 characters: lowercase letters, numbers, and hyphens only');
+      throw new BadRequestException(
+        'Slug must be 3-60 characters: lowercase letters, numbers, and hyphens only',
+      );
     }
 
     const { data: artist } = await admin
@@ -321,7 +365,8 @@ export class ArtistsService {
       .eq('artist_account_id', artist.id)
       .maybeSingle();
 
-    const shortCode = existing?.short_code ?? await this.generateShortCode(admin);
+    const shortCode =
+      existing?.short_code ?? (await this.generateShortCode(admin));
     const payload = {
       artist_account_id: artist.id,
       slug: dto.slug,
@@ -333,12 +378,19 @@ export class ArtistsService {
 
     if (existing) {
       const { data, error } = await admin
-        .from('artist_booking_links').update(payload).eq('id', existing.id).select().single();
+        .from('artist_booking_links')
+        .update(payload)
+        .eq('id', existing.id)
+        .select()
+        .single();
       if (error) throw new BadRequestException(error.message);
       return data;
     } else {
       const { data, error } = await admin
-        .from('artist_booking_links').insert(payload).select().single();
+        .from('artist_booking_links')
+        .insert(payload)
+        .select()
+        .single();
       if (error) throw new BadRequestException(error.message);
       return data;
     }
@@ -347,10 +399,16 @@ export class ArtistsService {
   async getMyBookingLink(userId: string) {
     const admin = this.supabaseService.getAdminClient();
     const { data: artist } = await admin
-      .from('artist_accounts').select('id').eq('user_id', userId).maybeSingle();
+      .from('artist_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
     if (!artist) return null;
     const { data } = await admin
-      .from('artist_booking_links').select('*').eq('artist_account_id', artist.id).maybeSingle();
+      .from('artist_booking_links')
+      .select('*')
+      .eq('artist_account_id', artist.id)
+      .maybeSingle();
     return data ?? null;
   }
 
@@ -358,11 +416,14 @@ export class ArtistsService {
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('artist_booking_links')
-      .select('*, artist_accounts(artist_name, stage_name, artist_type, genres, location, description, performance_fee_min, performance_fee_max, profile_image_url)')
+      .select(
+        '*, artist_accounts(artist_name, stage_name, artist_type, genres, location, description, performance_fee_min, performance_fee_max, profile_image_url)',
+      )
       .eq('slug', slug)
       .eq('is_active', true)
       .single();
-    if (error || !data) throw new NotFoundException('Booking link not found or inactive');
+    if (error || !data)
+      throw new NotFoundException('Booking link not found or inactive');
     return data;
   }
 
@@ -374,7 +435,8 @@ export class ArtistsService {
       .eq('short_code', code)
       .eq('is_active', true)
       .single();
-    if (error || !data) throw new NotFoundException('Booking link not found or inactive');
+    if (error || !data)
+      throw new NotFoundException('Booking link not found or inactive');
     return { slug: data.slug };
   }
 
@@ -385,7 +447,8 @@ export class ArtistsService {
       .select('id, artist_account_id, is_active')
       .eq('slug', slug)
       .single();
-    if (!link || !link.is_active) throw new NotFoundException('Booking link not found or inactive');
+    if (!link || !link.is_active)
+      throw new NotFoundException('Booking link not found or inactive');
 
     const { data, error } = await admin
       .from('artist_booking_requests')
@@ -413,7 +476,10 @@ export class ArtistsService {
   async getMyBookingRequests(userId: string) {
     const admin = this.supabaseService.getAdminClient();
     const { data: artist } = await admin
-      .from('artist_accounts').select('id').eq('user_id', userId).maybeSingle();
+      .from('artist_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
     if (!artist) return [];
     const { data } = await admin
       .from('artist_booking_requests')
@@ -423,10 +489,17 @@ export class ArtistsService {
     return data ?? [];
   }
 
-  async updateBookingRequest(userId: string, requestId: string, status: string) {
+  async updateBookingRequest(
+    userId: string,
+    requestId: string,
+    status: string,
+  ) {
     const admin = this.supabaseService.getAdminClient();
     const { data: artist } = await admin
-      .from('artist_accounts').select('id').eq('user_id', userId).maybeSingle();
+      .from('artist_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
     if (!artist) throw new BadRequestException('No artist account found');
 
     const { data, error } = await admin

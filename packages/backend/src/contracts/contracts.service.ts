@@ -21,7 +21,11 @@ export class ContractsService {
     return data || [];
   }
 
-  async findByOwner(supabase: SupabaseClient, ownerId: string, venueId?: string): Promise<any[]> {
+  async findByOwner(
+    supabase: SupabaseClient,
+    ownerId: string,
+    venueId?: string,
+  ): Promise<any[]> {
     let query = supabase
       .from('contracts')
       .select('*')
@@ -30,14 +34,22 @@ export class ContractsService {
 
     if (venueId) {
       const admin = this.supabaseService.getAdminClient();
-      const { data: venueEvents } = await admin.from('event').select('id, intake_form_id').eq('venue_id', venueId).eq('owner_id', ownerId);
+      const { data: venueEvents } = await admin
+        .from('event')
+        .select('id, intake_form_id')
+        .eq('venue_id', venueId)
+        .eq('owner_id', ownerId);
       if (!venueEvents || venueEvents.length === 0) return [];
       const eventIds = venueEvents.map((e: any) => e.id);
-      const intakeIds = venueEvents.map((e: any) => e.intake_form_id).filter(Boolean);
+      const intakeIds = venueEvents
+        .map((e: any) => e.intake_form_id)
+        .filter(Boolean);
       // Filter by event_id or intake_form_id
       const orParts: string[] = [];
-      if (eventIds.length > 0) orParts.push(`event_id.in.(${eventIds.join(',')})`);
-      if (intakeIds.length > 0) orParts.push(`intake_form_id.in.(${intakeIds.join(',')})`);
+      if (eventIds.length > 0)
+        orParts.push(`event_id.in.(${eventIds.join(',')})`);
+      if (intakeIds.length > 0)
+        orParts.push(`intake_form_id.in.(${intakeIds.join(',')})`);
       if (orParts.length > 0) query = query.or(orParts.join(','));
     }
 
@@ -46,7 +58,10 @@ export class ContractsService {
     return data || [];
   }
 
-  async findByClient(supabase: SupabaseClient, clientId: string): Promise<any[]> {
+  async findByClient(
+    supabase: SupabaseClient,
+    clientId: string,
+  ): Promise<any[]> {
     const { data, error } = await supabase
       .from('contracts')
       .select('*')
@@ -74,7 +89,9 @@ export class ContractsService {
         .eq('id', data.owner_id)
         .single();
       if (ownerUser) {
-        data.owner_name = `${ownerUser.first_name ?? ''} ${ownerUser.last_name ?? ''}`.trim() || null;
+        data.owner_name =
+          `${ownerUser.first_name ?? ''} ${ownerUser.last_name ?? ''}`.trim() ||
+          null;
         data.owner_email = ownerUser.email ?? null;
       }
     }
@@ -103,9 +120,9 @@ export class ContractsService {
         .eq('id', contractData.vendor_account_id)
         .single();
       if (vendorAccount) {
-        clientName  = clientName  ?? vendorAccount.business_name ?? undefined;
-        clientPhone = clientPhone ?? vendorAccount.phone         ?? undefined;
-        clientEmail = clientEmail ?? vendorAccount.email         ?? undefined;
+        clientName = clientName ?? vendorAccount.business_name ?? undefined;
+        clientPhone = clientPhone ?? vendorAccount.phone ?? undefined;
+        clientEmail = clientEmail ?? vendorAccount.email ?? undefined;
       }
     } else if (contractData.intake_form_id && (!clientPhone || !clientName)) {
       const { data: form } = await admin
@@ -114,7 +131,7 @@ export class ContractsService {
         .eq('id', contractData.intake_form_id)
         .single();
       if (form) {
-        clientName  = clientName  ?? form.contact_name  ?? undefined;
+        clientName = clientName ?? form.contact_name ?? undefined;
         clientPhone = clientPhone ?? form.contact_phone ?? undefined;
         clientEmail = clientEmail ?? form.contact_email ?? undefined;
       }
@@ -125,7 +142,7 @@ export class ContractsService {
       contract_number: contractNumber,
       status: contractData.status || 'draft',
     };
-    if (clientName)  payload.client_name  = clientName;
+    if (clientName) payload.client_name = clientName;
     if (clientPhone) payload.client_phone = clientPhone;
     if (clientEmail) payload.client_email = clientEmail;
 
@@ -135,13 +152,22 @@ export class ContractsService {
       .select()
       .single();
     if (error) {
-      console.error('[ContractsService] insert error:', error.message, error.details, error.hint);
+      console.error(
+        '[ContractsService] insert error:',
+        error.message,
+        error.details,
+        error.hint,
+      );
       throw new Error(error.message);
     }
     return data;
   }
 
-  async update(supabase: SupabaseClient, id: string, contractData: any): Promise<any | null> {
+  async update(
+    supabase: SupabaseClient,
+    id: string,
+    contractData: any,
+  ): Promise<any | null> {
     const { data, error } = await supabase
       .from('contracts')
       .update(contractData)
@@ -153,13 +179,18 @@ export class ContractsService {
   }
 
   generateBody(contractType: string, td: any): string {
-    const agreementDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    const agreementDate = new Date().toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
     if (contractType === 'venue_booking') {
       const totalAmount = td.venueTotalAmount || '';
       const deposit = td.venueDeposit || '';
-      const remaining = totalAmount && deposit
-        ? (parseFloat(totalAmount) - parseFloat(deposit)).toFixed(2)
-        : '__________';
+      const remaining =
+        totalAmount && deposit
+          ? (parseFloat(totalAmount) - parseFloat(deposit)).toFixed(2)
+          : '__________';
       return `<div style="font-family:Georgia,serif;max-width:780px;margin:0 auto;color:#111;line-height:1.75;padding:16px;">
   <h1 style="text-align:center;font-size:1.35rem;text-transform:uppercase;letter-spacing:.06em;border-bottom:2px solid #111;padding-bottom:14px;margin-bottom:28px;">Venue Listing &amp; Booking Agreement</h1>
   <p style="text-align:center;font-style:italic;color:#555;margin-top:-16px;margin-bottom:28px;">EventEcos Platform</p>
@@ -202,9 +233,10 @@ export class ContractsService {
   </div>
 </div>`;
     } else if (contractType === 'vendor_template') {
-      const paymentSection = td.paymentTerms === 'full'
-        ? `<li>Full payment of <strong>$${td.totalFee}</strong> due upfront prior to services.</li>`
-        : `<li>Deposit: <strong>$${td.depositAmount || '___'}</strong> due on <strong>${td.depositDueDate || '___'}</strong></li>
+      const paymentSection =
+        td.paymentTerms === 'full'
+          ? `<li>Full payment of <strong>$${td.totalFee}</strong> due upfront prior to services.</li>`
+          : `<li>Deposit: <strong>$${td.depositAmount || '___'}</strong> due on <strong>${td.depositDueDate || '___'}</strong></li>
            <li>Balance: <strong>$${(parseFloat(td.totalFee || '0') - parseFloat(td.depositAmount || '0')).toFixed(2)}</strong> due on <strong>${td.balanceDueDate || '___'}</strong></li>`;
       return `<div style="font-family:Georgia,serif;max-width:780px;margin:0 auto;color:#111;line-height:1.75;padding:16px;">
   <h1 style="text-align:center;font-size:1.35rem;text-transform:uppercase;letter-spacing:.06em;border-bottom:2px solid #111;padding-bottom:14px;margin-bottom:28px;">Vendor Services Agreement</h1>
@@ -243,7 +275,11 @@ export class ContractsService {
   async signContract(
     supabase: SupabaseClient,
     id: string,
-    signatureData: { signatureData: string; signerName: string; ipAddress?: string },
+    signatureData: {
+      signatureData: string;
+      signerName: string;
+      ipAddress?: string;
+    },
   ): Promise<any | null> {
     const { data, error } = await supabase
       .from('contracts')
@@ -262,7 +298,8 @@ export class ContractsService {
     // Notify owner that client has signed, and confirm to client
     try {
       const contractNumber: string = data.contract_number ?? id;
-      const signerName: string = signatureData.signerName || data.signer_name || 'Client';
+      const signerName: string =
+        signatureData.signerName || data.signer_name || 'Client';
 
       // Look up owner phone from users table
       if (data.owner_id) {
@@ -271,8 +308,13 @@ export class ContractsService {
           .select('phone_number')
           .eq('id', data.owner_id)
           .single();
-        const ownerPhone: string | null = (ownerUser as any)?.phone_number ?? null;
-        await this.smsNotifications.contractSigned(ownerPhone, signerName, contractNumber);
+        const ownerPhone: string | null =
+          (ownerUser as any)?.phone_number ?? null;
+        await this.smsNotifications.contractSigned(
+          ownerPhone,
+          signerName,
+          contractNumber,
+        );
       }
 
       // Also confirm to client (if they have a phone on the contract)
@@ -285,12 +327,15 @@ export class ContractsService {
       );
 
       // Email confirmation to client
-      const clientEmail: string | null = data.client_email ?? data.contact_email ?? null;
+      const clientEmail: string | null =
+        data.client_email ?? data.contact_email ?? null;
       if (clientEmail) {
         try {
-          const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+          const frontendUrl =
+            process.env.FRONTEND_URL || 'http://localhost:3000';
           const contractUrl = `${frontendUrl}/client-portal/contracts/${id}`;
-          const clientName: string = data.client_name ?? data.contact_name ?? signerName;
+          const clientName: string =
+            data.client_name ?? data.contact_name ?? signerName;
 
           // Look up venue/owner name for the email
           let venueName: string | undefined;
@@ -312,7 +357,9 @@ export class ContractsService {
             contractUrl,
             venueName,
           });
-        } catch { /* email errors are non-fatal */ }
+        } catch {
+          /* email errors are non-fatal */
+        }
       }
     } catch {
       // SMS errors must never break the signing flow
@@ -321,7 +368,10 @@ export class ContractsService {
     return data;
   }
 
-  async sendContract(supabase: SupabaseClient, id: string): Promise<any | null> {
+  async sendContract(
+    supabase: SupabaseClient,
+    id: string,
+  ): Promise<any | null> {
     const { data, error } = await supabase
       .from('contracts')
       .update({
@@ -344,17 +394,25 @@ export class ContractsService {
     try {
       const clientPhone: string | null =
         data.client_phone ?? data.contact_phone ?? null;
-      const clientName: string = data.client_name ?? data.contact_name ?? 'Valued Client';
+      const clientName: string =
+        data.client_name ?? data.contact_name ?? 'Valued Client';
       const contractNumber: string = data.contract_number ?? id;
-      await this.smsNotifications.contractSent(clientPhone, clientName, contractNumber, contractUrl);
+      await this.smsNotifications.contractSent(
+        clientPhone,
+        clientName,
+        contractNumber,
+        contractUrl,
+      );
     } catch {
       // SMS errors must never break the contract send
     }
 
     // Send contract email via Resend
     try {
-      const clientEmail: string | null = data.client_email ?? data.contact_email ?? null;
-      const clientName: string = data.client_name ?? data.contact_name ?? 'Valued Client';
+      const clientEmail: string | null =
+        data.client_email ?? data.contact_email ?? null;
+      const clientName: string =
+        data.client_name ?? data.contact_name ?? 'Valued Client';
       const contractNumber: string = data.contract_number ?? id;
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
       // Vendor template contracts link to the vendor dashboard, others to client portal
@@ -373,7 +431,8 @@ export class ContractsService {
           .maybeSingle();
         if (ownerUser) {
           ownerName =
-            `${ownerUser.first_name ?? ''} ${ownerUser.last_name ?? ''}`.trim() || ownerName;
+            `${ownerUser.first_name ?? ''} ${ownerUser.last_name ?? ''}`.trim() ||
+            ownerName;
         }
       }
 
@@ -418,8 +477,10 @@ export class ContractsService {
 
     // Notify client that owner has counter-signed
     try {
-      const clientPhone: string | null = data.client_phone ?? data.contact_phone ?? null;
-      const clientName: string = data.client_name ?? data.contact_name ?? 'Valued Client';
+      const clientPhone: string | null =
+        data.client_phone ?? data.contact_phone ?? null;
+      const clientName: string =
+        data.client_name ?? data.contact_name ?? 'Valued Client';
       const contractNumber: string = data.contract_number ?? id;
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
       const contractUrl = `${frontendUrl}/client-portal/contracts/${id}`;
@@ -427,7 +488,9 @@ export class ContractsService {
         clientPhone,
         `EventEcos: Hi ${clientName}, your contract ${contractNumber} has been counter-signed by your venue coordinator. View your fully executed contract: ${contractUrl}`,
       );
-    } catch { /* SMS errors must not break signing */ }
+    } catch {
+      /* SMS errors must not break signing */
+    }
 
     return data;
   }
@@ -502,7 +565,9 @@ export class ContractsService {
         signerName,
         data.contract_number ?? contractId,
       );
-    } catch { /* SMS errors must not break signing */ }
+    } catch {
+      /* SMS errors must not break signing */
+    }
 
     return data;
   }
@@ -536,8 +601,10 @@ export class ContractsService {
     const contractNumber: string = contract.contract_number ?? contractId;
 
     if (sendTo === 'client') {
-      let clientEmail: string | null = contract.client_email ?? contract.contact_email ?? null;
-      let clientName: string = contract.client_name ?? contract.contact_name ?? 'Valued Client';
+      let clientEmail: string | null =
+        contract.client_email ?? contract.contact_email ?? null;
+      let clientName: string =
+        contract.client_name ?? contract.contact_name ?? 'Valued Client';
 
       if (!clientEmail && contract.intake_form_id) {
         const { data: form } = await admin
@@ -553,22 +620,31 @@ export class ContractsService {
 
       if (clientEmail) {
         const contractUrl = `${frontendUrl}/client-portal/contracts/${contractId}`;
-        await this.mailService.sendContractWithResend({
-          clientName,
-          clientEmail,
-          ownerName: vendorAccount.business_name,
-          contractNumber,
-          contractTitle: contract.title ?? 'Contract',
-          contractDescription: contract.description ?? undefined,
-          contractUrl,
-        }).catch(() => {});
+        await this.mailService
+          .sendContractWithResend({
+            clientName,
+            clientEmail,
+            ownerName: vendorAccount.business_name,
+            contractNumber,
+            contractTitle: contract.title ?? 'Contract',
+            contractDescription: contract.description ?? undefined,
+            contractUrl,
+          })
+          .catch(() => {});
       }
 
       // SMS notification to client
       try {
-        const clientPhone: string | null = contract.client_phone ?? contract.contact_phone ?? null;
-        await this.smsNotifications.contractSent(clientPhone, clientName, contractNumber);
-      } catch { /* non-fatal */ }
+        const clientPhone: string | null =
+          contract.client_phone ?? contract.contact_phone ?? null;
+        await this.smsNotifications.contractSent(
+          clientPhone,
+          clientName,
+          contractNumber,
+        );
+      } catch {
+        /* non-fatal */
+      }
     } else {
       // sendTo === 'owner'
       const { data: ownerUser } = await admin
@@ -579,17 +655,20 @@ export class ContractsService {
 
       if (ownerUser?.email) {
         const ownerName =
-          `${ownerUser.first_name ?? ''} ${ownerUser.last_name ?? ''}`.trim() || 'Owner';
+          `${ownerUser.first_name ?? ''} ${ownerUser.last_name ?? ''}`.trim() ||
+          'Owner';
         const contractUrl = `${frontendUrl}/dashboard/contracts/${contractId}`;
-        await this.mailService.sendContractWithResend({
-          clientName: ownerName,
-          clientEmail: ownerUser.email,
-          ownerName: vendorAccount.business_name,
-          contractNumber,
-          contractTitle: contract.title ?? 'Contract',
-          contractDescription: contract.description ?? undefined,
-          contractUrl,
-        }).catch(() => {});
+        await this.mailService
+          .sendContractWithResend({
+            clientName: ownerName,
+            clientEmail: ownerUser.email,
+            ownerName: vendorAccount.business_name,
+            contractNumber,
+            contractTitle: contract.title ?? 'Contract',
+            contractDescription: contract.description ?? undefined,
+            contractUrl,
+          })
+          .catch(() => {});
       }
     }
 
@@ -613,7 +692,11 @@ export class ContractsService {
     return contract;
   }
 
-  async voidContract(supabase: SupabaseClient, id: string, ownerId: string): Promise<any> {
+  async voidContract(
+    supabase: SupabaseClient,
+    id: string,
+    ownerId: string,
+  ): Promise<any> {
     const admin = this.supabaseService.getAdminClient();
 
     // Verify the contract belongs to this owner
@@ -625,7 +708,8 @@ export class ContractsService {
 
     if (fetchError || !contract) throw new Error('Contract not found');
     if (contract.owner_id !== ownerId) throw new Error('Unauthorized');
-    if (contract.status === 'signed') throw new Error('Cannot void a signed contract');
+    if (contract.status === 'signed')
+      throw new Error('Cannot void a signed contract');
 
     const { data, error } = await admin
       .from('contracts')
@@ -639,10 +723,7 @@ export class ContractsService {
   }
 
   async delete(supabase: SupabaseClient, id: string): Promise<void> {
-    const { error } = await supabase
-      .from('contracts')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabase.from('contracts').delete().eq('id', id);
     if (error) throw error;
   }
 }

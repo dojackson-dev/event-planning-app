@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, ParseIntPipe, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  ParseIntPipe,
+  Query,
+} from '@nestjs/common';
 import { InvoicesService } from './invoices.service';
 import { Invoice } from '../entities/invoice.entity';
 
@@ -15,7 +25,9 @@ export class InvoicesController {
   }
 
   @Get(':id')
-  async findOne(@Param('id', ParseIntPipe) id: number): Promise<Invoice | null> {
+  async findOne(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<Invoice | null> {
     return this.invoicesService.findOne(id);
   }
 
@@ -25,7 +37,9 @@ export class InvoicesController {
   }
 
   @Post('generate/:bookingId')
-  async generateFromBooking(@Param('bookingId', ParseIntPipe) bookingId: number): Promise<Invoice> {
+  async generateFromBooking(
+    @Param('bookingId', ParseIntPipe) bookingId: number,
+  ): Promise<Invoice> {
     return this.invoicesService.generateFromBooking(bookingId);
   }
 

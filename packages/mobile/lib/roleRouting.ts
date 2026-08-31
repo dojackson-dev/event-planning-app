@@ -1,19 +1,36 @@
 import { supabase } from '@/lib/supabase';
 
-// Roles that get the OwnerSuite dashboard (owner-equivalent roles)
-const OWNER_ROLES = ['owner', 'admin', 'venue_owner', 'concierge'];
+// Maps a user's role to the route group they land on after login/auth-state
+// change. This is the ONE place role → home-route mapping lives.
+//
+// When a role's dedicated route group (e.g. app/(vendor)/) is built, flip
+// that role's entry below to point at it. Do not hardcode role lists or
+// redirect targets in app/_layout.tsx directly — add/change a map entry here
+// instead so parallel per-role work never needs to touch _layout.tsx.
 
-export function getDashboardRoute(role: string): string {
-  if (role === 'vendor') return '/(tabs)/vendor-dashboard';
-  if (role === 'promoter') return '/(tabs)/promoter-dashboard';
-  if (role === 'artist') return '/(tabs)/artist-dashboard';
-  if (OWNER_ROLES.includes(role)) return '/(tabs)/dashboard';
-  return '/(tabs)/';
+export const ROLE_HOME: Record<string, string> = {
+  owner: '/(tabs)/dashboard',
+  admin: '/(tabs)/dashboard',
+  venue_owner: '/(tabs)/dashboard',
+  concierge: '/(tabs)/dashboard',
+  vendor: '/(vendor)',
+  artist: '/(artist)',
+  promoter: '/(promoter)',
+};
+
+export const ATTENDEE_HOME = '/(tabs)/';
+
+export function getRoleHomeRoute(role: string | null | undefined): string {
+  if (role && ROLE_HOME[role]) return ROLE_HOME[role];
+  return ATTENDEE_HOME;
 }
 
+// Resolves the current user's role: DB `users.role` first (requires RLS
+// policy allowing self-read), falling back to auth user_metadata/app_metadata,
+// then finally 'attendee'. Shared by app/_layout.tsx and app/index.tsx so both
+// land the user on the same route on cold start / auth-state changes.
 export async function getUserRole(userId: string): Promise<string> {
   try {
-    // Try users table first (requires RLS policy allowing self-read)
     const { data, error } = await supabase
       .from('users')
       .select('role')
@@ -21,7 +38,6 @@ export async function getUserRole(userId: string): Promise<string> {
       .maybeSingle();
     if (!error && data?.role) return data.role;
 
-    // Fallback: check user_metadata set at signup or by admin
     const { data: { user } } = await supabase.auth.getUser();
     const metaRole = user?.user_metadata?.role || user?.app_metadata?.role;
     if (metaRole) return metaRole;
@@ -32,16 +48,15 @@ export async function getUserRole(userId: string): Promise<string> {
   }
 }
 
-// Resolves the correct dashboard route for a session, checking
-// user/app metadata first (no RLS needed) before falling back to a
-// DB lookup. Shared by app/index.tsx (cold start) and app/_layout.tsx
-// (auth state changes) so both paths always agree on where a signed-in
-// user should land.
-export async function resolveDashboardRouteForSession(session: {
-  user: { id: string; user_metadata?: any; app_metadata?: any };
+// Resolves the home route for an already-fetched session, checking
+// user_metadata/app_metadata first (no RLS needed) before falling back to
+// the DB lookup in getUserRole.
+export async function getSessionHomeRoute(user: {
+  id: string;
+  user_metadata?: Record<string, unknown> | null;
+  app_metadata?: Record<string, unknown> | null;
 }): Promise<string> {
-  const metaRole =
-    session.user.user_metadata?.role || session.user.app_metadata?.role;
-  const role = metaRole || (await getUserRole(session.user.id));
-  return getDashboardRoute(role);
+  const metaRole = (user.user_metadata?.role || user.app_metadata?.role) as string | undefined;
+  const role = metaRole || await getUserRole(user.id);
+  return getRoleHomeRoute(role);
 }

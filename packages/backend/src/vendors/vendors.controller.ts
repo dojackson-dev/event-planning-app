@@ -38,7 +38,8 @@ export class VendorsController {
   // ─────────────────────────────────────────────
 
   private async getUserId(authorization: string): Promise<string> {
-    if (!authorization) throw new UnauthorizedException('No authorization header');
+    if (!authorization)
+      throw new UnauthorizedException('No authorization header');
     const token = authorization.replace('Bearer ', '');
 
     if (token.startsWith('local-')) {
@@ -46,7 +47,10 @@ export class VendorsController {
     }
 
     const supabase = this.supabaseService.setAuthContext(token);
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
     if (error || !user) throw new UnauthorizedException('Invalid token');
     return user.id;
   }
@@ -134,7 +138,10 @@ export class VendorsController {
     // If geo RPC returned nothing (vendors likely lack stored coordinates),
     // fall back to direct zip-code match so results always appear.
     if (vendors.length === 0 && zipCode) {
-      const zipVendors = await this.vendorsService.getVendorsByZip(zipCode, category);
+      const zipVendors = await this.vendorsService.getVendorsByZip(
+        zipCode,
+        category,
+      );
       return { vendors: zipVendors, venues };
     }
 
@@ -153,13 +160,16 @@ export class VendorsController {
 
   /** GET /vendors/geocode/reverse?lat=&lng= — Reverse geocode coords to city/state/zip */
   @Get('geocode/reverse')
-  async reverseGeocode(
-    @Query('lat') lat: string,
-    @Query('lng') lng: string,
-  ) {
+  async reverseGeocode(@Query('lat') lat: string, @Query('lng') lng: string) {
     if (!lat || !lng) throw new BadRequestException('lat and lng are required');
-    const result = await this.vendorsService.reverseGeocode(parseFloat(lat), parseFloat(lng));
-    if (!result) throw new BadRequestException('Could not reverse geocode the provided coordinates');
+    const result = await this.vendorsService.reverseGeocode(
+      parseFloat(lat),
+      parseFloat(lng),
+    );
+    if (!result)
+      throw new BadRequestException(
+        'Could not reverse geocode the provided coordinates',
+      );
     return result;
   }
 
@@ -190,10 +200,7 @@ export class VendorsController {
 
   /** POST /vendors/:id/inquiry — Public: submit a booking inquiry directly to a vendor (no auth required) */
   @Post(':id/inquiry')
-  async submitPublicInquiry(
-    @Param('id') vendorId: string,
-    @Body() body: any,
-  ) {
+  async submitPublicInquiry(@Param('id') vendorId: string, @Body() body: any) {
     return this.vendorsService.submitPublicInquiry(vendorId, body);
   }
 
@@ -242,9 +249,15 @@ export class VendorsController {
   ) {
     const userId = await this.getUserId(authorization);
     const ownerAccountId = await this.getOwnerAccountId(userId);
-    this.logger.log(`POST /vendors/bookings — userId=${userId}, ownerAccountId=${ownerAccountId}, vendorAccountId=${dto?.vendorAccountId}`);
+    this.logger.log(
+      `POST /vendors/bookings — userId=${userId}, ownerAccountId=${ownerAccountId}, vendorAccountId=${dto?.vendorAccountId}`,
+    );
     this.logger.log(`POST /vendors/bookings — dto: ${JSON.stringify(dto)}`);
-    return this.vendorsService.createVendorBooking(userId, dto, ownerAccountId || undefined);
+    return this.vendorsService.createVendorBooking(
+      userId,
+      dto,
+      ownerAccountId || undefined,
+    );
   }
 
   /**
@@ -275,7 +288,8 @@ export class VendorsController {
   async getOwnerBookings(@Headers('authorization') authorization: string) {
     const userId = await this.getUserId(authorization);
     const ownerAccountId = await this.getOwnerAccountId(userId);
-    if (!ownerAccountId) throw new UnauthorizedException('Not an owner account');
+    if (!ownerAccountId)
+      throw new UnauthorizedException('Not an owner account');
     return this.vendorsService.getOwnerVendorBookings(ownerAccountId);
   }
 
@@ -290,7 +304,10 @@ export class VendorsController {
     const userId = await this.getUserId(authorization);
     const ownerAccountId = await this.getOwnerAccountId(userId);
     if (!ownerAccountId) return [];
-    return this.vendorsService.getOwnerVendorBookingsByEvent(eventId, ownerAccountId);
+    return this.vendorsService.getOwnerVendorBookingsByEvent(
+      eventId,
+      ownerAccountId,
+    );
   }
 
   /**

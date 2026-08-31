@@ -1,4 +1,4 @@
-export type VendorCategory = 
+export type VendorCategory =
   | 'dj'
   | 'decorator'
   | 'planner_coordinator'
@@ -22,7 +22,7 @@ export const VENDOR_CATEGORIES: { value: VendorCategory; label: string }[] = [
 ];
 
 export class CreateVendorDto {
-  businessName: string;
+  businessName!: string;
   category?: VendorCategory;
   categories?: VendorCategory[];
   bio?: string;
@@ -66,18 +66,18 @@ export class UpdateVendorDto {
 }
 
 export class VendorSearchDto {
-  lat: number;
-  lng: number;
+  lat!: number;
+  lng!: number;
   radiusMiles?: number;
   category?: VendorCategory;
   zipCode?: string;
 }
 
 export class CreateVendorBookingDto {
-  vendorAccountId: string;
+  vendorAccountId!: string;
   eventId?: string;
-  eventName: string;
-  eventDate: string; // ISO date
+  eventName!: string;
+  eventDate!: string; // ISO date
   startTime?: string;
   endTime?: string;
   venueName?: string;
@@ -98,9 +98,9 @@ export class UpdateVendorBookingDto {
 }
 
 export class CreateVendorReviewDto {
-  vendorAccountId: string;
+  vendorAccountId!: string;
   vendorBookingId?: string;
-  rating: number;
+  rating!: number;
   reviewText?: string;
 }
 
@@ -108,7 +108,7 @@ export class CreateVendorReviewDto {
 
 export class UpsertBookingLinkDto {
   /** URL-safe slug, e.g. "dj-mike-events" */
-  slug: string;
+  slug!: string;
   isActive?: boolean;
   customMessage?: string;
   /** e.g. 25 means 25% deposit */
@@ -116,8 +116,8 @@ export class UpsertBookingLinkDto {
 }
 
 export class SubmitBookingRequestDto {
-  clientName: string;
-  clientEmail: string;
+  clientName!: string;
+  clientEmail!: string;
   clientPhone?: string;
   eventName?: string;
   eventDate?: string; // ISO date

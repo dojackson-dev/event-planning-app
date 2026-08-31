@@ -1,5 +1,21 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Headers, UnauthorizedException, Query, ParseIntPipe } from '@nestjs/common';
-import { InvoicesService, Invoice, InvoiceItem } from './invoices-supabase.service';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Headers,
+  UnauthorizedException,
+  Query,
+  ParseIntPipe,
+} from '@nestjs/common';
+import {
+  InvoicesService,
+  Invoice,
+  InvoiceItem,
+} from './invoices-supabase.service';
 import { SupabaseService } from '../supabase/supabase.service';
 
 @Controller('invoices')
@@ -18,22 +34,25 @@ export class InvoicesSupabaseController {
 
   private async getUserId(authorization: string): Promise<string> {
     const token = this.extractToken(authorization);
-    
+
     // Handle dev tokens (local-<uuid> format)
     if (token.startsWith('local-')) {
       const userId = token.replace('local-', '');
       if (userId) return userId;
       throw new UnauthorizedException('Invalid dev token format');
     }
-    
+
     // Handle Supabase tokens
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    const { data: { user }, error } = await supabaseWithAuth.auth.getUser();
-    
+    const {
+      data: { user },
+      error,
+    } = await supabaseWithAuth.auth.getUser();
+
     if (error || !user) {
       throw new UnauthorizedException('Invalid token');
     }
-    
+
     return user.id;
   }
 
@@ -51,11 +70,20 @@ export class InvoicesSupabaseController {
 
     if (ownerId) {
       // Always filter by the authenticated userId for security, ignore passed ownerId
-      return this.invoicesService.findByOwner(supabaseAdmin, userId, userId, venueId);
+      return this.invoicesService.findByOwner(
+        supabaseAdmin,
+        userId,
+        userId,
+        venueId,
+      );
     }
-    
+
     if (intakeFormId) {
-      return this.invoicesService.findByIntakeForm(supabaseAdmin, userId, intakeFormId);
+      return this.invoicesService.findByIntakeForm(
+        supabaseAdmin,
+        userId,
+        intakeFormId,
+      );
     }
 
     return this.invoicesService.findAll(supabaseAdmin, userId, venueId);
@@ -84,13 +112,18 @@ export class InvoicesSupabaseController {
   @Post()
   async create(
     @Headers('authorization') authorization: string,
-    @Body() body: { invoice: Partial<Invoice>, items?: Partial<InvoiceItem>[] },
+    @Body() body: { invoice: Partial<Invoice>; items?: Partial<InvoiceItem>[] },
   ): Promise<Invoice> {
     const userId = await this.getUserId(authorization);
     // WORKAROUND: Use admin client to bypass PostgREST schema cache issue
     // PostgREST cache thinks columns are camelCase but database has snake_case
     const supabaseAdmin = this.supabaseService.getAdminClient();
-    return this.invoicesService.create(supabaseAdmin, userId, body.invoice, body.items);
+    return this.invoicesService.create(
+      supabaseAdmin,
+      userId,
+      body.invoice,
+      body.items,
+    );
   }
 
   @Post('quote/intake-form/:intakeFormId')
@@ -101,7 +134,11 @@ export class InvoicesSupabaseController {
     const userId = await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.invoicesService.createQuoteFromIntakeForm(supabaseWithAuth, userId, intakeFormId);
+    return this.invoicesService.createQuoteFromIntakeForm(
+      supabaseWithAuth,
+      userId,
+      intakeFormId,
+    );
   }
 
   @Post(':id/items')
@@ -113,7 +150,12 @@ export class InvoicesSupabaseController {
     const userId = await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.invoicesService.createInvoiceItems(supabaseWithAuth, userId, id, items);
+    return this.invoicesService.createInvoiceItems(
+      supabaseWithAuth,
+      userId,
+      id,
+      items,
+    );
   }
 
   @Post(':id/items/service-item/:serviceItemId')
@@ -126,7 +168,13 @@ export class InvoicesSupabaseController {
     const userId = await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.invoicesService.addItemFromServiceItem(supabaseWithAuth, userId, id, serviceItemId, quantity || 1);
+    return this.invoicesService.addItemFromServiceItem(
+      supabaseWithAuth,
+      userId,
+      id,
+      serviceItemId,
+      quantity || 1,
+    );
   }
 
   @Put(':id')
@@ -150,7 +198,12 @@ export class InvoicesSupabaseController {
     const userId = await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.invoicesService.updateStatus(supabaseWithAuth, userId, id, status);
+    return this.invoicesService.updateStatus(
+      supabaseWithAuth,
+      userId,
+      id,
+      status,
+    );
   }
 
   @Put('items/:itemId')
@@ -162,7 +215,12 @@ export class InvoicesSupabaseController {
     const userId = await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.invoicesService.updateInvoiceItem(supabaseWithAuth, userId, itemId, item);
+    return this.invoicesService.updateInvoiceItem(
+      supabaseWithAuth,
+      userId,
+      itemId,
+      item,
+    );
   }
 
   @Post(':id/payment')
@@ -174,7 +232,12 @@ export class InvoicesSupabaseController {
     const userId = await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.invoicesService.recordPayment(supabaseWithAuth, userId, id, amount);
+    return this.invoicesService.recordPayment(
+      supabaseWithAuth,
+      userId,
+      id,
+      amount,
+    );
   }
 
   @Delete(':id')
@@ -196,6 +259,10 @@ export class InvoicesSupabaseController {
     const userId = await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.invoicesService.deleteInvoiceItem(supabaseWithAuth, userId, itemId);
+    return this.invoicesService.deleteInvoiceItem(
+      supabaseWithAuth,
+      userId,
+      itemId,
+    );
   }
 }

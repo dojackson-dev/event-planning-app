@@ -23,7 +23,7 @@ import {
 } from './dto/vip.dto';
 
 const APP_FEE_RATE = 0.03;
-const STRIPE_PCT   = 0.029;
+const STRIPE_PCT = 0.029;
 const STRIPE_FIXED = 30;
 
 function grossUp(cents: number): number {
@@ -42,10 +42,14 @@ export class VipService {
     private readonly smsNotifications: SmsNotificationsService,
     private readonly mailService: MailService,
   ) {
-    this.stripe = new Stripe(this.configService.get<string>('STRIPE_SECRET_KEY') || '', {
-      apiVersion: '2024-04-10' as any,
-    });
-    this.frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+    this.stripe = new Stripe(
+      this.configService.get<string>('STRIPE_SECRET_KEY') || '',
+      {
+        apiVersion: '2024-04-10' as any,
+      },
+    );
+    this.frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
   }
 
   // ── helpers ──────────────────────────────────────────────────
@@ -57,7 +61,8 @@ export class VipService {
       .select('id, stripe_account_id, stripe_connect_status')
       .eq('user_id', userId)
       .maybeSingle();
-    if (error || !data) throw new NotFoundException('Promoter account not found');
+    if (error || !data)
+      throw new NotFoundException('Promoter account not found');
     return data;
   }
 
@@ -76,7 +81,11 @@ export class VipService {
 
   // ── SECTIONS ─────────────────────────────────────────────────
 
-  async createSection(userId: string, eventId: string, dto: CreateVipSectionDto) {
+  async createSection(
+    userId: string,
+    eventId: string,
+    dto: CreateVipSectionDto,
+  ) {
     await this.assertEventOwner(userId, eventId);
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
@@ -108,14 +117,21 @@ export class VipService {
       .maybeSingle();
     if (!section) throw new NotFoundException('Section not found');
     await this.assertEventOwner(userId, section.public_event_id);
-    const { error } = await admin.from('vip_sections').delete().eq('id', sectionId);
+    const { error } = await admin
+      .from('vip_sections')
+      .delete()
+      .eq('id', sectionId);
     if (error) throw new BadRequestException(error.message);
     return { success: true };
   }
 
   // ── VIP PACKAGES ─────────────────────────────────────────────
 
-  async createPackage(userId: string, eventId: string, dto: CreateVipPackageDto) {
+  async createPackage(
+    userId: string,
+    eventId: string,
+    dto: CreateVipPackageDto,
+  ) {
     await this.assertEventOwner(userId, eventId);
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
@@ -139,7 +155,11 @@ export class VipService {
     return data || [];
   }
 
-  async updatePackage(userId: string, packageId: string, dto: UpdateVipPackageDto) {
+  async updatePackage(
+    userId: string,
+    packageId: string,
+    dto: UpdateVipPackageDto,
+  ) {
     const admin = this.supabaseService.getAdminClient();
     const { data: pkg } = await admin
       .from('vip_packages')
@@ -176,14 +196,21 @@ export class VipService {
       .maybeSingle();
     if (!pkg) throw new NotFoundException('VIP package not found');
     await this.assertEventOwner(userId, pkg.public_event_id);
-    const { error } = await admin.from('vip_packages').delete().eq('id', packageId);
+    const { error } = await admin
+      .from('vip_packages')
+      .delete()
+      .eq('id', packageId);
     if (error) throw new BadRequestException(error.message);
     return { success: true };
   }
 
   // ── SERVICE ITEMS ─────────────────────────────────────────────
 
-  async createServiceItem(userId: string, eventId: string, dto: CreateVipServiceItemDto) {
+  async createServiceItem(
+    userId: string,
+    eventId: string,
+    dto: CreateVipServiceItemDto,
+  ) {
     await this.assertEventOwner(userId, eventId);
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
@@ -216,19 +243,33 @@ export class VipService {
       .maybeSingle();
     if (!item) throw new NotFoundException('Service item not found');
     await this.assertEventOwner(userId, item.public_event_id);
-    const { error } = await admin.from('vip_service_items').delete().eq('id', itemId);
+    const { error } = await admin
+      .from('vip_service_items')
+      .delete()
+      .eq('id', itemId);
     if (error) throw new BadRequestException(error.message);
     return { success: true };
   }
 
   // ── LAYOUT UPLOAD ─────────────────────────────────────────────
 
-  async saveLayout(userId: string, eventId: string, fileUrl: string, fileType: string, description?: string) {
+  async saveLayout(
+    userId: string,
+    eventId: string,
+    fileUrl: string,
+    fileType: string,
+    description?: string,
+  ) {
     await this.assertEventOwner(userId, eventId);
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('vip_layouts')
-      .insert({ public_event_id: eventId, file_url: fileUrl, file_type: fileType, description })
+      .insert({
+        public_event_id: eventId,
+        file_url: fileUrl,
+        file_type: fileType,
+        description,
+      })
       .select()
       .single();
     if (error) throw new BadRequestException(error.message);
@@ -248,19 +289,28 @@ export class VipService {
 
   // ── STRIPE CHECKOUT ───────────────────────────────────────────
 
-  async createVipCheckout(eventId: string, packageId: string, dto: VipCheckoutDto) {
+  async createVipCheckout(
+    eventId: string,
+    packageId: string,
+    dto: VipCheckoutDto,
+  ) {
     const admin = this.supabaseService.getAdminClient();
 
     const { data: event } = await admin
       .from('public_events')
-      .select('*, promoter_accounts(stripe_account_id, stripe_connect_status, company_name)')
+      .select(
+        '*, promoter_accounts(stripe_account_id, stripe_connect_status, company_name, enable_bnpl)',
+      )
       .eq('id', eventId)
       .eq('status', 'published')
       .maybeSingle();
     if (!event) throw new NotFoundException('Event not found or not published');
 
     const promoter = event.promoter_accounts;
-    if (!promoter?.stripe_account_id || promoter.stripe_connect_status !== 'active') {
+    if (
+      !promoter?.stripe_account_id ||
+      promoter.stripe_connect_status !== 'active'
+    ) {
       throw new BadRequestException('Payments not enabled for this event');
     }
 
@@ -271,8 +321,10 @@ export class VipService {
       .eq('public_event_id', eventId)
       .maybeSingle();
     if (!pkg) throw new NotFoundException('VIP package not found');
-    if (pkg.status === 'sold_out') throw new BadRequestException('This VIP package is sold out');
-    if (pkg.inventory_sold >= pkg.inventory) throw new BadRequestException('No availability remaining');
+    if (pkg.status === 'sold_out')
+      throw new BadRequestException('This VIP package is sold out');
+    if (pkg.inventory_sold >= pkg.inventory)
+      throw new BadRequestException('No availability remaining');
 
     // Build service item totals
     let serviceTotal = 0;
@@ -286,7 +338,10 @@ export class VipService {
           .eq('id', si.service_item_id)
           .eq('public_event_id', eventId)
           .maybeSingle();
-        if (!item) throw new NotFoundException(`Service item not found: ${si.service_item_id}`);
+        if (!item)
+          throw new NotFoundException(
+            `Service item not found: ${si.service_item_id}`,
+          );
         const itemCents = Math.round(Number(item.price) * 100) * si.quantity;
         serviceTotal += itemCents;
         serviceLineItems.push({
@@ -319,7 +374,9 @@ export class VipService {
       : `${this.frontendUrl}/events/${eventId}?vip_canceled=true`;
 
     const session = await this.stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
+      payment_method_types: promoter?.enable_bnpl
+        ? ['card', 'afterpay_clearpay', 'klarna', 'affirm']
+        : ['card'],
       mode: 'payment',
       ...(dto.buyer_email ? { customer_email: dto.buyer_email } : {}),
       // Collect billing address so Stripe Tax can determine the correct jurisdiction
@@ -332,7 +389,8 @@ export class VipService {
             currency: 'usd',
             product_data: {
               name: `${event.title} — ${pkg.name}`,
-              description: pkg.description || `VIP Package · ${pkg.capacity} guests`,
+              description:
+                pkg.description || `VIP Package · ${pkg.capacity} guests`,
               // Tax code: general admission / live event ticket
               tax_code: 'txcd_90000001',
             },
@@ -370,7 +428,9 @@ export class VipService {
         buyer_email: dto.buyer_email,
         ...(dto.buyer_name ? { buyer_name: dto.buyer_name } : {}),
         ...(dto.buyer_phone ? { buyer_phone: dto.buyer_phone } : {}),
-        service_items: dto.service_items ? JSON.stringify(dto.service_items) : '',
+        service_items: dto.service_items
+          ? JSON.stringify(dto.service_items)
+          : '',
       },
     });
 
@@ -389,8 +449,14 @@ export class VipService {
       return;
     }
 
-    const { vip_package_id, public_event_id, buyer_email, buyer_name, buyer_phone, service_items } =
-      session.metadata || {};
+    const {
+      vip_package_id,
+      public_event_id,
+      buyer_email,
+      buyer_name,
+      buyer_phone,
+      service_items,
+    } = session.metadata || {};
     if (!vip_package_id || !public_event_id) return;
 
     // Idempotency
@@ -443,13 +509,19 @@ export class VipService {
     // Create service orders
     if (service_items) {
       try {
-        const items: { service_item_id: string; quantity: number; special_request?: string }[] = JSON.parse(service_items);
+        const items: {
+          service_item_id: string;
+          quantity: number;
+          special_request?: string;
+        }[] = JSON.parse(service_items);
         if (items.length > 0) {
-          const serviceOrders = items.map(i => ({
+          const serviceOrders = items.map((i) => ({
             vip_order_id: order.id,
             service_item_id: i.service_item_id,
             quantity: i.quantity,
-            ...(i.special_request ? { special_request: i.special_request } : {}),
+            ...(i.special_request
+              ? { special_request: i.special_request }
+              : {}),
           }));
           await admin.from('vip_service_orders').insert(serviceOrders);
         }
@@ -463,14 +535,18 @@ export class VipService {
       .from('vip_packages')
       .update({
         inventory_sold: (pkg.inventory_sold ?? 0) + 1,
-        ...(pkg.inventory_sold + 1 >= pkg.inventory ? { status: 'sold_out' } : {}),
+        ...(pkg.inventory_sold + 1 >= pkg.inventory
+          ? { status: 'sold_out' }
+          : {}),
       })
       .eq('id', vip_package_id);
 
     // ── Send email & SMS confirmation ──────────────────────────────────────
     const { data: event } = await admin
       .from('public_events')
-      .select('title, event_date, start_time, venue_name, promoter_accounts(company_name, contact_name)')
+      .select(
+        'title, event_date, start_time, venue_name, promoter_accounts(company_name, contact_name)',
+      )
       .eq('id', public_event_id)
       .single();
 
@@ -478,13 +554,20 @@ export class VipService {
     const eventDate = event?.event_date ?? '';
     const eventTime = event?.start_time ?? null;
     const venueName = event?.venue_name ?? null;
-    const promoterName = (event?.promoter_accounts as any)?.company_name
-      || (event?.promoter_accounts as any)?.contact_name
-      || null;
-    const finalEmail = order.buyer_email || (buyer_email ?? session.customer_email ?? '');
+    const promoterName =
+      (event?.promoter_accounts as any)?.company_name ||
+      (event?.promoter_accounts as any)?.contact_name ||
+      null;
+    const finalEmail =
+      order.buyer_email || (buyer_email ?? session.customer_email ?? '');
     const finalPhone = order.buyer_phone || (buyer_phone ?? '');
     const formattedDate = eventDate
-      ? new Date(eventDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+      ? new Date(eventDate + 'T12:00:00').toLocaleDateString('en-US', {
+          weekday: 'long',
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+        })
       : 'TBD';
 
     if (finalEmail) {
@@ -516,7 +599,9 @@ export class VipService {
       );
     }
 
-    this.logger.log(`VIP order created: ${order.id} for event ${public_event_id}`);
+    this.logger.log(
+      `VIP order created: ${order.id} for event ${public_event_id}`,
+    );
   }
 
   // ── VIP ORDERS (promoter view) ────────────────────────────────
@@ -526,12 +611,14 @@ export class VipService {
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('vip_orders')
-      .select(`
+      .select(
+        `
         *,
         vip_packages(name, package_type, capacity, included_tickets, table_label),
         vip_guest_passes(id, guest_name, status, checked_in_at),
         vip_service_orders(id, quantity, status, special_request, vip_service_items(name, price))
-      `)
+      `,
+      )
       .eq('public_event_id', eventId)
       .order('created_at', { ascending: false });
     if (error) throw new BadRequestException(error.message);
@@ -542,13 +629,15 @@ export class VipService {
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('vip_orders')
-      .select(`
+      .select(
+        `
         *,
         vip_packages(name, package_type, capacity, included_tickets, table_label, section_id,
           vip_sections(name)),
         vip_guest_passes(id, guest_name, guest_email, qr_code, status, checked_in_at),
         vip_service_orders(id, quantity, status, assigned_to, notes, special_request, vip_service_items(name, price, category))
-      `)
+      `,
+      )
       .eq('id', orderId)
       .maybeSingle();
     if (error || !data) throw new NotFoundException('VIP order not found');
@@ -559,13 +648,15 @@ export class VipService {
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('vip_orders')
-      .select(`
+      .select(
+        `
         *,
         vip_packages(name, package_type, capacity, included_tickets, table_label,
           vip_sections(name)),
         vip_guest_passes(id, guest_name, guest_email, guest_phone, qr_code, status, checked_in_at),
         vip_service_orders(id, quantity, status, vip_service_items(name, category))
-      `)
+      `,
+      )
       .eq('qr_code', qrCode)
       .maybeSingle();
     if (error || !data) throw new NotFoundException('VIP order not found');
@@ -576,14 +667,16 @@ export class VipService {
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('vip_guest_passes')
-      .select(`
+      .select(
+        `
         id, guest_name, guest_email, guest_phone, qr_code, status, checked_in_at,
         vip_orders!inner(
           id, public_event_id, buyer_name,
           vip_packages(name, package_type, capacity, table_label, vip_sections(name)),
           public_events:public_event_id(title, event_date, start_time, venue_name)
         )
-      `)
+      `,
+      )
       .eq('qr_code', passQrCode)
       .maybeSingle();
     if (error || !data) throw new NotFoundException('Guest pass not found');
@@ -592,22 +685,30 @@ export class VipService {
 
   async assignGuestPasses(
     orderQrCode: string,
-    assignments: { pass_index: number; guest_name?: string; guest_phone?: string; guest_email?: string }[],
+    assignments: {
+      pass_index: number;
+      guest_name?: string;
+      guest_phone?: string;
+      guest_email?: string;
+    }[],
   ) {
     const admin = this.supabaseService.getAdminClient();
 
     const { data: order } = await admin
       .from('vip_orders')
-      .select(`
+      .select(
+        `
         id, public_event_id, payment_status,
         vip_packages(name),
         public_events:public_event_id(title, event_date, start_time, venue_name)
-      `)
+      `,
+      )
       .eq('qr_code', orderQrCode)
       .maybeSingle();
 
     if (!order) throw new NotFoundException('VIP order not found');
-    if (order.payment_status !== 'paid') throw new BadRequestException('Order not paid');
+    if (order.payment_status !== 'paid')
+      throw new BadRequestException('Order not paid');
 
     const { data: passes } = await admin
       .from('vip_guest_passes')
@@ -618,33 +719,46 @@ export class VipService {
     if (!passes || passes.length === 0)
       throw new BadRequestException('No guest passes found for this order');
 
-    const event   = (order as any).public_events;
-    const pkg     = (order as any).vip_packages;
-    const evtTitle = event?.title      ?? 'Your Event';
-    const evtDate  = event?.event_date ?? '';
-    const fmtDate  = evtDate
-      ? new Date(evtDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    const event = (order as any).public_events;
+    const pkg = (order as any).vip_packages;
+    const evtTitle = event?.title ?? 'Your Event';
+    const evtDate = event?.event_date ?? '';
+    const fmtDate = evtDate
+      ? new Date(evtDate + 'T12:00:00').toLocaleDateString('en-US', {
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+        })
       : 'TBD';
 
-    const results: { pass_id: string; sent: boolean; method?: string; error?: string }[] = [];
+    const results: {
+      pass_id: string;
+      sent: boolean;
+      method?: string;
+      error?: string;
+    }[] = [];
 
     for (const a of assignments) {
       const pass = passes[a.pass_index];
       if (!pass) continue;
       if (pass.status === 'used') {
-        results.push({ pass_id: pass.id, sent: false, error: 'Pass already used' });
+        results.push({
+          pass_id: pass.id,
+          sent: false,
+          error: 'Pass already used',
+        });
         continue;
       }
 
       // Persist guest info
       const updates: Record<string, any> = {};
-      if (a.guest_name)  updates.guest_name  = a.guest_name;
+      if (a.guest_name) updates.guest_name = a.guest_name;
       if (a.guest_email) updates.guest_email = a.guest_email;
       if (a.guest_phone) updates.guest_phone = a.guest_phone;
       if (Object.keys(updates).length > 0)
         await admin.from('vip_guest_passes').update(updates).eq('id', pass.id);
 
-      const passUrl   = `${this.frontendUrl}/vip/pass/${encodeURIComponent(pass.qr_code)}`;
+      const passUrl = `${this.frontendUrl}/vip/pass/${encodeURIComponent(pass.qr_code)}`;
       const guestName = a.guest_name || 'Guest';
 
       if (a.guest_phone) {
@@ -652,8 +766,8 @@ export class VipService {
           await this.smsNotifications.send(
             a.guest_phone,
             `🎉 Your VIP pass for ${evtTitle} (${fmtDate}) is ready!\n` +
-            `Name: ${guestName}\nPackage: ${pkg?.name ?? 'VIP'}\n` +
-            `Show this at the door: ${passUrl}`,
+              `Name: ${guestName}\nPackage: ${pkg?.name ?? 'VIP'}\n` +
+              `Show this at the door: ${passUrl}`,
           );
           results.push({ pass_id: pass.id, sent: true, method: 'sms' });
         } catch (e) {
@@ -662,17 +776,17 @@ export class VipService {
       } else if (a.guest_email) {
         try {
           await this.mailService.sendVipConfirmation({
-            toEmail:     a.guest_email,
-            buyerName:   guestName,
-            eventTitle:  evtTitle,
-            eventDate:   evtDate,
-            eventTime:   event?.start_time ?? null,
-            venueName:   event?.venue_name ?? null,
+            toEmail: a.guest_email,
+            buyerName: guestName,
+            eventTitle: evtTitle,
+            eventDate: evtDate,
+            eventTime: event?.start_time ?? null,
+            venueName: event?.venue_name ?? null,
             packageName: pkg?.name ?? 'VIP Package',
             totalAmount: 0,
-            qrCode:      pass.qr_code,
-            orderId:     order.id,
-            eventId:     order.public_event_id,
+            qrCode: pass.qr_code,
+            orderId: order.id,
+            eventId: order.public_event_id,
             promoterName: null,
           });
           results.push({ pass_id: pass.id, sent: true, method: 'email' });
@@ -680,14 +794,22 @@ export class VipService {
           results.push({ pass_id: pass.id, sent: false, error: String(e) });
         }
       } else {
-        results.push({ pass_id: pass.id, sent: false, error: 'No phone or email provided' });
+        results.push({
+          pass_id: pass.id,
+          sent: false,
+          error: 'No phone or email provided',
+        });
       }
     }
 
     return { success: true, results };
   }
 
-  async transferVipOrder(qrCode: string, recipientEmail: string, recipientName?: string) {
+  async transferVipOrder(
+    qrCode: string,
+    recipientEmail: string,
+    recipientName?: string,
+  ) {
     const admin = this.supabaseService.getAdminClient();
 
     // Validate email format
@@ -697,24 +819,30 @@ export class VipService {
 
     const { data: order } = await admin
       .from('vip_orders')
-      .select(`
+      .select(
+        `
         id, qr_code, buyer_email, payment_status, check_in_status, public_event_id,
         vip_packages(name),
         public_events:public_event_id(title, event_date, start_time, venue_name)
-      `)
+      `,
+      )
       .eq('qr_code', qrCode)
       .maybeSingle();
 
     if (!order) throw new NotFoundException('VIP order not found');
-    if (order.payment_status !== 'paid') throw new BadRequestException('Only paid orders can be transferred');
-    if (order.check_in_status === 'checked_in') throw new BadRequestException('This ticket has already been used for check-in');
+    if (order.payment_status !== 'paid')
+      throw new BadRequestException('Only paid orders can be transferred');
+    if (order.check_in_status === 'checked_in')
+      throw new BadRequestException(
+        'This ticket has already been used for check-in',
+      );
 
     // Update buyer info
     const { error: updateError } = await admin
       .from('vip_orders')
       .update({
         buyer_email: recipientEmail,
-        buyer_name:  recipientName ?? null,
+        buyer_name: recipientName ?? null,
       })
       .eq('qr_code', qrCode);
 
@@ -723,26 +851,29 @@ export class VipService {
     // Re-send VIP confirmation to new recipient
     try {
       const event = (order as any).public_events;
-      const pkg   = (order as any).vip_packages;
+      const pkg = (order as any).vip_packages;
       await this.mailService.sendVipConfirmation({
-        toEmail:      recipientEmail,
-        buyerName:    recipientName ?? null,
-        eventTitle:   event?.title    ?? 'Your Event',
-        eventDate:    event?.event_date ?? '',
-        eventTime:    event?.start_time ?? null,
-        venueName:    event?.venue_name ?? null,
-        packageName:  pkg?.name        ?? 'VIP Package',
-        totalAmount:  0,
+        toEmail: recipientEmail,
+        buyerName: recipientName ?? null,
+        eventTitle: event?.title ?? 'Your Event',
+        eventDate: event?.event_date ?? '',
+        eventTime: event?.start_time ?? null,
+        venueName: event?.venue_name ?? null,
+        packageName: pkg?.name ?? 'VIP Package',
+        totalAmount: 0,
         qrCode,
-        orderId:      order.id,
-        eventId:      order.public_event_id,
+        orderId: order.id,
+        eventId: order.public_event_id,
         promoterName: null,
       });
     } catch (e) {
       this.logger.warn('VIP transfer email failed, order was updated', e);
     }
 
-    return { success: true, message: 'Ticket transferred — confirmation sent to ' + recipientEmail };
+    return {
+      success: true,
+      message: 'Ticket transferred — confirmation sent to ' + recipientEmail,
+    };
   }
 
   // ── CHECK-IN ──────────────────────────────────────────────────
@@ -752,19 +883,29 @@ export class VipService {
     admin: any,
     qrCode: string,
     eventId: string,
-  ): Promise<{ success: boolean; guests_checked_in: number; total_capacity: number; message: string; guest_name?: string | null } | null> {
+  ): Promise<{
+    success: boolean;
+    guests_checked_in: number;
+    total_capacity: number;
+    message: string;
+    guest_name?: string | null;
+  } | null> {
     const { data: pass } = await admin
       .from('vip_guest_passes')
-      .select(`id, guest_name, status, vip_order:vip_order_id(id, public_event_id, guests_checked_in, vip_packages(capacity))`)
+      .select(
+        `id, guest_name, status, vip_order:vip_order_id(id, public_event_id, guests_checked_in, vip_packages(capacity))`,
+      )
       .eq('qr_code', qrCode)
       .maybeSingle();
 
     if (!pass) return null;
-    const parentOrder = (pass as any).vip_order;
+    const parentOrder = pass.vip_order;
     if (!parentOrder || parentOrder.public_event_id !== eventId) return null;
 
     if (pass.status === 'used')
-      throw new BadRequestException(`${pass.guest_name || 'This guest'} has already checked in`);
+      throw new BadRequestException(
+        `${pass.guest_name || 'This guest'} has already checked in`,
+      );
 
     await admin
       .from('vip_guest_passes')
@@ -775,7 +916,10 @@ export class VipService {
     const capacity = parentOrder.vip_packages?.capacity ?? 1;
     await admin
       .from('vip_orders')
-      .update({ guests_checked_in: newCount, check_in_status: newCount >= capacity ? 'checked_in' : 'partial' })
+      .update({
+        guests_checked_in: newCount,
+        check_in_status: newCount >= capacity ? 'checked_in' : 'partial',
+      })
       .eq('id', parentOrder.id);
 
     return {
@@ -788,7 +932,11 @@ export class VipService {
   }
 
   /** Public scan using concierge access code — no promoter login required */
-  async scanVipByAccessCode(accessCode: string, qrCode: string, checkInMode: 'single' | 'full' = 'single') {
+  async scanVipByAccessCode(
+    accessCode: string,
+    qrCode: string,
+    checkInMode: 'single' | 'full' = 'single',
+  ) {
     const admin = this.supabaseService.getAdminClient();
 
     // Validate the access code and get the event it belongs to
@@ -797,23 +945,28 @@ export class VipService {
       .select('id, public_event_id')
       .eq('access_code', accessCode)
       .maybeSingle();
-    if (!concierge) throw new NotFoundException('Invalid concierge access code');
+    if (!concierge)
+      throw new NotFoundException('Invalid concierge access code');
 
     const eventId = concierge.public_event_id;
 
     const { data: order } = await admin
       .from('vip_orders')
-      .select('*, vip_packages(name, capacity, included_tickets, table_label), vip_guest_passes(id, status)')
+      .select(
+        '*, vip_packages(name, capacity, included_tickets, table_label), vip_guest_passes(id, status)',
+      )
       .eq('qr_code', qrCode)
       .eq('public_event_id', eventId)
       .maybeSingle();
 
     if (!order) {
       const passResult = await this.scanGuestPassQr(admin, qrCode, eventId);
-      if (!passResult) throw new NotFoundException('VIP QR code not found for this event');
+      if (!passResult)
+        throw new NotFoundException('VIP QR code not found for this event');
       return passResult;
     }
-    if (order.payment_status !== 'paid') throw new BadRequestException('VIP order not paid');
+    if (order.payment_status !== 'paid')
+      throw new BadRequestException('VIP order not paid');
 
     const capacity = order.vip_packages?.capacity ?? 1;
     const alreadyIn = order.guests_checked_in ?? 0;
@@ -828,10 +981,18 @@ export class VipService {
         .update({ status: 'used', checked_in_at: new Date().toISOString() })
         .eq('vip_order_id', order.id)
         .eq('status', 'valid');
-      return { success: true, guests_checked_in: newCount, total_capacity: capacity, message: `Full group checked in (${newCount})`, order };
+      return {
+        success: true,
+        guests_checked_in: newCount,
+        total_capacity: capacity,
+        message: `Full group checked in (${newCount})`,
+        order,
+      };
     } else {
       if (alreadyIn >= capacity) {
-        throw new BadRequestException(`All ${capacity} guests have already checked in`);
+        throw new BadRequestException(
+          `All ${capacity} guests have already checked in`,
+        );
       }
       const newCount = alreadyIn + 1;
       const newStatus = newCount >= capacity ? 'checked_in' : 'partial';
@@ -839,14 +1000,22 @@ export class VipService {
         .from('vip_orders')
         .update({ check_in_status: newStatus, guests_checked_in: newCount })
         .eq('id', order.id);
-      const validPass = (order.vip_guest_passes as any[]).find((p: any) => p.status === 'valid');
+      const validPass = (order.vip_guest_passes as any[]).find(
+        (p: any) => p.status === 'valid',
+      );
       if (validPass) {
         await admin
           .from('vip_guest_passes')
           .update({ status: 'used', checked_in_at: new Date().toISOString() })
           .eq('id', validPass.id);
       }
-      return { success: true, guests_checked_in: newCount, total_capacity: capacity, message: `Guest checked in (${newCount} of ${capacity})`, order };
+      return {
+        success: true,
+        guests_checked_in: newCount,
+        total_capacity: capacity,
+        message: `Guest checked in (${newCount} of ${capacity})`,
+        order,
+      };
     }
   }
 
@@ -856,21 +1025,34 @@ export class VipService {
 
     const { data: order } = await admin
       .from('vip_orders')
-      .select('*, vip_packages(name, capacity, included_tickets, table_label), vip_guest_passes(id, status)')
+      .select(
+        '*, vip_packages(name, capacity, included_tickets, table_label), vip_guest_passes(id, status)',
+      )
       .eq('qr_code', dto.qr_code)
       .eq('public_event_id', eventId)
       .maybeSingle();
 
     if (!order) {
-      const passResult = await this.scanGuestPassQr(admin, dto.qr_code, eventId);
-      if (!passResult) throw new NotFoundException('VIP QR code not found for this event');
+      const passResult = await this.scanGuestPassQr(
+        admin,
+        dto.qr_code,
+        eventId,
+      );
+      if (!passResult)
+        throw new NotFoundException('VIP QR code not found for this event');
       return passResult;
     }
-    if (order.payment_status !== 'paid') throw new BadRequestException('VIP order not paid');
+    if (order.payment_status !== 'paid')
+      throw new BadRequestException('VIP order not paid');
 
     const capacity = order.vip_packages?.capacity ?? 1;
     const alreadyIn = order.guests_checked_in ?? 0;
-    let checkInResult: { success: boolean; guests_checked_in: number; total_capacity: number; message: string };
+    let checkInResult: {
+      success: boolean;
+      guests_checked_in: number;
+      total_capacity: number;
+      message: string;
+    };
 
     if (dto.check_in_mode === 'full') {
       const newCount = capacity;
@@ -883,10 +1065,17 @@ export class VipService {
         .update({ status: 'used', checked_in_at: new Date().toISOString() })
         .eq('vip_order_id', order.id)
         .eq('status', 'valid');
-      checkInResult = { success: true, guests_checked_in: newCount, total_capacity: capacity, message: `Full group checked in (${newCount})` };
+      checkInResult = {
+        success: true,
+        guests_checked_in: newCount,
+        total_capacity: capacity,
+        message: `Full group checked in (${newCount})`,
+      };
     } else {
       if (alreadyIn >= capacity) {
-        throw new BadRequestException(`All ${capacity} guests have already checked in`);
+        throw new BadRequestException(
+          `All ${capacity} guests have already checked in`,
+        );
       }
       const newCount = alreadyIn + 1;
       const newStatus = newCount >= capacity ? 'checked_in' : 'partial';
@@ -894,18 +1083,25 @@ export class VipService {
         .from('vip_orders')
         .update({ check_in_status: newStatus, guests_checked_in: newCount })
         .eq('id', order.id);
-      const validPass = (order.vip_guest_passes as any[]).find((p: any) => p.status === 'valid');
+      const validPass = (order.vip_guest_passes as any[]).find(
+        (p: any) => p.status === 'valid',
+      );
       if (validPass) {
         await admin
           .from('vip_guest_passes')
           .update({ status: 'used', checked_in_at: new Date().toISOString() })
           .eq('id', validPass.id);
       }
-      checkInResult = { success: true, guests_checked_in: newCount, total_capacity: capacity, message: `Guest checked in (${newCount} of ${capacity})` };
+      checkInResult = {
+        success: true,
+        guests_checked_in: newCount,
+        total_capacity: capacity,
+        message: `Guest checked in (${newCount} of ${capacity})`,
+      };
     }
 
     // Notify all concierges assigned to this event via SMS
-    this.notifyConciergesOnArrival(eventId, order).catch(err =>
+    this.notifyConciergesOnArrival(eventId, order).catch((err) =>
       this.logger.error('Concierge SMS notification failed', err),
     );
 
@@ -921,9 +1117,13 @@ export class VipService {
     if (!concierges || concierges.length === 0) return;
 
     const guestName = order.buyer_name || 'Your VIP Guest';
-    const pkgName   = order.vip_packages?.name || 'VIP Package';
-    const tableInfo = order.vip_packages?.table_label ? ` · ${order.vip_packages.table_label}` : '';
-    const party     = order.vip_packages?.capacity ? ` · Party of ${order.vip_packages.capacity}` : '';
+    const pkgName = order.vip_packages?.name || 'VIP Package';
+    const tableInfo = order.vip_packages?.table_label
+      ? ` · ${order.vip_packages.table_label}`
+      : '';
+    const party = order.vip_packages?.capacity
+      ? ` · Party of ${order.vip_packages.capacity}`
+      : '';
 
     for (const concierge of concierges) {
       const portalUrl = `${this.frontendUrl}/vip/concierge/${concierge.access_code}`;
@@ -936,10 +1136,17 @@ export class VipService {
 
   private generateAccessCode(): string {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous chars
-    return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+    return Array.from(
+      { length: 8 },
+      () => chars[Math.floor(Math.random() * chars.length)],
+    ).join('');
   }
 
-  async createConcierge(userId: string, eventId: string, dto: CreateVipConciergeDto) {
+  async createConcierge(
+    userId: string,
+    eventId: string,
+    dto: CreateVipConciergeDto,
+  ) {
     await this.assertEventOwner(userId, eventId);
     const admin = this.supabaseService.getAdminClient();
     let access_code!: string;
@@ -955,7 +1162,12 @@ export class VipService {
     }
     const { data, error } = await admin
       .from('vip_concierges')
-      .insert({ public_event_id: eventId, name: dto.name, phone: dto.phone, access_code })
+      .insert({
+        public_event_id: eventId,
+        name: dto.name,
+        phone: dto.phone,
+        access_code,
+      })
       .select()
       .single();
     if (error) throw new BadRequestException(error.message);
@@ -975,7 +1187,9 @@ export class VipService {
           `Eventecos VIP Staff\nHi ${dto.name}, you've been added as a VIP concierge for "${eventTitle}".\n\nYour access code: ${access_code}\nPortal: ${portalUrl}`,
         );
       } catch (smsErr) {
-        this.logger.warn(`Concierge welcome SMS failed for ${dto.phone}: ${smsErr}`);
+        this.logger.warn(
+          `Concierge welcome SMS failed for ${dto.phone}: ${smsErr}`,
+        );
       }
     }
 
@@ -1003,7 +1217,10 @@ export class VipService {
       .maybeSingle();
     if (!concierge) throw new NotFoundException('Concierge not found');
     await this.assertEventOwner(userId, concierge.public_event_id);
-    const { error } = await admin.from('vip_concierges').delete().eq('id', conciergeId);
+    const { error } = await admin
+      .from('vip_concierges')
+      .delete()
+      .eq('id', conciergeId);
     if (error) throw new BadRequestException(error.message);
     return { success: true };
   }
@@ -1026,11 +1243,13 @@ export class VipService {
         .maybeSingle(),
       admin
         .from('vip_orders')
-        .select(`
+        .select(
+          `
           id, buyer_name, buyer_email, buyer_phone, check_in_status, guests_checked_in, created_at,
           vip_packages(name, package_type, capacity, table_label, vip_sections(name)),
           vip_service_orders(quantity, status, special_request, vip_service_items(name))
-        `)
+        `,
+        )
         .eq('public_event_id', concierge.public_event_id)
         .eq('payment_status', 'paid')
         .order('created_at', { ascending: false }),
@@ -1045,7 +1264,11 @@ export class VipService {
 
   // ── CONCIERGE ASSIGNMENT (legacy: user-account based) ─────────
 
-  async assignConcierge(userId: string, orderId: string, dto: AssignConciergeDto) {
+  async assignConcierge(
+    userId: string,
+    orderId: string,
+    dto: AssignConciergeDto,
+  ) {
     const admin = this.supabaseService.getAdminClient();
     const { data: order } = await admin
       .from('vip_orders')
@@ -1065,7 +1288,11 @@ export class VipService {
 
   // ── SERVICE ORDER MANAGEMENT ──────────────────────────────────
 
-  async updateServiceOrder(userId: string, serviceOrderId: string, dto: UpdateServiceOrderDto) {
+  async updateServiceOrder(
+    userId: string,
+    serviceOrderId: string,
+    dto: UpdateServiceOrderDto,
+  ) {
     const admin = this.supabaseService.getAdminClient();
     const { data: so } = await admin
       .from('vip_service_orders')
@@ -1081,7 +1308,9 @@ export class VipService {
         status: dto.status,
         ...(dto.assigned_to ? { assigned_to: dto.assigned_to } : {}),
         ...(dto.notes ? { notes: dto.notes } : {}),
-        ...(dto.status === 'delivered' ? { delivered_at: new Date().toISOString() } : {}),
+        ...(dto.status === 'delivered'
+          ? { delivered_at: new Date().toISOString() }
+          : {}),
       })
       .eq('id', serviceOrderId)
       .select()
@@ -1126,14 +1355,16 @@ export class VipService {
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('vip_orders')
-      .select(`
+      .select(
+        `
         id, buyer_name, buyer_email, total_price, payment_status, check_in_status,
         qr_code, created_at,
         vip_packages(name, package_type, capacity, included_tickets, table_label, description,
           vip_sections(name)),
         vip_guest_passes(id, qr_code, status),
         vip_service_orders(quantity, status, vip_service_items(name, price))
-      `)
+      `,
+      )
       .eq('stripe_checkout_session_id', sessionId)
       .maybeSingle();
     if (error || !data) throw new NotFoundException('VIP order not found');

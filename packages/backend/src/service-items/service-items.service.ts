@@ -21,7 +21,11 @@ export interface ServiceItem {
 export class ServiceItemsService {
   constructor(private readonly supabaseService: SupabaseService) {}
 
-  async findAll(supabase: any, userId: string, venueId?: string): Promise<ServiceItem[]> {
+  async findAll(
+    supabase: any,
+    userId: string,
+    venueId?: string,
+  ): Promise<ServiceItem[]> {
     let query = supabase
       .from('service_items')
       .select('*')
@@ -40,7 +44,12 @@ export class ServiceItemsService {
     return data || [];
   }
 
-  async findByCategory(supabase: any, userId: string, category: ServiceItemCategory, venueId?: string): Promise<ServiceItem[]> {
+  async findByCategory(
+    supabase: any,
+    userId: string,
+    category: ServiceItemCategory,
+    venueId?: string,
+  ): Promise<ServiceItem[]> {
     let query = supabase
       .from('service_items')
       .select('*')
@@ -60,7 +69,11 @@ export class ServiceItemsService {
     return data || [];
   }
 
-  async findOne(supabase: any, userId: string, id: string): Promise<ServiceItem | null> {
+  async findOne(
+    supabase: any,
+    userId: string,
+    id: string,
+  ): Promise<ServiceItem | null> {
     const { data, error } = await supabase
       .from('service_items')
       .select('*')
@@ -75,8 +88,16 @@ export class ServiceItemsService {
     return data;
   }
 
-  async create(supabase: any, userId: string, item: Partial<ServiceItem>): Promise<ServiceItem> {
-    const itemWithOwner = { ...item, owner_id: userId, venue_id: item.venue_id || null };
+  async create(
+    supabase: any,
+    userId: string,
+    item: Partial<ServiceItem>,
+  ): Promise<ServiceItem> {
+    const itemWithOwner = {
+      ...item,
+      owner_id: userId,
+      venue_id: item.venue_id || null,
+    };
     const { data, error } = await supabase
       .from('service_items')
       .insert(itemWithOwner)
@@ -87,7 +108,12 @@ export class ServiceItemsService {
     return data;
   }
 
-  async update(supabase: any, userId: string, id: string, item: Partial<ServiceItem>): Promise<ServiceItem | null> {
+  async update(
+    supabase: any,
+    userId: string,
+    id: string,
+    item: Partial<ServiceItem>,
+  ): Promise<ServiceItem | null> {
     const { data, error } = await supabase
       .from('service_items')
       .update(item)

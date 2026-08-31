@@ -1,4 +1,10 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 
 export enum EventStatus {
   DRAFT = 'draft',
@@ -10,57 +16,57 @@ export enum EventStatus {
 @Entity('event')
 export class Event {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column()
-  name: string;
+  name!: string;
 
   @Column({ type: 'text', nullable: true })
-  description: string;
+  description!: string;
 
   @Column({ type: 'date' })
-  date: string;
+  date!: string;
 
   @Column({ name: 'start_time', type: 'time', nullable: true })
-  startTime: string;
+  startTime!: string;
 
   @Column({ name: 'end_time', type: 'time', nullable: true })
-  endTime: string;
+  endTime!: string;
 
   @Column({ nullable: true })
-  venue: string;
+  venue!: string;
 
   @Column({ nullable: true })
-  location: string;
+  location!: string;
 
   @Column({ name: 'guest_count', nullable: true })
-  maxGuests: number;
+  maxGuests!: number;
 
   @Column({
     type: 'enum',
     enum: EventStatus,
     default: EventStatus.DRAFT,
   })
-  status: EventStatus;
+  status!: EventStatus;
 
   @Column({ name: 'owner_id' })
-  ownerId: string;
+  ownerId!: string;
 
   @Column({ name: 'client_id', nullable: true })
-  clientId: string;
+  clientId!: string;
 
   @Column({ nullable: true })
-  budget: number;
+  budget!: number;
 
   @Column({ nullable: true })
-  notes: string;
+  notes!: string;
 
   @Column({ name: 'special_requirements', nullable: true })
-  specialRequirements: string;
+  specialRequirements!: string;
 
   @CreateDateColumn({ name: 'created_at' })
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt: Date;
+  updatedAt!: Date;
 }

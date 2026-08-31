@@ -1,8 +1,17 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+  Logger,
+} from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { MailService } from '../mail/mail.service';
 import { TwilioService } from '../messaging/twilio.service';
-import { CreatePromoterBookingDto, UpdatePromoterBookingDto } from './dto/promoter-booking.dto';
+import {
+  CreatePromoterBookingDto,
+  UpdatePromoterBookingDto,
+} from './dto/promoter-booking.dto';
 
 @Injectable()
 export class PromoterBookingsService {
@@ -21,7 +30,8 @@ export class PromoterBookingsService {
       .select('id')
       .eq('user_id', userId)
       .maybeSingle();
-    if (error || !data) throw new ForbiddenException('No promoter account found for this user');
+    if (error || !data)
+      throw new ForbiddenException('No promoter account found for this user');
     return data.id;
   }
 
@@ -50,10 +60,13 @@ export class PromoterBookingsService {
         artist_name: dto.artist_name ?? null,
         status: 'inquiry',
       })
-      .select('*, promoter_invoices(invoice_number, total_amount, status), artist_accounts(id, artist_name, stage_name, artist_type)')
+      .select(
+        '*, promoter_invoices(invoice_number, total_amount, status), artist_accounts(id, artist_name, stage_name, artist_type)',
+      )
       .single();
 
-    if (error || !data) throw new Error(error?.message ?? 'Failed to create booking');
+    if (error || !data)
+      throw new Error(error?.message ?? 'Failed to create booking');
     return data;
   }
 
@@ -68,7 +81,9 @@ export class PromoterBookingsService {
 
     const { data, error } = await admin
       .from('promoter_bookings')
-      .select('*, promoter_invoices(invoice_number, total_amount, status), artist_accounts(id, artist_name, stage_name, artist_type)')
+      .select(
+        '*, promoter_invoices(invoice_number, total_amount, status), artist_accounts(id, artist_name, stage_name, artist_type)',
+      )
       .eq('promoter_account_id', promoterAccountId)
       .order('event_date', { ascending: true, nullsFirst: false });
 
@@ -82,7 +97,9 @@ export class PromoterBookingsService {
     // Fetch the booking first without user filtering
     const { data, error } = await admin
       .from('promoter_bookings')
-      .select('*, promoter_invoices(id, invoice_number, total_amount, amount_due, status, public_token), artist_accounts(id, artist_name, stage_name, artist_type, booking_email, booking_phone, performance_fee_min, performance_fee_max), promoter_accounts(company_name, contact_name, email, phone)')
+      .select(
+        '*, promoter_invoices(id, invoice_number, total_amount, amount_due, status, public_token), artist_accounts(id, artist_name, stage_name, artist_type, booking_email, booking_phone, performance_fee_min, performance_fee_max), promoter_accounts(company_name, contact_name, email, phone)',
+      )
       .eq('id', bookingId)
       .maybeSingle();
 
@@ -94,7 +111,8 @@ export class PromoterBookingsService {
       .select('id')
       .eq('user_id', userId)
       .maybeSingle();
-    const isPromoter = promoterAccount && promoterAccount.id === data.promoter_account_id;
+    const isPromoter =
+      promoterAccount && promoterAccount.id === data.promoter_account_id;
 
     // Allow access if user is the artist on this booking
     const { data: artistAccount } = await admin
@@ -102,7 +120,8 @@ export class PromoterBookingsService {
       .select('id')
       .eq('user_id', userId)
       .maybeSingle();
-    const isArtist = artistAccount && artistAccount.id === data.artist_account_id;
+    const isArtist =
+      artistAccount && artistAccount.id === data.artist_account_id;
 
     if (!isPromoter && !isArtist) throw new ForbiddenException('Access denied');
 
@@ -111,7 +130,9 @@ export class PromoterBookingsService {
     if (data.artist_account_id) {
       const { data: aiData } = await admin
         .from('artist_invoices')
-        .select('id, invoice_number, total_amount, amount_due, amount_paid, status, public_token, issue_date, due_date, created_at')
+        .select(
+          'id, invoice_number, total_amount, amount_due, amount_paid, status, public_token, issue_date, due_date, created_at',
+        )
         .eq('artist_account_id', data.artist_account_id)
         .order('created_at', { ascending: false });
       artistInvoices = aiData ?? [];
@@ -120,7 +141,11 @@ export class PromoterBookingsService {
     return { ...data, artist_invoices: artistInvoices };
   }
 
-  async updateBooking(userId: string, bookingId: string, dto: UpdatePromoterBookingDto) {
+  async updateBooking(
+    userId: string,
+    bookingId: string,
+    dto: UpdatePromoterBookingDto,
+  ) {
     const admin = this.supabaseService.getAdminClient();
     const promoterAccountId = await this.getPromoterAccountId(userId);
 
@@ -167,7 +192,9 @@ export class PromoterBookingsService {
       .not('artist_account_id', 'is', null);
 
     const artistIds = Array.from(
-      new Set((bookings ?? []).map((b: any) => b.artist_account_id).filter(Boolean)),
+      new Set(
+        (bookings ?? []).map((b: any) => b.artist_account_id).filter(Boolean),
+      ),
     );
     if (artistIds.length === 0) return [];
 
@@ -205,7 +232,11 @@ export class PromoterBookingsService {
     return data ?? [];
   }
 
-  async artistRespondToBooking(userId: string, bookingId: string, action: 'accept' | 'decline') {
+  async artistRespondToBooking(
+    userId: string,
+    bookingId: string,
+    action: 'accept' | 'decline',
+  ) {
     const admin = this.supabaseService.getAdminClient();
 
     const { data: artistAccount } = await admin
@@ -213,7 +244,8 @@ export class PromoterBookingsService {
       .select('id')
       .eq('user_id', userId)
       .maybeSingle();
-    if (!artistAccount) throw new ForbiddenException('No artist account found for this user');
+    if (!artistAccount)
+      throw new ForbiddenException('No artist account found for this user');
 
     const { data: booking } = await admin
       .from('promoter_bookings')
@@ -221,7 +253,8 @@ export class PromoterBookingsService {
       .eq('id', bookingId)
       .eq('artist_account_id', artistAccount.id)
       .maybeSingle();
-    if (!booking) throw new NotFoundException('Booking not found or not assigned to you');
+    if (!booking)
+      throw new NotFoundException('Booking not found or not assigned to you');
 
     if (action === 'accept' && booking.status === 'confirmed') {
       throw new BadRequestException('Booking is already confirmed');
@@ -254,15 +287,21 @@ export class PromoterBookingsService {
     // Verify booking & promoter — also fetch phone
     const { data: booking } = await admin
       .from('promoter_bookings')
-      .select('id, event_name, event_date, promoter_accounts(contact_name, company_name, email, phone)')
+      .select(
+        'id, event_name, event_date, promoter_accounts(contact_name, company_name, email, phone)',
+      )
       .eq('id', bookingId)
       .eq('artist_account_id', artistAccount.id)
       .maybeSingle();
-    if (!booking) throw new NotFoundException('Booking not found or not assigned to you');
+    if (!booking)
+      throw new NotFoundException('Booking not found or not assigned to you');
 
     const promoter = (booking as any).promoter_accounts;
     const toEmail = promoter?.email;
-    if (!toEmail) throw new BadRequestException('No promoter email on file for this booking');
+    if (!toEmail)
+      throw new BadRequestException(
+        'No promoter email on file for this booking',
+      );
 
     // Fetch rider
     const { data: rider } = await admin
@@ -270,9 +309,15 @@ export class PromoterBookingsService {
       .select('*')
       .eq('artist_account_id', artistAccount.id)
       .maybeSingle();
-    if (!rider) throw new BadRequestException('You have not set up a rider yet. Go to your rider page to create one.');
+    if (!rider)
+      throw new BadRequestException(
+        'You have not set up a rider yet. Go to your rider page to create one.',
+      );
 
-    const artistName = (artistAccount as any).stage_name || (artistAccount as any).artist_name || 'Artist';
+    const artistName =
+      (artistAccount as any).stage_name ||
+      (artistAccount as any).artist_name ||
+      'Artist';
     const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
     const riderUrl = `${frontendUrl}/artists/${artistAccount.id}/rider`;
 

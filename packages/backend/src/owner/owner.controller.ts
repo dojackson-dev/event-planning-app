@@ -19,10 +19,14 @@ export class OwnerController {
   constructor(private readonly supabaseService: SupabaseService) {}
 
   private async getUserId(authorization: string): Promise<string> {
-    if (!authorization) throw new UnauthorizedException('No authorization header');
+    if (!authorization)
+      throw new UnauthorizedException('No authorization header');
     const token = authorization.replace('Bearer ', '');
     const supabase = this.supabaseService.setAuthContext(token);
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
     if (error || !user) throw new UnauthorizedException('Invalid token');
     return user.id;
   }
@@ -32,7 +36,10 @@ export class OwnerController {
    * Primary: looks up via memberships table (user_id → owner_account_id).
    * Fallback: primary_owner_id column on owner_accounts (auth UUID stored there).
    */
-  private async getOwnerAccountId(userId: string, admin: any): Promise<number | null> {
+  private async getOwnerAccountId(
+    userId: string,
+    admin: any,
+  ): Promise<number | null> {
     // Primary path: membership record links user → owner account
     const { data: membership } = await admin
       .from('memberships')
@@ -75,14 +82,19 @@ export class OwnerController {
     const admin = this.supabaseService.getAdminClient();
 
     const ownerAccountId = await this.getOwnerAccountId(userId, admin);
-    console.log(`[owner/profile GET] userId=${userId} ownerAccountId=${ownerAccountId}`);
+    console.log(
+      `[owner/profile GET] userId=${userId} ownerAccountId=${ownerAccountId}`,
+    );
     if (!ownerAccountId) return { businessName: '', logoUrl: null };
 
-    const { data, error } = await admin
-      .from('owner_accounts')
-      .select('business_name, logo_url, cover_image_url')
-      .eq('id', ownerAccountId)
-      .maybeSingle();
+    const [{ data, error }, { data: userData }] = await Promise.all([
+      admin
+        .from('owner_accounts')
+        .select('business_name, logo_url, cover_image_url')
+        .eq('id', ownerAccountId)
+        .maybeSingle(),
+      admin.from('users').select('phone_number').eq('id', userId).maybeSingle(),
+    ]);
 
     if (error) {
       console.error('[owner/profile] DB error:', error.message);
@@ -92,6 +104,7 @@ export class OwnerController {
       businessName: data?.business_name || '',
       logoUrl: data?.logo_url || null,
       coverImageUrl: (data as any)?.cover_image_url || null,
+      phoneNumber: (userData as any)?.phone_number || null,
     };
   }
 
@@ -102,17 +115,26 @@ export class OwnerController {
   @Put('profile')
   async updateProfile(
     @Headers('authorization') authorization: string,
-    @Body() body: { logoUrl?: string | null; coverImageUrl?: string | null; businessName?: string },
+    @Body()
+    body: {
+      logoUrl?: string | null;
+      coverImageUrl?: string | null;
+      businessName?: string;
+    },
   ) {
     const userId = await this.getUserId(authorization);
     const admin = this.supabaseService.getAdminClient();
 
     const ownerAccountId = await this.getOwnerAccountId(userId, admin);
-    if (!ownerAccountId) throw new BadRequestException('Owner account not found');
+    if (!ownerAccountId)
+      throw new BadRequestException('Owner account not found');
 
-    const updates: Record<string, any> = { updated_at: new Date().toISOString() };
+    const updates: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
     if (body.logoUrl !== undefined) updates.logo_url = body.logoUrl;
-    if (body.coverImageUrl !== undefined) updates.cover_image_url = body.coverImageUrl;
+    if (body.coverImageUrl !== undefined)
+      updates.cover_image_url = body.coverImageUrl;
     if (body.businessName !== undefined && body.businessName.trim()) {
       updates.business_name = body.businessName.trim();
     }
@@ -152,7 +174,9 @@ export class OwnerController {
     // Get first venue
     const { data: venue, error } = await admin
       .from('venues')
-      .select('id, name, address, city, state, zip_code, phone, website, capacity, description')
+      .select(
+        'id, name, address, city, state, zip_code, phone, website, capacity, description',
+      )
       .eq('owner_account_id', ownerAccountId)
       .order('id', { ascending: true })
       .limit(1)
@@ -175,7 +199,8 @@ export class OwnerController {
   @Put('venue')
   async updateVenue(
     @Headers('authorization') authorization: string,
-    @Body() body: {
+    @Body()
+    body: {
       name?: string;
       address?: string;
       city?: string;
@@ -191,7 +216,8 @@ export class OwnerController {
     const admin = this.supabaseService.getAdminClient();
 
     const ownerAccountId = await this.getOwnerAccountId(userId, admin);
-    if (!ownerAccountId) throw new BadRequestException('Owner account not found');
+    if (!ownerAccountId)
+      throw new BadRequestException('Owner account not found');
 
     // Get venue id
     const { data: venue } = await admin
@@ -210,8 +236,10 @@ export class OwnerController {
     if (body.zipCode !== undefined) updateData.zip_code = body.zipCode;
     if (body.phone !== undefined) updateData.phone = body.phone;
     if (body.website !== undefined) updateData.website = body.website;
-    if (body.capacity !== undefined) updateData.capacity = body.capacity || null;
-    if (body.description !== undefined) updateData.description = body.description;
+    if (body.capacity !== undefined)
+      updateData.capacity = body.capacity || null;
+    if (body.description !== undefined)
+      updateData.description = body.description;
 
     if (venue) {
       // Update existing venue
@@ -223,20 +251,18 @@ export class OwnerController {
       if (error) throw new BadRequestException(error.message);
     } else {
       // Create venue if none exists
-      const { error } = await admin
-        .from('venues')
-        .insert({
-          owner_account_id: ownerAccountId,
-          name: body.name || 'My Venue',
-          address: body.address,
-          city: body.city,
-          state: body.state,
-          zip_code: body.zipCode,
-          phone: body.phone,
-          website: body.website,
-          capacity: body.capacity || null,
-          description: body.description,
-        });
+      const { error } = await admin.from('venues').insert({
+        owner_account_id: ownerAccountId,
+        name: body.name || 'My Venue',
+        address: body.address,
+        city: body.city,
+        state: body.state,
+        zip_code: body.zipCode,
+        phone: body.phone,
+        website: body.website,
+        capacity: body.capacity || null,
+        description: body.description,
+      });
 
       if (error) throw new BadRequestException(error.message);
     }
@@ -254,20 +280,29 @@ export class OwnerController {
     const admin = this.supabaseService.getAdminClient();
 
     const ownerAccountId = await this.getOwnerAccountId(userId, admin);
-    if (!ownerAccountId) return { depositPercentage: null, depositDueDaysBefore: null, finalPaymentDueDaysBefore: null };
+    if (!ownerAccountId)
+      return {
+        depositPercentage: null,
+        depositDueDaysBefore: null,
+        finalPaymentDueDaysBefore: null,
+      };
 
     const { data, error } = await admin
       .from('owner_accounts')
-      .select('default_deposit_percentage, default_deposit_due_days_before, default_final_payment_due_days_before')
+      .select(
+        'default_deposit_percentage, default_deposit_due_days_before, default_final_payment_due_days_before',
+      )
       .eq('id', ownerAccountId)
       .maybeSingle();
 
-    if (error) console.error('[owner/payment-schedule] DB error:', error.message);
+    if (error)
+      console.error('[owner/payment-schedule] DB error:', error.message);
 
     return {
       depositPercentage: data?.default_deposit_percentage ?? null,
       depositDueDaysBefore: data?.default_deposit_due_days_before ?? null,
-      finalPaymentDueDaysBefore: data?.default_final_payment_due_days_before ?? null,
+      finalPaymentDueDaysBefore:
+        data?.default_final_payment_due_days_before ?? null,
     };
   }
 
@@ -278,7 +313,8 @@ export class OwnerController {
   @Put('payment-schedule')
   async updatePaymentSchedule(
     @Headers('authorization') authorization: string,
-    @Body() body: {
+    @Body()
+    body: {
       depositPercentage?: number | null;
       depositDueDaysBefore?: number | null;
       finalPaymentDueDaysBefore?: number | null;
@@ -288,14 +324,16 @@ export class OwnerController {
     const admin = this.supabaseService.getAdminClient();
 
     const ownerAccountId = await this.getOwnerAccountId(userId, admin);
-    if (!ownerAccountId) throw new BadRequestException('Owner account not found');
+    if (!ownerAccountId)
+      throw new BadRequestException('Owner account not found');
 
     const { error } = await admin
       .from('owner_accounts')
       .update({
         default_deposit_percentage: body.depositPercentage ?? null,
         default_deposit_due_days_before: body.depositDueDaysBefore ?? null,
-        default_final_payment_due_days_before: body.finalPaymentDueDaysBefore ?? null,
+        default_final_payment_due_days_before:
+          body.finalPaymentDueDaysBefore ?? null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', ownerAccountId);
@@ -318,7 +356,13 @@ export class OwnerController {
     const admin = this.supabaseService.getAdminClient();
 
     const ownerAccountId = await this.getOwnerAccountId(userId, admin);
-    if (!ownerAccountId) return { isTrial: false, subscriptionStatus: 'unknown', daysRemaining: 0, trialEndsAt: null };
+    if (!ownerAccountId)
+      return {
+        isTrial: false,
+        subscriptionStatus: 'unknown',
+        daysRemaining: 0,
+        trialEndsAt: null,
+      };
 
     const { data } = await admin
       .from('owner_accounts')
@@ -338,7 +382,10 @@ export class OwnerController {
 
     if (isTrial && data?.trial_ends_at) {
       const msRemaining = new Date(data.trial_ends_at).getTime() - Date.now();
-      daysRemaining = Math.max(0, Math.ceil(msRemaining / (1000 * 60 * 60 * 24)));
+      daysRemaining = Math.max(
+        0,
+        Math.ceil(msRemaining / (1000 * 60 * 60 * 24)),
+      );
     }
 
     return {
@@ -362,7 +409,9 @@ export class OwnerController {
 
     const { data, error } = await admin
       .from('venues')
-      .select('id, name, address, city, state, zip_code, phone, website, capacity, description')
+      .select(
+        'id, name, address, city, state, zip_code, phone, website, capacity, description',
+      )
       .eq('owner_account_id', ownerAccountId)
       .order('id', { ascending: true });
 
@@ -377,7 +426,8 @@ export class OwnerController {
   @Post('venues')
   async createVenue(
     @Headers('authorization') authorization: string,
-    @Body() body: {
+    @Body()
+    body: {
       name: string;
       address?: string;
       city?: string;
@@ -392,7 +442,8 @@ export class OwnerController {
     const userId = await this.getUserId(authorization);
     const admin = this.supabaseService.getAdminClient();
     const ownerAccountId = await this.getOwnerAccountId(userId, admin);
-    if (!ownerAccountId) throw new BadRequestException('Owner account not found');
+    if (!ownerAccountId)
+      throw new BadRequestException('Owner account not found');
 
     // ── Plan venue limit check ──────────────────────────────────────────────
     const { data: ownerPlan } = await admin
@@ -412,11 +463,11 @@ export class OwnerController {
         const planName = (ownerPlan?.plan_name ?? 'free') as string;
         if (planName === 'free') {
           throw new BadRequestException(
-            `Your Free plan supports 1 venue. Upgrade to Pro (3 venues) or Premium (5 venues) to add more.`
+            `Your Free plan supports 1 venue. Upgrade to Pro (3 venues) or Premium (5 venues) to add more.`,
           );
         }
         throw new BadRequestException(
-          `Your ${planName.charAt(0).toUpperCase() + planName.slice(1)} plan supports up to ${venueLimit} venue${venueLimit !== 1 ? 's' : ''}. Upgrade to add more.`
+          `Your ${planName.charAt(0).toUpperCase() + planName.slice(1)} plan supports up to ${venueLimit} venue${venueLimit !== 1 ? 's' : ''}. Upgrade to add more.`,
         );
       }
     }
@@ -436,7 +487,9 @@ export class OwnerController {
         capacity: body.capacity || null,
         description: body.description,
       })
-      .select('id, name, address, city, state, zip_code, phone, website, capacity, description')
+      .select(
+        'id, name, address, city, state, zip_code, phone, website, capacity, description',
+      )
       .single();
 
     if (error) throw new BadRequestException(error.message);
@@ -451,7 +504,8 @@ export class OwnerController {
   async updateVenueById(
     @Headers('authorization') authorization: string,
     @Param('id') id: string,
-    @Body() body: {
+    @Body()
+    body: {
       name?: string;
       address?: string;
       city?: string;
@@ -466,7 +520,8 @@ export class OwnerController {
     const userId = await this.getUserId(authorization);
     const admin = this.supabaseService.getAdminClient();
     const ownerAccountId = await this.getOwnerAccountId(userId, admin);
-    if (!ownerAccountId) throw new BadRequestException('Owner account not found');
+    if (!ownerAccountId)
+      throw new BadRequestException('Owner account not found');
 
     // Verify the venue belongs to this owner
     const { data: existing } = await admin
@@ -486,14 +541,18 @@ export class OwnerController {
     if (body.zipCode !== undefined) updateData.zip_code = body.zipCode;
     if (body.phone !== undefined) updateData.phone = body.phone;
     if (body.website !== undefined) updateData.website = body.website;
-    if (body.capacity !== undefined) updateData.capacity = body.capacity || null;
-    if (body.description !== undefined) updateData.description = body.description;
+    if (body.capacity !== undefined)
+      updateData.capacity = body.capacity || null;
+    if (body.description !== undefined)
+      updateData.description = body.description;
 
     const { data, error } = await admin
       .from('venues')
       .update(updateData)
       .eq('id', id)
-      .select('id, name, address, city, state, zip_code, phone, website, capacity, description')
+      .select(
+        'id, name, address, city, state, zip_code, phone, website, capacity, description',
+      )
       .single();
 
     if (error) throw new BadRequestException(error.message);
@@ -512,7 +571,8 @@ export class OwnerController {
     const userId = await this.getUserId(authorization);
     const admin = this.supabaseService.getAdminClient();
     const ownerAccountId = await this.getOwnerAccountId(userId, admin);
-    if (!ownerAccountId) throw new BadRequestException('Owner account not found');
+    if (!ownerAccountId)
+      throw new BadRequestException('Owner account not found');
 
     const { data: existing } = await admin
       .from('venues')
@@ -523,10 +583,7 @@ export class OwnerController {
 
     if (!existing) throw new NotFoundException('Venue not found');
 
-    const { error } = await admin
-      .from('venues')
-      .delete()
-      .eq('id', id);
+    const { error } = await admin.from('venues').delete().eq('id', id);
 
     if (error) throw new BadRequestException(error.message);
     return { success: true };
@@ -544,7 +601,8 @@ export class OwnerController {
     const userId = await this.getUserId(authorization);
     const admin = this.supabaseService.getAdminClient();
     const ownerAccountId = await this.getOwnerAccountId(userId, admin);
-    if (!ownerAccountId) throw new BadRequestException('Owner account not found');
+    if (!ownerAccountId)
+      throw new BadRequestException('Owner account not found');
 
     const months = Math.min(parseInt(monthsParam ?? '6', 10) || 6, 24);
     const since = new Date();
@@ -559,7 +617,10 @@ export class OwnerController {
       .gte('created_at', since.toISOString());
 
     const totalRevenue = (paidInvoices ?? []).reduce((sum, inv) => {
-      const paid = inv.status === 'paid' ? (inv.total_amount ?? 0) : (inv.paid_amount ?? 0);
+      const paid =
+        inv.status === 'paid'
+          ? (inv.total_amount ?? 0)
+          : (inv.paid_amount ?? 0);
       return sum + paid;
     }, 0);
 
@@ -567,7 +628,10 @@ export class OwnerController {
     const monthlyMap: Record<string, number> = {};
     for (const inv of paidInvoices ?? []) {
       const month = inv.created_at.slice(0, 7); // 'YYYY-MM'
-      const paid = inv.status === 'paid' ? (inv.total_amount ?? 0) : (inv.paid_amount ?? 0);
+      const paid =
+        inv.status === 'paid'
+          ? (inv.total_amount ?? 0)
+          : (inv.paid_amount ?? 0);
       monthlyMap[month] = (monthlyMap[month] ?? 0) + paid;
     }
     const monthly = Object.entries(monthlyMap)
@@ -628,7 +692,8 @@ export class OwnerController {
     const userId = await this.getUserId(authorization);
     const admin = this.supabaseService.getAdminClient();
     const ownerAccountId = await this.getOwnerAccountId(userId, admin);
-    if (!ownerAccountId) throw new BadRequestException('Owner account not found');
+    if (!ownerAccountId)
+      throw new BadRequestException('Owner account not found');
 
     // Verify ownership
     const { data: venue } = await admin
@@ -665,7 +730,8 @@ export class OwnerController {
     const userId = await this.getUserId(authorization);
     const admin = this.supabaseService.getAdminClient();
     const ownerAccountId = await this.getOwnerAccountId(userId, admin);
-    if (!ownerAccountId) throw new BadRequestException('Owner account not found');
+    if (!ownerAccountId)
+      throw new BadRequestException('Owner account not found');
 
     const { data: venue } = await admin
       .from('venues')
@@ -678,10 +744,10 @@ export class OwnerController {
     const { data, error } = await admin
       .from('venue_blackout_dates')
       .insert({
-        venue_id:   venueId,
+        venue_id: venueId,
         start_date: body.startDate,
-        end_date:   body.endDate,
-        reason:     body.reason ?? null,
+        end_date: body.endDate,
+        reason: body.reason ?? null,
       })
       .select('id, start_date, end_date, reason, created_at')
       .single();
@@ -703,7 +769,8 @@ export class OwnerController {
     const userId = await this.getUserId(authorization);
     const admin = this.supabaseService.getAdminClient();
     const ownerAccountId = await this.getOwnerAccountId(userId, admin);
-    if (!ownerAccountId) throw new BadRequestException('Owner account not found');
+    if (!ownerAccountId)
+      throw new BadRequestException('Owner account not found');
 
     // Verify the blackout belongs to a venue owned by this user
     const { data: existing } = await admin
@@ -713,7 +780,10 @@ export class OwnerController {
       .eq('venue_id', venueId)
       .maybeSingle();
 
-    if (!existing || (existing.venues as any)?.owner_account_id !== ownerAccountId) {
+    if (
+      !existing ||
+      (existing.venues as any)?.owner_account_id !== ownerAccountId
+    ) {
       throw new NotFoundException('Blackout date not found');
     }
 
@@ -734,9 +804,13 @@ export class OwnerController {
     const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
     for (let attempt = 0; attempt < 10; attempt++) {
       let code = '';
-      for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+      for (let i = 0; i < 6; i++)
+        code += chars[Math.floor(Math.random() * chars.length)];
       const { data } = await admin
-        .from('owner_booking_links').select('id').eq('short_code', code).maybeSingle();
+        .from('owner_booking_links')
+        .select('id')
+        .eq('short_code', code)
+        .maybeSingle();
       if (!data) return code;
     }
     throw new Error('Could not generate a unique short code');
@@ -752,22 +826,32 @@ export class OwnerController {
     const admin = this.supabaseService.getAdminClient();
 
     if (!/^[a-z0-9-]{3,60}$/.test(body.slug)) {
-      throw new BadRequestException('Slug must be 3-60 characters: lowercase letters, numbers, and hyphens only');
+      throw new BadRequestException(
+        'Slug must be 3-60 characters: lowercase letters, numbers, and hyphens only',
+      );
     }
 
     const ownerAccountId = await this.getOwnerAccountId(userId, admin);
-    if (!ownerAccountId) throw new BadRequestException('Owner account not found');
+    if (!ownerAccountId)
+      throw new BadRequestException('Owner account not found');
 
     const { data: conflict } = await admin
-      .from('owner_booking_links').select('id, owner_account_id').eq('slug', body.slug).maybeSingle();
+      .from('owner_booking_links')
+      .select('id, owner_account_id')
+      .eq('slug', body.slug)
+      .maybeSingle();
     if (conflict && conflict.owner_account_id !== ownerAccountId) {
       throw new BadRequestException('This slug is already taken');
     }
 
     const { data: existing } = await admin
-      .from('owner_booking_links').select('id, short_code').eq('owner_account_id', ownerAccountId).maybeSingle();
+      .from('owner_booking_links')
+      .select('id, short_code')
+      .eq('owner_account_id', ownerAccountId)
+      .maybeSingle();
 
-    const shortCode = existing?.short_code ?? await this.generateOwnerShortCode(admin);
+    const shortCode =
+      existing?.short_code ?? (await this.generateOwnerShortCode(admin));
     const payload = {
       owner_account_id: ownerAccountId,
       slug: body.slug,
@@ -779,12 +863,19 @@ export class OwnerController {
 
     if (existing) {
       const { data, error } = await admin
-        .from('owner_booking_links').update(payload).eq('id', existing.id).select().single();
+        .from('owner_booking_links')
+        .update(payload)
+        .eq('id', existing.id)
+        .select()
+        .single();
       if (error) throw new BadRequestException(error.message);
       return data;
     } else {
       const { data, error } = await admin
-        .from('owner_booking_links').insert(payload).select().single();
+        .from('owner_booking_links')
+        .insert(payload)
+        .select()
+        .single();
       if (error) throw new BadRequestException(error.message);
       return data;
     }
@@ -798,7 +889,10 @@ export class OwnerController {
     const ownerAccountId = await this.getOwnerAccountId(userId, admin);
     if (!ownerAccountId) return null;
     const { data } = await admin
-      .from('owner_booking_links').select('*').eq('owner_account_id', ownerAccountId).maybeSingle();
+      .from('owner_booking_links')
+      .select('*')
+      .eq('owner_account_id', ownerAccountId)
+      .maybeSingle();
     return data ?? null;
   }
 
@@ -811,7 +905,9 @@ export class OwnerController {
     if (!ownerAccountId) return [];
     const { data } = await admin
       .from('owner_booking_requests')
-      .select('*').eq('owner_account_id', ownerAccountId).order('created_at', { ascending: false });
+      .select('*')
+      .eq('owner_account_id', ownerAccountId)
+      .order('created_at', { ascending: false });
     return data ?? [];
   }
 
@@ -825,14 +921,16 @@ export class OwnerController {
     const userId = await this.getUserId(authorization);
     const admin = this.supabaseService.getAdminClient();
     const ownerAccountId = await this.getOwnerAccountId(userId, admin);
-    if (!ownerAccountId) throw new BadRequestException('Owner account not found');
+    if (!ownerAccountId)
+      throw new BadRequestException('Owner account not found');
 
     const { data, error } = await admin
       .from('owner_booking_requests')
       .update({ status: body.status, updated_at: new Date().toISOString() })
       .eq('id', requestId)
       .eq('owner_account_id', ownerAccountId)
-      .select().single();
+      .select()
+      .single();
     if (error) throw new BadRequestException(error.message);
     return data;
   }
@@ -842,8 +940,13 @@ export class OwnerController {
   async getPublicBookingLinkByShortCode(@Param('code') code: string) {
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
-      .from('owner_booking_links').select('slug').eq('short_code', code).eq('is_active', true).single();
-    if (error || !data) throw new NotFoundException('Booking link not found or inactive');
+      .from('owner_booking_links')
+      .select('slug')
+      .eq('short_code', code)
+      .eq('is_active', true)
+      .single();
+    if (error || !data)
+      throw new NotFoundException('Booking link not found or inactive');
     return { slug: data.slug };
   }
 
@@ -857,20 +960,22 @@ export class OwnerController {
       .eq('slug', slug)
       .eq('is_active', true)
       .single();
-    if (error || !data) throw new NotFoundException('Booking link not found or inactive');
+    if (error || !data)
+      throw new NotFoundException('Booking link not found or inactive');
     return data;
   }
 
   /** POST /owner/booking-link/:slug/request — public: submit booking request */
   @Post('booking-link/:slug/request')
-  async submitBookingRequest(
-    @Param('slug') slug: string,
-    @Body() dto: any,
-  ) {
+  async submitBookingRequest(@Param('slug') slug: string, @Body() dto: any) {
     const admin = this.supabaseService.getAdminClient();
     const { data: link } = await admin
-      .from('owner_booking_links').select('id, owner_account_id, is_active').eq('slug', slug).single();
-    if (!link || !link.is_active) throw new NotFoundException('Booking link not found or inactive');
+      .from('owner_booking_links')
+      .select('id, owner_account_id, is_active')
+      .eq('slug', slug)
+      .single();
+    if (!link || !link.is_active)
+      throw new NotFoundException('Booking link not found or inactive');
 
     const { data, error } = await admin
       .from('owner_booking_requests')
@@ -889,9 +994,9 @@ export class OwnerController {
         venue_address: dto.venueAddress ?? null,
         notes: dto.notes ?? null,
       })
-      .select().single();
+      .select()
+      .single();
     if (error) throw new BadRequestException(error.message);
     return data;
   }
 }
-

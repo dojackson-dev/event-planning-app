@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import api from '@/lib/api';
 import { Event, EventType, ClientStatus, ContractStatus, InsuranceStatus } from '@/types';
+import EventNotes from '@/components/events/EventNotes';
 import { useVenue } from '@/contexts/VenueContext';
 
 const formatTime = (timeString: string | undefined): string => {
@@ -1217,6 +1218,8 @@ export default function EventManagementPage() {
                 </div>
               </div>
             </div>
+
+            <EventNotes eventId={eventId} eventDate={formData.eventDate} />
 
             {/* Contract & Payment */}
             <div id="contract-section" className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">

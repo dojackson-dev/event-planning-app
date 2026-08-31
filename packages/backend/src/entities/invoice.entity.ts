@@ -1,4 +1,13 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, OneToMany } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
+  OneToMany,
+} from 'typeorm';
 import { Booking } from './booking.entity';
 import { InvoiceItem } from './invoice-item.entity';
 
@@ -14,70 +23,72 @@ export enum InvoiceStatus {
 @Entity()
 export class Invoice {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   @Column({ unique: true })
-  invoiceNumber: string;
+  invoiceNumber!: string;
 
   @Column({ nullable: true })
-  ownerId: number; // The owner who created this invoice
+  ownerId!: number; // The owner who created this invoice
 
   @Column()
-  bookingId: number;
+  bookingId!: number;
 
   @ManyToOne(() => Booking)
   @JoinColumn({ name: 'bookingId' })
-  booking: Booking;
+  booking!: Booking;
 
   @Column('decimal', { precision: 10, scale: 2 })
-  subtotal: number;
+  subtotal!: number;
 
   @Column('decimal', { precision: 10, scale: 2, default: 0 })
-  taxAmount: number;
+  taxAmount!: number;
 
   @Column('decimal', { precision: 5, scale: 2, default: 0 })
-  taxRate: number; // Tax rate as percentage (e.g., 8.5 for 8.5%)
+  taxRate!: number; // Tax rate as percentage (e.g., 8.5 for 8.5%)
 
   @Column('decimal', { precision: 10, scale: 2, default: 0 })
-  discountAmount: number;
+  discountAmount!: number;
 
   @Column('decimal', { precision: 10, scale: 2 })
-  totalAmount: number;
+  totalAmount!: number;
 
   @Column('decimal', { precision: 10, scale: 2, default: 0 })
-  amountPaid: number;
+  amountPaid!: number;
 
   @Column('decimal', { precision: 10, scale: 2 })
-  amountDue: number;
+  amountDue!: number;
 
   @Column({
     type: 'enum',
     enum: InvoiceStatus,
     default: InvoiceStatus.DRAFT,
   })
-  status: InvoiceStatus;
+  status!: InvoiceStatus;
 
   @Column({ type: 'date' })
-  issueDate: Date;
+  issueDate!: Date;
 
   @Column({ type: 'date' })
-  dueDate: Date;
+  dueDate!: Date;
 
   @Column({ type: 'date', nullable: true })
-  paidDate: Date;
+  paidDate!: Date;
 
   @Column({ type: 'text', nullable: true })
-  notes: string;
+  notes!: string;
 
   @Column({ type: 'text', nullable: true })
-  terms: string;
+  terms!: string;
 
-  @OneToMany(() => InvoiceItem, invoiceItem => invoiceItem.invoice, { cascade: true })
-  items: InvoiceItem[];
+  @OneToMany(() => InvoiceItem, (invoiceItem) => invoiceItem.invoice, {
+    cascade: true,
+  })
+  items!: InvoiceItem[];
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 }

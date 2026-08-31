@@ -36,7 +36,9 @@ export class RemindersService {
   private async getOwnerDefaults(
     admin: any,
     ownerUserIds: string[],
-  ): Promise<Record<string, { depositDaysBefore: number; finalDaysBefore: number }>> {
+  ): Promise<
+    Record<string, { depositDaysBefore: number; finalDaysBefore: number }>
+  > {
     if (!ownerUserIds.length) return {};
 
     const { data: memberships } = await admin
@@ -51,26 +53,39 @@ export class RemindersService {
       userToAccount[m.user_id] = m.owner_account_id;
     }
 
-    const accountIds = [...new Set(Object.values(userToAccount))].filter(Boolean);
+    const accountIds = [...new Set(Object.values(userToAccount))].filter(
+      Boolean,
+    );
     if (!accountIds.length) return {};
 
     const { data: accounts } = await admin
       .from('owner_accounts')
-      .select('id, default_deposit_due_days_before, default_final_payment_due_days_before')
+      .select(
+        'id, default_deposit_due_days_before, default_final_payment_due_days_before',
+      )
       .in('id', accountIds);
 
-    const accountDefaults: Record<string, { depositDaysBefore: number; finalDaysBefore: number }> = {};
+    const accountDefaults: Record<
+      string,
+      { depositDaysBefore: number; finalDaysBefore: number }
+    > = {};
     for (const acc of accounts ?? []) {
       accountDefaults[acc.id] = {
-        depositDaysBefore:  acc.default_deposit_due_days_before  ?? 14,
-        finalDaysBefore:    acc.default_final_payment_due_days_before ?? 3,
+        depositDaysBefore: acc.default_deposit_due_days_before ?? 14,
+        finalDaysBefore: acc.default_final_payment_due_days_before ?? 3,
       };
     }
 
     // Map user_id → settings
-    const result: Record<string, { depositDaysBefore: number; finalDaysBefore: number }> = {};
+    const result: Record<
+      string,
+      { depositDaysBefore: number; finalDaysBefore: number }
+    > = {};
     for (const [userId, accountId] of Object.entries(userToAccount)) {
-      result[userId] = accountDefaults[accountId] ?? { depositDaysBefore: 14, finalDaysBefore: 3 };
+      result[userId] = accountDefaults[accountId] ?? {
+        depositDaysBefore: 14,
+        finalDaysBefore: 3,
+      };
     }
     return result;
   }
@@ -84,12 +99,17 @@ export class RemindersService {
 
     const { data: events, error } = await admin
       .from('event')
-      .select('id, name, date, start_time, contact_name, contact_email, venues(name, address)')
+      .select(
+        'id, name, date, start_time, contact_name, contact_email, venues(name, address)',
+      )
       .gte('date', today + 'T00:00:00Z')
       .lte('date', today + 'T23:59:59Z')
       .not('contact_email', 'is', null);
 
-    if (error) { this.logger.error('Event-day query failed', error.message); return; }
+    if (error) {
+      this.logger.error('Event-day query failed', error.message);
+      return;
+    }
     this.logger.log(`Event-day reminders: ${events?.length ?? 0} today`);
 
     for (const event of events ?? []) {
@@ -98,12 +118,15 @@ export class RemindersService {
         const venueAddress = (event.venues as any)?.address ?? '';
         await this.mailService.sendReminderEmail({
           toEmail: event.contact_email,
-          toName:  event.contact_name ?? 'Guest',
+          toName: event.contact_name ?? 'Guest',
           subject: `Your event is TODAY — ${event.name}`,
-          body:    `This is a reminder that your event "<strong>${event.name}</strong>" is scheduled for today.\n\nLocation: ${venueName}${venueAddress ? ', ' + venueAddress : ''}\nTime: ${event.start_time ?? 'See your booking details'}\n\nWe look forward to hosting you!`,
+          body: `This is a reminder that your event "<strong>${event.name}</strong>" is scheduled for today.\n\nLocation: ${venueName}${venueAddress ? ', ' + venueAddress : ''}\nTime: ${event.start_time ?? 'See your booking details'}\n\nWe look forward to hosting you!`,
         });
       } catch (err: any) {
-        this.logger.error(`Event-day reminder failed (event ${event.id})`, err.message);
+        this.logger.error(
+          `Event-day reminder failed (event ${event.id})`,
+          err.message,
+        );
       }
     }
   }
@@ -117,26 +140,38 @@ export class RemindersService {
 
     const { data: events, error } = await admin
       .from('event')
-      .select('id, name, date, start_time, contact_name, contact_email, venues(name, address)')
+      .select(
+        'id, name, date, start_time, contact_name, contact_email, venues(name, address)',
+      )
       .gte('date', target + 'T00:00:00Z')
       .lte('date', target + 'T23:59:59Z')
       .not('contact_email', 'is', null);
 
-    if (error) { this.logger.error('3-day reminder query failed', error.message); return; }
+    if (error) {
+      this.logger.error('3-day reminder query failed', error.message);
+      return;
+    }
     this.logger.log(`3-day reminders: ${events?.length ?? 0} events`);
 
     for (const event of events ?? []) {
       try {
         const venueName = (event.venues as any)?.name ?? 'the venue';
-        const eventDate = new Date(event.date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+        const eventDate = new Date(event.date).toLocaleDateString('en-US', {
+          weekday: 'long',
+          month: 'long',
+          day: 'numeric',
+        });
         await this.mailService.sendReminderEmail({
           toEmail: event.contact_email,
-          toName:  event.contact_name ?? 'Guest',
+          toName: event.contact_name ?? 'Guest',
           subject: `Reminder: Your event is in 3 days — ${event.name}`,
-          body:    `Just a heads up — your event "<strong>${event.name}</strong>" is coming up in 3 days on <strong>${eventDate}</strong>.\n\nLocation: ${venueName}\nTime: ${event.start_time ?? 'See your booking details'}\n\nIf you have any questions, please don't hesitate to reach out.`,
+          body: `Just a heads up — your event "<strong>${event.name}</strong>" is coming up in 3 days on <strong>${eventDate}</strong>.\n\nLocation: ${venueName}\nTime: ${event.start_time ?? 'See your booking details'}\n\nIf you have any questions, please don't hesitate to reach out.`,
         });
       } catch (err: any) {
-        this.logger.error(`3-day reminder failed (event ${event.id})`, err.message);
+        this.logger.error(
+          `3-day reminder failed (event ${event.id})`,
+          err.message,
+        );
       }
     }
   }
@@ -151,35 +186,50 @@ export class RemindersService {
 
     const { data: invoices, error } = await admin
       .from('invoices')
-      .select('id, invoice_number, total_amount, amount_due, due_date, client_name, client_email')
+      .select(
+        'id, invoice_number, total_amount, amount_due, due_date, client_name, client_email',
+      )
       .in('status', ['sent', 'partial'])
       .lt('due_date', today)
       .not('client_email', 'is', null);
 
-    if (error) { this.logger.error('Overdue invoice query failed', error.message); return; }
+    if (error) {
+      this.logger.error('Overdue invoice query failed', error.message);
+      return;
+    }
 
     // Only send on the due date itself and every 7 days after (weekly cadence)
-    const toNotify = (invoices ?? []).filter(inv => {
+    const toNotify = (invoices ?? []).filter((inv) => {
       const daysOverdue = this.daysDiff(today, inv.due_date.slice(0, 10));
       return daysOverdue > 0 && daysOverdue % 7 === 0;
     });
 
-    this.logger.log(`Overdue invoice reminders: ${toNotify.length} invoice(s) hit weekly mark today`);
+    this.logger.log(
+      `Overdue invoice reminders: ${toNotify.length} invoice(s) hit weekly mark today`,
+    );
 
     for (const invoice of toNotify) {
       try {
-        const dueDate = new Date(invoice.due_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-        const amountDue = typeof invoice.amount_due === 'number'
-          ? `$${invoice.amount_due.toFixed(2)}`
-          : `$${invoice.total_amount?.toFixed(2) ?? '0.00'}`;
+        const dueDate = new Date(invoice.due_date).toLocaleDateString('en-US', {
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+        });
+        const amountDue =
+          typeof invoice.amount_due === 'number'
+            ? `$${invoice.amount_due.toFixed(2)}`
+            : `$${invoice.total_amount?.toFixed(2) ?? '0.00'}`;
         await this.mailService.sendReminderEmail({
           toEmail: invoice.client_email,
-          toName:  invoice.client_name ?? 'Client',
+          toName: invoice.client_name ?? 'Client',
           subject: `Payment reminder — Invoice #${invoice.invoice_number}`,
-          body:    `This is a friendly reminder that invoice <strong>#${invoice.invoice_number}</strong> for <strong>${amountDue}</strong> was due on <strong>${dueDate}</strong> and remains unpaid.\n\nPlease log in to your client portal to make a payment at your earliest convenience. If you have any questions, please contact us.`,
+          body: `This is a friendly reminder that invoice <strong>#${invoice.invoice_number}</strong> for <strong>${amountDue}</strong> was due on <strong>${dueDate}</strong> and remains unpaid.\n\nPlease log in to your client portal to make a payment at your earliest convenience. If you have any questions, please contact us.`,
         });
       } catch (err: any) {
-        this.logger.error(`Overdue invoice reminder failed (invoice ${invoice.id})`, err.message);
+        this.logger.error(
+          `Overdue invoice reminder failed (invoice ${invoice.id})`,
+          err.message,
+        );
       }
     }
   }
@@ -203,11 +253,14 @@ export class RemindersService {
       .gte('date', today + 'T00:00:00Z')
       .lte('date', this.addDays(today, lookahead) + 'T23:59:59Z');
 
-    if (evErr) { this.logger.error('Deposit reminder event query failed', evErr.message); return; }
+    if (evErr) {
+      this.logger.error('Deposit reminder event query failed', evErr.message);
+      return;
+    }
     if (!events?.length) return;
 
     // Get per-invoice deposit_due_days_before overrides
-    const eventIds = events.map(e => e.id);
+    const eventIds = events.map((e) => e.id);
     const { data: invoices } = await admin
       .from('invoices')
       .select('event_id, deposit_due_days_before')
@@ -220,39 +273,57 @@ export class RemindersService {
     }
 
     // Get owner defaults
-    const ownerUserIds = [...new Set(events.map(e => e.owner_id).filter(Boolean))];
+    const ownerUserIds = [
+      ...new Set(events.map((e) => e.owner_id).filter(Boolean)),
+    ];
     const ownerDefaults = await this.getOwnerDefaults(admin, ownerUserIds);
 
     // Filter to events whose deposit is due in exactly 5 days
     const targetDepositDue = this.addDays(today, 5);
 
-    const toNotify = events.filter(event => {
-      const daysBefore = invoiceDepositDays[event.id]
-        ?? ownerDefaults[event.owner_id]?.depositDaysBefore
-        ?? 14;
+    const toNotify = events.filter((event) => {
+      const daysBefore =
+        invoiceDepositDays[event.id] ??
+        ownerDefaults[event.owner_id]?.depositDaysBefore ??
+        14;
       const depositDueDate = this.addDays(event.date.slice(0, 10), -daysBefore);
       return depositDueDate === targetDepositDue;
     });
 
-    this.logger.log(`Deposit reminders: ${toNotify.length} event(s) with deposit due in 5 days`);
+    this.logger.log(
+      `Deposit reminders: ${toNotify.length} event(s) with deposit due in 5 days`,
+    );
 
     for (const event of toNotify) {
       try {
-        const daysBefore = invoiceDepositDays[event.id]
-          ?? ownerDefaults[event.owner_id]?.depositDaysBefore
-          ?? 14;
-        const depositDueDate = new Date(this.addDays(event.date.slice(0, 10), -daysBefore) + 'T00:00:00Z')
-          .toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-        const eventDate = new Date(event.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+        const daysBefore =
+          invoiceDepositDays[event.id] ??
+          ownerDefaults[event.owner_id]?.depositDaysBefore ??
+          14;
+        const depositDueDate = new Date(
+          this.addDays(event.date.slice(0, 10), -daysBefore) + 'T00:00:00Z',
+        ).toLocaleDateString('en-US', {
+          weekday: 'long',
+          month: 'long',
+          day: 'numeric',
+        });
+        const eventDate = new Date(event.date).toLocaleDateString('en-US', {
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+        });
 
         await this.mailService.sendReminderEmail({
           toEmail: event.contact_email,
-          toName:  event.contact_name ?? 'Guest',
+          toName: event.contact_name ?? 'Guest',
           subject: `Deposit due in 5 days — ${event.name}`,
-          body:    `This is a reminder that your deposit for "<strong>${event.name}</strong>" (scheduled for ${eventDate}) is due by <strong>${depositDueDate}</strong>.\n\nPlease submit your deposit to secure your booking. If you have any questions or have already paid, please disregard this message.`,
+          body: `This is a reminder that your deposit for "<strong>${event.name}</strong>" (scheduled for ${eventDate}) is due by <strong>${depositDueDate}</strong>.\n\nPlease submit your deposit to secure your booking. If you have any questions or have already paid, please disregard this message.`,
         });
       } catch (err: any) {
-        this.logger.error(`Deposit reminder failed (event ${event.id})`, err.message);
+        this.logger.error(
+          `Deposit reminder failed (event ${event.id})`,
+          err.message,
+        );
       }
     }
   }
@@ -269,17 +340,22 @@ export class RemindersService {
     // Fetch unpaid/partial invoices with remaining balance
     const { data: invoices, error } = await admin
       .from('invoices')
-      .select('id, invoice_number, total_amount, amount_due, due_date, client_name, client_email, event_id, final_payment_due_days_before, owner_id')
+      .select(
+        'id, invoice_number, total_amount, amount_due, due_date, client_name, client_email, event_id, final_payment_due_days_before, owner_id',
+      )
       .in('status', ['sent', 'partial'])
       .gt('amount_due', 0)
       .not('client_email', 'is', null);
 
-    if (error) { this.logger.error('Final payment query failed', error.message); return; }
+    if (error) {
+      this.logger.error('Final payment query failed', error.message);
+      return;
+    }
     if (!invoices?.length) return;
 
     // Fetch event dates for invoices that have an event_id
-    const eventIds = invoices.map(i => i.event_id).filter(Boolean);
-    let eventDateById: Record<string, string> = {};
+    const eventIds = invoices.map((i) => i.event_id).filter(Boolean);
+    const eventDateById: Record<string, string> = {};
     if (eventIds.length) {
       const { data: events } = await admin
         .from('event')
@@ -291,19 +367,26 @@ export class RemindersService {
     }
 
     // Get owner defaults for final payment days (for invoices without per-invoice setting)
-    const ownerUserIds = [...new Set(invoices.map(i => i.owner_id).filter(Boolean))];
+    const ownerUserIds = [
+      ...new Set(invoices.map((i) => i.owner_id).filter(Boolean)),
+    ];
     const ownerDefaults = await this.getOwnerDefaults(admin, ownerUserIds);
 
-    const toNotify: Array<{ invoice: any; daysOverdue: number; finalDueDate: string }> = [];
+    const toNotify: Array<{
+      invoice: any;
+      daysOverdue: number;
+      finalDueDate: string;
+    }> = [];
 
     for (const invoice of invoices) {
       let finalDueDate: string | null = null;
 
       if (invoice.event_id && eventDateById[invoice.event_id]) {
         const eventDate = eventDateById[invoice.event_id];
-        const daysBefore = invoice.final_payment_due_days_before
-          ?? ownerDefaults[invoice.owner_id]?.finalDaysBefore
-          ?? 3;
+        const daysBefore =
+          invoice.final_payment_due_days_before ??
+          ownerDefaults[invoice.owner_id]?.finalDaysBefore ??
+          3;
         finalDueDate = this.addDays(eventDate, -daysBefore);
       } else if (invoice.due_date) {
         // Standalone invoice — use the invoice due_date directly
@@ -320,32 +403,45 @@ export class RemindersService {
       }
     }
 
-    this.logger.log(`Final payment reminders: ${toNotify.length} invoice(s) to notify today`);
+    this.logger.log(
+      `Final payment reminders: ${toNotify.length} invoice(s) to notify today`,
+    );
 
     for (const { invoice, daysOverdue, finalDueDate } of toNotify) {
       try {
-        const amountDue = typeof invoice.amount_due === 'number'
-          ? `$${invoice.amount_due.toFixed(2)}`
-          : `$${invoice.total_amount?.toFixed(2) ?? '0.00'}`;
-        const dueDateFormatted = new Date(finalDueDate + 'T00:00:00Z')
-          .toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+        const amountDue =
+          typeof invoice.amount_due === 'number'
+            ? `$${invoice.amount_due.toFixed(2)}`
+            : `$${invoice.total_amount?.toFixed(2) ?? '0.00'}`;
+        const dueDateFormatted = new Date(
+          finalDueDate + 'T00:00:00Z',
+        ).toLocaleDateString('en-US', {
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+        });
 
-        const subject = daysOverdue === 0
-          ? `Final payment due today — Invoice #${invoice.invoice_number}`
-          : `Final payment ${daysOverdue} days overdue — Invoice #${invoice.invoice_number}`;
+        const subject =
+          daysOverdue === 0
+            ? `Final payment due today — Invoice #${invoice.invoice_number}`
+            : `Final payment ${daysOverdue} days overdue — Invoice #${invoice.invoice_number}`;
 
-        const intro = daysOverdue === 0
-          ? `Your remaining balance of <strong>${amountDue}</strong> for invoice <strong>#${invoice.invoice_number}</strong> is due today (<strong>${dueDateFormatted}</strong>).`
-          : `Your remaining balance of <strong>${amountDue}</strong> for invoice <strong>#${invoice.invoice_number}</strong> was due on <strong>${dueDateFormatted}</strong> and is now <strong>${daysOverdue} days overdue</strong>.`;
+        const intro =
+          daysOverdue === 0
+            ? `Your remaining balance of <strong>${amountDue}</strong> for invoice <strong>#${invoice.invoice_number}</strong> is due today (<strong>${dueDateFormatted}</strong>).`
+            : `Your remaining balance of <strong>${amountDue}</strong> for invoice <strong>#${invoice.invoice_number}</strong> was due on <strong>${dueDateFormatted}</strong> and is now <strong>${daysOverdue} days overdue</strong>.`;
 
         await this.mailService.sendReminderEmail({
           toEmail: invoice.client_email,
-          toName:  invoice.client_name ?? 'Client',
+          toName: invoice.client_name ?? 'Client',
           subject,
-          body:    `${intro}\n\nPlease log in to your client portal to complete your payment. If you have already paid or have any questions, please contact us directly.`,
+          body: `${intro}\n\nPlease log in to your client portal to complete your payment. If you have already paid or have any questions, please contact us directly.`,
         });
       } catch (err: any) {
-        this.logger.error(`Final payment reminder failed (invoice ${invoice.id})`, err.message);
+        this.logger.error(
+          `Final payment reminder failed (invoice ${invoice.id})`,
+          err.message,
+        );
       }
     }
   }

@@ -1,4 +1,9 @@
-import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { SupabaseService } from '../../supabase/supabase.service';
 
 /**
@@ -18,7 +23,10 @@ export class AffiliateGuard implements CanActivate {
     }
 
     const supabase = this.supabaseService.setAuthContext(token);
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
 
     if (error || !user) {
       throw new UnauthorizedException('Invalid token');
@@ -44,7 +52,9 @@ export class AffiliateGuard implements CanActivate {
       .single();
 
     if (!affiliate || affiliate.status === 'inactive') {
-      throw new UnauthorizedException('Affiliate account not found or inactive');
+      throw new UnauthorizedException(
+        'Affiliate account not found or inactive',
+      );
     }
 
     request.user = { ...userData, id: user.id };

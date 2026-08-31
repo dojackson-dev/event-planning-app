@@ -1,4 +1,12 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
 import { User } from './user.entity';
 import { Booking } from './booking.entity';
 
@@ -12,75 +20,75 @@ export enum ContractStatus {
 @Entity()
 export class Contract {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   @Column({ unique: true })
-  contractNumber: string;
+  contractNumber!: string;
 
   @Column()
-  ownerId: number; // Owner who created the contract
+  ownerId!: number; // Owner who created the contract
 
   @ManyToOne(() => User)
   @JoinColumn({ name: 'ownerId' })
-  owner: User;
+  owner!: User;
 
   @Column({ nullable: true })
-  bookingId: number;
+  bookingId!: number;
 
   @ManyToOne(() => Booking, { nullable: true })
   @JoinColumn({ name: 'bookingId' })
-  booking: Booking;
+  booking!: Booking;
 
   @Column()
-  clientId: number; // Client who needs to sign
+  clientId!: number; // Client who needs to sign
 
   @ManyToOne(() => User)
   @JoinColumn({ name: 'clientId' })
-  client: User;
+  client!: User;
 
   @Column()
-  title: string;
+  title!: string;
 
   @Column('text', { nullable: true })
-  description: string;
+  description!: string;
 
   @Column()
-  fileUrl: string; // URL to the uploaded contract file
+  fileUrl!: string; // URL to the uploaded contract file
 
   @Column({ nullable: true })
-  fileName: string;
+  fileName!: string;
 
   @Column({ nullable: true })
-  fileSize: number; // in bytes
+  fileSize!: number; // in bytes
 
   @Column({
     type: 'enum',
     enum: ContractStatus,
     default: ContractStatus.DRAFT,
   })
-  status: ContractStatus;
+  status!: ContractStatus;
 
   @Column({ type: 'timestamp', nullable: true })
-  sentDate: Date;
+  sentDate!: Date;
 
   @Column({ type: 'timestamp', nullable: true })
-  signedDate: Date;
+  signedDate!: Date;
 
   @Column({ nullable: true })
-  signatureData: string; // Base64 encoded signature image
+  signatureData!: string; // Base64 encoded signature image
 
   @Column({ nullable: true })
-  signerName: string;
+  signerName!: string;
 
   @Column({ nullable: true })
-  signerIpAddress: string;
+  signerIpAddress!: string;
 
   @Column('text', { nullable: true })
-  notes: string;
+  notes!: string;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 }

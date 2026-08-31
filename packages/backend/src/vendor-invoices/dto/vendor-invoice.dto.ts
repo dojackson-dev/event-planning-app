@@ -30,4 +30,3 @@ export class UpdateVendorInvoiceDto {
   terms?: string;
   status?: 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue' | 'cancelled';
 }
-

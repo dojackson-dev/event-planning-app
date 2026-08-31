@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import * as crypto from 'crypto';
@@ -22,6 +22,108 @@ export class GuestListsService {
       code += characters.charAt(Math.floor(Math.random() * characters.length));
     }
     return code;
+  }
+
+  /**
+   * Throws NotFoundException if the guest list doesn't exist or its event
+   * isn't owned by userId. Returns the guest list row (with event_id) on success.
+   * Using NotFoundException (not Forbidden) so a guessed ID doesn't confirm
+   * to an attacker that the resource exists.
+   */
+  async assertGuestListOwnership(
+    guestListId: number,
+    userId: string,
+  ): Promise<{ id: number; event_id: number | null }> {
+    const supabase = this.supabaseService.getAdminClient();
+    const { data: guestList, error } = await supabase
+      .from('guest_lists')
+      .select('id, event_id')
+      .eq('id', guestListId)
+      .single();
+    if (error || !guestList) throw new NotFoundException('Guest list not found');
+
+    if (!guestList.event_id) throw new NotFoundException('Guest list not found');
+    const { data: event } = await supabase
+      .from('event')
+      .select('owner_id')
+      .eq('id', guestList.event_id)
+      .single();
+    if (!event || event.owner_id !== userId) {
+      throw new NotFoundException('Guest list not found');
+    }
+    return guestList;
+  }
+
+  /**
+   * Throws NotFoundException if the guest doesn't exist or its guest list's
+   * event isn't owned by userId. Returns the guest_list_id on success.
+   */
+  async assertGuestOwnership(guestId: number, userId: string): Promise<number> {
+    const supabase = this.supabaseService.getAdminClient();
+    const { data: guest, error } = await supabase
+      .from('guests')
+      .select('guest_list_id')
+      .eq('id', guestId)
+      .single();
+    if (error || !guest) throw new NotFoundException('Guest not found');
+
+    await this.assertGuestListOwnership(guest.guest_list_id, userId);
+    return guest.guest_list_id;
+  }
+
+  /**
+   * Throws NotFoundException if the event doesn't exist or isn't owned by
+   * userId. Used to authorize findByEvent and create (which take a raw
+   * eventId rather than a guest_lists.id).
+   */
+  async assertOwnsEvent(eventId: number, userId: string): Promise<void> {
+    const supabase = this.supabaseService.getAdminClient();
+    const { data: event, error } = await supabase
+      .from('event')
+      .select('owner_id')
+      .eq('id', eventId)
+      .single();
+    if (error || !event || event.owner_id !== userId) {
+      throw new NotFoundException('Event not found');
+    }
+  }
+
+  async findAllForOwner(userId: string): Promise<any[]> {
+    const supabase = this.supabaseService.getAdminClient();
+
+    // Only events owned by this user
+    const { data: ownedEvents } = await supabase
+      .from('event')
+      .select('id')
+      .eq('owner_id', userId);
+    const eventIds = (ownedEvents || []).map((e) => e.id);
+    if (eventIds.length === 0) return [];
+
+    const { data: guestLists, error } = await supabase
+      .from('guest_lists')
+      .select('*')
+      .in('event_id', eventIds)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    if (!guestLists || guestLists.length === 0) return [];
+
+    const guestListIds = guestLists.map((gl) => gl.id);
+    const { data: allGuests } = await supabase
+      .from('guests')
+      .select('*')
+      .in('guest_list_id', guestListIds);
+
+    const { data: events } = await supabase
+      .from('event')
+      .select('*')
+      .in('id', eventIds);
+
+    return guestLists.map((gl) => ({
+      ...gl,
+      guests: allGuests?.filter((g) => g.guest_list_id === gl.id) || [],
+      event: events?.find((e) => e.id === gl.event_id) || null,
+    }));
   }
 
   async findAll(): Promise<any[]> {

@@ -161,6 +161,7 @@ export default function DashboardScreen() {
           { icon: 'cash-outline', color: '#F59E0B', bg: '#FEF3C7', label: 'Vendor Invoices', route: '/(tabs)/vendor-invoices' },
           { icon: 'link-outline', color: '#0EA5E9', bg: '#E0F2FE', label: 'Booking Link', route: '/(tabs)/booking-link' },
           { icon: 'clipboard-outline', color: '#EF4444', bg: '#FEE2E2', label: 'Door Lists', route: '/(tabs)/door-lists' },
+          { icon: 'document-lock-outline', color: '#6366F1', bg: '#E0E7FF', label: 'Contracts', route: '/(tabs)/contracts' },
           { icon: 'settings-outline', color: '#6B7280', bg: '#F3F4F6', label: 'Settings', route: '/(tabs)/settings' },
         ].map((item) => (
           <TouchableOpacity

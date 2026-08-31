@@ -93,6 +93,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="settings" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="booking-link" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="door-lists" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="contracts" options={{ href: null, headerShown: false }} />
     </Tabs>
   );
 }

@@ -227,6 +227,20 @@ export default function VendorDashboardScreen() {
         </View>
         <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
       </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.navCard, Shadow.sm]}
+        onPress={() => router.push('/(vendor)/contracts' as any)}
+        activeOpacity={0.8}
+      >
+        <View style={styles.navIconWrap}>
+          <Ionicons name="document-lock-outline" size={22} color={Colors.primary} />
+        </View>
+        <View style={styles.navTextWrap}>
+          <Text style={styles.navTitle}>Contracts</Text>
+          <Text style={styles.navSubtitle}>View and sign contracts sent by venues</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+      </TouchableOpacity>
     </ScrollView>
   );
 }

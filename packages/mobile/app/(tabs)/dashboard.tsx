@@ -156,6 +156,11 @@ export default function DashboardScreen() {
           { icon: 'document-text-outline', color: '#F59E0B', bg: '#FEF3C7', label: 'Estimates', route: '/(tabs)/estimates' },
           { icon: 'receipt-outline', color: Colors.warning, bg: Colors.warningLight, label: 'Invoices', route: '/(tabs)/invoices' },
           { icon: 'chatbubble-ellipses-outline', color: '#10B981', bg: '#D1FAE5', label: 'Messages', route: '/(tabs)/messages' },
+          { icon: 'business-outline', color: '#8B5CF6', bg: '#EDE9FE', label: 'Venues', route: '/(tabs)/venues' },
+          { icon: 'storefront-outline', color: Colors.primary, bg: Colors.primaryLight, label: 'Vendors', route: '/(tabs)/vendors' },
+          { icon: 'cash-outline', color: '#F59E0B', bg: '#FEF3C7', label: 'Vendor Invoices', route: '/(tabs)/vendor-invoices' },
+          { icon: 'link-outline', color: '#0EA5E9', bg: '#E0F2FE', label: 'Booking Link', route: '/(tabs)/booking-link' },
+          { icon: 'clipboard-outline', color: '#EF4444', bg: '#FEE2E2', label: 'Door Lists', route: '/(tabs)/door-lists' },
           { icon: 'settings-outline', color: '#6B7280', bg: '#F3F4F6', label: 'Settings', route: '/(tabs)/settings' },
         ].map((item) => (
           <TouchableOpacity

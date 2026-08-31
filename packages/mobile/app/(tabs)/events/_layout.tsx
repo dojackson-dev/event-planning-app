@@ -8,7 +8,7 @@ export default function EventsLayout() {
         headerStyle: { backgroundColor: Colors.primary },
         headerTintColor: '#FFFFFF',
         headerTitleStyle: { fontWeight: '700', fontSize: 17 },
-        headerBackTitleVisible: false,
+        headerBackButtonDisplayMode: 'minimal',
       }}
     />
   );

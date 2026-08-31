@@ -2,16 +2,18 @@ import { useEffect } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
+import { getSessionHomeRoute } from '@/lib/roleRouting';
 
 export default function Index() {
   const router = useRouter();
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session) {
-        router.replace('/(tabs)/');
+        const homeRoute = await getSessionHomeRoute(session.user);
+        router.replace(homeRoute as never);
       } else {
-        router.replace('/(auth)/login');
+        router.replace('/(guest)');
       }
     });
   }, []);

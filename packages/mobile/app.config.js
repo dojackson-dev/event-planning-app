@@ -6,11 +6,6 @@ module.exports = {
     orientation: "portrait",
     icon: "./assets/icon.png",
     userInterfaceStyle: "automatic",
-    splash: {
-      image: "./assets/splash.png",
-      resizeMode: "contain",
-      backgroundColor: "#ffffff"
-    },
     assetBundlePatterns: [
       "**/*"
     ],
@@ -42,7 +37,17 @@ module.exports = {
       }
     },
     plugins: [
-      "expo-router"
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-splash-screen",
+        {
+          image: "./assets/splash.png",
+          resizeMode: "contain",
+          backgroundColor: "#ffffff"
+        }
+      ],
+      "expo-status-bar"
     ]
   }
 }

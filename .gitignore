@@ -19,6 +19,9 @@ packages/backend/src/**/*.js.map
 # Vercel
 .vercel
 
+# Expo (machine-specific device history / dev server settings)
+.expo/
+
 # Environment variables
 .env
 .env.local

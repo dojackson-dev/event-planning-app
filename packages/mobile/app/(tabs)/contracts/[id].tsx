@@ -2,8 +2,7 @@ import { useCallback, useState } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, Alert,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
+import { useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { apiRequest } from '@/lib/api';
 import { Colors, Radius, Shadow } from '@/lib/theme';
 import SignaturePad from '@/components/SignaturePad';

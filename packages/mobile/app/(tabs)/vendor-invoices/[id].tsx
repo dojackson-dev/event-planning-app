@@ -2,8 +2,7 @@ import { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity,
 } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
+import { Stack, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { apiRequest } from '@/lib/api';
 import { Colors, Radius, Shadow } from '@/lib/theme';
 

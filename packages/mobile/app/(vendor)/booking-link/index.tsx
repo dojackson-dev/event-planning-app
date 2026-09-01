@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { apiRequest } from '@/lib/api';
 import { Colors, Radius, Shadow } from '@/lib/theme';
 
-const FRONTEND_URL = 'https://dovenuesuite.com';
+const FRONTEND_URL = 'https://eventecos.com';
 const SLUG_REGEX = /^[a-z0-9-]{3,60}$/;
 
 interface BookingLink {

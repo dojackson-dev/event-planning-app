@@ -9,7 +9,7 @@ import { apiRequest } from '@/lib/api';
 import { Colors, Radius, Shadow } from '@/lib/theme';
 import EmptyState from '@/components/EmptyState';
 
-const FRONTEND_URL = 'https://dovenuesuite.com';
+const FRONTEND_URL = 'https://eventecos.com';
 const SLUG_REGEX = /^[a-z0-9-]{3,60}$/;
 
 interface BookingLink {

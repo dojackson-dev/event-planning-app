@@ -12,7 +12,7 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.eventplanning.app",
-      buildNumber: "13",
+      buildNumber: "14",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false
       }

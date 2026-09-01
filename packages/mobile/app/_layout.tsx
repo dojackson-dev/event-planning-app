@@ -27,8 +27,14 @@ export default function RootLayout() {
         // send to the public guest landing instead of forcing straight to the login form.
         routerRef.current.replace('/(guest)');
       } else if (session && (inAuthGroup || inGuestGroup || onIndex)) {
-        const homeRoute = await getSessionHomeRoute(session.user);
-        routerRef.current.replace(homeRoute as never);
+        try {
+          const homeRoute = await getSessionHomeRoute(session.user);
+          routerRef.current.replace(homeRoute as never);
+        } catch {
+          // Role/session resolution failed unexpectedly — don't leave the
+          // user stuck; land them on the default attendee home instead.
+          routerRef.current.replace('/(tabs)/' as never);
+        }
       }
     });
     return () => subscription.unsubscribe();

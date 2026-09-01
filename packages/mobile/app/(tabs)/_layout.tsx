@@ -26,10 +26,10 @@ export default function TabsLayout() {
         if (isMounted) setIsOwnerType(false);
         return;
       }
-      const metaRole = (user.user_metadata?.role || user.app_metadata?.role) as
-        | string
-        | undefined;
-      const role = metaRole || (await getUserRole(user.id));
+      // Always resolve the role from the live `users` table — never trust
+      // cached auth user_metadata/app_metadata here, since those claims can
+      // go stale relative to the DB and land the user on the wrong tab set.
+      const role = await getUserRole(user.id);
       if (isMounted) setIsOwnerType(OWNER_TYPE_ROLES.includes(role));
     });
     return () => {

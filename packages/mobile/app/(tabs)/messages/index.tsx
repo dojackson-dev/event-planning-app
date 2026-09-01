@@ -10,11 +10,11 @@ import { Colors, Radius, Shadow } from '@/lib/theme';
 
 interface Message {
   id: string;
-  message_type: string;
+  messageType: string;
   status: string;
-  recipient_phone: string;
+  recipientPhone: string;
   content: string;
-  created_at: string;
+  createdAt: string;
   event?: { name?: string } | null;
 }
 
@@ -80,7 +80,7 @@ export default function MessagesIndexScreen() {
 
   const renderItem = ({ item }: { item: Message }) => {
     const statusColor = STATUS_COLORS[item.status] || '#6B7280';
-    const icon = (TYPE_ICONS[item.message_type] || 'chatbubble-outline') as any;
+    const icon = (TYPE_ICONS[item.messageType] || 'chatbubble-outline') as any;
     return (
       <View style={styles.messageCard}>
         <View style={styles.iconWrap}>
@@ -88,14 +88,14 @@ export default function MessagesIndexScreen() {
         </View>
         <View style={styles.messageContent}>
           <View style={styles.messageTop}>
-            <Text style={styles.messagePhone}>{item.recipient_phone}</Text>
-            <Text style={styles.messageTime}>{formatDate(item.created_at)}</Text>
+            <Text style={styles.messagePhone}>{item.recipientPhone}</Text>
+            <Text style={styles.messageTime}>{formatDate(item.createdAt)}</Text>
           </View>
           <Text style={styles.messageText} numberOfLines={2}>{item.content}</Text>
           <View style={styles.messageMeta}>
             <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
             <Text style={[styles.statusLabel, { color: statusColor }]}>{item.status}</Text>
-            <Text style={styles.messageType}> · {item.message_type}</Text>
+            <Text style={styles.messageType}> · {item.messageType}</Text>
           </View>
         </View>
       </View>

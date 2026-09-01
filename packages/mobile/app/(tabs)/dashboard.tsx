@@ -147,33 +147,23 @@ export default function DashboardScreen() {
 
       {/* Quick Actions */}
       <Text style={styles.sectionTitle}>Quick Actions</Text>
-      <View style={styles.navGrid}>
+      <View style={styles.navList}>
         {[
           { icon: 'calendar', color: Colors.primary, bg: Colors.primaryLight, label: 'Events', route: '/(tabs)/events' },
-          { icon: 'checkmark-circle', color: Colors.success, bg: Colors.successLight, label: 'Booked', route: '/(tabs)/bookings' },
-          { icon: 'people', color: Colors.purple, bg: Colors.purpleLight, label: 'Clients', route: '/(tabs)/clients' },
           { icon: 'calendar-outline', color: '#0EA5E9', bg: '#E0F2FE', label: 'Calendar', route: '/(tabs)/calendar' },
-          { icon: 'document-text-outline', color: '#F59E0B', bg: '#FEF3C7', label: 'Estimates', route: '/(tabs)/estimates' },
-          { icon: 'receipt-outline', color: Colors.warning, bg: Colors.warningLight, label: 'Invoices', route: '/(tabs)/invoices' },
-          { icon: 'chatbubble-ellipses-outline', color: '#10B981', bg: '#D1FAE5', label: 'Messages', route: '/(tabs)/messages' },
-          { icon: 'business-outline', color: '#8B5CF6', bg: '#EDE9FE', label: 'Venues', route: '/(tabs)/venues' },
-          { icon: 'storefront-outline', color: Colors.primary, bg: Colors.primaryLight, label: 'Vendors', route: '/(tabs)/vendors' },
-          { icon: 'cash-outline', color: '#F59E0B', bg: '#FEF3C7', label: 'Vendor Invoices', route: '/(tabs)/vendor-invoices' },
-          { icon: 'link-outline', color: '#0EA5E9', bg: '#E0F2FE', label: 'Booking Link', route: '/(tabs)/booking-link' },
-          { icon: 'clipboard-outline', color: '#EF4444', bg: '#FEE2E2', label: 'Door Lists', route: '/(tabs)/door-lists' },
-          { icon: 'document-lock-outline', color: '#6366F1', bg: '#E0E7FF', label: 'Contracts', route: '/(tabs)/contracts' },
-          { icon: 'settings-outline', color: '#6B7280', bg: '#F3F4F6', label: 'Settings', route: '/(tabs)/settings' },
+          { icon: 'link-outline', color: '#8B5CF6', bg: '#EDE9FE', label: 'Booking Link', route: '/(tabs)/booking-link' },
         ].map((item) => (
           <TouchableOpacity
             key={item.label}
-            style={[styles.navCard, Shadow.sm]}
+            style={[styles.navButton, Shadow.sm]}
             onPress={() => router.push(item.route as any)}
             activeOpacity={0.8}
           >
             <View style={[styles.navIcon, { backgroundColor: item.bg }]}>
               <Ionicons name={item.icon as any} size={22} color={item.color} />
             </View>
-            <Text style={styles.navLabel}>{item.label}</Text>
+            <Text style={styles.navButtonLabel} numberOfLines={1}>{item.label}</Text>
+            <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />
           </TouchableOpacity>
         ))}
       </View>
@@ -219,13 +209,14 @@ const styles = StyleSheet.create({
   },
   revenueNote: { fontSize: 12, color: Colors.warning, marginTop: 8 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: Colors.textPrimary, paddingHorizontal: 16, marginBottom: 10 },
-  navGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, gap: 8, marginBottom: 20 },
-  navCard: {
+  navList: { paddingHorizontal: 16, gap: 10, marginBottom: 20 },
+  navButton: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
     backgroundColor: Colors.surface, borderRadius: Radius.xl,
-    padding: 16, width: '22%', alignItems: 'center', gap: 8,
+    paddingVertical: 14, paddingHorizontal: 16,
   },
   navIcon: { width: 44, height: 44, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center' },
-  navLabel: { fontSize: 11, fontWeight: '600', color: Colors.textSecondary, textAlign: 'center' },
+  navButtonLabel: { flex: 1, fontSize: 15, fontWeight: '600', color: Colors.textPrimary },
   switchBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 8, paddingVertical: 14, marginHorizontal: 16,

@@ -25,21 +25,38 @@ export function getRoleHomeRoute(role: string | null | undefined): string {
   return ATTENDEE_HOME;
 }
 
+// Races a promise against a timeout so a hung network/auth call can never
+// leave the caller stuck awaiting forever (e.g. a stalled Supabase request
+// on cold start would otherwise leave the app spinning on the loading
+// screen indefinitely).
+function withTimeout<T>(promise: PromiseLike<T>, ms: number): Promise<T | null> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (!settled) { settled = true; resolve(null); }
+    }, ms);
+    promise.then(
+      (value) => { if (!settled) { settled = true; clearTimeout(timer); resolve(value); } },
+      () => { if (!settled) { settled = true; clearTimeout(timer); resolve(null); } },
+    );
+  });
+}
+
 // Resolves the current user's role: DB `users.role` first (requires RLS
 // policy allowing self-read), falling back to auth user_metadata/app_metadata,
 // then finally 'attendee'. Shared by app/_layout.tsx and app/index.tsx so both
 // land the user on the same route on cold start / auth-state changes.
 export async function getUserRole(userId: string): Promise<string> {
   try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', userId)
-      .maybeSingle();
-    if (!error && data?.role) return data.role;
+    const result = await withTimeout(
+      supabase.from('users').select('role').eq('id', userId).maybeSingle(),
+      8000,
+    );
+    if (result && !result.error && result.data?.role) return result.data.role;
 
-    const { data: { user } } = await supabase.auth.getUser();
-    const metaRole = user?.user_metadata?.role || user?.app_metadata?.role;
+    const userResult = await withTimeout(supabase.auth.getUser(), 8000);
+    const authUser = userResult?.data.user;
+    const metaRole = authUser?.user_metadata?.role || authUser?.app_metadata?.role;
     if (metaRole) return metaRole;
 
     return 'attendee';
@@ -48,15 +65,17 @@ export async function getUserRole(userId: string): Promise<string> {
   }
 }
 
-// Resolves the home route for an already-fetched session, checking
-// user_metadata/app_metadata first (no RLS needed) before falling back to
-// the DB lookup in getUserRole.
+// Resolves the home route for an already-fetched session. Always defers to
+// getUserRole's live DB lookup as the source of truth — do NOT read
+// user.user_metadata/app_metadata here first. The session's JWT claims can
+// be stale (they only refresh when the token itself is reissued), so if a
+// role changes after the session was established, trusting the cached
+// metadata first would route the user to the wrong (stale) dashboard.
 export async function getSessionHomeRoute(user: {
   id: string;
   user_metadata?: Record<string, unknown> | null;
   app_metadata?: Record<string, unknown> | null;
 }): Promise<string> {
-  const metaRole = (user.user_metadata?.role || user.app_metadata?.role) as string | undefined;
-  const role = metaRole || await getUserRole(user.id);
+  const role = await getUserRole(user.id);
   return getRoleHomeRoute(role);
 }

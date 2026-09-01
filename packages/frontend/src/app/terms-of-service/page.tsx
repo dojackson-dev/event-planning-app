@@ -62,7 +62,7 @@ export default function TermsOfService() {
               <li>Use the materials for any commercial purpose</li>
               <li>Attempt to decompile or reverse engineer any software contained on the platform</li>
               <li>Remove any copyright or other proprietary notations from the materials</li>
-              <li>Transfer the materials to another person or "mirror" the materials on any other server</li>
+              <li>Transfer the materials to another person or &quot;mirror&quot; the materials on any other server</li>
             </ul>
           </section>
 
@@ -83,7 +83,7 @@ export default function TermsOfService() {
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">Disclaimer</h2>
             <p className="text-gray-600 leading-relaxed">
-              The materials on EventEcos are provided on an 'as is' basis. EventEcos makes no warranties, expressed or implied, and hereby disclaims and negates all other warranties including, without limitation, implied warranties or conditions of merchantability, fitness for a particular purpose, or non-infringement of intellectual property or other violation of rights.
+              The materials on EventEcos are provided on an &apos;as is&apos; basis. EventEcos makes no warranties, expressed or implied, and hereby disclaims and negates all other warranties including, without limitation, implied warranties or conditions of merchantability, fitness for a particular purpose, or non-infringement of intellectual property or other violation of rights.
             </p>
           </section>
 

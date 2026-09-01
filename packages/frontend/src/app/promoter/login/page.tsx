@@ -97,7 +97,7 @@ export default function PromoterLogin() {
               </div>
             ) : (
               <form onSubmit={handleForgotPassword} className="space-y-4">
-                <p className="text-sm text-gray-500 mb-2">Enter your email and we'll send a reset link.</p>
+                <p className="text-sm text-gray-500 mb-2">Enter your email and we&apos;ll send a reset link.</p>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                   <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus autoComplete="email"

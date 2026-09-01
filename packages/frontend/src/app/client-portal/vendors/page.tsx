@@ -199,7 +199,7 @@ function ClientVendorsPageContent() {
       {bookSuccess && (
         <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-center justify-between">
           <p className="text-green-700 text-sm font-medium">
-            ✅ Booking request sent to {bookSuccess}! They'll confirm shortly.
+            ✅ Booking request sent to {bookSuccess}! They&apos;ll confirm shortly.
           </p>
           <button onClick={() => setBookSuccess(null)} className="text-green-500 hover:text-green-700">
             <X className="h-4 w-4" />
@@ -349,7 +349,7 @@ function ClientVendorsPageContent() {
                       </div>
 
                       {vb.notes && (
-                        <p className="mt-3 text-xs text-gray-400 italic">"{vb.notes}"</p>
+                        <p className="mt-3 text-xs text-gray-400 italic">&quot;{vb.notes}&quot;</p>
                       )}
                     </div>
                   </div>

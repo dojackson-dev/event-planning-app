@@ -173,7 +173,7 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <CheckCircle className="w-9 h-9 text-green-600" />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">You're in!</h1>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">You&apos;re in!</h1>
             <p className="text-gray-600 mb-1">Payment confirmed.</p>
             <p className="text-sm text-gray-500 mb-6">Check your email and phone for your tickets and QR codes.</p>
             <div className="space-y-3">

@@ -263,11 +263,17 @@ export default function PublicEventsPage() {
         {loading ? (
           <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-purple-500" /></div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-20">
-            <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-xl font-semibold text-gray-600">No events found</p>
-            <p className="text-gray-400 mt-1">Try adjusting the search or check back later</p>
-          </div>
+          // Only show the empty state once Ticketmaster/SeatGeek have also
+          // finished loading and turned up nothing — if either of those
+          // sources has events, skip straight to their sections below
+          // instead of telling the user "No events found".
+          !tmLoading && !sgLoading && tmEvents.length === 0 && sgEvents.length === 0 ? (
+            <div className="text-center py-20">
+              <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-xl font-semibold text-gray-600">No events found</p>
+              <p className="text-gray-400 mt-1">Try adjusting the search or check back later</p>
+            </div>
+          ) : null
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filtered.map(ev => {
@@ -372,9 +378,15 @@ export default function PublicEventsPage() {
         {tmLoading ? (
           <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-blue-400" /></div>
         ) : tmEvents.length === 0 ? (
-          <p className="text-gray-400 text-sm text-center py-8">
-            {zipCode ? 'No Ticketmaster events found in this area.' : 'Enter a zip code to discover events near you.'}
-          </p>
+          // Only show a "no results" message for Ticketmaster if the other
+          // sources (native + SeatGeek) also have nothing to show — otherwise
+          // let those results speak for themselves without an odd "no
+          // results" message sitting between two sections that do have events.
+          zipCode && filtered.length === 0 && !sgLoading && sgEvents.length === 0 ? (
+            <p className="text-gray-400 text-sm text-center py-8">No Ticketmaster events found in this area.</p>
+          ) : !zipCode ? (
+            <p className="text-gray-400 text-sm text-center py-8">Enter a zip code to discover events near you.</p>
+          ) : null
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {tmEvents

@@ -214,8 +214,15 @@ export class AffiliatesService {
 
     if (sessionError) {
       // Registration succeeded but auto-login failed — not critical
+      this.mailService
+        .sendWelcomeEmail({ toEmail: dto.email, firstName: dto.firstName, role: 'affiliate' })
+        .catch(() => {});
       return { affiliate, session: null };
     }
+
+    this.mailService
+      .sendWelcomeEmail({ toEmail: dto.email, firstName: dto.firstName, role: 'affiliate' })
+      .catch(() => {});
 
     return {
       affiliate,

@@ -20,10 +20,10 @@ export interface DiscoveryCandidateRecord {
   promoted_to_source_id: string | null;
 }
 
-interface BingWebPage {
-  name: string;
+interface BraveWebResult {
+  title: string;
   url: string;
-  snippet?: string;
+  description?: string;
 }
 
 /** Guesses a connector type from a URL/snippet so a reviewer has a starting point — never guesses actual feed content. */
@@ -44,8 +44,11 @@ function guessSourceType(url: string): EventSourceType | null {
  *
  * Requires a real search API key to actually search the internet — this
  * service will NOT fabricate or guess city feed URLs on its own. Without
- * BING_SEARCH_API_KEY configured, `runDiscovery` is a documented no-op and
+ * BRAVE_SEARCH_API_KEY configured, `runDiscovery` is a documented no-op and
  * staff should use `addCandidate` to seed sources manually instead.
+ *
+ * Uses the Brave Search API (api.search.brave.com) rather than the old Bing
+ * Web Search API v7, which Microsoft retired in August 2025.
  */
 @Injectable()
 export class DiscoveryService {
@@ -57,22 +60,22 @@ export class DiscoveryService {
   ) {}
 
   isSearchProviderConfigured(): boolean {
-    return !!this.configService.get<string>('BING_SEARCH_API_KEY');
+    return !!this.configService.get<string>('BRAVE_SEARCH_API_KEY');
   }
 
   async runDiscovery(
     queries: string[],
   ): Promise<{ ran: boolean; candidatesCreated: number; reason?: string }> {
-    const apiKey = this.configService.get<string>('BING_SEARCH_API_KEY');
+    const apiKey = this.configService.get<string>('BRAVE_SEARCH_API_KEY');
     if (!apiKey) {
       this.logger.warn(
-        'Automated source discovery skipped: BING_SEARCH_API_KEY is not configured. ' +
+        'Automated source discovery skipped: BRAVE_SEARCH_API_KEY is not configured. ' +
           'Add candidates manually via POST /external-events/discovery-candidates instead.',
       );
       return {
         ran: false,
         candidatesCreated: 0,
-        reason: 'BING_SEARCH_API_KEY not configured',
+        reason: 'BRAVE_SEARCH_API_KEY not configured',
       };
     }
 
@@ -82,27 +85,32 @@ export class DiscoveryService {
     for (const query of queries) {
       try {
         const res = await fetch(
-          `https://api.bing.microsoft.com/v7.0/search?q=${encodeURIComponent(query)}&count=10`,
-          { headers: { 'Ocp-Apim-Subscription-Key': apiKey } },
+          `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=10`,
+          {
+            headers: {
+              Accept: 'application/json',
+              'X-Subscription-Token': apiKey,
+            },
+          },
         );
         if (!res.ok) {
           this.logger.warn(
-            `Bing search failed for "${query}": ${res.status} ${res.statusText}`,
+            `Brave search failed for "${query}": ${res.status} ${res.statusText}`,
           );
           continue;
         }
         const body = await res.json();
-        const pages: BingWebPage[] = body?.webPages?.value || [];
+        const pages: BraveWebResult[] = body?.web?.results || [];
 
         for (const page of pages) {
           const { error } = await admin
             .from('event_source_discovery_candidates')
             .insert({
               query,
-              suggested_name: page.name,
+              suggested_name: page.title,
               candidate_url: page.url,
               suggested_source_type: guessSourceType(page.url),
-              notes: page.snippet || null,
+              notes: page.description || null,
               status: 'new',
             });
           // Duplicate candidate_url inserts are expected across repeated runs; ignore those, log anything else.

@@ -520,7 +520,7 @@ export default function EventSourcesPage() {
             </p>
             {discoveryConfigured === false && (
               <p className="text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded-lg p-2 mb-2">
-                No search API key configured (BING_SEARCH_API_KEY). Discovery runs will no-op until it&apos;s set — add
+                No search API key configured (BRAVE_SEARCH_API_KEY). Discovery runs will no-op until it&apos;s set — add
                 candidates manually below in the meantime.
               </p>
             )}

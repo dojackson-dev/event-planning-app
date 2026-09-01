@@ -18,7 +18,8 @@ import {
   Calendar,
   FileText,
   BarChart3,
-  UserX
+  UserX,
+  Rss
 } from 'lucide-react'
 
 const navigation = [
@@ -26,6 +27,7 @@ const navigation = [
   { name: 'Owners', href: '/admin/owners', icon: Building2 },
   { name: 'Clients', href: '/admin/clients', icon: Users },
   { name: 'All Events', href: '/admin/events', icon: Calendar },
+  { name: 'Event Sources', href: '/admin/event-sources', icon: Rss },
   { name: 'All Bookings', href: '/admin/bookings', icon: FileText },
   { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
   { name: 'Revenue', href: '/admin/revenue', icon: DollarSign },

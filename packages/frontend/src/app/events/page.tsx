@@ -65,6 +65,25 @@ interface PredictHQEvent {
   source: 'predicthq'
 }
 
+interface ExternalEvent {
+  id: string
+  title: string
+  description: string | null
+  event_date: string
+  start_time: string | null
+  venue_name: string | null
+  city: string | null
+  state: string | null
+  zip_code: string | null
+  category: string | null
+  image_url: string | null
+  event_url: string | null
+  price_min: number | null
+  price_max: number | null
+  organizer: string | null
+  source: 'external'
+}
+
 interface PublicEvent {
   id: string
   title: string
@@ -91,9 +110,11 @@ export default function PublicEventsPage() {
   const [events, setEvents] = useState<PublicEvent[]>([])
   const [tmEvents, setTmEvents] = useState<TicketmasterEvent[]>([])
   const [sgEvents, setSgEvents] = useState<SeatGeekEvent[]>([])
+  const [extEvents, setExtEvents] = useState<ExternalEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [tmLoading, setTmLoading] = useState(false)
   const [sgLoading, setSgLoading] = useState(false)
+  const [extLoading, setExtLoading] = useState(false)
   const [zipCode, setZipCode] = useState('')
   const [radiusMiles, setRadiusMiles] = useState('30')
   const [category, setCategory] = useState('')
@@ -134,6 +155,7 @@ export default function PublicEventsPage() {
     setLoading(true)
     setTmLoading(true)
     setSgLoading(true)
+    setExtLoading(true)
     const params: Record<string, string> = {}
     if (zip) params.zip_code = zip
     if (cat) params.category = cat
@@ -144,14 +166,16 @@ export default function PublicEventsPage() {
       api.get('/promoter-events/public', { params }),
       api.get('/ticketmaster/events', { params: tmParams }),
       api.get('/seatgeek/events', { params: tmParams }),
+      api.get('/external-events/events', { params }),
     ])
-      .then(([platformRes, tmRes, sgRes]) => {
+      .then(([platformRes, tmRes, sgRes, extRes]) => {
         setEvents(platformRes.data || [])
         setTmEvents(tmRes.data || [])
         setSgEvents(sgRes.data || [])
+        setExtEvents(extRes.data || [])
       })
       .catch(() => {})
-      .finally(() => { setLoading(false); setTmLoading(false); setSgLoading(false) })
+      .finally(() => { setLoading(false); setTmLoading(false); setSgLoading(false); setExtLoading(false) })
   }
 
   useEffect(() => { fetchEvents() }, [])
@@ -201,7 +225,7 @@ export default function PublicEventsPage() {
       </div>
 
       {/* Search Header */}
-      <div className="bg-blue-700 text-white">
+      <div className="bg-blue-500 text-white">
         <div className="max-w-6xl mx-auto px-4 py-8 text-center">
           <p className="text-blue-200 text-lg">Find and buy tickets to events near you</p>
 
@@ -250,7 +274,7 @@ export default function PublicEventsPage() {
               </select>
             </div>
             <button type="submit"
-              className="bg-purple-600 text-white text-sm font-medium px-5 py-2.5 rounded-xl hover:bg-purple-700">
+              className="bg-purple-800 text-white text-sm font-medium px-5 py-2.5 rounded-xl hover:bg-purple-900">
               Search
             </button>
           </form>
@@ -566,6 +590,108 @@ export default function PublicEventsPage() {
                         </div>
                       </div>
                     </a>
+                  )
+                })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Aggregated External Events ───────────────────────────── */}
+      {(extLoading || extEvents.length > 0) && (
+        <div className="max-w-6xl mx-auto px-4 pb-10">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Events Around Town</h2>
+              <p className="text-xs text-gray-400 mt-0.5">Aggregated from local event listings.</p>
+            </div>
+          </div>
+
+          {extLoading ? (
+            <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-purple-400" /></div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {extEvents
+                .filter(ev => !search ||
+                  ev.title.toLowerCase().includes(search.toLowerCase()) ||
+                  ev.city?.toLowerCase().includes(search.toLowerCase()) ||
+                  ev.venue_name?.toLowerCase().includes(search.toLowerCase()))
+                .map(ev => {
+                  const dateObj = ev.event_date ? new Date(ev.event_date + 'T00:00:00') : null
+                  const card = (
+                    <>
+                      <div className="h-44 bg-gradient-to-br from-purple-100 to-fuchsia-100 relative overflow-hidden">
+                        {ev.image_url ? (
+                          <img src={ev.image_url} alt={ev.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                        ) : (
+                          <div className="flex items-center justify-center h-full">
+                            <Calendar className="w-12 h-12 text-purple-300" />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="p-4">
+                        <div className="flex items-start justify-between gap-2">
+                          {dateObj && (
+                            <div className="text-center bg-purple-50 border border-purple-100 rounded-lg px-2.5 py-1.5 min-w-[44px] shrink-0">
+                              <p className="text-xs font-medium text-purple-500 uppercase leading-none">
+                                {dateObj.toLocaleString('default', { month: 'short' })}
+                              </p>
+                              <p className="text-lg font-bold text-purple-700 leading-none mt-0.5">{dateObj.getDate()}</p>
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-bold text-gray-900 truncate">{ev.title}</h3>
+                            {(ev.venue_name || ev.city) && (
+                              <p className="flex items-center gap-1 text-xs text-gray-500 mt-0.5 truncate">
+                                <MapPin className="w-3 h-3 shrink-0" />
+                                {ev.venue_name ? `${ev.venue_name}${ev.city ? ', ' + ev.city : ''}` : ev.city}
+                                {ev.state ? `, ${ev.state}` : ''}
+                              </p>
+                            )}
+                            {ev.start_time && (
+                              <p className="text-xs text-gray-400 mt-0.5">{ev.start_time}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+                          <div>
+                            {ev.category && (
+                              <span className="flex items-center gap-1 text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">
+                                <Tag className="w-2.5 h-2.5" />{ev.category}
+                              </span>
+                            )}
+                          </div>
+                          {ev.price_min !== null ? (
+                            <span className="text-sm font-bold text-gray-900">
+                              {ev.price_min === 0 ? 'Free' : `From $${ev.price_min.toFixed(0)}`}
+                            </span>
+                          ) : ev.event_url ? (
+                            <span className="text-xs text-gray-400">See details</span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </>
+                  )
+                  return ev.event_url ? (
+                    <a
+                      key={ev.id}
+                      href={ev.event_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-md hover:border-purple-200 transition-all group block"
+                    >
+                      {card}
+                    </a>
+                  ) : (
+                    <div
+                      key={ev.id}
+                      className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 group block"
+                    >
+                      {card}
+                    </div>
                   )
                 })}
             </div>

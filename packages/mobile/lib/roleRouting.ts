@@ -65,15 +65,17 @@ export async function getUserRole(userId: string): Promise<string> {
   }
 }
 
-// Resolves the home route for an already-fetched session, checking
-// user_metadata/app_metadata first (no RLS needed) before falling back to
-// the DB lookup in getUserRole.
+// Resolves the home route for an already-fetched session. Always defers to
+// getUserRole's live DB lookup as the source of truth — do NOT read
+// user.user_metadata/app_metadata here first. The session's JWT claims can
+// be stale (they only refresh when the token itself is reissued), so if a
+// role changes after the session was established, trusting the cached
+// metadata first would route the user to the wrong (stale) dashboard.
 export async function getSessionHomeRoute(user: {
   id: string;
   user_metadata?: Record<string, unknown> | null;
   app_metadata?: Record<string, unknown> | null;
 }): Promise<string> {
-  const metaRole = (user.user_metadata?.role || user.app_metadata?.role) as string | undefined;
-  const role = metaRole || await getUserRole(user.id);
+  const role = await getUserRole(user.id);
   return getRoleHomeRoute(role);
 }

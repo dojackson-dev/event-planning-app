@@ -163,7 +163,7 @@ export default function ClientEventsPage() {
                           <InfoItem label="Client Status" value={booking.client_status ?? '—'} />
                         </div>
                         {booking.notes && (
-                          <p className="mt-3 text-sm text-gray-600 italic">"{booking.notes}"</p>
+                          <p className="mt-3 text-sm text-gray-600 italic">&quot;{booking.notes}&quot;</p>
                         )}
                       </div>
                     )}

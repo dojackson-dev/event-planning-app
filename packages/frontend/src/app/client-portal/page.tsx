@@ -93,7 +93,7 @@ export default function ClientPortalPage() {
             Welcome back, {client?.firstName}!
           </h1>
           <p className="mt-1 text-primary-100 text-sm">
-            Here's everything you need to know about your upcoming events.
+            Here&apos;s everything you need to know about your upcoming events.
           </p>
         </div>
         <button
@@ -151,7 +151,7 @@ export default function ClientPortalPage() {
               )}
 
               {invoices.length === 0 ? (
-                <p className="text-gray-400 text-sm py-4 text-center">No invoices yet. They'll appear here once your coordinator sends them.</p>
+                <p className="text-gray-400 text-sm py-4 text-center">No invoices yet. They&apos;ll appear here once your coordinator sends them.</p>
               ) : (
                 <div className="space-y-3">
                   {unpaidInvoices.slice(0, 3).map((inv: any) => {

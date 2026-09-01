@@ -91,7 +91,7 @@ export default function LoginPage() {
               </div>
             ) : (
               <form onSubmit={handleForgotPassword} className="space-y-4">
-                <p className="text-sm text-gray-500">Enter your email and we'll send a reset link.</p>
+                <p className="text-sm text-gray-500">Enter your email and we&apos;ll send a reset link.</p>
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus autoComplete="email"
                   className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                   placeholder="Email address" />
@@ -170,13 +170,13 @@ export default function LoginPage() {
 
           <div className="text-center">
             <p className="text-sm text-gray-600">
-              Don't have an account?{' '}
+              Don&apos;t have an account?{' '}
               <Link href="/signup" className="font-medium text-primary-600 hover:text-primary-500">
                 Sign up
               </Link>
             </p>
             <p className="mt-2 text-xs text-gray-400">
-              Owners, vendors, promoters, and artists all sign in here. You'll be routed to your dashboard automatically.
+              Owners, vendors, promoters, and artists all sign in here. You&apos;ll be routed to your dashboard automatically.
             </p>
           </div>
 

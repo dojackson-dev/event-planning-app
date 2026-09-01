@@ -753,7 +753,7 @@ function ClientIntakePageInner() {
                       <option value="plated">Plated Dinner</option>
                       <option value="buffet">Buffet</option>
                       <option value="stations">Food Stations</option>
-                      <option value="cocktail">Cocktail/Hors d'oeuvres</option>
+                      <option value="cocktail">Cocktail/Hors d&apos;oeuvres</option>
                       <option value="family">Family Style</option>
                     </select>
                   </div>
@@ -1134,7 +1134,7 @@ function ClientIntakePageInner() {
                   onChange={handleChange}
                   className="mr-3 h-5 w-5"
                 />
-                <span className="text-sm font-medium">I'd like to schedule a venue walkthrough</span>
+                <span className="text-sm font-medium">I&apos;d like to schedule a venue walkthrough</span>
               </label>
 
               {formData.walkthroughRequested && (

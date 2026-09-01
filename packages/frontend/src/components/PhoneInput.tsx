@@ -376,7 +376,7 @@ export default function PhoneInput({
         {/* Opt-out notice */}
         <p className="text-xs text-gray-400 leading-relaxed border-t border-gray-200 pt-2">
           To unsubscribe at any time, reply <strong className="text-gray-500">STOP</strong> to any message.
-          You'll receive a confirmation: &ldquo;You have successfully been unsubscribed. You will not receive
+          You&apos;ll receive a confirmation: &ldquo;You have successfully been unsubscribed. You will not receive
           any more messages from this number. Reply START to resubscribe.&rdquo;{' '}
           <a href="/privacy-policy" className="text-primary-600 hover:underline" target="_blank" rel="noopener noreferrer">Privacy Policy</a>
           {' · '}

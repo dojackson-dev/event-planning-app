@@ -174,7 +174,7 @@ export default function PublicGuestListSharePage() {
 
           <div className="mt-6 pt-6 border-t border-gray-200 text-center">
             <p className="text-sm text-gray-500">
-              Don't have an access code? Contact the event organizer.
+              Don&apos;t have an access code? Contact the event organizer.
             </p>
           </div>
         </div>

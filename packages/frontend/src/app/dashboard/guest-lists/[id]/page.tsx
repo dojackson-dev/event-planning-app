@@ -280,7 +280,7 @@ export default function GuestListDetailPage() {
         {guests.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
             <p>No guests added yet</p>
-            <p className="text-sm mt-2">Click "Add Guest" to start building your guest list</p>
+            <p className="text-sm mt-2">Click &quot;Add Guest&quot; to start building your guest list</p>
           </div>
         ) : (
           <div className="divide-y divide-gray-200">

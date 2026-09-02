@@ -152,6 +152,95 @@ BEGIN
   END IF;
 END $$;
 
+-- ============================================================================
+-- activity_log.actor_user_id → ON DELETE SET NULL
+-- ============================================================================
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'activity_log'
+      AND column_name = 'actor_user_id'
+  ) THEN
+    UPDATE public.activity_log al
+    SET actor_user_id = NULL
+    WHERE al.actor_user_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM public.users u WHERE u.id = al.actor_user_id
+      );
+
+    ALTER TABLE public.activity_log
+      DROP CONSTRAINT IF EXISTS activity_log_actor_user_id_fkey;
+
+    ALTER TABLE public.activity_log
+      ADD CONSTRAINT activity_log_actor_user_id_fkey
+      FOREIGN KEY (actor_user_id) REFERENCES public.users(id) ON DELETE SET NULL;
+  ELSE
+    RAISE NOTICE 'Skipping activity_log.actor_user_id (column missing)';
+  END IF;
+END $$;
+
+-- ============================================================================
+-- client_profiles.user_id → ON DELETE CASCADE
+-- ============================================================================
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'client_profiles'
+      AND column_name = 'user_id'
+  ) THEN
+    DELETE FROM public.client_profiles cp
+    WHERE cp.user_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM public.users u WHERE u.id = cp.user_id
+      );
+
+    ALTER TABLE public.client_profiles
+      DROP CONSTRAINT IF EXISTS client_profiles_user_id_fkey;
+
+    ALTER TABLE public.client_profiles
+      ADD CONSTRAINT client_profiles_user_id_fkey
+      FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+  ELSE
+    RAISE NOTICE 'Skipping client_profiles.user_id (column missing)';
+  END IF;
+END $$;
+
+-- ============================================================================
+-- team_invitations.invited_by_user_id → ON DELETE SET NULL
+-- ============================================================================
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'team_invitations'
+      AND column_name = 'invited_by_user_id'
+  ) THEN
+    UPDATE public.team_invitations ti
+    SET invited_by_user_id = NULL
+    WHERE ti.invited_by_user_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM public.users u WHERE u.id = ti.invited_by_user_id
+      );
+
+    ALTER TABLE public.team_invitations
+      DROP CONSTRAINT IF EXISTS team_invitations_invited_by_user_id_fkey;
+
+    ALTER TABLE public.team_invitations
+      ADD CONSTRAINT team_invitations_invited_by_user_id_fkey
+      FOREIGN KEY (invited_by_user_id) REFERENCES public.users(id) ON DELETE SET NULL;
+  ELSE
+    RAISE NOTICE 'Skipping team_invitations.invited_by_user_id (column missing)';
+  END IF;
+END $$;
+
 -- Verify the final state of all affected constraints
 SELECT
   tc.table_name,
@@ -164,6 +253,7 @@ JOIN information_schema.constraint_column_usage AS ccu ON ccu.constraint_name = 
 JOIN information_schema.referential_constraints AS rc  ON rc.constraint_name  = tc.constraint_name
 WHERE tc.constraint_type = 'FOREIGN KEY'
   AND tc.table_name IN (
-    'vendor_bookings', 'vendor_reviews', 'invites', 'service_items', 'intake_forms'
+    'vendor_bookings', 'vendor_reviews', 'invites', 'service_items', 'intake_forms',
+    'activity_log', 'client_profiles', 'team_invitations'
   )
 ORDER BY tc.table_name, kcu.column_name;

@@ -51,6 +51,59 @@ describe('AuthService', () => {
     expect(adminSupabase.auth.admin.deleteUser).toHaveBeenCalledWith('user-123');
   });
 
+  it('cleans up the remaining user-delete blocker tables before deleting auth user', async () => {
+    const fromMock = jest.fn((table: string) => ({
+      delete: () => ({ eq: () => ({ error: null }) }),
+      update: () => ({ eq: () => ({ error: null }) }),
+    }));
+
+    const supabase = {
+      auth: {
+        getUser: jest.fn().mockResolvedValue({
+          data: { user: { id: 'user-789' } },
+          error: null,
+        }),
+      },
+      from: fromMock,
+    };
+
+    const adminSupabase = {
+      auth: {
+        admin: {
+          deleteUser: jest.fn().mockResolvedValue({ error: null }),
+        },
+      },
+    };
+
+    const supabaseService = {
+      setAuthContext: jest.fn().mockReturnValue(supabase),
+      getAdminClient: jest.fn().mockReturnValue(adminSupabase),
+    };
+
+    const service = new AuthService(supabaseService as any);
+
+    await expect(service.deleteAccount('token-789')).resolves.toEqual({
+      message: 'Account deleted successfully',
+    });
+
+    const calledTables = fromMock.mock.calls.map(([table]) => table);
+    expect(calledTables).toEqual(
+      expect.arrayContaining([
+        'notifications',
+        'messages',
+        'service_items',
+        'intake_forms',
+        'invites',
+        'vendor_bookings',
+        'vendor_reviews',
+        'client_profiles',
+        'team_invitations',
+        'activity_log',
+        'users',
+      ]),
+    );
+  });
+
   it('throws when admin user deletion fails', async () => {
     const supabase = {
       auth: {

@@ -269,6 +269,23 @@ export class AuthService {
         type: 'delete' as const,
         column: 'reviewer_user_id',
       },
+      {
+        table: 'activity_log',
+        type: 'update' as const,
+        column: 'actor_user_id',
+        payload: { actor_user_id: null },
+      },
+      {
+        table: 'client_profiles',
+        type: 'delete' as const,
+        column: 'user_id',
+      },
+      {
+        table: 'team_invitations',
+        type: 'update' as const,
+        column: 'invited_by_user_id',
+        payload: { invited_by_user_id: null },
+      },
       { table: 'users', type: 'delete' as const, column: 'id' },
     ];
 

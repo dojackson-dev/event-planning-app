@@ -1,11 +1,13 @@
 -- Fix cascade deletions so auth users can be deleted from Supabase dashboard
 -- 
--- Problem: owner_accounts.primary_owner_id references public.users(id) WITHOUT ON DELETE CASCADE.
--- When Supabase deletes an auth user, it cascades to public.users, but that delete is
--- blocked by the owner_accounts FK → Supabase returns 500.
+-- Problem: the user->owner-account chain still includes NO ACTION FKs that block
+-- auth user deletion. When Supabase deletes an auth user, it cascades to public.users,
+-- but that delete is still blocked by owner-account references in memberships,
+-- client_profiles, and invites.
 --
 -- Fix chain:
---   auth.users → CASCADE → public.users → CASCADE → owner_accounts → CASCADE → venues (already set)
+--   auth.users → CASCADE → public.users → CASCADE → owner_accounts → CASCADE → memberships
+--   public.users → CASCADE → owner_accounts → CASCADE → client_profiles/invites
 
 -- ============================================================================
 -- Step 1: Ensure public.users.id cascades from auth.users deletions
@@ -29,7 +31,17 @@ ALTER TABLE public.owner_accounts
   FOREIGN KEY (primary_owner_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 -- ============================================================================
--- Step 3: Ensure memberships.user_id cascades (should already be correct, but
+-- Step 3: Fix memberships.owner_account_id to cascade when owner_accounts is deleted
+-- ============================================================================
+ALTER TABLE public.memberships
+  DROP CONSTRAINT IF EXISTS memberships_owner_account_id_fkey;
+
+ALTER TABLE public.memberships
+  ADD CONSTRAINT memberships_owner_account_id_fkey
+  FOREIGN KEY (owner_account_id) REFERENCES public.owner_accounts(id) ON DELETE CASCADE;
+
+-- ============================================================================
+-- Step 4: Ensure memberships.user_id cascades (should already be correct, but
 --         re-apply safely in case it was created without CASCADE)
 -- ============================================================================
 ALTER TABLE public.memberships

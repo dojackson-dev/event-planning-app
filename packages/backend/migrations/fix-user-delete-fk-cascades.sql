@@ -212,6 +212,64 @@ BEGIN
 END $$;
 
 -- ============================================================================
+-- client_profiles.owner_account_id → ON DELETE CASCADE
+-- ============================================================================
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'client_profiles'
+      AND column_name = 'owner_account_id'
+  ) THEN
+    DELETE FROM public.client_profiles cp
+    WHERE cp.owner_account_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM public.owner_accounts oa WHERE oa.id = cp.owner_account_id
+      );
+
+    ALTER TABLE public.client_profiles
+      DROP CONSTRAINT IF EXISTS client_profiles_owner_account_id_fkey;
+
+    ALTER TABLE public.client_profiles
+      ADD CONSTRAINT client_profiles_owner_account_id_fkey
+      FOREIGN KEY (owner_account_id) REFERENCES public.owner_accounts(id) ON DELETE CASCADE;
+  ELSE
+    RAISE NOTICE 'Skipping client_profiles.owner_account_id (column missing)';
+  END IF;
+END $$;
+
+-- ============================================================================
+-- invites.owner_account_id → ON DELETE CASCADE
+-- ============================================================================
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'invites'
+      AND column_name = 'owner_account_id'
+  ) THEN
+    DELETE FROM public.invites i
+    WHERE i.owner_account_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM public.owner_accounts oa WHERE oa.id = i.owner_account_id
+      );
+
+    ALTER TABLE public.invites
+      DROP CONSTRAINT IF EXISTS invites_owner_account_id_fkey;
+
+    ALTER TABLE public.invites
+      ADD CONSTRAINT invites_owner_account_id_fkey
+      FOREIGN KEY (owner_account_id) REFERENCES public.owner_accounts(id) ON DELETE CASCADE;
+  ELSE
+    RAISE NOTICE 'Skipping invites.owner_account_id (column missing)';
+  END IF;
+END $$;
+
+-- ============================================================================
 -- team_invitations.invited_by_user_id → ON DELETE SET NULL
 -- ============================================================================
 DO $$

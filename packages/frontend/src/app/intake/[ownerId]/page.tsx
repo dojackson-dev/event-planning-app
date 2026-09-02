@@ -221,7 +221,7 @@ function PublicIntakeForm({ params }: { params: { ownerId: string } }) {
           <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Thank You!</h1>
           <p className="text-gray-600 mb-4">
-            Your event inquiry has been submitted to {businessName || 'us'}. We'll be in touch with you soon!
+            Your event inquiry has been submitted to {businessName || 'us'}. We&apos;ll be in touch with you soon!
           </p>
           <p className="text-sm text-gray-500 mb-6">Typically within 24 hours.</p>
           <a
@@ -247,7 +247,7 @@ function PublicIntakeForm({ params }: { params: { ownerId: string } }) {
             <h1 className="text-3xl font-bold text-gray-900 mb-1">{businessName}</h1>
           )}
           <h2 className="text-xl font-semibold text-gray-700 mb-1">Client Event Inquiry</h2>
-          <p className="text-gray-500 text-sm">Fill out this form and we'll reach out to start planning your event.</p>
+          <p className="text-gray-500 text-sm">Fill out this form and we&apos;ll reach out to start planning your event.</p>
         </div>
 
         {/* Progress Steps */}
@@ -518,7 +518,7 @@ function PublicIntakeForm({ params }: { params: { ownerId: string } }) {
                         <option value="plated">Plated Dinner</option>
                         <option value="buffet">Buffet</option>
                         <option value="stations">Food Stations</option>
-                        <option value="cocktail">Cocktail/Hors d'oeuvres</option>
+                        <option value="cocktail">Cocktail/Hors d&apos;oeuvres</option>
                         <option value="family">Family Style</option>
                       </select>
                     </div>
@@ -733,7 +733,7 @@ function PublicIntakeForm({ params }: { params: { ownerId: string } }) {
                 <label className="flex items-center mb-4">
                   <input type="checkbox" name="walkthroughRequested" checked={formData.walkthroughRequested}
                     onChange={handleChange} className="mr-3 h-5 w-5" />
-                  <span className="text-sm font-medium">I'd like to schedule a venue walkthrough</span>
+                  <span className="text-sm font-medium">I&apos;d like to schedule a venue walkthrough</span>
                 </label>
                 {formData.walkthroughRequested && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

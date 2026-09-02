@@ -128,7 +128,7 @@ function ClientInvoicesContent() {
           <div>
             <p className="font-semibold">Payment successful!</p>
             <p className="text-green-600 mt-0.5">
-              Invoice {searchParams.get('invoice') ? `#${searchParams.get('invoice')} ` : ''}has been paid. You'll receive a confirmation shortly.
+              Invoice {searchParams.get('invoice') ? `#${searchParams.get('invoice')} ` : ''}has been paid. You&apos;ll receive a confirmation shortly.
             </p>
           </div>
         </div>
@@ -136,7 +136,7 @@ function ClientInvoicesContent() {
       {canceled && (
         <div className="flex items-start gap-3 bg-yellow-50 border border-yellow-300 rounded-xl px-4 py-3 text-yellow-800 text-sm">
           <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5 text-yellow-600" />
-          <p>Payment was cancelled. Your invoice remains unpaid — you can try again whenever you're ready.</p>
+          <p>Payment was cancelled. Your invoice remains unpaid — you can try again whenever you&apos;re ready.</p>
         </div>
       )}
 

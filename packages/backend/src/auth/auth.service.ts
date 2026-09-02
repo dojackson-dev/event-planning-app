@@ -228,10 +228,93 @@ export class AuthService {
     return { message: 'Password changed successfully' };
   }
 
+  private isMissingSchemaError(message: string): boolean {
+    return /Could not find the table|Could not find the column|schema cache/i.test(
+      message,
+    );
+  }
+
+  private async cleanupUserRelatedData(
+    supabase: ReturnType<SupabaseService['setAuthContext']>,
+    userId: string,
+  ) {
+    const cleanupSteps = [
+      { table: 'notifications', type: 'delete' as const, column: 'user_id' },
+      { table: 'messages', type: 'delete' as const, column: 'sender_id' },
+      {
+        table: 'service_items',
+        type: 'update' as const,
+        column: 'owner_id',
+        payload: { owner_id: null },
+      },
+      {
+        table: 'intake_forms',
+        type: 'update' as const,
+        column: 'assigned_to',
+        payload: { assigned_to: null },
+      },
+      {
+        table: 'invites',
+        type: 'update' as const,
+        column: 'accepted_by',
+        payload: { accepted_by: null },
+      },
+      {
+        table: 'vendor_bookings',
+        type: 'delete' as const,
+        column: 'booked_by_user_id',
+      },
+      {
+        table: 'vendor_reviews',
+        type: 'delete' as const,
+        column: 'reviewer_user_id',
+      },
+      { table: 'users', type: 'delete' as const, column: 'id' },
+    ];
+
+    for (const step of cleanupSteps) {
+      try {
+        let result:
+          | { error?: { message?: string } | null }
+          | null
+          | undefined;
+
+        if (step.type === 'delete') {
+          result = await supabase
+            .from(step.table)
+            .delete()
+            .eq(step.column, userId);
+        } else {
+          result = await supabase
+            .from(step.table)
+            .update(step.payload)
+            .eq(step.column, userId);
+        }
+
+        if (result?.error) {
+          const message = result.error.message ?? 'Unknown cleanup error';
+          if (this.isMissingSchemaError(message)) {
+            continue;
+          }
+
+          console.warn(
+            `Delete cleanup warning for ${step.table}.${step.column}: ${message}`,
+          );
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (this.isMissingSchemaError(message)) {
+          continue;
+        }
+
+        throw error;
+      }
+    }
+  }
+
   async deleteAccount(accessToken: string) {
     const supabase = this.supabaseService.setAuthContext(accessToken);
 
-    // Get current user
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError) {
       throw new UnauthorizedException(userError.message);
@@ -239,18 +322,8 @@ export class AuthService {
 
     const userId = userData.user.id;
 
-    // Delete user data from database tables
-    // Order matters due to foreign key constraints
-    try {
-      // Delete in order to respect foreign keys
-      await supabase.from('notifications').delete().eq('user_id', userId);
-      await supabase.from('messages').delete().eq('sender_id', userId);
-      await supabase.from('users').delete().eq('id', userId);
-    } catch (dbError) {
-      console.warn('Error deleting user data from tables:', dbError);
-    }
+    await this.cleanupUserRelatedData(supabase, userId);
 
-    // Delete the auth user using admin client
     const adminSupabase = this.supabaseService.getAdminClient();
     const { error } = await adminSupabase.auth.admin.deleteUser(userId);
 

@@ -197,7 +197,7 @@ export default function CustomerServicesPage() {
             <span className="text-sm text-gray-500">Active filters:</span>
             {searchQuery && (
               <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-primary-100 text-primary-700">
-                Search: "{searchQuery}"
+                Search: &quot;{searchQuery}&quot;
                 <button onClick={() => setSearchQuery('')} className="ml-2 hover:text-primary-900">×</button>
               </span>
             )}

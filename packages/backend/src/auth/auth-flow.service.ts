@@ -11,6 +11,7 @@ import { SmsService } from '../sms/sms.service';
 import { TrialService } from '../trial/trial.service';
 import { TwilioService } from '../messaging/twilio.service.js';
 import { AffiliatesService } from '../affiliates/affiliates.service';
+import { MailService } from '../mail/mail.service';
 import {
   OwnerSignupDto,
   OwnerLoginDto,
@@ -33,6 +34,7 @@ export class AuthFlowService {
     private readonly twilioService: TwilioService,
     @Inject(forwardRef(() => AffiliatesService))
     private readonly affiliatesService: AffiliatesService,
+    private readonly mailService: MailService,
   ) {}
 
   /**
@@ -181,6 +183,17 @@ export class AuthFlowService {
         // Non-fatal — don't block account creation if SMS fails
       }
     }
+
+    // Non-fatal — don't block account creation if welcome email fails
+    this.mailService
+      .sendWelcomeEmail({
+        toEmail: dto.email,
+        firstName: dto.firstName,
+        businessName: dto.businessName,
+      })
+      .catch((err) =>
+        console.error('[AuthFlowService] Welcome email failed:', err),
+      );
 
     // Note: Stripe checkout would happen here in Phase 2
     // const checkoutUrl = await this.stripeService.createCheckoutSession(ownerAccount.id, 'price_xxx');
@@ -623,6 +636,10 @@ export class AuthFlowService {
       }
     }
 
+    this.mailService
+      .sendWelcomeEmail({ toEmail: dto.email, firstName: dto.firstName, role: 'vendor' })
+      .catch((err) => console.error('[AuthFlowService] Welcome email failed:', err));
+
     return {
       userId,
       message:
@@ -695,6 +712,10 @@ export class AuthFlowService {
 
     if (userError) throw new BadRequestException(userError.message);
 
+    this.mailService
+      .sendWelcomeEmail({ toEmail: dto.email, firstName: dto.firstName, role: 'promoter' })
+      .catch((err) => console.error('[AuthFlowService] Welcome email failed:', err));
+
     return {
       userId,
       message:
@@ -766,6 +787,10 @@ export class AuthFlowService {
     });
 
     if (userError) throw new BadRequestException(userError.message);
+
+    this.mailService
+      .sendWelcomeEmail({ toEmail: dto.email, firstName: dto.firstName, role: 'artist' })
+      .catch((err) => console.error('[AuthFlowService] Welcome email failed:', err));
 
     return {
       userId,

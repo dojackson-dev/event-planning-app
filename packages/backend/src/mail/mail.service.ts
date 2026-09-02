@@ -1711,4 +1711,184 @@ export class MailService {
       throw error;
     }
   }
+
+  async sendWelcomeEmail(params: {
+    toEmail: string;
+    firstName: string;
+    businessName?: string;
+    role?: 'owner' | 'vendor' | 'promoter' | 'artist' | 'affiliate';
+  }): Promise<void> {
+    if (!process.env.RESEND_API_KEY) {
+      console.warn('[MailService] RESEND_API_KEY not set — skipping welcome email');
+      return;
+    }
+    try {
+      const role = params.role ?? 'owner';
+      const roleLabel: Record<string, string> = {
+        owner: 'Venue Owner',
+        vendor: 'Vendor',
+        promoter: 'Event Promoter',
+        artist: 'Artist',
+        affiliate: 'Affiliate Partner',
+      };
+      const accountLabel = roleLabel[role] ?? 'Account';
+      const subjectName = params.businessName || params.firstName;
+
+      const greetingLine = params.businessName
+        ? `<strong>${params.businessName}</strong> is officially live on EventEcos.`
+        : `Your <strong>${accountLabel}</strong> account is live on EventEcos.`;
+
+      const statusBlock =
+        role === 'owner'
+          ? `
+          <div style="background: linear-gradient(135deg, #ecfdf5 0%, #eff6ff 100%); border-left: 4px solid #00BFA5; border-radius: 8px; padding: 16px 20px; margin-bottom: 28px;">
+            <p style="margin: 0; color: #065f46; font-size: 14px; font-weight: 600;">🎉 30-Day Free Trial Active</p>
+            <p style="margin: 6px 0 0; color: #374151; font-size: 13px; line-height: 1.5;">
+              Access every feature free for 30 days. When you're ready to subscribe, connect your Stripe account to unlock payments and keep growing.
+            </p>
+          </div>`
+          : `
+          <div style="background: linear-gradient(135deg, #ecfdf5 0%, #eff6ff 100%); border-left: 4px solid #00BFA5; border-radius: 8px; padding: 16px 20px; margin-bottom: 28px;">
+            <p style="margin: 0; color: #065f46; font-size: 14px; font-weight: 600;">✅ Account Active</p>
+            <p style="margin: 6px 0 0; color: #374151; font-size: 13px; line-height: 1.5;">
+              Your ${accountLabel} account is ready to use. Connect your Stripe account to start receiving payments.
+            </p>
+          </div>`;
+
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+      const dashboardUrl = `${frontendUrl}/dashboard`;
+
+      const features = [
+        {
+          icon: '📅',
+          title: 'Event Management',
+          desc: 'Create and manage events, track bookings, and stay organized from one dashboard.',
+        },
+        {
+          icon: '📄',
+          title: 'Contracts & E-Signatures',
+          desc: 'Send professional contracts to clients and collect legally-binding digital signatures.',
+        },
+        {
+          icon: '💳',
+          title: 'Invoicing & Quotes',
+          desc: 'Generate branded invoices and estimates. Clients can approve quotes online.',
+        },
+        {
+          icon: '💰',
+          title: 'Stripe Payments',
+          desc: 'Connect your bank via Stripe and get paid directly — deposits, balances, or full payments.',
+        },
+        {
+          icon: '🎟️',
+          title: 'VIP Ticketing',
+          desc: 'Sell exclusive VIP packages for your events and deliver QR-code access automatically.',
+        },
+        {
+          icon: '📋',
+          title: 'Guest Lists & Door Management',
+          desc: 'Build guest lists and manage door check-in digitally — no more clipboards.',
+        },
+        {
+          icon: '🏪',
+          title: 'Vendor Management',
+          desc: 'Track vendors, send vendor invoices, and keep all your supplier relationships in one place.',
+        },
+        {
+          icon: '💬',
+          title: 'SMS Client Messaging',
+          desc: 'Stay in touch with clients and guests via automated and manual SMS notifications.',
+        },
+      ];
+
+      const featureRows = features
+        .map(
+          (f) => `
+          <tr>
+            <td style="padding: 14px 0; border-bottom: 1px solid #e5e7eb; vertical-align: top;">
+              <span style="font-size: 22px; margin-right: 12px;">${f.icon}</span>
+            </td>
+            <td style="padding: 14px 0 14px 4px; border-bottom: 1px solid #e5e7eb; vertical-align: top;">
+              <p style="margin: 0 0 3px; font-size: 15px; font-weight: 700; color: #111827;">${f.title}</p>
+              <p style="margin: 0; font-size: 14px; color: #6b7280; line-height: 1.5;">${f.desc}</p>
+            </td>
+          </tr>`,
+        )
+        .join('');
+
+      const html = `
+        <div style="font-family: Arial, sans-serif; max-width: 620px; margin: 0 auto; background: #f3f4f6; padding: 32px 16px;">
+          <div style="background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.10);">
+
+            <!-- Header -->
+            <div style="background: linear-gradient(135deg, #00BFA5 0%, #26C485 50%, #1E3A7F 100%); padding: 40px 32px 32px; text-align: center;">
+              <img src="${frontendUrl}/lib/EventEcos-Logo-Only.jpg" alt="EventEcos" style="max-width: 72px; height: auto; margin-bottom: 16px; display: inline-block;" />
+              <h1 style="color: white; margin: 0 0 8px; font-size: 28px; font-weight: 800; letter-spacing: -0.5px;">Welcome to EventEcos!</h1>
+              <p style="color: rgba(255,255,255,0.88); margin: 0; font-size: 15px;">Your all-in-one event business platform</p>
+            </div>
+
+            <!-- Greeting -->
+            <div style="padding: 32px 32px 0;">
+              <p style="color: #111827; font-size: 17px; margin: 0 0 12px;">Hey <strong>${params.firstName}</strong> 👋</p>
+              <p style="color: #374151; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">
+                ${greetingLine} Explore everything the platform has to offer below.
+              </p>
+
+              ${statusBlock}
+            </div>
+
+            <!-- Features -->
+            <div style="padding: 0 32px 28px;">
+              <h2 style="color: #1E3A7F; font-size: 17px; font-weight: 700; margin: 0 0 4px;">What's included in your account</h2>
+              <table style="width: 100%; border-collapse: collapse;">
+                ${featureRows}
+              </table>
+            </div>
+
+            <!-- Stripe callout -->
+            <div style="margin: 0 32px 28px; background: #1E3A7F; border-radius: 10px; padding: 20px 24px;">
+              <p style="color: #00BFA5; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; margin: 0 0 6px;">Get Paid</p>
+              <p style="color: white; font-size: 16px; font-weight: 700; margin: 0 0 8px;">Connect Stripe to start accepting payments</p>
+              <p style="color: rgba(255,255,255,0.75); font-size: 13px; line-height: 1.6; margin: 0 0 16px;">
+                EventEcos uses Stripe to process payments securely. Once connected, clients can pay invoices, deposits, and VIP tickets directly — and funds land in your bank account.
+              </p>
+              <a href="${dashboardUrl}/settings/payments"
+                 style="display: inline-block; background: #00BFA5; color: white; padding: 10px 24px; text-decoration: none; border-radius: 6px; font-size: 14px; font-weight: 700;">
+                Connect Bank Account →
+              </a>
+            </div>
+
+            <!-- CTA -->
+            <div style="text-align: center; padding: 0 32px 36px;">
+              <a href="${dashboardUrl}"
+                 style="display: inline-block; background: linear-gradient(135deg, #00BFA5 0%, #1E3A7F 100%); color: white; padding: 15px 48px; text-decoration: none; border-radius: 8px; font-size: 16px; font-weight: 700; letter-spacing: 0.3px;">
+                Go to My Dashboard
+              </a>
+            </div>
+
+            <!-- Footer -->
+            <div style="background: #f9fafb; padding: 20px 32px; border-top: 1px solid #e5e7eb; text-align: center;">
+              <p style="color: #9ca3af; font-size: 12px; margin: 0;">
+                © EventEcos &middot; Automated message, please do not reply.
+              </p>
+            </div>
+
+          </div>
+        </div>
+      `;
+
+      await resend.emails.send({
+        from: this.resendFrom,
+        to: params.toEmail,
+        subject: `Welcome to EventEcos, ${params.firstName}! 🎉`,
+        html,
+        text: `Welcome to EventEcos, ${params.firstName}!\n\n${subjectName} is live. ${role === 'owner' ? 'Your 30-day free trial has started.' : 'Your account is active.'}\n\nFeatures included:\n- Event Management\n- Contracts & E-Signatures\n- Invoicing & Quotes\n- Stripe Payments (connect your bank to get paid)\n- VIP Ticketing\n- Guest Lists & Door Management\n- Vendor Management\n- SMS Client Messaging\n\nGo to your dashboard: ${dashboardUrl}\nConnect Stripe: ${dashboardUrl}/settings/payments`,
+      });
+
+      console.log('[MailService] Welcome email sent to', params.toEmail);
+    } catch (error) {
+      console.error('[MailService] Welcome email failed:', error);
+    }
+  }
 }

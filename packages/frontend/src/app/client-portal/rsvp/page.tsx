@@ -378,7 +378,7 @@ export default function ClientRsvpPage() {
           </h2>
           <span className="text-xs text-gray-400">{invitationImages.length}/2</span>
         </div>
-        <p className="text-xs text-gray-500 mb-3">These images appear on your guests' RSVP page.</p>
+        <p className="text-xs text-gray-500 mb-3">These images appear on your guests&apos; RSVP page.</p>
 
         <div className="space-y-3">
           {invitationImages.map((url, i) => (

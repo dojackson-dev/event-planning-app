@@ -712,7 +712,7 @@ function NewContractContent() {
                   <p className="text-xs text-gray-400 mt-2">This preview shows the generated contract. You can still edit fields above and regenerate.</p>
                 </>
               ) : (
-                <p className="text-sm text-gray-400">Click "Generate Preview" to see the complete contract based on your filled fields.</p>
+                <p className="text-sm text-gray-400">Click &quot;Generate Preview&quot; to see the complete contract based on your filled fields.</p>
               )}
             </div>
           </>

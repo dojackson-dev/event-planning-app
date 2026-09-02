@@ -859,7 +859,7 @@ function SettingsPageContent() {
                 <ul className="text-sm text-blue-700 space-y-1">
                   <li>• Clients pay invoices through EventEcos — <strong>Stripe processing fees paid by the client</strong></li>
                   <li>• <strong>Vendors, Artists, Venue Owners, and Promoters</strong> pay a platform fee on received payments (3% free trial · 1.5% Pro · 1% Premium)</li>
-                  <li>• Whoever is paying always covers Stripe's processing fee</li>
+                  <li>• Whoever is paying always covers Stripe&apos;s processing fee</li>
                   <li>• Funds deposited to your bank within 2 business days via Stripe Connect</li>
                   <li>• Ticket sales carry a separate <strong>3% fee paid by the buyer</strong></li>
                 </ul>

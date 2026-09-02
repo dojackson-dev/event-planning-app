@@ -8,14 +8,29 @@ export default function Index() {
   const router = useRouter();
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session) {
-        const homeRoute = await getSessionHomeRoute(session.user);
-        router.replace(homeRoute as never);
-      } else {
-        router.replace('/(guest)');
-      }
-    });
+    let settled = false;
+    const finish = (route: string) => {
+      if (settled) return;
+      settled = true;
+      router.replace(route as never);
+    };
+
+    // Safety net: if session/role resolution ever hangs (e.g. a stalled
+    // network call on cold start), don't leave the user stuck on this
+    // spinner forever — fall back to the public guest landing.
+    const safetyTimer = setTimeout(() => finish('/(guest)'), 10000);
+
+    supabase.auth.getSession()
+      .then(async ({ data: { session } }) => {
+        if (session) {
+          const homeRoute = await getSessionHomeRoute(session.user);
+          finish(homeRoute);
+        } else {
+          finish('/(guest)');
+        }
+      })
+      .catch(() => finish('/(guest)'))
+      .finally(() => clearTimeout(safetyTimer));
   }, []);
 
   return (

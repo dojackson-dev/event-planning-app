@@ -251,7 +251,7 @@ export default function VendorBookingLinkPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-700">Booking Link Active</p>
-                  <p className="text-xs text-gray-400">When inactive, visitors see a "not available" message.</p>
+                  <p className="text-xs text-gray-400">When inactive, visitors see a &quot;not available&quot; message.</p>
                 </div>
                 <button
                   type="button"

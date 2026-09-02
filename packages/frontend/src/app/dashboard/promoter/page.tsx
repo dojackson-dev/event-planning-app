@@ -206,7 +206,7 @@ function PromoterDashboardContent() {
             </p>
             <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-100/50 px-3 py-2 rounded-lg w-fit">
               <Zap className="h-4 w-4" />
-              You'll earn more when your Stripe account is active
+              You&apos;ll earn more when your Stripe account is active
             </div>
           </div>
           <button

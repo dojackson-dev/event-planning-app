@@ -149,7 +149,7 @@ export default function TicketConfirmationPage({ params }: { params: { sessionId
         <div className="max-w-lg mx-auto flex items-center gap-3">
           <CheckCircle className="w-7 h-7 shrink-0" />
           <div>
-            <p className="font-bold text-lg">You're in!</p>
+            <p className="font-bold text-lg">You&apos;re in!</p>
             <p className="text-green-100 text-sm">
               {tickets.length} ticket{tickets.length > 1 ? 's' : ''} confirmed
             </p>

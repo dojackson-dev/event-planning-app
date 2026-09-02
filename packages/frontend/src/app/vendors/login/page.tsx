@@ -80,7 +80,7 @@ export default function VendorLogin() {
               </div>
             ) : (
               <form onSubmit={handleForgotPassword} className="space-y-4">
-                <p className="text-sm text-gray-500">Enter your email and we'll send a reset link.</p>
+                <p className="text-sm text-gray-500">Enter your email and we&apos;ll send a reset link.</p>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                   <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus autoComplete="email"
@@ -146,7 +146,7 @@ export default function VendorLogin() {
           )}
 
           <div className="mt-6 text-center text-sm text-gray-500">
-            Don't have an account?{' '}
+            Don&apos;t have an account?{' '}
             <Link href="/vendors/register" className="text-primary-600 font-semibold hover:text-primary-700">
               Register for free
             </Link>

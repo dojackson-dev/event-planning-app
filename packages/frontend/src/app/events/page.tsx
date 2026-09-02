@@ -35,22 +35,6 @@ interface TicketmasterEvent {
   source: 'ticketmaster'
 }
 
-interface SeatGeekEvent {
-  id: string
-  title: string
-  event_date: string
-  start_time: string | null
-  venue_name: string | null
-  city: string | null
-  state: string | null
-  image_url: string | null
-  category: string | null
-  min_price: number | null
-  max_price: number | null
-  seatgeek_url: string
-  source: 'seatgeek'
-}
-
 interface PredictHQEvent {
   id: string
   title: string
@@ -109,11 +93,9 @@ const EVENT_CATEGORIES = [
 export default function PublicEventsPage() {
   const [events, setEvents] = useState<PublicEvent[]>([])
   const [tmEvents, setTmEvents] = useState<TicketmasterEvent[]>([])
-  const [sgEvents, setSgEvents] = useState<SeatGeekEvent[]>([])
   const [extEvents, setExtEvents] = useState<ExternalEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [tmLoading, setTmLoading] = useState(false)
-  const [sgLoading, setSgLoading] = useState(false)
   const [extLoading, setExtLoading] = useState(false)
   const [zipCode, setZipCode] = useState('')
   const [radiusMiles, setRadiusMiles] = useState('30')
@@ -154,7 +136,6 @@ export default function PublicEventsPage() {
   const fetchEvents = (zip?: string, cat?: string, radius?: string) => {
     setLoading(true)
     setTmLoading(true)
-    setSgLoading(true)
     setExtLoading(true)
     const params: Record<string, string> = {}
     if (zip) params.zip_code = zip
@@ -165,17 +146,15 @@ export default function PublicEventsPage() {
     Promise.all([
       api.get('/promoter-events/public', { params }),
       api.get('/ticketmaster/events', { params: tmParams }),
-      api.get('/seatgeek/events', { params: tmParams }),
       api.get('/external-events/events', { params }),
     ])
-      .then(([platformRes, tmRes, sgRes, extRes]) => {
+      .then(([platformRes, tmRes, extRes]) => {
         setEvents(platformRes.data || [])
         setTmEvents(tmRes.data || [])
-        setSgEvents(sgRes.data || [])
         setExtEvents(extRes.data || [])
       })
       .catch(() => {})
-      .finally(() => { setLoading(false); setTmLoading(false); setSgLoading(false); setExtLoading(false) })
+      .finally(() => { setLoading(false); setTmLoading(false); setExtLoading(false) })
   }
 
   useEffect(() => { fetchEvents() }, [])
@@ -287,11 +266,11 @@ export default function PublicEventsPage() {
         {loading ? (
           <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-purple-500" /></div>
         ) : filtered.length === 0 ? (
-          // Only show the empty state once Ticketmaster/SeatGeek have also
-          // finished loading and turned up nothing — if either of those
+          // Only show the empty state once Ticketmaster/external events have
+          // also finished loading and turned up nothing — if either of those
           // sources has events, skip straight to their sections below
           // instead of telling the user "No events found".
-          !tmLoading && !sgLoading && tmEvents.length === 0 && sgEvents.length === 0 ? (
+          !tmLoading && !extLoading && tmEvents.length === 0 && extEvents.length === 0 ? (
             <div className="text-center py-20">
               <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
               <p className="text-xl font-semibold text-gray-600">No events found</p>
@@ -385,219 +364,7 @@ export default function PublicEventsPage() {
         )}
       </div>
 
-      {/* ── Ticketmaster Events ────────────────────────────────── */}
-      <div className="max-w-6xl mx-auto px-4 pb-10">
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">Discover More Events</h2>
-            <p className="text-xs text-gray-400 mt-0.5">
-              Powered by{' '}
-              <a href="https://www.ticketmaster.com" target="_blank" rel="noopener noreferrer"
-                className="underline hover:text-blue-600">Ticketmaster</a>
-              . Tickets sold by Ticketmaster.
-            </p>
-          </div>
-        </div>
-
-        {tmLoading ? (
-          <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-blue-400" /></div>
-        ) : tmEvents.length === 0 ? (
-          // Only show a "no results" message for Ticketmaster if the other
-          // sources (native + SeatGeek) also have nothing to show — otherwise
-          // let those results speak for themselves without an odd "no
-          // results" message sitting between two sections that do have events.
-          zipCode && filtered.length === 0 && !sgLoading && sgEvents.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-8">No Ticketmaster events found in this area.</p>
-          ) : !zipCode ? (
-            <p className="text-gray-400 text-sm text-center py-8">Enter a zip code to discover events near you.</p>
-          ) : null
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {tmEvents
-              .filter(ev => !search ||
-                ev.title.toLowerCase().includes(search.toLowerCase()) ||
-                ev.city?.toLowerCase().includes(search.toLowerCase()) ||
-                ev.venue_name?.toLowerCase().includes(search.toLowerCase()))
-              .map(ev => {
-                const dateObj = ev.event_date ? new Date(ev.event_date + 'T00:00:00') : null
-                return (
-                  <a
-                    key={ev.id}
-                    href={ev.ticketmaster_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-md hover:border-blue-200 transition-all group block"
-                  >
-                    {/* Cover image */}
-                    <div className="h-44 bg-gradient-to-br from-blue-100 to-indigo-100 relative overflow-hidden">
-                      {ev.image_url ? (
-                        <img src={ev.image_url} alt={ev.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                      ) : (
-                        <div className="flex items-center justify-center h-full">
-                          <Calendar className="w-12 h-12 text-blue-300" />
-                        </div>
-                      )}
-                      {/* Ticketmaster badge */}
-                      <span className="absolute top-2 left-2 bg-blue-600 text-white text-xs font-bold px-2 py-0.5 rounded">
-                        Ticketmaster
-                      </span>
-                    </div>
-
-                    <div className="p-4">
-                      <div className="flex items-start justify-between gap-2">
-                        {dateObj && (
-                          <div className="text-center bg-blue-50 border border-blue-100 rounded-lg px-2.5 py-1.5 min-w-[44px] shrink-0">
-                            <p className="text-xs font-medium text-blue-500 uppercase leading-none">
-                              {dateObj.toLocaleString('default', { month: 'short' })}
-                            </p>
-                            <p className="text-lg font-bold text-blue-700 leading-none mt-0.5">{dateObj.getDate()}</p>
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-bold text-gray-900 truncate">{ev.title}</h3>
-                          {(ev.venue_name || ev.city) && (
-                            <p className="flex items-center gap-1 text-xs text-gray-500 mt-0.5 truncate">
-                              <MapPin className="w-3 h-3 shrink-0" />
-                              {ev.venue_name ? `${ev.venue_name}${ev.city ? ', ' + ev.city : ''}` : ev.city}
-                              {ev.state ? `, ${ev.state}` : ''}
-                            </p>
-                          )}
-                          {ev.start_time && (
-                            <p className="text-xs text-gray-400 mt-0.5">{ev.start_time}</p>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-                        <div>
-                          {ev.category && (
-                            <span className="flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                              <Tag className="w-2.5 h-2.5" />{ev.category}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1 text-right">
-                          {ev.min_price !== null ? (
-                            <span className="text-sm font-bold text-gray-900">
-                              {ev.min_price === 0 ? 'Free' : `From $${ev.min_price.toFixed(0)}`}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-gray-400">See prices</span>
-                          )}
-                          <ExternalLink className="w-3 h-3 text-gray-400 ml-1" />
-                        </div>
-                      </div>
-                    </div>
-                  </a>
-                )
-              })}
-          </div>
-        )}
-      </div>
-
-      {/* ── SeatGeek Events ──────────────────────────────────────── */}
-      {(sgLoading || sgEvents.length > 0) && (
-        <div className="max-w-6xl mx-auto px-4 pb-10">
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">More Events on SeatGeek</h2>
-              <p className="text-xs text-gray-400 mt-0.5">
-                Powered by{' '}
-                <a href="https://www.seatgeek.com" target="_blank" rel="noopener noreferrer"
-                  className="underline hover:text-green-600">SeatGeek</a>
-                . Tickets sold by SeatGeek.
-              </p>
-            </div>
-          </div>
-
-          {sgLoading ? (
-            <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-green-400" /></div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {sgEvents
-                .filter(ev => !search ||
-                  ev.title.toLowerCase().includes(search.toLowerCase()) ||
-                  ev.city?.toLowerCase().includes(search.toLowerCase()) ||
-                  ev.venue_name?.toLowerCase().includes(search.toLowerCase()))
-                .map(ev => {
-                  const dateObj = ev.event_date ? new Date(ev.event_date + 'T00:00:00') : null
-                  return (
-                    <a
-                      key={ev.id}
-                      href={ev.seatgeek_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-md hover:border-green-200 transition-all group block"
-                    >
-                      <div className="h-44 bg-gradient-to-br from-green-100 to-emerald-100 relative overflow-hidden">
-                        {ev.image_url ? (
-                          <img src={ev.image_url} alt={ev.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                        ) : (
-                          <div className="flex items-center justify-center h-full">
-                            <Calendar className="w-12 h-12 text-green-300" />
-                          </div>
-                        )}
-                        <span className="absolute top-2 left-2 bg-green-600 text-white text-xs font-bold px-2 py-0.5 rounded">
-                          SeatGeek
-                        </span>
-                      </div>
-
-                      <div className="p-4">
-                        <div className="flex items-start justify-between gap-2">
-                          {dateObj && (
-                            <div className="text-center bg-green-50 border border-green-100 rounded-lg px-2.5 py-1.5 min-w-[44px] shrink-0">
-                              <p className="text-xs font-medium text-green-500 uppercase leading-none">
-                                {dateObj.toLocaleString('default', { month: 'short' })}
-                              </p>
-                              <p className="text-lg font-bold text-green-700 leading-none mt-0.5">{dateObj.getDate()}</p>
-                            </div>
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-bold text-gray-900 truncate">{ev.title}</h3>
-                            {(ev.venue_name || ev.city) && (
-                              <p className="flex items-center gap-1 text-xs text-gray-500 mt-0.5 truncate">
-                                <MapPin className="w-3 h-3 shrink-0" />
-                                {ev.venue_name ? `${ev.venue_name}${ev.city ? ', ' + ev.city : ''}` : ev.city}
-                                {ev.state ? `, ${ev.state}` : ''}
-                              </p>
-                            )}
-                            {ev.start_time && (
-                              <p className="text-xs text-gray-400 mt-0.5">{ev.start_time}</p>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-                          <div>
-                            {ev.category && (
-                              <span className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
-                                <Tag className="w-2.5 h-2.5" />{ev.category}
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            {ev.min_price !== null ? (
-                              <span className="text-sm font-bold text-gray-900">
-                                {ev.min_price === 0 ? 'Free' : `From $${ev.min_price.toFixed(0)}`}
-                              </span>
-                            ) : (
-                              <span className="text-xs text-gray-400">See prices</span>
-                            )}
-                            <ExternalLink className="w-3 h-3 text-gray-400 ml-1" />
-                          </div>
-                        </div>
-                      </div>
-                    </a>
-                  )
-                })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Aggregated External Events ───────────────────────────── */}
+      {/* ── Aggregated External Events (Internal-API) ───────────── */}
       {(extLoading || extEvents.length > 0) && (
         <div className="max-w-6xl mx-auto px-4 pb-10">
           <div className="flex items-center justify-between mb-5">
@@ -698,6 +465,117 @@ export default function PublicEventsPage() {
           )}
         </div>
       )}
+
+      {/* ── Ticketmaster Events ────────────────────────────────── */}
+      <div className="max-w-6xl mx-auto px-4 pb-10">
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Discover More Events</h2>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Powered by{' '}
+              <a href="https://www.ticketmaster.com" target="_blank" rel="noopener noreferrer"
+                className="underline hover:text-blue-600">Ticketmaster</a>
+              . Tickets sold by Ticketmaster.
+            </p>
+          </div>
+        </div>
+
+        {tmLoading ? (
+          <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-blue-400" /></div>
+        ) : tmEvents.length === 0 ? (
+          // Only show a "no results" message for Ticketmaster if the other
+          // sources (native + external aggregated) also have nothing to show —
+          // otherwise let those results speak for themselves without an odd
+          // "no results" message sitting between two sections that do have events.
+          zipCode && filtered.length === 0 && !extLoading && extEvents.length === 0 ? (
+            <p className="text-gray-400 text-sm text-center py-8">No Ticketmaster events found in this area.</p>
+          ) : !zipCode ? (
+            <p className="text-gray-400 text-sm text-center py-8">Enter a zip code to discover events near you.</p>
+          ) : null
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {tmEvents
+              .filter(ev => !search ||
+                ev.title.toLowerCase().includes(search.toLowerCase()) ||
+                ev.city?.toLowerCase().includes(search.toLowerCase()) ||
+                ev.venue_name?.toLowerCase().includes(search.toLowerCase()))
+              .map(ev => {
+                const dateObj = ev.event_date ? new Date(ev.event_date + 'T00:00:00') : null
+                return (
+                  <a
+                    key={ev.id}
+                    href={ev.ticketmaster_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-md hover:border-blue-200 transition-all group block"
+                  >
+                    {/* Cover image */}
+                    <div className="h-44 bg-gradient-to-br from-blue-100 to-indigo-100 relative overflow-hidden">
+                      {ev.image_url ? (
+                        <img src={ev.image_url} alt={ev.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                      ) : (
+                        <div className="flex items-center justify-center h-full">
+                          <Calendar className="w-12 h-12 text-blue-300" />
+                        </div>
+                      )}
+                      {/* Ticketmaster badge */}
+                      <span className="absolute top-2 left-2 bg-blue-600 text-white text-xs font-bold px-2 py-0.5 rounded">
+                        Ticketmaster
+                      </span>
+                    </div>
+
+                    <div className="p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        {dateObj && (
+                          <div className="text-center bg-blue-50 border border-blue-100 rounded-lg px-2.5 py-1.5 min-w-[44px] shrink-0">
+                            <p className="text-xs font-medium text-blue-500 uppercase leading-none">
+                              {dateObj.toLocaleString('default', { month: 'short' })}
+                            </p>
+                            <p className="text-lg font-bold text-blue-700 leading-none mt-0.5">{dateObj.getDate()}</p>
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-bold text-gray-900 truncate">{ev.title}</h3>
+                          {(ev.venue_name || ev.city) && (
+                            <p className="flex items-center gap-1 text-xs text-gray-500 mt-0.5 truncate">
+                              <MapPin className="w-3 h-3 shrink-0" />
+                              {ev.venue_name ? `${ev.venue_name}${ev.city ? ', ' + ev.city : ''}` : ev.city}
+                              {ev.state ? `, ${ev.state}` : ''}
+                            </p>
+                          )}
+                          {ev.start_time && (
+                            <p className="text-xs text-gray-400 mt-0.5">{ev.start_time}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+                        <div>
+                          {ev.category && (
+                            <span className="flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                              <Tag className="w-2.5 h-2.5" />{ev.category}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 text-right">
+                          {ev.min_price !== null ? (
+                            <span className="text-sm font-bold text-gray-900">
+                              {ev.min_price === 0 ? 'Free' : `From $${ev.min_price.toFixed(0)}`}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-400">See prices</span>
+                          )}
+                          <ExternalLink className="w-3 h-3 text-gray-400 ml-1" />
+                        </div>
+                      </div>
+                    </div>
+                  </a>
+                )
+              })}
+          </div>
+        )}
+      </div>
 
       {/* Footer */}
       <footer className="bg-gray-900 border-t border-gray-800 py-12 px-4 sm:px-6 lg:px-8">

@@ -24,7 +24,7 @@ import {
   RunDiscoveryDto,
 } from './dto/discovery-candidate.dto';
 
-const ADMIN_EMAIL = 'admin@dovenuesuite.com';
+const ADMIN_EMAIL = 'admin@eventecos.com';
 
 @Controller('external-events')
 export class ExternalEventsController {

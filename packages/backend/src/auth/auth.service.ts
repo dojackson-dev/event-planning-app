@@ -231,7 +231,6 @@ export class AuthService {
   async deleteAccount(accessToken: string) {
     const supabase = this.supabaseService.setAuthContext(accessToken);
 
-    // Get current user
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError) {
       throw new UnauthorizedException(userError.message);
@@ -239,18 +238,39 @@ export class AuthService {
 
     const userId = userData.user.id;
 
-    // Delete user data from database tables
-    // Order matters due to foreign key constraints
-    try {
-      // Delete in order to respect foreign keys
-      await supabase.from('notifications').delete().eq('user_id', userId);
-      await supabase.from('messages').delete().eq('sender_id', userId);
-      await supabase.from('users').delete().eq('id', userId);
-    } catch (dbError) {
-      console.warn('Error deleting user data from tables:', dbError);
+    const cleanupSteps = [
+      supabase.from('notifications').delete().eq('user_id', userId),
+      supabase.from('messages').delete().eq('sender_id', userId),
+      supabase
+        .from('service_items')
+        .update({ owner_id: null })
+        .eq('owner_id', userId),
+      supabase
+        .from('intake_forms')
+        .update({ assigned_to: null })
+        .eq('assigned_to', userId),
+      supabase
+        .from('invites')
+        .update({ accepted_by: null })
+        .eq('accepted_by', userId),
+      supabase
+        .from('vendor_bookings')
+        .delete()
+        .eq('booked_by_user_id', userId),
+      supabase
+        .from('vendor_reviews')
+        .delete()
+        .eq('reviewer_user_id', userId),
+      supabase.from('users').delete().eq('id', userId),
+    ];
+
+    for (const step of cleanupSteps) {
+      const { error } = await step;
+      if (error) {
+        console.warn('Delete cleanup warning:', error.message);
+      }
     }
 
-    // Delete the auth user using admin client
     const adminSupabase = this.supabaseService.getAdminClient();
     const { error } = await adminSupabase.auth.admin.deleteUser(userId);
 

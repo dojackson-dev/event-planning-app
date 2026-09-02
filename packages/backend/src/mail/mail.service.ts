@@ -1850,12 +1850,15 @@ export class MailService {
             <div style="margin: 0 32px 28px; background: #1E3A7F; border-radius: 10px; padding: 20px 24px;">
               <p style="color: #00BFA5; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; margin: 0 0 6px;">Get Paid</p>
               <p style="color: white; font-size: 16px; font-weight: 700; margin: 0 0 8px;">Connect Stripe to start accepting payments</p>
-              <p style="color: rgba(255,255,255,0.75); font-size: 13px; line-height: 1.6; margin: 0 0 16px;">
+              <p style="color: rgba(255,255,255,0.75); font-size: 13px; line-height: 1.6; margin: 0 0 12px;">
                 EventEcos uses Stripe to process payments securely. Once connected, clients can pay invoices, deposits, and VIP tickets directly — and funds land in your bank account.
               </p>
-              <a href="${dashboardUrl}/settings/payments"
+              <p style="color: rgba(255,255,255,0.75); font-size: 12px; line-height: 1.5; margin: 0 0 16px;">
+                Go to your Dashboard Settings, then scroll to the Payouts section and click Connect Bank Account.
+              </p>
+              <a href="${dashboardUrl}/settings"
                  style="display: inline-block; background: #00BFA5; color: white; padding: 10px 24px; text-decoration: none; border-radius: 6px; font-size: 14px; font-weight: 700;">
-                Connect Bank Account →
+                Open Settings →
               </a>
             </div>
 
@@ -1883,7 +1886,7 @@ export class MailService {
         to: params.toEmail,
         subject: `Welcome to EventEcos, ${params.firstName}! 🎉`,
         html,
-        text: `Welcome to EventEcos, ${params.firstName}!\n\n${subjectName} is live. ${role === 'owner' ? 'Your 30-day free trial has started.' : 'Your account is active.'}\n\nFeatures included:\n- Event Management\n- Contracts & E-Signatures\n- Invoicing & Quotes\n- Stripe Payments (connect your bank to get paid)\n- VIP Ticketing\n- Guest Lists & Door Management\n- Vendor Management\n- SMS Client Messaging\n\nGo to your dashboard: ${dashboardUrl}\nConnect Stripe: ${dashboardUrl}/settings/payments`,
+        text: `Welcome to EventEcos, ${params.firstName}!\n\n${subjectName} is live. ${role === 'owner' ? 'Your 30-day free trial has started.' : 'Your account is active.'}\n\nFeatures included:\n- Event Management\n- Contracts & E-Signatures\n- Invoicing & Quotes\n- Stripe Payments (connect your bank to get paid)\n- VIP Ticketing\n- Guest Lists & Door Management\n- Vendor Management\n- SMS Client Messaging\n\nGo to your dashboard: ${dashboardUrl}\nOpen Dashboard Settings: ${dashboardUrl}/settings\nThen scroll to Payouts and click Connect Bank Account.`,
       });
 
       console.log('[MailService] Welcome email sent to', params.toEmail);

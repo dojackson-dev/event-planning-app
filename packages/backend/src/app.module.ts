@@ -43,6 +43,7 @@ import { EventNotesModule } from './event-notes/event-notes.module';
 import { TicketmasterModule } from './ticketmaster/ticketmaster.module';
 import { SeatGeekModule } from './seatgeek/seatgeek.module';
 import { PredictHQModule } from './predicthq/predicthq.module';
+import { ExternalEventsModule } from './external-events/external-events.module';
 
 @Module({
   imports: [
@@ -90,6 +91,7 @@ import { PredictHQModule } from './predicthq/predicthq.module';
     TicketmasterModule,
     SeatGeekModule,
     PredictHQModule,
+    ExternalEventsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

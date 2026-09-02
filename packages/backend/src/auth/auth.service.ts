@@ -270,6 +270,16 @@ export class AuthService {
         column: 'reviewer_user_id',
       },
       {
+        table: 'artist_accounts',
+        type: 'delete' as const,
+        column: 'user_id',
+      },
+      {
+        table: 'promoter_accounts',
+        type: 'delete' as const,
+        column: 'user_id',
+      },
+      {
         table: 'activity_log',
         type: 'update' as const,
         column: 'actor_user_id',

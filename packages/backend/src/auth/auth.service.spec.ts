@@ -96,6 +96,8 @@ describe('AuthService', () => {
         'invites',
         'vendor_bookings',
         'vendor_reviews',
+        'artist_accounts',
+        'promoter_accounts',
         'client_profiles',
         'team_invitations',
         'activity_log',

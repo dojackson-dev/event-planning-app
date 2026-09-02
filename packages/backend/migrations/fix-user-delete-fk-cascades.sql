@@ -183,6 +183,64 @@ BEGIN
 END $$;
 
 -- ============================================================================
+-- artist_accounts.user_id → ON DELETE CASCADE
+-- ============================================================================
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'artist_accounts'
+      AND column_name = 'user_id'
+  ) THEN
+    DELETE FROM public.artist_accounts aa
+    WHERE aa.user_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM public.users u WHERE u.id = aa.user_id
+      );
+
+    ALTER TABLE public.artist_accounts
+      DROP CONSTRAINT IF EXISTS artist_accounts_user_id_fkey;
+
+    ALTER TABLE public.artist_accounts
+      ADD CONSTRAINT artist_accounts_user_id_fkey
+      FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+  ELSE
+    RAISE NOTICE 'Skipping artist_accounts.user_id (column missing)';
+  END IF;
+END $$;
+
+-- ============================================================================
+-- promoter_accounts.user_id → ON DELETE CASCADE
+-- ============================================================================
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'promoter_accounts'
+      AND column_name = 'user_id'
+  ) THEN
+    DELETE FROM public.promoter_accounts pa
+    WHERE pa.user_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM public.users u WHERE u.id = pa.user_id
+      );
+
+    ALTER TABLE public.promoter_accounts
+      DROP CONSTRAINT IF EXISTS promoter_accounts_user_id_fkey;
+
+    ALTER TABLE public.promoter_accounts
+      ADD CONSTRAINT promoter_accounts_user_id_fkey
+      FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+  ELSE
+    RAISE NOTICE 'Skipping promoter_accounts.user_id (column missing)';
+  END IF;
+END $$;
+
+-- ============================================================================
 -- client_profiles.user_id → ON DELETE CASCADE
 -- ============================================================================
 DO $$

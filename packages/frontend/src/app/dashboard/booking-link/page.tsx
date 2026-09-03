@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
 import { Link2, Copy, CheckCircle2, Loader2, Globe, MessageSquare, Save, Building2 } from 'lucide-react'
+import EmbedBookingSection from '@/components/EmbedBookingSection'
 
 interface BookingLink {
   id: string
@@ -167,6 +168,8 @@ export default function OwnerBookingLinkPage() {
                 </button>
               </div>
             </div>
+
+            {link && <EmbedBookingSection url={bookingUrl} />}
 
             <div className="flex justify-end">
               <button type="submit" disabled={saving}

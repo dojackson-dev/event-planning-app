@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
 import { MapPin, Calendar, Tag, Search, Filter, Loader2, Ticket, ExternalLink } from 'lucide-react'
@@ -106,8 +106,25 @@ export default function PublicEventsPage() {
   const [dateFilter, setDateFilter] = useState<'' | 'weekend' | 'week' | 'month'>('')
   const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7))
   const [showMonthPicker, setShowMonthPicker] = useState(false)
+  const [cityQuery, setCityQuery] = useState('')
+  const [citySuggestions, setCitySuggestions] = useState<Array<{ displayName: string; city: string; state: string; zip: string; lat: number; lng: number }>>([])
+  const [showCitySuggestions, setShowCitySuggestions] = useState(false)
+  const [cityLoading, setCityLoading] = useState(false)
+  const cityDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const cityBoxRef = useRef<HTMLDivElement>(null)
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+
+  // Close the city suggestions dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (cityBoxRef.current && !cityBoxRef.current.contains(e.target as Node)) {
+        setShowCitySuggestions(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   const matchesDateFilter = useCallback((eventDate: string) => {
     if (!dateFilter) return true
@@ -158,6 +175,7 @@ export default function PublicEventsPage() {
             const data = await res.json()
             if (data?.zip) {
               setZipCode(data.zip)
+              setCityQuery([data.city, data.state].filter(Boolean).join(', '))
               fetchEvents(data.zip, category, radiusMiles)
             }
           }
@@ -167,10 +185,61 @@ export default function PublicEventsPage() {
           setLocating(false)
         }
       },
-      () => { setLocating(false); setLocationError('Location access denied. Enter a zip code instead.') },
+      () => { setLocating(false); setLocationError('Location access denied. Enter a city instead.') },
       { timeout: 10000 },
     )
   }, [category, radiusMiles])
+
+  // Resolve a zip code for a suggestion that has coordinates but no postcode
+  // (common for large-city Nominatim results) via reverse geocoding.
+  const resolveZipFromCoords = async (lat: number, lng: number) => {
+    try {
+      const res = await fetch(`${API_URL}/vendors/geocode/reverse?lat=${lat}&lng=${lng}`)
+      if (res.ok) {
+        const data = await res.json()
+        return data?.zip || ''
+      }
+    } catch {
+      // ignore — search will proceed without a resolved zip
+    }
+    return ''
+  }
+
+  const fetchCitySuggestions = useCallback(async (query: string) => {
+    if (query.trim().length < 3) {
+      setCitySuggestions([])
+      setShowCitySuggestions(false)
+      return
+    }
+    setCityLoading(true)
+    try {
+      const res = await fetch(`${API_URL}/vendors/geocode/autocomplete?q=${encodeURIComponent(query)}`)
+      if (res.ok) {
+        const data = await res.json()
+        setCitySuggestions(data)
+        setShowCitySuggestions(data.length > 0)
+      }
+    } catch {
+      // silently fail — user can still press Search without picking a suggestion
+    } finally {
+      setCityLoading(false)
+    }
+  }, [API_URL])
+
+  const handleCityInputChange = (val: string) => {
+    setCityQuery(val)
+    if (cityDebounceRef.current) clearTimeout(cityDebounceRef.current)
+    cityDebounceRef.current = setTimeout(() => fetchCitySuggestions(val), 350)
+  }
+
+  const handleCitySelect = async (s: { city: string; state: string; zip: string; lat: number; lng: number }) => {
+    setShowCitySuggestions(false)
+    setCitySuggestions([])
+    setCityQuery([s.city, s.state].filter(Boolean).join(', '))
+    const resolvedZip = s.zip || await resolveZipFromCoords(s.lat, s.lng)
+    setZipCode(resolvedZip)
+    fetchEvents(resolvedZip, category, radiusMiles)
+  }
 
   const fetchEvents = (zip?: string, cat?: string, radius?: string) => {
     setLoading(true)
@@ -198,9 +267,31 @@ export default function PublicEventsPage() {
 
   useEffect(() => { fetchEvents() }, [])
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
-    fetchEvents(zipCode, category, radiusMiles)
+    let zip = zipCode
+    // If the user typed a city but hit Search without picking a dropdown
+    // suggestion, resolve the typed text to a zip before searching.
+    if (cityQuery.trim()) {
+      const match = citySuggestions[0] || (await (async () => {
+        try {
+          const res = await fetch(`${API_URL}/vendors/geocode/autocomplete?q=${encodeURIComponent(cityQuery.trim())}`)
+          if (res.ok) {
+            const data = await res.json()
+            return data[0]
+          }
+        } catch {
+          // ignore — fall back to whatever zip is already set
+        }
+        return undefined
+      })())
+      if (match) {
+        zip = match.zip || await resolveZipFromCoords(match.lat, match.lng)
+        setZipCode(zip)
+      }
+    }
+    setShowCitySuggestions(false)
+    fetchEvents(zip, category, radiusMiles)
   }
 
   const filtered = events.filter(e =>
@@ -266,12 +357,27 @@ export default function PublicEventsPage() {
                 placeholder="Search events..."
                 className="w-full text-sm text-gray-800 placeholder-gray-400 focus:outline-none" />
             </div>
-            <div className="flex items-center gap-2 px-3 border-r border-gray-200">
+            <div ref={cityBoxRef} className="relative flex items-center gap-2 px-3 border-r border-gray-200">
               <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
-              <input value={zipCode} onChange={e => setZipCode(e.target.value)}
-                placeholder="Zip code"
-                maxLength={10}
-                className="w-24 text-sm text-gray-800 placeholder-gray-400 focus:outline-none" />
+              <input value={cityQuery} onChange={e => handleCityInputChange(e.target.value)}
+                onFocus={() => citySuggestions.length > 0 && setShowCitySuggestions(true)}
+                placeholder="City"
+                autoComplete="off"
+                className="w-28 text-sm text-gray-800 placeholder-gray-400 focus:outline-none" />
+              {cityLoading && <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin shrink-0" />}
+              {showCitySuggestions && citySuggestions.length > 0 && (
+                <ul className="absolute left-0 top-full mt-1 w-64 max-h-60 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg z-50 text-left">
+                  {citySuggestions.map((s, i) => (
+                    <li key={i}>
+                      <button type="button" onMouseDown={() => handleCitySelect(s)}
+                        className="w-full flex items-start gap-2 px-3 py-2 text-left hover:bg-purple-50 transition-colors">
+                        <MapPin className="w-3.5 h-3.5 text-purple-500 mt-0.5 shrink-0" />
+                        <span className="text-sm text-gray-800">{[s.city, s.state].filter(Boolean).join(', ')}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
             <div className="flex items-center gap-2 px-3 border-r border-gray-200">
               <select value={radiusMiles} onChange={e => setRadiusMiles(e.target.value)}
@@ -590,7 +696,7 @@ export default function PublicEventsPage() {
           zipCode && filtered.length === 0 && !extLoading && extEvents.length === 0 ? (
             <p className="text-gray-400 text-sm text-center py-8">No Ticketmaster events found in this area.</p>
           ) : !zipCode ? (
-            <p className="text-gray-400 text-sm text-center py-8">Enter a zip code to discover events near you.</p>
+            <p className="text-gray-400 text-sm text-center py-8">Enter a city to discover events near you.</p>
           ) : null
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

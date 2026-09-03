@@ -52,6 +52,11 @@ export default function EventCard({ event, onPress, onFavorite, isFavorited = fa
             <Text style={styles.sourceBadgeText}>Ticketmaster</Text>
           </View>
         )}
+        {event.source === 'external' && (
+          <View style={styles.sourceBadge}>
+            <Text style={styles.sourceBadgeText}>Events</Text>
+          </View>
+        )}
         {onFavorite && (
           <TouchableOpacity style={styles.heartBtn} onPress={onFavorite}>
             <Ionicons

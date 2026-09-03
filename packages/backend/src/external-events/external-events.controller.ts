@@ -57,11 +57,13 @@ export class ExternalEventsController {
     @Query('zip_code') zipCode?: string,
     @Query('city') city?: string,
     @Query('category') category?: string,
+    @Query('radius_miles') radiusMiles?: string,
   ) {
     return this.externalEventsService.getPublicEvents({
       zip_code: zipCode,
       city,
       category,
+      radius_miles: radiusMiles ? parseInt(radiusMiles, 10) : undefined,
     });
   }
 

@@ -83,7 +83,7 @@ export default function PublicVenueBookingPage() {
           <h2 className="text-lg font-bold text-gray-900 mb-2">Ready to Book?</h2>
           <p className="text-sm text-gray-500 mb-6">Tell us about your event and we&apos;ll be in touch to confirm the details.</p>
           {intakeHref ? (
-            <Link href={intakeHref}
+            <Link href={intakeHref} target="_blank" rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-2 bg-orange-600 text-white font-semibold py-3 px-6 rounded-xl hover:bg-orange-700 transition-colors text-base">
               <Send className="w-5 h-5" /> Start Your Booking Request
             </Link>

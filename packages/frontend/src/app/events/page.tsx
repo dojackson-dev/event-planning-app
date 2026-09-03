@@ -103,8 +103,47 @@ export default function PublicEventsPage() {
   const [search, setSearch] = useState('')
   const [locating, setLocating] = useState(false)
   const [locationError, setLocationError] = useState('')
+  const [dateFilter, setDateFilter] = useState<'' | 'weekend' | 'week' | 'month'>('')
+  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7))
+  const [showMonthPicker, setShowMonthPicker] = useState(false)
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+
+  const matchesDateFilter = useCallback((eventDate: string) => {
+    if (!dateFilter) return true
+    const d = new Date(eventDate + 'T00:00:00')
+    if (dateFilter === 'month') {
+      return eventDate.slice(0, 7) === selectedMonth
+    }
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    if (d < today) return false
+    if (dateFilter === 'week') {
+      const endOfWeek = new Date(today)
+      endOfWeek.setDate(today.getDate() + (7 - today.getDay()))
+      endOfWeek.setHours(23, 59, 59, 999)
+      return d <= endOfWeek
+    }
+    // weekend: the upcoming (or current) Saturday through Sunday
+    const daysUntilSaturday = (6 - today.getDay() + 7) % 7
+    const saturday = new Date(today)
+    saturday.setDate(today.getDate() + daysUntilSaturday)
+    const sunday = new Date(saturday)
+    sunday.setDate(saturday.getDate() + 1)
+    sunday.setHours(23, 59, 59, 999)
+    return d >= saturday && d <= sunday
+  }, [dateFilter, selectedMonth])
+
+  const toggleDateFilter = (value: 'weekend' | 'week' | 'month') => {
+    if (value === 'month') {
+      setShowMonthPicker(prev => dateFilter === 'month' ? !prev : true)
+      setDateFilter('month')
+      return
+    }
+    setShowMonthPicker(false)
+    setDateFilter(prev => prev === value ? '' : value)
+  }
+
 
   const useMyLocation = useCallback(() => {
     if (!navigator.geolocation) { setLocationError('Geolocation not supported.'); return }
@@ -165,9 +204,10 @@ export default function PublicEventsPage() {
   }
 
   const filtered = events.filter(e =>
-    !search || e.title.toLowerCase().includes(search.toLowerCase()) ||
+    matchesDateFilter(e.event_date) &&
+    (!search || e.title.toLowerCase().includes(search.toLowerCase()) ||
     e.city?.toLowerCase().includes(search.toLowerCase()) ||
-    e.venue_name?.toLowerCase().includes(search.toLowerCase())
+    e.venue_name?.toLowerCase().includes(search.toLowerCase()))
   )
 
   return (
@@ -258,6 +298,66 @@ export default function PublicEventsPage() {
             </button>
           </form>
           {locationError && <p className="text-red-300 text-sm mt-2">{locationError}</p>}
+
+          {/* Quick date navigation — designed for phone-screen use */}
+          <div className="mt-4 max-w-2xl mx-auto">
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:justify-center sm:overflow-visible">
+              <button
+                type="button"
+                onClick={() => toggleDateFilter('weekend')}
+                className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
+                  dateFilter === 'weekend'
+                    ? 'bg-white text-blue-700 border-white'
+                    : 'bg-blue-600/40 text-white border-blue-300 hover:bg-blue-600/60'
+                }`}
+              >
+                This Weekend
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleDateFilter('week')}
+                className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
+                  dateFilter === 'week'
+                    ? 'bg-white text-blue-700 border-white'
+                    : 'bg-blue-600/40 text-white border-blue-300 hover:bg-blue-600/60'
+                }`}
+              >
+                This Week
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleDateFilter('month')}
+                className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
+                  dateFilter === 'month'
+                    ? 'bg-white text-blue-700 border-white'
+                    : 'bg-blue-600/40 text-white border-blue-300 hover:bg-blue-600/60'
+                }`}
+              >
+                {dateFilter === 'month'
+                  ? new Date(selectedMonth + '-01T00:00:00').toLocaleString('default', { month: 'long', year: 'numeric' })
+                  : 'Select Month'}
+              </button>
+              {dateFilter && (
+                <button
+                  type="button"
+                  onClick={() => { setDateFilter(''); setShowMonthPicker(false) }}
+                  className="shrink-0 px-3 py-2 rounded-full text-sm font-medium text-blue-100 hover:text-white underline underline-offset-2"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            {showMonthPicker && (
+              <div className="mt-2 flex justify-center">
+                <input
+                  type="month"
+                  value={selectedMonth}
+                  onChange={e => { setSelectedMonth(e.target.value); setDateFilter('month') }}
+                  className="text-sm text-gray-800 bg-white rounded-lg px-3 py-2 focus:outline-none"
+                />
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -379,10 +479,10 @@ export default function PublicEventsPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {extEvents
-                .filter(ev => !search ||
+                .filter(ev => matchesDateFilter(ev.event_date) && (!search ||
                   ev.title.toLowerCase().includes(search.toLowerCase()) ||
                   ev.city?.toLowerCase().includes(search.toLowerCase()) ||
-                  ev.venue_name?.toLowerCase().includes(search.toLowerCase()))
+                  ev.venue_name?.toLowerCase().includes(search.toLowerCase())))
                 .map(ev => {
                   const dateObj = ev.event_date ? new Date(ev.event_date + 'T00:00:00') : null
                   const card = (
@@ -495,10 +595,10 @@ export default function PublicEventsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {tmEvents
-              .filter(ev => !search ||
+              .filter(ev => matchesDateFilter(ev.event_date) && (!search ||
                 ev.title.toLowerCase().includes(search.toLowerCase()) ||
                 ev.city?.toLowerCase().includes(search.toLowerCase()) ||
-                ev.venue_name?.toLowerCase().includes(search.toLowerCase()))
+                ev.venue_name?.toLowerCase().includes(search.toLowerCase())))
               .map(ev => {
                 const dateObj = ev.event_date ? new Date(ev.event_date + 'T00:00:00') : null
                 return (

@@ -48,7 +48,9 @@ describe('AuthService', () => {
     await expect(service.deleteAccount('token-123')).resolves.toEqual({
       message: 'Account deleted successfully',
     });
-    expect(adminSupabase.auth.admin.deleteUser).toHaveBeenCalledWith('user-123');
+    expect(adminSupabase.auth.admin.deleteUser).toHaveBeenCalledWith(
+      'user-123',
+    );
   });
 
   it('cleans up the remaining user-delete blocker tables before deleting auth user', async () => {

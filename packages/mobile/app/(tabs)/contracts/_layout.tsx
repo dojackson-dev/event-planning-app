@@ -11,6 +11,7 @@ export default function ContractsLayout() {
       }}
     >
       <Stack.Screen name="index" options={{ title: 'Contracts' }} />
+      <Stack.Screen name="new" options={{ title: 'New Contract' }} />
       <Stack.Screen name="[id]" options={{ title: 'Contract' }} />
     </Stack>
   );

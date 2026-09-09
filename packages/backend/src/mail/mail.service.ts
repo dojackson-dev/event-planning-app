@@ -1719,7 +1719,9 @@ export class MailService {
     role?: 'owner' | 'vendor' | 'promoter' | 'artist' | 'affiliate';
   }): Promise<void> {
     if (!process.env.RESEND_API_KEY) {
-      console.warn('[MailService] RESEND_API_KEY not set — skipping welcome email');
+      console.warn(
+        '[MailService] RESEND_API_KEY not set — skipping welcome email',
+      );
       return;
     }
     try {

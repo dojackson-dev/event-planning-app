@@ -637,8 +637,14 @@ export class AuthFlowService {
     }
 
     this.mailService
-      .sendWelcomeEmail({ toEmail: dto.email, firstName: dto.firstName, role: 'vendor' })
-      .catch((err) => console.error('[AuthFlowService] Welcome email failed:', err));
+      .sendWelcomeEmail({
+        toEmail: dto.email,
+        firstName: dto.firstName,
+        role: 'vendor',
+      })
+      .catch((err) =>
+        console.error('[AuthFlowService] Welcome email failed:', err),
+      );
 
     return {
       userId,
@@ -713,8 +719,14 @@ export class AuthFlowService {
     if (userError) throw new BadRequestException(userError.message);
 
     this.mailService
-      .sendWelcomeEmail({ toEmail: dto.email, firstName: dto.firstName, role: 'promoter' })
-      .catch((err) => console.error('[AuthFlowService] Welcome email failed:', err));
+      .sendWelcomeEmail({
+        toEmail: dto.email,
+        firstName: dto.firstName,
+        role: 'promoter',
+      })
+      .catch((err) =>
+        console.error('[AuthFlowService] Welcome email failed:', err),
+      );
 
     return {
       userId,
@@ -789,8 +801,14 @@ export class AuthFlowService {
     if (userError) throw new BadRequestException(userError.message);
 
     this.mailService
-      .sendWelcomeEmail({ toEmail: dto.email, firstName: dto.firstName, role: 'artist' })
-      .catch((err) => console.error('[AuthFlowService] Welcome email failed:', err));
+      .sendWelcomeEmail({
+        toEmail: dto.email,
+        firstName: dto.firstName,
+        role: 'artist',
+      })
+      .catch((err) =>
+        console.error('[AuthFlowService] Welcome email failed:', err),
+      );
 
     return {
       userId,

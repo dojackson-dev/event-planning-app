@@ -301,10 +301,7 @@ export class AuthService {
 
     for (const step of cleanupSteps) {
       try {
-        let result:
-          | { error?: { message?: string } | null }
-          | null
-          | undefined;
+        let result: { error?: { message?: string } | null } | null | undefined;
 
         if (step.type === 'delete') {
           result = await supabase

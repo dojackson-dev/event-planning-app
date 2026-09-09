@@ -25,6 +25,14 @@ interface PaymentSchedule {
   require_deposit: boolean;
 }
 
+// The backend's /owner/payment-schedule endpoint uses camelCase keys and has
+// no separate "require deposit" flag — a null percentage means not required.
+interface PaymentScheduleApi {
+  depositPercentage: number | null;
+  depositDueDaysBefore: number | null;
+  finalPaymentDueDaysBefore: number | null;
+}
+
 export default function SettingsScreen() {
   const [tab, setTab] = useState<Tab>('profile');
 
@@ -59,11 +67,11 @@ function ProfileTab() {
         if (!user) return;
         setProfile(prev => ({ ...prev, email: user.email || '' }));
         const { data } = await supabase
-          .from('owner_profiles')
-          .select('first_name, last_name, phone')
-          .eq('user_id', user.id)
+          .from('users')
+          .select('first_name, last_name, phone_number')
+          .eq('id', user.id)
           .maybeSingle();
-        if (data) setProfile(prev => ({ ...prev, first_name: data.first_name || '', last_name: data.last_name || '', phone: data.phone || '' }));
+        if (data) setProfile(prev => ({ ...prev, first_name: data.first_name || '', last_name: data.last_name || '', phone: data.phone_number || '' }));
       } catch {
         // silent
       } finally {
@@ -79,8 +87,9 @@ function ProfileTab() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
       const { error } = await supabase
-        .from('owner_profiles')
-        .upsert({ user_id: user.id, first_name: profile.first_name, last_name: profile.last_name, phone: profile.phone }, { onConflict: 'user_id' });
+        .from('users')
+        .update({ first_name: profile.first_name, last_name: profile.last_name, phone_number: profile.phone })
+        .eq('id', user.id);
       if (error) throw error;
       Alert.alert('Saved', 'Profile updated.');
     } catch (err: any) {
@@ -137,8 +146,15 @@ function BillingTab() {
     const load = async () => {
       setLoading(true);
       try {
-        const data = await apiRequest<PaymentSchedule>('/owner/payment-schedule');
-        if (data) setSchedule(data);
+        const data = await apiRequest<PaymentScheduleApi>('/owner/payment-schedule');
+        if (data) {
+          setSchedule({
+            deposit_percentage: data.depositPercentage ?? 25,
+            deposit_due_days: data.depositDueDaysBefore ?? 30,
+            final_payment_days: data.finalPaymentDueDaysBefore ?? 7,
+            require_deposit: data.depositPercentage != null,
+          });
+        }
       } catch {
         // use defaults
       } finally {
@@ -151,7 +167,12 @@ function BillingTab() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await apiRequest('/owner/payment-schedule', { method: 'PUT', body: schedule });
+      const body: PaymentScheduleApi = {
+        depositPercentage: schedule.require_deposit ? schedule.deposit_percentage : null,
+        depositDueDaysBefore: schedule.require_deposit ? schedule.deposit_due_days : null,
+        finalPaymentDueDaysBefore: schedule.final_payment_days,
+      };
+      await apiRequest('/owner/payment-schedule', { method: 'PUT', body });
       Alert.alert('Saved', 'Payment schedule updated.');
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to save');

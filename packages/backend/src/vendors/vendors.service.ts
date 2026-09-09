@@ -245,7 +245,9 @@ export class VendorsService {
     const brandingById = new Map(
       (branding || []).map((b: any) => [
         b.id,
-        Array.isArray(b.owner_accounts) ? b.owner_accounts[0] : b.owner_accounts,
+        Array.isArray(b.owner_accounts)
+          ? b.owner_accounts[0]
+          : b.owner_accounts,
       ]),
     );
 
@@ -253,7 +255,8 @@ export class VendorsService {
       const ownerAccount = brandingById.get(v.id);
       return {
         ...v,
-        profile_image_url: v.profile_image_url || ownerAccount?.logo_url || null,
+        profile_image_url:
+          v.profile_image_url || ownerAccount?.logo_url || null,
         cover_image_url: ownerAccount?.cover_image_url || null,
       };
     });
@@ -305,16 +308,17 @@ export class VendorsService {
   }
 
   /** Fall back to the owner's branding logo/cover (Settings > Branding) when the venue has no image of its own. */
-  private applyOwnerBranding<T extends { profile_image_url?: string | null; owner_accounts?: any }>(
-    venue: T,
-  ) {
+  private applyOwnerBranding<
+    T extends { profile_image_url?: string | null; owner_accounts?: any },
+  >(venue: T) {
     const ownerAccount = Array.isArray(venue.owner_accounts)
       ? venue.owner_accounts[0]
       : venue.owner_accounts;
     const { owner_accounts, ...rest } = venue as any;
     return {
       ...rest,
-      profile_image_url: rest.profile_image_url || ownerAccount?.logo_url || null,
+      profile_image_url:
+        rest.profile_image_url || ownerAccount?.logo_url || null,
       cover_image_url: ownerAccount?.cover_image_url || null,
     };
   }
@@ -456,7 +460,8 @@ export class VendorsService {
         );
       } catch (smsErr) {
         // Don't fail the booking if SMS fails
-        const message = smsErr instanceof Error ? smsErr.message : String(smsErr);
+        const message =
+          smsErr instanceof Error ? smsErr.message : String(smsErr);
         this.logger.warn(
           `Failed to send SMS to vendor ${vendor.business_name}: ${message}`,
         );

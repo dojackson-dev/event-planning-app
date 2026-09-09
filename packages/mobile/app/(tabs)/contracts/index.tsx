@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { apiRequest } from '@/lib/api';
 import { Colors, Radius, Shadow } from '@/lib/theme';
 import EmptyState from '@/components/EmptyState';
@@ -30,6 +31,7 @@ const statusLabel = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export default function ContractsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -54,6 +56,13 @@ export default function ContractsScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={[styles.headerRow, { paddingTop: insets.top + 56 }]}>
+        <View style={{ flex: 1 }} />
+        <TouchableOpacity style={styles.newBtn} onPress={() => router.push('/(tabs)/contracts/new' as any)}>
+          <Ionicons name="add" size={18} color="#FFF" />
+          <Text style={styles.newBtnText}>New</Text>
+        </TouchableOpacity>
+      </View>
       <FlatList
         data={contracts}
         keyExtractor={(item) => item.id}
@@ -65,7 +74,7 @@ export default function ContractsScreen() {
           <EmptyState
             icon="document-text-outline"
             title={error ? 'Something went wrong' : 'No contracts yet'}
-            message={error || 'Contracts you send to clients will show up here.'}
+            message={error || 'Create a venue booking agreement from one of your events, or send an upload from the web app.'}
           />
         }
         renderItem={({ item }) => {
@@ -96,6 +105,13 @@ export default function ContractsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
+  headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 12 },
+  newBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: Colors.primary, paddingHorizontal: 14, paddingVertical: 7,
+    borderRadius: Radius.full,
+  },
+  newBtnText: { color: '#FFF', fontSize: 13, fontWeight: '600' },
   list: { padding: 16, gap: 12 },
   emptyContainer: { flexGrow: 1, justifyContent: 'center', padding: 16 },
   card: { backgroundColor: '#fff', borderRadius: Radius.md, padding: 16 },

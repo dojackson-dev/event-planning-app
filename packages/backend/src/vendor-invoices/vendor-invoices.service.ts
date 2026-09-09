@@ -723,7 +723,12 @@ export class VendorInvoicesService {
     const vendor = invoice.vendor_accounts;
     const hasConnect =
       vendor?.stripe_account_id && vendor?.stripe_connect_status === 'active';
-    const bnplMethods = ['afterpay_clearpay', 'klarna', 'affirm', 'us_bank_account'] as const;
+    const bnplMethods = [
+      'afterpay_clearpay',
+      'klarna',
+      'affirm',
+      'us_bank_account',
+    ] as const;
 
     const sessionParams: Stripe.Checkout.SessionCreateParams = {
       mode: 'payment',
@@ -891,7 +896,10 @@ export class VendorInvoicesService {
 
   // ─── ACH delayed payment handlers ───────────────────────────────────────────
 
-  async markInvoiceProcessing(sessionId: string, paymentIntentId: string | null) {
+  async markInvoiceProcessing(
+    sessionId: string,
+    paymentIntentId: string | null,
+  ) {
     const admin = this.supabaseService.getAdminClient();
     await admin
       .from('vendor_invoices')
@@ -901,7 +909,9 @@ export class VendorInvoicesService {
         updated_at: new Date().toISOString(),
       })
       .eq('stripe_checkout_session_id', sessionId);
-    this.logger.log(`Vendor invoice set to processing via session ${sessionId}`);
+    this.logger.log(
+      `Vendor invoice set to processing via session ${sessionId}`,
+    );
   }
 
   async markInvoicePaidByPaymentIntent(paymentIntentId: string) {
@@ -934,13 +944,27 @@ export class VendorInvoicesService {
         .eq('id', invoice.vendor_booking_id);
     }
 
-    this.logger.log(`Vendor invoice ${invoice.id} marked paid via PaymentIntent ${paymentIntentId}`);
+    this.logger.log(
+      `Vendor invoice ${invoice.id} marked paid via PaymentIntent ${paymentIntentId}`,
+    );
 
     try {
-      const vendorPhone: string | null = (invoice.vendor_accounts as any)?.phone ?? null;
-      const vendorName: string = (invoice.vendor_accounts as any)?.business_name ?? 'Vendor';
-      await this.smsNotifications.vendorInvoicePaid(vendorPhone, vendorName, invoice.client_name ?? 'Client', invoice.total_amount);
-      await this.smsNotifications.paymentReceived(invoice.client_phone ?? null, invoice.client_name ?? 'Valued Client', invoice.total_amount, `your invoice from ${vendorName}`);
+      const vendorPhone: string | null =
+        (invoice.vendor_accounts as any)?.phone ?? null;
+      const vendorName: string =
+        (invoice.vendor_accounts as any)?.business_name ?? 'Vendor';
+      await this.smsNotifications.vendorInvoicePaid(
+        vendorPhone,
+        vendorName,
+        invoice.client_name ?? 'Client',
+        invoice.total_amount,
+      );
+      await this.smsNotifications.paymentReceived(
+        invoice.client_phone ?? null,
+        invoice.client_name ?? 'Valued Client',
+        invoice.total_amount,
+        `your invoice from ${vendorName}`,
+      );
     } catch {
       // SMS errors must never break payment processing
     }

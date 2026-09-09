@@ -9,7 +9,10 @@ export default function EventsLayout() {
         headerTintColor: '#FFFFFF',
         headerTitleStyle: { fontWeight: '700', fontSize: 17 },
         headerBackButtonDisplayMode: 'minimal',
+        headerBackTitle: 'Events',
       }}
-    />
+    >
+      <Stack.Screen name="index" options={{ title: 'Events' }} />
+    </Stack>
   );
 }

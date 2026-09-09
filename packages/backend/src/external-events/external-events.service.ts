@@ -64,36 +64,50 @@ export class ExternalEventsService {
     const today = new Date().toISOString().slice(0, 10);
     const resultLimit = params.limit ?? 100;
 
-    let query = admin
-      .from('external_events')
-      .select(
-        'id, title, description, event_date, start_time, venue_name, city, state, zip_code, category, image_url, event_url, price_min, price_max, organizer',
-      )
-      .gte('event_date', today)
-      .neq('dedupe_status', 'duplicate')
-      .gte('confidence_score', MIN_CONFIDENCE)
-      .is('expired_at', null)
-      .order('event_date', { ascending: true });
+    const buildQuery = () => {
+      let query = admin
+        .from('external_events')
+        .select(
+          'id, title, description, event_date, start_time, venue_name, city, state, zip_code, category, image_url, event_url, price_min, price_max, organizer',
+        )
+        .gte('event_date', today)
+        .neq('dedupe_status', 'duplicate')
+        .gte('confidence_score', MIN_CONFIDENCE)
+        .is('expired_at', null)
+        .order('event_date', { ascending: true });
+      if (params.city) query = query.ilike('city', params.city);
+      if (params.category) query = query.eq('category', params.category);
+      return query;
+    };
 
-    if (params.city) query = query.ilike('city', params.city);
-    if (params.category) query = query.eq('category', params.category);
+    let data: Omit<PublicExternalEvent, 'source'>[];
+    if (!params.zip_code) {
+      const { data: rows, error } = await buildQuery().limit(resultLimit);
+      if (error) throw new Error(error.message);
+      data = rows || [];
+    } else {
+      // The radius match happens in-memory below, so we can't cap this query
+      // with .limit() — but PostgREST silently caps any unpaginated query at
+      // its default max-rows (commonly 1000), which would otherwise cut off
+      // matching rows for the target zip once total upcoming events exceed
+      // that cap. Page through with .range() to fetch everything instead.
+      const pageSize = 1000;
+      data = [];
+      for (let offset = 0; ; offset += pageSize) {
+        const { data: rows, error } = await buildQuery().range(
+          offset,
+          offset + pageSize - 1,
+        );
+        if (error) throw new Error(error.message);
+        data.push(...(rows || []));
+        if (!rows || rows.length < pageSize) break;
+      }
+    }
 
-    // When filtering by zip_code, the radius match happens in-memory below,
-    // so the row-limit must not be applied at the DB level here — otherwise
-    // rows for the matching city could be cut off the page before the radius
-    // filter ever sees them. Only cap the query directly when there's no
-    // zip_code filter to worry about.
-    if (!params.zip_code) query = query.limit(resultLimit);
-
-    const { data, error } = await query;
-    if (error) throw new Error(error.message);
-
-    let events = (data || []).map(
-      (row: Omit<PublicExternalEvent, 'source'>) => ({
-        ...row,
-        source: 'external' as const,
-      }),
-    );
+    let events = data.map((row) => ({
+      ...row,
+      source: 'external' as const,
+    }));
 
     if (params.zip_code) {
       const radiusMiles = params.radius_miles ?? 30;

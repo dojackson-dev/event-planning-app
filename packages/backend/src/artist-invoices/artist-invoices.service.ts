@@ -580,11 +580,18 @@ export class ArtistInvoicesService {
     );
     const feeCents = Math.round(baseCents * APP_FEE_RATE);
 
-    const bnplMethods = ['afterpay_clearpay', 'klarna', 'affirm', 'us_bank_account'] as const;
+    const bnplMethods = [
+      'afterpay_clearpay',
+      'klarna',
+      'affirm',
+      'us_bank_account',
+    ] as const;
 
     const session = await this.stripe.checkout.sessions.create({
       mode: 'payment',
-      payment_method_types: artist?.enable_bnpl ? ['card', ...bnplMethods] : ['card'],
+      payment_method_types: artist?.enable_bnpl
+        ? ['card', ...bnplMethods]
+        : ['card'],
       customer_email: invoice.client_email,
       line_items: [
         {
@@ -692,7 +699,10 @@ export class ArtistInvoicesService {
 
   // ─── ACH delayed payment handlers ─────────────────────────────────────────
 
-  async markInvoiceProcessing(sessionId: string, paymentIntentId: string | null) {
+  async markInvoiceProcessing(
+    sessionId: string,
+    paymentIntentId: string | null,
+  ) {
     const admin = this.supabaseService.getAdminClient();
     await admin
       .from('artist_invoices')
@@ -702,7 +712,9 @@ export class ArtistInvoicesService {
         updated_at: new Date().toISOString(),
       })
       .eq('stripe_checkout_session_id', sessionId);
-    this.logger.log(`Artist invoice set to processing via session ${sessionId}`);
+    this.logger.log(
+      `Artist invoice set to processing via session ${sessionId}`,
+    );
   }
 
   async markInvoicePaidByPaymentIntent(paymentIntentId: string) {
@@ -733,14 +745,27 @@ export class ArtistInvoicesService {
       .update({ status: 'deposit_paid', updated_at: new Date().toISOString() })
       .eq('artist_invoice_id', invoice.id);
 
-    this.logger.log(`Artist invoice ${invoice.id} marked paid via PaymentIntent ${paymentIntentId}`);
+    this.logger.log(
+      `Artist invoice ${invoice.id} marked paid via PaymentIntent ${paymentIntentId}`,
+    );
 
     try {
       const artistAccount = invoice.artist_accounts as any;
       const artistPhone: string | null = artistAccount?.booking_phone ?? null;
-      const artistName: string = artistAccount?.stage_name || artistAccount?.artist_name || 'Artist';
-      await this.smsNotifications.vendorInvoicePaid(artistPhone, artistName, invoice.client_name ?? 'Client', invoice.total_amount);
-      await this.smsNotifications.paymentReceived((invoice as any).client_phone ?? null, invoice.client_name ?? 'Valued Client', invoice.total_amount, `your invoice from ${artistName}`);
+      const artistName: string =
+        artistAccount?.stage_name || artistAccount?.artist_name || 'Artist';
+      await this.smsNotifications.vendorInvoicePaid(
+        artistPhone,
+        artistName,
+        invoice.client_name ?? 'Client',
+        invoice.total_amount,
+      );
+      await this.smsNotifications.paymentReceived(
+        (invoice as any).client_phone ?? null,
+        invoice.client_name ?? 'Valued Client',
+        invoice.total_amount,
+        `your invoice from ${artistName}`,
+      );
     } catch {
       // SMS errors must never break payment processing
     }

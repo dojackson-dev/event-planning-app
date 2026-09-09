@@ -40,9 +40,11 @@ export class GuestListsService {
       .select('id, event_id')
       .eq('id', guestListId)
       .single();
-    if (error || !guestList) throw new NotFoundException('Guest list not found');
+    if (error || !guestList)
+      throw new NotFoundException('Guest list not found');
 
-    if (!guestList.event_id) throw new NotFoundException('Guest list not found');
+    if (!guestList.event_id)
+      throw new NotFoundException('Guest list not found');
     const { data: event } = await supabase
       .from('event')
       .select('owner_id')

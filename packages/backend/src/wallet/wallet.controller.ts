@@ -10,7 +10,10 @@ export class WalletController {
 
   /** Generates and downloads an Apple Wallet .pkpass for a ticket (public — no auth) */
   @Get('apple/:ticketId')
-  async appleWallet(@Param('ticketId') ticketId: string, @Res() res: Response): Promise<void> {
+  async appleWallet(
+    @Param('ticketId') ticketId: string,
+    @Res() res: Response,
+  ): Promise<void> {
     try {
       const buffer = await this.walletService.getAppleWalletPass(ticketId);
       res.setHeader('Content-Type', 'application/vnd.apple.pkpass');
@@ -29,7 +32,10 @@ export class WalletController {
 
   /** Redirects to the Google Wallet save URL for a ticket (public — no auth) */
   @Get('google/:ticketId')
-  async googleWallet(@Param('ticketId') ticketId: string, @Res() res: Response): Promise<void> {
+  async googleWallet(
+    @Param('ticketId') ticketId: string,
+    @Res() res: Response,
+  ): Promise<void> {
     try {
       const url = await this.walletService.getGoogleWalletUrl(ticketId);
       res.redirect(url);

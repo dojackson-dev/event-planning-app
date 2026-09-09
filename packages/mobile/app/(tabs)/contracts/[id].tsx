@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, Alert,
 } from 'react-native';
 import { useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { WebView } from 'react-native-webview';
 import { apiRequest } from '@/lib/api';
 import { Colors, Radius, Shadow } from '@/lib/theme';
 import SignaturePad from '@/components/SignaturePad';
@@ -101,6 +102,17 @@ export default function ContractDetailScreen() {
         )}
       </View>
 
+      {!!contract.body && (
+        <View style={[styles.bodyCard, Shadow.sm]}>
+          <WebView
+            source={{ html: contract.body }}
+            style={styles.bodyWebView}
+            scrollEnabled
+            originWhitelist={['*']}
+          />
+        </View>
+      )}
+
       {contract.status === 'draft' && (
         <TouchableOpacity style={styles.primaryBtn} onPress={handleSend} disabled={busy}>
           <Text style={styles.primaryBtnText}>{busy ? 'Sending…' : 'Send to Client'}</Text>
@@ -128,6 +140,8 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.background },
   errorText: { color: Colors.textSecondary, fontSize: 15 },
   card: { backgroundColor: '#fff', borderRadius: Radius.md, padding: 16, gap: 6 },
+  bodyCard: { backgroundColor: '#fff', borderRadius: Radius.md, overflow: 'hidden', height: 480 },
+  bodyWebView: { flex: 1, backgroundColor: '#fff' },
   title: { fontSize: 18, fontWeight: '700', color: Colors.textPrimary },
   status: { fontSize: 14, color: Colors.textSecondary, textTransform: 'capitalize' },
   row: { fontSize: 14, color: Colors.textSecondary },

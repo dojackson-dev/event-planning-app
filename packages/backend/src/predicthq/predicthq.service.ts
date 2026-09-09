@@ -43,16 +43,21 @@ export class PredictHQService {
 
   constructor(private readonly configService: ConfigService) {}
 
-  private async zipToLatLng(zip: string): Promise<{ lat: number; lng: number } | null> {
+  private async zipToLatLng(
+    zip: string,
+  ): Promise<{ lat: number; lng: number } | null> {
     const cached = this.zipCache.get(zip);
     if (cached) return cached;
     try {
       const res = await fetch(`https://api.zippopotam.us/us/${zip}`);
       if (!res.ok) return null;
-      const body = await res.json() as any;
+      const body = await res.json();
       const place = body?.places?.[0];
       if (!place) return null;
-      const coords = { lat: parseFloat(place.latitude), lng: parseFloat(place.longitude) };
+      const coords = {
+        lat: parseFloat(place.latitude),
+        lng: parseFloat(place.longitude),
+      };
       this.zipCache.set(zip, coords);
       return coords;
     } catch {
@@ -93,7 +98,10 @@ export class PredictHQService {
       query.set('category', CATEGORY_MAP[params.category]);
     } else {
       // Default: show ticketed/attended events only
-      query.set('category', 'concerts,festivals,sports,performing-arts,conferences,expos,community');
+      query.set(
+        'category',
+        'concerts,festivals,sports,performing-arts,conferences,expos,community',
+      );
     }
 
     if (params.keyword) query.set('q', params.keyword);
@@ -111,7 +119,7 @@ export class PredictHQService {
         return [];
       }
 
-      const body = await res.json() as any;
+      const body = await res.json();
       const raw: any[] = body?.results ?? [];
 
       const events: PredictHQEvent[] = raw
@@ -120,8 +128,12 @@ export class PredictHQService {
           const startLocal: string = e.start ?? '';
           const [datePart, timePart] = startLocal.split('T');
           const venue = e.entities?.find((en: any) => en.type === 'venue');
-          const cityEntity = e.entities?.find((en: any) => en.type === 'locality');
-          const stateEntity = e.entities?.find((en: any) => en.type === 'region');
+          const cityEntity = e.entities?.find(
+            (en: any) => en.type === 'locality',
+          );
+          const stateEntity = e.entities?.find(
+            (en: any) => en.type === 'region',
+          );
 
           return {
             id: `phq_${e.id}`,
@@ -141,8 +153,13 @@ export class PredictHQService {
           };
         });
 
-      this.cache.set(cacheKey, { data: events, expiresAt: Date.now() + CACHE_TTL_MS });
-      this.logger.log(`PredictHQ: ${events.length} events for ${JSON.stringify(params)}`);
+      this.cache.set(cacheKey, {
+        data: events,
+        expiresAt: Date.now() + CACHE_TTL_MS,
+      });
+      this.logger.log(
+        `PredictHQ: ${events.length} events for ${JSON.stringify(params)}`,
+      );
       return events;
     } catch (err) {
       this.logger.error('PredictHQ API error', (err as Error).message);

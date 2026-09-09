@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { View, StyleSheet } from 'react-native';
-import { Tabs, useSegments } from 'expo-router';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { Tabs, useSegments, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Shadow } from '@/lib/theme';
 import OwnerMenu, { MenuButton } from '@/components/OwnerMenu';
@@ -12,12 +13,26 @@ import OwnerMenu, { MenuButton } from '@/components/OwnerMenu';
 export default function TabsLayout() {
   const [menuVisible, setMenuVisible] = useState(false);
   const segments = useSegments();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
 
   // Only show the hamburger button on a section's root screen (e.g.
   // /(tabs)/venues), not on nested detail/create screens (e.g.
   // /(tabs)/venues/[id]) where a normal back arrow already handles navigation.
   const atOwnerRoot = segments.length <= 2;
+  // Every section root except Dashboard itself needs a way back — sections
+  // are reached via the hamburger menu (not a real navigation stack push
+  // across tabs), so there's no automatic header back button for them.
+  const isDashboard = (segments as string[])[1] === 'dashboard';
+  const showBack = atOwnerRoot && !isDashboard;
+
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)/dashboard');
+    }
+  };
 
   return (
     <View style={{ flex: 1 }}>
@@ -62,8 +77,15 @@ export default function TabsLayout() {
       </Tabs>
 
       {atOwnerRoot && (
-        <View style={[styles.fab, { top: insets.top + 6 }]}>
-          <MenuButton onPress={() => setMenuVisible(true)} />
+        <View style={[styles.fabRow, { top: insets.top + 6 }]}>
+          {showBack && (
+            <TouchableOpacity onPress={handleBack} style={styles.fab} hitSlop={12}>
+              <Ionicons name="arrow-back" size={22} color={Colors.textPrimary} />
+            </TouchableOpacity>
+          )}
+          <View style={styles.fab}>
+            <MenuButton onPress={() => setMenuVisible(true)} />
+          </View>
         </View>
       )}
 
@@ -73,9 +95,13 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
-  fab: {
+  fabRow: {
     position: 'absolute',
     left: 12,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  fab: {
     width: 40,
     height: 40,
     borderRadius: 20,

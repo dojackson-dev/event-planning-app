@@ -55,7 +55,9 @@ describe('ClientPortalService – confirmInvite', () => {
 
   // Helper: set up the chain so confirmInvite succeeds end-to-end and captures
   // the eventData passed to .insert()
-  function setupConfirmInviteScenario(formOverrides: Partial<Record<string, any>> = {}) {
+  function setupConfirmInviteScenario(
+    formOverrides: Partial<Record<string, any>> = {},
+  ) {
     const form = {
       id: 'form-1',
       invite_token: 'tok-abc',
@@ -86,7 +88,13 @@ describe('ClientPortalService – confirmInvite', () => {
         insert: jest.fn().mockImplementation((rows: any[]) => {
           capturedInserts.push({ table, rows });
           return {
-            select: () => ({ single: () => Promise.resolve({ data: { id: 'event-1', ...rows[0] }, error: null }) }),
+            select: () => ({
+              single: () =>
+                Promise.resolve({
+                  data: { id: 'event-1', ...rows[0] },
+                  error: null,
+                }),
+            }),
           };
         }),
         order: jest.fn().mockReturnThis(),
@@ -97,7 +105,8 @@ describe('ClientPortalService – confirmInvite', () => {
       if (table === 'intake_forms') {
         sub.maybeSingle = jest.fn().mockImplementation(() => {
           callIdx++;
-          if (callIdx === 1) return Promise.resolve({ data: form, error: null });
+          if (callIdx === 1)
+            return Promise.resolve({ data: form, error: null });
           // update call
           return Promise.resolve({ data: form, error: null });
         });
@@ -106,14 +115,18 @@ describe('ClientPortalService – confirmInvite', () => {
 
       // event → no existing event (so the else branch runs and inserts)
       if (table === 'event') {
-        sub.maybeSingle = jest.fn().mockResolvedValue({ data: null, error: null });
+        sub.maybeSingle = jest
+          .fn()
+          .mockResolvedValue({ data: null, error: null });
         sub.single = jest.fn().mockResolvedValue({ data: null, error: null });
       }
 
       // notifications → success
       if (table === 'notifications') {
         sub.insert = jest.fn().mockReturnValue({
-          select: () => ({ single: () => Promise.resolve({ data: {}, error: null }) }),
+          select: () => ({
+            single: () => Promise.resolve({ data: {}, error: null }),
+          }),
         });
         // override insert to capture
         sub.insert = jest.fn().mockImplementation((rows: any) => {
@@ -131,21 +144,25 @@ describe('ClientPortalService – confirmInvite', () => {
   // ── event_end_time ────────────────────────────────────────────────────────
 
   it('uses form.event_end_time for event end_time when creating a new event', async () => {
-    const { capturedInserts } = setupConfirmInviteScenario({ event_end_time: '21:30' });
+    const { capturedInserts } = setupConfirmInviteScenario({
+      event_end_time: '21:30',
+    });
 
     await service.confirmInvite('tok-abc', '+15550001111', 'client-1');
 
-    const eventInsert = capturedInserts.find(c => c.table === 'event');
+    const eventInsert = capturedInserts.find((c) => c.table === 'event');
     expect(eventInsert).toBeDefined();
     expect(eventInsert.rows[0]).toHaveProperty('end_time', '21:30');
   });
 
   it('falls back to 23:59 when event_end_time is null', async () => {
-    const { capturedInserts } = setupConfirmInviteScenario({ event_end_time: null });
+    const { capturedInserts } = setupConfirmInviteScenario({
+      event_end_time: null,
+    });
 
     await service.confirmInvite('tok-abc', '+15550001111', 'client-1');
 
-    const eventInsert = capturedInserts.find(c => c.table === 'event');
+    const eventInsert = capturedInserts.find((c) => c.table === 'event');
     expect(eventInsert?.rows[0]).toHaveProperty('end_time', '23:59');
   });
 
@@ -159,8 +176,11 @@ describe('ClientPortalService – confirmInvite', () => {
 
     await service.confirmInvite('tok-abc', '+15550001111', 'client-1');
 
-    const eventInsert = capturedInserts.find(c => c.table === 'event');
-    expect(eventInsert?.rows[0]).toHaveProperty('description', 'Garden birthday party');
+    const eventInsert = capturedInserts.find((c) => c.table === 'event');
+    expect(eventInsert?.rows[0]).toHaveProperty(
+      'description',
+      'Garden birthday party',
+    );
   });
 
   it('falls back to special_requests when event_description is null', async () => {
@@ -171,8 +191,11 @@ describe('ClientPortalService – confirmInvite', () => {
 
     await service.confirmInvite('tok-abc', '+15550001111', 'client-1');
 
-    const eventInsert = capturedInserts.find(c => c.table === 'event');
-    expect(eventInsert?.rows[0]).toHaveProperty('description', 'Vegan menu only');
+    const eventInsert = capturedInserts.find((c) => c.table === 'event');
+    expect(eventInsert?.rows[0]).toHaveProperty(
+      'description',
+      'Vegan menu only',
+    );
   });
 
   it('sets empty string description when both event_description and special_requests are null', async () => {
@@ -183,7 +206,7 @@ describe('ClientPortalService – confirmInvite', () => {
 
     await service.confirmInvite('tok-abc', '+15550001111', 'client-1');
 
-    const eventInsert = capturedInserts.find(c => c.table === 'event');
+    const eventInsert = capturedInserts.find((c) => c.table === 'event');
     expect(eventInsert?.rows[0]).toHaveProperty('description', '');
   });
 

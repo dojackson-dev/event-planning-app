@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { PKPass } from 'passkit-generator';
 import * as jwt from 'jsonwebtoken';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -29,7 +34,13 @@ export class WalletService {
     const passTypeIdentifier = process.env.APPLE_WALLET_PASS_TYPE_ID;
     const teamIdentifier = process.env.APPLE_WALLET_TEAM_ID;
 
-    if (!wwdr || !signerCert || !signerKey || !passTypeIdentifier || !teamIdentifier) {
+    if (
+      !wwdr ||
+      !signerCert ||
+      !signerKey ||
+      !passTypeIdentifier ||
+      !teamIdentifier
+    ) {
       throw new ServiceUnavailableException(
         'Apple Wallet is not configured on this server. Contact support.',
       );
@@ -61,15 +72,27 @@ export class WalletService {
       logoText: 'Eventecos',
       eventTicket: {
         primaryFields: [
-          { key: 'event', label: 'EVENT', value: event?.title ?? 'Event Ticket' },
+          {
+            key: 'event',
+            label: 'EVENT',
+            value: event?.title ?? 'Event Ticket',
+          },
         ],
         secondaryFields: [
           { key: 'date', label: 'DATE', value: formattedDate },
-          ...(event?.start_time ? [{ key: 'time', label: 'TIME', value: event.start_time }] : []),
+          ...(event?.start_time
+            ? [{ key: 'time', label: 'TIME', value: event.start_time }]
+            : []),
         ],
         auxiliaryFields: [
-          { key: 'tier', label: 'TICKET TYPE', value: tier?.name ?? 'General Admission' },
-          ...(event?.venue_name ? [{ key: 'venue', label: 'VENUE', value: event.venue_name }] : []),
+          {
+            key: 'tier',
+            label: 'TICKET TYPE',
+            value: tier?.name ?? 'General Admission',
+          },
+          ...(event?.venue_name
+            ? [{ key: 'venue', label: 'VENUE', value: event.venue_name }]
+            : []),
         ],
         backFields: [
           { key: 'ticketId', label: 'TICKET ID', value: ticket.id },
@@ -107,7 +130,8 @@ export class WalletService {
         wwdr,
         signerCert,
         signerKey: signerKey.replace(/\\n/g, '\n'),
-        signerKeyPassphrase: process.env.APPLE_WALLET_SIGNER_KEY_PASSPHRASE || undefined,
+        signerKeyPassphrase:
+          process.env.APPLE_WALLET_SIGNER_KEY_PASSPHRASE || undefined,
       },
     );
 
@@ -146,16 +170,27 @@ export class WalletService {
             issuerName: 'Eventecos',
             reviewStatus: 'underReview',
             eventName: {
-              defaultValue: { language: 'en-US', value: event?.title ?? 'Event Ticket' },
+              defaultValue: {
+                language: 'en-US',
+                value: event?.title ?? 'Event Ticket',
+              },
             },
             ...(event?.venue_name
               ? {
                   venue: {
-                    name: { defaultValue: { language: 'en-US', value: event.venue_name } },
+                    name: {
+                      defaultValue: {
+                        language: 'en-US',
+                        value: event.venue_name,
+                      },
+                    },
                     address: {
                       defaultValue: {
                         language: 'en-US',
-                        value: [event.city, event.state].filter(Boolean).join(', ') || '',
+                        value:
+                          [event.city, event.state]
+                            .filter(Boolean)
+                            .join(', ') || '',
                       },
                     },
                   },
@@ -179,7 +214,10 @@ export class WalletService {
             state: ticket.status === 'used' ? 'EXPIRED' : 'ACTIVE',
             ticketNumber: ticket.id.substring(0, 8).toUpperCase(),
             ticketType: {
-              defaultValue: { language: 'en-US', value: tier?.name ?? 'General Admission' },
+              defaultValue: {
+                language: 'en-US',
+                value: tier?.name ?? 'General Admission',
+              },
             },
             barcode: {
               type: 'QR_CODE',

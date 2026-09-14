@@ -40,6 +40,28 @@ export interface PublicExternalEvent {
 
 const MIN_CONFIDENCE = 0.3;
 
+// external_events has no per-row timezone/offset column, so we can't know an
+// event's exact local UTC offset. To avoid ever hiding an event that's still
+// upcoming somewhere in the US, only treat a "today"-dated event as already
+// over once it would be past even under the most generous interpretation —
+// i.e. if its wall-clock start_time, read as UTC, plus the largest UTC
+// offset used in the US (UTC-10, Hawaii), is still before the current
+// instant. This under-filters (some already-started events in earlier
+// zones may briefly remain visible) but never over-filters a real upcoming
+// event.
+const MAX_US_UTC_OFFSET_HOURS = 10;
+
+function isDefinitelyPast(
+  eventDate: string,
+  startTime: string | null,
+  nowMs: number,
+): boolean {
+  if (!startTime) return false;
+  const naiveUtcMs = Date.parse(`${eventDate}T${startTime}Z`);
+  if (Number.isNaN(naiveUtcMs)) return false;
+  return naiveUtcMs + MAX_US_UTC_OFFSET_HOURS * 60 * 60 * 1000 < nowMs;
+}
+
 @Injectable()
 export class ExternalEventsService {
   private readonly logger = new Logger(ExternalEventsService.name);
@@ -104,10 +126,13 @@ export class ExternalEventsService {
       }
     }
 
-    let events = data.map((row) => ({
-      ...row,
-      source: 'external' as const,
-    }));
+    const nowMs = Date.now();
+    let events = data
+      .filter((row) => !isDefinitelyPast(row.event_date, row.start_time, nowMs))
+      .map((row) => ({
+        ...row,
+        source: 'external' as const,
+      }));
 
     if (params.zip_code) {
       const radiusMiles = params.radius_miles ?? 30;

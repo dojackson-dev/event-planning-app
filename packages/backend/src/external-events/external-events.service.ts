@@ -139,8 +139,14 @@ export class ExternalEventsService {
       const searchLoc = zipcodes.lookup(params.zip_code);
       if (searchLoc) {
         events = events.filter((event) => {
-          if (!event.zip_code) return false;
-          const eventLoc = zipcodes.lookup(event.zip_code);
+          // Many aggregated sources (e.g. Bandsintown) only give city/state,
+          // no zip_code — fall back to geocoding the city name instead of
+          // dropping the event entirely.
+          const eventLoc = event.zip_code
+            ? zipcodes.lookup(event.zip_code)
+            : event.city && event.state
+              ? zipcodes.lookupByName(event.city, event.state)?.[0]
+              : null;
           if (!eventLoc) return false;
           const dist = haversineDistanceMiles(
             searchLoc.latitude,

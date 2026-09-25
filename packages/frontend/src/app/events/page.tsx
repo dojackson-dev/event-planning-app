@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
 import { MapPin, Calendar, Tag, Search, Filter, Loader2, Ticket, ExternalLink } from 'lucide-react'
@@ -313,12 +313,29 @@ export default function PublicEventsPage() {
     fetchEvents(zip, category, radiusMiles)
   }
 
-  const filtered = events.filter(e =>
-    matchesDateFilter(e.event_date) &&
-    (!search || e.title.toLowerCase().includes(search.toLowerCase()) ||
-    e.city?.toLowerCase().includes(search.toLowerCase()) ||
-    e.venue_name?.toLowerCase().includes(search.toLowerCase()))
+  const matchesSearch = useCallback((ev: { title: string; city: string | null; venue_name: string | null }) =>
+    !search || ev.title.toLowerCase().includes(search.toLowerCase()) ||
+    ev.city?.toLowerCase().includes(search.toLowerCase()) ||
+    ev.venue_name?.toLowerCase().includes(search.toLowerCase()), [search])
+
+  const filtered = events.filter(e => matchesDateFilter(e.event_date) && matchesSearch(e))
+  const filteredTevoEvents = useMemo(
+    () => tevoEvents.filter(ev => matchesDateFilter(ev.event_date) && matchesSearch(ev)),
+    [tevoEvents, matchesDateFilter, matchesSearch],
   )
+  const filteredExtEvents = useMemo(
+    () => extEvents.filter(ev => matchesDateFilter(ev.event_date) && matchesSearch(ev)),
+    [extEvents, matchesDateFilter, matchesSearch],
+  )
+  const filteredTmEvents = useMemo(
+    () => tmEvents.filter(ev => matchesDateFilter(ev.event_date) && matchesSearch(ev)),
+    [tmEvents, matchesDateFilter, matchesSearch],
+  )
+  // A source's raw fetch had events, but the active date/search filter excluded all of them —
+  // used to show a helpful message instead of an orphaned section header over a blank grid.
+  const monthLabel = dateFilter === 'month'
+    ? new Date(selectedMonth + '-01T00:00:00').toLocaleString('default', { month: 'long', year: 'numeric' })
+    : 'this range'
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -601,13 +618,11 @@ export default function PublicEventsPage() {
 
           {tevoLoading ? (
             <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-purple-400" /></div>
+          ) : filteredTevoEvents.length === 0 ? (
+            <p className="text-gray-400 text-sm text-center py-8">No Ticket Evolution events found for {monthLabel}.</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {tevoEvents
-                .filter(ev => matchesDateFilter(ev.event_date) && (!search ||
-                  ev.title.toLowerCase().includes(search.toLowerCase()) ||
-                  ev.city?.toLowerCase().includes(search.toLowerCase()) ||
-                  ev.venue_name?.toLowerCase().includes(search.toLowerCase())))
+              {filteredTevoEvents
                 .map(ev => {
                   const dateObj = ev.event_date ? new Date(ev.event_date + 'T00:00:00') : null
                   const card = (
@@ -692,13 +707,11 @@ export default function PublicEventsPage() {
 
           {extLoading ? (
             <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-purple-400" /></div>
+          ) : filteredExtEvents.length === 0 ? (
+            <p className="text-gray-400 text-sm text-center py-8">No local events found for {monthLabel}.</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {extEvents
-                .filter(ev => matchesDateFilter(ev.event_date) && (!search ||
-                  ev.title.toLowerCase().includes(search.toLowerCase()) ||
-                  ev.city?.toLowerCase().includes(search.toLowerCase()) ||
-                  ev.venue_name?.toLowerCase().includes(search.toLowerCase())))
+              {filteredExtEvents
                 .map(ev => {
                   const dateObj = ev.event_date ? new Date(ev.event_date + 'T00:00:00') : null
                   const card = (
@@ -808,13 +821,11 @@ export default function PublicEventsPage() {
           ) : !zipCode ? (
             <p className="text-gray-400 text-sm text-center py-8">Enter a city to discover events near you.</p>
           ) : null
+        ) : filteredTmEvents.length === 0 ? (
+          <p className="text-gray-400 text-sm text-center py-8">No Ticketmaster events found for {monthLabel}.</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {tmEvents
-              .filter(ev => matchesDateFilter(ev.event_date) && (!search ||
-                ev.title.toLowerCase().includes(search.toLowerCase()) ||
-                ev.city?.toLowerCase().includes(search.toLowerCase()) ||
-                ev.venue_name?.toLowerCase().includes(search.toLowerCase())))
+            {filteredTmEvents
               .map(ev => {
                 const dateObj = ev.event_date ? new Date(ev.event_date + 'T00:00:00') : null
                 return (

@@ -81,4 +81,23 @@ export class TicketEvolutionController {
       perPage: perPage ? parseInt(perPage, 10) : undefined,
     });
   }
+
+  /**
+   * GET /ticket-evolution/public-events
+   * Normalized, unauthenticated feed for the public /events page. Returns an
+   * empty list (instead of erroring) when TEvo credentials aren't configured.
+   */
+  @Get('public-events')
+  getPublicEvents(
+    @Query('name') name?: string,
+    @Query('page') page?: string,
+    @Query('per_page') perPage?: string,
+  ) {
+    if (!this.service.isConfigured()) return [];
+    return this.service.getPublicEvents({
+      name,
+      page: page ? parseInt(page, 10) : undefined,
+      perPage: perPage ? parseInt(perPage, 10) : undefined,
+    });
+  }
 }

@@ -22,6 +22,33 @@ export interface TicketEvolutionListResponse<T> {
   total_entries?: number;
 }
 
+interface TicketEvolutionRawEvent {
+  id: number;
+  name: string;
+  occurs_at: string | null;
+  occurs_at_local: string | null;
+  category?: { name?: string } | null;
+  venue?: {
+    name?: string;
+    address?: { locality?: string; region?: string } | null;
+  } | null;
+}
+
+// Normalized shape consumed by the public /events page — mirrors the other
+// external-source event cards (Ticketmaster, aggregated external events).
+export interface TicketEvolutionPublicEvent {
+  id: string;
+  title: string;
+  event_date: string | null;
+  start_time: string | null;
+  venue_name: string | null;
+  city: string | null;
+  state: string | null;
+  category: string | null;
+  event_url: string | null;
+  source: 'ticket_evolution';
+}
+
 @Injectable()
 export class TicketEvolutionService {
   private readonly logger = new Logger(TicketEvolutionService.name);
@@ -192,6 +219,41 @@ export class TicketEvolutionService {
         page: params.page ?? 1,
         per_page: params.perPage ?? 25,
       },
+    });
+  }
+
+  // Upcoming events, normalized for the public /events page grid — no pricing
+  // (that requires a per-event Listings call) and no event_url yet since the
+  // TEvo Hosted Checkout domain isn't live.
+  async getPublicEvents(
+    params: { name?: string; page?: number; perPage?: number } = {},
+  ): Promise<TicketEvolutionPublicEvent[]> {
+    const res = await this.request<
+      TicketEvolutionListResponse<TicketEvolutionRawEvent>
+    >('GET', '/v9/events', {
+      query: {
+        name: params.name,
+        'occurs_at.gte': new Date().toISOString(),
+        page: params.page ?? 1,
+        per_page: params.perPage ?? 24,
+      },
+    });
+
+    const events = (res.events as TicketEvolutionRawEvent[]) ?? [];
+    return events.map((ev) => {
+      const dateTime = ev.occurs_at_local ?? ev.occurs_at ?? null;
+      return {
+        id: String(ev.id),
+        title: ev.name,
+        event_date: dateTime ? dateTime.slice(0, 10) : null,
+        start_time: dateTime ? dateTime.slice(11, 16) : null,
+        venue_name: ev.venue?.name ?? null,
+        city: ev.venue?.address?.locality ?? null,
+        state: ev.venue?.address?.region ?? null,
+        category: ev.category?.name ?? null,
+        event_url: null,
+        source: 'ticket_evolution',
+      };
     });
   }
 }

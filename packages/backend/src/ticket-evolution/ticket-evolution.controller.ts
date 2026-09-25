@@ -1,5 +1,26 @@
-import { Controller, Get, Param, ParseIntPipe, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Query,
+  Req,
+} from '@nestjs/common';
+import type { Request } from 'express';
 import { TicketEvolutionService } from './ticket-evolution.service';
+
+// Sandbox TEvo credentials only — restrict the public feed to dev/local
+// origins so production never surfaces sandbox/test inventory to real users.
+const DEV_ORIGIN_HOSTS = [
+  'dev.eventecos.com',
+  'dev.dovenuesuite.com',
+  'localhost',
+];
+
+function isDevOrigin(req: Request): boolean {
+  const origin = req.headers.origin ?? req.headers.referer ?? '';
+  return DEV_ORIGIN_HOSTS.some((host) => origin.includes(host));
+}
 
 @Controller('ticket-evolution')
 export class TicketEvolutionController {
@@ -85,15 +106,17 @@ export class TicketEvolutionController {
   /**
    * GET /ticket-evolution/public-events
    * Normalized, unauthenticated feed for the public /events page. Returns an
-   * empty list (instead of erroring) when TEvo credentials aren't configured.
+   * empty list (instead of erroring) when TEvo credentials aren't configured,
+   * or when the request isn't from a dev/local origin (sandbox-only feature).
    */
   @Get('public-events')
   getPublicEvents(
+    @Req() req: Request,
     @Query('name') name?: string,
     @Query('page') page?: string,
     @Query('per_page') perPage?: string,
   ) {
-    if (!this.service.isConfigured()) return [];
+    if (!this.service.isConfigured() || !isDevOrigin(req)) return [];
     return this.service.getPublicEvents({
       name,
       page: page ? parseInt(page, 10) : undefined,

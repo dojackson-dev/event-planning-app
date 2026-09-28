@@ -436,8 +436,8 @@ function VendorCard({ vendor, renderStars }: { vendor: Vendor; renderStars: (r?:
     .split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 hover:border-primary-300 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 overflow-hidden">
-      <div className="p-5">
+    <div className="h-full flex flex-col bg-white rounded-2xl border border-gray-200 hover:border-primary-300 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 overflow-hidden">
+      <div className="p-5 flex flex-col flex-1">
         {/* Top row: logo + name + category */}
         <div className="flex items-start gap-4 mb-4">
           {/* Logo square */}
@@ -490,7 +490,7 @@ function VendorCard({ vendor, renderStars }: { vendor: Vendor; renderStars: (r?:
         )}
 
         {/* Actions */}
-        <div className="mt-4 flex gap-2">
+        <div className="mt-auto pt-4 flex gap-2">
           <Link
             href={`/vendors/${vendor.id}`}
             className="flex-1 text-center bg-primary-600 text-white text-sm py-2 rounded-xl hover:bg-primary-700 font-semibold transition-colors"
@@ -515,9 +515,9 @@ function VendorCard({ vendor, renderStars }: { vendor: Vendor; renderStars: (r?:
 function VenueCard({ venue }: { venue: Venue }) {
   const initials = venue.name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
   return (
-    <Link href={`/venues/${venue.id}`} className="block group">
-      <div className="bg-white rounded-2xl border border-gray-200 group-hover:border-primary-300 group-hover:shadow-lg group-hover:-translate-y-0.5 transition-all duration-200 overflow-hidden">
-        <div className="p-5">
+    <Link href={`/venues/${venue.id}`} className="h-full block group">
+      <div className="h-full flex flex-col bg-white rounded-2xl border border-gray-200 group-hover:border-primary-300 group-hover:shadow-lg group-hover:-translate-y-0.5 transition-all duration-200 overflow-hidden">
+        <div className="p-5 flex flex-col flex-1">
           <div className="flex items-start gap-4 mb-4">
             <div className="w-16 h-16 rounded-xl border border-gray-100 overflow-hidden flex-shrink-0 bg-gray-100 flex items-center justify-center">
               {venue.profile_image_url ? (
@@ -549,7 +549,7 @@ function VenueCard({ venue }: { venue: Venue }) {
             <p className="text-sm text-gray-500 mt-2 line-clamp-2 leading-relaxed">{venue.description}</p>
           )}
 
-          <div className="mt-4">
+          <div className="mt-auto pt-4">
             <span className="block w-full text-center bg-primary-600 text-white text-sm py-2 rounded-xl font-semibold group-hover:bg-primary-700 transition-colors">
               View Venue →
             </span>

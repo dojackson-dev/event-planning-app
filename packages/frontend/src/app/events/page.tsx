@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
 import { MapPin, Calendar, Tag, Search, Filter, Loader2, Ticket, ExternalLink } from 'lucide-react'
@@ -68,6 +68,19 @@ interface ExternalEvent {
   source: 'external'
 }
 
+interface TevoEvent {
+  id: string
+  title: string
+  event_date: string
+  start_time: string | null
+  venue_name: string | null
+  city: string | null
+  state: string | null
+  category: string | null
+  event_url: string | null
+  source: 'ticket_evolution'
+}
+
 interface PublicEvent {
   id: string
   title: string
@@ -94,9 +107,11 @@ export default function PublicEventsPage() {
   const [events, setEvents] = useState<PublicEvent[]>([])
   const [tmEvents, setTmEvents] = useState<TicketmasterEvent[]>([])
   const [extEvents, setExtEvents] = useState<ExternalEvent[]>([])
+  const [tevoEvents, setTevoEvents] = useState<TevoEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [tmLoading, setTmLoading] = useState(false)
   const [extLoading, setExtLoading] = useState(false)
+  const [tevoLoading, setTevoLoading] = useState(false)
   const [zipCode, setZipCode] = useState('')
   const [radiusMiles, setRadiusMiles] = useState('30')
   const [category, setCategory] = useState('')
@@ -245,24 +260,27 @@ export default function PublicEventsPage() {
     setLoading(true)
     setTmLoading(true)
     setExtLoading(true)
+    setTevoLoading(true)
     const params: Record<string, string> = {}
     if (zip) params.zip_code = zip
     if (cat) params.category = cat
     if (zip && radius) params.radius_miles = radius
     const tmParams: Record<string, string> = { ...params }
     if (zip && radius) tmParams.radius_miles = radius
-    Promise.all([
+    Promise.allSettled([
       api.get('/promoter-events/public', { params }),
       api.get('/ticketmaster/events', { params: tmParams }),
       api.get('/external-events/events', { params }),
+      // Ticket Evolution has no zip/radius search yet — fetch upcoming events as-is.
+      api.get('/ticket-evolution/public-events'),
     ])
-      .then(([platformRes, tmRes, extRes]) => {
-        setEvents(platformRes.data || [])
-        setTmEvents(tmRes.data || [])
-        setExtEvents(extRes.data || [])
+      .then(([platformRes, tmRes, extRes, tevoRes]) => {
+        setEvents(platformRes.status === 'fulfilled' ? platformRes.value.data || [] : [])
+        setTmEvents(tmRes.status === 'fulfilled' ? tmRes.value.data || [] : [])
+        setExtEvents(extRes.status === 'fulfilled' ? extRes.value.data || [] : [])
+        setTevoEvents(tevoRes.status === 'fulfilled' ? tevoRes.value.data || [] : [])
       })
-      .catch(() => {})
-      .finally(() => { setLoading(false); setTmLoading(false); setExtLoading(false) })
+      .finally(() => { setLoading(false); setTmLoading(false); setExtLoading(false); setTevoLoading(false) })
   }
 
   useEffect(() => { fetchEvents() }, [])
@@ -294,12 +312,29 @@ export default function PublicEventsPage() {
     fetchEvents(zip, category, radiusMiles)
   }
 
-  const filtered = events.filter(e =>
-    matchesDateFilter(e.event_date) &&
-    (!search || e.title.toLowerCase().includes(search.toLowerCase()) ||
-    e.city?.toLowerCase().includes(search.toLowerCase()) ||
-    e.venue_name?.toLowerCase().includes(search.toLowerCase()))
+  const matchesSearch = useCallback((ev: { title: string; city: string | null; venue_name: string | null }) =>
+    !search || ev.title.toLowerCase().includes(search.toLowerCase()) ||
+    ev.city?.toLowerCase().includes(search.toLowerCase()) ||
+    ev.venue_name?.toLowerCase().includes(search.toLowerCase()), [search])
+
+  const filtered = events.filter(e => matchesDateFilter(e.event_date) && matchesSearch(e))
+  const filteredTevoEvents = useMemo(
+    () => tevoEvents.filter(ev => matchesDateFilter(ev.event_date) && matchesSearch(ev)),
+    [tevoEvents, matchesDateFilter, matchesSearch],
   )
+  const filteredExtEvents = useMemo(
+    () => extEvents.filter(ev => matchesDateFilter(ev.event_date) && matchesSearch(ev)),
+    [extEvents, matchesDateFilter, matchesSearch],
+  )
+  const filteredTmEvents = useMemo(
+    () => tmEvents.filter(ev => matchesDateFilter(ev.event_date) && matchesSearch(ev)),
+    [tmEvents, matchesDateFilter, matchesSearch],
+  )
+  // A source's raw fetch had events, but the active date/search filter excluded all of them —
+  // used to show a helpful message instead of an orphaned section header over a blank grid.
+  const monthLabel = dateFilter === 'month'
+    ? new Date(selectedMonth + '-01T00:00:00').toLocaleString('default', { month: 'long', year: 'numeric' })
+    : 'this range'
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -472,11 +507,11 @@ export default function PublicEventsPage() {
         {loading ? (
           <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-purple-500" /></div>
         ) : filtered.length === 0 ? (
-          // Only show the empty state once Ticketmaster/external events have
-          // also finished loading and turned up nothing — if either of those
-          // sources has events, skip straight to their sections below
+          // Only show the empty state once Ticketmaster/external/TEvo events
+          // have also finished loading and turned up nothing — if any of
+          // those sources has events, skip straight to their sections below
           // instead of telling the user "No events found".
-          !tmLoading && !extLoading && tmEvents.length === 0 && extEvents.length === 0 ? (
+          !tmLoading && !extLoading && !tevoLoading && tmEvents.length === 0 && extEvents.length === 0 && tevoEvents.length === 0 ? (
             <div className="text-center py-20">
               <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
               <p className="text-xl font-semibold text-gray-600">No events found</p>
@@ -570,6 +605,95 @@ export default function PublicEventsPage() {
         )}
       </div>
 
+      {/* ── Ticket Evolution Events ──────────────────────────────── */}
+      {(tevoLoading || tevoEvents.length > 0) && (
+        <div className="max-w-6xl mx-auto px-4 pb-10">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">More Tickets</h2>
+              <p className="text-xs text-gray-400 mt-0.5">Powered by Ticket Evolution.</p>
+            </div>
+          </div>
+
+          {tevoLoading ? (
+            <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-purple-400" /></div>
+          ) : filteredTevoEvents.length === 0 ? (
+            <p className="text-gray-400 text-sm text-center py-8">No Ticket Evolution events found for {monthLabel}.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredTevoEvents
+                .map(ev => {
+                  const dateObj = ev.event_date ? new Date(ev.event_date + 'T00:00:00') : null
+                  const card = (
+                    <>
+                      <div className="h-44 bg-gradient-to-br from-purple-100 to-fuchsia-100 relative overflow-hidden flex items-center justify-center">
+                        <Ticket className="w-12 h-12 text-purple-300" />
+                      </div>
+
+                      <div className="p-4">
+                        <div className="flex items-start justify-between gap-2">
+                          {dateObj && (
+                            <div className="text-center bg-purple-50 border border-purple-100 rounded-lg px-2.5 py-1.5 min-w-[44px] shrink-0">
+                              <p className="text-xs font-medium text-purple-500 uppercase leading-none">
+                                {dateObj.toLocaleString('default', { month: 'short' })}
+                              </p>
+                              <p className="text-lg font-bold text-purple-700 leading-none mt-0.5">{dateObj.getDate()}</p>
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-bold text-gray-900 truncate">{ev.title}</h3>
+                            {(ev.venue_name || ev.city) && (
+                              <p className="flex items-center gap-1 text-xs text-gray-500 mt-0.5 truncate">
+                                <MapPin className="w-3 h-3 shrink-0" />
+                                {ev.venue_name ? `${ev.venue_name}${ev.city ? ', ' + ev.city : ''}` : ev.city}
+                                {ev.state ? `, ${ev.state}` : ''}
+                              </p>
+                            )}
+                            {ev.start_time && (
+                              <p className="text-xs text-gray-400 mt-0.5">{ev.start_time}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+                          <div>
+                            {ev.category && (
+                              <span className="flex items-center gap-1 text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">
+                                <Tag className="w-2.5 h-2.5" />{ev.category}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-xs text-gray-400 flex items-center gap-1">
+                            <ExternalLink className="w-3 h-3" />See details
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  )
+                  return ev.event_url ? (
+                    <a
+                      key={ev.id}
+                      href={ev.event_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-md hover:border-purple-200 transition-all group block"
+                    >
+                      {card}
+                    </a>
+                  ) : (
+                    <div
+                      key={ev.id}
+                      className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 group block"
+                    >
+                      {card}
+                    </div>
+                  )
+                })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── Aggregated External Events (Internal-API) ───────────── */}
       {(extLoading || extEvents.length > 0) && (
         <div className="max-w-6xl mx-auto px-4 pb-10">
@@ -582,13 +706,11 @@ export default function PublicEventsPage() {
 
           {extLoading ? (
             <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-purple-400" /></div>
+          ) : filteredExtEvents.length === 0 ? (
+            <p className="text-gray-400 text-sm text-center py-8">No local events found for {monthLabel}.</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {extEvents
-                .filter(ev => matchesDateFilter(ev.event_date) && (!search ||
-                  ev.title.toLowerCase().includes(search.toLowerCase()) ||
-                  ev.city?.toLowerCase().includes(search.toLowerCase()) ||
-                  ev.venue_name?.toLowerCase().includes(search.toLowerCase())))
+              {filteredExtEvents
                 .map(ev => {
                   const dateObj = ev.event_date ? new Date(ev.event_date + 'T00:00:00') : null
                   const card = (
@@ -698,13 +820,11 @@ export default function PublicEventsPage() {
           ) : !zipCode ? (
             <p className="text-gray-400 text-sm text-center py-8">Enter a city to discover events near you.</p>
           ) : null
+        ) : filteredTmEvents.length === 0 ? (
+          <p className="text-gray-400 text-sm text-center py-8">No Ticketmaster events found for {monthLabel}.</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {tmEvents
-              .filter(ev => matchesDateFilter(ev.event_date) && (!search ||
-                ev.title.toLowerCase().includes(search.toLowerCase()) ||
-                ev.city?.toLowerCase().includes(search.toLowerCase()) ||
-                ev.venue_name?.toLowerCase().includes(search.toLowerCase())))
+            {filteredTmEvents
               .map(ev => {
                 const dateObj = ev.event_date ? new Date(ev.event_date + 'T00:00:00') : null
                 return (

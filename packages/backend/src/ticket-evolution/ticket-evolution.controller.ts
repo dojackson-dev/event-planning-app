@@ -115,12 +115,16 @@ export class TicketEvolutionController {
     @Query('name') name?: string,
     @Query('page') page?: string,
     @Query('per_page') perPage?: string,
+    @Query('date_from') dateFrom?: string,
+    @Query('date_to') dateTo?: string,
   ) {
     if (!this.service.isConfigured() || !isDevOrigin(req)) return [];
     return this.service.getPublicEvents({
       name,
       page: page ? parseInt(page, 10) : undefined,
       perPage: perPage ? parseInt(perPage, 10) : undefined,
+      dateFrom,
+      dateTo,
     });
   }
 }

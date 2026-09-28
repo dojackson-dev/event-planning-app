@@ -47,11 +47,15 @@ export class PromoterEventsController {
     @Query('zip_code') zipCode?: string,
     @Query('category') category?: string,
     @Query('radius_miles') radiusMiles?: string,
+    @Query('date_from') dateFrom?: string,
+    @Query('date_to') dateTo?: string,
   ) {
     return this.service.listPublicEvents(
       zipCode,
       category,
       radiusMiles ? parseInt(radiusMiles, 10) : undefined,
+      dateFrom,
+      dateTo,
     );
   }
 

@@ -17,6 +17,8 @@ export class TicketmasterController {
     @Query('category') category?: string,
     @Query('keyword') keyword?: string,
     @Query('size') size?: string,
+    @Query('date_from') dateFrom?: string,
+    @Query('date_to') dateTo?: string,
   ) {
     return this.service.searchEvents({
       zip_code: zipCode,
@@ -24,6 +26,8 @@ export class TicketmasterController {
       category,
       keyword,
       size: size ? parseInt(size, 10) : 20,
+      date_from: dateFrom,
+      date_to: dateTo,
     });
   }
 }

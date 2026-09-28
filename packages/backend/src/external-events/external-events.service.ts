@@ -81,9 +81,14 @@ export class ExternalEventsService {
     category?: string;
     radius_miles?: number;
     limit?: number;
+    date_from?: string;
+    date_to?: string;
   }): Promise<PublicExternalEvent[]> {
     const admin = this.supabaseService.getAdminClient();
     const today = new Date().toISOString().slice(0, 10);
+    // A caller-provided date_from can be in the past (e.g. re-requesting the
+    // current month) — never let it widen the range to before today.
+    const from = params.date_from && params.date_from > today ? params.date_from : today;
     const resultLimit = params.limit ?? 100;
 
     const buildQuery = () => {
@@ -92,11 +97,12 @@ export class ExternalEventsService {
         .select(
           'id, title, description, event_date, start_time, venue_name, city, state, zip_code, category, image_url, event_url, price_min, price_max, organizer',
         )
-        .gte('event_date', today)
+        .gte('event_date', from)
         .neq('dedupe_status', 'duplicate')
         .gte('confidence_score', MIN_CONFIDENCE)
         .is('expired_at', null)
         .order('event_date', { ascending: true });
+      if (params.date_to) query = query.lte('event_date', params.date_to);
       if (params.city) query = query.ilike('city', params.city);
       if (params.category) query = query.eq('category', params.category);
       return query;

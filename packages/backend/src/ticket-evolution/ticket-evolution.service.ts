@@ -226,14 +226,34 @@ export class TicketEvolutionService {
   // (that requires a per-event Listings call) and no event_url yet since the
   // TEvo Hosted Checkout domain isn't live.
   async getPublicEvents(
-    params: { name?: string; page?: number; perPage?: number } = {},
+    params: {
+      name?: string;
+      page?: number;
+      perPage?: number;
+      dateFrom?: string;
+      dateTo?: string;
+    } = {},
   ): Promise<TicketEvolutionPublicEvent[]> {
+    const nowIso = new Date().toISOString();
+    const gte =
+      params.dateFrom && params.dateFrom > nowIso.slice(0, 10)
+        ? `${params.dateFrom}T00:00:00Z`
+        : nowIso;
+    // occurs_at.lt is exclusive, so bump the upper bound to the start of the
+    // day after date_to to keep that whole day inclusive.
+    let lt: string | undefined;
+    if (params.dateTo) {
+      const next = new Date(`${params.dateTo}T00:00:00Z`);
+      next.setUTCDate(next.getUTCDate() + 1);
+      lt = next.toISOString();
+    }
     const res = await this.request<
       TicketEvolutionListResponse<TicketEvolutionRawEvent>
     >('GET', '/v9/events', {
       query: {
         name: params.name,
-        'occurs_at.gte': new Date().toISOString(),
+        'occurs_at.gte': gte,
+        'occurs_at.lt': lt,
         page: params.page ?? 1,
         per_page: params.perPage ?? 24,
       },

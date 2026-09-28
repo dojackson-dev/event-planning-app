@@ -166,14 +166,45 @@ export default function PublicEventsPage() {
     return d >= saturday && d <= sunday
   }, [dateFilter, selectedMonth])
 
+  // The backend can only scope its "soonest upcoming" queries by an explicit
+  // date range — filtering the already-fetched (capped) batch client-side
+  // isn't enough once a busy near-term date crowds out a later month/week.
+  const computeDateRange = (filter: '' | 'weekend' | 'week' | 'month', month: string): { from?: string; to?: string } => {
+    if (!filter) return {}
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const fmtLocal = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+    if (filter === 'month') {
+      const [y, m] = month.split('-').map(Number)
+      return { from: fmtLocal(new Date(y, m - 1, 1)), to: fmtLocal(new Date(y, m, 0)) }
+    }
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    if (filter === 'week') {
+      const endOfWeek = new Date(today)
+      endOfWeek.setDate(today.getDate() + (7 - today.getDay()))
+      return { from: fmtLocal(today), to: fmtLocal(endOfWeek) }
+    }
+    // weekend: the upcoming (or current) Saturday through Sunday
+    const daysUntilSaturday = (6 - today.getDay() + 7) % 7
+    const saturday = new Date(today)
+    saturday.setDate(today.getDate() + daysUntilSaturday)
+    const sunday = new Date(saturday)
+    sunday.setDate(saturday.getDate() + 1)
+    return { from: fmtLocal(saturday), to: fmtLocal(sunday) }
+  }
+
   const toggleDateFilter = (value: 'weekend' | 'week' | 'month') => {
     if (value === 'month') {
+      const opening = dateFilter !== 'month'
       setShowMonthPicker(prev => dateFilter === 'month' ? !prev : true)
       setDateFilter('month')
+      if (opening) fetchEvents(zipCode, category, radiusMiles, computeDateRange('month', selectedMonth))
       return
     }
     setShowMonthPicker(false)
-    setDateFilter(prev => prev === value ? '' : value)
+    const next = dateFilter === value ? '' : value
+    setDateFilter(next)
+    fetchEvents(zipCode, category, radiusMiles, computeDateRange(next, selectedMonth))
   }
 
 
@@ -191,7 +222,7 @@ export default function PublicEventsPage() {
             if (data?.zip) {
               setZipCode(data.zip)
               setCityQuery([data.city, data.state].filter(Boolean).join(', '))
-              fetchEvents(data.zip, category, radiusMiles)
+              fetchEvents(data.zip, category, radiusMiles, computeDateRange(dateFilter, selectedMonth))
             }
           }
         } catch {
@@ -203,7 +234,7 @@ export default function PublicEventsPage() {
       () => { setLocating(false); setLocationError('Location access denied. Enter a city instead.') },
       { timeout: 10000 },
     )
-  }, [category, radiusMiles])
+  }, [category, radiusMiles, dateFilter, selectedMonth])
 
   // Resolve a zip code for a suggestion that has coordinates but no postcode
   // (common for large-city Nominatim results) via reverse geocoding.
@@ -253,10 +284,10 @@ export default function PublicEventsPage() {
     setCityQuery([s.city, s.state].filter(Boolean).join(', '))
     const resolvedZip = s.zip || await resolveZipFromCoords(s.lat, s.lng)
     setZipCode(resolvedZip)
-    fetchEvents(resolvedZip, category, radiusMiles)
+    fetchEvents(resolvedZip, category, radiusMiles, computeDateRange(dateFilter, selectedMonth))
   }
 
-  const fetchEvents = (zip?: string, cat?: string, radius?: string) => {
+  const fetchEvents = (zip?: string, cat?: string, radius?: string, dateRange?: { from?: string; to?: string }) => {
     setLoading(true)
     setTmLoading(true)
     setExtLoading(true)
@@ -265,14 +296,19 @@ export default function PublicEventsPage() {
     if (zip) params.zip_code = zip
     if (cat) params.category = cat
     if (zip && radius) params.radius_miles = radius
+    if (dateRange?.from) params.date_from = dateRange.from
+    if (dateRange?.to) params.date_to = dateRange.to
     const tmParams: Record<string, string> = { ...params }
     if (zip && radius) tmParams.radius_miles = radius
+    // Ticket Evolution has no zip/radius search yet, but does support a date range.
+    const tevoParams: Record<string, string> = {}
+    if (dateRange?.from) tevoParams.date_from = dateRange.from
+    if (dateRange?.to) tevoParams.date_to = dateRange.to
     Promise.allSettled([
       api.get('/promoter-events/public', { params }),
       api.get('/ticketmaster/events', { params: tmParams }),
       api.get('/external-events/events', { params }),
-      // Ticket Evolution has no zip/radius search yet — fetch upcoming events as-is.
-      api.get('/ticket-evolution/public-events'),
+      api.get('/ticket-evolution/public-events', { params: tevoParams }),
     ])
       .then(([platformRes, tmRes, extRes, tevoRes]) => {
         setEvents(platformRes.status === 'fulfilled' ? platformRes.value.data || [] : [])
@@ -309,7 +345,7 @@ export default function PublicEventsPage() {
       }
     }
     setShowCitySuggestions(false)
-    fetchEvents(zip, category, radiusMiles)
+    fetchEvents(zip, category, radiusMiles, computeDateRange(dateFilter, selectedMonth))
   }
 
   const matchesSearch = useCallback((ev: { title: string; city: string | null; venue_name: string | null }) =>
@@ -481,7 +517,7 @@ export default function PublicEventsPage() {
               {dateFilter && (
                 <button
                   type="button"
-                  onClick={() => { setDateFilter(''); setShowMonthPicker(false) }}
+                  onClick={() => { setDateFilter(''); setShowMonthPicker(false); fetchEvents(zipCode, category, radiusMiles, {}) }}
                   className="shrink-0 px-3 py-2 rounded-full text-sm font-medium text-blue-100 hover:text-white underline underline-offset-2"
                 >
                   Clear
@@ -493,7 +529,12 @@ export default function PublicEventsPage() {
                 <input
                   type="month"
                   value={selectedMonth}
-                  onChange={e => { setSelectedMonth(e.target.value); setDateFilter('month') }}
+                  onChange={e => {
+                    const month = e.target.value
+                    setSelectedMonth(month)
+                    setDateFilter('month')
+                    fetchEvents(zipCode, category, radiusMiles, computeDateRange('month', month))
+                  }}
                   className="text-sm text-gray-800 bg-white rounded-lg px-3 py-2 focus:outline-none"
                 />
               </div>

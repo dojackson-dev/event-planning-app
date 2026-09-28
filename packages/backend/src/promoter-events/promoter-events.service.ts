@@ -342,17 +342,22 @@ export class PromoterEventsService {
     zipCode?: string,
     category?: string,
     radiusMiles = 30,
+    dateFrom?: string,
+    dateTo?: string,
   ) {
     const admin = this.supabaseService.getAdminClient();
+    const today = new Date().toISOString().split('T')[0];
+    const from = dateFrom && dateFrom > today ? dateFrom : today;
     let query = admin
       .from('public_events')
       .select(
         '*, ticket_tiers(id, name, price, quantity, quantity_sold), promoter_accounts(company_name, contact_name, profile_image_url)',
       )
       .eq('status', 'published')
-      .gte('event_date', new Date().toISOString().split('T')[0])
+      .gte('event_date', from)
       .order('event_date', { ascending: true });
 
+    if (dateTo) query = query.lte('event_date', dateTo);
     if (category) query = query.eq('category', category);
 
     const { data, error } = await query;

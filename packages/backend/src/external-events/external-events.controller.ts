@@ -58,12 +58,16 @@ export class ExternalEventsController {
     @Query('city') city?: string,
     @Query('category') category?: string,
     @Query('radius_miles') radiusMiles?: string,
+    @Query('date_from') dateFrom?: string,
+    @Query('date_to') dateTo?: string,
   ) {
     return this.externalEventsService.getPublicEvents({
       zip_code: zipCode,
       city,
       category,
       radius_miles: radiusMiles ? parseInt(radiusMiles, 10) : undefined,
+      date_from: dateFrom,
+      date_to: dateTo,
     });
   }
 

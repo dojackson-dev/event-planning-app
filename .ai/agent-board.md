@@ -4,6 +4,7 @@
 
 | Agent | Task | Branch / Worktree | Files claimed | Status | Notes |
 |-------|------|-------------------|---------------|--------|-------|
+| GitHub Copilot | Keep public external events visible when another provider fails | dev | packages/frontend/src/app/events/page.tsx | working | Replace all-or-nothing provider aggregation with per-provider result handling; verified the external-events API has records and reload makes the section appear. |
 | GitHub Copilot | Fix Supabase user-delete schema guard + SQL FK cleanup for production | dev | packages/backend/src/auth/auth.service.ts, packages/backend/src/auth/auth.service.spec.ts, packages/backend/migrations/fix-user-delete-fk-cascades.sql | working | Production-safe cleanup now skips missing schema objects; regression test covers the schema-cache failure mode. |
 | GitHub Copilot | Fix Supabase user-delete SQL migration failure (missing invites.accepted_by) | onboard-email | packages/backend/migrations/fix-user-delete-fk-cascades.sql | done | Migration now guards each FK change with table/column existence checks and skips missing columns safely. |
 | GitHub Copilot | Add missing delete-account controls to artist and promoter dashboard profile pages | agent/frontend/delete-account-ui | packages/frontend/src/app/artist/dashboard/profile/page.tsx, packages/frontend/src/app/dashboard/promoter/profile/page.tsx | working | Mirror the owner dashboard danger-zone flow so all roles can delete their account from the browser. |

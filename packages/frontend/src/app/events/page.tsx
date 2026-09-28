@@ -267,20 +267,19 @@ export default function PublicEventsPage() {
     if (zip && radius) params.radius_miles = radius
     const tmParams: Record<string, string> = { ...params }
     if (zip && radius) tmParams.radius_miles = radius
-    Promise.all([
+    Promise.allSettled([
       api.get('/promoter-events/public', { params }),
       api.get('/ticketmaster/events', { params: tmParams }),
       api.get('/external-events/events', { params }),
       // Ticket Evolution has no zip/radius search yet — fetch upcoming events as-is.
-      api.get('/ticket-evolution/public-events').catch(() => ({ data: [] })),
+      api.get('/ticket-evolution/public-events'),
     ])
       .then(([platformRes, tmRes, extRes, tevoRes]) => {
-        setEvents(platformRes.data || [])
-        setTmEvents(tmRes.data || [])
-        setExtEvents(extRes.data || [])
-        setTevoEvents(tevoRes.data || [])
+        setEvents(platformRes.status === 'fulfilled' ? platformRes.value.data || [] : [])
+        setTmEvents(tmRes.status === 'fulfilled' ? tmRes.value.data || [] : [])
+        setExtEvents(extRes.status === 'fulfilled' ? extRes.value.data || [] : [])
+        setTevoEvents(tevoRes.status === 'fulfilled' ? tevoRes.value.data || [] : [])
       })
-      .catch(() => {})
       .finally(() => { setLoading(false); setTmLoading(false); setExtLoading(false); setTevoLoading(false) })
   }
 

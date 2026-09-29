@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, use } from 'react';
 import { QRCodeSVG } from 'qrcode.react'
 import Link from 'next/link'
 import { Calendar, MapPin, Ticket, Loader2 } from 'lucide-react'
@@ -27,7 +27,8 @@ interface TicketData {
   } | null
 }
 
-export default function SingleTicketPage({ params }: { params: { ticketId: string } }) {
+export default function SingleTicketPage(props: { params: Promise<{ ticketId: string }> }) {
+  const params = use(props.params);
   const { ticketId } = params
   const [ticket, setTicket] = useState<TicketData | null>(null)
   const [loading, setLoading] = useState(true)

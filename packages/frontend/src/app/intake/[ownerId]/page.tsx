@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, Suspense, use } from 'react';
 import { useSearchParams } from 'next/navigation'
 import { EventType } from '@/types'
 import { Calendar, Users, Clock, DollarSign, FileText, ArrowLeft, ArrowRight, CheckCircle } from 'lucide-react'
@@ -846,10 +846,11 @@ function PublicIntakeForm({ params }: { params: { ownerId: string } }) {
         </form>
       </div>
     </div>
-  )
+  );
 }
 
-export default function PublicIntakePage({ params }: { params: { ownerId: string } }) {
+export default function PublicIntakePage(props: { params: Promise<{ ownerId: string }> }) {
+  const params = use(props.params);
   return (
     <Suspense>
       <PublicIntakeForm params={params} />

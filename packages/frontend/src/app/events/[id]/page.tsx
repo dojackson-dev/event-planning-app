@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, use } from 'react';
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
@@ -54,7 +54,8 @@ interface PublicEvent {
   promoter_accounts: PromoterAccount | null
 }
 
-export default function PublicEventDetailPage({ params }: { params: { id: string } }) {
+export default function PublicEventDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = use(props.params);
   const { id } = params
   const searchParams = useSearchParams()
 

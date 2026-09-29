@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, use } from 'react';
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
@@ -66,7 +66,8 @@ interface BookingForm {
   agreedAmount: string
 }
 
-export default function VendorPublicProfile({ params }: { params: { id: string } }) {
+export default function VendorPublicProfile(props: { params: Promise<{ id: string }> }) {
+  const params = use(props.params);
   const { id } = params
   const router = useRouter()
   const [vendor, setVendor] = useState<VendorProfile | null>(null)
@@ -742,5 +743,5 @@ export default function VendorPublicProfile({ params }: { params: { id: string }
         </div>
       )}
     </div>
-  )
+  );
 }

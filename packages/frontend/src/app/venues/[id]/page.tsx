@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, use } from 'react';
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
@@ -25,7 +25,8 @@ interface VenueProfile {
   owner_account_id: string
 }
 
-export default function VenueProfilePage({ params }: { params: { id: string } }) {
+export default function VenueProfilePage(props: { params: Promise<{ id: string }> }) {
+  const params = use(props.params);
   const { id } = params
   const router = useRouter()
   const [venue, setVenue] = useState<VenueProfile | null>(null)

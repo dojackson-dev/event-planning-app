@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, use } from 'react';
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -16,7 +16,8 @@ interface Tenant {
   updated_at: string
 }
 
-export default function TenantDetailPage({ params }: { params: { id: string } }) {
+export default function TenantDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = use(props.params);
   const { id } = params
   const router = useRouter()
   const [tenant, setTenant] = useState<Tenant | null>(null)

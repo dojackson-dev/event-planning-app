@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, use } from 'react';
 import { QRCodeSVG } from 'qrcode.react'
 import { Crown, MapPin, Users, Loader2, CheckCircle, Calendar } from 'lucide-react'
 import api from '@/lib/api'
@@ -39,7 +39,8 @@ function fmtDate(d: string | null) {
   })
 }
 
-export default function GuestPassPage({ params }: { params: { qrCode: string } }) {
+export default function GuestPassPage(props: { params: Promise<{ qrCode: string }> }) {
+  const params = use(props.params);
   const { qrCode } = params
   const [pass, setPass] = useState<GuestPass | null>(null)
   const [loading, setLoading] = useState(true)

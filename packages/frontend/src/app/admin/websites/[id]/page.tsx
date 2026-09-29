@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, use } from 'react';
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { Globe, Eye, Edit, Save, X } from 'lucide-react'
@@ -30,7 +30,8 @@ interface WebsiteConfig {
   updated_at: string
 }
 
-export default function WebsiteManagementPage({ params }: { params: { id: string } }) {
+export default function WebsiteManagementPage(props: { params: Promise<{ id: string }> }) {
+  const params = use(props.params);
   const { id } = params
   const [tenant, setTenant] = useState<Tenant | null>(null)
   const [config, setConfig] = useState<WebsiteConfig | null>(null)

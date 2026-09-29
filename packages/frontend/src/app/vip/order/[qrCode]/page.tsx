@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, use } from 'react';
 import { QRCodeSVG } from 'qrcode.react'
 import Link from 'next/link'
 import { Crown, Calendar, MapPin, Loader2, CheckCircle, Clock, Users, Send, X, Phone, Mail, UserPlus } from 'lucide-react'
@@ -33,7 +33,8 @@ interface VipOrder {
   }[]
 }
 
-export default function VipOrderPage({ params }: { params: { qrCode: string } }) {
+export default function VipOrderPage(props: { params: Promise<{ qrCode: string }> }) {
+  const params = use(props.params);
   const { qrCode } = params
   const [order, setOrder] = useState<VipOrder | null>(null)
   const [loading, setLoading] = useState(true)
@@ -46,8 +47,8 @@ export default function VipOrderPage({ params }: { params: { qrCode: string } })
   const [forwardDone, setForwardDone] = useState(false)
   const [forwardError, setForwardError] = useState('')
   // Guest pass assignment: index → { name, phone, email }
-  const [passAssign, setPassAssign] = useState<Record<number, { name: string; phone: string; email: string }>>({}) 
-  const [passSent, setPassSent] = useState<Record<number, 'sending' | 'sent' | 'error'>>({}) 
+  const [passAssign, setPassAssign] = useState<Record<number, { name: string; phone: string; email: string }>>({})
+  const [passSent, setPassSent] = useState<Record<number, 'sending' | 'sent' | 'error'>>({})
   const [passExpanded, setPassExpanded] = useState<number | null>(null)
 
   useEffect(() => {

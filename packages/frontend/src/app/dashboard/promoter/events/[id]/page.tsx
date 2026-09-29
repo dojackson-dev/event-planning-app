@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
@@ -90,7 +90,8 @@ const VENUE_TYPES = [
   'Other',
 ]
 
-export default function PromoterEventDetailPage({ params }: { params: { id: string } }) {
+export default function PromoterEventDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = use(props.params);
   const { id } = params
   const router = useRouter()
 

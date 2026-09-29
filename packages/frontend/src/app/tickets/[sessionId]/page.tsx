@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, use } from 'react';
 import { QRCodeSVG } from 'qrcode.react'
 import Link from 'next/link'
 import { CheckCircle, Calendar, MapPin, Ticket, Loader2, Send, X, Check, Phone, Mail, Copy, ExternalLink } from 'lucide-react'
@@ -28,7 +28,8 @@ interface TicketData {
   } | null
 }
 
-export default function TicketConfirmationPage({ params }: { params: { sessionId: string } }) {
+export default function TicketConfirmationPage(props: { params: Promise<{ sessionId: string }> }) {
+  const params = use(props.params);
   const { sessionId } = params
   const [tickets, setTickets] = useState<TicketData[]>([])
   const [loading, setLoading] = useState(true)

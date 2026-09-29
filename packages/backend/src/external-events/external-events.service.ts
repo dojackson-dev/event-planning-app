@@ -111,16 +111,37 @@ export class ExternalEventsService {
       return query;
     };
 
+    const nowMs = Date.now();
     let data: Omit<PublicExternalEvent, 'source'>[];
     if (!params.zip_code) {
       // "Load More" pages through the next batch of soonest-upcoming events —
-      // the radius filter below doesn't apply here, so we can page at the DB level.
-      const { data: rows, error } = await buildQuery().range(
-        offset,
-        offset + resultLimit - 1,
-      );
-      if (error) throw new Error(error.message);
-      data = rows || [];
+      // the radius filter below doesn't apply here, so we can page at the DB
+      // level. A raw page can come back full (resultLimit rows) but still
+      // yield fewer than resultLimit once isDefinitelyPast below drops
+      // today's already-started events — that would make this page look
+      // shorter than resultLimit to the caller, which the frontend reads as
+      // "no more pages" even though later rows genuinely exist. Keep pulling
+      // subsequent raw windows until we have a full filtered page or the DB
+      // actually runs out; any raw rows re-fetched by the client's next
+      // "load more" call are harmless since it dedupes by id.
+      let rawOffset = offset;
+      const collected: Omit<PublicExternalEvent, 'source'>[] = [];
+      for (let i = 0; i < 20; i++) {
+        const { data: rows, error } = await buildQuery().range(
+          rawOffset,
+          rawOffset + resultLimit - 1,
+        );
+        if (error) throw new Error(error.message);
+        const page = rows || [];
+        collected.push(
+          ...page.filter(
+            (row) => !isDefinitelyPast(row.event_date, row.start_time, nowMs),
+          ),
+        );
+        rawOffset += resultLimit;
+        if (page.length < resultLimit || collected.length >= resultLimit) break;
+      }
+      data = collected;
     } else {
       // The radius match happens in-memory below, so we can't cap this query
       // with .limit() — but PostgREST silently caps any unpaginated query at
@@ -140,7 +161,6 @@ export class ExternalEventsService {
       }
     }
 
-    const nowMs = Date.now();
     let events = data
       .filter((row) => !isDefinitelyPast(row.event_date, row.start_time, nowMs))
       .map((row) => ({

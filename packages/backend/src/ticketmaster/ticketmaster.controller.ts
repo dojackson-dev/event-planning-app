@@ -19,6 +19,7 @@ export class TicketmasterController {
     @Query('size') size?: string,
     @Query('date_from') dateFrom?: string,
     @Query('date_to') dateTo?: string,
+    @Query('page') page?: string,
   ) {
     return this.service.searchEvents({
       zip_code: zipCode,
@@ -28,6 +29,7 @@ export class TicketmasterController {
       size: size ? parseInt(size, 10) : 20,
       date_from: dateFrom,
       date_to: dateTo,
+      page: page ? parseInt(page, 10) : undefined,
     });
   }
 }

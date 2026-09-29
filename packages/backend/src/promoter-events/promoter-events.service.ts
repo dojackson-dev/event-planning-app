@@ -344,6 +344,8 @@ export class PromoterEventsService {
     radiusMiles = 30,
     dateFrom?: string,
     dateTo?: string,
+    limit = 100,
+    offset = 0,
   ) {
     const admin = this.supabaseService.getAdminClient();
     const today = new Date().toISOString().split('T')[0];
@@ -355,10 +357,12 @@ export class PromoterEventsService {
       )
       .eq('status', 'published')
       .gte('event_date', from)
-      .order('event_date', { ascending: true });
+      .order('event_date', { ascending: true })
+      .order('id', { ascending: true });
 
     if (dateTo) query = query.lte('event_date', dateTo);
     if (category) query = query.eq('category', category);
+    if (!zipCode) query = query.range(offset, offset + limit - 1);
 
     const { data, error } = await query;
     if (error) throw new BadRequestException(error.message);
@@ -384,7 +388,7 @@ export class PromoterEventsService {
       }
     }
 
-    return events;
+    return zipCode ? events.slice(offset, offset + limit) : events;
   }
 
   async getPublicEvent(eventId: string) {

@@ -81,6 +81,7 @@ export class ExternalEventsService {
     category?: string;
     radius_miles?: number;
     limit?: number;
+    offset?: number;
     date_from?: string;
     date_to?: string;
   }): Promise<PublicExternalEvent[]> {
@@ -90,6 +91,7 @@ export class ExternalEventsService {
     // current month) — never let it widen the range to before today.
     const from = params.date_from && params.date_from > today ? params.date_from : today;
     const resultLimit = params.limit ?? 100;
+    const offset = params.offset ?? 0;
 
     const buildQuery = () => {
       let query = admin
@@ -101,7 +103,8 @@ export class ExternalEventsService {
         .neq('dedupe_status', 'duplicate')
         .gte('confidence_score', MIN_CONFIDENCE)
         .is('expired_at', null)
-        .order('event_date', { ascending: true });
+        .order('event_date', { ascending: true })
+        .order('id', { ascending: true });
       if (params.date_to) query = query.lte('event_date', params.date_to);
       if (params.city) query = query.ilike('city', params.city);
       if (params.category) query = query.eq('category', params.category);
@@ -110,7 +113,12 @@ export class ExternalEventsService {
 
     let data: Omit<PublicExternalEvent, 'source'>[];
     if (!params.zip_code) {
-      const { data: rows, error } = await buildQuery().limit(resultLimit);
+      // "Load More" pages through the next batch of soonest-upcoming events —
+      // the radius filter below doesn't apply here, so we can page at the DB level.
+      const { data: rows, error } = await buildQuery().range(
+        offset,
+        offset + resultLimit - 1,
+      );
       if (error) throw new Error(error.message);
       data = rows || [];
     } else {
@@ -168,6 +176,11 @@ export class ExternalEventsService {
       }
     }
 
-    return events.slice(0, resultLimit);
+    // The no-zip branch above is already paged at the DB level via .range().
+    // The zip branch fetches everything unbounded (radius filter runs
+    // in-memory), so offset/limit paging has to happen here instead.
+    return params.zip_code
+      ? events.slice(offset, offset + resultLimit)
+      : events.slice(0, resultLimit);
   }
 }

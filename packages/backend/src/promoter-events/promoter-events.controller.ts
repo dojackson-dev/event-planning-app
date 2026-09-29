@@ -49,6 +49,8 @@ export class PromoterEventsController {
     @Query('radius_miles') radiusMiles?: string,
     @Query('date_from') dateFrom?: string,
     @Query('date_to') dateTo?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
   ) {
     return this.service.listPublicEvents(
       zipCode,
@@ -56,6 +58,8 @@ export class PromoterEventsController {
       radiusMiles ? parseInt(radiusMiles, 10) : undefined,
       dateFrom,
       dateTo,
+      limit ? parseInt(limit, 10) : undefined,
+      offset ? parseInt(offset, 10) : undefined,
     );
   }
 

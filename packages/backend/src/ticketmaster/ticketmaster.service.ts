@@ -78,6 +78,7 @@ export class TicketmasterService {
     size?: number;
     date_from?: string;
     date_to?: string;
+    page?: number;
   }): Promise<TicketmasterEvent[]> {
     const apiKey = this.configService.get<string>('TICKETMASTER_API_KEY');
     if (!apiKey) return [];
@@ -104,6 +105,7 @@ export class TicketmasterService {
     }
     if (params.keyword) query.set('keyword', params.keyword);
     query.set('size', String(params.size ?? 20));
+    if (params.page !== undefined) query.set('page', String(params.page));
     // Only future events — or the caller's explicit date range (e.g. a
     // selected month), so a busy near-term date can't crowd out later ones.
     const today = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');

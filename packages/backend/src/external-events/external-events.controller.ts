@@ -60,6 +60,7 @@ export class ExternalEventsController {
     @Query('radius_miles') radiusMiles?: string,
     @Query('date_from') dateFrom?: string,
     @Query('date_to') dateTo?: string,
+    @Query('offset') offset?: string,
   ) {
     return this.externalEventsService.getPublicEvents({
       zip_code: zipCode,
@@ -68,6 +69,7 @@ export class ExternalEventsController {
       radius_miles: radiusMiles ? parseInt(radiusMiles, 10) : undefined,
       date_from: dateFrom,
       date_to: dateTo,
+      offset: offset ? parseInt(offset, 10) : undefined,
     });
   }
 

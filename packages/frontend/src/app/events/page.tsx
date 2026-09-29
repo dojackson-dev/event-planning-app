@@ -103,6 +103,13 @@ const EVENT_CATEGORIES = [
   'Networking', 'Conference', 'Festival', 'Club Night', 'Other',
 ]
 
+// Page sizes must match each backend endpoint's default page/limit size so
+// "did this page come back full" is a reliable signal for "there's more".
+const TM_PAGE_SIZE = 20
+const EXT_PAGE_SIZE = 100
+const TEVO_PAGE_SIZE = 24
+const PLATFORM_PAGE_SIZE = 100
+
 export default function PublicEventsPage() {
   const [events, setEvents] = useState<PublicEvent[]>([])
   const [tmEvents, setTmEvents] = useState<TicketmasterEvent[]>([])
@@ -112,6 +119,24 @@ export default function PublicEventsPage() {
   const [tmLoading, setTmLoading] = useState(false)
   const [extLoading, setExtLoading] = useState(false)
   const [tevoLoading, setTevoLoading] = useState(false)
+  // "Load More" pagination — one page cursor + hasMore/loadingMore flag per
+  // provider, reset whenever a fresh search/filter triggers fetchEvents().
+  const [tmPage, setTmPage] = useState(1)
+  const [tmHasMore, setTmHasMore] = useState(false)
+  const [tmLoadingMore, setTmLoadingMore] = useState(false)
+  const [tmMoreError, setTmMoreError] = useState(false)
+  const [extOffset, setExtOffset] = useState(EXT_PAGE_SIZE)
+  const [extHasMore, setExtHasMore] = useState(false)
+  const [extLoadingMore, setExtLoadingMore] = useState(false)
+  const [extMoreError, setExtMoreError] = useState(false)
+  const [tevoPage, setTevoPage] = useState(2)
+  const [tevoHasMore, setTevoHasMore] = useState(false)
+  const [tevoLoadingMore, setTevoLoadingMore] = useState(false)
+  const [tevoMoreError, setTevoMoreError] = useState(false)
+  const [platformOffset, setPlatformOffset] = useState(PLATFORM_PAGE_SIZE)
+  const [platformHasMore, setPlatformHasMore] = useState(false)
+  const [platformLoadingMore, setPlatformLoadingMore] = useState(false)
+  const [platformMoreError, setPlatformMoreError] = useState(false)
   const [zipCode, setZipCode] = useState('')
   const [radiusMiles, setRadiusMiles] = useState('30')
   const [category, setCategory] = useState('')
@@ -234,7 +259,7 @@ export default function PublicEventsPage() {
       () => { setLocating(false); setLocationError('Location access denied. Enter a city instead.') },
       { timeout: 10000 },
     )
-  }, [category, radiusMiles, dateFilter, selectedMonth])
+  }, [API_URL, category, radiusMiles, dateFilter, selectedMonth])
 
   // Resolve a zip code for a suggestion that has coordinates but no postcode
   // (common for large-city Nominatim results) via reverse geocoding.
@@ -304,22 +329,143 @@ export default function PublicEventsPage() {
     const tevoParams: Record<string, string> = {}
     if (dateRange?.from) tevoParams.date_from = dateRange.from
     if (dateRange?.to) tevoParams.date_to = dateRange.to
+    const platformParams = { ...params, limit: String(PLATFORM_PAGE_SIZE) }
     Promise.allSettled([
-      api.get('/promoter-events/public', { params }),
+      api.get('/promoter-events/public', { params: platformParams }),
       api.get('/ticketmaster/events', { params: tmParams }),
       api.get('/external-events/events', { params }),
       api.get('/ticket-evolution/public-events', { params: tevoParams }),
     ])
       .then(([platformRes, tmRes, extRes, tevoRes]) => {
-        setEvents(platformRes.status === 'fulfilled' ? platformRes.value.data || [] : [])
-        setTmEvents(tmRes.status === 'fulfilled' ? tmRes.value.data || [] : [])
-        setExtEvents(extRes.status === 'fulfilled' ? extRes.value.data || [] : [])
-        setTevoEvents(tevoRes.status === 'fulfilled' ? tevoRes.value.data || [] : [])
+        const platformRows: PublicEvent[] = platformRes.status === 'fulfilled' ? platformRes.value.data || [] : []
+        setEvents(platformRows)
+        setPlatformOffset(PLATFORM_PAGE_SIZE)
+        setPlatformHasMore(platformRows.length === PLATFORM_PAGE_SIZE)
+        setPlatformMoreError(false)
+
+        const tmRows: TicketmasterEvent[] = tmRes.status === 'fulfilled' ? tmRes.value.data || [] : []
+        setTmEvents(tmRows)
+        setTmPage(1)
+        setTmHasMore(tmRows.length === TM_PAGE_SIZE)
+
+        const extRows: ExternalEvent[] = extRes.status === 'fulfilled' ? extRes.value.data || [] : []
+        setExtEvents(extRows)
+        setExtOffset(EXT_PAGE_SIZE)
+        setExtHasMore(extRows.length === EXT_PAGE_SIZE)
+
+        const tevoRows: TevoEvent[] = tevoRes.status === 'fulfilled' ? tevoRes.value.data || [] : []
+        setTevoEvents(tevoRows)
+        setTevoPage(2)
+        setTevoHasMore(tevoRows.length === TEVO_PAGE_SIZE)
       })
       .finally(() => { setLoading(false); setTmLoading(false); setExtLoading(false); setTevoLoading(false) })
   }
 
+  // Each provider only returns one capped page per request — these fetch the
+  // next page and append, using the same filters as the last full fetch.
+  const loadMoreTicketmaster = async () => {
+    setTmLoadingMore(true)
+    setTmMoreError(false)
+    try {
+      const tmParams: Record<string, string> = { page: String(tmPage) }
+      if (zipCode) tmParams.zip_code = zipCode
+      if (category) tmParams.category = category
+      if (zipCode && radiusMiles) tmParams.radius_miles = radiusMiles
+      const range = computeDateRange(dateFilter, selectedMonth)
+      if (range.from) tmParams.date_from = range.from
+      if (range.to) tmParams.date_to = range.to
+      const res = await api.get('/ticketmaster/events', { params: tmParams })
+      const rows: TicketmasterEvent[] = res.data || []
+      const existingIds = new Set(tmEvents.map(event => event.id))
+      const newRows = rows.filter(event => !existingIds.has(event.id))
+      setTmEvents(prev => [...prev, ...newRows])
+      setTmHasMore(rows.length === TM_PAGE_SIZE && newRows.length > 0)
+      setTmPage(prev => prev + 1)
+    } catch {
+      setTmMoreError(true)
+    } finally {
+      setTmLoadingMore(false)
+    }
+  }
+
+  const loadMorePlatformEvents = async () => {
+    setPlatformLoadingMore(true)
+    setPlatformMoreError(false)
+    try {
+      const params: Record<string, string> = {
+        offset: String(platformOffset),
+        limit: String(PLATFORM_PAGE_SIZE),
+      }
+      if (zipCode) params.zip_code = zipCode
+      if (category) params.category = category
+      if (zipCode && radiusMiles) params.radius_miles = radiusMiles
+      const range = computeDateRange(dateFilter, selectedMonth)
+      if (range.from) params.date_from = range.from
+      if (range.to) params.date_to = range.to
+      const res = await api.get('/promoter-events/public', { params })
+      const rows: PublicEvent[] = res.data || []
+      setEvents(prev => {
+        const existingIds = new Set(prev.map(event => event.id))
+        return [...prev, ...rows.filter(event => !existingIds.has(event.id))]
+      })
+      setPlatformHasMore(rows.length === PLATFORM_PAGE_SIZE)
+      setPlatformOffset(prev => prev + PLATFORM_PAGE_SIZE)
+    } catch {
+      setPlatformMoreError(true)
+    } finally {
+      setPlatformLoadingMore(false)
+    }
+  }
+
+  const loadMoreExternalEvents = async () => {
+    setExtLoadingMore(true)
+    setExtMoreError(false)
+    try {
+      const params: Record<string, string> = { offset: String(extOffset) }
+      if (zipCode) params.zip_code = zipCode
+      if (category) params.category = category
+      if (zipCode && radiusMiles) params.radius_miles = radiusMiles
+      const range = computeDateRange(dateFilter, selectedMonth)
+      if (range.from) params.date_from = range.from
+      if (range.to) params.date_to = range.to
+      const res = await api.get('/external-events/events', { params })
+      const rows: ExternalEvent[] = res.data || []
+      const existingIds = new Set(extEvents.map(event => event.id))
+      const newRows = rows.filter(event => !existingIds.has(event.id))
+      setExtEvents(prev => [...prev, ...newRows])
+      setExtHasMore(rows.length === EXT_PAGE_SIZE && newRows.length > 0)
+      setExtOffset(prev => prev + EXT_PAGE_SIZE)
+    } catch {
+      setExtMoreError(true)
+    } finally {
+      setExtLoadingMore(false)
+    }
+  }
+
+  const loadMoreTevoEvents = async () => {
+    setTevoLoadingMore(true)
+    setTevoMoreError(false)
+    try {
+      const params: Record<string, string> = { page: String(tevoPage) }
+      const range = computeDateRange(dateFilter, selectedMonth)
+      if (range.from) params.date_from = range.from
+      if (range.to) params.date_to = range.to
+      const res = await api.get('/ticket-evolution/public-events', { params })
+      const rows: TevoEvent[] = res.data || []
+      const existingIds = new Set(tevoEvents.map(event => event.id))
+      const newRows = rows.filter(event => !existingIds.has(event.id))
+      setTevoEvents(prev => [...prev, ...newRows])
+      setTevoHasMore(rows.length === TEVO_PAGE_SIZE && newRows.length > 0)
+      setTevoPage(prev => prev + 1)
+    } catch {
+      setTevoMoreError(true)
+    } finally {
+      setTevoLoadingMore(false)
+    }
+  }
+
   useEffect(() => { fetchEvents() }, [])
+
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -644,6 +790,20 @@ export default function PublicEventsPage() {
             })}
           </div>
         )}
+        {!loading && platformHasMore && (
+          <div className="flex justify-center mt-6">
+            <button
+              type="button"
+              onClick={loadMorePlatformEvents}
+              disabled={platformLoadingMore}
+              className="px-5 py-2 rounded-full text-sm font-medium border border-purple-300 text-purple-700 hover:bg-purple-50 disabled:opacity-50 transition-colors inline-flex items-center gap-2"
+            >
+              {platformLoadingMore && <Loader2 className="w-4 h-4 animate-spin" />}
+              Load More Events
+            </button>
+          </div>
+        )}
+        {platformMoreError && <p role="alert" className="text-center text-sm text-red-600 mt-2">Could not load more platform events. Try again.</p>}
       </div>
 
       {/* ── Ticket Evolution Events ──────────────────────────────── */}
@@ -732,6 +892,20 @@ export default function PublicEventsPage() {
                 })}
             </div>
           )}
+          {!tevoLoading && tevoHasMore && (
+            <div className="flex justify-center mt-6">
+              <button
+                type="button"
+                onClick={loadMoreTevoEvents}
+                disabled={tevoLoadingMore}
+                className="px-5 py-2 rounded-full text-sm font-medium border border-purple-300 text-purple-700 hover:bg-purple-50 disabled:opacity-50 transition-colors inline-flex items-center gap-2"
+              >
+                {tevoLoadingMore && <Loader2 className="w-4 h-4 animate-spin" />}
+                Load More Events
+              </button>
+            </div>
+          )}
+          {tevoMoreError && <p role="alert" className="text-center text-sm text-red-600 mt-2">Could not load more Ticket Evolution events. Try again.</p>}
         </div>
       )}
 
@@ -832,6 +1006,20 @@ export default function PublicEventsPage() {
                 })}
             </div>
           )}
+          {!extLoading && extHasMore && (
+            <div className="flex justify-center mt-6">
+              <button
+                type="button"
+                onClick={loadMoreExternalEvents}
+                disabled={extLoadingMore}
+                className="px-5 py-2 rounded-full text-sm font-medium border border-purple-300 text-purple-700 hover:bg-purple-50 disabled:opacity-50 transition-colors inline-flex items-center gap-2"
+              >
+                {extLoadingMore && <Loader2 className="w-4 h-4 animate-spin" />}
+                Load More Events
+              </button>
+            </div>
+          )}
+          {extMoreError && <p role="alert" className="text-center text-sm text-red-600 mt-2">Could not load more local events. Try again.</p>}
         </div>
       )}
 
@@ -942,6 +1130,20 @@ export default function PublicEventsPage() {
               })}
           </div>
         )}
+        {!tmLoading && tmHasMore && (
+          <div className="flex justify-center mt-6">
+            <button
+              type="button"
+              onClick={loadMoreTicketmaster}
+              disabled={tmLoadingMore}
+              className="px-5 py-2 rounded-full text-sm font-medium border border-blue-300 text-blue-700 hover:bg-blue-50 disabled:opacity-50 transition-colors inline-flex items-center gap-2"
+            >
+              {tmLoadingMore && <Loader2 className="w-4 h-4 animate-spin" />}
+              Load More Events
+            </button>
+          </div>
+        )}
+        {tmMoreError && <p role="alert" className="text-center text-sm text-red-600 mt-2">Could not load more Ticketmaster events. Try again.</p>}
       </div>
 
       {/* Footer */}

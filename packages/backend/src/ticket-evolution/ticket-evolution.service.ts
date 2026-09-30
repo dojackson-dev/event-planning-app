@@ -25,6 +25,7 @@ export interface TicketEvolutionListResponse<T> {
 interface TicketEvolutionRawEvent {
   id: number;
   name: string;
+  url?: string | null;
   occurs_at: string | null;
   occurs_at_local: string | null;
   category?: { name?: string } | null;
@@ -68,6 +69,13 @@ export class TicketEvolutionService {
 
   private get apiSecret(): string | undefined {
     return this.configService.get<string>('TICKET_EVOLUTION_API_SECRET');
+  }
+
+  // Our TEvo Hosted Checkout domain (e.g. https://checkout.eventecos.com), no trailing slash.
+  private get checkoutBaseUrl(): string | undefined {
+    return this.configService
+      .get<string>('TICKET_EVOLUTION_CHECKOUT_BASE_URL')
+      ?.replace(/\/$/, '');
   }
 
   isConfigured(): boolean {
@@ -223,8 +231,8 @@ export class TicketEvolutionService {
   }
 
   // Upcoming events, normalized for the public /events page grid — no pricing
-  // (that requires a per-event Listings call) and no event_url yet since the
-  // TEvo Hosted Checkout domain isn't live.
+  // (that requires a per-event Listings call). event_url links out to our
+  // Hosted Checkout domain (TICKET_EVOLUTION_CHECKOUT_BASE_URL + raw event.url).
   async getPublicEvents(
     params: {
       name?: string;
@@ -260,6 +268,7 @@ export class TicketEvolutionService {
     });
 
     const events = (res.events as TicketEvolutionRawEvent[]) ?? [];
+    const checkoutBaseUrl = this.checkoutBaseUrl;
     return events.map((ev) => {
       const dateTime = ev.occurs_at_local ?? ev.occurs_at ?? null;
       return {
@@ -271,7 +280,8 @@ export class TicketEvolutionService {
         city: ev.venue?.address?.locality ?? null,
         state: ev.venue?.address?.region ?? null,
         category: ev.category?.name ?? null,
-        event_url: null,
+        event_url:
+          checkoutBaseUrl && ev.url ? `${checkoutBaseUrl}${ev.url}` : null,
         source: 'ticket_evolution',
       };
     });

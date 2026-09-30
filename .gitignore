@@ -31,6 +31,9 @@ packages/backend/src/**/*.js.map
 .env.demo
 .env.*.local
 
+# Postman environment holds real API credentials, never commit
+packages/backend/ticket-evolution.postman_environment.json
+
 # IDE
 .vscode/
 .idea/

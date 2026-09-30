@@ -325,10 +325,11 @@ export default function PublicEventsPage() {
     if (dateRange?.to) params.date_to = dateRange.to
     const tmParams: Record<string, string> = { ...params }
     if (zip && radius) tmParams.radius_miles = radius
-    // Ticket Evolution has no zip/radius search yet, but does support a date range.
     const tevoParams: Record<string, string> = {}
     if (dateRange?.from) tevoParams.date_from = dateRange.from
     if (dateRange?.to) tevoParams.date_to = dateRange.to
+    if (zip) tevoParams.zip_code = zip
+    if (zip && radius) tevoParams.radius_miles = radius
     const platformParams = { ...params, limit: String(PLATFORM_PAGE_SIZE) }
     Promise.allSettled([
       api.get('/promoter-events/public', { params: platformParams }),
@@ -450,6 +451,8 @@ export default function PublicEventsPage() {
       const range = computeDateRange(dateFilter, selectedMonth)
       if (range.from) params.date_from = range.from
       if (range.to) params.date_to = range.to
+      if (zipCode) params.zip_code = zipCode
+      if (zipCode && radiusMiles) params.radius_miles = radiusMiles
       const res = await api.get('/ticket-evolution/public-events', { params })
       const rows: TevoEvent[] = res.data || []
       const existingIds = new Set(tevoEvents.map(event => event.id))

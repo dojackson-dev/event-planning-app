@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
+import * as zipcodes from 'zipcodes';
 
 // Ticket Evolution (Victory Live) Exchange API v9 client.
 // Docs: https://victorylive.atlassian.net/wiki/spaces/API/overview
@@ -240,6 +241,8 @@ export class TicketEvolutionService {
       perPage?: number;
       dateFrom?: string;
       dateTo?: string;
+      zipCode?: string;
+      radiusMiles?: number;
     } = {},
   ): Promise<TicketEvolutionPublicEvent[]> {
     const nowIso = new Date().toISOString();
@@ -255,6 +258,10 @@ export class TicketEvolutionService {
       next.setUTCDate(next.getUTCDate() + 1);
       lt = next.toISOString();
     }
+    // TEvo natively supports lat/lon/within radius search on Events / Index —
+    // geocode the zip ourselves (same `zipcodes` package external-events uses)
+    // rather than passing a zip straight through.
+    const geo = params.zipCode ? zipcodes.lookup(params.zipCode) : undefined;
     const res = await this.request<
       TicketEvolutionListResponse<TicketEvolutionRawEvent>
     >('GET', '/v9/events', {
@@ -262,6 +269,9 @@ export class TicketEvolutionService {
         name: params.name,
         'occurs_at.gte': gte,
         'occurs_at.lt': lt,
+        lat: geo?.latitude,
+        lon: geo?.longitude,
+        within: geo ? (params.radiusMiles ?? 30) : undefined,
         page: params.page ?? 1,
         per_page: params.perPage ?? 24,
       },

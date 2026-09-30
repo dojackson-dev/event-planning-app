@@ -117,6 +117,8 @@ export class TicketEvolutionController {
     @Query('per_page') perPage?: string,
     @Query('date_from') dateFrom?: string,
     @Query('date_to') dateTo?: string,
+    @Query('zip_code') zipCode?: string,
+    @Query('radius_miles') radiusMiles?: string,
   ) {
     if (!this.service.isConfigured() || !isDevOrigin(req)) return [];
     return this.service.getPublicEvents({
@@ -125,6 +127,8 @@ export class TicketEvolutionController {
       perPage: perPage ? parseInt(perPage, 10) : undefined,
       dateFrom,
       dateTo,
+      zipCode,
+      radiusMiles: radiusMiles ? parseInt(radiusMiles, 10) : undefined,
     });
   }
 }

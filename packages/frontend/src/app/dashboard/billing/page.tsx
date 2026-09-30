@@ -370,7 +370,7 @@ export default function BillingPage() {
             <div className="flex-1">
               <h2 className="text-lg font-bold mb-1">Upgrade Your Plan</h2>
               <p className="text-sm text-indigo-100">
-                You're on the Free plan. Upgrade to reduce your platform fees, add venues, and unlock team management.
+                You&apos;re on the Free plan. Upgrade to reduce your platform fees, add venues, and unlock team management.
                 All your data, clients, and settings carry over automatically — nothing is lost.
               </p>
               <ul className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-1">

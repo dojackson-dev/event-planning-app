@@ -444,7 +444,7 @@ export default function SendMessagePage() {
           </p>
           {formData.content && !formData.content.toLowerCase().includes('reply stop to unsubscribe') && (
             <p className="text-xs text-amber-600 mt-1">
-              ⚠ Campaign compliance requires "Reply STOP to unsubscribe." Use a template or add it manually.
+              ⚠ Campaign compliance requires &quot;Reply STOP to unsubscribe.&quot; Use a template or add it manually.
             </p>
           )}
         </div>

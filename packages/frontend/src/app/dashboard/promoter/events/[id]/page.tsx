@@ -378,7 +378,7 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
             <svg className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
             <div className="flex-1">
               <p className="text-sm font-semibold text-amber-900">Stripe account not connected</p>
-              <p className="text-sm text-amber-700 mt-0.5">Buyers can't check out until you connect your Stripe account to receive payouts.</p>
+              <p className="text-sm text-amber-700 mt-0.5">Buyers can&apos;t check out until you connect your Stripe account to receive payouts.</p>
             </div>
             <Link href="/dashboard/promoter/profile#payments"
               className="shrink-0 px-3 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-lg hover:bg-amber-700">

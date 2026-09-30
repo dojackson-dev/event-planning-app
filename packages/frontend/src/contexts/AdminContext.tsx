@@ -77,10 +77,6 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = async () => {
-    if (BYPASS_ADMIN_AUTH) {
-      alert('Authentication disabled for development')
-      return
-    }
     try {
       const supabase = createClient()
       await supabase.auth.signOut()

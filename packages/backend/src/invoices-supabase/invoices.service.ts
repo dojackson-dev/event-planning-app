@@ -335,7 +335,7 @@ export class InvoicesService {
     } catch (err) {
       console.error(
         'Failed to create supabase message record for payment notification:',
-        err?.message || err,
+        err instanceof Error ? err.message : err,
       );
     }
 

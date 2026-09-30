@@ -354,7 +354,7 @@ export default function EstimateDetailPage() {
                     </tr>
                   ))}
                   {editItems.length === 0 && (
-                    <tr><td colSpan={6} className="px-4 py-6 text-center text-sm text-gray-400">No items — click "+ Add Item" to start.</td></tr>
+                    <tr><td colSpan={6} className="px-4 py-6 text-center text-sm text-gray-400">No items — click &quot;+ Add Item&quot; to start.</td></tr>
                   )}
                 </tbody>
               </table>

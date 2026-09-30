@@ -214,7 +214,7 @@ function VendorRegisterForm() {
         {/* STEP 2: Category */}
         {step === 'category' && (
           <div className="bg-white rounded-xl shadow-sm p-8">
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">What's your specialty?</h1>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">What&apos;s your specialty?</h1>
             <p className="text-gray-500 text-sm mb-6">Choose the category that best describes your business.</p>
             <div className="grid grid-cols-2 gap-3">
               {CATEGORIES.map(cat => (

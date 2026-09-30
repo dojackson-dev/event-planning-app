@@ -1,5 +1,5 @@
 export class CreateArtistDto {
-  artistName: string;
+  artistName!: string;
   stageName?: string;
   agentName?: string;
   bookingContactName?: string;
@@ -7,7 +7,7 @@ export class CreateArtistDto {
   bookingPhone?: string;
   agency?: string;
   location?: string;
-  artistType: string;
+  artistType!: string;
   genres?: string[];
   description?: string;
   performanceFeeMin?: number;

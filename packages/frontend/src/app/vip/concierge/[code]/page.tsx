@@ -403,7 +403,7 @@ export default function ConciergePortalPage({ params }: { params: { code: string
                           <span className="text-gray-400">·</span>
                           <span className="text-gray-500 capitalize">{so.status}</span>
                           {so.special_request && (
-                            <span className="text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">"{so.special_request}"</span>
+                            <span className="text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">&quot;{so.special_request}&quot;</span>
                           )}
                         </div>
                       ))}

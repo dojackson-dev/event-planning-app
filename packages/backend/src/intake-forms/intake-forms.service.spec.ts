@@ -46,9 +46,23 @@ describe('IntakeFormsService – createPublic', () => {
       providers: [
         IntakeFormsService,
         { provide: SupabaseService, useValue: supabaseService },
-        { provide: MailService, useValue: { sendClientInvitation: jest.fn().mockResolvedValue(undefined), sendNewLeadNotification: jest.fn().mockResolvedValue(undefined) } },
-        { provide: TwilioService, useValue: { sendSMS: jest.fn().mockResolvedValue(undefined) } },
-        { provide: SmsNotificationsService, useValue: { newIntakeFormSubmission: jest.fn().mockResolvedValue(undefined) } },
+        {
+          provide: MailService,
+          useValue: {
+            sendClientInvitation: jest.fn().mockResolvedValue(undefined),
+            sendNewLeadNotification: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: TwilioService,
+          useValue: { sendSMS: jest.fn().mockResolvedValue(undefined) },
+        },
+        {
+          provide: SmsNotificationsService,
+          useValue: {
+            newIntakeFormSubmission: jest.fn().mockResolvedValue(undefined),
+          },
+        },
         { provide: EventsService, useValue: {} },
       ],
     }).compile();
@@ -67,7 +81,11 @@ describe('IntakeFormsService – createPublic', () => {
         insertedRows.push(...rows);
         return {
           select: () => ({
-            single: () => Promise.resolve({ data: { id: 'form-1', ...rows[0] }, error: null }),
+            single: () =>
+              Promise.resolve({
+                data: { id: 'form-1', ...rows[0] },
+                error: null,
+              }),
           }),
         };
       }),
@@ -87,7 +105,10 @@ describe('IntakeFormsService – createPublic', () => {
       event_description: 'A surprise party for my wife',
     });
 
-    expect(insertedRows[0]).toHaveProperty('event_description', 'A surprise party for my wife');
+    expect(insertedRows[0]).toHaveProperty(
+      'event_description',
+      'A surprise party for my wife',
+    );
   });
 
   it('strips accessibility_requirements, preferred_contact, venue_id, and event_description from safeDto', async () => {
@@ -97,7 +118,11 @@ describe('IntakeFormsService – createPublic', () => {
         insertedRows.push(...rows);
         return {
           select: () => ({
-            single: () => Promise.resolve({ data: { id: 'form-1', ...rows[0] }, error: null }),
+            single: () =>
+              Promise.resolve({
+                data: { id: 'form-1', ...rows[0] },
+                error: null,
+              }),
           }),
         };
       }),
@@ -125,7 +150,10 @@ describe('IntakeFormsService – createPublic', () => {
     expect(insertedRows[0]).not.toHaveProperty('preferred_contact');
     // venue_id is included in extras, so it CAN appear — but only once via extras
     // event_description IS included via extras (not spread from safeDto)
-    expect(insertedRows[0]).toHaveProperty('event_description', 'Annual summit');
+    expect(insertedRows[0]).toHaveProperty(
+      'event_description',
+      'Annual summit',
+    );
     expect(insertedRows[0]).toHaveProperty('venue_id', 'venue-abc');
   });
 
@@ -140,17 +168,26 @@ describe('IntakeFormsService – createPublic', () => {
           // First attempt (with event_description + venue_id) → column error
           return {
             select: () => ({
-              single: () => Promise.resolve({
-                data: null,
-                error: { message: 'column "event_description" of relation "intake_forms" does not exist', code: '42703' },
-              }),
+              single: () =>
+                Promise.resolve({
+                  data: null,
+                  error: {
+                    message:
+                      'column "event_description" of relation "intake_forms" does not exist',
+                    code: '42703',
+                  },
+                }),
             }),
           };
         }
         // Second attempt (base payload) → success
         return {
           select: () => ({
-            single: () => Promise.resolve({ data: { id: 'form-2', ...rows[0] }, error: null }),
+            single: () =>
+              Promise.resolve({
+                data: { id: 'form-2', ...rows[0] },
+                error: null,
+              }),
           }),
         };
       }),
@@ -179,10 +216,11 @@ describe('IntakeFormsService – createPublic', () => {
     const mockChain = {
       insert: jest.fn().mockReturnValue({
         select: () => ({
-          single: () => Promise.resolve({
-            data: null,
-            error: { message: 'connection refused' },
-          }),
+          single: () =>
+            Promise.resolve({
+              data: null,
+              error: { message: 'connection refused' },
+            }),
         }),
       }),
       select: jest.fn().mockReturnThis(),
@@ -210,7 +248,11 @@ describe('IntakeFormsService – createPublic', () => {
         insertedRows.push(...rows);
         return {
           select: () => ({
-            single: () => Promise.resolve({ data: { id: 'form-3', ...rows[0] }, error: null }),
+            single: () =>
+              Promise.resolve({
+                data: { id: 'form-3', ...rows[0] },
+                error: null,
+              }),
           }),
         };
       }),

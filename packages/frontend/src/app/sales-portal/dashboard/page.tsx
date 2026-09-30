@@ -343,6 +343,12 @@ export default function SalesPortalDashboard() {
                 {isManager ? 'Sales Admin' : `Hi, ${dashboard?.affiliate.first_name ?? authAffiliate?.first_name}`}
               </span>
             )}
+            <Link
+              href="/?portal=exit"
+              className="text-sm text-gray-500 hover:text-gray-700 font-medium"
+            >
+              Back to main site
+            </Link>
             <button
               onClick={logout}
               className="text-sm text-gray-500 hover:text-gray-700 font-medium"

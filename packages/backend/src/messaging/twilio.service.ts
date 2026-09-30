@@ -19,7 +19,7 @@ const COMPLIANCE_FOOTER = ' Reply STOP to unsubscribe.';
 @Injectable()
 export class TwilioService {
   private readonly logger = new Logger(TwilioService.name);
-  private client: twilio.Twilio;
+  private client!: twilio.Twilio;
 
   constructor(private configService: ConfigService) {
     const accountSid = this.configService.get<string>('TWILIO_ACCOUNT_SID');

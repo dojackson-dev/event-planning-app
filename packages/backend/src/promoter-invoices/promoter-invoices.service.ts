@@ -509,11 +509,18 @@ export class PromoterInvoicesService {
       DIRECT_PAYMENT_FEE_BY_PLAN[promoter?.plan] ?? DEFAULT_FEE_RATE;
     const feeCents = Math.round(amountCents * feeRate);
 
-    const bnplMethods = ['afterpay_clearpay', 'klarna', 'affirm', 'us_bank_account'] as const;
+    const bnplMethods = [
+      'afterpay_clearpay',
+      'klarna',
+      'affirm',
+      'us_bank_account',
+    ] as const;
 
     const session = await this.stripe.checkout.sessions.create({
       mode: 'payment',
-      payment_method_types: promoter?.enable_bnpl ? ['card', ...bnplMethods] : ['card'],
+      payment_method_types: promoter?.enable_bnpl
+        ? ['card', ...bnplMethods]
+        : ['card'],
       customer_email: invoice.client_email,
       line_items: [
         {
@@ -625,7 +632,10 @@ export class PromoterInvoicesService {
 
   // ─── ACH delayed payment handlers ────────────────────────────────────────
 
-  async markInvoiceProcessing(sessionId: string, paymentIntentId: string | null) {
+  async markInvoiceProcessing(
+    sessionId: string,
+    paymentIntentId: string | null,
+  ) {
     const admin = this.supabaseService.getAdminClient();
     await admin
       .from('promoter_invoices')
@@ -635,7 +645,9 @@ export class PromoterInvoicesService {
         updated_at: new Date().toISOString(),
       })
       .eq('stripe_checkout_session_id', sessionId);
-    this.logger.log(`Promoter invoice set to processing via session ${sessionId}`);
+    this.logger.log(
+      `Promoter invoice set to processing via session ${sessionId}`,
+    );
   }
 
   async markInvoicePaidByPaymentIntent(paymentIntentId: string) {
@@ -666,14 +678,29 @@ export class PromoterInvoicesService {
       .update({ status: 'deposit_paid', updated_at: new Date().toISOString() })
       .eq('promoter_invoice_id', invoice.id);
 
-    this.logger.log(`Promoter invoice ${invoice.id} marked paid via PaymentIntent ${paymentIntentId}`);
+    this.logger.log(
+      `Promoter invoice ${invoice.id} marked paid via PaymentIntent ${paymentIntentId}`,
+    );
 
     try {
       const promoterAccount = invoice.promoter_accounts as any;
       const promoterPhone: string | null = promoterAccount?.phone ?? null;
-      const promoterName: string = promoterAccount?.company_name || promoterAccount?.contact_name || 'Promoter';
-      await this.smsNotifications.vendorInvoicePaid(promoterPhone, promoterName, invoice.client_name ?? 'Client', invoice.total_amount);
-      await this.smsNotifications.paymentReceived((invoice as any).client_phone ?? null, invoice.client_name ?? 'Valued Client', invoice.total_amount, `your invoice from ${promoterName}`);
+      const promoterName: string =
+        promoterAccount?.company_name ||
+        promoterAccount?.contact_name ||
+        'Promoter';
+      await this.smsNotifications.vendorInvoicePaid(
+        promoterPhone,
+        promoterName,
+        invoice.client_name ?? 'Client',
+        invoice.total_amount,
+      );
+      await this.smsNotifications.paymentReceived(
+        (invoice as any).client_phone ?? null,
+        invoice.client_name ?? 'Valued Client',
+        invoice.total_amount,
+        `your invoice from ${promoterName}`,
+      );
     } catch {
       // SMS errors must never break payment processing
     }

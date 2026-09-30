@@ -215,7 +215,10 @@ export class BookingsService {
         created_at: new Date().toISOString(),
       });
     } catch (err) {
-      console.warn('[createClientNotification] failed:', err?.message);
+      console.warn(
+        '[createClientNotification] failed:',
+        err instanceof Error ? err.message : err,
+      );
     }
   }
 

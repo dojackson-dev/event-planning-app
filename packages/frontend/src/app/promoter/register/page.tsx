@@ -103,7 +103,7 @@ export default function PromoterRegisterPage() {
             <form onSubmit={handleAccountSubmit} className="space-y-4">
               <div>
                 <h2 className="text-xl font-bold text-gray-900 mb-1">Create your account</h2>
-                <p className="text-sm text-gray-500 mb-5">You'll use this to sign in</p>
+                <p className="text-sm text-gray-500 mb-5">You&apos;ll use this to sign in</p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

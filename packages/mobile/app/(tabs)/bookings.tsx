@@ -36,7 +36,7 @@ export default function BookingsScreen() {
         .not('intake_form_id', 'is', null)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      setBookings(data || []);
+      setBookings((data as unknown as Booking[]) || []);
     } catch (error: any) {
       console.error('Error fetching bookings:', error.message);
     } finally {

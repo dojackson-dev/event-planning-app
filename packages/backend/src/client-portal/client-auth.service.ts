@@ -166,7 +166,7 @@ export class ClientAuthService {
         (error as Error)?.stack,
       );
       throw new BadRequestException(
-        'We couldn\'t send a text to that number. Please double-check it and try again.',
+        "We couldn't send a text to that number. Please double-check it and try again.",
       );
     }
 

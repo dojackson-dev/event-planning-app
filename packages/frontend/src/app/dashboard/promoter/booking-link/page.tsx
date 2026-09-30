@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
 import { Link2, Copy, CheckCircle2, Loader2, Globe, MessageSquare, Save } from 'lucide-react'
+import EmbedBookingSection from '@/components/EmbedBookingSection'
 
 interface BookingLink {
   id: string
@@ -159,7 +160,7 @@ export default function PromoterBookingLinkPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-700">Booking Link Active</p>
-                  <p className="text-xs text-gray-400">When inactive, visitors see a "not available" message.</p>
+                  <p className="text-xs text-gray-400">When inactive, visitors see a &quot;not available&quot; message.</p>
                 </div>
                 <button type="button" onClick={() => setIsActive(v => !v)}
                   className={`relative w-12 h-6 rounded-full transition-colors ${isActive ? 'bg-purple-600' : 'bg-gray-300'}`}>
@@ -167,6 +168,8 @@ export default function PromoterBookingLinkPage() {
                 </button>
               </div>
             </div>
+
+            {link && <EmbedBookingSection url={bookingUrl} />}
 
             <div className="flex justify-end">
               <button type="submit" disabled={saving}

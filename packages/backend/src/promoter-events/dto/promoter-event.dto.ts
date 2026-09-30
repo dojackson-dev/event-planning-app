@@ -1,7 +1,7 @@
 export class CreatePromoterEventDto {
-  title: string;
+  title!: string;
   description?: string;
-  event_date: string; // YYYY-MM-DD
+  event_date!: string; // YYYY-MM-DD
   start_time?: string; // HH:MM
   end_time?: string;
   venue_name?: string;
@@ -36,9 +36,9 @@ export class UpdatePromoterEventDto {
 }
 
 export class CreateTicketTierDto {
-  name: string; // e.g. "General Admission", "VIP"
-  price: number; // in dollars
-  quantity: number; // total available
+  name!: string; // e.g. "General Admission", "VIP"
+  price!: number; // in dollars
+  quantity!: number; // total available
   description?: string;
 }
 

@@ -1,11 +1,15 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { MailService } from './mail.service';
 import { SupabaseService } from '../supabase/supabase.service';
-import * as nodemailer from 'nodemailer';
 
-jest.mock('nodemailer');
-
-const mockedNodemailer = nodemailer as jest.Mocked<typeof nodemailer>;
+// nodemailer 9's `import * as nodemailer` namespace object only exposes
+// getter-only descriptors (via esModuleInterop's __importStar), so tests
+// can no longer reassign `nodemailer.createTransport` directly. Route the
+// mock through a plain jest.fn defined outside the namespace instead.
+const mockCreateTransport = jest.fn();
+jest.mock('nodemailer', () => ({
+  createTransport: (...args: unknown[]) => mockCreateTransport(...args),
+}));
 
 /** Captures the HTML and text body from the last sendMail call. */
 function captureLastMail(sendMailMock: jest.Mock) {
@@ -28,7 +32,7 @@ describe('MailService – sendClientInvitation', () => {
   beforeEach(async () => {
     sendMailMock = jest.fn().mockResolvedValue({ messageId: 'test-id' });
 
-    mockedNodemailer.createTransport = jest.fn().mockReturnValue({
+    mockCreateTransport.mockReturnValue({
       sendMail: sendMailMock,
     } as any);
 

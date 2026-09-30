@@ -152,7 +152,7 @@ export default function PublicRsvpPage() {
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <PartyPopper className="h-8 w-8 text-green-600" />
               </div>
-              <h1 className="text-xl font-bold text-gray-900 mb-2">You're In! 🎉</h1>
+              <h1 className="text-xl font-bold text-gray-900 mb-2">You&apos;re In! 🎉</h1>
               <p className="text-gray-600">
                 <strong>{invite.guest_name}</strong>, your RSVP is confirmed.
                 {plusOnes > 0 && ` (+${plusOnes} guest${plusOnes > 1 ? 's' : ''})`}
@@ -179,7 +179,7 @@ export default function PublicRsvpPage() {
               </div>
               <h1 className="text-xl font-bold text-gray-800 mb-2">RSVP Received</h1>
               <p className="text-gray-500">
-                <strong>{invite.guest_name}</strong>, we've noted that you won't be able to make it.
+                <strong>{invite.guest_name}</strong>, we&apos;ve noted that you won&apos;t be able to make it.
                 Thanks for letting us know!
               </p>
             </>
@@ -248,7 +248,7 @@ export default function PublicRsvpPage() {
 
         {/* Header */}
         <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-t-2xl px-6 py-6 text-white text-center">
-          <p className="text-sm text-indigo-200 mb-1">You're invited!</p>
+          <p className="text-sm text-indigo-200 mb-1">You&apos;re invited!</p>
           <h1 className="text-xl font-bold">{ev.name ?? 'You\'re Invited!'}</h1>
           {formattedDate && (
             <p className="text-sm text-indigo-200 mt-1 flex items-center justify-center gap-1.5">
@@ -317,7 +317,7 @@ export default function PublicRsvpPage() {
                   : 'border-gray-200 text-gray-700 hover:border-green-400 hover:bg-green-50'
               }`}
             >
-              ✅ Yes, I'll be there!
+              ✅ Yes, I&apos;ll be there!
             </button>
             <button
               onClick={() => setAttending(false)}
@@ -327,7 +327,7 @@ export default function PublicRsvpPage() {
                   : 'border-gray-200 text-gray-700 hover:border-gray-400 hover:bg-gray-50'
               }`}
             >
-              ❌ Sorry, can't make it
+              ❌ Sorry, can&apos;t make it
             </button>
           </div>
 

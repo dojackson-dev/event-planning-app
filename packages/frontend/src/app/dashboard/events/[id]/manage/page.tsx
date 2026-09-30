@@ -1977,7 +1977,7 @@ export default function EventManagementPage() {
                 )}
 
                 {(formData.invitationImages || []).length > 0 && (
-                  <p className="text-xs text-gray-400 text-center">Images save with the "Save Changes" button above.</p>
+                  <p className="text-xs text-gray-400 text-center">Images save with the &quot;Save Changes&quot; button above.</p>
                 )}
               </div>
             </div>

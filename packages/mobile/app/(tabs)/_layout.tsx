@@ -1,93 +1,113 @@
-import { Tabs } from 'expo-router';
+import { useState } from 'react';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { Tabs, useSegments, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/lib/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Colors, Shadow } from '@/lib/theme';
+import OwnerMenu, { MenuButton } from '@/components/OwnerMenu';
 
+// This entire group is venue-owner-type only (owner/admin/venue_owner/concierge
+// — see ROLE_HOME in lib/roleRouting.ts). The old attendee tab set (mock-data
+// Home/Events/Tickets/Favorites/Profile screens) has been removed — the real,
+// live guest browsing experience lives under app/(guest)/ instead.
 export default function TabsLayout() {
-  return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.textMuted,
-        tabBarStyle: {
-          backgroundColor: Colors.surface,
-          borderTopColor: Colors.border,
-          borderTopWidth: 1,
-          height: 64,
-          paddingBottom: 10,
-          paddingTop: 6,
-        },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '500',
-        },
-        headerStyle: {
-          backgroundColor: Colors.surface,
-        },
-        headerTintColor: Colors.textPrimary,
-        headerTitleStyle: {
-          fontWeight: '700',
-          fontSize: 18,
-          color: Colors.textPrimary,
-        },
-        headerShadowVisible: false,
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          headerTitle: 'EventEcos',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="events"
-        options={{
-          title: 'Events',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="search" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="tickets"
-        options={{
-          title: 'Tickets',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="ticket" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="favorites"
-        options={{
-          title: 'Favorites',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="heart" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person" size={size} color={color} />
-          ),
-        }}
-      />
+  const [menuVisible, setMenuVisible] = useState(false);
+  const segments = useSegments();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
 
-      {/* Hide legacy screens + dashboard (accessed directly, not via tab) */}
-      <Tabs.Screen name="dashboard" options={{ href: null, headerShown: false }} />
-      <Tabs.Screen name="bookings" options={{ href: null, headerShown: false }} />
-      <Tabs.Screen name="clients" options={{ href: null, headerShown: false }} />
-      <Tabs.Screen name="invoices" options={{ href: null, headerShown: false }} />
-      <Tabs.Screen name="estimates" options={{ href: null, headerShown: false }} />
-      <Tabs.Screen name="messages" options={{ href: null, headerShown: false }} />
-      <Tabs.Screen name="calendar" options={{ href: null, headerShown: false }} />
-      <Tabs.Screen name="settings" options={{ href: null, headerShown: false }} />
-    </Tabs>
+  // Only show the hamburger button on a section's root screen (e.g.
+  // /(tabs)/venues), not on nested detail/create screens (e.g.
+  // /(tabs)/venues/[id]) where a normal back arrow already handles navigation.
+  const atOwnerRoot = segments.length <= 2;
+  // Every section root except Dashboard itself needs a way back — sections
+  // are reached via the hamburger menu (not a real navigation stack push
+  // across tabs), so there's no automatic header back button for them.
+  const isDashboard = (segments as string[])[1] === 'dashboard';
+  const showBack = atOwnerRoot && !isDashboard;
+
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)/dashboard');
+    }
+  };
+
+  return (
+    <View style={{ flex: 1 }}>
+      <Tabs
+        initialRouteName="dashboard"
+        screenOptions={{
+          tabBarStyle: { display: 'none' },
+          headerStyle: {
+            backgroundColor: Colors.surface,
+          },
+          headerTintColor: Colors.textPrimary,
+          headerTitleStyle: {
+            fontWeight: '700',
+            fontSize: 18,
+            color: Colors.textPrimary,
+          },
+          headerShadowVisible: false,
+        }}
+      >
+        {/* Venue-owner sections — reachable via the hamburger menu, not a tab
+            bar. headerShown:true (with no custom back/left button since these
+            are section roots) reserves proper top safe-area space, which flat
+            single-file screens don't otherwise account for themselves. */}
+        <Tabs.Screen name="dashboard" options={{ href: null, headerShown: true, title: 'Dashboard' }} />
+        <Tabs.Screen name="bookings" options={{ href: null, headerShown: true, title: 'Bookings' }} />
+        <Tabs.Screen name="clients" options={{ href: null, headerShown: true, title: 'Clients' }} />
+        <Tabs.Screen name="calendar" options={{ href: null, headerShown: true, title: 'Calendar' }} />
+        <Tabs.Screen name="settings" options={{ href: null, headerShown: true, title: 'Settings' }} />
+
+        {/* Folder routes already render their own nested header/title, so the
+            outer header stays hidden to avoid a duplicate header. */}
+        <Tabs.Screen name="events" options={{ href: null, headerShown: false }} />
+        <Tabs.Screen name="venues" options={{ href: null, headerShown: false }} />
+        <Tabs.Screen name="messages" options={{ href: null, headerShown: false }} />
+        <Tabs.Screen name="invoices" options={{ href: null, headerShown: false }} />
+        <Tabs.Screen name="vendor-invoices" options={{ href: null, headerShown: false }} />
+        <Tabs.Screen name="estimates" options={{ href: null, headerShown: false }} />
+        <Tabs.Screen name="vendors" options={{ href: null, headerShown: false }} />
+        <Tabs.Screen name="booking-link" options={{ href: null, headerShown: false }} />
+        <Tabs.Screen name="door-lists" options={{ href: null, headerShown: false }} />
+        <Tabs.Screen name="contracts" options={{ href: null, headerShown: false }} />
+      </Tabs>
+
+      {atOwnerRoot && (
+        <View style={[styles.fabRow, { top: insets.top + 6 }]}>
+          {showBack && (
+            <TouchableOpacity onPress={handleBack} style={styles.fab} hitSlop={12}>
+              <Ionicons name="arrow-back" size={22} color={Colors.textPrimary} />
+            </TouchableOpacity>
+          )}
+          <View style={styles.fab}>
+            <MenuButton onPress={() => setMenuVisible(true)} />
+          </View>
+        </View>
+      )}
+
+      <OwnerMenu visible={menuVisible} onClose={() => setMenuVisible(false)} />
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  fabRow: {
+    position: 'absolute',
+    left: 12,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  fab: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadow.md,
+  },
+});

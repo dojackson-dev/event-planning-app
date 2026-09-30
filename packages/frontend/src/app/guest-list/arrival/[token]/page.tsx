@@ -283,7 +283,7 @@ export default function PublicGuestListArrivalPage() {
 
         {/* Footer Info */}
         <div className="mt-6 text-center text-sm text-gray-500">
-          <p>Door list for security and event staff. Tap "Check In" when guests arrive.</p>
+          <p>Door list for security and event staff. Tap &quot;Check In&quot; when guests arrive.</p>
         </div>
       </div>
     </div>

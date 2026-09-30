@@ -249,7 +249,7 @@ export default function CustomerSupportPage() {
                   <CheckCircle className="w-8 h-8 text-green-600" />
                 </div>
                 <h3 className="font-semibold text-gray-900 mb-1">Ticket Submitted!</h3>
-                <p className="text-sm text-gray-500">We'll get back to you within 24 hours.</p>
+                <p className="text-sm text-gray-500">We&apos;ll get back to you within 24 hours.</p>
               </div>
             ) : (
               <form onSubmit={handleSubmitTicket} className="space-y-4">

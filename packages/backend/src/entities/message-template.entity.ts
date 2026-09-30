@@ -9,19 +9,19 @@ import {
 @Entity('message_templates')
 export class MessageTemplate {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   @Column()
-  name: string;
+  name!: string;
 
   @Column({ name: 'message_type' })
-  messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom';
+  messageType!: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom';
 
   @Column({ type: 'text' })
-  content: string;
+  content!: string;
 
   @Column({ name: 'is_active', default: true })
-  isActive: boolean;
+  isActive!: boolean;
 
   @Column({ name: 'send_before_days', nullable: true })
   sendBeforeDays?: number; // Days before event
@@ -33,14 +33,14 @@ export class MessageTemplate {
   repeatIntervalDays?: number; // For recurring reminders
 
   @Column({ name: 'recipient_type' })
-  recipientType: 'client' | 'guest' | 'security' | 'all';
+  recipientType!: 'client' | 'guest' | 'security' | 'all';
 
   @Column({ name: 'auto_send', default: false })
-  autoSend: boolean; // Auto-send when conditions are met
+  autoSend!: boolean; // Auto-send when conditions are met
 
   @CreateDateColumn({ name: 'created_at' })
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt: Date;
+  updatedAt!: Date;
 }

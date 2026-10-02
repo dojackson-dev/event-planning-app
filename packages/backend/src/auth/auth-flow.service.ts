@@ -12,6 +12,7 @@ import { TrialService } from '../trial/trial.service';
 import { TwilioService } from '../messaging/twilio.service.js';
 import { AffiliatesService } from '../affiliates/affiliates.service';
 import { MailService } from '../mail/mail.service';
+import { analytics } from '../analytics/heycatch';
 import {
   OwnerSignupDto,
   OwnerLoginDto,
@@ -197,6 +198,21 @@ export class AuthFlowService {
 
     // Note: Stripe checkout would happen here in Phase 2
     // const checkoutUrl = await this.stripeService.createCheckoutSession(ownerAccount.id, 'price_xxx');
+
+    await analytics.setIdentity(
+      userId,
+      {
+        email: dto.email,
+        name: `${dto.firstName} ${dto.lastName}`,
+        plan: 'free',
+      },
+      { signup_date: new Date().toISOString() },
+    );
+    await analytics.trackEvent(
+      'signup_completed',
+      { role: 'owner' },
+      { userId },
+    );
 
     return {
       userId,

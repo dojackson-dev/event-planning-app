@@ -4,6 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { analytics } from '../analytics/heycatch';
 import {
   RegisterDto,
   LoginDto,
@@ -56,6 +57,23 @@ export class AuthService {
     ) {
       throw new UnauthorizedException(
         'An account with this email already exists',
+      );
+    }
+
+    if (data.user) {
+      await analytics.setIdentity(
+        data.user.id,
+        {
+          email: registerDto.email,
+          name: `${registerDto.firstName} ${registerDto.lastName}`,
+          plan: 'free',
+        },
+        { signup_date: new Date().toISOString() },
+      );
+      await analytics.trackEvent(
+        'signup_completed',
+        { role: registerDto.role },
+        { userId: data.user.id },
       );
     }
 

@@ -10,6 +10,7 @@ import { AffiliatesService } from '../affiliates/affiliates.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import { MailService } from '../mail/mail.service';
 import { VipService } from '../vip/vip.service';
+import { analytics } from '../analytics/heycatch';
 
 @Injectable()
 export class StripeService {
@@ -455,8 +456,10 @@ export class StripeService {
         await this.handlePaymentIntentSucceeded(event.data.object);
         break;
       case 'customer.subscription.created':
+        await this.handleSubscriptionUpdate(event.data.object, true);
+        break;
       case 'customer.subscription.updated':
-        await this.handleSubscriptionUpdate(event.data.object);
+        await this.handleSubscriptionUpdate(event.data.object, false);
         break;
       case 'customer.subscription.deleted':
         await this.handleSubscriptionCanceled(event.data.object);
@@ -1094,6 +1097,7 @@ export class StripeService {
 
   private async handleSubscriptionUpdate(
     subscription: Stripe.Subscription,
+    isNew = false,
   ): Promise<void> {
     // Promoter subscription update
     const promoterAccountId = subscription.metadata?.promoter_account_id;
@@ -1109,6 +1113,24 @@ export class StripeService {
           `Promoter ${promoterAccountId} subscription updated to plan=${plan}`,
         );
       }
+      if (isNew) {
+        const admin = this.supabaseService.getAdminClient();
+        const { data: promoterAccount } = await admin
+          .from('promoter_accounts')
+          .select('user_id')
+          .eq('id', promoterAccountId)
+          .single();
+        if (promoterAccount?.user_id) {
+          await analytics.setIdentity(promoterAccount.user_id, {
+            plan: plan ?? 'pro',
+          });
+          await analytics.trackEvent(
+            'subscription_started',
+            { plan: plan ?? 'pro' },
+            { userId: promoterAccount.user_id },
+          );
+        }
+      }
       return;
     }
 
@@ -1123,6 +1145,27 @@ export class StripeService {
         subscription.status,
         priceId,
       );
+      if (isNew) {
+        const admin = this.supabaseService.getAdminClient();
+        const { data: ownerAccount } = await admin
+          .from('owner_accounts')
+          .select('primary_owner_id')
+          .eq('id', ownerAccountId)
+          .single();
+        if (ownerAccount?.primary_owner_id) {
+          const planName = priceId
+            ? this.priceIdToPlanMeta(priceId).planName
+            : null;
+          await analytics.setIdentity(ownerAccount.primary_owner_id, {
+            plan: planName ?? undefined,
+          });
+          await analytics.trackEvent(
+            'subscription_started',
+            { plan: planName },
+            { userId: ownerAccount.primary_owner_id },
+          );
+        }
+      }
     } else {
       const customerId =
         typeof subscription.customer === 'string'

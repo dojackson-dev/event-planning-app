@@ -24,6 +24,18 @@ const nextConfig = {
     maxInactiveAge: 120 * 1000,
     pagesBufferLength: 5,
   },
+  // HeyCatch reserved short-link paths (/a-/z, /0-/9) — bare single-char
+  // paths only; real routes like /a/[code] have a second segment and are
+  // untouched.
+  async redirects() {
+    return [
+      {
+        source: '/:l([a-z0-9])',
+        destination: '/?utm_source=heycatch&utm_campaign=:l',
+        permanent: false,
+      },
+    ]
+  },
 }
 
 module.exports = nextConfig

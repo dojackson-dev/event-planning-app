@@ -32,6 +32,23 @@ function ResetPasswordForm() {
     const hashParams = new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : hash)
     const accessToken = hashParams.get('access_token')
 
+    // Supabase's /verify redirect appends `error`/`error_code`/`error_description`
+    // (as query params, or sometimes in the hash) instead of a token when the
+    // recovery link is invalid, expired, or has already been used/consumed
+    // (e.g. clicked once already, or pre-fetched by an email link scanner).
+    // Without this check the page falls through every branch below and is
+    // left spinning on "Verifying your reset link…" forever.
+    const errorDescription =
+      searchParams.get('error_description') || hashParams.get('error_description')
+    const errorCode = searchParams.get('error_code') || hashParams.get('error_code')
+    if (errorDescription || errorCode) {
+      setLinkError(
+        (errorDescription && decodeURIComponent(errorDescription.replace(/\+/g, ' '))) ||
+          'This reset link is invalid or has expired. Please request a new one.',
+      )
+      return
+    }
+
     if (accessToken) {
       const refreshToken = hashParams.get('refresh_token') || ''
       supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken }).then(
@@ -80,7 +97,22 @@ function ResetPasswordForm() {
       }
     })
 
-    return () => subscription.unsubscribe()
+    // Safety net: if none of the above resolved within 10s (no code, no
+    // hash token, no error params, no session), stop spinning forever and
+    // tell the user to request a new link instead of guessing why.
+    const timeout = setTimeout(() => {
+      setSessionReady((ready) => {
+        if (!ready) {
+          setLinkError('This reset link is invalid or has expired. Please request a new one.')
+        }
+        return ready
+      })
+    }, 10000)
+
+    return () => {
+      subscription.unsubscribe()
+      clearTimeout(timeout)
+    }
   }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {

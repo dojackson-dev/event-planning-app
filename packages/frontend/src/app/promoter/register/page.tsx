@@ -17,6 +17,7 @@ export default function PromoterRegisterPage() {
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [phone, setPhone] = useState('')
 
   // Profile
@@ -27,7 +28,12 @@ export default function PromoterRegisterPage() {
   const [instagram, setInstagram] = useState('')
 
   const handleAccountSubmit = async (e: React.FormEvent) => {
-    e.preventDefault(); setError(''); setLoading(true)
+    e.preventDefault(); setError('')
+    if (password !== confirmPassword) {
+      setError('Passwords do not match')
+      return
+    }
+    setLoading(true)
     try {
       const res = await api.post('/auth/flow/promoter/signup', {
         email, password, firstName, lastName,
@@ -133,6 +139,12 @@ export default function PromoterRegisterPage() {
                 <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8}
                   className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
                   placeholder="Min. 8 characters" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password *</label>
+                <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required minLength={8}
+                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  placeholder="Re-enter password" />
               </div>
               <button type="submit" disabled={loading}
                 className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white font-semibold py-3 rounded-xl hover:bg-purple-700 disabled:opacity-60 mt-2">

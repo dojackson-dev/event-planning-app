@@ -8,10 +8,10 @@ export const metadata: Metadata = {
 
 // TODO(D3.3, D1.4): Replace the placeholder photo, story, and social link
 // below with the founder's real photo, a first-person ~150-word "why I
-// built this" story, and a real LinkedIn or X profile link. Name below is
-// pulled from this repo's git history (Larry Nixon) — confirm it's correct
-// before publishing. Do not invent quotes, metrics, or history beyond what's
-// provided here.
+// built this" story, and a real LinkedIn or X profile link. Name and legal
+// entity (DoVenue Suites, confirmed via repo-wide usage) are real — confirm
+// the name is correct before publishing. Do not invent quotes, metrics, or
+// history beyond what's provided here.
 export default function AboutPage() {
   return (
     <div className="min-h-screen bg-white py-20 px-4 sm:px-6 lg:px-8">
@@ -24,7 +24,7 @@ export default function AboutPage() {
             Photo
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-1">Larry Nixon</h1>
-          <p className="text-gray-500 mb-8">Founder, EventEcos</p>
+          <p className="text-gray-500 mb-8">Founder, EventEcos — a product of DoVenue Suites</p>
         </div>
 
         <div className="prose prose-gray max-w-none">

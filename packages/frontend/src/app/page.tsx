@@ -714,7 +714,7 @@ export default function Home() {
           </div>
           <div className="border-t border-gray-800 pt-8">
             <p className="text-center text-gray-400 text-sm">
-              &copy; 2026 EventEcos. All rights reserved. Powering the Event Ecosystem.
+              &copy; 2026 EventEcos, a DoVenue Suites product. All rights reserved.
             </p>
           </div>
         </div>

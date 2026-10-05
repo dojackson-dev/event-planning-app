@@ -55,6 +55,7 @@ export default function RootLayout({
       {
         '@type': 'Organization',
         name: 'EventEcos',
+        legalName: 'DoVenue Suites',
         url: SITE_URL,
         logo: `${SITE_URL}/lib/EventEcos-Logo.jpg`,
         sameAs: [

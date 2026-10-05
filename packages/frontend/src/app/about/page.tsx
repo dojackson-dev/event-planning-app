@@ -65,11 +65,6 @@ export default function AboutPage() {
 
           <p className="font-bold text-gray-900">EventEcos<br />Built by a family that loves events. Designed for the people who make them happen.</p>
         </div>
-
-        {/* TODO: add a real LinkedIn or X profile link */}
-        <p className="mt-8 text-sm text-gray-500">
-          Connect: <span className="italic">[LinkedIn or X link pending]</span>
-        </p>
       </div>
     </div>
   )

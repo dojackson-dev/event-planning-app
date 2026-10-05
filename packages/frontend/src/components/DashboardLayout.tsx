@@ -238,7 +238,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
+  const mobileNavRef = useRef<HTMLElement>(null)
   const [unreadChatCount, setUnreadChatCount] = useState(0)
+
+  // The sidebar stays mounted (just translated off-screen) when closed, so its
+  // nav scroll position otherwise persists across opens — reset it to the top
+  // each time the drawer opens instead of reopening mid-scroll.
+  useEffect(() => {
+    if (mobileMenuOpen && mobileNavRef.current) {
+      mobileNavRef.current.scrollTop = 0
+    }
+  }, [mobileMenuOpen])
 
   const fetchUnreadCount = useCallback(async () => {
     if (!user) return
@@ -336,7 +346,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 overflow-y-auto p-4 space-y-1">
+          <nav ref={mobileNavRef} className="flex-1 overflow-y-auto p-4 space-y-1">
             {navigation.map((item) => {
               const isActive = pathname === item.href
               const Icon = item.icon

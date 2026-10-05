@@ -183,6 +183,19 @@ export default function SendMessagePage() {
     }
   }
 
+  const handleGuestChange = (guestId: string) => {
+    const guest = guests.find(g => g.id.toString() === guestId)
+    if (guest) {
+      setFormData(prev => ({
+        ...prev,
+        recipientPhone: guest.phone ? toE164(guest.phone) : '',
+        recipientName: guest.name,
+      }))
+    } else {
+      setFormData(prev => ({ ...prev, recipientPhone: '', recipientName: '' }))
+    }
+  }
+
   const STOP_FOOTER = ' Reply STOP to unsubscribe.'
 
   const getMessageTemplate = () => {
@@ -343,6 +356,29 @@ export default function SendMessagePage() {
                     </div>
                   )
                 })()}
+              </div>
+            )}
+
+            {/* Guest Selection */}
+            {formData.recipientType === 'guest' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Guest *
+                </label>
+                <select
+                  value={guests.find(g => g.name === formData.recipientName && toE164(g.phone) === formData.recipientPhone)?.id.toString() || ''}
+                  onChange={(e) => handleGuestChange(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  required
+                  disabled={!formData.eventId}
+                >
+                  <option value="">{formData.eventId ? 'Select a guest...' : 'Select an event first'}</option>
+                  {guests.map((guest) => (
+                    <option key={guest.id} value={guest.id}>
+                      {guest.name}{guest.phone ? ` — ${guest.phone}` : ' (no phone)'}
+                    </option>
+                  ))}
+                </select>
               </div>
             )}
 

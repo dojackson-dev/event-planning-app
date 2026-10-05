@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Image from 'next/image'
 import Link from 'next/link'
 
 export const metadata: Metadata = {
@@ -6,9 +7,8 @@ export const metadata: Metadata = {
   description: 'Built by a family that loves events. Designed for the people who make them happen.',
 }
 
-// TODO(D3.3, D1.4): Replace the placeholder photo below with a real photo of
-// Larry & Dee Nixon once uploaded. Story, names, and legal entity (DoVenue
-// Suites) are real, provided by the founders — do not alter the wording.
+// Family photo lives at /public/lib/nixon-family.jpg — save the provided
+// photo there (same folder as the other brand assets).
 export default function AboutPage() {
   return (
     <div className="min-h-screen bg-white py-20 px-4 sm:px-6 lg:px-8">
@@ -16,10 +16,13 @@ export default function AboutPage() {
         <Link href="/" className="text-accent-600 hover:underline text-sm">&larr; Back to EventEcos</Link>
 
         <div className="mt-8 flex flex-col items-center text-center">
-          {/* TODO: replace with a real photo of Larry & Dee Nixon */}
-          <div className="h-32 w-32 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 text-sm mb-6">
-            Photo
-          </div>
+          <Image
+            src="/lib/nixon-family.jpg"
+            alt="The Nixon family — Larry, Dee, Jaden, and Makaila Nixon"
+            width={320}
+            height={320}
+            className="rounded-2xl object-cover mb-6 w-full max-w-xs h-auto"
+          />
           <h1 className="text-3xl font-bold text-gray-900 mb-1">Larry &amp; Dee Nixon</h1>
           <p className="text-gray-500 mb-8">Founders, EventEcos — a product of DoVenue Suites</p>
         </div>

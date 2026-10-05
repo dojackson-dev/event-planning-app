@@ -468,19 +468,6 @@ export default function SendMessagePage() {
           </button>
         </div>
       </form>
-
-      {/* Configuration Note */}
-      <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h3 className="text-sm font-semibold text-blue-900 mb-2">Twilio Configuration Required</h3>
-        <p className="text-sm text-blue-800 mb-2">
-          To send messages, add the following to your backend .env file:
-        </p>
-        <pre className="bg-blue-100 p-2 rounded text-xs text-blue-900 overflow-x-auto">
-{`TWILIO_ACCOUNT_SID=your_account_sid
-TWILIO_AUTH_TOKEN=your_auth_token
-TWILIO_PHONE_NUMBER=+1234567890`}
-        </pre>
-      </div>
     </div>
   )
 }

@@ -344,24 +344,26 @@ export default function BillingPage() {
         </div>
       </div>
 
-      {/* ── Stripe Test Mode Banner ── */}
-      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-8 flex items-start gap-3">
-        <Zap className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
-        <div>
-          <p className="text-sm font-medium text-amber-800">Test Mode Active</p>
-          <p className="text-sm text-amber-700 mt-0.5">
-            Use test card <span className="font-mono font-bold">4242 4242 4242 4242</span> with any future expiry and any CVC.{' '}
-            <a
-              href="https://stripe.com/docs/testing#cards"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:no-underline"
-            >
-              View all test cards →
-            </a>
-          </p>
+      {/* ── Stripe Test Mode Banner — only shown when Stripe is genuinely in test mode ── */}
+      {process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.startsWith('pk_test_') && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-8 flex items-start gap-3">
+          <Zap className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-amber-800">Test Mode Active</p>
+            <p className="text-sm text-amber-700 mt-0.5">
+              Use test card <span className="font-mono font-bold">4242 4242 4242 4242</span> with any future expiry and any CVC.{' '}
+              <a
+                href="https://stripe.com/docs/testing#cards"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:no-underline"
+              >
+                View all test cards →
+              </a>
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ── Upgrade Hero (free/trial users) ── */}
       {!isSubscribed && (

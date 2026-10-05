@@ -329,7 +329,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               visible height for nav items on short/mobile viewports. */}
           <div ref={mobileNavRef} className="flex-1 overflow-y-auto">
             {/* User info */}
-            <div className="p-4 border-b border-accent-200 mt-16 lg:mt-0 bg-accent-50/40">
+            <div className="p-4 pt-6 border-b border-accent-200 mt-16 lg:mt-0 bg-accent-50/40">
               <div className="flex items-center">
                 <div className="h-12 w-12 rounded-full bg-accent-200 flex items-center justify-center text-accent-700 font-bold text-lg">
                   {displayUser.firstName?.[0] || 'U'}{displayUser.lastName?.[0] || 'U'}

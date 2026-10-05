@@ -256,7 +256,7 @@ export class TeamService {
       userId = authData.user.id;
 
       // Create users row
-      await admin.from('users').insert({
+      const { error: userInsertErr } = await admin.from('users').insert({
         id: userId,
         email: invite.email,
         first_name: firstName,
@@ -267,15 +267,25 @@ export class TeamService {
         phone_verified: false,
         sms_opt_in: false,
       });
+      if (userInsertErr) {
+        throw new BadRequestException(
+          `Failed to create team member profile: ${userInsertErr.message}`,
+        );
+      }
     }
 
     // Create membership
-    await admin.from('memberships').insert({
+    const { error: membershipErr } = await admin.from('memberships').insert({
       user_id: userId,
       owner_account_id: invite.owner_account_id,
       role: 'associate',
       is_active: true,
     });
+    if (membershipErr) {
+      throw new BadRequestException(
+        `Failed to link team member to account: ${membershipErr.message}`,
+      );
+    }
 
     // Mark invite accepted
     await admin

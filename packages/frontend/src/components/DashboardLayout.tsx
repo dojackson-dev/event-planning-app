@@ -35,6 +35,7 @@ import {
   Music,
   ExternalLink,
   Link2,
+  Plus,
 } from 'lucide-react'
 
 function getInitials(name: string): string {
@@ -216,8 +217,8 @@ const ALL_NAV = [
   { name: 'Clients',        href: '/dashboard/clients',      icon: Users,           ownerOnly: false },
   { name: 'Client Intake',  href: '/dashboard/intake',       icon: ClipboardList,   ownerOnly: false },
   { name: 'Items & Packages', href: '/dashboard/items',      icon: Package,         ownerOnly: false },
-  { name: 'Invoices',       href: '/dashboard/invoices',     icon: Receipt,         ownerOnly: false },
-  { name: 'Estimates',      href: '/dashboard/estimates',    icon: FileText,        ownerOnly: false },
+  { name: 'Invoices',       href: '/dashboard/invoices',     icon: Receipt,         ownerOnly: false, quickCreateHref: '/dashboard/invoices/new' },
+  { name: 'Estimates',      href: '/dashboard/estimates',    icon: FileText,        ownerOnly: false, quickCreateHref: '/dashboard/invoices/new?type=estimate' },
   { name: 'Contracts',      href: '/dashboard/contracts',    icon: FileText,        ownerOnly: false },
   { name: 'Door Lists',     href: '/dashboard/door-lists',   icon: ListChecks,      ownerOnly: false },
   { name: 'Security',       href: '/dashboard/security',     icon: Shield,          ownerOnly: false },
@@ -376,20 +377,31 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   )
                 }
                 return (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    onClick={() => { setMobileMenuOpen(false); if (item.href === '/dashboard/messages') setUnreadChatCount(0) }}
-                    className={cls}
-                  >
-                    <Icon className="mr-3 h-5 w-5 flex-shrink-0" />
-                    <span className="flex-1">{item.name}</span>
-                    {item.href === '/dashboard/messages' && unreadChatCount > 0 && (
-                      <span className="ml-2 inline-flex items-center justify-center h-5 min-w-[20px] px-1 rounded-full bg-primary-600 text-white text-[10px] font-bold">
-                        {unreadChatCount > 99 ? '99+' : unreadChatCount}
-                      </span>
+                  <div key={item.name} className="flex items-center gap-1">
+                    <Link
+                      href={item.href}
+                      onClick={() => { setMobileMenuOpen(false); if (item.href === '/dashboard/messages') setUnreadChatCount(0) }}
+                      className={`${cls} flex-1`}
+                    >
+                      <Icon className="mr-3 h-5 w-5 flex-shrink-0" />
+                      <span className="flex-1">{item.name}</span>
+                      {item.href === '/dashboard/messages' && unreadChatCount > 0 && (
+                        <span className="ml-2 inline-flex items-center justify-center h-5 min-w-[20px] px-1 rounded-full bg-primary-600 text-white text-[10px] font-bold">
+                          {unreadChatCount > 99 ? '99+' : unreadChatCount}
+                        </span>
+                      )}
+                    </Link>
+                    {(item as any).quickCreateHref && (
+                      <Link
+                        href={(item as any).quickCreateHref}
+                        onClick={() => setMobileMenuOpen(false)}
+                        title={`New ${item.name.replace(/s$/, '')}`}
+                        className="flex items-center justify-center h-9 w-9 flex-shrink-0 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-primary-600 active:bg-gray-200"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Link>
                     )}
-                  </Link>
+                  </div>
                 )
               })}
             </nav>

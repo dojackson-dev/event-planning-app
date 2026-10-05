@@ -78,7 +78,7 @@ export class GuestListsService {
    * userId. Used to authorize findByEvent and create (which take a raw
    * eventId rather than a guest_lists.id).
    */
-  async assertOwnsEvent(eventId: number, userId: string): Promise<void> {
+  async assertOwnsEvent(eventId: string, userId: string): Promise<void> {
     const supabase = this.supabaseService.getAdminClient();
     const { data: event, error } = await supabase
       .from('event')
@@ -181,7 +181,7 @@ export class GuestListsService {
     return data || [];
   }
 
-  async findByEvent(eventId: number): Promise<any | null> {
+  async findByEvent(eventId: string): Promise<any | null> {
     const supabase = this.supabaseService.getAdminClient();
     const { data, error } = await supabase
       .from('guest_lists')

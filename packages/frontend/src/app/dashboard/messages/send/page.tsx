@@ -38,7 +38,7 @@ export default function SendMessagePage() {
 
   useEffect(() => {
     if (formData.eventId) {
-      fetchGuestsForEvent(parseInt(formData.eventId))
+      fetchGuestsForEvent(formData.eventId)
     }
   }, [formData.eventId])
 
@@ -60,7 +60,7 @@ export default function SendMessagePage() {
     }
   }
 
-  const fetchGuestsForEvent = async (eventId: number) => {
+  const fetchGuestsForEvent = async (eventId: string) => {
     try {
       const response = await api.get(`/guest-lists/by-event/${eventId}`)
       const guestList = response.data

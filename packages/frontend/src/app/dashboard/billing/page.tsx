@@ -297,6 +297,33 @@ export default function BillingPage() {
         <p className="text-gray-500 mt-1">Manage your EventEcos plan and payment settings</p>
       </div>
 
+      {/* ── Payout Setup Reminder — always visible until Connect is active, regardless of plan ── */}
+      {connectStatus?.status !== 'active' && (
+        <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 mb-8 flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex items-start gap-3">
+            <div className="bg-indigo-100 p-2 rounded-lg">
+              <Link2 className="h-5 w-5 text-indigo-600" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-indigo-900">
+                {connectStatus?.status === 'pending' ? 'Finish setting up your payout account' : 'Add your banking information to get paid'}
+              </p>
+              <p className="text-sm text-indigo-700 mt-0.5">
+                Connect your bank details via Stripe to accept client payments and receive payouts. This is required even on the Free plan.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleConnectOnboarding}
+            disabled={connectLoading}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 whitespace-nowrap"
+          >
+            {connectLoading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
+            {connectStatus?.status === 'pending' ? 'Continue Setup' : 'Add Banking Info'}
+          </button>
+        </div>
+      )}
+
       {/* ── Current Status Card ── */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
         <div className="flex items-center justify-between flex-wrap gap-4">
@@ -344,24 +371,26 @@ export default function BillingPage() {
         </div>
       </div>
 
-      {/* ── Stripe Test Mode Banner ── */}
-      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-8 flex items-start gap-3">
-        <Zap className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
-        <div>
-          <p className="text-sm font-medium text-amber-800">Test Mode Active</p>
-          <p className="text-sm text-amber-700 mt-0.5">
-            Use test card <span className="font-mono font-bold">4242 4242 4242 4242</span> with any future expiry and any CVC.{' '}
-            <a
-              href="https://stripe.com/docs/testing#cards"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:no-underline"
-            >
-              View all test cards →
-            </a>
-          </p>
+      {/* ── Stripe Test Mode Banner — only shown when Stripe is genuinely in test mode ── */}
+      {process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.startsWith('pk_test_') && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-8 flex items-start gap-3">
+          <Zap className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-amber-800">Test Mode Active</p>
+            <p className="text-sm text-amber-700 mt-0.5">
+              Use test card <span className="font-mono font-bold">4242 4242 4242 4242</span> with any future expiry and any CVC.{' '}
+              <a
+                href="https://stripe.com/docs/testing#cards"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:no-underline"
+              >
+                View all test cards →
+              </a>
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ── Upgrade Hero (free/trial users) ── */}
       {!isSubscribed && (

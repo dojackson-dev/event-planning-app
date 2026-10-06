@@ -54,7 +54,7 @@ export class GuestListsController {
   @Get('by-event/:eventId')
   async findByEvent(
     @Headers('authorization') authorization: string,
-    @Param('eventId', ParseIntPipe) eventId: number,
+    @Param('eventId') eventId: string,
   ): Promise<any | null> {
     const userId = await this.getUserId(authorization);
     await this.guestListsService.assertOwnsEvent(eventId, userId);

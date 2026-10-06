@@ -131,4 +131,19 @@ export class TicketEvolutionController {
       radiusMiles: radiusMiles ? parseInt(radiusMiles, 10) : undefined,
     });
   }
+
+  /**
+   * GET /ticket-evolution/public-events/:id
+   * Normalized single-event detail (photos, venue/configuration IDs for the
+   * seatmaps-client package, and ticket listings) for our in-app event detail
+   * page. Same dev-origin/configured gating as the list feed above.
+   */
+  @Get('public-events/:id')
+  getPublicEventDetail(
+    @Req() req: Request,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    if (!this.service.isConfigured() || !isDevOrigin(req)) return null;
+    return this.service.getPublicEventDetail(id);
+  }
 }

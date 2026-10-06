@@ -36,6 +36,35 @@ interface TicketEvolutionRawEvent {
   } | null;
 }
 
+// Fuller shape returned by Events / Show (GET /v9/events/:id) — adds fields
+// not needed by the list view: notes, venue/configuration IDs (required by
+// the seatmaps-client package), and performances (used for photos).
+interface TicketEvolutionRawEventDetail extends TicketEvolutionRawEvent {
+  notes?: string | null;
+  venue?: {
+    id?: number;
+    name?: string;
+    address?: { locality?: string; region?: string } | null;
+  } | null;
+  configuration?: { id?: number } | null;
+  performances?: Array<{
+    performer?: {
+      image?: { large?: string; url?: string } | null;
+    } | null;
+  }>;
+}
+
+// A single ticket group as returned by Listings (GET /v9/listings) — also the
+// exact shape the seatmaps-client package expects for its `ticketGroups` prop.
+interface TicketEvolutionRawListing {
+  id: number;
+  section?: string | null;
+  row?: string | null;
+  quantity?: number;
+  retail_price?: number;
+  format?: string | null;
+}
+
 // Normalized shape consumed by the public /events page — mirrors the other
 // external-source event cards (Ticketmaster, aggregated external events).
 export interface TicketEvolutionPublicEvent {
@@ -295,5 +324,71 @@ export class TicketEvolutionService {
         source: 'ticket_evolution',
       };
     });
+  }
+
+  // Combined event + listings payload for our in-app TEvo event detail page
+  // (photos, ticket options, and the interactive seatmap client, which needs
+  // venue/configuration IDs plus the raw listings as "ticket groups").
+  async getPublicEventDetail(id: number): Promise<{
+    id: string;
+    title: string;
+    notes: string | null;
+    event_date: string | null;
+    start_time: string | null;
+    venue_name: string | null;
+    venue_id: number | null;
+    configuration_id: number | null;
+    city: string | null;
+    state: string | null;
+    category: string | null;
+    images: string[];
+    listings: Array<{
+      id: number;
+      section: string | null;
+      row: string | null;
+      quantity: number;
+      retail_price: number;
+      format: string | null;
+    }>;
+  }> {
+    const ev = await this.request<TicketEvolutionRawEventDetail>(
+      'GET',
+      `/v9/events/${id}`,
+    );
+    const listingsRes = await this.request<
+      TicketEvolutionListResponse<TicketEvolutionRawListing>
+    >('GET', '/v9/listings', { query: { event_id: id, per_page: 100 } });
+
+    const dateTime = ev.occurs_at_local ?? ev.occurs_at ?? null;
+    const images = (ev.performances ?? [])
+      .map((p) => p.performer?.image?.large ?? p.performer?.image?.url)
+      .filter((url): url is string => Boolean(url));
+
+    const listings = ((listingsRes.ticket_groups as
+      | TicketEvolutionRawListing[]
+      | undefined) ?? []).map((lg) => ({
+      id: lg.id,
+      section: lg.section ?? null,
+      row: lg.row ?? null,
+      quantity: lg.quantity ?? 0,
+      retail_price: lg.retail_price ?? 0,
+      format: lg.format ?? null,
+    }));
+
+    return {
+      id: String(ev.id),
+      title: ev.name,
+      notes: ev.notes ?? null,
+      event_date: dateTime ? dateTime.slice(0, 10) : null,
+      start_time: dateTime ? dateTime.slice(11, 16) : null,
+      venue_name: ev.venue?.name ?? null,
+      venue_id: ev.venue?.id ?? null,
+      configuration_id: ev.configuration?.id ?? null,
+      city: ev.venue?.address?.locality ?? null,
+      state: ev.venue?.address?.region ?? null,
+      category: ev.category?.name ?? null,
+      images,
+      listings,
+    };
   }
 }

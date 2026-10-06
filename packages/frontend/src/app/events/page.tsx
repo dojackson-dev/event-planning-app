@@ -868,29 +868,20 @@ export default function PublicEventsPage() {
                             )}
                           </div>
                           <span className="text-xs text-gray-400 flex items-center gap-1">
-                            <ExternalLink className="w-3 h-3" />See details
+                            See seats &amp; tickets →
                           </span>
                         </div>
                       </div>
                     </>
                   )
-                  return ev.event_url ? (
-                    <a
+                  return (
+                    <Link
                       key={ev.id}
-                      href={ev.event_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      href={`/events/tickets/${ev.id}`}
                       className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-md hover:border-purple-200 transition-all group block"
                     >
                       {card}
-                    </a>
-                  ) : (
-                    <div
-                      key={ev.id}
-                      className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 group block"
-                    >
-                      {card}
-                    </div>
+                    </Link>
                   )
                 })}
             </div>

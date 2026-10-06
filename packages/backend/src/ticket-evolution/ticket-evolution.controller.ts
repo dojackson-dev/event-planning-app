@@ -62,15 +62,8 @@ export class TicketEvolutionController {
    * Listings replaces the deprecated Ticket Groups endpoint.
    */
   @Get('events/:id/listings')
-  getListings(
-    @Param('id', ParseIntPipe) id: number,
-    @Query('page') page?: string,
-    @Query('per_page') perPage?: string,
-  ) {
-    return this.service.getListings(id, {
-      page: page ? parseInt(page, 10) : undefined,
-      perPage: perPage ? parseInt(perPage, 10) : undefined,
-    });
+  getListings(@Param('id', ParseIntPipe) id: number) {
+    return this.service.getListings(id);
   }
 
   @Get('venues')

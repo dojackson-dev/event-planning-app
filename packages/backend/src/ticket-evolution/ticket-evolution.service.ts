@@ -38,7 +38,9 @@ interface TicketEvolutionRawEvent {
 
 // Fuller shape returned by Events / Show (GET /v9/events/:id) — adds fields
 // not needed by the list view: notes, venue/configuration IDs (required by
-// the seatmaps-client package), and performances (used for photos).
+// the seatmaps-client package), and photo sources (best-effort — TEvo's
+// sandbox data rarely populates these; `meta.image` is officially deprecated
+// and usually null, but we still check it in case a real event has one).
 interface TicketEvolutionRawEventDetail extends TicketEvolutionRawEvent {
   notes?: string | null;
   venue?: {
@@ -50,8 +52,10 @@ interface TicketEvolutionRawEventDetail extends TicketEvolutionRawEvent {
   performances?: Array<{
     performer?: {
       image?: { large?: string; url?: string } | null;
+      meta?: { image?: string | null } | null;
     } | null;
   }>;
+  meta?: { image?: string | null } | null;
 }
 
 // A single ticket group as returned by Listings (GET /v9/listings) — also the
@@ -219,16 +223,12 @@ export class TicketEvolutionService {
 
   // The Ticket Groups endpoint is deprecated by Ticket Evolution — use Listings
   // (listing id == ticket group id for cross-referencing other endpoints).
-  getListings(
-    eventId: number,
-    params: { page?: number; perPage?: number } = {},
-  ) {
+  // Note: unlike most other endpoints, Listings rejects page/per_page params
+  // outright ("page is not allowed" / "per_page is not allowed") - it isn't
+  // paginated the same way, so we don't pass them.
+  getListings(eventId: number) {
     return this.request('GET', '/v9/listings', {
-      query: {
-        event_id: eventId,
-        page: params.page ?? 1,
-        per_page: params.perPage ?? 25,
-      },
+      query: { event_id: eventId },
     });
   }
 
@@ -357,12 +357,18 @@ export class TicketEvolutionService {
     );
     const listingsRes = await this.request<
       TicketEvolutionListResponse<TicketEvolutionRawListing>
-    >('GET', '/v9/listings', { query: { event_id: id, per_page: 100 } });
+    >('GET', '/v9/listings', { query: { event_id: id } });
 
     const dateTime = ev.occurs_at_local ?? ev.occurs_at ?? null;
-    const images = (ev.performances ?? [])
-      .map((p) => p.performer?.image?.large ?? p.performer?.image?.url)
-      .filter((url): url is string => Boolean(url));
+    const images = [
+      ev.meta?.image,
+      ...(ev.performances ?? []).map(
+        (p) =>
+          p.performer?.image?.large ??
+          p.performer?.image?.url ??
+          p.performer?.meta?.image,
+      ),
+    ].filter((url): url is string => Boolean(url));
 
     const listings = ((listingsRes.ticket_groups as
       | TicketEvolutionRawListing[]

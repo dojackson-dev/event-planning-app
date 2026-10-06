@@ -12,16 +12,16 @@ import { Event } from './event.entity';
 @Entity('messages')
 export class Message {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   @Column({ name: 'recipient_phone' })
-  recipientPhone: string;
+  recipientPhone!: string;
 
   @Column({ name: 'recipient_name' })
-  recipientName: string;
+  recipientName!: string;
 
   @Column({ name: 'recipient_type' })
-  recipientType: 'client' | 'guest' | 'security' | 'custom';
+  recipientType!: 'client' | 'guest' | 'security' | 'custom';
 
   @Column({ nullable: true, name: 'user_id' })
   userId?: number;
@@ -38,13 +38,13 @@ export class Message {
   event?: Event;
 
   @Column({ name: 'message_type' })
-  messageType: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom';
+  messageType!: 'reminder' | 'invoice' | 'confirmation' | 'update' | 'custom';
 
   @Column({ type: 'text' })
-  content: string;
+  content!: string;
 
   @Column({ default: 'pending' })
-  status: 'pending' | 'sent' | 'delivered' | 'failed';
+  status!: 'pending' | 'sent' | 'delivered' | 'failed';
 
   @Column({ nullable: true, name: 'twilio_sid' })
   twilioSid?: string;
@@ -56,5 +56,5 @@ export class Message {
   sentAt?: Date;
 
   @CreateDateColumn({ name: 'created_at' })
-  createdAt: Date;
+  createdAt!: Date;
 }

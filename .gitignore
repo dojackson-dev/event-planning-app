@@ -10,8 +10,17 @@ build/
 .next/
 out/
 
+# Stray compiled output accidentally emitted into backend src/ (should only
+# ever exist in dist/); prevents tsc/nest build misconfig from re-committing
+# stale .js next to .ts sources.
+packages/backend/src/**/*.js
+packages/backend/src/**/*.js.map
+
 # Vercel
 .vercel
+
+# Expo (machine-specific device history / dev server settings)
+.expo/
 
 # Environment variables
 .env
@@ -21,6 +30,9 @@ out/
 .env.production.local
 .env.demo
 .env.*.local
+
+# Postman environment holds real API credentials, never commit
+packages/backend/ticket-evolution.postman_environment.json
 
 # IDE
 .vscode/
@@ -44,10 +56,10 @@ android/
 *.ipa
 *.apk
 event-planning-app/
-
 # Demo setup artifacts
 schema.sql
 schema-fixed.sql
 schema-public.sql
 demo-schema.sql
 supabase/.temp/
+*.tsbuildinfo

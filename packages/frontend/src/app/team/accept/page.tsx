@@ -109,7 +109,7 @@ function AcceptInviteContent() {
             <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-3">
               <Users className="h-7 w-7 text-white" />
             </div>
-            <h1 className="text-xl font-bold text-white">You've been invited!</h1>
+            <h1 className="text-xl font-bold text-white">You&apos;ve been invited!</h1>
             <p className="text-white/80 text-sm mt-1">Join {info?.businessName}</p>
           </div>
 

@@ -178,7 +178,7 @@ export default function VendorCalendarTab({ bookings }: { bookings: Booking[] })
                 <p><span className="font-medium text-gray-700">💰 Amount: </span>${selected.agreed_amount.toLocaleString()}</p>
               )}
               {selected.notes && (
-                <p className="italic text-gray-500">"{selected.notes}"</p>
+                <p className="italic text-gray-500">&quot;{selected.notes}&quot;</p>
               )}
               <p>
                 <span className="font-medium text-gray-700">Status: </span>

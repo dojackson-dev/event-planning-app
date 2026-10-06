@@ -276,7 +276,7 @@ function InvitePage() {
                     <Calendar className="h-7 w-7 text-white" />
                   </div>
                 </div>
-                <h1 className="text-2xl font-bold">You're Invited!</h1>
+                <h1 className="text-2xl font-bold">You&apos;re Invited!</h1>
                 <p className="mt-1 text-primary-100 text-sm">Please review your event details and confirm</p>
               </div>
 
@@ -391,7 +391,7 @@ function InvitePage() {
                   </div>
                 </div>
                 <h1 className="text-2xl font-bold">Verify Your Phone</h1>
-                <p className="mt-1 text-primary-100 text-sm">We'll send a code to confirm your identity</p>
+                <p className="mt-1 text-primary-100 text-sm">We&apos;ll send a code to confirm your identity</p>
               </div>
 
               <div className="px-8 py-7">
@@ -533,7 +533,7 @@ function InvitePage() {
               <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
               <h2 className="text-2xl font-bold text-gray-800 mb-2">Event Confirmed!</h2>
               <p className="text-gray-500 mb-2">
-                Your event has been confirmed. You'll be redirected to your portal shortly.
+                Your event has been confirmed. You&apos;ll be redirected to your portal shortly.
               </p>
               <Loader2 className="h-5 w-5 text-gray-400 animate-spin mx-auto mt-4" />
             </div>
@@ -545,7 +545,7 @@ function InvitePage() {
               <XCircle className="h-16 w-16 text-gray-400 mx-auto mb-4" />
               <h2 className="text-xl font-bold text-gray-800 mb-2">Invitation Declined</h2>
               <p className="text-gray-500">
-                You've declined this event invitation. If this was a mistake, please contact your event planner to resend the invitation.
+                You&apos;ve declined this event invitation. If this was a mistake, please contact your event planner to resend the invitation.
               </p>
             </div>
           )}

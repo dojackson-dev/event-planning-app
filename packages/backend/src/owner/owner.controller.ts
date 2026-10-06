@@ -93,11 +93,7 @@ export class OwnerController {
         .select('business_name, logo_url, cover_image_url')
         .eq('id', ownerAccountId)
         .maybeSingle(),
-      admin
-        .from('users')
-        .select('phone_number')
-        .eq('id', userId)
-        .maybeSingle(),
+      admin.from('users').select('phone_number').eq('id', userId).maybeSingle(),
     ]);
 
     if (error) {
@@ -960,7 +956,7 @@ export class OwnerController {
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('owner_booking_links')
-      .select('*, owner_accounts(business_name, logo_url)')
+      .select('*, owner_accounts(business_name, logo_url, intake_slug)')
       .eq('slug', slug)
       .eq('is_active', true)
       .single();

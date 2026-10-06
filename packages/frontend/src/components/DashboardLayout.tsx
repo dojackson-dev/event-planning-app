@@ -35,6 +35,7 @@ import {
   Music,
   ExternalLink,
   Link2,
+  Plus,
 } from 'lucide-react'
 
 function getInitials(name: string): string {
@@ -216,8 +217,8 @@ const ALL_NAV = [
   { name: 'Clients',        href: '/dashboard/clients',      icon: Users,           ownerOnly: false },
   { name: 'Client Intake',  href: '/dashboard/intake',       icon: ClipboardList,   ownerOnly: false },
   { name: 'Items & Packages', href: '/dashboard/items',      icon: Package,         ownerOnly: false },
-  { name: 'Invoices',       href: '/dashboard/invoices',     icon: Receipt,         ownerOnly: false },
-  { name: 'Estimates',      href: '/dashboard/estimates',    icon: FileText,        ownerOnly: false },
+  { name: 'Invoices',       href: '/dashboard/invoices',     icon: Receipt,         ownerOnly: false, quickCreateHref: '/dashboard/invoices/new' },
+  { name: 'Estimates',      href: '/dashboard/estimates',    icon: FileText,        ownerOnly: false, quickCreateHref: '/dashboard/invoices/new?type=estimate' },
   { name: 'Contracts',      href: '/dashboard/contracts',    icon: FileText,        ownerOnly: false },
   { name: 'Door Lists',     href: '/dashboard/door-lists',   icon: ListChecks,      ownerOnly: false },
   { name: 'Security',       href: '/dashboard/security',     icon: Shield,          ownerOnly: false },
@@ -238,7 +239,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
+  const mobileNavRef = useRef<HTMLDivElement>(null)
   const [unreadChatCount, setUnreadChatCount] = useState(0)
+
+  // The sidebar stays mounted (just translated off-screen) when closed, so its
+  // scroll position otherwise persists across opens — reset it to the top
+  // each time the drawer opens instead of reopening mid-scroll.
+  useEffect(() => {
+    if (mobileMenuOpen && mobileNavRef.current) {
+      mobileNavRef.current.scrollTop = 0
+    }
+  }, [mobileMenuOpen])
 
   const fetchUnreadCount = useCallback(async () => {
     if (!user) return
@@ -312,100 +323,117 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="flex flex-col h-full">
           <BrandLogo variant="sidebar" />
 
-          {/* User info */}
-          <div className="p-4 border-b border-accent-200 mt-16 lg:mt-0 bg-accent-50/40">
-            <div className="flex items-center">
-              <div className="h-12 w-12 rounded-full bg-accent-200 flex items-center justify-center text-accent-700 font-bold text-lg">
-                {displayUser.firstName?.[0] || 'U'}{displayUser.lastName?.[0] || 'U'}
-              </div>
-              <div className="ml-3 flex-1">
-                <p className="text-sm font-medium text-gray-900">
-                  {displayUser.firstName || 'User'} {displayUser.lastName || ''}
-                </p>
-                <p className="text-xs text-gray-500">{displayUser.email}</p>
-                <span className="inline-block mt-1 px-2 py-0.5 text-xs font-medium bg-accent-100 text-accent-700 rounded">
-                  ✓ {displayUser.role}
-                </span>
+          {/* Everything below the logo scrolls together as one unit — avoids
+              the confusing nested-scroll-box feel of a separately-scrolling
+              nav sandwiched between fixed sections, which left almost no
+              visible height for nav items on short/mobile viewports. */}
+          <div ref={mobileNavRef} className="flex-1 overflow-y-auto">
+            {/* User info */}
+            <div className="p-4 pt-6 border-b border-accent-200 mt-16 lg:mt-0 bg-accent-50/40">
+              <div className="flex items-center">
+                <div className="h-12 w-12 rounded-full bg-accent-200 flex items-center justify-center text-accent-700 font-bold text-lg">
+                  {displayUser.firstName?.[0] || 'U'}{displayUser.lastName?.[0] || 'U'}
+                </div>
+                <div className="ml-3 flex-1">
+                  <p className="text-sm font-medium text-gray-900">
+                    {displayUser.firstName || 'User'} {displayUser.lastName || ''}
+                  </p>
+                  <p className="text-xs text-gray-500">{displayUser.email}</p>
+                  <span className="inline-block mt-1 px-2 py-0.5 text-xs font-medium bg-accent-100 text-accent-700 rounded">
+                    ✓ {displayUser.role}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Venue Selector */}
-          <div className="px-4 py-3 bg-primary-600">
-            <VenueSelectorWidget />
-          </div>
+            {/* Venue Selector */}
+            <div className="px-4 py-3 bg-primary-600">
+              <VenueSelectorWidget />
+            </div>
 
-          {/* Navigation */}
-          <nav className="flex-1 overflow-y-auto p-4 space-y-1">
-            {navigation.map((item) => {
-              const isActive = pathname === item.href
-              const Icon = item.icon
-              const cls = `flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
-                isActive
-                  ? 'bg-primary-600 text-white shadow-sm'
-                  : 'text-gray-700 hover:bg-gray-100 active:bg-gray-200'
-              }`
-              if ((item as any).external) {
-                return (
-                  <a
-                    key={item.name}
-                    href={item.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={cls}
-                  >
-                    <Icon className="mr-3 h-5 w-5 flex-shrink-0" />
-                    <span className="flex-1">{item.name}</span>
-                  </a>
-                )
-              }
-              return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  onClick={() => { setMobileMenuOpen(false); if (item.href === '/dashboard/messages') setUnreadChatCount(0) }}
-                  className={cls}
-                >
-                  <Icon className="mr-3 h-5 w-5 flex-shrink-0" />
-                  <span className="flex-1">{item.name}</span>
-                  {item.href === '/dashboard/messages' && unreadChatCount > 0 && (
-                    <span className="ml-2 inline-flex items-center justify-center h-5 min-w-[20px] px-1 rounded-full bg-primary-600 text-white text-[10px] font-bold">
-                      {unreadChatCount > 99 ? '99+' : unreadChatCount}
-                    </span>
-                  )}
-                </Link>
-              )
-            })}
-          </nav>
-
-          {/* Role Switcher — only shown when user has multiple roles */}
-          <RoleSwitcher variant="sidebar" />
-
-          {/* Logout */}
-          <div className="p-4 border-t space-y-1">
-            <Link
-              href="/dashboard/settings"
-              onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center w-full px-4 py-3 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors"
-            >
-              <Settings className="mr-3 h-5 w-5" />
-              Settings
-            </Link>
-            <button
-              onClick={() => {
-                setMobileMenuOpen(false)
-                if (user) {
-                  logout()
-                } else {
-                  alert('Authentication disabled for development')
+            {/* Navigation */}
+            <nav className="p-4 space-y-1">
+              {navigation.map((item) => {
+                const isActive = pathname === item.href
+                const Icon = item.icon
+                const cls = `flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+                  isActive
+                    ? 'bg-primary-600 text-white shadow-sm'
+                    : 'text-gray-700 hover:bg-gray-100 active:bg-gray-200'
+                }`
+                if ((item as any).external) {
+                  return (
+                    <a
+                      key={item.name}
+                      href={item.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={cls}
+                    >
+                      <Icon className="mr-3 h-5 w-5 flex-shrink-0" />
+                      <span className="flex-1">{item.name}</span>
+                    </a>
+                  )
                 }
-              }}
-              className="flex items-center w-full px-4 py-3 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors"
-            >
-              <LogOut className="mr-3 h-5 w-5" />
-              {user ? 'Logout' : 'Login (Dev)'}
-            </button>
+                return (
+                  <div key={item.name} className="flex items-center gap-1">
+                    <Link
+                      href={item.href}
+                      onClick={() => { setMobileMenuOpen(false); if (item.href === '/dashboard/messages') setUnreadChatCount(0) }}
+                      className={`${cls} flex-1`}
+                    >
+                      <Icon className="mr-3 h-5 w-5 flex-shrink-0" />
+                      <span className="flex-1">{item.name}</span>
+                      {item.href === '/dashboard/messages' && unreadChatCount > 0 && (
+                        <span className="ml-2 inline-flex items-center justify-center h-5 min-w-[20px] px-1 rounded-full bg-primary-600 text-white text-[10px] font-bold">
+                          {unreadChatCount > 99 ? '99+' : unreadChatCount}
+                        </span>
+                      )}
+                    </Link>
+                    {(item as any).quickCreateHref && (
+                      <Link
+                        href={(item as any).quickCreateHref}
+                        onClick={() => setMobileMenuOpen(false)}
+                        title={`New ${item.name.replace(/s$/, '')}`}
+                        className="flex items-center justify-center h-9 w-9 flex-shrink-0 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-primary-600 active:bg-gray-200"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Link>
+                    )}
+                  </div>
+                )
+              })}
+            </nav>
+
+            {/* Role Switcher — only shown when user has multiple roles */}
+            <RoleSwitcher variant="sidebar" />
+
+            {/* Logout */}
+            <div className="p-4 border-t space-y-1">
+              <Link
+                href="/dashboard/settings"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center w-full px-4 py-3 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors"
+              >
+                <Settings className="mr-3 h-5 w-5" />
+                Settings
+              </Link>
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false)
+                  if (user) {
+                    logout()
+                  } else {
+                    alert('Authentication disabled for development')
+                  }
+                }}
+                className="flex items-center w-full px-4 py-3 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors"
+              >
+                <LogOut className="mr-3 h-5 w-5" />
+                {user ? 'Logout' : 'Login (Dev)'}
+              </button>
+            </div>
           </div>
         </div>
       </div>

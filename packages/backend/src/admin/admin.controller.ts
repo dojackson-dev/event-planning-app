@@ -13,7 +13,7 @@ import { AdminService } from './admin.service';
 import type { Request } from 'express';
 import { SupabaseService } from '../supabase/supabase.service';
 
-const ADMIN_EMAIL = 'admin@dovenuesuite.com';
+const ADMIN_EMAIL = 'admin@eventecos.com';
 
 @Controller('admin')
 export class AdminController {

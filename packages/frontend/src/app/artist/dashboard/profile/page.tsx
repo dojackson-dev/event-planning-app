@@ -5,7 +5,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import ImageUpload from '@/components/ImageUpload'
-import { ArrowLeft, Save, CheckCircle } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
+import { ArrowLeft, Save, CheckCircle, AlertTriangle, Trash2 } from 'lucide-react'
 
 const ARTIST_TYPES = [
   { value: 'musician', label: 'Musician / Band' },
@@ -47,10 +48,14 @@ function Field({ label, required, children }: { label: string; required?: boolea
 
 export default function ArtistProfilePage() {
   const router = useRouter()
+  const { logout } = useAuth()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deletingAccount, setDeletingAccount] = useState(false)
   const [profileImageUrl, setProfileImageUrl] = useState('')
   const [coverImageUrl, setCoverImageUrl] = useState('')
   const [photoSaving, setPhotoSaving] = useState(false)
@@ -180,6 +185,25 @@ export default function ArtistProfilePage() {
       setError(err.response?.data?.message || 'Failed to save profile')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== 'DELETE') {
+      setError('Please type DELETE to confirm')
+      return
+    }
+
+    setDeletingAccount(true)
+    setError('')
+
+    try {
+      await api.delete('/auth/account')
+      logout()
+      router.push('/')
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to delete account')
+      setDeletingAccount(false)
     }
   }
 
@@ -328,6 +352,66 @@ export default function ArtistProfilePage() {
           </button>
         </div>
       </form>
+
+      <div className="max-w-3xl mx-auto px-4 pb-10">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6">
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0">
+              <AlertTriangle className="h-8 w-8 text-red-500" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-red-800">Danger Zone</h3>
+              <p className="mt-2 text-sm text-red-700">
+                Deleting your account is <strong>permanent</strong> and <strong>cannot be undone</strong>.
+              </p>
+              {!showDeleteConfirm ? (
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="mt-4 inline-flex items-center px-6 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  I understand, delete my account
+                </button>
+              ) : (
+                <div className="mt-4 bg-white border border-red-200 rounded-lg p-4">
+                  <p className="text-sm text-gray-700 mb-4">
+                    To confirm deletion, please type <strong>DELETE</strong> in the box below:
+                  </p>
+                  <input
+                    type="text"
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    placeholder="Type DELETE to confirm"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 mb-4"
+                  />
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowDeleteConfirm(false)
+                        setDeleteConfirmText('')
+                      }}
+                      className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDeleteAccount}
+                      disabled={deletingAccount || deleteConfirmText !== 'DELETE'}
+                      className="inline-flex items-center px-6 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      {deletingAccount ? 'Deleting...' : 'Permanently Delete Account'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

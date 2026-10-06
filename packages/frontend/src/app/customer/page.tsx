@@ -307,7 +307,7 @@ export default function CustomerDashboardPage() {
                 <Calendar className="h-8 w-8 text-gray-400" />
               </div>
               <h3 className="text-gray-900 font-medium mb-2">No upcoming events</h3>
-              <p className="text-gray-500 text-sm mb-4">You haven't booked any events yet.</p>
+              <p className="text-gray-500 text-sm mb-4">You haven&apos;t booked any events yet.</p>
               <Link
                 href="/customer/book"
                 className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors"

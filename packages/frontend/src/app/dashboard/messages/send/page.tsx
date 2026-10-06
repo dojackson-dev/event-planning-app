@@ -38,7 +38,7 @@ export default function SendMessagePage() {
 
   useEffect(() => {
     if (formData.eventId) {
-      fetchGuestsForEvent(parseInt(formData.eventId))
+      fetchGuestsForEvent(formData.eventId)
     }
   }, [formData.eventId])
 
@@ -60,7 +60,7 @@ export default function SendMessagePage() {
     }
   }
 
-  const fetchGuestsForEvent = async (eventId: number) => {
+  const fetchGuestsForEvent = async (eventId: string) => {
     try {
       const response = await api.get(`/guest-lists/by-event/${eventId}`)
       const guestList = response.data
@@ -180,6 +180,19 @@ export default function SendMessagePage() {
       }))
     } else {
       setFormData(prev => ({ ...prev, userId, recipientPhone: '', recipientName: '', recipientEmail: '', preferredContact: 'phone' }))
+    }
+  }
+
+  const handleGuestChange = (guestId: string) => {
+    const guest = guests.find(g => g.id.toString() === guestId)
+    if (guest) {
+      setFormData(prev => ({
+        ...prev,
+        recipientPhone: guest.phone ? toE164(guest.phone) : '',
+        recipientName: guest.name,
+      }))
+    } else {
+      setFormData(prev => ({ ...prev, recipientPhone: '', recipientName: '' }))
     }
   }
 
@@ -346,6 +359,29 @@ export default function SendMessagePage() {
               </div>
             )}
 
+            {/* Guest Selection */}
+            {formData.recipientType === 'guest' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Guest *
+                </label>
+                <select
+                  value={guests.find(g => g.name === formData.recipientName && toE164(g.phone) === formData.recipientPhone)?.id.toString() || ''}
+                  onChange={(e) => handleGuestChange(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  required
+                  disabled={!formData.eventId}
+                >
+                  <option value="">{formData.eventId ? 'Select a guest...' : 'Select an event first'}</option>
+                  {guests.map((guest) => (
+                    <option key={guest.id} value={guest.id}>
+                      {guest.name}{guest.phone ? ` — ${guest.phone}` : ' (no phone)'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {/* Custom Recipient */}
             {(formData.recipientType === 'custom' || formData.recipientType === 'security') && (
               <>
@@ -444,7 +480,7 @@ export default function SendMessagePage() {
           </p>
           {formData.content && !formData.content.toLowerCase().includes('reply stop to unsubscribe') && (
             <p className="text-xs text-amber-600 mt-1">
-              ⚠ Campaign compliance requires "Reply STOP to unsubscribe." Use a template or add it manually.
+              ⚠ Campaign compliance requires &quot;Reply STOP to unsubscribe.&quot; Use a template or add it manually.
             </p>
           )}
         </div>
@@ -468,19 +504,6 @@ export default function SendMessagePage() {
           </button>
         </div>
       </form>
-
-      {/* Configuration Note */}
-      <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h3 className="text-sm font-semibold text-blue-900 mb-2">Twilio Configuration Required</h3>
-        <p className="text-sm text-blue-800 mb-2">
-          To send messages, add the following to your backend .env file:
-        </p>
-        <pre className="bg-blue-100 p-2 rounded text-xs text-blue-900 overflow-x-auto">
-{`TWILIO_ACCOUNT_SID=your_account_sid
-TWILIO_AUTH_TOKEN=your_auth_token
-TWILIO_PHONE_NUMBER=+1234567890`}
-        </pre>
-      </div>
     </div>
   )
 }

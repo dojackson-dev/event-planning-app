@@ -83,7 +83,7 @@ function ForwardLandingContent() {
           <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
             <Gift className="w-7 h-7 text-white" />
           </div>
-          <h1 className="text-2xl font-bold">You've been sent a ticket!</h1>
+          <h1 className="text-2xl font-bold">You&apos;ve been sent a ticket!</h1>
           <p className="text-purple-200 text-sm mt-1">Someone forwarded this ticket to you</p>
         </div>
       </div>

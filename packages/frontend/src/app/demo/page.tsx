@@ -586,7 +586,7 @@ function ClientPortalPreview() {
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-3 col-span-2">
             <p className="font-semibold text-gray-700 text-xs mb-1.5">💬 Messages</p>
-            <div className="bg-gray-50 rounded-lg px-2 py-1.5 text-[10px] text-gray-600">"Your timeline looks great — see you Saturday! 🎉"</div>
+            <div className="bg-gray-50 rounded-lg px-2 py-1.5 text-[10px] text-gray-600">&ldquo;Your timeline looks great — see you Saturday! 🎉&rdquo;</div>
           </div>
         </div>
       </div>
@@ -741,7 +741,7 @@ export default function DemoPage() {
 
           <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-8 leading-relaxed">
             EventEcos is an all-in-one platform for venue owners, promoters, vendors, and artists.
-            This page walks through every feature so you know exactly what you're getting.
+            This page walks through every feature so you know exactly what you&apos;re getting.
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-3">
@@ -801,7 +801,7 @@ export default function DemoPage() {
           </div>
 
           <p className="text-center text-sm text-gray-400 mt-8">
-            Each step is optional — skip any that don't apply to your workflow.
+            Each step is optional — skip any that don&apos;t apply to your workflow.
           </p>
         </div>
       </section>

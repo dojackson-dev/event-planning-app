@@ -21,11 +21,29 @@ export class MessagingService {
     private twilioService: TwilioService,
   ) {}
 
-  /** Normalize DB row: map `message` column -> `content` for frontend compatibility */
+  /** Converts a snake_case DB column name to camelCase (top-level only). */
+  private toCamelKey(key: string): string {
+    return key.replace(/_([a-z0-9])/g, (_match, c: string) => c.toUpperCase());
+  }
+
+  /**
+   * Normalize a raw Supabase `messages` row for the frontend: converts all
+   * top-level snake_case columns (recipient_name, recipient_phone, sent_at,
+   * message_type, event_id, twilio_sid, error_message, etc.) to camelCase,
+   * and maps the legacy `message` column -> `content` for frontend
+   * compatibility. Without this, the frontend's camelCase field reads
+   * (message.recipientName, message.sentAt, ...) silently resolve to
+   * `undefined` and render blank.
+   */
   private mapRow(row: any) {
     if (!row) return row;
     const { message, ...rest } = row;
-    return { ...rest, content: rest.content ?? message };
+    const camelRow: Record<string, any> = {};
+    for (const [key, value] of Object.entries(rest)) {
+      camelRow[this.toCamelKey(key)] = value;
+    }
+    camelRow.content = camelRow.content ?? message;
+    return camelRow;
   }
 
   async findAll(supabase: any, ownerId: string) {

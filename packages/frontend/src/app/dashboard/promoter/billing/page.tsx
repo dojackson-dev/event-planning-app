@@ -342,7 +342,7 @@ export default function PromoterBillingPage() {
       </div>
 
       <p className="text-xs text-gray-400 text-center">
-        Pro and Premium plans are billed monthly via Stripe. Cancel anytime through "Manage Subscription".
+        Pro and Premium plans are billed monthly via Stripe. Cancel anytime through &quot;Manage Subscription&quot;.
         Downgrading to Free takes effect immediately.
       </p>
     </div>

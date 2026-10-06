@@ -182,7 +182,7 @@ export default function NewMessageTemplatePage() {
               placeholder="e.g., 7 for weekly reminders"
             />
             <p className="text-xs text-gray-500 mt-1">
-              Leave empty for one-time messages. Use with "Send Before Event" for recurring reminders.
+              Leave empty for one-time messages. Use with &quot;Send Before Event&quot; for recurring reminders.
             </p>
           </div>
         </div>

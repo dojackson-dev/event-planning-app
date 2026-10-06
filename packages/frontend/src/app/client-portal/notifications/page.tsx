@@ -49,7 +49,7 @@ export default function ClientNotificationsPage() {
           <Bell className="h-12 w-12 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500">No notifications yet.</p>
           <p className="text-sm text-gray-400 mt-1">
-            You'll receive notifications here about your events, invoices, contracts, and more.
+            You&apos;ll receive notifications here about your events, invoices, contracts, and more.
           </p>
         </div>
       ) : (

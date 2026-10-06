@@ -484,13 +484,21 @@ export default function MessagesPage() {
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold text-gray-900">Messages</h1>
           {activeTab === 'sms' && (
-            <button
-              onClick={() => router.push('/dashboard/messages/send')}
-              className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
-            >
-              <Plus className="h-5 w-5" />
-              Send SMS
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => router.push('/dashboard/message-templates')}
+                className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-50"
+              >
+                Templates
+              </button>
+              <button
+                onClick={() => router.push('/dashboard/messages/send')}
+                className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
+              >
+                <Plus className="h-5 w-5" />
+                Send SMS
+              </button>
+            </div>
           )}
         </div>
         {/* Tab switcher */}

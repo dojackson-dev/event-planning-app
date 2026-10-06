@@ -156,7 +156,7 @@ export class InvoicesService {
       // Log and continue — messaging failures should not break invoice update
       console.error(
         'Failed to send invoice-paid notification:',
-        err?.message || err,
+        err instanceof Error ? err.message : err,
       );
     }
 
@@ -202,7 +202,7 @@ export class InvoicesService {
     } catch (err) {
       console.error(
         'Failed to send deposit notification:',
-        err?.message || err,
+        err instanceof Error ? err.message : err,
       );
     }
 

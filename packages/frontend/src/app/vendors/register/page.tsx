@@ -33,6 +33,7 @@ function VendorRegisterForm() {
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [phone, setPhone] = useState('')
   const [smsOptIn, setSmsOptIn] = useState(false)
 
@@ -59,6 +60,10 @@ function VendorRegisterForm() {
   const handleAccountSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    if (password !== confirmPassword) {
+      setError('Passwords do not match')
+      return
+    }
     setLoading(true)
     try {
       const res = await api.post('/auth/flow/vendor/signup', {
@@ -200,6 +205,14 @@ function VendorRegisterForm() {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password *</label>
+                <input
+                  type="password" required minLength={6} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
+                  suppressHydrationWarning
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
               <button
                 type="submit" disabled={loading}
                 suppressHydrationWarning
@@ -214,7 +227,7 @@ function VendorRegisterForm() {
         {/* STEP 2: Category */}
         {step === 'category' && (
           <div className="bg-white rounded-xl shadow-sm p-8">
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">What's your specialty?</h1>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">What&apos;s your specialty?</h1>
             <p className="text-gray-500 text-sm mb-6">Choose the category that best describes your business.</p>
             <div className="grid grid-cols-2 gap-3">
               {CATEGORIES.map(cat => (

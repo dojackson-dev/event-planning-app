@@ -18,7 +18,8 @@ import {
   Calendar,
   FileText,
   BarChart3,
-  UserX
+  UserX,
+  Rss
 } from 'lucide-react'
 
 const navigation = [
@@ -26,6 +27,7 @@ const navigation = [
   { name: 'Owners', href: '/admin/owners', icon: Building2 },
   { name: 'Clients', href: '/admin/clients', icon: Users },
   { name: 'All Events', href: '/admin/events', icon: Calendar },
+  { name: 'Event Sources', href: '/admin/event-sources', icon: Rss },
   { name: 'All Bookings', href: '/admin/bookings', icon: FileText },
   { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
   { name: 'Revenue', href: '/admin/revenue', icon: DollarSign },
@@ -71,9 +73,9 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Sidebar */}
-      <div className="fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 shadow-xl">
+      <div className="fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 shadow-xl flex flex-col">
         {/* Logo */}
-        <div className="flex items-center gap-3 px-6 py-5 border-b border-gray-800">
+        <div className="flex items-center gap-3 px-6 py-5 border-b border-gray-800 flex-shrink-0">
           <div className="p-2 bg-red-600 rounded-lg">
             <Shield className="h-6 w-6 text-white" />
           </div>
@@ -84,7 +86,7 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
         </div>
 
         {/* Navigation */}
-        <nav className="mt-5 px-3 space-y-1">
+        <nav className="flex-1 min-h-0 overflow-y-auto mt-5 px-3 space-y-1">
           {navigation.map((item) => {
             const isActive = pathname === item.href || 
               (item.href !== '/admin' && pathname?.startsWith(item.href))
@@ -106,7 +108,7 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
         </nav>
 
         {/* User info & Logout */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-800">
+        <div className="flex-shrink-0 p-4 border-t border-gray-800">
           <div className="flex items-center gap-3 px-3 py-2 mb-2">
             <div className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center">
               <UserCircle className="h-5 w-5 text-white" />

@@ -47,6 +47,16 @@ export default function EventCard({ event, onPress, onFavorite, isFavorited = fa
             <Text style={styles.vipText}>VIP</Text>
           </View>
         )}
+        {event.source === 'ticketmaster' && (
+          <View style={styles.sourceBadge}>
+            <Text style={styles.sourceBadgeText}>Ticketmaster</Text>
+          </View>
+        )}
+        {event.source === 'external' && (
+          <View style={styles.sourceBadge}>
+            <Text style={styles.sourceBadgeText}>Events</Text>
+          </View>
+        )}
         {onFavorite && (
           <TouchableOpacity style={styles.heartBtn} onPress={onFavorite}>
             <Ionicons
@@ -121,6 +131,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.textWhite,
     letterSpacing: 0.5,
+  },
+  sourceBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: '#026CDF',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radius.full,
+  },
+  sourceBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.textWhite,
+    letterSpacing: 0.3,
   },
   heartBtn: {
     position: 'absolute',

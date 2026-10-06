@@ -40,6 +40,11 @@ import { RsvpModule } from './rsvp/rsvp.module';
 import { ContactModule } from './contact/contact.module';
 import { VipModule } from './vip/vip.module';
 import { EventNotesModule } from './event-notes/event-notes.module';
+import { TicketmasterModule } from './ticketmaster/ticketmaster.module';
+import { SeatGeekModule } from './seatgeek/seatgeek.module';
+import { PredictHQModule } from './predicthq/predicthq.module';
+import { ExternalEventsModule } from './external-events/external-events.module';
+import { TicketEvolutionModule } from './ticket-evolution/ticket-evolution.module';
 
 @Module({
   imports: [
@@ -84,6 +89,11 @@ import { EventNotesModule } from './event-notes/event-notes.module';
     ContactModule,
     VipModule,
     EventNotesModule,
+    TicketmasterModule,
+    SeatGeekModule,
+    PredictHQModule,
+    ExternalEventsModule,
+    TicketEvolutionModule,
   ],
   controllers: [AppController],
   providers: [AppService],

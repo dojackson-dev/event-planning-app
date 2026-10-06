@@ -79,13 +79,13 @@ export default function ConfirmEmailPage() {
           <ol className="text-sm text-gray-700 space-y-2 list-decimal list-inside">
             <li>Check your email inbox</li>
             <li>Click the confirmation link in the email</li>
-            <li>You'll be logged in automatically</li>
+            <li>You&apos;ll be logged in automatically</li>
           </ol>
         </div>
 
         {/* Info */}
         <div className="space-y-2">
-          <p className="text-sm text-gray-600">💡 Check your spam/junk folder if you don't see it</p>
+          <p className="text-sm text-gray-600">💡 Check your spam/junk folder if you don&apos;t see it</p>
           <p className="text-sm text-gray-600">⏱️ The link expires in 24 hours</p>
         </div>
 

@@ -7,6 +7,8 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
@@ -59,7 +61,7 @@ export async function scheduleEventReminder(
       title: 'Event Reminder',
       body: `${eventTitle} starts in ${minutesBefore} minutes!`,
     },
-    trigger: { date: triggerDate },
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: triggerDate },
   });
 }
 

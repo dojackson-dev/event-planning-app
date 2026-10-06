@@ -311,7 +311,7 @@ export default function VendorSettingsPage() {
             )}
             {activeTab === 'password' && (
               <form onSubmit={handleChangePassword} className="space-y-6 max-w-md">
-                <p className="text-sm text-gray-500">Choose a strong password that you don't use elsewhere.</p>
+                <p className="text-sm text-gray-500">Choose a strong password that you don&apos;t use elsewhere.</p>
 
                 {/* Current Password */}
                 <div>
@@ -365,7 +365,7 @@ export default function VendorSettingsPage() {
                     </button>
                   </div>
                   {confirmPassword && confirmPassword !== newPassword && (
-                    <p className="mt-1 text-xs text-red-500">Passwords don't match</p>
+                    <p className="mt-1 text-xs text-red-500">Passwords don&apos;t match</p>
                   )}
                 </div>
 
@@ -457,7 +457,7 @@ export default function VendorSettingsPage() {
                   <ul className="text-sm text-blue-700 space-y-1.5">
                     <li>• Event owners pay you directly through EventEcos</li>
                     <li>• EventEcos collects a <strong>5% platform fee</strong> per transaction</li>
-                    <li>• Stripe's standard card processing fees also apply (~2.9% + 30¢)</li>
+                    <li>• Stripe&apos;s standard card processing fees also apply (~2.9% + 30¢)</li>
                     <li>• Funds arrive in your bank within 2 business days after payout</li>
                     <li>• All payment handling is secure and managed by Stripe</li>
                   </ul>
@@ -468,7 +468,7 @@ export default function VendorSettingsPage() {
                 <div className="pt-2 border-t border-gray-100">
                   <p className="text-xs text-gray-400">
                     By connecting your bank account you agree to{' '}
-                    <a href="https://stripe.com/connect-account/legal" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600">Stripe's Connected Account Agreement</a>.
+                    <a href="https://stripe.com/connect-account/legal" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600">Stripe&apos;s Connected Account Agreement</a>.
                     Your banking information is stored securely by Stripe and never shared with EventEcos.
                   </p>
                 </div>

@@ -1579,7 +1579,7 @@ export class ClientPortalService {
       } catch (dynErr) {
         this.logger.warn(
           '[getNotifications] dynamic generation failed:',
-          dynErr?.message,
+          dynErr instanceof Error ? dynErr.message : dynErr,
         );
       }
     }

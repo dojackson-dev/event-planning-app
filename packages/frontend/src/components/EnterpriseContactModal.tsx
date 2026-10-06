@@ -53,7 +53,7 @@ export default function EnterpriseContactModal({ isOpen, onClose }: Props) {
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-100">
           <div>
             <h2 className="text-xl font-bold text-gray-900">Contact Sales</h2>
-            <p className="text-sm text-gray-500 mt-0.5">Tell us about your business and we'll be in touch.</p>
+            <p className="text-sm text-gray-500 mt-0.5">Tell us about your business and we&apos;ll be in touch.</p>
           </div>
           <button onClick={handleClose} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
             <X className="h-5 w-5 text-gray-500" />

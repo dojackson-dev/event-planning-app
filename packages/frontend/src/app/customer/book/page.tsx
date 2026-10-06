@@ -183,7 +183,7 @@ export default function CustomerBookPage() {
       {/* Header */}
       <div className="text-center mb-8">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Book Your Event</h1>
-        <p className="text-gray-500 mt-2">Let's plan something amazing together!</p>
+        <p className="text-gray-500 mt-2">Let&apos;s plan something amazing together!</p>
       </div>
 
       {/* Progress Steps */}
@@ -361,7 +361,7 @@ export default function CustomerBookPage() {
                   </div>
                 </div>
                 <p className="text-xs text-gray-500 mt-2">
-                  Capacity varies by venue room. We'll confirm availability.
+                  Capacity varies by venue room. We&apos;ll confirm availability.
                 </p>
               </div>
               

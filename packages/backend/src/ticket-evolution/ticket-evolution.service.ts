@@ -50,7 +50,9 @@ interface TicketEvolutionRawEventDetail extends TicketEvolutionRawEvent {
   } | null;
   configuration?: { id?: number } | null;
   performances?: Array<{
+    primary?: boolean;
     performer?: {
+      name?: string;
       image?: { large?: string; url?: string } | null;
       meta?: { image?: string | null } | null;
     } | null;
@@ -193,6 +195,34 @@ export class TicketEvolutionService {
     }
 
     return (await res.json()) as T;
+  }
+
+  // Fallback image source — TEvo's API doesn't provide event/performer photos
+  // (confirmed directly against production: Events/Show, Performers/Index,
+  // Performers/Show, and Venues/Show all return only the deprecated, always-
+  // null meta.image field). Wikipedia's free REST API often has a thumbnail
+  // for well-known performers/venues, so we use it as a best-effort fallback
+  // when TEvo itself returns nothing. Never throws — a missing/failed lookup
+  // just means no photo, same as today.
+  private async lookupWikipediaImage(query: string): Promise<string | null> {
+    try {
+      const title = encodeURIComponent(query.trim().replace(/\s+/g, '_'));
+      const res = await fetch(
+        `https://en.wikipedia.org/api/rest_v1/page/summary/${title}`,
+        { headers: { Accept: 'application/json' } },
+      );
+      if (!res.ok) return null;
+      const data = (await res.json()) as {
+        thumbnail?: { source?: string };
+        originalimage?: { source?: string };
+      };
+      return data.originalimage?.source ?? data.thumbnail?.source ?? null;
+    } catch (err) {
+      this.logger.warn(
+        `Wikipedia image lookup failed for "${query}": ${(err as Error).message}`,
+      );
+      return null;
+    }
   }
 
   searchEvents(params: {
@@ -360,7 +390,7 @@ export class TicketEvolutionService {
     >('GET', '/v9/listings', { query: { event_id: id } });
 
     const dateTime = ev.occurs_at_local ?? ev.occurs_at ?? null;
-    const images = [
+    let images = [
       ev.meta?.image,
       ...(ev.performances ?? []).map(
         (p) =>
@@ -369,6 +399,20 @@ export class TicketEvolutionService {
           p.performer?.meta?.image,
       ),
     ].filter((url): url is string => Boolean(url));
+
+    // TEvo itself returns no photos (see lookupWikipediaImage comment) — fall
+    // back to a Wikipedia lookup on the primary performer (or the event name
+    // if there's no performer/it's unnamed), then the venue as a last resort.
+    if (images.length === 0) {
+      const primaryPerformer = (ev.performances ?? []).find(
+        (p) => p.primary,
+      )?.performer?.name;
+      const fallbackQuery = primaryPerformer || ev.name || ev.venue?.name;
+      if (fallbackQuery) {
+        const wikiImage = await this.lookupWikipediaImage(fallbackQuery);
+        if (wikiImage) images = [wikiImage];
+      }
+    }
 
     const listings = ((listingsRes.ticket_groups as
       | TicketEvolutionRawListing[]

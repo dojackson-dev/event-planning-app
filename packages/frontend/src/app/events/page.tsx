@@ -78,6 +78,7 @@ interface TevoEvent {
   state: string | null
   category: string | null
   event_url: string | null
+  image_url: string | null
   source: 'ticket_evolution'
 }
 
@@ -831,7 +832,12 @@ export default function PublicEventsPage() {
                   const card = (
                     <>
                       <div className="h-44 bg-gradient-to-br from-purple-100 to-fuchsia-100 relative overflow-hidden flex items-center justify-center">
-                        <Ticket className="w-12 h-12 text-purple-300" />
+                        {ev.image_url ? (
+                          <img src={ev.image_url} alt={ev.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                        ) : (
+                          <Ticket className="w-12 h-12 text-purple-300" />
+                        )}
                       </div>
 
                       <div className="p-4">

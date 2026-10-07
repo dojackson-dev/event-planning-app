@@ -30,6 +30,10 @@ interface TicketEvolutionRawEvent {
   occurs_at: string | null;
   occurs_at_local: string | null;
   category?: { name?: string } | null;
+  performances?: Array<{
+    primary?: boolean;
+    performer?: { name?: string } | null;
+  }>;
   venue?: {
     name?: string;
     address?: { locality?: string; region?: string } | null;
@@ -83,6 +87,7 @@ export interface TicketEvolutionPublicEvent {
   state: string | null;
   category: string | null;
   event_url: string | null;
+  image_url: string | null;
   source: 'ticket_evolution';
 }
 
@@ -338,22 +343,35 @@ export class TicketEvolutionService {
 
     const events = (res.events as TicketEvolutionRawEvent[]) ?? [];
     const checkoutBaseUrl = this.checkoutBaseUrl;
-    return events.map((ev) => {
-      const dateTime = ev.occurs_at_local ?? ev.occurs_at ?? null;
-      return {
-        id: String(ev.id),
-        title: ev.name,
-        event_date: dateTime ? dateTime.slice(0, 10) : null,
-        start_time: dateTime ? dateTime.slice(11, 16) : null,
-        venue_name: ev.venue?.name ?? null,
-        city: ev.venue?.address?.locality ?? null,
-        state: ev.venue?.address?.region ?? null,
-        category: ev.category?.name ?? null,
-        event_url:
-          checkoutBaseUrl && ev.url ? `${checkoutBaseUrl}${ev.url}` : null,
-        source: 'ticket_evolution',
-      };
-    });
+    // TEvo itself has no event/performer photos (confirmed against production
+    // — see lookupWikipediaImage) — look up each card's primary performer on
+    // Wikipedia in parallel so the grid doesn't wait on them sequentially.
+    return Promise.all(
+      events.map(async (ev) => {
+        const dateTime = ev.occurs_at_local ?? ev.occurs_at ?? null;
+        const primaryPerformer = (ev.performances ?? []).find(
+          (p) => p.primary,
+        )?.performer?.name;
+        const imageQuery = primaryPerformer || ev.name || ev.venue?.name;
+        const image_url = imageQuery
+          ? await this.lookupWikipediaImage(imageQuery)
+          : null;
+        return {
+          id: String(ev.id),
+          title: ev.name,
+          event_date: dateTime ? dateTime.slice(0, 10) : null,
+          start_time: dateTime ? dateTime.slice(11, 16) : null,
+          venue_name: ev.venue?.name ?? null,
+          city: ev.venue?.address?.locality ?? null,
+          state: ev.venue?.address?.region ?? null,
+          category: ev.category?.name ?? null,
+          event_url:
+            checkoutBaseUrl && ev.url ? `${checkoutBaseUrl}${ev.url}` : null,
+          image_url,
+          source: 'ticket_evolution' as const,
+        };
+      }),
+    );
   }
 
   // Combined event + listings payload for our in-app TEvo event detail page

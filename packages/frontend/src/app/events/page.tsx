@@ -313,7 +313,7 @@ export default function PublicEventsPage() {
     fetchEvents(resolvedZip, category, radiusMiles, computeDateRange(dateFilter, selectedMonth))
   }
 
-  const fetchEvents = (zip?: string, cat?: string, radius?: string, dateRange?: { from?: string; to?: string }) => {
+  const fetchEvents = (zip?: string, cat?: string, radius?: string, dateRange?: { from?: string; to?: string }, searchTerm?: string) => {
     setLoading(true)
     setTmLoading(true)
     setExtLoading(true)
@@ -326,11 +326,13 @@ export default function PublicEventsPage() {
     if (dateRange?.to) params.date_to = dateRange.to
     const tmParams: Record<string, string> = { ...params }
     if (zip && radius) tmParams.radius_miles = radius
+    if (searchTerm) tmParams.keyword = searchTerm
     const tevoParams: Record<string, string> = {}
     if (dateRange?.from) tevoParams.date_from = dateRange.from
     if (dateRange?.to) tevoParams.date_to = dateRange.to
     if (zip) tevoParams.zip_code = zip
     if (zip && radius) tevoParams.radius_miles = radius
+    if (searchTerm) tevoParams.name = searchTerm
     const platformParams = { ...params, limit: String(PLATFORM_PAGE_SIZE) }
     Promise.allSettled([
       api.get('/promoter-events/public', { params: platformParams }),
@@ -373,6 +375,7 @@ export default function PublicEventsPage() {
       if (zipCode) tmParams.zip_code = zipCode
       if (category) tmParams.category = category
       if (zipCode && radiusMiles) tmParams.radius_miles = radiusMiles
+      if (search) tmParams.keyword = search
       const range = computeDateRange(dateFilter, selectedMonth)
       if (range.from) tmParams.date_from = range.from
       if (range.to) tmParams.date_to = range.to
@@ -454,6 +457,7 @@ export default function PublicEventsPage() {
       if (range.to) params.date_to = range.to
       if (zipCode) params.zip_code = zipCode
       if (zipCode && radiusMiles) params.radius_miles = radiusMiles
+      if (search) params.name = search
       const res = await api.get('/ticket-evolution/public-events', { params })
       const rows: TevoEvent[] = res.data || []
       const existingIds = new Set(tevoEvents.map(event => event.id))
@@ -495,7 +499,7 @@ export default function PublicEventsPage() {
       }
     }
     setShowCitySuggestions(false)
-    fetchEvents(zip, category, radiusMiles, computeDateRange(dateFilter, selectedMonth))
+    fetchEvents(zip, category, radiusMiles, computeDateRange(dateFilter, selectedMonth), search)
   }
 
   const matchesSearch = useCallback((ev: { title: string; city: string | null; venue_name: string | null }) =>

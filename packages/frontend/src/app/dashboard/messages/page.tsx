@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Message, Event } from '@/types'
-import { Plus, Search, MessageSquare, CheckCircle, XCircle, Clock, Filter, X, Send, Users, Calendar, ChevronRight } from 'lucide-react'
+import { Plus, Search, MessageSquare, CheckCircle, XCircle, Clock, Filter, X, Send, Users, Calendar, ChevronRight, ArrowLeft } from 'lucide-react'
 
 // ── Client Chat Types ──────────────────────────────────────────────────────
 
@@ -162,11 +162,11 @@ function ClientChatTab() {
 
   return (
     <div
-      className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex"
+      className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col md:flex-row"
       style={{ minHeight: '60vh' }}
     >
-      {/* Thread list */}
-      <div className="w-72 border-r border-gray-200 flex flex-col flex-shrink-0">
+      {/* Thread list — full width on mobile, hidden once a thread is selected so the chat view takes over */}
+      <div className={`w-full md:w-72 border-b md:border-b-0 md:border-r border-gray-200 flex-col flex-shrink-0 ${selectedThread ? 'hidden md:flex' : 'flex'}`}>
         <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Client Conversations</p>
         </div>
@@ -232,8 +232,8 @@ function ClientChatTab() {
         )}
       </div>
 
-      {/* Thread view */}
-      <div className="flex-1 flex flex-col min-w-0">
+      {/* Thread view — full width on mobile, only shown once a thread is selected */}
+      <div className={`w-full flex-1 flex-col min-w-0 ${selectedThread ? 'flex' : 'hidden md:flex'}`}>
         {!selectedThread ? (
           <div className="flex-1 flex items-center justify-center text-gray-400 text-sm p-8 text-center">
             <div>
@@ -243,16 +243,23 @@ function ClientChatTab() {
           </div>
         ) : (
           <>
-            {/* Header */}
+            {/* Header — event title on top, client name below */}
             <div className="px-5 py-3 border-b border-gray-200 flex items-center gap-3 bg-gray-50">
+              <button
+                type="button"
+                onClick={() => setSelectedThread(null)}
+                className="md:hidden -ml-1 p-1.5 rounded-full hover:bg-gray-200 text-gray-500 flex-shrink-0"
+                aria-label="Back to conversations"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </button>
               <ClientInitials name={selectedThread.clientName} />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900 truncate">{selectedThread.clientName}</p>
-                <p className="text-xs text-gray-500 flex items-center gap-1 truncate">
-                  <Calendar className="h-3 w-3 flex-shrink-0" />
+                <p className="text-sm font-semibold text-gray-900 flex items-center gap-1 truncate">
+                  <Calendar className="h-3.5 w-3.5 flex-shrink-0 text-gray-400" />
                   {selectedThread.eventName}
                   {selectedThread.eventDate && (
-                    <span>
+                    <span className="text-gray-400 font-normal">
                       {' · '}
                       {new Date(selectedThread.eventDate).toLocaleDateString('en-US', {
                         month: 'short',
@@ -262,6 +269,7 @@ function ClientChatTab() {
                     </span>
                   )}
                 </p>
+                <p className="text-xs text-gray-500 truncate">{selectedThread.clientName}</p>
               </div>
               <Users className="h-4 w-4 text-gray-400 flex-shrink-0" />
             </div>

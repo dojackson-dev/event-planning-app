@@ -254,6 +254,9 @@ function NewInvoicePageContent() {
       }
     })
     setLineItems(items)
+    // Line items above only carry per-item discounts — also apply the
+    // estimate's own overall discount, or it silently gets dropped.
+    setDiscountAmount(Number(estimate.discount_amount) || 0)
   }
 
   const fetchEvents = async () => {

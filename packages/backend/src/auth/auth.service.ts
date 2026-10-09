@@ -4,6 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { AuditService } from '../audit/audit.service';
 import {
   RegisterDto,
   LoginDto,
@@ -13,7 +14,10 @@ import {
 
 @Injectable()
 export class AuthService {
-  constructor(private supabaseService: SupabaseService) {}
+  constructor(
+    private supabaseService: SupabaseService,
+    private auditService: AuditService,
+  ) {}
 
   async register(registerDto: RegisterDto) {
     const supabase = this.supabaseService.getClient();
@@ -76,6 +80,8 @@ export class AuthService {
     if (error) {
       throw new UnauthorizedException(error.message);
     }
+
+    this.auditService.recordLogin(data.user.id, null, 'legacy').catch(() => {});
 
     return {
       access_token: data.session.access_token,

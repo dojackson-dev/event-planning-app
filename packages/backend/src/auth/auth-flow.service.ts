@@ -12,6 +12,7 @@ import { TrialService } from '../trial/trial.service';
 import { TwilioService } from '../messaging/twilio.service.js';
 import { AffiliatesService } from '../affiliates/affiliates.service';
 import { MailService } from '../mail/mail.service';
+import { AuditService } from '../audit/audit.service';
 import {
   OwnerSignupDto,
   OwnerLoginDto,
@@ -35,6 +36,7 @@ export class AuthFlowService {
     @Inject(forwardRef(() => AffiliatesService))
     private readonly affiliatesService: AffiliatesService,
     private readonly mailService: MailService,
+    private readonly auditService: AuditService,
   ) {}
 
   /**
@@ -343,6 +345,14 @@ export class AuthFlowService {
     //   );
     //   return { accessGranted: false, billingUrl };
     // }
+
+    this.auditService
+      .recordLogin(
+        authData.user.id,
+        user.memberships[0]?.owner_account_id ?? null,
+        'owner',
+      )
+      .catch(() => {});
 
     return {
       session: authData.session,
@@ -847,6 +857,10 @@ export class AuthFlowService {
       .eq('user_id', authData.user.id)
       .single();
 
+    this.auditService
+      .recordLogin(authData.user.id, null, 'vendor')
+      .catch(() => {});
+
     return {
       session: authData.session,
       user,
@@ -934,6 +948,10 @@ export class AuthFlowService {
       vendorAccount = va;
     }
 
+    this.auditService
+      .recordLogin(user.id, ownerAccountId, 'unified')
+      .catch(() => {});
+
     return {
       session: authData.session,
       user,
@@ -1014,6 +1032,10 @@ export class AuthFlowService {
     if (user?.role !== 'admin') {
       throw new UnauthorizedException('Not an admin account');
     }
+
+    this.auditService
+      .recordLogin(authData.user.id, null, 'admin')
+      .catch(() => {});
 
     return {
       session: authData.session,

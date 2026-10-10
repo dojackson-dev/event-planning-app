@@ -70,10 +70,10 @@ export class BookingsController {
     @Headers('authorization') authorization: string,
     @Query('venueId') venueId?: string,
   ): Promise<any[]> {
-    await this.getUserId(authorization);
+    const userId = await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.bookingsService.findAll(supabaseWithAuth, venueId);
+    return this.bookingsService.findAll(supabaseWithAuth, userId, venueId);
   }
 
   @Get(':id')

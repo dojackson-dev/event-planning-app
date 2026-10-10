@@ -19,7 +19,11 @@ export class BookingsService {
     private readonly smsNotifications: SmsNotificationsService,
   ) {}
 
-  async findAll(supabase: SupabaseClient, venueId?: string): Promise<any[]> {
+  async findAll(
+    supabase: SupabaseClient,
+    ownerId: string,
+    venueId?: string,
+  ): Promise<any[]> {
     console.log('Fetching bookings (from event table)...');
     const admin = this.supabaseService.getAdminClient();
 
@@ -28,6 +32,7 @@ export class BookingsService {
       .select(
         '*, intake_form:intake_forms!intake_form_id(contact_name, contact_phone, event_name, event_type)',
       )
+      .eq('owner_id', ownerId)
       .in('client_status', ['deposit_paid', 'completed'])
       .order('date', { ascending: false });
 

@@ -1,4 +1,10 @@
-import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -311,12 +317,14 @@ export class StripeService {
     const { data: invoice } = await admin
       .from('invoices')
       .select(
-        'id, invoice_number, total_amount, amount_due, amount_paid, owner_id, client_name, client_email',
+        'id, invoice_number, total_amount, amount_due, amount_paid, status, owner_id, client_name, client_email',
       )
       .eq('id', invoiceId)
       .maybeSingle();
 
     if (!invoice) throw new Error('Invoice not found');
+    if (invoice.status === 'cancelled')
+      throw new BadRequestException('This invoice has been cancelled');
     if (invoice.amount_due <= 0)
       throw new Error('Invoice is already fully paid');
 
@@ -2120,11 +2128,11 @@ export class StripeService {
       .select(
         `
         id, invoice_number, client_name, client_email,
-        total_amount, amount_paid, amount_due, status,
+        total_amount, amount_paid, amount_due, discount_amount, status,
         issue_date, due_date, notes, terms,
         deposit_percentage, deposit_due_days_before, final_payment_due_days_before,
         event:event!event_id(id, name, date),
-        items:invoice_items(id, description, quantity, unit_price, amount, item_type)
+        items:invoice_items(id, description, quantity, unit_price, amount, item_type, discount_type, discount_value, discount_amount)
       `,
       )
       .eq('public_token', token)
@@ -2147,12 +2155,14 @@ export class StripeService {
     const { data: inv, error } = await admin
       .from('invoices')
       .select(
-        'id, invoice_number, amount_due, total_amount, owner_id, client_email',
+        'id, invoice_number, amount_due, total_amount, status, owner_id, client_email',
       )
       .eq('public_token', token)
       .maybeSingle();
 
     if (error || !inv) throw new Error('Invoice not found');
+    if (inv.status === 'cancelled')
+      throw new BadRequestException('This invoice has been cancelled');
 
     const maxCents = Math.round(Number(inv.amount_due) * 100);
     const safeCents = Math.min(amountCents, maxCents);

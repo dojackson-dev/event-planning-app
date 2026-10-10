@@ -99,6 +99,11 @@ export default function InvoiceDetailPage() {
   const handleDelete = async () => {
     if (!invoice) return
 
+    if (invoice.status !== InvoiceStatus.DRAFT || Number(invoice.amount_paid || 0) > 0) {
+      alert('Only unpaid draft invoices can be permanently deleted. Cancel a sent invoice to keep its history.');
+      return;
+    }
+
     if (!confirm('Are you sure you want to delete this invoice? This action cannot be undone.')) {
       return
     }
@@ -109,6 +114,18 @@ export default function InvoiceDetailPage() {
     } catch (error) {
       console.error('Failed to delete invoice:', error)
       alert('Failed to delete invoice')
+    }
+  }
+
+  const handleCancelInvoice = async () => {
+    if (!invoice) return
+    if (!confirm('Cancel this invoice? It will remain in your records and can no longer be paid.')) return
+    try {
+      await api.put(`/invoices/${invoice.id}/status`, { status: InvoiceStatus.CANCELLED })
+      await fetchInvoice()
+    } catch (error) {
+      console.error('Failed to cancel invoice:', error)
+      alert('Failed to cancel invoice')
     }
   }
 
@@ -262,6 +279,13 @@ export default function InvoiceDetailPage() {
     )
   }
 
+  const canEditInvoice =
+    [InvoiceStatus.DRAFT, InvoiceStatus.SENT, InvoiceStatus.OVERDUE].includes(invoice.status) &&
+    Number(invoice.amount_paid || 0) === 0
+  const canCancelInvoice =
+    [InvoiceStatus.SENT, InvoiceStatus.OVERDUE].includes(invoice.status) &&
+    Number(invoice.amount_paid || 0) === 0
+
   return (
     <div className="p-4 sm:p-6 max-w-4xl mx-auto">
       {/* Back link */}
@@ -302,13 +326,33 @@ export default function InvoiceDetailPage() {
             Resend Invoice
           </button>
         )}
-        <button
-          onClick={openEditModal}
-          className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium"
-        >
-          <Pencil className="w-4 h-4" />
-          Edit
-        </button>
+        {canEditInvoice && (
+          <button
+            onClick={openEditModal}
+            className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium"
+          >
+            <Pencil className="w-4 h-4" />
+            Edit
+          </button>
+        )}
+        {invoice.status === InvoiceStatus.DRAFT && (
+          <button
+            onClick={handleDelete}
+            className="flex items-center gap-2 border border-red-200 text-red-700 px-4 py-2 rounded-lg hover:bg-red-50 text-sm font-medium"
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete Draft
+          </button>
+        )}
+        {canCancelInvoice && (
+          <button
+            onClick={handleCancelInvoice}
+            className="flex items-center gap-2 border border-red-200 text-red-700 px-4 py-2 rounded-lg hover:bg-red-50 text-sm font-medium"
+          >
+            <Trash2 className="w-4 h-4" />
+            Cancel Invoice
+          </button>
+        )}
       </div>
 
       {/* Invoice Document */}
@@ -410,6 +454,7 @@ export default function InvoiceDetailPage() {
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Description</th>
               <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Qty</th>
               <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Unit Price</th>
+              <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Item Discount</th>
               <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Amount</th>
             </tr>
           </thead>
@@ -420,6 +465,13 @@ export default function InvoiceDetailPage() {
                 <td className="px-4 py-3 text-sm text-gray-900 text-right">{item.quantity}</td>
                 <td className="px-4 py-3 text-sm text-gray-900 text-right">
                   ${Number(item.unit_price).toFixed(2)}
+                </td>
+                <td className="px-4 py-3 text-sm text-right">
+                  {Number(item.discount_amount) > 0 ? (
+                    <span className="text-green-700">-${Number(item.discount_amount).toFixed(2)}</span>
+                  ) : (
+                    <span className="text-gray-400">—</span>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-sm text-gray-900 text-right">
                   ${Number(item.amount).toFixed(2)}
@@ -489,7 +541,7 @@ export default function InvoiceDetailPage() {
             )}
             {invoice.discount_amount > 0 && (
               <div className="flex justify-between py-2 text-red-600">
-                <span>Discount:</span>
+                <span>Additional discount:</span>
                 <span>-${Number(invoice.discount_amount).toFixed(2)}</span>
               </div>
             )}

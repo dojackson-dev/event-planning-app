@@ -1089,6 +1089,13 @@ event!event_id(id, name, date),
     userId: string,
     id: string,
   ): Promise<void> {
+    const invoice = await this.findOne(supabase, userId, id);
+    if (invoice.status !== 'draft' || Number(invoice.amount_paid || 0) > 0) {
+      throw new BadRequestException(
+        'Only unpaid draft invoices can be permanently deleted. Cancel sent invoices to preserve their history.',
+      );
+    }
+
     const { error } = await supabase.from('invoices').delete().eq('id', id);
 
     if (error) throw error;

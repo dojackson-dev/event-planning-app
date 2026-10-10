@@ -1145,6 +1145,8 @@ export class ClientPortalService {
     if (!invoice) throw new NotFoundException('Invoice not found');
     if (invoice.status === 'paid')
       throw new BadRequestException('Invoice is already paid');
+    if (invoice.status === 'cancelled')
+      throw new BadRequestException('This invoice has been cancelled');
     if (Number(invoice.amount_due) <= 0)
       throw new BadRequestException('Invoice has no outstanding balance');
 

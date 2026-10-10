@@ -29,7 +29,6 @@ export default function ContractsPage() {
     setContracts([])
     try {
       const params: any = user?.role === 'owner' ? { ownerId: user.id } : user?.role === 'customer' ? { clientId: user.id } : {}
-      if (activeVenue) params.venueId = activeVenue.id
       const response = await api.get<Contract[]>('/contracts', { params })
       setContracts(response.data)
     } catch (error) {

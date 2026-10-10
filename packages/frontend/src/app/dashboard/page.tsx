@@ -64,7 +64,7 @@ export default function DashboardPage() {
   const fetchDashboardData = async () => {
     try {
       // Fetch events
-      const venueParams = activeVenue ? { venueId: activeVenue.id } : {}
+      const venueParams = activeVenue ? { venueId: activeVenue.name } : {}
       const eventsRes = await api.get<Event[]>('/events', { params: venueParams }).catch(() => ({ data: [] as Event[] }))
       const events = eventsRes.data
 

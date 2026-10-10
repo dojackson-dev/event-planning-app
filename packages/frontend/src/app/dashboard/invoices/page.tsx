@@ -38,7 +38,6 @@ export default function InvoicesPage() {
     setInvoices([])
     try {
       const params: any = user?.role === 'owner' ? { ownerId: user.id } : {}
-      if (activeVenue) params.venueId = activeVenue.id
       const response = await api.get<Invoice[]>('/invoices', { params })
       setInvoices(response.data)
     } catch (error) {

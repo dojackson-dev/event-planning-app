@@ -228,6 +228,23 @@ export default function EstimateDetailPage() {
           </button>
         </div>
         <div className="flex flex-wrap gap-2">
+          {!editMode && canConvert && (
+            <button
+              onClick={convertToInvoice}
+              disabled={actionLoading}
+              className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 disabled:opacity-50 text-sm font-medium"
+            >
+              {actionLoading ? 'Creating Invoice…' : 'Create Invoice'}
+            </button>
+          )}
+          {estimate.status === EstimateStatus.CONVERTED && estimate.converted_invoice_id && (
+            <button
+              onClick={() => router.push(`/dashboard/invoices/${estimate.converted_invoice_id}`)}
+              className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 text-sm font-medium"
+            >
+              Open Invoice
+            </button>
+          )}
           {!editMode && estimate.status !== EstimateStatus.CONVERTED && (
             <button onClick={enterEditMode}
               className="bg-amber-500 text-white px-4 py-2 rounded-md hover:bg-amber-600 text-sm font-medium">
@@ -474,12 +491,14 @@ export default function EstimateDetailPage() {
         </div>
 
         {/* Line Items */}
-        <table className="w-full mb-8">
+        <div className="overflow-x-auto mb-8">
+        <table className="w-full min-w-[560px]">
           <thead className="bg-gray-50">
             <tr>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Description</th>
               <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Qty</th>
               <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Unit Price</th>
+              <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Item Discount</th>
               <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Amount</th>
             </tr>
           </thead>
@@ -489,11 +508,19 @@ export default function EstimateDetailPage() {
                 <td className="px-4 py-3 text-sm text-gray-900">{item.description}</td>
                 <td className="px-4 py-3 text-sm text-gray-900 text-right">{item.quantity}</td>
                 <td className="px-4 py-3 text-sm text-gray-900 text-right">${Number(item.unit_price).toFixed(2)}</td>
+                <td className="px-4 py-3 text-sm text-right">
+                  {Number(item.discount_amount) > 0 ? (
+                    <span className="text-green-700">-${Number(item.discount_amount).toFixed(2)}</span>
+                  ) : (
+                    <span className="text-gray-400">—</span>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-sm text-gray-900 text-right">${Number(item.amount).toFixed(2)}</td>
               </tr>
             ))}
           </tbody>
         </table>
+        </div>
 
         {/* Totals */}
         <div className="flex justify-end mb-8">
@@ -510,7 +537,7 @@ export default function EstimateDetailPage() {
             )}
             {estimate.discount_amount > 0 && (
               <div className="flex justify-between py-2 text-sm text-red-600">
-                <span>Discount:</span>
+                <span>Additional discount:</span>
                 <span>-${Number(estimate.discount_amount).toFixed(2)}</span>
               </div>
             )}

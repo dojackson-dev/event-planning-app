@@ -12,6 +12,7 @@ import { TrialModule } from '../trial/trial.module';
 import { MessagingModule } from '../messaging/messaging.module';
 import { AffiliatesModule } from '../affiliates/affiliates.module';
 import { MailModule } from '../mail/mail.module';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { MailModule } from '../mail/mail.module';
     TrialModule,
     MessagingModule,
     MailModule,
+    AuditModule,
     forwardRef(() => AffiliatesModule),
   ],
   controllers: [AuthController, DevAuthController, AuthFlowController],

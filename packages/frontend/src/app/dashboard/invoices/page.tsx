@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Invoice, InvoiceStatus } from '@/types'
-import { Search } from 'lucide-react'
+import { Plus, Search } from 'lucide-react'
 import { useVenue } from '@/contexts/VenueContext'
 import StripeSetupBanner from '@/components/StripeSetupBanner'
 
@@ -38,7 +38,6 @@ export default function InvoicesPage() {
     setInvoices([])
     try {
       const params: any = user?.role === 'owner' ? { ownerId: user.id } : {}
-      if (activeVenue) params.venueId = activeVenue.id
       const response = await api.get<Invoice[]>('/invoices', { params })
       setInvoices(response.data)
     } catch (error) {
@@ -61,6 +60,10 @@ export default function InvoicesPage() {
       alert('Failed to delete invoice')
     }
   }
+
+  const canEditInvoice = (invoice: Invoice) =>
+    [InvoiceStatus.DRAFT, InvoiceStatus.SENT, InvoiceStatus.OVERDUE].includes(invoice.status) &&
+    Number(invoice.amount_paid || 0) === 0
 
   const getStatusColor = (status: InvoiceStatus) => {
     switch (status) {
@@ -108,11 +111,25 @@ export default function InvoicesPage() {
         <h1 className="text-2xl font-bold text-gray-900 text-center mb-3">
           {user?.role === 'owner' ? 'My Invoices' : 'Invoices'}
         </h1>
-        {user?.role === 'owner' && (
-          <p className="text-center text-sm text-gray-500">
-            Invoices are created through the <a href="/dashboard/events" className="text-primary-600 hover:underline font-medium">Events</a> tab.
-          </p>
-        )}
+        <div className="flex flex-wrap justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => router.push('/dashboard/invoices/new')}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700"
+          >
+            <Plus className="h-4 w-4" />
+            Create Invoice
+          </button>
+          {user?.role === 'owner' && (
+            <button
+              type="button"
+              onClick={() => router.push('/dashboard/estimates')}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Create from Estimate
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Search + Filter */}
@@ -179,12 +196,26 @@ export default function InvoicesPage() {
                 </div>
                 <div className="mt-3 pt-3 border-t flex justify-between items-center" onClick={e => e.stopPropagation()}>
                   <span className="text-xs text-gray-400">Tap to view details →</span>
-                  <button
-                    onClick={() => handleDelete(invoice.id, invoice.invoice_number)}
-                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg text-xs"
-                  >
-                    Delete
-                  </button>
+                  <div className="flex gap-3">
+                    {canEditInvoice(invoice) && (
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/dashboard/invoices/${invoice.id}`)}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg text-xs"
+                      >
+                        Edit
+                      </button>
+                    )}
+                    {invoice.status === InvoiceStatus.DRAFT && (
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(invoice.id, invoice.invoice_number)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg text-xs"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -276,20 +307,22 @@ export default function InvoicesPage() {
                     >
                       View
                     </button>
-                    {invoice.status !== InvoiceStatus.PAID && (
+                    {canEditInvoice(invoice) && (
                       <button
-                        onClick={() => router.push(`/dashboard/invoices/${invoice.id}/edit`)}
+                        onClick={() => router.push(`/dashboard/invoices/${invoice.id}`)}
                         className="text-blue-600 hover:text-blue-900 mr-4"
                       >
                         Edit
                       </button>
                     )}
-                    <button
-                      onClick={() => handleDelete(invoice.id, invoice.invoice_number)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      Delete
-                    </button>
+                    {invoice.status === InvoiceStatus.DRAFT && (
+                      <button
+                        onClick={() => handleDelete(invoice.id, invoice.invoice_number)}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        Delete
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))

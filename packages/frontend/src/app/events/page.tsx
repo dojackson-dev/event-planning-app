@@ -111,6 +111,9 @@ const EXT_PAGE_SIZE = 100
 const TEVO_PAGE_SIZE = 24
 const PLATFORM_PAGE_SIZE = 100
 
+// Re-enable once Ticket Evolution hosted checkout is ready for customers.
+const ENABLE_TICKET_EVOLUTION_PUBLIC_EVENTS = false
+
 export default function PublicEventsPage() {
   const [events, setEvents] = useState<PublicEvent[]>([])
   const [tmEvents, setTmEvents] = useState<TicketmasterEvent[]>([])
@@ -317,7 +320,7 @@ export default function PublicEventsPage() {
     setLoading(true)
     setTmLoading(true)
     setExtLoading(true)
-    setTevoLoading(true)
+    setTevoLoading(ENABLE_TICKET_EVOLUTION_PUBLIC_EVENTS)
     const params: Record<string, string> = {}
     if (zip) params.zip_code = zip
     if (cat) params.category = cat
@@ -334,12 +337,15 @@ export default function PublicEventsPage() {
     if (zip && radius) tevoParams.radius_miles = radius
     if (searchTerm) tevoParams.name = searchTerm
     const platformParams = { ...params, limit: String(PLATFORM_PAGE_SIZE) }
-    Promise.allSettled([
+    const requests: Array<Promise<{ data: any[] }>> = [
       api.get('/promoter-events/public', { params: platformParams }),
       api.get('/ticketmaster/events', { params: tmParams }),
       api.get('/external-events/events', { params }),
-      api.get('/ticket-evolution/public-events', { params: tevoParams }),
-    ])
+    ]
+    if (ENABLE_TICKET_EVOLUTION_PUBLIC_EVENTS) {
+      requests.push(api.get('/ticket-evolution/public-events', { params: tevoParams }))
+    }
+    Promise.allSettled(requests)
       .then(([platformRes, tmRes, extRes, tevoRes]) => {
         const platformRows: PublicEvent[] = platformRes.status === 'fulfilled' ? platformRes.value.data || [] : []
         setEvents(platformRows)
@@ -357,7 +363,10 @@ export default function PublicEventsPage() {
         setExtOffset(EXT_PAGE_SIZE)
         setExtHasMore(extRows.length === EXT_PAGE_SIZE)
 
-        const tevoRows: TevoEvent[] = tevoRes.status === 'fulfilled' ? tevoRes.value.data || [] : []
+        const tevoRows: TevoEvent[] =
+          ENABLE_TICKET_EVOLUTION_PUBLIC_EVENTS && tevoRes?.status === 'fulfilled'
+            ? tevoRes.value.data || []
+            : []
         setTevoEvents(tevoRows)
         setTevoPage(2)
         setTevoHasMore(tevoRows.length === TEVO_PAGE_SIZE)
@@ -706,7 +715,10 @@ export default function PublicEventsPage() {
           // have also finished loading and turned up nothing — if any of
           // those sources has events, skip straight to their sections below
           // instead of telling the user "No events found".
-          !tmLoading && !extLoading && !tevoLoading && tmEvents.length === 0 && extEvents.length === 0 && tevoEvents.length === 0 ? (
+          !tmLoading && !extLoading &&
+          (!ENABLE_TICKET_EVOLUTION_PUBLIC_EVENTS || !tevoLoading) &&
+          tmEvents.length === 0 && extEvents.length === 0 &&
+          (!ENABLE_TICKET_EVOLUTION_PUBLIC_EVENTS || tevoEvents.length === 0) ? (
             <div className="text-center py-20">
               <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
               <p className="text-xl font-semibold text-gray-600">No events found</p>
@@ -815,7 +827,7 @@ export default function PublicEventsPage() {
       </div>
 
       {/* ── Ticket Evolution Events ──────────────────────────────── */}
-      {(tevoLoading || tevoEvents.length > 0) && (
+      {ENABLE_TICKET_EVOLUTION_PUBLIC_EVENTS && (tevoLoading || tevoEvents.length > 0) && (
         <div className="max-w-6xl mx-auto px-4 pb-10">
           <div className="flex items-center justify-between mb-5">
             <div>

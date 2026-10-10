@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import { MailService } from '../mail/mail.service';
@@ -701,6 +705,31 @@ export class EstimatesService {
     estimateId: string,
   ): Promise<any> {
     const estimate = await this.findOne(supabase, estimateId);
+    if (estimate.owner_id !== userId) {
+      throw new NotFoundException('Estimate not found');
+    }
+
+    if (estimate.converted_invoice_id) {
+      const { data: existingInvoice, error: existingInvoiceError } =
+        await supabase
+          .from('invoices')
+          .select('*')
+          .eq('id', estimate.converted_invoice_id)
+          .maybeSingle();
+      if (existingInvoiceError) throw existingInvoiceError;
+      if (existingInvoice) return existingInvoice;
+    }
+    if (estimate.status === 'converted') {
+      throw new BadRequestException(
+        'This estimate was already converted, but its invoice could not be found.',
+      );
+    }
+    if (!['draft', 'sent', 'approved'].includes(estimate.status)) {
+      throw new BadRequestException(
+        'Only draft, sent, or approved estimates can be converted.',
+      );
+    }
+
     const items: EstimateItem[] = (estimate as any).items || [];
 
     // Generate invoice number
@@ -709,7 +738,7 @@ export class EstimatesService {
       .select('invoice_number')
       .order('created_at', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     let nextNum = 1;
     if (latestInvoice?.invoice_number) {
@@ -728,7 +757,12 @@ export class EstimatesService {
         invoice_number: invoiceNumber,
         owner_id: estimate.owner_id,
         created_by: userId,
+        event_id: estimate.event_id || null,
+        booking_id: estimate.booking_id || null,
         intake_form_id: estimate.intake_form_id || null,
+        client_name: estimate.client_name || null,
+        client_email: estimate.client_email || null,
+        client_phone: estimate.client_phone || null,
         subtotal: estimate.subtotal,
         tax_rate: estimate.tax_rate,
         tax_amount: estimate.tax_amount,
@@ -770,14 +804,17 @@ export class EstimatesService {
     }
 
     // Update estimate → converted
-    await supabase
+    const { error: conversionError } = await supabase
       .from('estimates')
       .update({
         status: 'converted',
         converted_invoice_id: invoice.id,
         converted_at: new Date().toISOString(),
       })
-      .eq('id', estimateId);
+      .eq('id', estimateId)
+      .eq('owner_id', userId);
+
+    if (conversionError) throw conversionError;
 
     return invoice;
   }

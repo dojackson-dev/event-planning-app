@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft,
@@ -220,6 +220,7 @@ export default function EventManagementPage() {
   const router = useRouter();
   const eventId = params.id as string;
   const { venues } = useVenue();
+  const invoicesSectionRef = useRef<HTMLDivElement>(null);
 
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -835,15 +836,30 @@ export default function EventManagementPage() {
           // Skip optional/voided steps when finding the current active step
           const currentStepIndex = steps.findIndex((s) => !s.done && !s.skipped && !s.voided);
 
+          const goToCreateInvoice = () => {
+            const approvedEstimate = eventEstimates.find(e => ['approved', 'converted'].includes(e.status));
+            const estimateParam = approvedEstimate ? `&estimateId=${approvedEstimate.id}` : '';
+            router.push(`/dashboard/invoices/new?eventId=${eventId}${intakeFormId ? `&clientId=${intakeFormId}` : ''}${estimateParam}`);
+          };
+
           const handleProgressAction = () => {
             if (!estimateAccepted) {
               router.push(`/dashboard/estimates/new?eventId=${eventId}${intakeFormId ? `&clientId=${intakeFormId}` : ''}`);
             } else if (!contractSigned && !contractSkipped) {
               router.push(`/dashboard/contracts/new${intakeFormId ? `?intakeFormId=${intakeFormId}` : ''}`);
             } else if (!invoiceSent) {
-              const approvedEstimate = eventEstimates.find(e => ['approved', 'converted'].includes(e.status));
-              const estimateParam = approvedEstimate ? `&estimateId=${approvedEstimate.id}` : '';
-              router.push(`/dashboard/invoices/new?eventId=${eventId}${intakeFormId ? `&clientId=${intakeFormId}` : ''}${estimateParam}`);
+              goToCreateInvoice();
+            }
+          };
+
+          // Invoice step is always clickable: jump straight to creating an
+          // invoice (pre-filled from the approved estimate when there is
+          // one), or scroll down to the existing invoice(s) if already sent.
+          const handleInvoiceStepClick = () => {
+            if (invoiceSent) {
+              invoicesSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } else {
+              goToCreateInvoice();
             }
           };
 
@@ -865,22 +881,45 @@ export default function EventManagementPage() {
                     const isLast = i === steps.length - 1;
                     const isCurrent = i === currentStepIndex;
                     const isNeutral = step.skipped || step.voided;
+                    const isInvoiceStep = step.label === 'Invoice';
                     return (
                       <React.Fragment key={step.label}>
-                        <div className="flex flex-col items-center min-w-0">
-                          <div className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0
-                            ${step.done ? 'bg-green-500 text-white' : isNeutral ? 'bg-gray-100 text-gray-300 border border-dashed border-gray-300' : isCurrent ? 'bg-primary-600 text-white ring-4 ring-primary-100' : 'bg-gray-200 text-gray-400'}`}>
-                            {step.done
-                              ? <CheckCircle className="h-4 w-4" />
-                              : isNeutral
-                              ? <span className="text-xs">{step.voided ? '✕' : '—'}</span>
-                              : <span className="text-xs font-bold">{i + 1}</span>}
+                        {isInvoiceStep ? (
+                          <button
+                            type="button"
+                            onClick={handleInvoiceStepClick}
+                            title={invoiceSent ? 'View invoice' : 'Create invoice'}
+                            className="flex flex-col items-center min-w-0 group"
+                          >
+                            <div className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110
+                              ${step.done ? 'bg-green-500 text-white' : isNeutral ? 'bg-gray-100 text-gray-300 border border-dashed border-gray-300' : isCurrent ? 'bg-primary-600 text-white ring-4 ring-primary-100' : 'bg-gray-200 text-gray-400'}`}>
+                              {step.done
+                                ? <CheckCircle className="h-4 w-4" />
+                                : isNeutral
+                                ? <span className="text-xs">{step.voided ? '✕' : '—'}</span>
+                                : <span className="text-xs font-bold">{i + 1}</span>}
+                            </div>
+                            <span className={`text-xs mt-1.5 font-medium text-center leading-tight group-hover:underline
+                              ${step.done ? 'text-green-600' : isNeutral ? 'text-gray-300' : isCurrent ? 'text-primary-600' : 'text-gray-400'}`}>
+                              {step.label}{step.voided ? ' (voided)' : step.skipped ? ' (opt)' : ''}
+                            </span>
+                          </button>
+                        ) : (
+                          <div className="flex flex-col items-center min-w-0">
+                            <div className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0
+                              ${step.done ? 'bg-green-500 text-white' : isNeutral ? 'bg-gray-100 text-gray-300 border border-dashed border-gray-300' : isCurrent ? 'bg-primary-600 text-white ring-4 ring-primary-100' : 'bg-gray-200 text-gray-400'}`}>
+                              {step.done
+                                ? <CheckCircle className="h-4 w-4" />
+                                : isNeutral
+                                ? <span className="text-xs">{step.voided ? '✕' : '—'}</span>
+                                : <span className="text-xs font-bold">{i + 1}</span>}
+                            </div>
+                            <span className={`text-xs mt-1.5 font-medium text-center leading-tight
+                              ${step.done ? 'text-green-600' : isNeutral ? 'text-gray-300' : isCurrent ? 'text-primary-600' : 'text-gray-400'}`}>
+                              {step.label}{step.voided ? ' (voided)' : step.skipped ? ' (opt)' : ''}
+                            </span>
                           </div>
-                          <span className={`text-xs mt-1.5 font-medium text-center leading-tight
-                            ${step.done ? 'text-green-600' : isNeutral ? 'text-gray-300' : isCurrent ? 'text-primary-600' : 'text-gray-400'}`}>
-                            {step.label}{step.voided ? ' (voided)' : step.skipped ? ' (opt)' : ''}
-                          </span>
-                        </div>
+                        )}
                         {!isLast && (
                           <div className={`flex-1 h-1 mx-1 rounded-full mb-4
                             ${step.done ? 'bg-green-400' : isNeutral ? 'bg-gray-100' : 'bg-gray-200'}`} />
@@ -1983,7 +2022,7 @@ export default function EventManagementPage() {
             </div>
 
             {/* Invoices */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div ref={invoicesSectionRef} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
               <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
                 <FileText className="h-5 w-5 mr-2 text-primary-600" />
                 Invoices

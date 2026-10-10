@@ -108,7 +108,7 @@ export default function CalendarPage() {
     let cancelled = false
     setLoading(true)
     setEntries([])
-    const venueParams = activeVenue ? { venueId: activeVenue.id } : {}
+    const venueParams = activeVenue ? { venueId: activeVenue.name } : {}
     Promise.allSettled([
       api.get<Event[]>('/events', { params: venueParams }),
       api.get<Booking[]>('/bookings', { params: venueParams }),

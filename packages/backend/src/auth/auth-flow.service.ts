@@ -844,6 +844,36 @@ export class AuthFlowService {
     };
   }
 
+  /** Always resolves, so callers can't tell whether an email is registered. */
+  async forgotPassword(email: string) {
+    const generic = {
+      message: 'If an account exists for that email, a reset link has been sent.',
+    };
+    const normalized = email?.trim().toLowerCase();
+    if (!normalized) return generic;
+
+    try {
+      const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+      const { data, error } = await this.supabaseService
+        .getAdminClient()
+        .auth.admin.generateLink({
+          type: 'recovery',
+          email: normalized,
+          options: { redirectTo: `${frontendUrl}/reset-password` },
+        });
+      const resetUrl = data?.properties?.action_link;
+      if (error || !resetUrl) return generic;
+
+      await this.mailService.sendPasswordResetEmail({
+        toEmail: normalized,
+        resetUrl,
+      });
+    } catch (err) {
+      console.error('[AuthFlowService] forgotPassword failed:', err);
+    }
+    return generic;
+  }
+
   async vendorLogin(email: string, password: string) {
     const supabase = this.supabaseService.getClient();
 

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import api from '@/lib/api'
+import { normalizeWebsite } from '@/lib/url'
 import ImageUpload from '@/components/ImageUpload'
 import AddressAutocomplete from '@/components/AddressAutocomplete'
 import { VENDOR_CATEGORIES } from '@/lib/vendorTypes'
@@ -48,7 +49,7 @@ export default function VendorEditProfileTab({ profile, onUpdate }: Props) {
         hourlyRate: hourlyRate ? parseFloat(hourlyRate) : undefined,
         flatRate: flatRate ? parseFloat(flatRate) : undefined,
         rateDescription: rateDesc,
-        phone, website, instagram, facebook: facebook || undefined,
+        phone, website: normalizeWebsite(website) ?? '', instagram, facebook: facebook || undefined,
         profileImageUrl: logoUrl || undefined,
         coverImageUrl: coverUrl || undefined,
       })
@@ -210,9 +211,9 @@ export default function VendorEditProfileTab({ profile, onUpdate }: Props) {
         <div className="border-t pt-4">
           <label className="block text-sm font-medium text-gray-700 mb-3">Online Presence</label>
           <div className="space-y-2">
-            <input type="url" value={website} onChange={e => setWebsite(e.target.value)}
+            <input type="text" inputMode="url" value={website} onChange={e => setWebsite(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-              placeholder="https://yourwebsite.com"
+              placeholder="yourwebsite.com"
             />
             <input type="text" value={instagram} onChange={e => setInstagram(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"

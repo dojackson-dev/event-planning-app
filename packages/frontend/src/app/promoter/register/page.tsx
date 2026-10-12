@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
+import { normalizeWebsite } from '@/lib/url'
 import { Megaphone, Loader2 } from 'lucide-react'
 
 export default function PromoterRegisterPage() {
@@ -64,7 +65,7 @@ export default function PromoterRegisterPage() {
         phone: phone || undefined,
         location: location || undefined,
         bio: bio || undefined,
-        website: website || undefined,
+        website: normalizeWebsite(website),
         instagram: instagram || undefined,
       })
       router.push('/dashboard/promoter')
@@ -192,7 +193,7 @@ export default function PromoterRegisterPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Website</label>
                   <input value={website} onChange={e => setWebsite(e.target.value)}
-                    placeholder="https://"
+                    placeholder="yourwebsite.com"
                     className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
                 </div>
               </div>

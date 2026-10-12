@@ -89,6 +89,11 @@ export class AuthFlowController {
     return this.authFlowService.artistSignup(dto);
   }
 
+  @Post('forgot-password')
+  async forgotPassword(@Body() dto: { email: string }) {
+    return this.authFlowService.forgotPassword(dto?.email);
+  }
+
   @Post('vendor/login')
   async vendorLogin(@Body() dto: { email: string; password: string }) {
     return this.authFlowService.vendorLogin(dto.email, dto.password);

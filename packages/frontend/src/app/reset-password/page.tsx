@@ -52,8 +52,15 @@ function ResetPasswordForm() {
     if (accessToken) {
       const refreshToken = hashParams.get('refresh_token') || ''
       supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken }).then(
-        ({ data, error: sessionError }) => {
+        async ({ data, error: sessionError }) => {
           if (sessionError || !data.session) {
+            // The SDK may have already consumed the hash itself (detectSessionInUrl)
+            const { data: existing } = await supabase.auth.getSession()
+            if (existing.session) {
+              window.history.replaceState(null, '', window.location.pathname)
+              setSessionReady(true)
+              return
+            }
             setLinkError(
               sessionError?.message ||
                 'This reset link is invalid or has expired. Please request a new one.',
@@ -68,8 +75,16 @@ function ResetPasswordForm() {
     }
 
     if (code) {
-      supabase.auth.exchangeCodeForSession(code).then(({ data, error: exchangeError }) => {
+      supabase.auth.exchangeCodeForSession(code).then(async ({ data, error: exchangeError }) => {
         if (exchangeError || !data.session) {
+          // The SDK auto-exchanges ?code= on client init (detectSessionInUrl), so the
+          // code may already be consumed even though a valid recovery session exists.
+          const { data: existing } = await supabase.auth.getSession()
+          if (existing.session) {
+            window.history.replaceState(null, '', window.location.pathname)
+            setSessionReady(true)
+            return
+          }
           setLinkError(
             exchangeError?.message ||
               'This reset link is invalid or has expired. Please request a new one.',

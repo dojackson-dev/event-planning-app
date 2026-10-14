@@ -16,6 +16,7 @@ import { AffiliatesService } from '../affiliates/affiliates.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import { MailService } from '../mail/mail.service';
 import { VipService } from '../vip/vip.service';
+import { clientVisibleItems } from '../invoices/client-visible-items';
 import { analytics } from '../analytics/heycatch';
 
 @Injectable()
@@ -2232,7 +2233,7 @@ export class StripeService {
       .maybeSingle();
 
     if (error || !data) throw new Error('Invoice not found');
-    return data;
+    return { ...data, items: clientVisibleItems((data as any).items) };
   }
 
   /**

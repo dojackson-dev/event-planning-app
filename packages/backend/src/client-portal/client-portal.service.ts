@@ -8,6 +8,7 @@ import {
 import { SupabaseService } from '../supabase/supabase.service';
 import { StripeService } from '../stripe/stripe.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
+import { clientVisibleItems } from '../invoices/client-visible-items';
 
 /** Returns all likely phone formats for a given phone string so we can query any format stored in the DB. */
 function buildPhoneVariants(phone: string): string[] {
@@ -709,10 +710,88 @@ export class ClientPortalService {
       ...allRequests,
     ];
     const seen = new Set<string>();
-    return combined.filter((b: any) => {
+    const unique = combined.filter((b: any) => {
       if (seen.has(b.id)) return false;
       seen.add(b.id);
       return true;
+    });
+    return this.hideOwnerBookedPricing(supabase, unique);
+  }
+
+  /**
+   * A vendor the venue owner booked is the owner's cost, so the client must not see
+   * the vendor's quote; the client's price is whatever the owner puts on their invoice.
+   */
+  private async hideOwnerBookedPricing(
+    supabase: any,
+    bookings: any[],
+  ): Promise<any[]> {
+    const candidates = bookings.filter(
+      (b: any) =>
+        b._source !== 'booking_request' && b.event_id && b.booked_by_user_id,
+    );
+    if (!candidates.length) return bookings;
+
+    const { data: events, error: eventsError } = await supabase
+      .from('event')
+      .select('id, owner_id')
+      .in('id', [...new Set(candidates.map((b: any) => b.event_id))]);
+    if (eventsError) throw eventsError;
+    const ownerByEvent = new Map(
+      (events || []).map((e: any) => [e.id, e.owner_id]),
+    );
+    const ownerBooked = candidates.filter(
+      (b: any) => ownerByEvent.get(b.event_id) === b.booked_by_user_id,
+    );
+    if (!ownerBooked.length) return bookings;
+
+    const { data: lines, error: linesError } = await supabase
+      .from('invoice_items')
+      .select('invoice_id, vendor_booking_id')
+      .in(
+        'vendor_booking_id',
+        ownerBooked.map((b: any) => b.id),
+      );
+    if (linesError) throw linesError;
+
+    const invoiceIds = [
+      ...new Set((lines || []).map((l: any) => l.invoice_id)),
+    ];
+    const sentInvoiceIds = new Set<string>();
+    if (invoiceIds.length) {
+      const { data: invoices, error: invoicesError } = await supabase
+        .from('invoices')
+        .select('id')
+        .in('id', invoiceIds)
+        .not('status', 'in', '(draft,cancelled)');
+      if (invoicesError) throw invoicesError;
+      for (const inv of invoices || []) sentInvoiceIds.add(inv.id);
+    }
+    const invoicedBookingIds = new Set(
+      (lines || [])
+        .filter((l: any) => sentInvoiceIds.has(l.invoice_id))
+        .map((l: any) => l.vendor_booking_id),
+    );
+
+    const hiddenIds = new Set(ownerBooked.map((b: any) => b.id));
+    const moneyFields = [
+      'agreed_amount',
+      'deposit_amount',
+      'deposit_paid',
+      'deposit_paid_at',
+      'total_paid',
+      'payment_status',
+      'stripe_payment_intent_id',
+    ];
+    return bookings.map((b: any) => {
+      if (!hiddenIds.has(b.id)) return b;
+      const safe = { ...b };
+      for (const field of moneyFields) delete safe[field];
+      return {
+        ...safe,
+        price_hidden: true,
+        invoice_ready: invoicedBookingIds.has(b.id),
+      };
     });
   }
 
@@ -1265,6 +1344,7 @@ export class ClientPortalService {
     return [
       ...invoices.map((i: any) => ({
         ...i,
+        items: clientVisibleItems(i.items),
         from_name: i.owner_id ? (fromNameById[i.owner_id] ?? null) : null,
       })),
       ...vendorInvoices,

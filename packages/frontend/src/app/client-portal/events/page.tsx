@@ -58,10 +58,20 @@ export default function ClientEventsPage() {
 
   useEffect(() => {
     clientApi.get('/events')
-      .then((res) => setEvents(res.data))
+      .then((res) => {
+        setEvents(res.data)
+        const target = new URLSearchParams(window.location.search).get('event')
+        if (target) setExpanded(target)
+      })
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    if (loading) return
+    const target = new URLSearchParams(window.location.search).get('event')
+    if (target) document.getElementById(`event-${target}`)?.scrollIntoView({ block: 'center' })
+  }, [loading])
 
   if (loading) {
     return <div className="flex items-center justify-center h-64 text-gray-500">Loading events...</div>
@@ -92,7 +102,7 @@ export default function ClientEventsPage() {
             const status = resolveStatus(event)
             const isExpanded = expanded === event.id
             return (
-              <div key={event.id} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div key={event.id} id={`event-${event.id}`} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                 {/* Header row */}
                 <button
                   onClick={() => setExpanded(isExpanded ? null : event.id)}

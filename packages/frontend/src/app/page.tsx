@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { Users, Store, Calendar, Zap, BarChart3, Shield, ArrowRight, MapPin, Ticket, Sparkles, Facebook, Linkedin } from 'lucide-react'
+import { Users, Store, Calendar, Zap, BarChart3, Shield, ArrowRight, MapPin, Ticket, Sparkles, Facebook, Linkedin, Lock, Heart } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -249,6 +249,51 @@ export default function Home() {
             </a>
           </div>
           <p className="text-center text-sm text-gray-500 mt-4">30-day free trial. No credit card required.</p>
+        </div>
+      </section>
+
+      {/* Trust Signals */}
+      <section className="py-10 px-4 sm:px-6 lg:px-8 bg-gray-50 border-y border-gray-100">
+        <div className="max-w-6xl mx-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
+            <div className="flex items-center gap-3 justify-center sm:justify-start">
+              <div className="h-10 w-10 rounded-full bg-accent-100 flex items-center justify-center flex-shrink-0">
+                <Lock className="h-5 w-5 text-accent-600" />
+              </div>
+              <p className="text-sm font-medium text-gray-700">Payments secured by Stripe</p>
+            </div>
+            <div className="flex items-center gap-3 justify-center sm:justify-start">
+              <div className="h-10 w-10 rounded-full bg-accent-100 flex items-center justify-center flex-shrink-0">
+                <Shield className="h-5 w-5 text-accent-600" />
+              </div>
+              <p className="text-sm font-medium text-gray-700">Your contracts & documents stay private</p>
+            </div>
+            <div className="flex items-center gap-3 justify-center sm:justify-start">
+              <div className="h-10 w-10 rounded-full bg-accent-100 flex items-center justify-center flex-shrink-0">
+                <Heart className="h-5 w-5 text-accent-600" />
+              </div>
+              <p className="text-sm font-medium text-gray-700">No long-term contract, cancel anytime</p>
+            </div>
+          </div>
+
+          {/* Founder credibility */}
+          <Link
+            href="/about"
+            className="group flex flex-col sm:flex-row items-center gap-6 bg-white rounded-2xl border border-gray-200 p-6 sm:p-8 hover:border-accent-300 hover:shadow-lg transition-all"
+          >
+            <img
+              src="/lib/nixon-family.jpg"
+              alt="Larry and Dee Nixon, founders of EventEcos"
+              className="h-20 w-20 rounded-full object-cover border-2 border-accent-200 flex-shrink-0"
+            />
+            <div className="text-center sm:text-left">
+              <p className="text-gray-900 font-semibold mb-1">Built by people who've actually run events</p>
+              <p className="text-gray-600 text-sm">
+                Larry &amp; Dee Nixon have spent 30+ years planning, hosting, and coordinating events — EventEcos is built from that firsthand experience, not a spreadsheet of feature requests.
+              </p>
+            </div>
+            <ArrowRight className="h-5 w-5 text-accent-500 flex-shrink-0 ml-auto hidden sm:block group-hover:translate-x-1 transition-transform" />
+          </Link>
         </div>
       </section>
 

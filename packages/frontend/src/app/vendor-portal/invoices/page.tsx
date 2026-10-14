@@ -37,11 +37,23 @@ export default function VendorInvoicesPage() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('')
   const [search, setSearch] = useState('')
+  const [stripeReady, setStripeReady] = useState(true)
 
   useEffect(() => {
     if (!user) { router.push('/login'); return }
     fetchInvoices()
+    fetchStripeStatus()
   }, [user])
+
+  const fetchStripeStatus = async () => {
+    try {
+      const res = await api.get('/vendors/account/me')
+      const acct = res.data
+      setStripeReady(Boolean(acct?.stripe_account_id) && acct?.stripe_connect_status === 'active')
+    } catch {
+      // if we can't tell, don't block the page with a false alarm
+    }
+  }
 
   const fetchInvoices = async () => {
     try {
@@ -98,6 +110,20 @@ export default function VendorInvoicesPage() {
             <Plus className="w-4 h-4" /> New Invoice
           </Link>
         </div>
+
+        {!stripeReady && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-4 mb-6 flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-sm">
+              <span className="font-semibold">Connect Stripe</span> to send invoices and accept client payments.
+            </p>
+            <Link
+              href="/vendors/dashboard/payouts"
+              className="inline-flex items-center gap-1.5 text-sm font-medium bg-amber-600 text-white px-3 py-1.5 rounded-lg hover:bg-amber-700 flex-shrink-0"
+            >
+              Set up Stripe
+            </Link>
+          </div>
+        )}
 
         {/* Stats */}
         <div className="grid grid-cols-3 gap-4 mb-6">

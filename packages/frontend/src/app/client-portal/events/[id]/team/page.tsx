@@ -31,7 +31,7 @@ function ManageTeamPageContent() {
   const fetchMembers = () => {
     clientApi.get(`/events/${eventId}/team`)
       .then(res => setMembers(res.data))
-      .catch(() => setError('Failed to load team members.'))
+      .catch((err: any) => setError(err.response?.data?.message || 'Failed to load team members.'))
       .finally(() => setLoading(false))
   }
 

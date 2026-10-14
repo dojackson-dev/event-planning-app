@@ -37,7 +37,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import api from '@/lib/api';
-import { Event, EventType, ClientStatus, ContractStatus, InsuranceStatus } from '@/types';
+import { Event, EventType, ClientStatus, ContractStatus, InsuranceStatus, Security } from '@/types';
 import EventNotes from '@/components/events/EventNotes';
 import { useVenue } from '@/contexts/VenueContext';
 
@@ -225,10 +225,16 @@ export default function EventManagementPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [showVendorPicker, setShowVendorPicker] = useState(false);
   const [vendorPickerList, setVendorPickerList] = useState<any[]>([]);
   const [vendorPickerSearch, setVendorPickerSearch] = useState('');
   const [vendorPickerLoading, setVendorPickerLoading] = useState(false);
+  const [showSecurityPicker, setShowSecurityPicker] = useState(false);
+  const [securityPickerList, setSecurityPickerList] = useState<Security[]>([]);
+  const [securityPickerSearch, setSecurityPickerSearch] = useState('');
+  const [securityPickerLoading, setSecurityPickerLoading] = useState(false);
 
   // Vendor booking (directory) state
   const [eventVendors, setEventVendors] = useState<EventVendorBooking[]>([]);
@@ -458,6 +464,13 @@ export default function EventManagementPage() {
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
+    if (fieldErrors[name]) {
+      setFieldErrors(prev => {
+        const next = { ...prev };
+        delete next[name];
+        return next;
+      });
+    }
   };
 
   const handleVendorChange = (index: number, field: keyof VendorContact, value: string) => {
@@ -536,6 +549,35 @@ export default function EventManagementPage() {
     setShowVendorPicker(false);
   };
 
+  const openSecurityPicker = async () => {
+    setShowSecurityPicker(true);
+    setSecurityPickerSearch('');
+    setSecurityPickerLoading(true);
+    try {
+      const res = await api.get<Security[]>('/security');
+      setSecurityPickerList(res.data || []);
+    } catch {
+      setSecurityPickerList([]);
+    } finally {
+      setSecurityPickerLoading(false);
+    }
+  };
+
+  const pickSecurityPersonnel = async (s: Security) => {
+    setFormData(prev => ({
+      ...prev,
+      securityContactName: s.name,
+      securityContactPhone: s.phone,
+    }));
+    setShowSecurityPicker(false);
+    // Link the personnel record to this event so it shows as assigned on the Security directory
+    try {
+      await api.put(`/security/${s.id}`, { name: s.name, phone: s.phone, eventId });
+    } catch {
+      // non-blocking — the contact fields above are already filled in
+    }
+  };
+
   // ── Vendor booking (directory) functions ──────────────────────
   const fetchEventVendors = async (eventDate: string, evId: string) => {
     if (!eventDate) return;
@@ -610,6 +652,16 @@ export default function EventManagementPage() {
   };
 
   const handleSave = async () => {
+    const errors: Record<string, string> = {};
+    if (!formData.eventName?.trim()) errors.eventName = 'Event name is required';
+    if (!formData.eventDate?.trim()) errors.eventDate = 'Event date is required';
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setSaveError('Please fix the highlighted fields below.');
+      return;
+    }
+
+    setSaveError('');
     setIsSaving(true);
     try {
       // Update core event fields (name, date, times, venueId) on the event record
@@ -625,9 +677,10 @@ export default function EventManagementPage() {
       await api.put(`/events/${eventId}/management`, formData);
       setIsEditing(false);
       alert('Event saved successfully!');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving event management data:', error);
-      alert('Error saving data. Please try again.');
+      const message = error.response?.data?.message;
+      setSaveError(Array.isArray(message) ? message.join(', ') : (message || 'Error saving data. Please try again.'));
     } finally {
       setIsSaving(false);
     }
@@ -695,6 +748,12 @@ export default function EventManagementPage() {
     (v.category || '').toLowerCase().includes(vendorPickerSearch.toLowerCase())
   );
 
+  const filteredSecurityPicker = securityPickerList.filter(s =>
+    !securityPickerSearch ||
+    (s.name || '').toLowerCase().includes(securityPickerSearch.toLowerCase()) ||
+    (s.phone || '').includes(securityPickerSearch)
+  );
+
   return (
     <div className="max-w-7xl mx-auto">
       {/* Vendor Directory Picker Modal */}
@@ -736,6 +795,54 @@ export default function EventManagementPage() {
           </div>
         </div>
       )}
+
+      {/* Security Personnel Picker Modal */}
+      {showSecurityPicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 flex flex-col max-h-[80vh]">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="font-bold text-gray-900 text-lg">Select Security Personnel</h3>
+              <button onClick={() => setShowSecurityPicker(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+            </div>
+            <div className="p-4 border-b">
+              <input
+                type="text"
+                placeholder="Search by name or phone..."
+                value={securityPickerSearch}
+                onChange={e => setSecurityPickerSearch(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                autoFocus
+              />
+            </div>
+            <div className="overflow-y-auto flex-1 p-2">
+              {securityPickerLoading ? (
+                <div className="text-center py-8 text-gray-400">Loading security personnel...</div>
+              ) : filteredSecurityPicker.length === 0 ? (
+                <div className="text-center py-8 text-gray-400">
+                  No security personnel found.<br />
+                  <button
+                    onClick={() => router.push(`/dashboard/security/new?eventId=${eventId}`)}
+                    className="text-primary-600 hover:text-primary-700 text-sm font-medium mt-2"
+                  >
+                    Add new security personnel
+                  </button>
+                </div>
+              ) : (
+                filteredSecurityPicker.map(s => (
+                  <button
+                    key={s.id}
+                    onClick={() => pickSecurityPersonnel(s)}
+                    className="w-full text-left px-4 py-3 rounded-lg hover:bg-primary-50 border border-transparent hover:border-primary-200 transition-colors mb-1"
+                  >
+                    <p className="font-semibold text-gray-900 text-sm">{s.name}</p>
+                    <p className="text-xs text-gray-500">{s.phone}{s.eventId && s.eventId !== eventId ? ' · Assigned to another event' : ''}</p>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
         {/* Header */}
         <div className="mb-6">
           <button
@@ -764,11 +871,16 @@ export default function EventManagementPage() {
               </p>
             ) : null
           })()}
+          {saveError && (
+            <div className="mt-4 max-w-md mx-auto bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-sm text-red-700 text-center">
+              {saveError}
+            </div>
+          )}
           <div className="flex justify-center gap-2 mt-4">
             {!isEditing ? (
               <>
                 <button
-                  onClick={() => setIsEditing(true)}
+                  onClick={() => { setIsEditing(true); setSaveError(''); setFieldErrors({}); }}
                   className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
                 >
                   <Edit className="h-4 w-4 mr-2" />
@@ -786,7 +898,7 @@ export default function EventManagementPage() {
             ) : (
               <>
                 <button
-                  onClick={() => setIsEditing(false)}
+                  onClick={() => { setIsEditing(false); setSaveError(''); setFieldErrors({}); }}
                   className="inline-flex items-center px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
                 >
                   Cancel
@@ -1038,13 +1150,18 @@ export default function EventManagementPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Event Name</label>
                   {isEditing ? (
-                    <input
-                      type="text"
-                      name="eventName"
-                      value={formData.eventName}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                    />
+                    <>
+                      <input
+                        type="text"
+                        name="eventName"
+                        value={formData.eventName}
+                        onChange={handleChange}
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 ${fieldErrors.eventName ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-primary-500'}`}
+                      />
+                      {fieldErrors.eventName && (
+                        <p className="text-red-600 text-xs mt-1">{fieldErrors.eventName}</p>
+                      )}
+                    </>
                   ) : (
                     <p className="text-gray-900">{formData.eventName}</p>
                   )}
@@ -1058,13 +1175,18 @@ export default function EventManagementPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Event Date</label>
                   {isEditing ? (
-                    <input
-                      type="date"
-                      name="eventDate"
-                      value={formData.eventDate}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                    />
+                    <>
+                      <input
+                        type="date"
+                        name="eventDate"
+                        value={formData.eventDate}
+                        onChange={handleChange}
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 ${fieldErrors.eventDate ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-primary-500'}`}
+                      />
+                      {fieldErrors.eventDate && (
+                        <p className="text-red-600 text-xs mt-1">{fieldErrors.eventDate}</p>
+                      )}
+                    </>
                   ) : (
                     <p className="text-gray-900">{formData.eventDate}</p>
                   )}
@@ -1822,6 +1944,16 @@ export default function EventManagementPage() {
 
                 {formData.securityRequired && (
                   <>
+                    {isEditing && (
+                      <button
+                        type="button"
+                        onClick={openSecurityPicker}
+                        className="text-xs bg-primary-600 text-white px-3 py-1.5 rounded-lg hover:bg-primary-700 font-medium"
+                      >
+                        + Select Personnel
+                      </button>
+                    )}
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Security Company</label>
                       {isEditing ? (

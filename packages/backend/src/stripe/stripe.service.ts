@@ -24,6 +24,8 @@ export class StripeService {
   private readonly logger = new Logger(StripeService.name);
   private readonly stripe: Stripe;
   private readonly webhookSecret: string;
+  /** Stripe gives a connected-accounts destination its own signing secret. */
+  private readonly connectWebhookSecret: string;
   private readonly frontendUrl: string;
 
   constructor(
@@ -46,6 +48,10 @@ export class StripeService {
     this.stripe = new Stripe(secretKey);
     this.webhookSecret = this.configService.get<string>(
       'STRIPE_WEBHOOK_SECRET',
+      '',
+    );
+    this.connectWebhookSecret = this.configService.get<string>(
+      'STRIPE_CONNECT_WEBHOOK_SECRET',
       '',
     );
     this.frontendUrl = this.configService.get<string>(
@@ -429,19 +435,29 @@ export class StripeService {
     let event: Stripe.Event;
 
     if (this.webhookSecret) {
-      try {
-        event = this.stripe.webhooks.constructEvent(
-          rawBody,
-          signature,
-          this.webhookSecret,
-        );
-      } catch (err) {
+      let verified: Stripe.Event | undefined;
+      let lastError: Error | undefined;
+      for (const secret of [this.webhookSecret, this.connectWebhookSecret]) {
+        if (!secret) continue;
+        try {
+          verified = this.stripe.webhooks.constructEvent(
+            rawBody,
+            signature,
+            secret,
+          );
+          break;
+        } catch (err) {
+          lastError = err as Error;
+        }
+      }
+      if (!verified) {
         this.logger.error(
           'Webhook signature verification failed',
-          (err as Error).message,
+          lastError?.message,
         );
-        throw new Error(`Webhook error: ${(err as Error).message}`);
+        throw new Error(`Webhook error: ${lastError?.message}`);
       }
+      event = verified;
     } else {
       this.logger.warn(
         'STRIPE_WEBHOOK_SECRET not set — skipping signature verification (dev mode)',

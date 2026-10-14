@@ -93,6 +93,21 @@ export class VendorInvoicesService {
   async createInvoice(userId: string, dto: CreateVendorInvoiceDto) {
     const admin = this.supabaseService.getAdminClient();
     const vendorAccountId = await this.getVendorAccountId(userId);
+
+    const { data: vendorAccount } = await admin
+      .from('vendor_accounts')
+      .select('stripe_account_id, stripe_connect_status')
+      .eq('id', vendorAccountId)
+      .single();
+    if (
+      !vendorAccount?.stripe_account_id ||
+      vendorAccount.stripe_connect_status !== 'active'
+    ) {
+      throw new BadRequestException(
+        'You must connect a Stripe account before creating invoices. Go to Payouts in your dashboard to set up Stripe.',
+      );
+    }
+
     const invoiceNumber = await this.generateInvoiceNumber();
     const taxRate = dto.tax_rate ?? 0;
     const discountAmount = dto.discount_amount ?? 0;

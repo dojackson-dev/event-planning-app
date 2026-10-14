@@ -32,6 +32,7 @@ function NewVendorInvoicePageContent() {
   const [error, setError] = useState('')
   const [bookingOptions, setBookingOptions] = useState<BookingOption[]>([])
   const [selectedBookingId, setSelectedBookingId] = useState<string>('')
+  const [stripeReady, setStripeReady] = useState<boolean | null>(null)
 
   const [clientName, setClientName] = useState(() => searchParams.get('clientName') || '')
   const [clientEmail, setClientEmail] = useState(() => searchParams.get('clientEmail') || '')
@@ -50,6 +51,13 @@ function NewVendorInvoicePageContent() {
   useEffect(() => {
     const fetchAll = async () => {
       const combined: BookingOption[] = []
+      try {
+        const res0 = await api.get('/vendors/account/me')
+        const acct = res0.data
+        setStripeReady(Boolean(acct?.stripe_account_id) && acct?.stripe_connect_status === 'active')
+      } catch {
+        setStripeReady(false)
+      }
       try {
         // Fetch owner-created bookings (vendor_bookings)
         const res1 = await api.get('/vendors/bookings/mine')
@@ -137,6 +145,10 @@ function NewVendorInvoicePageContent() {
     e.preventDefault()
     setError('')
 
+    if (stripeReady === false) {
+      setError('You must connect a Stripe account before creating invoices.')
+      return
+    }
     if (!clientName.trim() || !clientEmail.trim() || !dueDate) {
       setError('Client name, email, and due date are required.')
       return
@@ -189,6 +201,19 @@ function NewVendorInvoicePageContent() {
           </div>
         )}
 
+        {stripeReady === false && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-5 mb-6">
+            <p className="font-semibold mb-1">Connect Stripe to create invoices</p>
+            <p className="text-sm mb-3">You need to finish connecting a Stripe account before you can create or send invoices to clients.</p>
+            <Link
+              href="/vendors/dashboard/payouts"
+              className="inline-flex items-center gap-1.5 text-sm font-medium bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700"
+            >
+              Set up Stripe
+            </Link>
+          </div>
+        )}
+
         {/* Booking selector — always visible */}
         <div className="bg-white rounded-xl border border-primary-200 p-5 shadow-sm mb-6">
           <h2 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
@@ -214,7 +239,7 @@ function NewVendorInvoicePageContent() {
           )}
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className={`space-y-6 ${stripeReady === false ? 'opacity-50 pointer-events-none' : ''}`}>
           {/* Client info */}
           <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
             <h2 className="font-semibold text-gray-700 mb-4">Client Information</h2>

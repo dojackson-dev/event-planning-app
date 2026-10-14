@@ -528,20 +528,13 @@ export class RsvpService {
     const rsvpUrl = `${frontendUrl}/rsvp/${guest.rsvp_token}`;
 
     // Get event info for nicer message
-    const admin = this.supabaseService.getAdminClient();
     let eventName = 'the event';
     let eventDate = '';
-    if (form.event_id) {
-      const { data: ev } = await admin
-        .from('event')
-        .select('name, date')
-        .eq('id', form.event_id)
-        .single();
-      if (ev) {
-        eventName = ev.name ?? eventName;
-        if (ev.date) {
-          eventDate = ` on ${new Date(ev.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`;
-        }
+    const ev = await this.findEventForForm(form).catch(() => null);
+    if (ev) {
+      eventName = ev.name ?? eventName;
+      if (ev.date) {
+        eventDate = ` on ${new Date(ev.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`;
       }
     }
 

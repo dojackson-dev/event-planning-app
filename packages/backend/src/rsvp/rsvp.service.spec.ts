@@ -33,13 +33,14 @@ function setup(results: Array<{ data?: unknown; error?: unknown }>) {
     }),
   };
   const syncRsvpGuest = jest.fn().mockResolvedValue(undefined);
+  const trySend = jest.fn().mockResolvedValue(undefined);
   const service = new RsvpService(
     { getAdminClient: () => database } as unknown as SupabaseService,
-    {} as SmsNotificationsService,
+    { trySend } as unknown as SmsNotificationsService,
     {} as MailService,
     { syncRsvpGuest } as unknown as GuestListsService,
   );
-  return { service, queries, syncRsvpGuest };
+  return { service, queries, syncRsvpGuest, trySend };
 }
 
 describe('Shared event RSVP management', () => {
@@ -167,6 +168,21 @@ describe('Shared event RSVP management', () => {
         status: 'attending',
       }),
     ).rejects.toThrow('Sync failed');
+  });
+
+  it('names the event in the invite text even when the form has no direct event link', async () => {
+    const { service, trySend } = setup([
+      { data: { ...form, event_id: null } },
+      { data: event },
+      { data: { ...guest, guest_phone: '5550001111', rsvp_token: 'tok' } },
+      { data: { ...event, name: 'POSM Christmas Party', date: '2026-12-05' } },
+      { data: guest },
+    ]);
+    await service.sendInvite(guest.id, form.id, { ownerId: 'owner-1' });
+    expect(trySend).toHaveBeenCalledWith(
+      '5550001111',
+      expect.stringContaining('POSM Christmas Party on December 5, 2026'),
+    );
   });
 
   describe('clients added as team members', () => {

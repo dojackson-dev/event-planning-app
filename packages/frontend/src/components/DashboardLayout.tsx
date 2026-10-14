@@ -220,6 +220,7 @@ const ALL_NAV = [
   { name: 'Invoices',       href: '/dashboard/invoices',     icon: Receipt,         ownerOnly: false, quickCreateHref: '/dashboard/invoices/new' },
   { name: 'Estimates',      href: '/dashboard/estimates',    icon: FileText,        ownerOnly: false, quickCreateHref: '/dashboard/invoices/new?type=estimate' },
   { name: 'Contracts',      href: '/dashboard/contracts',    icon: FileText,        ownerOnly: false },
+  { name: 'RSVP Manager',   href: '/dashboard/rsvp',         icon: Users,           ownerOnly: false },
   { name: 'Door Lists',     href: '/dashboard/door-lists',   icon: ListChecks,      ownerOnly: false },
   { name: 'Security',       href: '/dashboard/security',     icon: Shield,          ownerOnly: false },
   { name: 'Payments',       href: '/dashboard/payments',     icon: DollarSign,      ownerOnly: false },

@@ -12,42 +12,58 @@ import {
 } from '@nestjs/common';
 import { RsvpService } from './rsvp.service';
 import { ClientAuthService } from '../client-portal/client-auth.service';
+import { SupabaseService } from '../supabase/supabase.service';
+
+type RsvpHeaders = { authorization?: string; 'x-client-token'?: string };
 
 @Controller('rsvp')
 export class RsvpController {
   constructor(
     private readonly rsvpService: RsvpService,
     private readonly clientAuthService: ClientAuthService,
+    private readonly supabaseService: SupabaseService,
   ) {}
 
-  private requireSession(token: string | undefined) {
-    if (!token) throw new UnauthorizedException('Client token required');
-    return this.clientAuthService.validateSession(token);
+  private async requireSession(headers: RsvpHeaders) {
+    if (headers['x-client-token'] !== undefined) {
+      if (!headers['x-client-token'])
+        throw new UnauthorizedException('Client token required');
+      return this.clientAuthService.validateSession(headers['x-client-token'])
+        .phone;
+    }
+    const token = headers.authorization?.replace(/^Bearer\s+/i, '');
+    if (!token) throw new UnauthorizedException('Authentication required');
+    const {
+      data: { user },
+      error,
+    } = await this.supabaseService.getAdminClient().auth.getUser(token);
+    if (error || !user) throw new UnauthorizedException('Invalid token');
+    return { ownerId: user.id };
   }
 
   // ── Authenticated (client portal) ─────────────────────────────────────────
 
   /** List RSVP-able events for the logged-in client. */
   @Get('events')
-  async getEvents(@Headers('x-client-token') token: string) {
-    const session = this.requireSession(token);
-    return this.rsvpService.getEventsForClient(session.phone);
+  async getEvents(@Headers() headers: RsvpHeaders) {
+    const actor = await this.requireSession(headers);
+    return this.rsvpService.getEventsForClient(actor);
   }
 
   /** List all guests for a given intake form / event. */
   @Get('guests/:intakeFormId')
   async getGuests(
-    @Headers('x-client-token') token: string,
+    @Headers() headers: RsvpHeaders,
     @Param('intakeFormId') intakeFormId: string,
   ) {
-    const session = this.requireSession(token);
-    return this.rsvpService.getGuests(intakeFormId, session.phone);
+    const actor = await this.requireSession(headers);
+    return this.rsvpService.getGuests(intakeFormId, actor);
   }
 
   /** Add a single guest. */
   @Post('guests/:intakeFormId')
   async addGuest(
-    @Headers('x-client-token') token: string,
+    @Headers() headers: RsvpHeaders,
     @Param('intakeFormId') intakeFormId: string,
     @Body()
     body: {
@@ -59,14 +75,14 @@ export class RsvpController {
   ) {
     if (!body?.guest_name)
       throw new BadRequestException('guest_name is required');
-    const session = this.requireSession(token);
-    return this.rsvpService.addGuest(intakeFormId, session.phone, body);
+    const actor = await this.requireSession(headers);
+    return this.rsvpService.addGuest(intakeFormId, actor, body);
   }
 
   /** Bulk add guests. */
   @Post('guests/:intakeFormId/bulk')
   async bulkAddGuests(
-    @Headers('x-client-token') token: string,
+    @Headers() headers: RsvpHeaders,
     @Param('intakeFormId') intakeFormId: string,
     @Body()
     body: {
@@ -78,20 +94,16 @@ export class RsvpController {
       }>;
     },
   ) {
-    const session = this.requireSession(token);
+    const actor = await this.requireSession(headers);
     if (!Array.isArray(body?.guests))
       throw new BadRequestException('guests array is required');
-    return this.rsvpService.bulkAddGuests(
-      intakeFormId,
-      session.phone,
-      body.guests,
-    );
+    return this.rsvpService.bulkAddGuests(intakeFormId, actor, body.guests);
   }
 
   /** Update a guest (table assignment, phone, etc.). */
   @Put('guests/:intakeFormId/:guestId')
   async updateGuest(
-    @Headers('x-client-token') token: string,
+    @Headers() headers: RsvpHeaders,
     @Param('intakeFormId') intakeFormId: string,
     @Param('guestId') guestId: string,
     @Body()
@@ -102,46 +114,41 @@ export class RsvpController {
       table_assignment: string;
     }>,
   ) {
-    const session = this.requireSession(token);
-    return this.rsvpService.updateGuest(
-      guestId,
-      intakeFormId,
-      session.phone,
-      body,
-    );
+    const actor = await this.requireSession(headers);
+    return this.rsvpService.updateGuest(guestId, intakeFormId, actor, body);
   }
 
   /** Delete a guest. */
   @Delete('guests/:intakeFormId/:guestId')
   async deleteGuest(
-    @Headers('x-client-token') token: string,
+    @Headers() headers: RsvpHeaders,
     @Param('intakeFormId') intakeFormId: string,
     @Param('guestId') guestId: string,
   ) {
-    const session = this.requireSession(token);
-    await this.rsvpService.deleteGuest(guestId, intakeFormId, session.phone);
+    const actor = await this.requireSession(headers);
+    await this.rsvpService.deleteGuest(guestId, intakeFormId, actor);
     return { success: true };
   }
 
   /** Send RSVP invite to a single guest. */
   @Post('guests/:intakeFormId/:guestId/send')
   async sendInvite(
-    @Headers('x-client-token') token: string,
+    @Headers() headers: RsvpHeaders,
     @Param('intakeFormId') intakeFormId: string,
     @Param('guestId') guestId: string,
   ) {
-    const session = this.requireSession(token);
-    return this.rsvpService.sendInvite(guestId, intakeFormId, session.phone);
+    const actor = await this.requireSession(headers);
+    return this.rsvpService.sendInvite(guestId, intakeFormId, actor);
   }
 
   /** Send RSVP invites to all guests not yet sent. */
   @Post('send-all/:intakeFormId')
   async sendAllInvites(
-    @Headers('x-client-token') token: string,
+    @Headers() headers: RsvpHeaders,
     @Param('intakeFormId') intakeFormId: string,
   ) {
-    const session = this.requireSession(token);
-    return this.rsvpService.sendAllInvites(intakeFormId, session.phone);
+    const actor = await this.requireSession(headers);
+    return this.rsvpService.sendAllInvites(intakeFormId, actor);
   }
 
   // ── Public (token-gated, no auth required) ────────────────────────────────
@@ -149,26 +156,26 @@ export class RsvpController {
   /** Get invitation images for an event. */
   @Get('images/:intakeFormId')
   async getImages(
-    @Headers('x-client-token') token: string,
+    @Headers() headers: RsvpHeaders,
     @Param('intakeFormId') intakeFormId: string,
   ) {
-    const session = this.requireSession(token);
-    return this.rsvpService.getInvitationImages(intakeFormId, session.phone);
+    const actor = await this.requireSession(headers);
+    return this.rsvpService.getInvitationImages(intakeFormId, actor);
   }
 
   /** Set invitation images for an event (max 2). */
   @Put('images/:intakeFormId')
   async setImages(
-    @Headers('x-client-token') token: string,
+    @Headers() headers: RsvpHeaders,
     @Param('intakeFormId') intakeFormId: string,
     @Body() body: { images: string[] },
   ) {
     if (!Array.isArray(body?.images))
       throw new BadRequestException('images array is required');
-    const session = this.requireSession(token);
+    const actor = await this.requireSession(headers);
     return this.rsvpService.setInvitationImages(
       intakeFormId,
-      session.phone,
+      actor,
       body.images,
     );
   }

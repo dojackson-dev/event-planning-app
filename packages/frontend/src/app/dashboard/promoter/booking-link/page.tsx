@@ -9,7 +9,6 @@ import EmbedBookingSection from '@/components/EmbedBookingSection'
 interface BookingLink {
   id: string
   slug: string
-  short_code: string | null
   is_active: boolean
   custom_message: string | null
 }
@@ -19,7 +18,6 @@ export default function PromoterBookingLinkPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [copied, setCopied] = useState(false)
-  const [copiedShort, setCopiedShort] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -64,10 +62,8 @@ export default function PromoterBookingLinkPage() {
   }
 
   const bookingUrl = link ? `${window.location.origin}/book-promoter/${link.slug}` : ''
-  const shortUrl = link?.short_code ? `${window.location.origin}/p/${link.short_code}` : ''
 
   const copyLink = () => { navigator.clipboard.writeText(bookingUrl); setCopied(true); setTimeout(() => setCopied(false), 2000) }
-  const copyShortLink = () => { navigator.clipboard.writeText(shortUrl); setCopiedShort(true); setTimeout(() => setCopiedShort(false), 2000) }
   const suggestSlug = () => setSlug(`promoter-${Math.random().toString(36).substring(2, 8)}`)
 
   return (
@@ -96,24 +92,6 @@ export default function PromoterBookingLinkPage() {
               </div>
               <p className="text-xs text-green-600/70 mt-1.5">Best for your website, email, or social media — the readable slug adds context.</p>
             </div>
-            {shortUrl && (
-              <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Link2 className="w-4 h-4 flex-shrink-0 text-purple-500" />
-                    <div className="min-w-0">
-                      <p className="text-xs text-purple-400 mb-0.5">Short link</p>
-                      <a href={shortUrl} target="_blank" rel="noreferrer" className="text-sm font-medium text-purple-700 hover:underline truncate block">{shortUrl}</a>
-                    </div>
-                  </div>
-                  <button onClick={copyShortLink} className="flex-shrink-0 inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-white border border-purple-200 text-purple-700 hover:bg-purple-50 transition-colors">
-                    {copiedShort ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    {copiedShort ? 'Copied!' : 'Copy'}
-                  </button>
-                </div>
-                <p className="text-xs text-purple-600/70 mt-1.5">Best for texting, printing, or QR codes — shorter and easier to share.</p>
-              </div>
-            )}
           </div>
         )}
 

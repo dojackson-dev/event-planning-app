@@ -1080,26 +1080,6 @@ export class VendorsService {
   }
 
   /** Create or update the vendor's booking link (one per vendor). */
-  /** Generate a unique 6-char alphanumeric short code. */
-  private async generateShortCode(admin: any): Promise<string> {
-    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    for (let attempt = 0; attempt < 10; attempt++) {
-      let code = '';
-      for (let i = 0; i < 6; i++) {
-        code += chars[Math.floor(Math.random() * chars.length)];
-      }
-      const { data } = await admin
-        .from('vendor_booking_links')
-        .select('id')
-        .eq('short_code', code)
-        .maybeSingle();
-      if (!data) return code;
-    }
-    throw new Error(
-      'Could not generate a unique short code. Please try again.',
-    );
-  }
-
   async upsertBookingLink(userId: string, dto: UpsertBookingLinkDto) {
     const admin = this.supabaseService.getAdminClient();
     const vendorAccountId = await this.getVendorAccountIdByUserId(userId);
@@ -1122,20 +1102,20 @@ export class VendorsService {
       throw new BadRequestException('This booking link slug is already taken');
     }
 
-    const { data: existing } = await admin
+    const { data: existing, error: existingError } = await admin
       .from('vendor_booking_links')
-      .select('id, short_code')
+      .select('id')
       .eq('vendor_account_id', vendorAccountId)
       .maybeSingle();
-
-    // Preserve existing short_code or generate one for new links
-    const shortCode =
-      existing?.short_code ?? (await this.generateShortCode(admin));
+    if (existingError) {
+      throw new BadRequestException(
+        `Failed to look up existing booking link: ${existingError.message}`,
+      );
+    }
 
     const payload = {
       vendor_account_id: vendorAccountId,
       slug: dto.slug,
-      short_code: shortCode,
       is_active: dto.isActive ?? true,
       custom_message: dto.customMessage ?? null,
       default_deposit_percentage: dto.defaultDepositPercentage ?? null,
@@ -1150,6 +1130,7 @@ export class VendorsService {
         .select()
         .single();
       if (error) throw new BadRequestException(error.message);
+      if (!data) throw new BadRequestException('Booking link update did not match any row');
       return data;
     } else {
       const { data, error } = await admin
@@ -1191,21 +1172,6 @@ export class VendorsService {
     if (error || !data)
       throw new NotFoundException('Booking link not found or inactive');
     return data;
-  }
-
-  /** Public: resolve a short code to its slug and return the full booking link info. */
-  async getPublicBookingLinkByShortCode(code: string) {
-    const admin = this.supabaseService.getAdminClient();
-    const { data, error } = await admin
-      .from('vendor_booking_links')
-      .select('slug')
-      .eq('short_code', code)
-      .eq('is_active', true)
-      .single();
-
-    if (error || !data)
-      throw new NotFoundException('Booking link not found or inactive');
-    return { slug: data.slug };
   }
 
   /** Public: submit a booking inquiry directly to a vendor by their account ID (no auth, no booking link required). */

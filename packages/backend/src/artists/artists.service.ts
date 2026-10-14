@@ -315,22 +315,6 @@ export class ArtistsService {
   // BOOKING LINKS
   // ─────────────────────────────────────────────
 
-  private async generateShortCode(admin: any): Promise<string> {
-    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    for (let attempt = 0; attempt < 10; attempt++) {
-      let code = '';
-      for (let i = 0; i < 6; i++)
-        code += chars[Math.floor(Math.random() * chars.length)];
-      const { data } = await admin
-        .from('artist_booking_links')
-        .select('id')
-        .eq('short_code', code)
-        .maybeSingle();
-      if (!data) return code;
-    }
-    throw new Error('Could not generate a unique short code');
-  }
-
   async upsertBookingLink(
     userId: string,
     dto: { slug: string; isActive?: boolean; customMessage?: string },
@@ -359,18 +343,20 @@ export class ArtistsService {
       throw new BadRequestException('This slug is already taken');
     }
 
-    const { data: existing } = await admin
+    const { data: existing, error: existingError } = await admin
       .from('artist_booking_links')
-      .select('id, short_code')
+      .select('id')
       .eq('artist_account_id', artist.id)
       .maybeSingle();
+    if (existingError) {
+      throw new BadRequestException(
+        `Failed to look up existing booking link: ${existingError.message}`,
+      );
+    }
 
-    const shortCode =
-      existing?.short_code ?? (await this.generateShortCode(admin));
     const payload = {
       artist_account_id: artist.id,
       slug: dto.slug,
-      short_code: shortCode,
       is_active: dto.isActive ?? true,
       custom_message: dto.customMessage ?? null,
       updated_at: new Date().toISOString(),
@@ -384,6 +370,7 @@ export class ArtistsService {
         .select()
         .single();
       if (error) throw new BadRequestException(error.message);
+      if (!data) throw new BadRequestException('Booking link update did not match any row');
       return data;
     } else {
       const { data, error } = await admin
@@ -425,19 +412,6 @@ export class ArtistsService {
     if (error || !data)
       throw new NotFoundException('Booking link not found or inactive');
     return data;
-  }
-
-  async getPublicBookingLinkByShortCode(code: string) {
-    const admin = this.supabaseService.getAdminClient();
-    const { data, error } = await admin
-      .from('artist_booking_links')
-      .select('slug')
-      .eq('short_code', code)
-      .eq('is_active', true)
-      .single();
-    if (error || !data)
-      throw new NotFoundException('Booking link not found or inactive');
-    return { slug: data.slug };
   }
 
   async submitArtistBookingRequest(slug: string, dto: any) {

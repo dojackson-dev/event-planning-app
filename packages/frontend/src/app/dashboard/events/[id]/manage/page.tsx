@@ -673,8 +673,9 @@ export default function EventManagementPage() {
         venueId: formData.venueId || null,
         maxGuests: formData.estimatedGuests || null,
       });
-      // Save management data
-      await api.put(`/events/${eventId}/management`, formData);
+      // Save management data (invitation images are saved separately, immediately on upload/remove)
+      const { invitationImages: _images, ...managementData } = formData;
+      await api.put(`/events/${eventId}/management`, managementData);
       setIsEditing(false);
       alert('Event saved successfully!');
     } catch (error: any) {
@@ -695,10 +696,9 @@ export default function EventManagementPage() {
       const res = await api.post('/upload/rsvp-invitation', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      setFormData(prev => ({
-        ...prev,
-        invitationImages: [...(prev.invitationImages || []), res.data.url],
-      }));
+      const invitationImages = [...(formData.invitationImages || []), res.data.url];
+      await api.put(`/events/${eventId}/invitation-images`, { images: invitationImages });
+      setFormData(prev => ({ ...prev, invitationImages }));
     } catch {
       alert('Failed to upload image. Please try again.');
     } finally {
@@ -706,11 +706,14 @@ export default function EventManagementPage() {
     }
   };
 
-  const removeRsvpImage = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      invitationImages: (prev.invitationImages || []).filter((_, i) => i !== index),
-    }));
+  const removeRsvpImage = async (index: number) => {
+    const invitationImages = (formData.invitationImages || []).filter((_, i) => i !== index);
+    try {
+      await api.put(`/events/${eventId}/invitation-images`, { images: invitationImages });
+      setFormData(prev => ({ ...prev, invitationImages }));
+    } catch {
+      alert('Failed to remove image. Please try again.');
+    }
   };
 
   const handleDelete = async () => {
@@ -2148,7 +2151,7 @@ export default function EventManagementPage() {
                 )}
 
                 {(formData.invitationImages || []).length > 0 && (
-                  <p className="text-xs text-gray-400 text-center">Images save with the &quot;Save Changes&quot; button above.</p>
+                  <p className="text-xs text-gray-400 text-center">Images are saved automatically and shown to your client on their RSVP page.</p>
                 )}
               </div>
             </div>

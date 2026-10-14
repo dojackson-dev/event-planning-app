@@ -16,6 +16,8 @@ function setup(results: Array<{ data?: unknown; error?: unknown }>) {
         'or',
         'in',
         'order',
+        'limit',
+        'not',
         'update',
         'delete',
         'single',
@@ -165,5 +167,64 @@ describe('Shared event RSVP management', () => {
         status: 'attending',
       }),
     ).rejects.toThrow('Sync failed');
+  });
+
+  describe('clients added as team members', () => {
+    const teamPhone = '+19990000000';
+
+    it('lets a team member manage the event RSVP list', async () => {
+      const { service } = setup([
+        { data: form },
+        { data: [{ id: event.id }] },
+        { data: [{ id: 'team-1' }] },
+        { data: [] },
+        { data: [] },
+      ]);
+      await expect(service.getGuests(form.id, teamPhone)).resolves.toEqual([]);
+    });
+
+    it('rejects a phone that is neither the contact, a team member, nor an invoice contact', async () => {
+      const { service } = setup([
+        { data: form },
+        { data: [{ id: event.id }] },
+        { data: [] },
+        { data: [] },
+      ]);
+      await expect(service.getGuests(form.id, teamPhone)).rejects.toThrow(
+        'not authorised',
+      );
+    });
+
+    it('lists team events in the client RSVP list', async () => {
+      const { service } = setup([
+        { data: [] },
+        { data: [] },
+        { data: [] },
+        { data: [{ event_id: event.id }] },
+        { data: [] },
+        { data: [{ id: event.id, intake_form_id: form.id }] },
+        {
+          data: [
+            {
+              id: form.id,
+              user_id: 'owner-1',
+              contact_name: 'Host',
+              event_id: null,
+            },
+          ],
+        },
+        {
+          data: { ...event, name: 'POSM Christmas Party', date: '2026-12-05' },
+        },
+        { data: [] },
+      ]);
+      await expect(service.getEventsForClient(teamPhone)).resolves.toEqual([
+        expect.objectContaining({
+          intake_form_id: form.id,
+          event_id: event.id,
+          event_name: 'POSM Christmas Party',
+        }),
+      ]);
+    });
   });
 });

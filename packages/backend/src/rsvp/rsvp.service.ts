@@ -58,11 +58,97 @@ export class RsvpService {
     const variants = buildPhoneVariants(clientPhone);
     const storedVariants = buildPhoneVariants(form.contact_phone ?? '');
     const match = variants.some((v) => storedVariants.includes(v));
-    if (!match)
+    if (!match && !(await this.hasSharedEventAccess(form, variants)))
       throw new UnauthorizedException(
         'You are not authorised to manage this event',
       );
     return form;
+  }
+
+  /** Same access rules as the client portal's My Events: team member or invoice contact. */
+  private async hasSharedEventAccess(
+    form: { id: string; event_id?: string | number | null },
+    variants: string[],
+  ): Promise<boolean> {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: events, error } = await admin
+      .from('event')
+      .select('id')
+      .or(`intake_form_id.eq.${form.id},client_id.eq.${form.id}`);
+    if (error) throw error;
+    const eventIds = [
+      ...new Set(
+        [form.event_id, ...(events || []).map((e: any) => e.id)].filter(
+          Boolean,
+        ),
+      ),
+    ];
+    if (!eventIds.length) return false;
+
+    const [team, invoices] = await Promise.all([
+      admin
+        .from('event_team_members')
+        .select('id')
+        .in('event_id', eventIds)
+        .in('phone', variants)
+        .limit(1),
+      admin
+        .from('invoices')
+        .select('id')
+        .in('event_id', eventIds)
+        .in('client_phone', variants)
+        .limit(1),
+    ]);
+    if (team.error) throw team.error;
+    if (invoices.error) throw invoices.error;
+    return Boolean(team.data?.length || invoices.data?.length);
+  }
+
+  /** Intake forms for events this phone reached as a team member or invoice contact. */
+  private async findSharedEventForms(variants: string[]): Promise<any[]> {
+    const admin = this.supabaseService.getAdminClient();
+    const [team, invoices] = await Promise.all([
+      admin.from('event_team_members').select('event_id').in('phone', variants),
+      admin
+        .from('invoices')
+        .select('event_id')
+        .in('client_phone', variants)
+        .not('event_id', 'is', null),
+    ]);
+    if (team.error) throw team.error;
+    if (invoices.error) throw invoices.error;
+    const eventIds = [
+      ...new Set(
+        [...(team.data || []), ...(invoices.data || [])]
+          .map((row: any) => row.event_id)
+          .filter(Boolean),
+      ),
+    ];
+    if (!eventIds.length) return [];
+
+    const { data: events, error: eventsError } = await admin
+      .from('event')
+      .select('id, intake_form_id')
+      .in('id', eventIds)
+      .not('intake_form_id', 'is', null);
+    if (eventsError) throw eventsError;
+    if (!events?.length) return [];
+
+    const { data: forms, error: formsError } = await admin
+      .from('intake_forms')
+      .select('id, user_id, contact_name, event_id')
+      .in(
+        'id',
+        events.map((e: any) => e.intake_form_id),
+      );
+    if (formsError) throw formsError;
+    const eventByForm = new Map(
+      events.map((e: any) => [e.intake_form_id, e.id]),
+    );
+    return (forms || []).map((f: any) => ({
+      ...f,
+      event_id: f.event_id ?? eventByForm.get(f.id) ?? null,
+    }));
   }
 
   private async findEventForForm(form: {
@@ -114,11 +200,19 @@ export class RsvpService {
     for (const result of results) {
       if (result.error) throw result.error;
     }
-    const forms = [
-      ...new Map(
-        results.flatMap((r) => r.data || []).map((f: any) => [f.id, f]),
-      ).values(),
-    ];
+    const formsById = new Map<string, any>(
+      results.flatMap((r) => r.data || []).map((f: any) => [f.id, f]),
+    );
+    if (typeof clientPhone === 'string') {
+      for (const shared of await this.findSharedEventForms(
+        buildPhoneVariants(clientPhone),
+      )) {
+        const own = formsById.get(shared.id);
+        if (!own) formsById.set(shared.id, shared);
+        else if (!own.event_id) own.event_id = shared.event_id;
+      }
+    }
+    const forms = [...formsById.values()];
 
     if (!forms.length) return [];
 

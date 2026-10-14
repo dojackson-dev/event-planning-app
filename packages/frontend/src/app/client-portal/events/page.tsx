@@ -207,7 +207,16 @@ export default function ClientEventsPage() {
                     )}
 
                     {event._type !== 'vendor_booking' && (
-                      <div className="mt-4 flex justify-end">
+                      <div className="mt-4 flex flex-wrap justify-end gap-2">
+                        {event.intake_form_id && (
+                          <Link
+                            href={`/client-portal/rsvp?form=${encodeURIComponent(event.intake_form_id)}`}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors"
+                          >
+                            <Users className="h-4 w-4" />
+                            Manage RSVP
+                          </Link>
+                        )}
                         <Link
                           href={`/client-portal/events/${event.id}/team?name=${encodeURIComponent(event.name || '')}`}
                           className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-primary-600 border border-primary-200 hover:bg-primary-50 rounded-lg transition-colors"

@@ -5,8 +5,9 @@ the dashboard's RSVP Manager navigation item. Both render the same manager
 and use the same `/rsvp` API and `rsvp_guests` records for a linked intake form.
 
 Owners authenticate with a bearer token and must own the linked event.
-Clients authenticate with `x-client-token` and must match the intake form's
-contact phone. Public guest replies remain protected by invitation tokens
+Clients authenticate with `x-client-token` and must be the intake form's
+contact phone, a team member of the event, or an invoice contact for it (the
+same rules as My Events). Public guest replies remain protected by invitation tokens
 and phone verification where configured.
 
 ## Door List Synchronization

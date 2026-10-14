@@ -109,6 +109,14 @@ export default function ClientRsvpPage() {
       .finally(() => setLoading(false))
   }, [router, loginPath])
 
+  useEffect(() => {
+    if (selectedEvent || !events.length) return
+    const formId = new URLSearchParams(window.location.search).get('form')
+    const match = events.find(e => e.intake_form_id === formId)
+    if (match) selectEvent(match)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [events])
+
   const selectEvent = async (ev: RsvpEvent) => {
     setSelectedEvent(ev)
     setGuests([])

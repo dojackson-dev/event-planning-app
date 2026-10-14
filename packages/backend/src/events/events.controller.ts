@@ -139,4 +139,14 @@ export class EventsController {
     const userId = await this.getUserId(authorization);
     return this.eventsService.saveManagementData(userId, id, body);
   }
+
+  @Put(':id/invitation-images')
+  async updateInvitationImages(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+    @Body() body: { images?: unknown },
+  ): Promise<string[]> {
+    const userId = await this.getUserId(authorization);
+    return this.eventsService.setInvitationImages(userId, id, body?.images);
+  }
 }

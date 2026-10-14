@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { SupabaseService } from '../supabase/supabase.service';
 import { Event } from '../entities/event.entity';
@@ -289,9 +289,23 @@ export class EventsService {
     payload: any,
   ): Promise<any> {
     const admin = this.supabaseService.getAdminClient();
+    const { data: existing, error: existingError } = await admin
+      .from('event')
+      .select('management_data')
+      .eq('id', eventId)
+      .eq('owner_id', userId)
+      .single();
+    if (existingError) throw existingError;
+
+    // Merge so fields owned elsewhere (e.g. invitation images) survive a stale form save.
     const { data, error } = await admin
       .from('event')
-      .update({ management_data: payload })
+      .update({
+        management_data: {
+          ...((existing as any)?.management_data ?? {}),
+          ...payload,
+        },
+      })
       .eq('id', eventId)
       .eq('owner_id', userId)
       .select('management_data')
@@ -299,5 +313,41 @@ export class EventsService {
 
     if (error) throw error;
     return (data as any)?.management_data || {};
+  }
+
+  async setInvitationImages(
+    userId: string,
+    eventId: string,
+    images: unknown,
+  ): Promise<string[]> {
+    if (
+      !Array.isArray(images) ||
+      images.length > 2 ||
+      !images.every((url) => typeof url === 'string' && /^https:\/\//.test(url))
+    ) {
+      throw new BadRequestException('images must be up to 2 https URLs');
+    }
+
+    const admin = this.supabaseService.getAdminClient();
+    const { data: existing, error: existingError } = await admin
+      .from('event')
+      .select('management_data')
+      .eq('id', eventId)
+      .eq('owner_id', userId)
+      .single();
+    if (existingError) throw existingError;
+
+    const { error } = await admin
+      .from('event')
+      .update({
+        management_data: {
+          ...((existing as any)?.management_data ?? {}),
+          invitationImages: images,
+        },
+      })
+      .eq('id', eventId)
+      .eq('owner_id', userId);
+    if (error) throw error;
+    return images as string[];
   }
 }

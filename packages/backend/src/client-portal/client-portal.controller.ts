@@ -123,11 +123,15 @@ export class ClientPortalController {
   ) {
     const session = this.requireSession(token);
     if (!body?.phone) throw new BadRequestException('phone is required');
+    const addedByName = [session.firstName, session.lastName]
+      .filter(Boolean)
+      .join(' ');
     return this.clientPortalService.addTeamMember(
       eventId,
       session.phone,
       body.phone,
       body.name,
+      addedByName,
     );
   }
 

@@ -178,6 +178,7 @@ export class ClientPortalService {
     clientPhone: string,
     memberPhone: string,
     memberName?: string,
+    addedByName?: string,
   ) {
     const supabase = this.supabaseService.getAdminClient();
     const phoneVariants = buildPhoneVariants(clientPhone);
@@ -202,6 +203,19 @@ export class ClientPortalService {
       }
       throw new BadRequestException(error.message);
     }
+
+    const { data: event } = await supabase
+      .from('event')
+      .select('name')
+      .eq('id', eventId)
+      .maybeSingle();
+    await this.smsNotifications.clientTeamMemberAdded(
+      normalizedMemberPhone,
+      memberName,
+      event?.name || 'the event',
+      addedByName?.trim() || 'A fellow organizer',
+    );
+
     return data;
   }
 

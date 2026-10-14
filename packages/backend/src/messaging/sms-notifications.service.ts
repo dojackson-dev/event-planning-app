@@ -467,6 +467,21 @@ export class SmsNotificationsService {
     await this.trySend(phone, body);
   }
 
+  // ─── CLIENT PORTAL TEAM MEMBERS ──────────────────────────────────────────
+
+  async clientTeamMemberAdded(
+    phone: string | null | undefined,
+    memberName: string | null | undefined,
+    eventName: string,
+    addedByName: string,
+  ): Promise<void> {
+    const greeting = memberName ? `Hi ${memberName}, ` : 'Hi, ';
+    await this.trySend(
+      phone,
+      `EventEcos\n${greeting}${addedByName} added you to help manage "${eventName}". Log in with this phone number to view and manage it: ${this.url('/client-login')}`,
+    );
+  }
+
   async vipPurchaseConfirmed(
     phone: string | null | undefined,
     buyerName: string | null | undefined,

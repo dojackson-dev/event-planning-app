@@ -64,6 +64,129 @@ export class ClientPortalService {
     return (events || []).map((e: any) => e.id);
   }
 
+  /** Helper: returns event IDs this phone has been added to as a team member */
+  private async getTeamEventIds(
+    supabase: any,
+    phoneVariants: string[],
+  ): Promise<string[]> {
+    const { data, error } = await supabase
+      .from('event_team_members')
+      .select('event_id')
+      .in('phone', phoneVariants);
+    if (error) return [];
+    return [...new Set<string>((data || []).map((r: any) => r.event_id))];
+  }
+
+  /** Verifies the given phone has access to this event (original contact, invoice, or team member) */
+  private async assertClientCanAccessEvent(
+    supabase: any,
+    eventId: string,
+    phoneVariants: string[],
+  ): Promise<void> {
+    const { data: event } = await supabase
+      .from('event')
+      .select('id, intake_form_id')
+      .eq('id', eventId)
+      .maybeSingle();
+    if (!event) throw new NotFoundException('Event not found');
+
+    if (event.intake_form_id) {
+      const { data: form } = await supabase
+        .from('intake_forms')
+        .select('contact_phone')
+        .eq('id', event.intake_form_id)
+        .maybeSingle();
+      if (form && phoneVariants.includes(form.contact_phone)) return;
+    }
+
+    const { data: invoice } = await supabase
+      .from('invoices')
+      .select('id')
+      .eq('event_id', eventId)
+      .in('client_phone', phoneVariants)
+      .limit(1)
+      .maybeSingle();
+    if (invoice) return;
+
+    const { data: teamMember } = await supabase
+      .from('event_team_members')
+      .select('id')
+      .eq('event_id', eventId)
+      .in('phone', phoneVariants)
+      .limit(1)
+      .maybeSingle();
+    if (teamMember) return;
+
+    throw new UnauthorizedException('You do not have access to this event');
+  }
+
+  /** List the team members added to an event (people other than the original contact who can also manage it) */
+  async getTeamMembers(eventId: string, clientPhone: string) {
+    const supabase = this.supabaseService.getAdminClient();
+    const phoneVariants = buildPhoneVariants(clientPhone);
+    await this.assertClientCanAccessEvent(supabase, eventId, phoneVariants);
+
+    const { data, error } = await supabase
+      .from('event_team_members')
+      .select('id, phone, name, created_at')
+      .eq('event_id', eventId)
+      .order('created_at', { ascending: true });
+    if (error) throw new BadRequestException(error.message);
+    return data || [];
+  }
+
+  /** Add a team member (by phone number) who can also access and help manage this event */
+  async addTeamMember(
+    eventId: string,
+    clientPhone: string,
+    memberPhone: string,
+    memberName?: string,
+  ) {
+    const supabase = this.supabaseService.getAdminClient();
+    const phoneVariants = buildPhoneVariants(clientPhone);
+    await this.assertClientCanAccessEvent(supabase, eventId, phoneVariants);
+
+    const normalizedMemberPhone = buildPhoneVariants(memberPhone)[0];
+    const { data, error } = await supabase
+      .from('event_team_members')
+      .insert({
+        event_id: eventId,
+        phone: normalizedMemberPhone,
+        name: memberName?.trim() || null,
+        added_by_phone: clientPhone,
+      })
+      .select()
+      .single();
+    if (error) {
+      if (error.code === '23505') {
+        throw new BadRequestException(
+          'That phone number is already a team member on this event',
+        );
+      }
+      throw new BadRequestException(error.message);
+    }
+    return data;
+  }
+
+  /** Remove a team member from an event */
+  async removeTeamMember(
+    eventId: string,
+    clientPhone: string,
+    memberId: string,
+  ) {
+    const supabase = this.supabaseService.getAdminClient();
+    const phoneVariants = buildPhoneVariants(clientPhone);
+    await this.assertClientCanAccessEvent(supabase, eventId, phoneVariants);
+
+    const { error } = await supabase
+      .from('event_team_members')
+      .delete()
+      .eq('id', memberId)
+      .eq('event_id', eventId);
+    if (error) throw new BadRequestException(error.message);
+    return { success: true };
+  }
+
   /** Overview stats for the client dashboard */
   async getOverview(clientId: string, clientPhone: string) {
     const supabase = this.supabaseService.getAdminClient();
@@ -320,6 +443,11 @@ export class ClientPortalService {
         if (inv.intake_form_id) intakeFormIdSet.add(inv.intake_form_id);
       }
     }
+
+    // Also include events this phone was added to as a team member (even if
+    // it's not the original intake-form contact — e.g. a co-planner)
+    const teamEventIds = await this.getTeamEventIds(supabase, phoneVariants);
+    for (const id of teamEventIds) eventIdSet.add(id);
 
     this.logger.log(
       `[getEvents] querying events: intakeFormIdSet=${[...intakeFormIdSet].length} eventIdSet=${[...eventIdSet].length}`,

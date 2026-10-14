@@ -205,6 +205,16 @@ export default function ClientEventsPage() {
                         </div>
                       </div>
                     )}
+
+                    <div className="mt-4 flex justify-end">
+                      <Link
+                        href={`/client-portal/events/${event.id}/team?name=${encodeURIComponent(event.name || '')}`}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-primary-600 border border-primary-200 hover:bg-primary-50 rounded-lg transition-colors"
+                      >
+                        <Users className="h-4 w-4" />
+                        Manage Team
+                      </Link>
+                    </div>
                   </div>
                 )}
               </div>

@@ -104,6 +104,47 @@ export class ClientPortalController {
     return this.clientPortalService.getEvents(session.clientId, session.phone);
   }
 
+  // ── Event Team Members ───────────────────────────────────────────────────
+
+  @Get('events/:eventId/team')
+  async getTeamMembers(
+    @Headers('x-client-token') token: string,
+    @Param('eventId') eventId: string,
+  ) {
+    const session = this.requireSession(token);
+    return this.clientPortalService.getTeamMembers(eventId, session.phone);
+  }
+
+  @Post('events/:eventId/team')
+  async addTeamMember(
+    @Headers('x-client-token') token: string,
+    @Param('eventId') eventId: string,
+    @Body() body: { phone: string; name?: string },
+  ) {
+    const session = this.requireSession(token);
+    if (!body?.phone) throw new BadRequestException('phone is required');
+    return this.clientPortalService.addTeamMember(
+      eventId,
+      session.phone,
+      body.phone,
+      body.name,
+    );
+  }
+
+  @Delete('events/:eventId/team/:memberId')
+  async removeTeamMember(
+    @Headers('x-client-token') token: string,
+    @Param('eventId') eventId: string,
+    @Param('memberId') memberId: string,
+  ) {
+    const session = this.requireSession(token);
+    return this.clientPortalService.removeTeamMember(
+      eventId,
+      session.phone,
+      memberId,
+    );
+  }
+
   // ── Vendors ───────────────────────────────────────────────────────────────
 
   @Get('vendors/browse')

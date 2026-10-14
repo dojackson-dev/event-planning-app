@@ -167,12 +167,6 @@ export class PromoterController {
     );
   }
 
-  /** GET /promoter/booking-link/s/:code — public: resolve short code */
-  @Get('booking-link/s/:code')
-  async getPublicBookingLinkByShortCode(@Param('code') code: string) {
-    return this.promoterService.getPublicBookingLinkByShortCode(code);
-  }
-
   /** GET /promoter/booking-link/:slug — public: view booking link */
   @Get('booking-link/:slug')
   async getPublicBookingLink(@Param('slug') slug: string) {

@@ -14,7 +14,6 @@ const SLUG_REGEX = /^[a-z0-9-]{3,60}$/;
 interface BookingLink {
   id: string;
   slug: string;
-  short_code: string | null;
   is_active: boolean;
   custom_message: string | null;
   default_deposit_percentage: number | null;
@@ -84,7 +83,6 @@ export default function VendorBookingLinkScreen() {
   };
 
   const bookingUrl = link ? `${FRONTEND_URL}/book/${link.slug}` : '';
-  const shortUrl = link?.short_code ? `${FRONTEND_URL}/b/${link.short_code}` : '';
 
   if (loading) {
     return <View style={styles.center}><ActivityIndicator size="large" color={Colors.primary} /></View>;
@@ -109,18 +107,6 @@ export default function VendorBookingLinkScreen() {
               <Text style={styles.urlText} numberOfLines={1}>{bookingUrl}</Text>
             </View>
             <TouchableOpacity style={styles.shareBtn} onPress={() => handleShare(bookingUrl)}>
-              <Ionicons name="share-outline" size={14} color={Colors.primary} />
-              <Text style={styles.shareBtnText}>Share</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-        {link && link.is_active && shortUrl && (
-          <View style={[styles.urlBox, { marginTop: 8 }]}>
-            <View style={styles.urlRow}>
-              <Ionicons name="link-outline" size={16} color={Colors.primary} style={{ marginRight: 6 }} />
-              <Text style={styles.urlText} numberOfLines={1}>{shortUrl}</Text>
-            </View>
-            <TouchableOpacity style={styles.shareBtn} onPress={() => handleShare(shortUrl)}>
               <Ionicons name="share-outline" size={14} color={Colors.primary} />
               <Text style={styles.shareBtnText}>Share</Text>
             </TouchableOpacity>

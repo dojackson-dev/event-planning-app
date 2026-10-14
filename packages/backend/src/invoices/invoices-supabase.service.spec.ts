@@ -38,7 +38,10 @@ describe('InvoicesService.delete', () => {
       eq: jest.fn().mockResolvedValue({ error: null }),
     };
     const supabase = {
-      from: jest.fn().mockReturnValueOnce(invoiceQuery).mockReturnValueOnce(deleteQuery),
+      from: jest
+        .fn()
+        .mockReturnValueOnce(invoiceQuery)
+        .mockReturnValueOnce(deleteQuery),
     };
 
     await expect(

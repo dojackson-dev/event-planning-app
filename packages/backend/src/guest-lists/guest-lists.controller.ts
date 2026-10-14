@@ -26,7 +26,10 @@ export class GuestListsController {
       throw new UnauthorizedException('No authorization header');
     const token = authorization.replace('Bearer ', '');
 
-    if (token.startsWith('local-') && process.env.ALLOW_LOCAL_DEV_AUTH === 'true') {
+    if (
+      token.startsWith('local-') &&
+      process.env.ALLOW_LOCAL_DEV_AUTH === 'true'
+    ) {
       return token.replace('local-', '');
     }
 

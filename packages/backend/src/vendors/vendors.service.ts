@@ -1130,7 +1130,10 @@ export class VendorsService {
         .select()
         .single();
       if (error) throw new BadRequestException(error.message);
-      if (!data) throw new BadRequestException('Booking link update did not match any row');
+      if (!data)
+        throw new BadRequestException(
+          'Booking link update did not match any row',
+        );
       return data;
     } else {
       const { data, error } = await admin

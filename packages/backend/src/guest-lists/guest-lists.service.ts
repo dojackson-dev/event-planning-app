@@ -644,10 +644,12 @@ export class GuestListsService {
         .select('id, name, phone, rsvp_guest_id')
         .eq('guest_list_id', guestList.id);
       if (legacyError) throw legacyError;
-      const matches = (legacyGuests || []).filter((candidate) =>
-        !candidate.rsvp_guest_id &&
-        candidate.name.trim().toLowerCase() === rsvpGuest.guest_name.trim().toLowerCase() &&
-        (candidate.phone || '') === (rsvpGuest.guest_phone || ''),
+      const matches = (legacyGuests || []).filter(
+        (candidate) =>
+          !candidate.rsvp_guest_id &&
+          candidate.name.trim().toLowerCase() ===
+            rsvpGuest.guest_name.trim().toLowerCase() &&
+          (candidate.phone || '') === (rsvpGuest.guest_phone || ''),
       );
       if (matches.length === 1) existing = matches[0];
     }
@@ -706,11 +708,15 @@ export class GuestListsService {
       .select('id')
       .eq('event_id', guestList.event_id);
     if (formsError) throw formsError;
-    const intakeFormIds = [...new Set([
-      ...(forms || []).map((form: any) => form.id),
-      event?.intake_form_id,
-      event?.client_id,
-    ].filter(Boolean))];
+    const intakeFormIds = [
+      ...new Set(
+        [
+          ...(forms || []).map((form: any) => form.id),
+          event?.intake_form_id,
+          event?.client_id,
+        ].filter(Boolean),
+      ),
+    ];
     if (!intakeFormIds.length) return { imported: 0, skipped: 0 };
 
     // Get attending RSVP guests

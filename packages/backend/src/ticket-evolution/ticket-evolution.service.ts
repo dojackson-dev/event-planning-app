@@ -349,9 +349,8 @@ export class TicketEvolutionService {
     return Promise.all(
       events.map(async (ev) => {
         const dateTime = ev.occurs_at_local ?? ev.occurs_at ?? null;
-        const primaryPerformer = (ev.performances ?? []).find(
-          (p) => p.primary,
-        )?.performer?.name;
+        const primaryPerformer = (ev.performances ?? []).find((p) => p.primary)
+          ?.performer?.name;
         const imageQuery = primaryPerformer || ev.name || ev.venue?.name;
         const image_url = imageQuery
           ? await this.lookupWikipediaImage(imageQuery)
@@ -422,9 +421,8 @@ export class TicketEvolutionService {
     // back to a Wikipedia lookup on the primary performer (or the event name
     // if there's no performer/it's unnamed), then the venue as a last resort.
     if (images.length === 0) {
-      const primaryPerformer = (ev.performances ?? []).find(
-        (p) => p.primary,
-      )?.performer?.name;
+      const primaryPerformer = (ev.performances ?? []).find((p) => p.primary)
+        ?.performer?.name;
       const fallbackQuery = primaryPerformer || ev.name || ev.venue?.name;
       if (fallbackQuery) {
         const wikiImage = await this.lookupWikipediaImage(fallbackQuery);
@@ -432,9 +430,10 @@ export class TicketEvolutionService {
       }
     }
 
-    const listings = ((listingsRes.ticket_groups as
-      | TicketEvolutionRawListing[]
-      | undefined) ?? []).map((lg) => ({
+    const listings = (
+      (listingsRes.ticket_groups as TicketEvolutionRawListing[] | undefined) ??
+      []
+    ).map((lg) => ({
       id: lg.id,
       section: lg.section ?? null,
       row: lg.row ?? null,

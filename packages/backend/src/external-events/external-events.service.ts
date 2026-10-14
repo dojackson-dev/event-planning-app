@@ -89,7 +89,8 @@ export class ExternalEventsService {
     const today = new Date().toISOString().slice(0, 10);
     // A caller-provided date_from can be in the past (e.g. re-requesting the
     // current month) — never let it widen the range to before today.
-    const from = params.date_from && params.date_from > today ? params.date_from : today;
+    const from =
+      params.date_from && params.date_from > today ? params.date_from : today;
     const resultLimit = params.limit ?? 100;
     const offset = params.offset ?? 0;
 

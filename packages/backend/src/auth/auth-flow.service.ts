@@ -847,7 +847,8 @@ export class AuthFlowService {
   /** Always resolves, so callers can't tell whether an email is registered. */
   async forgotPassword(email: string) {
     const generic = {
-      message: 'If an account exists for that email, a reset link has been sent.',
+      message:
+        'If an account exists for that email, a reset link has been sent.',
     };
     const normalized = email?.trim().toLowerCase();
     if (!normalized) return generic;

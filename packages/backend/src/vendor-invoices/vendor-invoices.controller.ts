@@ -34,7 +34,11 @@ export class VendorInvoicesController {
       throw new UnauthorizedException('No authorization header');
     const token = authorization.replace('Bearer ', '');
 
-    if (token.startsWith('local-') && process.env.ALLOW_LOCAL_DEV_AUTH === 'true') return token.replace('local-', '');
+    if (
+      token.startsWith('local-') &&
+      process.env.ALLOW_LOCAL_DEV_AUTH === 'true'
+    )
+      return token.replace('local-', '');
 
     const supabase = this.supabaseService.setAuthContext(token);
     const {

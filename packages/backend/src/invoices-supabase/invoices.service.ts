@@ -77,7 +77,6 @@ export class InvoicesService {
       const intakeIds = (formIds || [])
         .map((r: any) => r.intake_form_id)
         .filter(Boolean);
-      const conditions: any[] = [query];
       // Re-query with OR filter
       let filteredQuery = supabase
         .from('invoices')

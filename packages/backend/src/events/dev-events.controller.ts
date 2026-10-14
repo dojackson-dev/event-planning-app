@@ -12,7 +12,6 @@ import {
 } from '@nestjs/common';
 import { promises as fs } from 'fs';
 import { join } from 'path';
-import { randomUUID } from 'crypto';
 
 const DATA_PATH = join(__dirname, '..', '..', 'data', 'local-events.json');
 
@@ -30,7 +29,9 @@ async function writeEvents(events: any[]) {
   const dir = join(__dirname, '..', '..', 'data');
   try {
     await fs.mkdir(dir, { recursive: true });
-  } catch {}
+  } catch {
+    // writeFile below reports any real failure
+  }
   await fs.writeFile(DATA_PATH, JSON.stringify(events, null, 2), 'utf8');
 }
 
@@ -138,7 +139,7 @@ export class DevEventsController {
   async findOne(
     @Headers('authorization') authorization: string,
     @Param('id') id: string,
-  ): Promise<any | null> {
+  ): Promise<any> {
     this.getUserId(authorization);
     const events = await readEvents();
     return events.find((e) => e.id === parseInt(id)) || null;
@@ -149,7 +150,7 @@ export class DevEventsController {
     @Headers('authorization') authorization: string,
     @Param('id') id: string,
     @Body() body: any,
-  ): Promise<any | null> {
+  ): Promise<any> {
     this.getUserId(authorization);
     const events = await readEvents();
     const index = events.findIndex((e) => e.id === parseInt(id));

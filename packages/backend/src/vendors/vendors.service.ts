@@ -992,7 +992,7 @@ export class VendorsService {
       if (data && data.length > 0) {
         return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
       }
-    } catch (err) {
+    } catch {
       this.logger.warn('Geocoding failed for zip:', zipCode);
     }
     return null;
@@ -1022,7 +1022,7 @@ export class VendorsService {
         zip: addr.postcode || '',
         displayName: data.display_name || '',
       };
-    } catch (err) {
+    } catch {
       this.logger.warn('Reverse geocoding failed for coords:', lat, lng);
     }
     return null;
@@ -1057,7 +1057,7 @@ export class VendorsService {
           lng: parseFloat(item.lon),
         };
       });
-    } catch (err) {
+    } catch {
       this.logger.warn('Address autocomplete failed for query:', query);
     }
     return [];

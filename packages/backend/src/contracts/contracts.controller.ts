@@ -88,7 +88,7 @@ export class ContractsController {
   async findOne(
     @Headers('authorization') authorization: string,
     @Param('id') id: string,
-  ): Promise<any | null> {
+  ): Promise<any> {
     await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabase = this.supabaseService.setAuthContext(token);
@@ -176,7 +176,7 @@ export class ContractsController {
     @Headers('authorization') authorization: string,
     @Param('id') id: string,
     @Body() contractData: any,
-  ): Promise<any | null> {
+  ): Promise<any> {
     await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabase = this.supabaseService.setAuthContext(token);
@@ -188,7 +188,7 @@ export class ContractsController {
     @Headers('authorization') authorization: string,
     @Param('id') id: string,
     @Body() contractData: any,
-  ): Promise<any | null> {
+  ): Promise<any> {
     await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabase = this.supabaseService.setAuthContext(token);
@@ -205,7 +205,7 @@ export class ContractsController {
       signerName: string;
       ipAddress?: string;
     },
-  ): Promise<any | null> {
+  ): Promise<any> {
     await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabase = this.supabaseService.setAuthContext(token);
@@ -217,7 +217,7 @@ export class ContractsController {
     @Headers('authorization') authorization: string,
     @Param('id') id: string,
     @Body() body: { signatureData: string; signerName: string },
-  ): Promise<any | null> {
+  ): Promise<any> {
     const userId = await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabase = this.supabaseService.setAuthContext(token);
@@ -239,7 +239,7 @@ export class ContractsController {
   async sendContract(
     @Headers('authorization') authorization: string,
     @Param('id') id: string,
-  ): Promise<any | null> {
+  ): Promise<any> {
     await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabase = this.supabaseService.setAuthContext(token);

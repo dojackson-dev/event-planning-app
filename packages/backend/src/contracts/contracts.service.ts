@@ -71,7 +71,7 @@ export class ContractsService {
     return data || [];
   }
 
-  async findOne(supabase: SupabaseClient, id: string): Promise<any | null> {
+  async findOne(supabase: SupabaseClient, id: string): Promise<any> {
     const { data, error } = await supabase
       .from('contracts')
       .select('*')
@@ -190,7 +190,7 @@ export class ContractsService {
     supabase: SupabaseClient,
     id: string,
     contractData: any,
-  ): Promise<any | null> {
+  ): Promise<any> {
     const { data, error } = await supabase
       .from('contracts')
       .update(contractData)
@@ -303,7 +303,7 @@ export class ContractsService {
       signerName: string;
       ipAddress?: string;
     },
-  ): Promise<any | null> {
+  ): Promise<any> {
     const { data, error } = await supabase
       .from('contracts')
       .update({
@@ -391,10 +391,7 @@ export class ContractsService {
     return data;
   }
 
-  async sendContract(
-    supabase: SupabaseClient,
-    id: string,
-  ): Promise<any | null> {
+  async sendContract(supabase: SupabaseClient, id: string): Promise<any> {
     const { data, error } = await supabase
       .from('contracts')
       .update({

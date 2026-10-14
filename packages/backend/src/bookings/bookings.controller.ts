@@ -83,7 +83,7 @@ export class BookingsController {
   async findOne(
     @Headers('authorization') authorization: string,
     @Param('id') id: string,
-  ): Promise<any | null> {
+  ): Promise<any> {
     await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
@@ -95,7 +95,7 @@ export class BookingsController {
     @Headers('authorization') authorization: string,
     @Param('id') id: string,
     @Body() updateBookingDto: any,
-  ): Promise<any | null> {
+  ): Promise<any> {
     await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);

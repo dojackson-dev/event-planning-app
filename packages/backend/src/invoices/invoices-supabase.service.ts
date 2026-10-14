@@ -834,12 +834,11 @@ event!event_id(id, name, date),
     const invoice = await this.findOne(supabase, userId, invoiceId);
     const items = await this.findInvoiceItems(supabase, userId, invoiceId);
 
-    const { subtotal, taxAmount, totalAmount, amountDue } =
-      this.calculateInvoiceTotals(
-        items,
-        invoice.tax_rate,
-        invoice.discount_amount,
-      );
+    const { subtotal, taxAmount, totalAmount } = this.calculateInvoiceTotals(
+      items,
+      invoice.tax_rate,
+      invoice.discount_amount,
+    );
 
     const actualAmountDue = totalAmount - invoice.amount_paid;
 

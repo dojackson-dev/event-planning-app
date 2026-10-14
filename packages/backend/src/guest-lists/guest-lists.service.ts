@@ -142,7 +142,7 @@ export class GuestListsService {
 
     // Fetch guests for all guest lists
     const guestListIds = guestLists.map((gl) => gl.id);
-    const { data: allGuests, error: guestsError } = await supabase
+    const { data: allGuests } = await supabase
       .from('guests')
       .select('*')
       .in('guest_list_id', guestListIds);
@@ -151,7 +151,7 @@ export class GuestListsService {
     const eventIds = [
       ...new Set(guestLists.map((gl) => gl.event_id).filter(Boolean)),
     ];
-    const { data: events, error: eventsError } = await supabase
+    const { data: events } = await supabase
       .from('event')
       .select('*')
       .in('id', eventIds);
@@ -181,7 +181,7 @@ export class GuestListsService {
     return data || [];
   }
 
-  async findByEvent(eventId: string): Promise<any | null> {
+  async findByEvent(eventId: string): Promise<any> {
     const supabase = this.supabaseService.getAdminClient();
     const { data, error } = await supabase
       .from('guest_lists')
@@ -198,7 +198,7 @@ export class GuestListsService {
     return data;
   }
 
-  async findOne(id: number): Promise<any | null> {
+  async findOne(id: number): Promise<any> {
     const supabase = this.supabaseService.getAdminClient();
 
     // Fetch guest list
@@ -213,14 +213,14 @@ export class GuestListsService {
     if (!guestListData) return null;
 
     // Fetch event details
-    const { data: eventData, error: eventError } = await supabase
+    const { data: eventData } = await supabase
       .from('event')
       .select('*')
       .eq('id', guestListData.event_id)
       .single();
 
     // Fetch guests
-    const { data: guestsData, error: guestsError } = await supabase
+    const { data: guestsData } = await supabase
       .from('guests')
       .select('*')
       .eq('guest_list_id', id)
@@ -233,7 +233,7 @@ export class GuestListsService {
     };
   }
 
-  async findByShareToken(token: string): Promise<any | null> {
+  async findByShareToken(token: string): Promise<any> {
     const supabase = this.supabaseService.getAdminClient();
     const { data, error } = await supabase
       .from('guest_lists')
@@ -250,7 +250,7 @@ export class GuestListsService {
     return data;
   }
 
-  async findByAccessCode(code: string): Promise<any | null> {
+  async findByAccessCode(code: string): Promise<any> {
     const supabase = this.supabaseService.getAdminClient();
 
     // Fetch guest list
@@ -299,7 +299,7 @@ export class GuestListsService {
     return !error && data !== null;
   }
 
-  async findByArrivalToken(token: string): Promise<any | null> {
+  async findByArrivalToken(token: string): Promise<any> {
     const supabase = this.supabaseService.getAdminClient();
     const { data, error } = await supabase
       .from('guest_lists')
@@ -357,7 +357,7 @@ export class GuestListsService {
     return data;
   }
 
-  async update(id: number, guestListData: any): Promise<any | null> {
+  async update(id: number, guestListData: any): Promise<any> {
     const supabase = this.supabaseService.getAdminClient();
 
     const updateData: any = {};
@@ -382,11 +382,11 @@ export class GuestListsService {
     return data;
   }
 
-  async lock(id: number): Promise<any | null> {
+  async lock(id: number): Promise<any> {
     return this.update(id, { isLocked: true });
   }
 
-  async unlock(id: number): Promise<any | null> {
+  async unlock(id: number): Promise<any> {
     return this.update(id, { isLocked: false });
   }
 
@@ -441,7 +441,7 @@ export class GuestListsService {
     return data;
   }
 
-  async updateGuest(guestId: number, guestData: any): Promise<any | null> {
+  async updateGuest(guestId: number, guestData: any): Promise<any> {
     const supabase = this.supabaseService.getAdminClient();
 
     const updateData: any = {};
@@ -472,7 +472,7 @@ export class GuestListsService {
     if (error) throw error;
   }
 
-  async markArrival(guestId: number): Promise<any | null> {
+  async markArrival(guestId: number): Promise<any> {
     const supabase = this.supabaseService.getAdminClient();
     const { data, error } = await supabase
       .from('guests')
@@ -488,7 +488,7 @@ export class GuestListsService {
     return data;
   }
 
-  async unmarkArrival(guestId: number): Promise<any | null> {
+  async unmarkArrival(guestId: number): Promise<any> {
     const supabase = this.supabaseService.getAdminClient();
     const { data, error } = await supabase
       .from('guests')
@@ -609,12 +609,13 @@ export class GuestListsService {
       return;
     }
 
-    let { data: guestList, error: listError } = await supabase
+    const { data: foundList, error: listError } = await supabase
       .from('guest_lists')
       .select('id')
       .eq('event_id', eventId)
       .maybeSingle();
     if (listError) throw listError;
+    let guestList = foundList;
 
     if (!guestList) {
       const { data: created, error: createErr } = await supabase
@@ -631,12 +632,13 @@ export class GuestListsService {
       guestList = created;
     }
 
-    let { data: existing, error: lookupError } = await supabase
+    const { data: linkedGuest, error: lookupError } = await supabase
       .from('guests')
       .select('id')
       .eq('rsvp_guest_id', rsvpGuest.id)
       .maybeSingle();
     if (lookupError) throw lookupError;
+    let existing = linkedGuest;
 
     if (!existing) {
       const { data: legacyGuests, error: legacyError } = await supabase

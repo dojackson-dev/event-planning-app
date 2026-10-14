@@ -1158,7 +1158,7 @@ export class ClientPortalService {
     }
 
     this.logger.log(
-      `[respondToEstimate] Estimate phone=${data.client_phone}, intakeFormId=${data.intake_form_id}, allowed phones=${phoneVariants}, allowed intakeFormIds=${intakeFormIds}`,
+      `[respondToEstimate] Estimate phone=${data.client_phone}, intakeFormId=${data.intake_form_id}, allowed phones=${phoneVariants.join(',')}, allowed intakeFormIds=${intakeFormIds.join(',')}`,
     );
 
     // Check if client has access via phone match or intake form match

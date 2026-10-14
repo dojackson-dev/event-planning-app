@@ -9,7 +9,6 @@ import {
   Headers,
   UnauthorizedException,
   Query,
-  ParseIntPipe,
 } from '@nestjs/common';
 import {
   InvoicesService,

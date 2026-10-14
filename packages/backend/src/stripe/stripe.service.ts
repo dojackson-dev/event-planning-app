@@ -1440,7 +1440,7 @@ export class StripeService {
   private async getOwnerAccountByUserId(
     userId: string,
     admin: any,
-  ): Promise<any | null> {
+  ): Promise<any> {
     // Primary: look up via memberships
     const { data: membership } = await admin
       .from('memberships')

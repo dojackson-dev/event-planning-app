@@ -1507,7 +1507,6 @@ export class MailService {
     eventDate: string | null;
     rider: Record<string, any>;
   }): Promise<void> {
-    const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
     const mailOptions = {
       from: `"EventEcos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
       to: params.to,

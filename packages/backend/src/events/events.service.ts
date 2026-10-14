@@ -23,7 +23,7 @@ export class EventsService {
 
     const result = {};
     for (const key in obj) {
-      if (obj.hasOwnProperty(key)) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
         // Use field mapping if available, otherwise convert camelCase to snake_case
         const snakeKey =
           fieldMapping[key] ||
@@ -50,7 +50,7 @@ export class EventsService {
 
     const result = {};
     for (const key in obj) {
-      if (obj.hasOwnProperty(key)) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
         // Use reverse field mapping if available, otherwise convert snake_case to camelCase
         const camelKey =
           reverseFieldMapping[key] ||

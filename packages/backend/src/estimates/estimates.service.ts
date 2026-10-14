@@ -263,7 +263,7 @@ export class EstimatesService {
       const { data, error } = await filtered;
       if (error) throw error;
       return data || [];
-    } catch (e1) {
+    } catch {
       // Attempt 2: simpler query without joins (still returns estimates, just without nested data)
       try {
         const query = supabase

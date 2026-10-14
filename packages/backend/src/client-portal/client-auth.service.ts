@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { TwilioService } from '../messaging/twilio.service';
-import { randomBytes, createHash, createHmac } from 'crypto';
+import { createHash, createHmac } from 'crypto';
 
 interface OtpRecord {
   code: string;

@@ -89,7 +89,7 @@ export class EventsController {
   async findOne(
     @Headers('authorization') authorization: string,
     @Param('id') id: string,
-  ): Promise<any | null> {
+  ): Promise<any> {
     const userId = await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
@@ -101,7 +101,7 @@ export class EventsController {
     @Headers('authorization') authorization: string,
     @Param('id') id: string,
     @Body() updateEventDto: any,
-  ): Promise<any | null> {
+  ): Promise<any> {
     const userId = await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);

@@ -30,7 +30,7 @@ export class TrialController {
     const token = this.extractToken(authorization);
 
     // Handle dev tokens
-    if (token.startsWith('local-')) {
+    if (token.startsWith('local-') && process.env.ALLOW_LOCAL_DEV_AUTH === 'true') {
       const userId = token.replace('local-', '');
       // Get owner account from user ID
       const supabase = this.supabaseService.getAdminClient();

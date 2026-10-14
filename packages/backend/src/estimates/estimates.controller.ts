@@ -28,7 +28,7 @@ export class EstimatesController {
 
   private async getUserId(authorization: string): Promise<string> {
     const token = this.extractToken(authorization);
-    if (token.startsWith('local-')) {
+    if (token.startsWith('local-') && process.env.ALLOW_LOCAL_DEV_AUTH === 'true') {
       const userId = token.replace('local-', '');
       if (userId) return userId;
       throw new UnauthorizedException('Invalid dev token format');

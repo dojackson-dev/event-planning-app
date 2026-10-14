@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: 'Venue Booking & Event Management Software | EventEcos',
   description:
-    'EventEcos is the venue booking and event management platform for venue owners, event planners, and promoters. Streamline bookings, payments, and ticket sales — start free, 30-day trial, no credit card required.',
+    'The venue booking and event management platform for venue owners, event planners, and promoters. Start free — 30-day trial, no credit card required.',
   icons: {
     icon: '/lib/EventEcos-Logo-Only.jpg',
   },

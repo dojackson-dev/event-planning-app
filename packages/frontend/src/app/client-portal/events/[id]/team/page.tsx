@@ -61,8 +61,8 @@ function ManageTeamPageContent() {
     try {
       await clientApi.delete(`/events/${eventId}/team/${memberId}`)
       setMembers(prev => prev.filter(m => m.id !== memberId))
-    } catch {
-      setError('Failed to remove team member.')
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to remove team member.')
     } finally {
       setRemovingId(null)
     }

@@ -120,6 +120,42 @@ export class ClientPortalService {
     throw new UnauthorizedException('You do not have access to this event');
   }
 
+  /** Verifies the given phone is the ORIGINAL client contact for this event (not just an added team member) */
+  private async assertClientIsOriginalContact(
+    supabase: any,
+    eventId: string,
+    phoneVariants: string[],
+  ): Promise<void> {
+    const { data: event } = await supabase
+      .from('event')
+      .select('id, intake_form_id')
+      .eq('id', eventId)
+      .maybeSingle();
+    if (!event) throw new NotFoundException('Event not found');
+
+    if (event.intake_form_id) {
+      const { data: form } = await supabase
+        .from('intake_forms')
+        .select('contact_phone')
+        .eq('id', event.intake_form_id)
+        .maybeSingle();
+      if (form && phoneVariants.includes(form.contact_phone)) return;
+    }
+
+    const { data: invoice } = await supabase
+      .from('invoices')
+      .select('id')
+      .eq('event_id', eventId)
+      .in('client_phone', phoneVariants)
+      .limit(1)
+      .maybeSingle();
+    if (invoice) return;
+
+    throw new UnauthorizedException(
+      'Only the original client contact can add or remove team members',
+    );
+  }
+
   /** List the team members added to an event (people other than the original contact who can also manage it) */
   async getTeamMembers(eventId: string, clientPhone: string) {
     const supabase = this.supabaseService.getAdminClient();
@@ -135,7 +171,8 @@ export class ClientPortalService {
     return data || [];
   }
 
-  /** Add a team member (by phone number) who can also access and help manage this event */
+  /** Add a team member (by phone number) who can also access and help manage this event.
+   *  Only the original client contact may add team members. */
   async addTeamMember(
     eventId: string,
     clientPhone: string,
@@ -144,7 +181,7 @@ export class ClientPortalService {
   ) {
     const supabase = this.supabaseService.getAdminClient();
     const phoneVariants = buildPhoneVariants(clientPhone);
-    await this.assertClientCanAccessEvent(supabase, eventId, phoneVariants);
+    await this.assertClientIsOriginalContact(supabase, eventId, phoneVariants);
 
     const normalizedMemberPhone = buildPhoneVariants(memberPhone)[0];
     const { data, error } = await supabase
@@ -168,7 +205,7 @@ export class ClientPortalService {
     return data;
   }
 
-  /** Remove a team member from an event */
+  /** Remove a team member from an event. Only the original client contact may remove team members. */
   async removeTeamMember(
     eventId: string,
     clientPhone: string,
@@ -176,7 +213,7 @@ export class ClientPortalService {
   ) {
     const supabase = this.supabaseService.getAdminClient();
     const phoneVariants = buildPhoneVariants(clientPhone);
-    await this.assertClientCanAccessEvent(supabase, eventId, phoneVariants);
+    await this.assertClientIsOriginalContact(supabase, eventId, phoneVariants);
 
     const { error } = await supabase
       .from('event_team_members')

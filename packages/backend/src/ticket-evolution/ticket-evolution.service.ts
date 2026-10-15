@@ -123,6 +123,12 @@ export class TicketEvolutionService {
     return Boolean(this.apiToken && this.apiSecret);
   }
 
+  /** Quantity is omitted so Hosted Checkout shows its own selector, which knows each listing's allowed splits. */
+  private hostedCheckoutUrl(eventId: number, listingId: number): string | null {
+    const base = this.checkoutBaseUrl;
+    return base ? `${base}/checkout/payment/${eventId}/${listingId}` : null;
+  }
+
   // Query keys must be sorted alphabetically or the API returns 401.
   private buildQueryString(query: RequestOptions['query'] = {}): string {
     return Object.entries(query)
@@ -296,8 +302,8 @@ export class TicketEvolutionService {
   }
 
   // Upcoming events, normalized for the public /events page grid — no pricing
-  // (that requires a per-event Listings call). event_url links out to our
-  // Hosted Checkout domain (TICKET_EVOLUTION_CHECKOUT_BASE_URL + raw event.url).
+  // (that requires a per-event Listings call). Buying happens per listing on
+  // the event detail page, so event_url is always null here.
   async getPublicEvents(
     params: {
       name?: string;
@@ -342,7 +348,6 @@ export class TicketEvolutionService {
     });
 
     const events = (res.events as TicketEvolutionRawEvent[]) ?? [];
-    const checkoutBaseUrl = this.checkoutBaseUrl;
     // TEvo itself has no event/performer photos (confirmed against production
     // — see lookupWikipediaImage) — look up each card's primary performer on
     // Wikipedia in parallel so the grid doesn't wait on them sequentially.
@@ -364,8 +369,7 @@ export class TicketEvolutionService {
           city: ev.venue?.address?.locality ?? null,
           state: ev.venue?.address?.region ?? null,
           category: ev.category?.name ?? null,
-          event_url:
-            checkoutBaseUrl && ev.url ? `${checkoutBaseUrl}${ev.url}` : null,
+          event_url: null,
           image_url,
           source: 'ticket_evolution' as const,
         };
@@ -396,6 +400,7 @@ export class TicketEvolutionService {
       quantity: number;
       retail_price: number;
       format: string | null;
+      checkout_url: string | null;
     }>;
   }> {
     const ev = await this.request<TicketEvolutionRawEventDetail>(
@@ -440,6 +445,7 @@ export class TicketEvolutionService {
       quantity: lg.quantity ?? 0,
       retail_price: lg.retail_price ?? 0,
       format: lg.format ?? null,
+      checkout_url: this.hostedCheckoutUrl(id, lg.id),
     }));
 
     return {

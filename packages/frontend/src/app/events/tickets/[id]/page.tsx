@@ -27,6 +27,7 @@ interface Listing {
   quantity: number
   retail_price: number
   format: string | null
+  checkout_url: string | null
 }
 
 interface TevoEventDetail {
@@ -217,6 +218,14 @@ export default function TicketEvolutionEventDetailPage({ params }: { params: { i
                       <span className="text-sm font-bold text-gray-800 shrink-0 ml-3">
                         ${listing.retail_price.toLocaleString()}
                       </span>
+                      {listing.checkout_url && (
+                        <a
+                          href={listing.checkout_url}
+                          className="shrink-0 ml-3 px-3 py-1.5 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 rounded-lg"
+                        >
+                          Buy
+                        </a>
+                      )}
                     </div>
                   ))}
               </div>

@@ -111,8 +111,9 @@ const EXT_PAGE_SIZE = 100
 const TEVO_PAGE_SIZE = 24
 const PLATFORM_PAGE_SIZE = 100
 
-// Re-enable once Ticket Evolution hosted checkout is ready for customers.
-const ENABLE_TICKET_EVOLUTION_PUBLIC_EVENTS = false
+// Turn on with NEXT_PUBLIC_ENABLE_TICKET_EVOLUTION_EVENTS=true once Hosted Checkout is verified.
+const ENABLE_TICKET_EVOLUTION_PUBLIC_EVENTS =
+  process.env.NEXT_PUBLIC_ENABLE_TICKET_EVOLUTION_EVENTS === 'true'
 
 export default function PublicEventsPage() {
   const [events, setEvents] = useState<PublicEvent[]>([])

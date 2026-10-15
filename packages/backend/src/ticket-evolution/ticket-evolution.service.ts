@@ -123,6 +123,15 @@ export class TicketEvolutionService {
     return Boolean(this.apiToken && this.apiSecret);
   }
 
+  /** Signed Orders/Show; used to verify unsigned order webhooks. */
+  async getOrder(orderId: string): Promise<Record<string, unknown> | null> {
+    const res = await this.request<Record<string, unknown> | null>(
+      'GET',
+      `/v9/orders/${encodeURIComponent(orderId)}`,
+    );
+    return res && typeof res === 'object' ? res : null;
+  }
+
   /** Quantity is omitted so Hosted Checkout shows its own selector, which knows each listing's allowed splits. */
   private hostedCheckoutUrl(eventId: number, listingId: number): string | null {
     const base = this.checkoutBaseUrl;

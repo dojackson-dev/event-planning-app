@@ -1736,7 +1736,7 @@ export class StripeService {
 
     const { data: promoter } = await admin
       .from('promoter_accounts')
-      .select('id, stripe_account_id, stripe_connect_status')
+      .select('id, stripe_account_id, stripe_connect_status, is_nonprofit')
       .eq('user_id', userId)
       .maybeSingle();
 
@@ -1748,6 +1748,7 @@ export class StripeService {
       const account = await this.stripe.accounts.create({
         type: 'express',
         email,
+        ...(promoter.is_nonprofit && { business_type: 'non_profit' as const }),
         capabilities: {
           card_payments: { requested: true },
           transfers: { requested: true },

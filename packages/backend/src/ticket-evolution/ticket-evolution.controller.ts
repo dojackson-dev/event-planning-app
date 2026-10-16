@@ -7,10 +7,11 @@ import {
   Req,
 } from '@nestjs/common';
 import type { Request } from 'express';
+import { ConfigService } from '@nestjs/config';
 import { TicketEvolutionService } from './ticket-evolution.service';
 
-// Sandbox TEvo credentials only — restrict the public feed to dev/local
-// origins so production never surfaces sandbox/test inventory to real users.
+// The public feed is dev/local-only until TICKET_EVOLUTION_PUBLIC_FEED=true is
+// set, so production never surfaces TEvo inventory before go-live.
 const DEV_ORIGIN_HOSTS = [
   'dev.eventecos.com',
   'dev.dovenuesuite.com',
@@ -24,7 +25,19 @@ function isDevOrigin(req: Request): boolean {
 
 @Controller('ticket-evolution')
 export class TicketEvolutionController {
-  constructor(private readonly service: TicketEvolutionService) {}
+  constructor(
+    private readonly service: TicketEvolutionService,
+    private readonly config: ConfigService,
+  ) {}
+
+  /** True when the request may see the public TEvo feed. */
+  private canServePublicFeed(req: Request): boolean {
+    if (!this.service.isConfigured()) return false;
+    return (
+      this.config.get<string>('TICKET_EVOLUTION_PUBLIC_FEED') === 'true' ||
+      isDevOrigin(req)
+    );
+  }
 
   /**
    * GET /ticket-evolution/events
@@ -113,7 +126,7 @@ export class TicketEvolutionController {
     @Query('zip_code') zipCode?: string,
     @Query('radius_miles') radiusMiles?: string,
   ) {
-    if (!this.service.isConfigured() || !isDevOrigin(req)) return [];
+    if (!this.canServePublicFeed(req)) return [];
     return this.service.getPublicEvents({
       name,
       page: page ? parseInt(page, 10) : undefined,
@@ -136,7 +149,7 @@ export class TicketEvolutionController {
     @Req() req: Request,
     @Param('id', ParseIntPipe) id: number,
   ) {
-    if (!this.service.isConfigured() || !isDevOrigin(req)) return null;
+    if (!this.canServePublicFeed(req)) return null;
     return this.service.getPublicEventDetail(id);
   }
 }

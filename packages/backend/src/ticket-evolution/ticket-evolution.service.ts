@@ -224,25 +224,64 @@ export class TicketEvolutionService {
   // for well-known performers/venues, so we use it as a best-effort fallback
   // when TEvo itself returns nothing. Never throws — a missing/failed lookup
   // just means no photo, same as today.
+  private readonly imageCache = new Map<
+    string,
+    { value: string | null; expires: number }
+  >();
+
+  // Wikimedia rate-limits requests without a descriptive User-Agent (429s
+  // under parallel load), which left most cards without a photo.
   private async lookupWikipediaImage(query: string): Promise<string | null> {
+    const key = query.trim().toLowerCase();
+    const cached = this.imageCache.get(key);
+    if (cached && cached.expires > Date.now()) return cached.value;
+
+    const title = encodeURIComponent(query.trim().replace(/\s+/g, '_'));
+    const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${title}`;
+    const headers = {
+      Accept: 'application/json',
+      'User-Agent':
+        'EventEcos/1.0 (https://www.eventecos.com; support@eventecos.com)',
+    };
     try {
-      const title = encodeURIComponent(query.trim().replace(/\s+/g, '_'));
-      const res = await fetch(
-        `https://en.wikipedia.org/api/rest_v1/page/summary/${title}`,
-        { headers: { Accept: 'application/json' } },
-      );
-      if (!res.ok) return null;
+      let res = await fetch(url, { headers });
+      if (res.status === 429) {
+        await new Promise((r) => setTimeout(r, 500));
+        res = await fetch(url, { headers });
+      }
+      // Only a definite miss is cached for long; throttling/errors retry soon.
+      if (!res.ok) {
+        this.imageCache.set(key, {
+          value: null,
+          expires: Date.now() + (res.status === 404 ? 24 : 0.05) * 3600_000,
+        });
+        return null;
+      }
       const data = (await res.json()) as {
         thumbnail?: { source?: string };
         originalimage?: { source?: string };
       };
-      return data.originalimage?.source ?? data.thumbnail?.source ?? null;
+      const value =
+        data.originalimage?.source ?? data.thumbnail?.source ?? null;
+      this.imageCache.set(key, { value, expires: Date.now() + 24 * 3600_000 });
+      return value;
     } catch (err) {
       this.logger.warn(
         `Wikipedia image lookup failed for "${query}": ${(err as Error).message}`,
       );
       return null;
     }
+  }
+
+  private async findImage(
+    candidates: Array<string | null | undefined>,
+  ): Promise<string | null> {
+    for (const name of candidates) {
+      if (!name) continue;
+      const image = await this.lookupWikipediaImage(name);
+      if (image) return image;
+    }
+    return null;
   }
 
   searchEvents(params: {
@@ -358,32 +397,38 @@ export class TicketEvolutionService {
 
     const events = (res.events as TicketEvolutionRawEvent[]) ?? [];
     // TEvo itself has no event/performer photos (confirmed against production
-    // — see lookupWikipediaImage) — look up each card's primary performer on
-    // Wikipedia in parallel so the grid doesn't wait on them sequentially.
-    return Promise.all(
-      events.map(async (ev) => {
-        const dateTime = ev.occurs_at_local ?? ev.occurs_at ?? null;
-        const primaryPerformer = (ev.performances ?? []).find((p) => p.primary)
-          ?.performer?.name;
-        const imageQuery = primaryPerformer || ev.name || ev.venue?.name;
-        const image_url = imageQuery
-          ? await this.lookupWikipediaImage(imageQuery)
-          : null;
-        return {
-          id: String(ev.id),
-          title: ev.name,
-          event_date: dateTime ? dateTime.slice(0, 10) : null,
-          start_time: dateTime ? dateTime.slice(11, 16) : null,
-          venue_name: ev.venue?.name ?? null,
-          city: ev.venue?.address?.locality ?? null,
-          state: ev.venue?.address?.region ?? null,
-          category: ev.category?.name ?? null,
-          event_url: null,
-          image_url,
-          source: 'ticket_evolution' as const,
-        };
-      }),
-    );
+    // — see lookupWikipediaImage); look them up in small batches to stay under
+    // Wikimedia's rate limit.
+    const mapEvent = async (ev: TicketEvolutionRawEvent) => {
+      const dateTime = ev.occurs_at_local ?? ev.occurs_at ?? null;
+      const primaryPerformer = (ev.performances ?? []).find((p) => p.primary)
+        ?.performer?.name;
+      const image_url = await this.findImage([
+        primaryPerformer,
+        ev.name,
+        ev.venue?.name,
+      ]);
+      return {
+        id: String(ev.id),
+        title: ev.name,
+        event_date: dateTime ? dateTime.slice(0, 10) : null,
+        start_time: dateTime ? dateTime.slice(11, 16) : null,
+        venue_name: ev.venue?.name ?? null,
+        city: ev.venue?.address?.locality ?? null,
+        state: ev.venue?.address?.region ?? null,
+        category: ev.category?.name ?? null,
+        event_url: null,
+        image_url,
+        source: 'ticket_evolution' as const,
+      };
+    };
+    const results: Array<Awaited<ReturnType<typeof mapEvent>>> = [];
+    for (let i = 0; i < events.length; i += 12) {
+      results.push(
+        ...(await Promise.all(events.slice(i, i + 12).map(mapEvent))),
+      );
+    }
+    return results;
   }
 
   // Combined event + listings payload for our in-app TEvo event detail page

@@ -1,18 +1,24 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
+  Param,
+  ParseUUIDPipe,
   Post,
+  Put,
   UnauthorizedException,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { NonprofitService, VerifyNonprofitDto } from './nonprofit.service';
+import { SponsorshipLevelDto, SponsorshipService } from './sponsorship.service';
 
 @Controller('nonprofit')
 export class NonprofitController {
   constructor(
     private readonly service: NonprofitService,
+    private readonly sponsorships: SponsorshipService,
     private readonly supabaseService: SupabaseService,
   ) {}
 
@@ -47,5 +53,56 @@ export class NonprofitController {
     @Body() dto: VerifyNonprofitDto,
   ) {
     return this.service.verify(await this.getUserId(authorization), dto);
+  }
+
+  /** Public: active sponsorship levels for a published event. */
+  @Get('public/events/:eventId/sponsorship-levels')
+  listPublicLevels(@Param('eventId', ParseUUIDPipe) eventId: string) {
+    return this.sponsorships.listPublic(eventId);
+  }
+
+  @Get('events/:eventId/sponsorship-levels')
+  async listLevels(
+    @Headers('authorization') authorization: string,
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+  ) {
+    return this.sponsorships.list(await this.getUserId(authorization), eventId);
+  }
+
+  @Post('events/:eventId/sponsorship-levels')
+  async createLevel(
+    @Headers('authorization') authorization: string,
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Body() dto: SponsorshipLevelDto,
+  ) {
+    return this.sponsorships.create(
+      await this.getUserId(authorization),
+      eventId,
+      dto,
+    );
+  }
+
+  @Put('sponsorship-levels/:levelId')
+  async updateLevel(
+    @Headers('authorization') authorization: string,
+    @Param('levelId', ParseUUIDPipe) levelId: string,
+    @Body() dto: SponsorshipLevelDto,
+  ) {
+    return this.sponsorships.update(
+      await this.getUserId(authorization),
+      levelId,
+      dto,
+    );
+  }
+
+  @Delete('sponsorship-levels/:levelId')
+  async deleteLevel(
+    @Headers('authorization') authorization: string,
+    @Param('levelId', ParseUUIDPipe) levelId: string,
+  ) {
+    return this.sponsorships.remove(
+      await this.getUserId(authorization),
+      levelId,
+    );
   }
 }

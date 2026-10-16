@@ -6,7 +6,7 @@ import Link from 'next/link'
 import api from '@/lib/api'
 import {
   Loader2, Trash2, Plus, Save, ExternalLink, Copy,
-  Users, DollarSign, Tag, MapPin, Clock, ChevronDown, CheckCircle, QrCode, Gift, X, Send, Globe, Crown,
+  Users, DollarSign, Tag, MapPin, Clock, ChevronDown, CheckCircle, QrCode, Gift, X, Send, Globe, Crown, HeartHandshake,
 } from 'lucide-react'
 import ImageUpload from '@/components/ImageUpload'
 
@@ -427,6 +427,11 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
             className="flex items-center justify-center gap-2 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-100">
             <Users className="w-4 h-4 text-gray-500" />
             VIP Orders
+          </Link>
+          <Link href={`/dashboard/promoter/events/${id}/sponsorships`}
+            className="col-span-2 flex items-center justify-center gap-2 py-3 bg-pink-50 border border-pink-200 rounded-xl text-sm font-semibold text-pink-800 hover:bg-pink-100">
+            <HeartHandshake className="w-4 h-4 text-pink-600" />
+            Sponsorships (non-profits)
           </Link>
         </div>
 

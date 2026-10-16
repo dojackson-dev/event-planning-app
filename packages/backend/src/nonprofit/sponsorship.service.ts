@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { grossUp } from '../promoter-events/promoter-events.service';
 import { NonprofitService } from './nonprofit.service';
 
 export class SponsorshipLevelDto {
@@ -275,6 +276,19 @@ export class SponsorshipService {
       .order('sort_order', { ascending: true })
       .order('price', { ascending: false });
     if (error) throw new BadRequestException(error.message);
-    return data ?? [];
+    // Buyers pay the processing + platform fee on top of the price.
+    return (data ?? []).map((l) => {
+      const priceCents = Math.round(Number(l.price) * 100);
+      const totalCents = priceCents > 0 ? grossUp(priceCents) : 0;
+      return {
+        ...l,
+        service_fee: (totalCents - priceCents) / 100,
+        buyer_total: totalCents / 100,
+        remaining:
+          l.quantity_available === null
+            ? null
+            : Math.max(l.quantity_available - l.quantity_sold, 0),
+      };
+    });
   }
 }

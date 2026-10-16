@@ -16,6 +16,7 @@ import { AffiliatesService } from '../affiliates/affiliates.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import { MailService } from '../mail/mail.service';
 import { VipService } from '../vip/vip.service';
+import { SponsorshipCheckoutService } from '../nonprofit/sponsorship-checkout.service';
 import { clientVisibleItems } from '../invoices/client-visible-items';
 import { analytics } from '../analytics/heycatch';
 
@@ -40,6 +41,7 @@ export class StripeService {
     private readonly smsNotifications: SmsNotificationsService,
     private readonly mailService: MailService,
     private readonly vipService: VipService,
+    private readonly sponsorshipCheckout: SponsorshipCheckoutService,
   ) {
     const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (!secretKey) {
@@ -585,6 +587,18 @@ export class StripeService {
         this.logger.log(
           `Invoice ${invoiceId} set to processing (ACH) — session ${session.id}`,
         );
+      }
+      return;
+    }
+
+    // ── Non-profit sponsorship ───────────────────────────────────────────
+    if (session.metadata?.sponsorship_order_id) {
+      if (isPaid) {
+        await this.sponsorshipCheckout.markPaidBySession(
+          session.id,
+          paymentIntentId,
+        );
+        this.logger.log(`Sponsorship checkout complete — session ${session.id}`);
       }
       return;
     }

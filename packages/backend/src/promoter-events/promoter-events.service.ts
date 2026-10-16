@@ -36,16 +36,16 @@ function haversineDistanceMiles(
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-const APP_FEE_RATE = 0.03; // 3% platform fee → goes to our account
-const STRIPE_PCT = 0.029; // Stripe's % fee
-const STRIPE_FIXED = 30; // Stripe's fixed fee in cents ($0.30)
+export const APP_FEE_RATE = 0.03; // 3% platform fee → goes to our account
+export const STRIPE_PCT = 0.029; // Stripe's % fee
+export const STRIPE_FIXED = 30; // Stripe's fixed fee in cents ($0.30)
 
 /**
  * Gross-up helper: calculates the total charge so that after Stripe's
  * processing fee AND the platform fee, the promoter nets the face value.
  *   totalCharge = ceil((ticketTotal + 0.30) / (1 - 0.029 - 0.03))
  */
-function grossUp(ticketTotalCents: number): number {
+export function grossUp(ticketTotalCents: number): number {
   return Math.ceil(
     (ticketTotalCents + STRIPE_FIXED) / (1 - STRIPE_PCT - APP_FEE_RATE),
   );

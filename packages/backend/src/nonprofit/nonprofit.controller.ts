@@ -13,12 +13,17 @@ import {
 import { SupabaseService } from '../supabase/supabase.service';
 import { NonprofitService, VerifyNonprofitDto } from './nonprofit.service';
 import { SponsorshipLevelDto, SponsorshipService } from './sponsorship.service';
+import {
+  SponsorshipCheckoutDto,
+  SponsorshipCheckoutService,
+} from './sponsorship-checkout.service';
 
 @Controller('nonprofit')
 export class NonprofitController {
   constructor(
     private readonly service: NonprofitService,
     private readonly sponsorships: SponsorshipService,
+    private readonly sponsorshipCheckout: SponsorshipCheckoutService,
     private readonly supabaseService: SupabaseService,
   ) {}
 
@@ -59,6 +64,15 @@ export class NonprofitController {
   @Get('public/events/:eventId/sponsorship-levels')
   listPublicLevels(@Param('eventId', ParseUUIDPipe) eventId: string) {
     return this.sponsorships.listPublic(eventId);
+  }
+
+  /** Public: start a Stripe Checkout for one sponsorship level. */
+  @Post('public/sponsorship-levels/:levelId/checkout')
+  checkoutLevel(
+    @Param('levelId', ParseUUIDPipe) levelId: string,
+    @Body() dto: SponsorshipCheckoutDto,
+  ) {
+    return this.sponsorshipCheckout.createCheckout(levelId, dto);
   }
 
   @Get('events/:eventId/sponsorship-levels')

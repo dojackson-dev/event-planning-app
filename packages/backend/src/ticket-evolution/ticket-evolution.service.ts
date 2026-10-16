@@ -2,10 +2,12 @@ import {
   Injectable,
   InternalServerErrorException,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import * as zipcodes from 'zipcodes';
+import { TicketmasterService } from '../ticketmaster/ticketmaster.service';
 
 // Ticket Evolution (Victory Live) Exchange API v9 client.
 // Docs: https://victorylive.atlassian.net/wiki/spaces/API/overview
@@ -95,7 +97,10 @@ export interface TicketEvolutionPublicEvent {
 export class TicketEvolutionService {
   private readonly logger = new Logger(TicketEvolutionService.name);
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    @Optional() private readonly ticketmaster?: TicketmasterService,
+  ) {}
 
   private get baseUrl(): string {
     return (
@@ -284,6 +289,51 @@ export class TicketEvolutionService {
     return null;
   }
 
+  // Many TEvo events are also on Ticketmaster, which has artwork; require a
+  // name overlap and a date within a day (the two feeds disagree on late-night
+  // dates) so we never show the wrong photo.
+  private async findTicketmasterImage(
+    names: Array<string | null | undefined>,
+    date: string | null,
+    near?: { zip_code: string; radius_miles?: number },
+  ): Promise<string | null> {
+    if (!this.ticketmaster || !date) return null;
+    const norm = (s: string) =>
+      s
+        .toLowerCase()
+        .replace(/[^a-z0-9 ]+/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    const wanted = names.filter((n): n is string => Boolean(n)).map(norm);
+    if (!wanted.length) return null;
+
+    const key = `tm:${wanted[0]}|${date}|${near?.zip_code ?? ''}`;
+    const cached = this.imageCache.get(key);
+    if (cached && cached.expires > Date.now()) return cached.value;
+
+    const shift = (days: number) => {
+      const d = new Date(`${date}T00:00:00Z`);
+      d.setUTCDate(d.getUTCDate() + days);
+      return d.toISOString().slice(0, 10);
+    };
+    const nearDates = [shift(-1), date, shift(1)];
+    const results = await this.ticketmaster.searchEvents({
+      keyword: names.find(Boolean) as string,
+      date_from: nearDates[0],
+      date_to: nearDates[2],
+      size: 10,
+      ...near,
+    });
+    const hit = results.find((e) => {
+      if (!e.image_url || !nearDates.includes(e.event_date)) return false;
+      const title = norm(e.title);
+      return wanted.some((w) => w && (title.includes(w) || w.includes(title)));
+    });
+    const value = hit?.image_url ?? null;
+    this.imageCache.set(key, { value, expires: Date.now() + 6 * 3600_000 });
+    return value;
+  }
+
   searchEvents(params: {
     name?: string;
     occursAtGte?: string;
@@ -403,11 +453,15 @@ export class TicketEvolutionService {
       const dateTime = ev.occurs_at_local ?? ev.occurs_at ?? null;
       const primaryPerformer = (ev.performances ?? []).find((p) => p.primary)
         ?.performer?.name;
-      const image_url = await this.findImage([
-        primaryPerformer,
-        ev.name,
-        ev.venue?.name,
-      ]);
+      const image_url =
+        (await this.findImage([primaryPerformer, ev.name, ev.venue?.name])) ??
+        (await this.findTicketmasterImage(
+          [primaryPerformer, ev.name],
+          dateTime ? dateTime.slice(0, 10) : null,
+          params.zipCode
+            ? { zip_code: params.zipCode, radius_miles: params.radiusMiles }
+            : undefined,
+        ));
       return {
         id: String(ev.id),
         title: ev.name,

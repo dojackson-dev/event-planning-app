@@ -7,9 +7,9 @@ import { SupabaseService } from '../supabase/supabase.service';
  * - read:  admin and staff may call it
  * - scan:  admin and staff may call it (door scanning)
  * - write: admin only
- * - owner: account creator only (plan, Stripe, non-profit verification)
+ * Team management is creator-only and is enforced in PromoterTeamService.
  */
-export type PromoterAccessPolicy = 'self' | 'read' | 'scan' | 'write' | 'owner';
+export type PromoterAccessPolicy = 'self' | 'read' | 'scan' | 'write';
 
 export type PromoterTeamRole = 'admin' | 'staff';
 
@@ -20,7 +20,6 @@ const ALLOWED_ROLES: Record<
   read: ['admin', 'staff'],
   scan: ['admin', 'staff'],
   write: ['admin'],
-  owner: [],
 };
 
 @Injectable()

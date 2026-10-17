@@ -26,7 +26,7 @@ interface Me {
 }
 
 const ROLE_HELP: Record<'admin' | 'staff', string> = {
-  admin: 'Manage events, tickets, bookings and invoices. Cannot manage the team, payouts or account settings.',
+  admin: 'Full access to events, tickets, bookings, invoices, payouts and account settings. Cannot add or remove team members.',
   staff: 'View events and attendees and scan tickets at the door. Cannot make changes.',
 }
 

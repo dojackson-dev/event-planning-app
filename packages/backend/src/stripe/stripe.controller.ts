@@ -17,6 +17,10 @@ import {
 } from '@nestjs/common';
 import { StripeService } from './stripe.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import {
+  PromoterAccessPolicy,
+  PromoterAccessService,
+} from '../promoter-team/promoter-access.service';
 
 /**
  * StripeController
@@ -36,6 +40,7 @@ export class StripeController {
   constructor(
     private readonly stripeService: StripeService,
     private readonly supabaseService: SupabaseService,
+    private readonly access: PromoterAccessService,
   ) {}
 
   // ─── Webhook (public, raw body) ──────────────────────────────────────────
@@ -125,7 +130,7 @@ export class StripeController {
     if (!body.plan || !['pro', 'premium'].includes(body.plan)) {
       throw new BadRequestException("plan must be 'pro' or 'premium'");
     }
-    const userId = await this.getUserIdFromAuth(authorization);
+    const userId = await this.getUserIdFromAuth(authorization, 'write');
 
     // Look up promoter account for this user
     const admin = this.supabaseService.getAdminClient();
@@ -156,7 +161,7 @@ export class StripeController {
   async createPromoterBillingPortal(
     @Headers('authorization') authorization: string,
   ): Promise<{ url: string }> {
-    const userId = await this.getUserIdFromAuth(authorization);
+    const userId = await this.getUserIdFromAuth(authorization, 'write');
 
     const admin = this.supabaseService.getAdminClient();
     const { data: promoter } = await admin
@@ -197,7 +202,10 @@ export class StripeController {
 
   // ─── Helpers ─────────────────────────────────────────────────────────────
 
-  private async getUserIdFromAuth(authorization: string): Promise<string> {
+  private async getUserIdFromAuth(
+    authorization: string,
+    policy: PromoterAccessPolicy = 'self',
+  ): Promise<string> {
     if (!authorization)
       throw new UnauthorizedException('No authorization header');
     const token = authorization.replace('Bearer ', '');
@@ -207,7 +215,7 @@ export class StripeController {
       error,
     } = await supabase.auth.getUser();
     if (error || !user) throw new UnauthorizedException('Invalid token');
-    return user.id;
+    return this.access.resolveUserId(user.id, policy);
   }
 
   // ─── Connect Onboarding ───────────────────────────────────────────────────
@@ -311,7 +319,7 @@ export class StripeController {
     @Body() body: { email: string },
   ): Promise<{ url: string }> {
     if (!body.email) throw new BadRequestException('email is required');
-    const userId = await this.getUserIdFromAuth(authorization);
+    const userId = await this.getUserIdFromAuth(authorization, 'write');
     const url = await this.stripeService.createPromoterConnectOnboarding(
       userId,
       body.email,
@@ -326,7 +334,7 @@ export class StripeController {
   async promoterConnectStatus(
     @Headers('authorization') authorization: string,
   ): Promise<{ status: string; connectId: string | null }> {
-    const userId = await this.getUserIdFromAuth(authorization);
+    const userId = await this.getUserIdFromAuth(authorization, 'read');
     return this.stripeService.getPromoterConnectStatus(userId);
   }
 
@@ -337,7 +345,7 @@ export class StripeController {
   async resetPromoterConnect(
     @Headers('authorization') authorization: string,
   ): Promise<{ success: boolean }> {
-    const userId = await this.getUserIdFromAuth(authorization);
+    const userId = await this.getUserIdFromAuth(authorization, 'write');
     return this.stripeService.resetPromoterConnect(userId);
   }
 
@@ -402,7 +410,10 @@ export class StripeController {
     if (typeof body.enabled !== 'boolean') {
       throw new BadRequestException('enabled must be a boolean');
     }
-    const userId = await this.getUserIdFromAuth(authorization);
+    const userId = await this.getUserIdFromAuth(
+      authorization,
+      role === 'promoter' ? 'write' : 'self',
+    );
     return this.stripeService.setBnplPreference(
       userId,
       role as 'owner' | 'vendor' | 'artist' | 'promoter',

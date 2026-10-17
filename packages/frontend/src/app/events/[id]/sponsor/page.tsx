@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { ArrowLeft, CheckCircle, HeartHandshake, Loader2, X } from 'lucide-react'
 import api from '@/lib/api'
+import NonprofitBadge, { NonprofitInfo } from '@/components/NonprofitBadge'
 
 interface Level {
   id: string
@@ -25,7 +26,7 @@ interface EventSummary {
   title: string
   event_date: string
   venue_name: string | null
-  promoter_accounts?: { company_name: string | null; contact_name: string | null } | null
+  promoter_accounts?: ({ company_name: string | null; contact_name: string | null } & NonprofitInfo) | null
 }
 
 const usd = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
@@ -124,6 +125,7 @@ export default function SponsorPage({ params }: { params: { id: string } }) {
                 Benefiting {event.promoter_accounts.company_name || event.promoter_accounts.contact_name}
               </p>
             )}
+            <NonprofitBadge promoter={event?.promoter_accounts} />
           </header>
 
           {levels.length === 0 ? (

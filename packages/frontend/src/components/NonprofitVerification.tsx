@@ -25,6 +25,7 @@ export default function NonprofitVerification() {
   const [ein, setEin] = useState('')
   const [legalName, setLegalName] = useState('')
   const [verifying, setVerifying] = useState(false)
+  const [declaring, setDeclaring] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -44,6 +45,27 @@ export default function NonprofitVerification() {
     load()
   }, [load])
 
+  const declare = async (isNonprofit: boolean) => {
+    if (
+      !isNonprofit &&
+      !window.confirm(
+        'Switch back to a regular promoter account? Your non-profit verification will be cleared and sponsorships will be hidden.',
+      )
+    ) {
+      return
+    }
+    setDeclaring(true)
+    setError(null)
+    try {
+      const res = await api.put<NonprofitStatus>('/nonprofit/declare', { isNonprofit })
+      setStatus(res.data)
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Could not update your account. Try again.')
+    } finally {
+      setDeclaring(false)
+    }
+  }
+
   const verify = async () => {
     setVerifying(true)
     setError(null)
@@ -61,13 +83,14 @@ export default function NonprofitVerification() {
   }
 
   const verified = status?.status === 'verified'
+  const declared = Boolean(status?.isNonprofit)
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
       <div className="flex items-center gap-2">
         <HeartHandshake className="h-5 w-5 text-purple-600" />
         <h2 className="text-base font-semibold text-gray-900">Non-profit organization</h2>
-        {verified && (
+        {declared && verified && (
           <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">
             <ShieldCheck className="h-3.5 w-3.5" /> Verified 501(c)(3)
           </span>
@@ -89,7 +112,19 @@ export default function NonprofitVerification() {
             non-profit.
           </p>
 
-          {verified ? (
+          {!declared ? (
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-800">
+              <input
+                type="checkbox"
+                checked={false}
+                disabled={declaring}
+                onChange={() => declare(true)}
+              />
+              We are a registered non-profit organization
+              {declaring && <Loader2 className="h-4 w-4 animate-spin text-purple-400" />}
+            </label>
+          ) : verified ? (
+            <div className="space-y-3">
             <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800">
               <p className="font-medium">{status?.legalName}</p>
               <p>EIN {status?.ein ? formatEin(status.ein) : ''}</p>
@@ -101,8 +136,24 @@ export default function NonprofitVerification() {
                 and choose Sponsorships to add levels.
               </p>
             </div>
+            <button
+              type="button"
+              onClick={() => declare(false)}
+              disabled={declaring}
+              className="text-sm text-gray-500 underline hover:text-gray-700 disabled:opacity-50"
+            >
+              We are not a non-profit
+            </button>
+            </div>
           ) : (
             <div className="space-y-3">
+              <div role="status" className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>
+                  Ticket sales and event publishing are paused until your non-profit
+                  status is verified.
+                </span>
+              </div>
               {status?.status === 'rejected' && (
                 <div role="alert" className="flex gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                   <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
@@ -137,6 +188,7 @@ export default function NonprofitVerification() {
                 </div>
               </div>
               {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+              <div className="flex flex-wrap items-center gap-4">
               <button
                 type="button"
                 onClick={verify}
@@ -146,7 +198,19 @@ export default function NonprofitVerification() {
                 {verifying && <Loader2 className="h-4 w-4 animate-spin" />}
                 {verifying ? 'Checking IRS records...' : 'Verify with IRS'}
               </button>
+              <button
+                type="button"
+                onClick={() => declare(false)}
+                disabled={declaring}
+                className="text-sm text-gray-500 underline hover:text-gray-700 disabled:opacity-50"
+              >
+                We are not a non-profit
+              </button>
+              </div>
             </div>
+          )}
+          {error && !(declared && !verified) && (
+            <p role="alert" className="text-sm text-red-600">{error}</p>
           )}
         </>
       )}

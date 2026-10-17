@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
+import NonprofitBadge from '@/components/NonprofitBadge'
 import {
   MapPin, Clock, Tag, Ticket, Loader2, CheckCircle,
   Calendar, Users, Minus, Plus, ExternalLink,
@@ -34,6 +35,9 @@ interface PromoterAccount {
   contact_name: string
   instagram: string | null
   website: string | null
+  is_nonprofit?: boolean | null
+  nonprofit_status?: string | null
+  nonprofit_legal_name?: string | null
 }
 
 interface PublicEvent {
@@ -52,6 +56,7 @@ interface PublicEvent {
   age_restriction: string | null
   ticket_tiers: TicketTier[]
   promoter_accounts: PromoterAccount | null
+  sales_paused?: boolean
 }
 
 export default function PublicEventDetailPage({ params }: { params: { id: string } }) {
@@ -256,6 +261,7 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
               <div className="max-w-4xl mx-auto px-4 pb-6 w-full">
                 <h1 className="text-3xl md:text-4xl font-bold">{event.title}</h1>
                 {promoterName && <p className="text-purple-200 mt-1">By {promoterName}</p>}
+                <NonprofitBadge promoter={event.promoter_accounts} tone="dark" className="mt-2" />
               </div>
             </div>
           </div>
@@ -263,6 +269,7 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
           <div className="max-w-4xl mx-auto px-4 py-10">
             <h1 className="text-3xl md:text-4xl font-bold">{event.title}</h1>
             {promoterName && <p className="text-purple-200 mt-1">By {promoterName}</p>}
+            <NonprofitBadge promoter={event.promoter_accounts} tone="dark" className="mt-2" />
           </div>
         )}
       </div>
@@ -359,6 +366,11 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
               </Link>
             )}
 
+            {event.sales_paused ? (
+              <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                Ticket sales are paused until this organization&apos;s non-profit status is verified.
+              </div>
+            ) : (<>
             {/* VIP upsell - first option */}
             <Link href={`/events/${id}/vip`}
               className="block p-3 bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-200 rounded-xl hover:shadow-md transition-shadow">
@@ -509,6 +521,7 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
                 )}
               </form>
             )}
+            </>)}
           </div>
 
 

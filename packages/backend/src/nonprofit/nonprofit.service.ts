@@ -129,6 +129,31 @@ export class NonprofitService {
     return this.getStatus(userId);
   }
 
+  /** Declaring non-profit status pauses ticket sales until the IRS check passes. */
+  async setDeclared(
+    userId: string,
+    isNonprofit: unknown,
+  ): Promise<NonprofitStatus> {
+    if (typeof isNonprofit !== 'boolean') {
+      throw new BadRequestException('isNonprofit must be true or false.');
+    }
+    const promoter = await this.getPromoter(userId);
+    const patch = isNonprofit
+      ? { is_nonprofit: true }
+      : {
+          is_nonprofit: false,
+          nonprofit_status: 'unverified',
+          nonprofit_verified_at: null,
+        };
+    const { error } = await this.supabase
+      .getAdminClient()
+      .from('promoter_accounts')
+      .update({ ...patch, updated_at: new Date().toISOString() })
+      .eq('id', promoter.id);
+    if (error) throw new BadRequestException(error.message);
+    return this.getStatus(userId);
+  }
+
   /** Sponsorship tools are only available to IRS-verified non-profits. */
   async assertVerified(userId: string): Promise<string> {
     const p = await this.getPromoter(userId);

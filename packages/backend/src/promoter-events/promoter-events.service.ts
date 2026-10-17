@@ -11,6 +11,10 @@ import { MailService } from '../mail/mail.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import Stripe from 'stripe';
 import {
+  assertNonprofitCanSell,
+  nonprofitSalesBlocked,
+} from '../nonprofit/nonprofit-gate';
+import {
   CreatePromoterEventDto,
   UpdatePromoterEventDto,
   CreateTicketTierDto,
@@ -80,7 +84,7 @@ export class PromoterEventsService {
     const { data, error } = await admin
       .from('promoter_accounts')
       .select(
-        'id, stripe_account_id, stripe_connect_status, company_name, contact_name, email',
+        'id, stripe_account_id, stripe_connect_status, company_name, contact_name, email, is_nonprofit, nonprofit_status',
       )
       .eq('user_id', userId)
       .maybeSingle();
@@ -94,6 +98,7 @@ export class PromoterEventsService {
   async createEvent(userId: string, dto: CreatePromoterEventDto) {
     const admin = this.supabaseService.getAdminClient();
     const promoter = await this.getPromoterAccount(userId);
+    if (dto.status === 'published') assertNonprofitCanSell(promoter);
 
     const { data: event, error } = await admin
       .from('public_events')
@@ -163,6 +168,7 @@ export class PromoterEventsService {
   ) {
     const admin = this.supabaseService.getAdminClient();
     const promoter = await this.getPromoterAccount(userId);
+    if (dto.status === 'published') assertNonprofitCanSell(promoter);
 
     const { data: existing } = await admin
       .from('public_events')
@@ -353,7 +359,7 @@ export class PromoterEventsService {
     let query = admin
       .from('public_events')
       .select(
-        '*, ticket_tiers(id, name, price, quantity, quantity_sold), promoter_accounts(company_name, contact_name, profile_image_url)',
+        '*, ticket_tiers(id, name, price, quantity, quantity_sold), promoter_accounts(company_name, contact_name, profile_image_url, is_nonprofit, nonprofit_status, nonprofit_legal_name)',
       )
       .eq('status', 'published')
       .gte('event_date', from)
@@ -396,14 +402,17 @@ export class PromoterEventsService {
     const { data, error } = await admin
       .from('public_events')
       .select(
-        '*, ticket_tiers(id, name, price, quantity, quantity_sold, description), promoter_accounts(company_name, contact_name, profile_image_url, location, instagram, website)',
+        '*, ticket_tiers(id, name, price, quantity, quantity_sold, description), promoter_accounts(company_name, contact_name, profile_image_url, location, instagram, website, is_nonprofit, nonprofit_status, nonprofit_legal_name)',
       )
       .eq('id', eventId)
       .neq('status', 'cancelled')
       .maybeSingle();
 
     if (error || !data) throw new NotFoundException('Event not found');
-    return data;
+    return {
+      ...data,
+      sales_paused: nonprofitSalesBlocked(data.promoter_accounts),
+    };
   }
 
   // ── STRIPE CHECKOUT for tickets ───────────────────────────────
@@ -422,7 +431,7 @@ export class PromoterEventsService {
     const { data: event } = await admin
       .from('public_events')
       .select(
-        '*, promoter_accounts(stripe_account_id, stripe_connect_status, company_name, contact_name, enable_bnpl)',
+        '*, promoter_accounts(stripe_account_id, stripe_connect_status, company_name, contact_name, enable_bnpl, is_nonprofit, nonprofit_status)',
       )
       .eq('id', eventId)
       .eq('status', 'published')
@@ -444,6 +453,7 @@ export class PromoterEventsService {
       throw new BadRequestException(`Only ${available} tickets remaining`);
 
     const promoter = event.promoter_accounts;
+    assertNonprofitCanSell(promoter);
     if (
       !promoter?.stripe_account_id ||
       promoter.stripe_connect_status !== 'active'
@@ -963,7 +973,7 @@ export class PromoterEventsService {
     const { data: event } = await admin
       .from('public_events')
       .select(
-        '*, promoter_accounts(stripe_account_id, stripe_connect_status, company_name, enable_bnpl)',
+        '*, promoter_accounts(stripe_account_id, stripe_connect_status, company_name, enable_bnpl, is_nonprofit, nonprofit_status)',
       )
       .eq('id', eventId)
       .eq('status', 'published')
@@ -971,6 +981,7 @@ export class PromoterEventsService {
     if (!event) throw new NotFoundException('Event not found');
 
     const promoter = event.promoter_accounts;
+    assertNonprofitCanSell(promoter);
     if (
       !promoter?.stripe_account_id ||
       promoter.stripe_connect_status !== 'active'

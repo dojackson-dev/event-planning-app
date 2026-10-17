@@ -263,11 +263,29 @@ export class SponsorshipService {
     const admin = this.supabase.getAdminClient();
     const { data: event } = await admin
       .from('public_events')
-      .select('id, status')
+      .select('id, status, promoter_account_id')
       .eq('id', eventId)
       .eq('status', 'published')
       .maybeSingle();
     if (!event) throw new NotFoundException('Event not found');
+
+    // Hide the offer entirely unless buyers can actually pay.
+    const { data: promoter } = await admin
+      .from('promoter_accounts')
+      .select(
+        'is_nonprofit, nonprofit_status, stripe_account_id, stripe_connect_status',
+      )
+      .eq('id', event.promoter_account_id)
+      .maybeSingle();
+    if (
+      !promoter?.is_nonprofit ||
+      promoter.nonprofit_status !== 'verified' ||
+      !promoter.stripe_account_id ||
+      promoter.stripe_connect_status !== 'active'
+    ) {
+      return [];
+    }
+
     const { data, error } = await admin
       .from('sponsorship_levels')
       .select(COLUMNS)

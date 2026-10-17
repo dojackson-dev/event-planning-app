@@ -51,6 +51,18 @@ export class NonprofitController {
     return this.service.getStatus(await this.getUserId(authorization));
   }
 
+  /** PUT /nonprofit/declare — mark this promoter as a non-profit (or not). */
+  @Put('declare')
+  async declare(
+    @Headers('authorization') authorization: string,
+    @Body() body: { isNonprofit?: unknown },
+  ) {
+    return this.service.setDeclared(
+      await this.getUserId(authorization),
+      body?.isNonprofit,
+    );
+  }
+
   /** POST /nonprofit/verify — check an EIN against IRS data and save the result. */
   @Post('verify')
   async verify(

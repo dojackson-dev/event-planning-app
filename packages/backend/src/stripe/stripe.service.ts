@@ -598,7 +598,9 @@ export class StripeService {
           session.id,
           paymentIntentId,
         );
-        this.logger.log(`Sponsorship checkout complete — session ${session.id}`);
+        this.logger.log(
+          `Sponsorship checkout complete — session ${session.id}`,
+        );
       }
       return;
     }

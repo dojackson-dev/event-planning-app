@@ -33,7 +33,10 @@ export class EventsController {
     const token = this.extractToken(authorization);
 
     // Handle dev tokens (local-<uuid> format)
-    if (token.startsWith('local-')) {
+    if (
+      token.startsWith('local-') &&
+      process.env.ALLOW_LOCAL_DEV_AUTH === 'true'
+    ) {
       const userId = token.replace('local-', '');
       if (userId) return userId;
       throw new UnauthorizedException('Invalid dev token format');
@@ -86,7 +89,7 @@ export class EventsController {
   async findOne(
     @Headers('authorization') authorization: string,
     @Param('id') id: string,
-  ): Promise<any | null> {
+  ): Promise<any> {
     const userId = await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
@@ -98,7 +101,7 @@ export class EventsController {
     @Headers('authorization') authorization: string,
     @Param('id') id: string,
     @Body() updateEventDto: any,
-  ): Promise<any | null> {
+  ): Promise<any> {
     const userId = await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
@@ -138,5 +141,15 @@ export class EventsController {
   ): Promise<any> {
     const userId = await this.getUserId(authorization);
     return this.eventsService.saveManagementData(userId, id, body);
+  }
+
+  @Put(':id/invitation-images')
+  async updateInvitationImages(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+    @Body() body: { images?: unknown },
+  ): Promise<string[]> {
+    const userId = await this.getUserId(authorization);
+    return this.eventsService.setInvitationImages(userId, id, body?.images);
   }
 }

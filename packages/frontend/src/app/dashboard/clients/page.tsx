@@ -29,6 +29,7 @@ interface IntakeForm {
   budget_range: string | null
   how_did_you_hear: string | null
   status: string
+  display_status?: string
   notes: string | null
   created_at: string
   updated_at: string
@@ -118,7 +119,7 @@ export default function ClientsPage() {
     setActivatingId(client.id)
     try {
       await api.post(`/intake-forms/${client.id}/convert-to-booking`, {})
-      setClients(prev => prev.map(c => c.id === client.id ? { ...c, status: 'converted' } : c))
+      setClients(prev => prev.map(c => c.id === client.id ? { ...c, status: 'converted', display_status: 'active' } : c))
     } catch (error: any) {
       alert(error.response?.data?.message || 'Failed to activate lead')
     } finally {
@@ -177,7 +178,11 @@ export default function ClientsPage() {
     switch (status) {
       case 'new': return 'bg-blue-100 text-blue-800'
       case 'contacted': return 'bg-yellow-100 text-yellow-800'
-      case 'converted': return 'bg-green-100 text-green-800'
+      case 'converted':
+      case 'active': return 'bg-green-100 text-green-800'
+      case 'booked': return 'bg-purple-100 text-purple-800'
+      case 'completed': return 'bg-gray-200 text-gray-700'
+      case 'cancelled': return 'bg-red-100 text-red-800'
       default: return 'bg-gray-100 text-gray-800'
     }
   }
@@ -336,6 +341,8 @@ export default function ClientsPage() {
                 <div className={`h-1 w-full ${
                   client.status === 'new' ? 'bg-blue-400' :
                   client.status === 'contacted' ? 'bg-yellow-400' :
+                  client.display_status === 'booked' ? 'bg-purple-400' :
+                  client.display_status === 'cancelled' ? 'bg-red-400' :
                   client.status === 'converted' ? 'bg-green-400' :
                   'bg-gray-300'
                 }`} />
@@ -361,8 +368,8 @@ export default function ClientsPage() {
                       )}
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${getStatusColor(client.status)}`}>
-                        {client.status.charAt(0).toUpperCase() + client.status.slice(1)}
+                      <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${getStatusColor(client.display_status ?? client.status)}`}>
+                        {(client.display_status ?? client.status).charAt(0).toUpperCase() + (client.display_status ?? client.status).slice(1)}
                       </span>
                       <button
                         onClick={(e) => { e.stopPropagation(); handleDeleteClient(client) }}

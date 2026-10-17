@@ -17,6 +17,7 @@ interface PublicOwnerInvoice {
   due_date: string
   status: 'draft' | 'sent' | 'partial' | 'paid' | 'overdue' | 'cancelled'
   total_amount: number
+  discount_amount: number
   amount_paid: number
   amount_due: number
   notes: string | null
@@ -31,6 +32,9 @@ interface PublicOwnerInvoice {
     quantity: number
     unit_price: number
     amount: number
+    discount_type?: 'none' | 'percentage' | 'fixed'
+    discount_value?: number
+    discount_amount?: number
     item_type?: string
   }>
 }
@@ -238,6 +242,11 @@ function OwnerInvoicePayPageContent() {
                     <div>
                       <p className="text-gray-800 font-medium">{item.description}</p>
                       <p className="text-gray-400 text-xs">{item.quantity} × ${Number(item.unit_price).toFixed(2)}</p>
+                      {Number(item.discount_amount) > 0 && (
+                        <p className="text-green-700 text-xs">
+                          Item discount{item.discount_type === 'percentage' ? ` (${Number(item.discount_value)}%)` : ''}: −${Number(item.discount_amount).toFixed(2)}
+                        </p>
+                      )}
                     </div>
                     <p className="font-semibold text-gray-900">${Number(item.amount).toFixed(2)}</p>
                   </div>
@@ -246,6 +255,12 @@ function OwnerInvoicePayPageContent() {
 
             {/* Total */}
             <div className="mt-4 pt-4 border-t border-gray-100">
+              {Number(invoice.discount_amount) > 0 && (
+                <div className="flex justify-between text-sm text-green-700 mb-2">
+                  <span>Additional discount</span>
+                  <span>−${Number(invoice.discount_amount).toFixed(2)}</span>
+                </div>
+              )}
               <div className="flex justify-between font-bold text-gray-900 text-base">
                 <span>Total</span>
                 <span>${Number(invoice.total_amount).toFixed(2)}</span>

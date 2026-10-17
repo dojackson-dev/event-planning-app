@@ -64,8 +64,8 @@ function VendorInvoiceDetailPageContent() {
       await api.post(`/vendor-invoices/${id}/send`)
       await fetchInvoice()
       showToast('Invoice sent successfully!')
-    } catch {
-      showToast('Failed to send invoice. Please check your email settings.')
+    } catch (err: any) {
+      showToast(err.response?.data?.message || 'Failed to send invoice. Please check your email settings.')
     } finally {
       setSending(false)
     }
@@ -107,6 +107,9 @@ function VendorInvoiceDetailPageContent() {
   const canSend = ['draft', 'sent', 'viewed', 'overdue'].includes(invoice.status)
   const isPaid = invoice.status === 'paid'
   const canEdit = !['paid', 'cancelled'].includes(invoice.status)
+  const hasStripe =
+    invoice.vendor_accounts?.stripe_account_id &&
+    invoice.vendor_accounts?.stripe_connect_status === 'active'
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -154,11 +157,18 @@ function VendorInvoiceDetailPageContent() {
 
           {/* Actions */}
           {!isPaid && (
-            <div className="mt-5 pt-5 border-t border-gray-100 flex flex-wrap gap-3">
+            <div className="mt-5 pt-5 border-t border-gray-100">
+              {canSend && !hasStripe && (
+                <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 mb-3 text-sm">
+                  Connect Stripe before sending this invoice or accepting payment.{' '}
+                  <Link href="/vendors/dashboard/payouts" className="font-medium underline">Set up Stripe</Link>
+                </div>
+              )}
+              <div className="flex flex-wrap gap-3">
               {canSend && (
                 <button
                   onClick={handleSend}
-                  disabled={sending}
+                  disabled={sending || !hasStripe}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-60"
                 >
                   {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
@@ -192,6 +202,7 @@ function VendorInvoiceDetailPageContent() {
               >
                 <ExternalLink className="w-4 h-4" /> Preview
               </a>
+              </div>
             </div>
           )}
 

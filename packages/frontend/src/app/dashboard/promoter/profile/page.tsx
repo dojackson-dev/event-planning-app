@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
+import { normalizeWebsite } from '@/lib/url'
 import ImageUpload from '@/components/ImageUpload'
 import { useAuth } from '@/contexts/AuthContext'
 import {
@@ -100,7 +101,7 @@ export default function PromoterProfilePage() {
         phone: form.phone || undefined,
         location: form.location || undefined,
         bio: form.bio || undefined,
-        website: form.website || undefined,
+        website: normalizeWebsite(form.website),
         instagram: form.instagram || undefined,
         profileImageUrl: profileImageUrl || undefined,
         coverImageUrl: coverImageUrl || undefined,
@@ -275,10 +276,11 @@ export default function PromoterProfilePage() {
               Website
             </label>
             <input
-              type="url"
+              type="text"
+              inputMode="url"
               value={form.website}
               onChange={(e) => setForm(f => ({ ...f, website: e.target.value }))}
-              placeholder="https://yourwebsite.com"
+              placeholder="yourwebsite.com"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
             />
           </div>

@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
-import { createClient } from '@/lib/supabase/client'
 import { Megaphone, Loader2, Eye, EyeOff } from 'lucide-react'
 
 export default function PromoterLogin() {
@@ -20,11 +19,7 @@ export default function PromoterLogin() {
     e.preventDefault()
     setResetLoading(true); setError('')
     try {
-      const supabase = createClient()
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/reset-password`,
-      })
-      if (error) throw error
+      await api.post('/auth/flow/forgot-password', { email })
       setResetSent(true)
     } catch (err: any) {
       setError(err.message || 'Failed to send reset email')

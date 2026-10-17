@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { Mic2, Eye, EyeOff } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
+import api from '@/lib/api'
 
 export default function ArtistLogin() {
   const router = useRouter()
@@ -23,11 +23,7 @@ export default function ArtistLogin() {
     e.preventDefault()
     setResetLoading(true); setError('')
     try {
-      const supabase = createClient()
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/reset-password`,
-      })
-      if (error) throw error
+      await api.post('/auth/flow/forgot-password', { email })
       setResetSent(true)
     } catch (err: any) {
       setError(err.message || 'Failed to send reset email')

@@ -64,12 +64,13 @@ export default function DashboardPage() {
   const fetchDashboardData = async () => {
     try {
       // Fetch events
-      const venueParams = activeVenue ? { venueId: activeVenue.id } : {}
+      const venueParams = activeVenue ? { venueId: activeVenue.name } : {}
       const eventsRes = await api.get<Event[]>('/events', { params: venueParams }).catch(() => ({ data: [] as Event[] }))
       const events = eventsRes.data
 
       // Fetch invoices for unpaid count
-      const invoicesRes = await api.get<Invoice[]>('/invoices', { params: venueParams }).catch(() => ({ data: [] as Invoice[] }))
+      // Invoices are owner-scoped; a venue filter would drop invoices whose event stores a venue name instead of an ID.
+      const invoicesRes = await api.get<Invoice[]>('/invoices').catch(() => ({ data: [] as Invoice[] }))
       const invoices = invoicesRes.data
       // Count all invoices where money is still owed (any status except paid/cancelled)
       const unpaidInvoices = invoices.filter(inv =>
@@ -82,10 +83,8 @@ export default function DashboardPage() {
       // Fetch bookings (gracefully handle missing table)
       const bookingsRes = await api.get<Booking[]>('/bookings').catch(() => ({ data: [] as Booking[] }))
       const bookings = bookingsRes.data
-      // Count events where a deposit amount > 0 was charged (confirmed bookings)
-      const paidDepositBookings = bookings.filter(b =>
-        Number((b as any).deposit_amount ?? b.deposit ?? 0) > 0
-      )
+      // /bookings only returns events already booked (deposit_paid or completed)
+      const paidDepositBookings = bookings
       const completedBookings = bookings.filter(b => (b as any).client_status === 'completed')
       
       // Calculate revenue from invoices (captures paid standalone invoices, not just booking payments)

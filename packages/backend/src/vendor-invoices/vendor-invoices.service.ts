@@ -325,7 +325,7 @@ export class VendorInvoicesService {
     const { data, error } = await admin
       .from('vendor_invoices')
       .select(
-        '*, vendor_invoice_items(*), vendor_accounts(business_name, email, phone, city, state)',
+        '*, vendor_invoice_items(*), vendor_accounts(business_name, email, phone, city, state, stripe_account_id, stripe_connect_status)',
       )
       .eq('id', invoiceId)
       .eq('vendor_account_id', vendorAccountId)
@@ -548,32 +548,28 @@ export class VendorInvoicesService {
       .eq('id', vendorAccountId)
       .single();
 
-    // Only block sending if Stripe is not set up AND there is a client_email to send to
-    // (allows SMS-only delivery for testing without Stripe)
     const hasStripe =
       vendorAccount?.stripe_account_id &&
       vendorAccount.stripe_connect_status === 'active';
+    if (!hasStripe) {
+      throw new BadRequestException(
+        'You must connect a Stripe account before sending invoices. Go to Payouts in your dashboard to set up Stripe.',
+      );
+    }
 
     const invoice = await this.getInvoice(userId, invoiceId);
     const payUrl = `${this.frontendUrl}/pay/${invoice.public_token}`;
     const vendorName = invoice.vendor_accounts?.business_name ?? 'Your Vendor';
 
-    let emailSent = false;
-    if (hasStripe) {
-      emailSent = await this.sendInvoiceEmail({
-        to: invoice.client_email,
-        clientName: invoice.client_name,
-        vendorName,
-        invoiceNumber: invoice.invoice_number,
-        totalAmount: invoice.total_amount,
-        dueDate: invoice.due_date,
-        payUrl,
-      });
-    } else {
-      this.logger.warn(
-        `Skipping email for invoice ${invoiceId} — no active Stripe account. Will send SMS only.`,
-      );
-    }
+    const emailSent = await this.sendInvoiceEmail({
+      to: invoice.client_email,
+      clientName: invoice.client_name,
+      vendorName,
+      invoiceNumber: invoice.invoice_number,
+      totalAmount: invoice.total_amount,
+      dueDate: invoice.due_date,
+      payUrl,
+    });
 
     // Always mark as sent so the client portal shows it
     await admin
@@ -697,6 +693,47 @@ export class VendorInvoicesService {
 
   // ─── Stripe Checkout for public invoice payment ──────────────────────────────
 
+  /** The saved status only changes on a webhook or the vendor's own dashboard visit, so confirm with Stripe before refusing payment. */
+  private async vendorCanReceivePayments(
+    vendorAccountId: string,
+    vendor:
+      | {
+          stripe_account_id?: string | null;
+          stripe_connect_status?: string | null;
+        }
+      | null
+      | undefined,
+  ): Promise<boolean> {
+    if (!vendor?.stripe_account_id) return false;
+    if (vendor.stripe_connect_status === 'active') return true;
+
+    try {
+      const account = await this.stripe.accounts.retrieve(
+        vendor.stripe_account_id,
+      );
+      const ready =
+        account.details_submitted &&
+        account.charges_enabled &&
+        account.payouts_enabled;
+      if (!ready) return false;
+
+      await this.supabaseService
+        .getAdminClient()
+        .from('vendor_accounts')
+        .update({ stripe_connect_status: 'active' })
+        .eq('id', vendorAccountId);
+      this.logger.log(
+        `Vendor ${vendorAccountId} Stripe account confirmed active during checkout`,
+      );
+      return true;
+    } catch (err) {
+      this.logger.warn(
+        `Live Stripe check failed for vendor ${vendorAccountId}: ${(err as Error).message}`,
+      );
+      return false;
+    }
+  }
+
   async createCheckoutSession(
     token: string,
   ): Promise<{ url: string; feeCents: number }> {
@@ -721,8 +758,10 @@ export class VendorInvoicesService {
       throw new ForbiddenException('Invoice amount must be greater than zero');
 
     const vendor = invoice.vendor_accounts;
-    const hasConnect =
-      vendor?.stripe_account_id && vendor?.stripe_connect_status === 'active';
+    const hasConnect = await this.vendorCanReceivePayments(
+      invoice.vendor_account_id,
+      vendor,
+    );
     const bnplMethods = [
       'afterpay_clearpay',
       'klarna',

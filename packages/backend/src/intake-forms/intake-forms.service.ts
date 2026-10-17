@@ -264,7 +264,66 @@ export class IntakeFormsService {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data;
+    return this.withDisplayStatus(data ?? [], userId);
+  }
+
+  /** Adds `display_status` (new/contacted/active/booked/completed/cancelled) derived from the linked event. */
+  private async withDisplayStatus(forms: any[], userId: string) {
+    const converted = forms.filter((f) => f.status === 'converted');
+    if (converted.length === 0) {
+      return forms.map((f) => ({ ...f, display_status: f.status }));
+    }
+
+    const admin = this.supabaseService.getAdminClient();
+    const eventCols =
+      'id, intake_form_id, status, client_status, deposit_amount, deposit_paid';
+    const eventIds = converted.map((f) => f.event_id).filter(Boolean);
+    const [byForm, byId] = await Promise.all([
+      admin
+        .from('event')
+        .select(eventCols)
+        .eq('owner_id', userId)
+        .in(
+          'intake_form_id',
+          converted.map((f) => f.id),
+        ),
+      eventIds.length
+        ? admin
+            .from('event')
+            .select(eventCols)
+            .eq('owner_id', userId)
+            .in('id', eventIds)
+        : Promise.resolve({ data: [] as any[] }),
+    ]);
+
+    const events = new Map<string, any>();
+    for (const e of [...(byForm.data ?? []), ...(byId.data ?? [])]) {
+      events.set(String(e.id), e);
+    }
+
+    return forms.map((f) => {
+      if (f.status !== 'converted') return { ...f, display_status: f.status };
+      const ev =
+        (f.event_id && events.get(String(f.event_id))) ||
+        [...events.values()].find(
+          (e) => String(e.intake_form_id) === String(f.id),
+        );
+      let display = 'active';
+      if (ev) {
+        if (ev.status === 'cancelled' || ev.client_status === 'cancelled') {
+          display = 'cancelled';
+        } else if (ev.client_status === 'completed') {
+          display = 'completed';
+        } else if (
+          ev.client_status === 'deposit_paid' ||
+          ev.deposit_paid ||
+          Number(ev.deposit_amount ?? 0) > 0
+        ) {
+          display = 'booked';
+        }
+      }
+      return { ...f, display_status: display };
+    });
   }
 
   async findOne(supabase: SupabaseClient, userId: string, id: string) {

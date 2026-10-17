@@ -142,7 +142,7 @@ export class GuestListsService {
 
     // Fetch guests for all guest lists
     const guestListIds = guestLists.map((gl) => gl.id);
-    const { data: allGuests, error: guestsError } = await supabase
+    const { data: allGuests } = await supabase
       .from('guests')
       .select('*')
       .in('guest_list_id', guestListIds);
@@ -151,7 +151,7 @@ export class GuestListsService {
     const eventIds = [
       ...new Set(guestLists.map((gl) => gl.event_id).filter(Boolean)),
     ];
-    const { data: events, error: eventsError } = await supabase
+    const { data: events } = await supabase
       .from('event')
       .select('*')
       .in('id', eventIds);
@@ -181,7 +181,7 @@ export class GuestListsService {
     return data || [];
   }
 
-  async findByEvent(eventId: string): Promise<any | null> {
+  async findByEvent(eventId: string): Promise<any> {
     const supabase = this.supabaseService.getAdminClient();
     const { data, error } = await supabase
       .from('guest_lists')
@@ -198,7 +198,7 @@ export class GuestListsService {
     return data;
   }
 
-  async findOne(id: number): Promise<any | null> {
+  async findOne(id: number): Promise<any> {
     const supabase = this.supabaseService.getAdminClient();
 
     // Fetch guest list
@@ -213,14 +213,14 @@ export class GuestListsService {
     if (!guestListData) return null;
 
     // Fetch event details
-    const { data: eventData, error: eventError } = await supabase
+    const { data: eventData } = await supabase
       .from('event')
       .select('*')
       .eq('id', guestListData.event_id)
       .single();
 
     // Fetch guests
-    const { data: guestsData, error: guestsError } = await supabase
+    const { data: guestsData } = await supabase
       .from('guests')
       .select('*')
       .eq('guest_list_id', id)
@@ -233,7 +233,7 @@ export class GuestListsService {
     };
   }
 
-  async findByShareToken(token: string): Promise<any | null> {
+  async findByShareToken(token: string): Promise<any> {
     const supabase = this.supabaseService.getAdminClient();
     const { data, error } = await supabase
       .from('guest_lists')
@@ -250,7 +250,7 @@ export class GuestListsService {
     return data;
   }
 
-  async findByAccessCode(code: string): Promise<any | null> {
+  async findByAccessCode(code: string): Promise<any> {
     const supabase = this.supabaseService.getAdminClient();
 
     // Fetch guest list
@@ -299,7 +299,7 @@ export class GuestListsService {
     return !error && data !== null;
   }
 
-  async findByArrivalToken(token: string): Promise<any | null> {
+  async findByArrivalToken(token: string): Promise<any> {
     const supabase = this.supabaseService.getAdminClient();
     const { data, error } = await supabase
       .from('guest_lists')
@@ -357,7 +357,7 @@ export class GuestListsService {
     return data;
   }
 
-  async update(id: number, guestListData: any): Promise<any | null> {
+  async update(id: number, guestListData: any): Promise<any> {
     const supabase = this.supabaseService.getAdminClient();
 
     const updateData: any = {};
@@ -382,11 +382,11 @@ export class GuestListsService {
     return data;
   }
 
-  async lock(id: number): Promise<any | null> {
+  async lock(id: number): Promise<any> {
     return this.update(id, { isLocked: true });
   }
 
-  async unlock(id: number): Promise<any | null> {
+  async unlock(id: number): Promise<any> {
     return this.update(id, { isLocked: false });
   }
 
@@ -441,7 +441,7 @@ export class GuestListsService {
     return data;
   }
 
-  async updateGuest(guestId: number, guestData: any): Promise<any | null> {
+  async updateGuest(guestId: number, guestData: any): Promise<any> {
     const supabase = this.supabaseService.getAdminClient();
 
     const updateData: any = {};
@@ -472,7 +472,7 @@ export class GuestListsService {
     if (error) throw error;
   }
 
-  async markArrival(guestId: number): Promise<any | null> {
+  async markArrival(guestId: number): Promise<any> {
     const supabase = this.supabaseService.getAdminClient();
     const { data, error } = await supabase
       .from('guests')
@@ -488,7 +488,7 @@ export class GuestListsService {
     return data;
   }
 
-  async unmarkArrival(guestId: number): Promise<any | null> {
+  async unmarkArrival(guestId: number): Promise<any> {
     const supabase = this.supabaseService.getAdminClient();
     const { data, error } = await supabase
       .from('guests')
@@ -579,6 +579,109 @@ export class GuestListsService {
   }
 
   /**
+   * Live-sync a single RSVP response into the venue owner's Door List.
+   * Called automatically whenever a guest responds to an RSVP invite, so the
+   * owner's Door List reflects the client-portal RSVP status without the
+   * manual "Import from RSVP" button.
+   *
+   * - status 'attending' → upserts a `guests` row linked via `rsvp_guest_id`
+   *   (creates the event's guest_list on first sync if one doesn't exist yet)
+   * - status 'declined'  → removes the linked `guests` row, if any
+   */
+  async syncRsvpGuest(
+    eventId: string | number,
+    rsvpGuest: {
+      id: string;
+      guest_name: string;
+      guest_phone?: string | null;
+      plus_ones?: number | null;
+      status: string;
+    },
+  ): Promise<void> {
+    const supabase = this.supabaseService.getAdminClient();
+
+    if (rsvpGuest.status !== 'attending') {
+      const { error } = await supabase
+        .from('guests')
+        .delete()
+        .eq('rsvp_guest_id', rsvpGuest.id);
+      if (error) throw error;
+      return;
+    }
+
+    const { data: foundList, error: listError } = await supabase
+      .from('guest_lists')
+      .select('id')
+      .eq('event_id', eventId)
+      .maybeSingle();
+    if (listError) throw listError;
+    let guestList = foundList;
+
+    if (!guestList) {
+      const { data: created, error: createErr } = await supabase
+        .from('guest_lists')
+        .insert({
+          event_id: eventId,
+          access_code: this.generateAccessCode(),
+          share_token: this.generateToken(),
+          arrival_token: this.generateToken(),
+        })
+        .select('id')
+        .single();
+      if (createErr) throw createErr;
+      guestList = created;
+    }
+
+    const { data: linkedGuest, error: lookupError } = await supabase
+      .from('guests')
+      .select('id')
+      .eq('rsvp_guest_id', rsvpGuest.id)
+      .maybeSingle();
+    if (lookupError) throw lookupError;
+    let existing = linkedGuest;
+
+    if (!existing) {
+      const { data: legacyGuests, error: legacyError } = await supabase
+        .from('guests')
+        .select('id, name, phone, rsvp_guest_id')
+        .eq('guest_list_id', guestList.id);
+      if (legacyError) throw legacyError;
+      const matches = (legacyGuests || []).filter(
+        (candidate) =>
+          !candidate.rsvp_guest_id &&
+          candidate.name.trim().toLowerCase() ===
+            rsvpGuest.guest_name.trim().toLowerCase() &&
+          (candidate.phone || '') === (rsvpGuest.guest_phone || ''),
+      );
+      if (matches.length === 1) existing = matches[0];
+    }
+
+    if (existing) {
+      const { error } = await supabase
+        .from('guests')
+        .update({
+          rsvp_guest_id: rsvpGuest.id,
+          name: rsvpGuest.guest_name,
+          phone: rsvpGuest.guest_phone || null,
+          plus_one_count: rsvpGuest.plus_ones ?? 0,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existing.id);
+      if (error) throw error;
+    } else {
+      const { error: insertErr } = await supabase.from('guests').insert({
+        guest_list_id: guestList.id,
+        rsvp_guest_id: rsvpGuest.id,
+        name: rsvpGuest.guest_name,
+        phone: rsvpGuest.guest_phone || null,
+        plus_one_count: rsvpGuest.plus_ones ?? 0,
+        has_arrived: false,
+      });
+      if (insertErr) throw insertErr;
+    }
+  }
+
+  /**
    * Import attending RSVP guests into a guest list.
    * Looks up rsvp_guests via: guest_list → event_id → intake_forms → rsvp_guests(status=attending)
    * Skips guests already on the list (matched by name, case-insensitive).
@@ -596,54 +699,52 @@ export class GuestListsService {
       .single();
     if (glErr || !guestList) throw new Error('Guest list not found');
 
-    // Find intake forms for this event
-    const { data: forms } = await supabase
+    const { data: event, error: eventError } = await supabase
+      .from('event')
+      .select('intake_form_id, client_id')
+      .eq('id', guestList.event_id)
+      .single();
+    if (eventError) throw eventError;
+    const { data: forms, error: formsError } = await supabase
       .from('intake_forms')
       .select('id')
       .eq('event_id', guestList.event_id);
-    if (!forms?.length) return { imported: 0, skipped: 0 };
-
-    const intakeFormIds = forms.map((f: any) => f.id);
+    if (formsError) throw formsError;
+    const intakeFormIds = [
+      ...new Set(
+        [
+          ...(forms || []).map((form: any) => form.id),
+          event?.intake_form_id,
+          event?.client_id,
+        ].filter(Boolean),
+      ),
+    ];
+    if (!intakeFormIds.length) return { imported: 0, skipped: 0 };
 
     // Get attending RSVP guests
     const { data: rsvpGuests, error: rsvpErr } = await supabase
       .from('rsvp_guests')
-      .select('guest_name, guest_phone, plus_ones')
-      .in('intake_form_id', intakeFormIds)
-      .eq('status', 'attending');
+      .select('id, guest_name, guest_phone, plus_ones, status')
+      .in('intake_form_id', intakeFormIds);
     if (rsvpErr) throw rsvpErr;
     if (!rsvpGuests?.length) return { imported: 0, skipped: 0 };
 
     // Get existing guests to avoid duplicates
-    const { data: existing } = await supabase
+    const { data: existing, error: existingError } = await supabase
       .from('guests')
-      .select('name')
+      .select('rsvp_guest_id')
       .eq('guest_list_id', guestListId);
-    const existingNames = new Set(
-      (existing || []).map((g: any) => g.name.toLowerCase().trim()),
-    );
-
-    const toInsert = rsvpGuests
-      .filter(
-        (g: any) =>
-          !existingNames.has((g.guest_name || '').toLowerCase().trim()),
-      )
-      .map((g: any) => ({
-        guest_list_id: guestListId,
-        name: g.guest_name,
-        phone: g.guest_phone || null,
-        plus_one_count: g.plus_ones ?? 0,
-        has_arrived: false,
-      }));
-
-    if (!toInsert.length) return { imported: 0, skipped: rsvpGuests.length };
-
-    const { error: insertErr } = await supabase.from('guests').insert(toInsert);
-    if (insertErr) throw insertErr;
-
-    return {
-      imported: toInsert.length,
-      skipped: rsvpGuests.length - toInsert.length,
-    };
+    if (existingError) throw existingError;
+    const linkedIds = new Set((existing || []).map((row) => row.rsvp_guest_id));
+    let imported = 0;
+    let skipped = 0;
+    for (const guest of rsvpGuests) {
+      await this.syncRsvpGuest(guestList.event_id, guest);
+      if (guest.status === 'attending') {
+        if (linkedIds.has(guest.id)) skipped++;
+        else imported++;
+      }
+    }
+    return { imported, skipped };
   }
 }

@@ -32,7 +32,10 @@ export class PromoterController {
       throw new UnauthorizedException('No authorization header');
     const token = authorization.replace('Bearer ', '');
 
-    if (token.startsWith('local-')) {
+    if (
+      token.startsWith('local-') &&
+      process.env.ALLOW_LOCAL_DEV_AUTH === 'true'
+    ) {
       return token.replace('local-', '');
     }
 
@@ -165,12 +168,6 @@ export class PromoterController {
       requestId,
       body.status,
     );
-  }
-
-  /** GET /promoter/booking-link/s/:code — public: resolve short code */
-  @Get('booking-link/s/:code')
-  async getPublicBookingLinkByShortCode(@Param('code') code: string) {
-    return this.promoterService.getPublicBookingLinkByShortCode(code);
   }
 
   /** GET /promoter/booking-link/:slug — public: view booking link */

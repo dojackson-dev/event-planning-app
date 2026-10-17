@@ -4,6 +4,7 @@ import { useState, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
+import { normalizeWebsite } from '@/lib/url'
 import PhoneInput from '@/components/PhoneInput'
 import AddressAutocomplete from '@/components/AddressAutocomplete'
 
@@ -109,7 +110,7 @@ function VendorRegisterForm() {
         hourlyRate: hourlyRate ? parseFloat(hourlyRate) : undefined,
         flatRate: flatRate ? parseFloat(flatRate) : undefined,
         rateDescription: rateDesc,
-        website,
+        website: normalizeWebsite(website),
         instagram,
         facebook: facebook || undefined,
         phone,
@@ -352,10 +353,10 @@ function VendorRegisterForm() {
                 <label className="block text-sm font-medium text-gray-700 mb-3">Online Presence</label>
                 <div className="space-y-2">
                   <input
-                    type="url" value={website} onChange={e => setWebsite(e.target.value)}
+                    type="text" inputMode="url" value={website} onChange={e => setWebsite(e.target.value)}
                     suppressHydrationWarning
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    placeholder="https://yourwebsite.com"
+                    placeholder="yourwebsite.com"
                   />
                   <input
                     type="text" value={instagram} onChange={e => setInstagram(e.target.value)}

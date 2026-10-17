@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
+import { normalizeWebsite } from '@/lib/url'
 import ImageUpload from '@/components/ImageUpload'
 import { useAuth } from '@/contexts/AuthContext'
 import { ArrowLeft, Save, CheckCircle, AlertTriangle, Trash2 } from 'lucide-react'
@@ -170,11 +171,11 @@ export default function ArtistProfilePage() {
         setLengthMinutes: form.setLengthMinutes !== '' ? Number(form.setLengthMinutes) : undefined,
         equipmentNeeds: form.equipmentNeeds || undefined,
         hospitalityRequirements: form.hospitalityRequirements || undefined,
-        website: form.website || undefined,
+        website: normalizeWebsite(form.website),
         instagram: form.instagram || undefined,
         youtube: form.youtube || undefined,
         spotify: form.spotify || undefined,
-        epkUrl: form.epkUrl || undefined,
+        epkUrl: normalizeWebsite(form.epkUrl),
         availableForBooking: form.availableForBooking,
         profileImageUrl: profileImageUrl || undefined,
         coverImageUrl: coverImageUrl || undefined,
@@ -332,10 +333,10 @@ export default function ArtistProfilePage() {
         <Section title="Links & Socials">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Instagram">{input('instagram', { placeholder: '@yourhandle' })}</Field>
-            <Field label="Website">{input('website', { type: 'url', placeholder: 'https://yoursite.com' })}</Field>
+            <Field label="Website">{input('website', { placeholder: 'yoursite.com' })}</Field>
             <Field label="YouTube">{input('youtube', { placeholder: 'https://youtube.com/...' })}</Field>
             <Field label="Spotify">{input('spotify', { placeholder: 'https://open.spotify.com/...' })}</Field>
-            <Field label="EPK / Press Kit URL">{input('epkUrl', { type: 'url', placeholder: 'https://...' })}</Field>
+            <Field label="EPK / Press Kit URL">{input('epkUrl', { placeholder: 'yoursite.com/epk' })}</Field>
           </div>
         </Section>
 

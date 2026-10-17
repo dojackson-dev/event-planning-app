@@ -1,4 +1,10 @@
-import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -10,6 +16,7 @@ import { AffiliatesService } from '../affiliates/affiliates.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import { MailService } from '../mail/mail.service';
 import { VipService } from '../vip/vip.service';
+import { clientVisibleItems } from '../invoices/client-visible-items';
 import { analytics } from '../analytics/heycatch';
 
 @Injectable()
@@ -17,6 +24,8 @@ export class StripeService {
   private readonly logger = new Logger(StripeService.name);
   private readonly stripe: Stripe;
   private readonly webhookSecret: string;
+  /** Stripe gives a connected-accounts destination its own signing secret. */
+  private readonly connectWebhookSecret: string;
   private readonly frontendUrl: string;
 
   constructor(
@@ -39,6 +48,10 @@ export class StripeService {
     this.stripe = new Stripe(secretKey);
     this.webhookSecret = this.configService.get<string>(
       'STRIPE_WEBHOOK_SECRET',
+      '',
+    );
+    this.connectWebhookSecret = this.configService.get<string>(
+      'STRIPE_CONNECT_WEBHOOK_SECRET',
       '',
     );
     this.frontendUrl = this.configService.get<string>(
@@ -312,12 +325,14 @@ export class StripeService {
     const { data: invoice } = await admin
       .from('invoices')
       .select(
-        'id, invoice_number, total_amount, amount_due, amount_paid, owner_id, client_name, client_email',
+        'id, invoice_number, total_amount, amount_due, amount_paid, status, owner_id, client_name, client_email',
       )
       .eq('id', invoiceId)
       .maybeSingle();
 
     if (!invoice) throw new Error('Invoice not found');
+    if (invoice.status === 'cancelled')
+      throw new BadRequestException('This invoice has been cancelled');
     if (invoice.amount_due <= 0)
       throw new Error('Invoice is already fully paid');
 
@@ -420,19 +435,29 @@ export class StripeService {
     let event: Stripe.Event;
 
     if (this.webhookSecret) {
-      try {
-        event = this.stripe.webhooks.constructEvent(
-          rawBody,
-          signature,
-          this.webhookSecret,
-        );
-      } catch (err) {
+      let verified: Stripe.Event | undefined;
+      let lastError: Error | undefined;
+      for (const secret of [this.webhookSecret, this.connectWebhookSecret]) {
+        if (!secret) continue;
+        try {
+          verified = this.stripe.webhooks.constructEvent(
+            rawBody,
+            signature,
+            secret,
+          );
+          break;
+        } catch (err) {
+          lastError = err as Error;
+        }
+      }
+      if (!verified) {
         this.logger.error(
           'Webhook signature verification failed',
-          (err as Error).message,
+          lastError?.message,
         );
-        throw new Error(`Webhook error: ${(err as Error).message}`);
+        throw new Error(`Webhook error: ${lastError?.message}`);
       }
+      event = verified;
     } else {
       this.logger.warn(
         'STRIPE_WEBHOOK_SECRET not set — skipping signature verification (dev mode)',
@@ -889,6 +914,49 @@ export class StripeService {
     }
   }
 
+  /** A paid invoice means the event is booked; /bookings counts events by client_status. */
+  private async syncEventAfterPayment(
+    admin: ReturnType<SupabaseService['getAdminClient']>,
+    eventId: string | null | undefined,
+    amountPaid: number,
+    isFullyPaid: boolean,
+  ): Promise<void> {
+    if (!eventId) return;
+    const { data: event } = await admin
+      .from('event')
+      .select('client_status, deposit_paid_at')
+      .eq('id', eventId)
+      .maybeSingle();
+    if (!event) return;
+
+    const keepStatus = ['completed', 'cancelled'].includes(event.client_status);
+    const { error } = await admin
+      .from('event')
+      .update({
+        ...(keepStatus ? {} : { client_status: 'deposit_paid' }),
+        deposit_paid: true,
+        deposit_paid_at: event.deposit_paid_at ?? new Date().toISOString(),
+        deposit_amount: amountPaid,
+      })
+      .eq('id', eventId);
+    if (error) {
+      this.logger.warn(
+        `Could not mark event ${eventId} booked after payment: ${error.message}`,
+      );
+      return;
+    }
+
+    const { error: paymentStatusError } = await admin
+      .from('event')
+      .update({ payment_status: isFullyPaid ? 'paid' : 'deposit_paid' })
+      .eq('id', eventId);
+    if (paymentStatusError) {
+      this.logger.warn(
+        `Could not update payment status for event ${eventId}: ${paymentStatusError.message}`,
+      );
+    }
+  }
+
   /**
    * Record a (possibly partial) payment against an invoice.
    * - Adds amountCents to amount_paid, recalculates amount_due.
@@ -904,7 +972,7 @@ export class StripeService {
     const { data: invoice } = await admin
       .from('invoices')
       .select(
-        'total_amount, amount_paid, client_phone, client_name, invoice_number, owner_id, booking_id, intake_form_id',
+        'total_amount, amount_paid, client_phone, client_name, invoice_number, owner_id, booking_id, intake_form_id, event_id',
       )
       .eq('id', invoiceId)
       .maybeSingle();
@@ -934,6 +1002,13 @@ export class StripeService {
     }
 
     if (!invoice) return;
+
+    await this.syncEventAfterPayment(
+      admin,
+      (invoice as any).event_id,
+      isFullyPaid ? total : newAmountPaid,
+      isFullyPaid,
+    );
 
     // ── Notify client via SMS ──────────────────────────────────────────────
     let clientPhone = invoice.client_phone ?? null;
@@ -1381,7 +1456,7 @@ export class StripeService {
   private async getOwnerAccountByUserId(
     userId: string,
     admin: any,
-  ): Promise<any | null> {
+  ): Promise<any> {
     // Primary: look up via memberships
     const { data: membership } = await admin
       .from('memberships')
@@ -2163,18 +2238,18 @@ export class StripeService {
       .select(
         `
         id, invoice_number, client_name, client_email,
-        total_amount, amount_paid, amount_due, status,
+        total_amount, amount_paid, amount_due, discount_amount, status,
         issue_date, due_date, notes, terms,
         deposit_percentage, deposit_due_days_before, final_payment_due_days_before,
         event:event!event_id(id, name, date),
-        items:invoice_items(id, description, quantity, unit_price, amount, item_type)
+        items:invoice_items(id, description, quantity, unit_price, amount, item_type, discount_type, discount_value, discount_amount)
       `,
       )
       .eq('public_token', token)
       .maybeSingle();
 
     if (error || !data) throw new Error('Invoice not found');
-    return data;
+    return { ...data, items: clientVisibleItems((data as any).items) };
   }
 
   /**
@@ -2190,12 +2265,14 @@ export class StripeService {
     const { data: inv, error } = await admin
       .from('invoices')
       .select(
-        'id, invoice_number, amount_due, total_amount, owner_id, client_email',
+        'id, invoice_number, amount_due, total_amount, status, owner_id, client_email',
       )
       .eq('public_token', token)
       .maybeSingle();
 
     if (error || !inv) throw new Error('Invoice not found');
+    if (inv.status === 'cancelled')
+      throw new BadRequestException('This invoice has been cancelled');
 
     const maxCents = Math.round(Number(inv.amount_due) * 100);
     const safeCents = Math.min(amountCents, maxCents);

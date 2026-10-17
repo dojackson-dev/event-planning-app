@@ -144,8 +144,9 @@ export default function EventsPage() {
     let cancelled = false
     setLoading(true)
     setEvents([])
-    const params = activeVenue ? { venueId: activeVenue.id } : {}
-    console.log('[Events] fetching, venueId:', activeVenue?.id ?? 'ALL')
+    // Legacy production event rows store venue names in venue_id, not venue UUIDs.
+    const params = activeVenue ? { venueId: activeVenue.name } : {}
+    console.log('[Events] fetching, venue:', activeVenue?.name ?? 'ALL')
     Promise.all([
       api.get<Event[]>('/events', { params }),
       api.get('/estimates').catch(() => ({ data: [] })),
@@ -153,7 +154,7 @@ export default function EventsPage() {
       api.get('/contracts').catch(() => ({ data: [] })),
     ]).then(([evRes, estRes, invRes, conRes]) => {
       if (cancelled) return
-      console.log('[Events] got', evRes.data.length, 'events for venueId:', activeVenue?.id ?? 'ALL')
+      console.log('[Events] got', evRes.data.length, 'events for venue:', activeVenue?.name ?? 'ALL')
       setEvents(evRes.data)
       setAllEstimates(estRes.data || [])
       setAllInvoices(invRes.data || [])

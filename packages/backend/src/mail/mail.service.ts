@@ -797,6 +797,43 @@ export class MailService {
     }
   }
 
+  /** Send a password reset link via Resend (Supabase's built-in mailer is heavily rate limited). */
+  async sendPasswordResetEmail(params: {
+    toEmail: string;
+    resetUrl: string;
+  }): Promise<void> {
+    if (!process.env.RESEND_API_KEY) {
+      throw new Error('RESEND_API_KEY not set — password reset email not sent');
+    }
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f9fafb;padding:32px 16px;">
+        <div style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+          ${this.getEmailHeader('Reset Your Password', 'EventEcos')}
+          <div style="padding:32px;">
+            <p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 24px;">
+              We received a request to reset your password. Click the button below to choose a new one.
+            </p>
+            <div style="text-align:center;margin:28px 0;">
+              <a href="${params.resetUrl}"
+                 style="display:inline-block;background:#2563eb;color:white;padding:14px 40px;text-decoration:none;border-radius:8px;font-size:16px;font-weight:600;">
+                Reset Password
+              </a>
+            </div>
+            <p style="color:#6b7280;font-size:13px;text-align:center;">This link expires in 1 hour. If you didn't request this, you can safely ignore this email.</p>
+          </div>
+        </div>
+      </div>
+    `;
+    const { error } = await resend.emails.send({
+      from: this.resendFrom,
+      to: params.toEmail,
+      subject: 'Reset your EventEcos password',
+      html,
+    });
+    if (error) throw new Error(error.message);
+  }
+
   async sendReminderEmail(params: {
     toEmail: string;
     toName: string;
@@ -1470,7 +1507,6 @@ export class MailService {
     eventDate: string | null;
     rider: Record<string, any>;
   }): Promise<void> {
-    const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
     const mailOptions = {
       from: `"EventEcos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
       to: params.to,

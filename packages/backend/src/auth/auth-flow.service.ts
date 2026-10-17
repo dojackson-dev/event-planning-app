@@ -13,6 +13,7 @@ import { TwilioService } from '../messaging/twilio.service.js';
 import { AffiliatesService } from '../affiliates/affiliates.service';
 import { MailService } from '../mail/mail.service';
 import { analytics } from '../analytics/heycatch';
+import { AuditService } from '../audit/audit.service';
 import {
   OwnerSignupDto,
   OwnerLoginDto,
@@ -36,6 +37,7 @@ export class AuthFlowService {
     @Inject(forwardRef(() => AffiliatesService))
     private readonly affiliatesService: AffiliatesService,
     private readonly mailService: MailService,
+    private readonly auditService: AuditService,
   ) {}
 
   /**
@@ -359,6 +361,14 @@ export class AuthFlowService {
     //   );
     //   return { accessGranted: false, billingUrl };
     // }
+
+    this.auditService
+      .recordLogin(
+        authData.user.id,
+        user.memberships[0]?.owner_account_id ?? null,
+        'owner',
+      )
+      .catch(() => {});
 
     return {
       session: authData.session,
@@ -834,6 +844,37 @@ export class AuthFlowService {
     };
   }
 
+  /** Always resolves, so callers can't tell whether an email is registered. */
+  async forgotPassword(email: string) {
+    const generic = {
+      message:
+        'If an account exists for that email, a reset link has been sent.',
+    };
+    const normalized = email?.trim().toLowerCase();
+    if (!normalized) return generic;
+
+    try {
+      const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+      const { data, error } = await this.supabaseService
+        .getAdminClient()
+        .auth.admin.generateLink({
+          type: 'recovery',
+          email: normalized,
+          options: { redirectTo: `${frontendUrl}/reset-password` },
+        });
+      const resetUrl = data?.properties?.action_link;
+      if (error || !resetUrl) return generic;
+
+      await this.mailService.sendPasswordResetEmail({
+        toEmail: normalized,
+        resetUrl,
+      });
+    } catch (err) {
+      console.error('[AuthFlowService] forgotPassword failed:', err);
+    }
+    return generic;
+  }
+
   async vendorLogin(email: string, password: string) {
     const supabase = this.supabaseService.getClient();
 
@@ -862,6 +903,10 @@ export class AuthFlowService {
       .select('id, business_name, category, is_active')
       .eq('user_id', authData.user.id)
       .single();
+
+    this.auditService
+      .recordLogin(authData.user.id, null, 'vendor')
+      .catch(() => {});
 
     return {
       session: authData.session,
@@ -950,6 +995,10 @@ export class AuthFlowService {
       vendorAccount = va;
     }
 
+    this.auditService
+      .recordLogin(user.id, ownerAccountId, 'unified')
+      .catch(() => {});
+
     return {
       session: authData.session,
       user,
@@ -1030,6 +1079,10 @@ export class AuthFlowService {
     if (user?.role !== 'admin') {
       throw new UnauthorizedException('Not an admin account');
     }
+
+    this.auditService
+      .recordLogin(authData.user.id, null, 'admin')
+      .catch(() => {});
 
     return {
       session: authData.session,

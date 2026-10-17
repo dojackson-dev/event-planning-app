@@ -78,6 +78,7 @@ interface TevoEvent {
   state: string | null
   category: string | null
   event_url: string | null
+  image_url: string | null
   source: 'ticket_evolution'
 }
 
@@ -109,6 +110,10 @@ const TM_PAGE_SIZE = 20
 const EXT_PAGE_SIZE = 100
 const TEVO_PAGE_SIZE = 24
 const PLATFORM_PAGE_SIZE = 100
+
+// Turn on with NEXT_PUBLIC_ENABLE_TICKET_EVOLUTION_EVENTS=true once Hosted Checkout is verified.
+const ENABLE_TICKET_EVOLUTION_PUBLIC_EVENTS =
+  process.env.NEXT_PUBLIC_ENABLE_TICKET_EVOLUTION_EVENTS === 'true'
 
 export default function PublicEventsPage() {
   const [events, setEvents] = useState<PublicEvent[]>([])
@@ -312,11 +317,11 @@ export default function PublicEventsPage() {
     fetchEvents(resolvedZip, category, radiusMiles, computeDateRange(dateFilter, selectedMonth))
   }
 
-  const fetchEvents = (zip?: string, cat?: string, radius?: string, dateRange?: { from?: string; to?: string }) => {
+  const fetchEvents = (zip?: string, cat?: string, radius?: string, dateRange?: { from?: string; to?: string }, searchTerm?: string) => {
     setLoading(true)
     setTmLoading(true)
     setExtLoading(true)
-    setTevoLoading(true)
+    setTevoLoading(ENABLE_TICKET_EVOLUTION_PUBLIC_EVENTS)
     const params: Record<string, string> = {}
     if (zip) params.zip_code = zip
     if (cat) params.category = cat
@@ -325,18 +330,23 @@ export default function PublicEventsPage() {
     if (dateRange?.to) params.date_to = dateRange.to
     const tmParams: Record<string, string> = { ...params }
     if (zip && radius) tmParams.radius_miles = radius
+    if (searchTerm) tmParams.keyword = searchTerm
     const tevoParams: Record<string, string> = {}
     if (dateRange?.from) tevoParams.date_from = dateRange.from
     if (dateRange?.to) tevoParams.date_to = dateRange.to
     if (zip) tevoParams.zip_code = zip
     if (zip && radius) tevoParams.radius_miles = radius
+    if (searchTerm) tevoParams.name = searchTerm
     const platformParams = { ...params, limit: String(PLATFORM_PAGE_SIZE) }
-    Promise.allSettled([
+    const requests: Array<Promise<{ data: any[] }>> = [
       api.get('/promoter-events/public', { params: platformParams }),
       api.get('/ticketmaster/events', { params: tmParams }),
       api.get('/external-events/events', { params }),
-      api.get('/ticket-evolution/public-events', { params: tevoParams }),
-    ])
+    ]
+    if (ENABLE_TICKET_EVOLUTION_PUBLIC_EVENTS) {
+      requests.push(api.get('/ticket-evolution/public-events', { params: tevoParams }))
+    }
+    Promise.allSettled(requests)
       .then(([platformRes, tmRes, extRes, tevoRes]) => {
         const platformRows: PublicEvent[] = platformRes.status === 'fulfilled' ? platformRes.value.data || [] : []
         setEvents(platformRows)
@@ -354,7 +364,10 @@ export default function PublicEventsPage() {
         setExtOffset(EXT_PAGE_SIZE)
         setExtHasMore(extRows.length === EXT_PAGE_SIZE)
 
-        const tevoRows: TevoEvent[] = tevoRes.status === 'fulfilled' ? tevoRes.value.data || [] : []
+        const tevoRows: TevoEvent[] =
+          ENABLE_TICKET_EVOLUTION_PUBLIC_EVENTS && tevoRes?.status === 'fulfilled'
+            ? tevoRes.value.data || []
+            : []
         setTevoEvents(tevoRows)
         setTevoPage(2)
         setTevoHasMore(tevoRows.length === TEVO_PAGE_SIZE)
@@ -372,6 +385,7 @@ export default function PublicEventsPage() {
       if (zipCode) tmParams.zip_code = zipCode
       if (category) tmParams.category = category
       if (zipCode && radiusMiles) tmParams.radius_miles = radiusMiles
+      if (search) tmParams.keyword = search
       const range = computeDateRange(dateFilter, selectedMonth)
       if (range.from) tmParams.date_from = range.from
       if (range.to) tmParams.date_to = range.to
@@ -453,6 +467,7 @@ export default function PublicEventsPage() {
       if (range.to) params.date_to = range.to
       if (zipCode) params.zip_code = zipCode
       if (zipCode && radiusMiles) params.radius_miles = radiusMiles
+      if (search) params.name = search
       const res = await api.get('/ticket-evolution/public-events', { params })
       const rows: TevoEvent[] = res.data || []
       const existingIds = new Set(tevoEvents.map(event => event.id))
@@ -494,7 +509,7 @@ export default function PublicEventsPage() {
       }
     }
     setShowCitySuggestions(false)
-    fetchEvents(zip, category, radiusMiles, computeDateRange(dateFilter, selectedMonth))
+    fetchEvents(zip, category, radiusMiles, computeDateRange(dateFilter, selectedMonth), search)
   }
 
   const matchesSearch = useCallback((ev: { title: string; city: string | null; venue_name: string | null }) =>
@@ -701,7 +716,10 @@ export default function PublicEventsPage() {
           // have also finished loading and turned up nothing — if any of
           // those sources has events, skip straight to their sections below
           // instead of telling the user "No events found".
-          !tmLoading && !extLoading && !tevoLoading && tmEvents.length === 0 && extEvents.length === 0 && tevoEvents.length === 0 ? (
+          !tmLoading && !extLoading &&
+          (!ENABLE_TICKET_EVOLUTION_PUBLIC_EVENTS || !tevoLoading) &&
+          tmEvents.length === 0 && extEvents.length === 0 &&
+          (!ENABLE_TICKET_EVOLUTION_PUBLIC_EVENTS || tevoEvents.length === 0) ? (
             <div className="text-center py-20">
               <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
               <p className="text-xl font-semibold text-gray-600">No events found</p>
@@ -810,7 +828,7 @@ export default function PublicEventsPage() {
       </div>
 
       {/* ── Ticket Evolution Events ──────────────────────────────── */}
-      {(tevoLoading || tevoEvents.length > 0) && (
+      {ENABLE_TICKET_EVOLUTION_PUBLIC_EVENTS && (tevoLoading || tevoEvents.length > 0) && (
         <div className="max-w-6xl mx-auto px-4 pb-10">
           <div className="flex items-center justify-between mb-5">
             <div>
@@ -831,7 +849,12 @@ export default function PublicEventsPage() {
                   const card = (
                     <>
                       <div className="h-44 bg-gradient-to-br from-purple-100 to-fuchsia-100 relative overflow-hidden flex items-center justify-center">
-                        <Ticket className="w-12 h-12 text-purple-300" />
+                        {ev.image_url ? (
+                          <img src={ev.image_url} alt={ev.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                        ) : (
+                          <Ticket className="w-12 h-12 text-purple-300" />
+                        )}
                       </div>
 
                       <div className="p-4">
@@ -868,29 +891,20 @@ export default function PublicEventsPage() {
                             )}
                           </div>
                           <span className="text-xs text-gray-400 flex items-center gap-1">
-                            <ExternalLink className="w-3 h-3" />See details
+                            See seats &amp; tickets →
                           </span>
                         </div>
                       </div>
                     </>
                   )
-                  return ev.event_url ? (
-                    <a
+                  return (
+                    <Link
                       key={ev.id}
-                      href={ev.event_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      href={`/events/tickets/${ev.id}`}
                       className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-md hover:border-purple-200 transition-all group block"
                     >
                       {card}
-                    </a>
-                  ) : (
-                    <div
-                      key={ev.id}
-                      className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 group block"
-                    >
-                      {card}
-                    </div>
+                    </Link>
                   )
                 })}
             </div>

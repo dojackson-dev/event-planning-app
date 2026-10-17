@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { normalizeWebsite } from '@/lib/url'
 
 export default function AddTenantPage() {
   const router = useRouter()
@@ -36,7 +37,7 @@ export default function AddTenantPage() {
             contact_phone: formData.contact_phone || null,
             address: formData.address || null,
             logo_url: formData.logo_url || null,
-            custom_url: formData.custom_url || null
+            custom_url: normalizeWebsite(formData.custom_url) ?? null
           }
         ])
         .select()
@@ -186,13 +187,14 @@ export default function AddTenantPage() {
                 Custom Website URL
               </label>
               <input
-                type="url"
+                type="text"
+                inputMode="url"
                 id="custom_url"
                 name="custom_url"
                 value={formData.custom_url}
                 onChange={handleChange}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                placeholder="https://www.yourdomain.com"
+                placeholder="www.yourdomain.com"
               />
               <p className="mt-1 text-sm text-gray-500">
                 Your custom website or domain if you have one

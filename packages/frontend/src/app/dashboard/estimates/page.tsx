@@ -51,7 +51,6 @@ export default function EstimatesPage() {
     setEstimates([])
     try {
       const params: any = user?.role === 'owner' ? { ownerId: user.id } : {}
-      if (activeVenue) params.venueId = activeVenue.id
       const res = await api.get<Estimate[]>('/estimates', { params })
       setEstimates(res.data)
     } catch (err) {

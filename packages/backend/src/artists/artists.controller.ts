@@ -32,7 +32,10 @@ export class ArtistsController {
       throw new UnauthorizedException('No authorization header');
     const token = authorization.replace('Bearer ', '');
 
-    if (token.startsWith('local-')) {
+    if (
+      token.startsWith('local-') &&
+      process.env.ALLOW_LOCAL_DEV_AUTH === 'true'
+    ) {
       return token.replace('local-', '');
     }
 
@@ -190,12 +193,6 @@ export class ArtistsController {
       requestId,
       body.status,
     );
-  }
-
-  /** GET /artists/booking-link/s/:code — public: resolve short code */
-  @Get('booking-link/s/:code')
-  async getPublicBookingLinkByShortCode(@Param('code') code: string) {
-    return this.artistsService.getPublicBookingLinkByShortCode(code);
   }
 
   /** GET /artists/booking-link/:slug — public: view booking link */

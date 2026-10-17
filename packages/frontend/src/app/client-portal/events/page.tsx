@@ -58,10 +58,20 @@ export default function ClientEventsPage() {
 
   useEffect(() => {
     clientApi.get('/events')
-      .then((res) => setEvents(res.data))
+      .then((res) => {
+        setEvents(res.data)
+        const target = new URLSearchParams(window.location.search).get('event')
+        if (target) setExpanded(target)
+      })
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    if (loading) return
+    const target = new URLSearchParams(window.location.search).get('event')
+    if (target) document.getElementById(`event-${target}`)?.scrollIntoView({ block: 'center' })
+  }, [loading])
 
   if (loading) {
     return <div className="flex items-center justify-center h-64 text-gray-500">Loading events...</div>
@@ -92,7 +102,7 @@ export default function ClientEventsPage() {
             const status = resolveStatus(event)
             const isExpanded = expanded === event.id
             return (
-              <div key={event.id} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div key={event.id} id={`event-${event.id}`} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                 {/* Header row */}
                 <button
                   onClick={() => setExpanded(isExpanded ? null : event.id)}
@@ -203,6 +213,27 @@ export default function ClientEventsPage() {
                             Message
                           </Link>
                         </div>
+                      </div>
+                    )}
+
+                    {event._type !== 'vendor_booking' && (
+                      <div className="mt-4 flex flex-wrap justify-end gap-2">
+                        {event.intake_form_id && (
+                          <Link
+                            href={`/client-portal/rsvp?form=${encodeURIComponent(event.intake_form_id)}`}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors"
+                          >
+                            <Users className="h-4 w-4" />
+                            Manage RSVP
+                          </Link>
+                        )}
+                        <Link
+                          href={`/client-portal/events/${event.id}/team?name=${encodeURIComponent(event.name || '')}`}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-primary-600 border border-primary-200 hover:bg-primary-50 rounded-lg transition-colors"
+                        >
+                          <Users className="h-4 w-4" />
+                          Manage Team
+                        </Link>
                       </div>
                     )}
                   </div>

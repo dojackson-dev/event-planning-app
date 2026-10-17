@@ -42,7 +42,10 @@ export class VendorsController {
       throw new UnauthorizedException('No authorization header');
     const token = authorization.replace('Bearer ', '');
 
-    if (token.startsWith('local-')) {
+    if (
+      token.startsWith('local-') &&
+      process.env.ALLOW_LOCAL_DEV_AUTH === 'true'
+    ) {
       return token.replace('local-', '');
     }
 
@@ -387,12 +390,6 @@ export class VendorsController {
   ) {
     const userId = await this.getUserId(authorization);
     return this.vendorsService.updateBookingRequest(userId, requestId, dto);
-  }
-
-  /** GET /vendors/booking-link/s/:code — Public: resolve a short code to its slug */
-  @Get('booking-link/s/:code')
-  async getPublicBookingLinkByShortCode(@Param('code') code: string) {
-    return this.vendorsService.getPublicBookingLinkByShortCode(code);
   }
 
   /** GET /vendors/booking-link/:slug — Public: view booking link (no auth) */

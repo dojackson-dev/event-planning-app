@@ -1,13 +1,4 @@
-import {
-  Controller,
-  Post,
-  Body,
-  Get,
-  Query,
-  Req,
-  UseGuards,
-  Headers,
-} from '@nestjs/common';
+import { Controller, Post, Body, Get, Req, Headers } from '@nestjs/common';
 import { AuthFlowService } from './auth-flow.service';
 import { OwnerSignupDto, OwnerLoginDto } from './dto/owner-signup.dto';
 import { CreateInviteDto, AcceptInviteDto } from './dto/client-invite.dto';
@@ -87,6 +78,11 @@ export class AuthFlowController {
   @Post('artist/signup')
   async artistSignup(@Body() dto: any) {
     return this.authFlowService.artistSignup(dto);
+  }
+
+  @Post('forgot-password')
+  async forgotPassword(@Body() dto: { email: string }) {
+    return this.authFlowService.forgotPassword(dto?.email);
   }
 
   @Post('vendor/login')

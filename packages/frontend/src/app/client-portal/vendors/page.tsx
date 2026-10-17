@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
+import Link from 'next/link'
 import clientApi from '@/lib/clientApi'
 import { useClientAuth } from '@/contexts/ClientAuthContext'
 import {
@@ -310,6 +311,15 @@ function ClientVendorsPageContent() {
 
                       {/* Booking Details */}
                       <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-2 gap-3 text-sm">
+                        {vb.price_hidden && (
+                          <p className="col-span-2 text-xs text-gray-500">
+                            {vb.invoice_ready ? (
+                              <>Pricing is on your <Link href="/client-portal/invoices" className="text-primary-600 font-medium hover:underline">invoice</Link>.</>
+                            ) : (
+                              'Pricing will appear on your invoice.'
+                            )}
+                          </p>
+                        )}
                         {vb.agreed_amount != null && (
                           <div>
                             <p className="text-xs text-gray-500 flex items-center gap-1"><DollarSign className="h-3 w-3" />Agreed Amount</p>

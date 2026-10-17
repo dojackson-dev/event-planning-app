@@ -20,7 +20,7 @@ export class TrialService {
         .single();
 
       return data ? parseInt(data.value, 10) : 30;
-    } catch (error) {
+    } catch {
       this.logger.warn('Failed to get trial days, using default 30');
       return 30;
     }

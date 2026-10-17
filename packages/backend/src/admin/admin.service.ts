@@ -666,7 +666,7 @@ export class AdminService {
 
   async updateTrialSettings(trialDays: number) {
     const supabase = this.supabaseService.getAdminClient();
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('app_settings')
       .upsert(
         { key: 'FREE_TRIAL_DAYS', value: String(trialDays) },

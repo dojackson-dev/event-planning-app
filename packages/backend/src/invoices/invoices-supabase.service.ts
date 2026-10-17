@@ -834,12 +834,11 @@ event!event_id(id, name, date),
     const invoice = await this.findOne(supabase, userId, invoiceId);
     const items = await this.findInvoiceItems(supabase, userId, invoiceId);
 
-    const { subtotal, taxAmount, totalAmount, amountDue } =
-      this.calculateInvoiceTotals(
-        items,
-        invoice.tax_rate,
-        invoice.discount_amount,
-      );
+    const { subtotal, taxAmount, totalAmount } = this.calculateInvoiceTotals(
+      items,
+      invoice.tax_rate,
+      invoice.discount_amount,
+    );
 
     const actualAmountDue = totalAmount - invoice.amount_paid;
 
@@ -1089,6 +1088,13 @@ event!event_id(id, name, date),
     userId: string,
     id: string,
   ): Promise<void> {
+    const invoice = await this.findOne(supabase, userId, id);
+    if (invoice.status !== 'draft' || Number(invoice.amount_paid || 0) > 0) {
+      throw new BadRequestException(
+        'Only unpaid draft invoices can be permanently deleted. Cancel sent invoices to preserve their history.',
+      );
+    }
+
     const { error } = await supabase.from('invoices').delete().eq('id', id);
 
     if (error) throw error;

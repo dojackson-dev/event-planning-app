@@ -8,6 +8,7 @@ import {
 import { SupabaseService } from '../supabase/supabase.service';
 import { StripeService } from '../stripe/stripe.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
+import { clientVisibleItems } from '../invoices/client-visible-items';
 
 /** Returns all likely phone formats for a given phone string so we can query any format stored in the DB. */
 function buildPhoneVariants(phone: string): string[] {
@@ -62,6 +63,180 @@ export class ClientPortalService {
       .select('id')
       .in('intake_form_id', intakeFormIds);
     return (events || []).map((e: any) => e.id);
+  }
+
+  /** Helper: returns event IDs this phone has been added to as a team member */
+  private async getTeamEventIds(
+    supabase: any,
+    phoneVariants: string[],
+  ): Promise<string[]> {
+    const { data, error } = await supabase
+      .from('event_team_members')
+      .select('event_id')
+      .in('phone', phoneVariants);
+    if (error) return [];
+    return [...new Set<string>((data || []).map((r: any) => r.event_id))];
+  }
+
+  /** Verifies the given phone has access to this event (original contact, invoice, or team member) */
+  private async assertClientCanAccessEvent(
+    supabase: any,
+    eventId: string,
+    phoneVariants: string[],
+  ): Promise<void> {
+    const { data: event } = await supabase
+      .from('event')
+      .select('id, intake_form_id')
+      .eq('id', eventId)
+      .maybeSingle();
+    if (!event) throw new NotFoundException('Event not found');
+
+    if (event.intake_form_id) {
+      const { data: form } = await supabase
+        .from('intake_forms')
+        .select('contact_phone')
+        .eq('id', event.intake_form_id)
+        .maybeSingle();
+      if (form && phoneVariants.includes(form.contact_phone)) return;
+    }
+
+    const { data: invoice } = await supabase
+      .from('invoices')
+      .select('id')
+      .eq('event_id', eventId)
+      .in('client_phone', phoneVariants)
+      .limit(1)
+      .maybeSingle();
+    if (invoice) return;
+
+    const { data: teamMember } = await supabase
+      .from('event_team_members')
+      .select('id')
+      .eq('event_id', eventId)
+      .in('phone', phoneVariants)
+      .limit(1)
+      .maybeSingle();
+    if (teamMember) return;
+
+    throw new UnauthorizedException('You do not have access to this event');
+  }
+
+  /** Verifies the given phone is the ORIGINAL client contact for this event (not just an added team member) */
+  private async assertClientIsOriginalContact(
+    supabase: any,
+    eventId: string,
+    phoneVariants: string[],
+  ): Promise<void> {
+    const { data: event } = await supabase
+      .from('event')
+      .select('id, intake_form_id')
+      .eq('id', eventId)
+      .maybeSingle();
+    if (!event) throw new NotFoundException('Event not found');
+
+    if (event.intake_form_id) {
+      const { data: form } = await supabase
+        .from('intake_forms')
+        .select('contact_phone')
+        .eq('id', event.intake_form_id)
+        .maybeSingle();
+      if (form && phoneVariants.includes(form.contact_phone)) return;
+    }
+
+    const { data: invoice } = await supabase
+      .from('invoices')
+      .select('id')
+      .eq('event_id', eventId)
+      .in('client_phone', phoneVariants)
+      .limit(1)
+      .maybeSingle();
+    if (invoice) return;
+
+    throw new UnauthorizedException(
+      'Only the original client contact can add or remove team members',
+    );
+  }
+
+  /** List the team members added to an event (people other than the original contact who can also manage it) */
+  async getTeamMembers(eventId: string, clientPhone: string) {
+    const supabase = this.supabaseService.getAdminClient();
+    const phoneVariants = buildPhoneVariants(clientPhone);
+    await this.assertClientCanAccessEvent(supabase, eventId, phoneVariants);
+
+    const { data, error } = await supabase
+      .from('event_team_members')
+      .select('id, phone, name, created_at')
+      .eq('event_id', eventId)
+      .order('created_at', { ascending: true });
+    if (error) throw new BadRequestException(error.message);
+    return data || [];
+  }
+
+  /** Add a team member (by phone number) who can also access and help manage this event.
+   *  Only the original client contact may add team members. */
+  async addTeamMember(
+    eventId: string,
+    clientPhone: string,
+    memberPhone: string,
+    memberName?: string,
+    addedByName?: string,
+  ) {
+    const supabase = this.supabaseService.getAdminClient();
+    const phoneVariants = buildPhoneVariants(clientPhone);
+    await this.assertClientIsOriginalContact(supabase, eventId, phoneVariants);
+
+    const normalizedMemberPhone = buildPhoneVariants(memberPhone)[0];
+    const { data, error } = await supabase
+      .from('event_team_members')
+      .insert({
+        event_id: eventId,
+        phone: normalizedMemberPhone,
+        name: memberName?.trim() || null,
+        added_by_phone: clientPhone,
+      })
+      .select()
+      .single();
+    if (error) {
+      if (error.code === '23505') {
+        throw new BadRequestException(
+          'That phone number is already a team member on this event',
+        );
+      }
+      throw new BadRequestException(error.message);
+    }
+
+    const { data: event } = await supabase
+      .from('event')
+      .select('name')
+      .eq('id', eventId)
+      .maybeSingle();
+    await this.smsNotifications.clientTeamMemberAdded(
+      normalizedMemberPhone,
+      memberName,
+      event?.name || 'the event',
+      addedByName?.trim() || 'A fellow organizer',
+    );
+
+    return data;
+  }
+
+  /** Remove a team member from an event. Only the original client contact may remove team members. */
+  async removeTeamMember(
+    eventId: string,
+    clientPhone: string,
+    memberId: string,
+  ) {
+    const supabase = this.supabaseService.getAdminClient();
+    const phoneVariants = buildPhoneVariants(clientPhone);
+    await this.assertClientIsOriginalContact(supabase, eventId, phoneVariants);
+
+    const { error } = await supabase
+      .from('event_team_members')
+      .delete()
+      .eq('id', memberId)
+      .eq('event_id', eventId);
+    if (error) throw new BadRequestException(error.message);
+    return { success: true };
   }
 
   /** Overview stats for the client dashboard */
@@ -321,6 +496,11 @@ export class ClientPortalService {
       }
     }
 
+    // Also include events this phone was added to as a team member (even if
+    // it's not the original intake-form contact — e.g. a co-planner)
+    const teamEventIds = await this.getTeamEventIds(supabase, phoneVariants);
+    for (const id of teamEventIds) eventIdSet.add(id);
+
     this.logger.log(
       `[getEvents] querying events: intakeFormIdSet=${[...intakeFormIdSet].length} eventIdSet=${[...eventIdSet].length}`,
     );
@@ -530,10 +710,88 @@ export class ClientPortalService {
       ...allRequests,
     ];
     const seen = new Set<string>();
-    return combined.filter((b: any) => {
+    const unique = combined.filter((b: any) => {
       if (seen.has(b.id)) return false;
       seen.add(b.id);
       return true;
+    });
+    return this.hideOwnerBookedPricing(supabase, unique);
+  }
+
+  /**
+   * A vendor the venue owner booked is the owner's cost, so the client must not see
+   * the vendor's quote; the client's price is whatever the owner puts on their invoice.
+   */
+  private async hideOwnerBookedPricing(
+    supabase: any,
+    bookings: any[],
+  ): Promise<any[]> {
+    const candidates = bookings.filter(
+      (b: any) =>
+        b._source !== 'booking_request' && b.event_id && b.booked_by_user_id,
+    );
+    if (!candidates.length) return bookings;
+
+    const { data: events, error: eventsError } = await supabase
+      .from('event')
+      .select('id, owner_id')
+      .in('id', [...new Set(candidates.map((b: any) => b.event_id))]);
+    if (eventsError) throw eventsError;
+    const ownerByEvent = new Map(
+      (events || []).map((e: any) => [e.id, e.owner_id]),
+    );
+    const ownerBooked = candidates.filter(
+      (b: any) => ownerByEvent.get(b.event_id) === b.booked_by_user_id,
+    );
+    if (!ownerBooked.length) return bookings;
+
+    const { data: lines, error: linesError } = await supabase
+      .from('invoice_items')
+      .select('invoice_id, vendor_booking_id')
+      .in(
+        'vendor_booking_id',
+        ownerBooked.map((b: any) => b.id),
+      );
+    if (linesError) throw linesError;
+
+    const invoiceIds = [
+      ...new Set((lines || []).map((l: any) => l.invoice_id)),
+    ];
+    const sentInvoiceIds = new Set<string>();
+    if (invoiceIds.length) {
+      const { data: invoices, error: invoicesError } = await supabase
+        .from('invoices')
+        .select('id')
+        .in('id', invoiceIds)
+        .not('status', 'in', '(draft,cancelled)');
+      if (invoicesError) throw invoicesError;
+      for (const inv of invoices || []) sentInvoiceIds.add(inv.id);
+    }
+    const invoicedBookingIds = new Set(
+      (lines || [])
+        .filter((l: any) => sentInvoiceIds.has(l.invoice_id))
+        .map((l: any) => l.vendor_booking_id),
+    );
+
+    const hiddenIds = new Set(ownerBooked.map((b: any) => b.id));
+    const moneyFields = [
+      'agreed_amount',
+      'deposit_amount',
+      'deposit_paid',
+      'deposit_paid_at',
+      'total_paid',
+      'payment_status',
+      'stripe_payment_intent_id',
+    ];
+    return bookings.map((b: any) => {
+      if (!hiddenIds.has(b.id)) return b;
+      const safe = { ...b };
+      for (const field of moneyFields) delete safe[field];
+      return {
+        ...safe,
+        price_hidden: true,
+        invoice_ready: invoicedBookingIds.has(b.id),
+      };
     });
   }
 
@@ -900,7 +1158,7 @@ export class ClientPortalService {
     }
 
     this.logger.log(
-      `[respondToEstimate] Estimate phone=${data.client_phone}, intakeFormId=${data.intake_form_id}, allowed phones=${phoneVariants}, allowed intakeFormIds=${intakeFormIds}`,
+      `[respondToEstimate] Estimate phone=${data.client_phone}, intakeFormId=${data.intake_form_id}, allowed phones=${phoneVariants.join(',')}, allowed intakeFormIds=${intakeFormIds.join(',')}`,
     );
 
     // Check if client has access via phone match or intake form match
@@ -1086,6 +1344,7 @@ export class ClientPortalService {
     return [
       ...invoices.map((i: any) => ({
         ...i,
+        items: clientVisibleItems(i.items),
         from_name: i.owner_id ? (fromNameById[i.owner_id] ?? null) : null,
       })),
       ...vendorInvoices,
@@ -1145,6 +1404,8 @@ export class ClientPortalService {
     if (!invoice) throw new NotFoundException('Invoice not found');
     if (invoice.status === 'paid')
       throw new BadRequestException('Invoice is already paid');
+    if (invoice.status === 'cancelled')
+      throw new BadRequestException('This invoice has been cancelled');
     if (Number(invoice.amount_due) <= 0)
       throw new BadRequestException('Invoice has no outstanding balance');
 

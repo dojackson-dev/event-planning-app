@@ -800,22 +800,6 @@ export class OwnerController {
   // BOOKING LINKS
   // ─────────────────────────────────────────────
 
-  private async generateOwnerShortCode(admin: any): Promise<string> {
-    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    for (let attempt = 0; attempt < 10; attempt++) {
-      let code = '';
-      for (let i = 0; i < 6; i++)
-        code += chars[Math.floor(Math.random() * chars.length)];
-      const { data } = await admin
-        .from('owner_booking_links')
-        .select('id')
-        .eq('short_code', code)
-        .maybeSingle();
-      if (!data) return code;
-    }
-    throw new Error('Could not generate a unique short code');
-  }
-
   /** POST /owner/booking-links */
   @Post('booking-links')
   async upsertBookingLink(
@@ -844,18 +828,20 @@ export class OwnerController {
       throw new BadRequestException('This slug is already taken');
     }
 
-    const { data: existing } = await admin
+    const { data: existing, error: existingError } = await admin
       .from('owner_booking_links')
-      .select('id, short_code')
+      .select('id')
       .eq('owner_account_id', ownerAccountId)
       .maybeSingle();
+    if (existingError) {
+      throw new BadRequestException(
+        `Failed to look up existing booking link: ${existingError.message}`,
+      );
+    }
 
-    const shortCode =
-      existing?.short_code ?? (await this.generateOwnerShortCode(admin));
     const payload = {
       owner_account_id: ownerAccountId,
       slug: body.slug,
-      short_code: shortCode,
       is_active: body.isActive ?? true,
       custom_message: body.customMessage ?? null,
       updated_at: new Date().toISOString(),
@@ -869,6 +855,10 @@ export class OwnerController {
         .select()
         .single();
       if (error) throw new BadRequestException(error.message);
+      if (!data)
+        throw new BadRequestException(
+          'Booking link update did not match any row',
+        );
       return data;
     } else {
       const { data, error } = await admin
@@ -933,21 +923,6 @@ export class OwnerController {
       .single();
     if (error) throw new BadRequestException(error.message);
     return data;
-  }
-
-  /** GET /owner/booking-link/s/:code — public: resolve short code */
-  @Get('booking-link/s/:code')
-  async getPublicBookingLinkByShortCode(@Param('code') code: string) {
-    const admin = this.supabaseService.getAdminClient();
-    const { data, error } = await admin
-      .from('owner_booking_links')
-      .select('slug')
-      .eq('short_code', code)
-      .eq('is_active', true)
-      .single();
-    if (error || !data)
-      throw new NotFoundException('Booking link not found or inactive');
-    return { slug: data.slug };
   }
 
   /** GET /owner/booking-link/:slug — public: view booking link */

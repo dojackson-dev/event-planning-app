@@ -45,6 +45,7 @@ import { SeatGeekModule } from './seatgeek/seatgeek.module';
 import { PredictHQModule } from './predicthq/predicthq.module';
 import { ExternalEventsModule } from './external-events/external-events.module';
 import { TicketEvolutionModule } from './ticket-evolution/ticket-evolution.module';
+import { AuctionModule } from './auction/auction.module';
 import { NonprofitModule } from './nonprofit/nonprofit.module';
 import { PromoterTeamModule } from './promoter-team/promoter-team.module';
 
@@ -96,6 +97,7 @@ import { PromoterTeamModule } from './promoter-team/promoter-team.module';
     PredictHQModule,
     ExternalEventsModule,
     TicketEvolutionModule,
+    AuctionModule,
     NonprofitModule,
     PromoterTeamModule,
   ],

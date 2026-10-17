@@ -741,12 +741,22 @@ export class MailService {
     }
   }
 
-  /** Send a team associate invitation email */
+  private escapeHtml(value: string): string {
+    return value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  /** Send a team invitation email (venue associate by default; promoter roles pass roleLabel/roleDescription) */
   async sendTeamInvitation(params: {
     toEmail: string;
     inviteUrl: string;
     ownerName: string;
     businessName: string;
+    roleLabel?: string;
+    roleDescription?: string;
   }): Promise<void> {
     if (!process.env.RESEND_API_KEY) {
       console.warn(
@@ -757,16 +767,23 @@ export class MailService {
     }
     try {
       const resend = new Resend(process.env.RESEND_API_KEY);
+      const ownerName = this.escapeHtml(params.ownerName);
+      const businessName = this.escapeHtml(params.businessName);
+      const roleLabel = this.escapeHtml(params.roleLabel ?? 'an associate');
+      const roleDescription = this.escapeHtml(
+        params.roleDescription ??
+          "As an associate, you'll be able to view events, clients, calendars, and more — without access to billing or account settings.",
+      );
       const html = `
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f9fafb;padding:32px 16px;">
           <div style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
-            ${this.getEmailHeader("You're Invited!", `Join ${params.businessName} on EventEcos`)}
+            ${this.getEmailHeader("You're Invited!", `Join ${businessName} on EventEcos`)}
             <div style="padding:32px;">
               <p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 16px;">
-                <strong>${params.ownerName}</strong> has invited you to join <strong>${params.businessName}</strong> as an associate on EventEcos.
+                <strong>${ownerName}</strong> has invited you to join <strong>${businessName}</strong> as ${roleLabel} on EventEcos.
               </p>
               <p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 24px;">
-                As an associate, you'll be able to view events, clients, calendars, and more — without access to billing or account settings.
+                ${roleDescription}
               </p>
               <div style="text-align:center;margin:28px 0;">
                 <a href="${params.inviteUrl}"

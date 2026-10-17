@@ -11,6 +11,10 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import {
+  PromoterAccessPolicy,
+  PromoterAccessService,
+} from '../promoter-team/promoter-access.service';
 import { NonprofitService, VerifyNonprofitDto } from './nonprofit.service';
 import { SponsorshipLevelDto, SponsorshipService } from './sponsorship.service';
 import {
@@ -25,9 +29,13 @@ export class NonprofitController {
     private readonly sponsorships: SponsorshipService,
     private readonly sponsorshipCheckout: SponsorshipCheckoutService,
     private readonly supabaseService: SupabaseService,
+    private readonly access: PromoterAccessService,
   ) {}
 
-  private async getUserId(authorization: string): Promise<string> {
+  private async getUserId(
+    authorization: string,
+    policy: PromoterAccessPolicy = 'self',
+  ): Promise<string> {
     if (!authorization)
       throw new UnauthorizedException('No authorization header');
     const token = authorization.replace('Bearer ', '');
@@ -35,20 +43,20 @@ export class NonprofitController {
       token.startsWith('local-') &&
       process.env.ALLOW_LOCAL_DEV_AUTH === 'true'
     )
-      return token.replace('local-', '');
+      return this.access.resolveUserId(token.replace('local-', ''), policy);
     const supabase = this.supabaseService.setAuthContext(token);
     const {
       data: { user },
       error,
     } = await supabase.auth.getUser();
     if (error || !user) throw new UnauthorizedException('Invalid token');
-    return user.id;
+    return this.access.resolveUserId(user.id, policy);
   }
 
   /** GET /nonprofit/status — current non-profit status of my promoter account. */
   @Get('status')
   async status(@Headers('authorization') authorization: string) {
-    return this.service.getStatus(await this.getUserId(authorization));
+    return this.service.getStatus(await this.getUserId(authorization, 'read'));
   }
 
   /** PUT /nonprofit/declare — mark this promoter as a non-profit (or not). */
@@ -58,7 +66,7 @@ export class NonprofitController {
     @Body() body: { isNonprofit?: unknown },
   ) {
     return this.service.setDeclared(
-      await this.getUserId(authorization),
+      await this.getUserId(authorization, 'owner'),
       body?.isNonprofit,
     );
   }
@@ -69,7 +77,10 @@ export class NonprofitController {
     @Headers('authorization') authorization: string,
     @Body() dto: VerifyNonprofitDto,
   ) {
-    return this.service.verify(await this.getUserId(authorization), dto);
+    return this.service.verify(
+      await this.getUserId(authorization, 'owner'),
+      dto,
+    );
   }
 
   /** Public: active sponsorship levels for a published event. */
@@ -92,7 +103,10 @@ export class NonprofitController {
     @Headers('authorization') authorization: string,
     @Param('eventId', ParseUUIDPipe) eventId: string,
   ) {
-    return this.sponsorships.list(await this.getUserId(authorization), eventId);
+    return this.sponsorships.list(
+      await this.getUserId(authorization, 'read'),
+      eventId,
+    );
   }
 
   @Post('events/:eventId/sponsorship-levels')
@@ -102,7 +116,7 @@ export class NonprofitController {
     @Body() dto: SponsorshipLevelDto,
   ) {
     return this.sponsorships.create(
-      await this.getUserId(authorization),
+      await this.getUserId(authorization, 'write'),
       eventId,
       dto,
     );
@@ -115,7 +129,7 @@ export class NonprofitController {
     @Body() dto: SponsorshipLevelDto,
   ) {
     return this.sponsorships.update(
-      await this.getUserId(authorization),
+      await this.getUserId(authorization, 'write'),
       levelId,
       dto,
     );
@@ -127,7 +141,7 @@ export class NonprofitController {
     @Param('levelId', ParseUUIDPipe) levelId: string,
   ) {
     return this.sponsorships.remove(
-      await this.getUserId(authorization),
+      await this.getUserId(authorization, 'write'),
       levelId,
     );
   }

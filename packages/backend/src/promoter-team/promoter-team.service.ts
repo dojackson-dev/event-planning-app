@@ -97,7 +97,7 @@ export class PromoterTeamService {
     const { data, error } = await admin
       .from('promoter_team_members')
       .select(
-        'id, role, created_at, user:users(id, email, first_name, last_name)',
+        'id, role, created_at, user:users!user_id(id, email, first_name, last_name)',
       )
       .eq('promoter_account_id', account.id)
       .eq('is_active', true)

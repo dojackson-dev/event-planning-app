@@ -69,6 +69,7 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
   const [purchasing, setPurchasing] = useState(false)
   const [purchaseError, setPurchaseError] = useState('')
   const [vipPackages, setVipPackages] = useState<VipPackage[]>([])
+  const [sponsorLevels, setSponsorLevels] = useState<Array<{ id: string; name: string; price: number }>>([])
 
   const successSession = searchParams?.get('session_id')
   const paidParam = searchParams?.get('paid') === 'true'
@@ -84,6 +85,9 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
       .finally(() => setLoading(false))
     api.get(`/vip/public/events/${id}`)
       .then(r => setVipPackages((r.data.packages || []).filter((p: VipPackage) => p.status !== 'hidden' && p.inventory_sold < p.inventory)))
+      .catch(() => {})
+    api.get(`/nonprofit/public/events/${id}/sponsorship-levels`)
+      .then(r => setSponsorLevels(r.data || []))
       .catch(() => {})
   }, [id])
 
@@ -340,6 +344,20 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
         <div className="lg:col-span-1">
           <div className="bg-white border border-gray-200 rounded-2xl p-5 sticky top-4 space-y-4">
             <h2 className="font-bold text-gray-900">Get Tickets</h2>
+
+            {/* Non-profit sponsorships */}
+            {sponsorLevels.length > 0 && (
+              <Link href={`/events/${id}/sponsor`}
+                className="block p-3 bg-gradient-to-r from-pink-50 to-rose-50 border border-pink-200 rounded-xl hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-pink-800 text-sm">Become a Sponsor</span>
+                  <span className="text-xs text-pink-600 font-medium">View levels →</span>
+                </div>
+                <p className="text-xs text-pink-700 mt-1">
+                  {sponsorLevels.length} level{sponsorLevels.length === 1 ? '' : 's'} from ${Math.min(...sponsorLevels.map(l => Number(l.price))).toLocaleString()}
+                </p>
+              </Link>
+            )}
 
             {/* VIP upsell - first option */}
             <Link href={`/events/${id}/vip`}

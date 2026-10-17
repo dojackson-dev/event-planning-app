@@ -77,10 +77,10 @@ describe('PromoterAccessService', () => {
     const { service } = makeSupabase({ promoter_team_members: {} });
     const access = new PromoterAccessService(service);
     await expect(access.resolveUserId('u1', 'write')).resolves.toBe('u1');
-    await expect(access.resolveUserId('u1', 'owner')).resolves.toBe('u1');
+    await expect(access.resolveUserId('u1', 'read')).resolves.toBe('u1');
   });
 
-  it('lets an admin act as the creator except for owner-only routes', async () => {
+  it('lets an admin act as the creator on every route', async () => {
     const { service } = makeSupabase({
       promoter_team_members: member('admin'),
     });
@@ -90,9 +90,6 @@ describe('PromoterAccessService', () => {
       'creator-1',
     );
     await expect(access.resolveUserId('m1', 'scan')).resolves.toBe('creator-1');
-    await expect(access.resolveUserId('m1', 'owner')).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
   });
 
   it('limits staff to reading and scanning', async () => {
@@ -103,9 +100,6 @@ describe('PromoterAccessService', () => {
     await expect(access.resolveUserId('m1', 'read')).resolves.toBe('creator-1');
     await expect(access.resolveUserId('m1', 'scan')).resolves.toBe('creator-1');
     await expect(access.resolveUserId('m1', 'write')).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
-    await expect(access.resolveUserId('m1', 'owner')).rejects.toBeInstanceOf(
       ForbiddenException,
     );
   });

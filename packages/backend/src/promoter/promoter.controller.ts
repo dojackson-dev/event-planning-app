@@ -131,7 +131,7 @@ export class PromoterController {
     @Headers('authorization') authorization: string,
     @Body() body: { plan: string },
   ) {
-    const userId = await this.getUserId(authorization, 'owner');
+    const userId = await this.getUserId(authorization, 'write');
     return this.promoterService.updatePlan(userId, body.plan);
   }
 

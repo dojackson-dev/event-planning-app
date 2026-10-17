@@ -66,7 +66,7 @@ export class NonprofitController {
     @Body() body: { isNonprofit?: unknown },
   ) {
     return this.service.setDeclared(
-      await this.getUserId(authorization, 'owner'),
+      await this.getUserId(authorization, 'write'),
       body?.isNonprofit,
     );
   }
@@ -78,7 +78,7 @@ export class NonprofitController {
     @Body() dto: VerifyNonprofitDto,
   ) {
     return this.service.verify(
-      await this.getUserId(authorization, 'owner'),
+      await this.getUserId(authorization, 'write'),
       dto,
     );
   }

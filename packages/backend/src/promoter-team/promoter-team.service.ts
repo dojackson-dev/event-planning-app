@@ -266,7 +266,7 @@ export class PromoterTeamService {
         roleLabel: invite.role === 'admin' ? 'an admin' : 'a staff member',
         roleDescription:
           invite.role === 'admin'
-            ? "As an admin, you'll be able to manage events, tickets, bookings, and invoices — without access to team, payout, or account settings."
+            ? "As an admin, you'll be able to manage events, tickets, bookings, invoices, payouts, and account settings — everything except adding or removing team members."
             : "As a staff member, you'll be able to view events and attendees and scan tickets at the door.",
       });
       return null;

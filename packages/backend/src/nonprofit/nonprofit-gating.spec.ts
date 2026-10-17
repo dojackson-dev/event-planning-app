@@ -27,6 +27,10 @@ function db(answers: Record<string, unknown>) {
         return b;
       });
     }
+    b.not = jest.fn().mockImplementation((...args: unknown[]) => {
+      ops.push({ table, op: 'not', arg: args });
+      return b;
+    });
     const one = () =>
       Promise.resolve({ data: answers[table] ?? null, error: null });
     b.maybeSingle = jest.fn().mockImplementation(one);
@@ -285,6 +289,42 @@ describe('NonprofitService.setDeclared', () => {
       nonprofit_status: 'unverified',
       nonprofit_verified_at: null,
     });
+  });
+});
+
+// Keeps NotFoundException referenced for readers: unknown events still 404.
+describe('public event list hides paused non-profits', () => {
+  function listService(answers: Record<string, unknown>) {
+    const { supabase, ops } = db(answers);
+    const config = { get: () => 'sk_test_dummy' } as unknown as ConfigService;
+    return {
+      ops,
+      svc: new PromoterEventsService(
+        supabase,
+        config,
+        {} as unknown as MailService,
+        {} as unknown as SmsNotificationsService,
+      ),
+    };
+  }
+
+  it('excludes events of declared-but-unverified promoters', async () => {
+    const { svc, ops } = listService({
+      'promoter_accounts[]': [{ id: 'paused-1' }, { id: 'paused-2' }],
+      'public_events[]': [{ id: 'e1' }],
+    });
+    expect(await svc.listPublicEvents()).toEqual([{ id: 'e1' }]);
+    expect(ops.find((o) => o.op === 'not')?.arg).toEqual([
+      'promoter_account_id',
+      'in',
+      '(paused-1,paused-2)',
+    ]);
+  });
+
+  it('adds no exclusion when nobody is paused', async () => {
+    const { svc, ops } = listService({ 'public_events[]': [{ id: 'e1' }] });
+    await svc.listPublicEvents();
+    expect(ops.some((o) => o.op === 'not')).toBe(false);
   });
 });
 

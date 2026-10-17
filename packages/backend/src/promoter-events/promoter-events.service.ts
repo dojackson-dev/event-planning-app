@@ -368,6 +368,21 @@ export class PromoterEventsService {
 
     if (dateTo) query = query.lte('event_date', dateTo);
     if (category) query = query.eq('category', category);
+
+    // Declared non-profits stay out of public lists until IRS-verified.
+    const { data: paused } = await admin
+      .from('promoter_accounts')
+      .select('id')
+      .eq('is_nonprofit', true)
+      .neq('nonprofit_status', 'verified');
+    const pausedIds = (paused ?? []).map((p: { id: string }) => p.id);
+    if (pausedIds.length) {
+      query = query.not(
+        'promoter_account_id',
+        'in',
+        `(${pausedIds.join(',')})`,
+      );
+    }
     if (!zipCode) query = query.range(offset, offset + limit - 1);
 
     const { data, error } = await query;

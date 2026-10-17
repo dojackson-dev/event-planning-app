@@ -152,7 +152,7 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
   // Fee breakdown (mirrors backend grossUp)
   const STRIPE_PCT   = 0.029
   const STRIPE_FIXED = 0.30
-  const APP_FEE_RATE = 0.03
+  const APP_FEE_RATE = event.promoter_accounts?.is_nonprofit && event.promoter_accounts?.nonprofit_status === 'verified' ? 0.015 : 0.03
 
   const totalItems = Object.entries(tierQtys).filter(([, q]) => q > 0)
   const faceValue = totalItems.reduce((sum, [tierId, qty]) => {

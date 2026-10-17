@@ -9,11 +9,9 @@ import {
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { MailService } from '../mail/mail.service';
-import {
-  APP_FEE_RATE,
-  grossUp,
-} from '../promoter-events/promoter-events.service';
+import { grossUp } from '../promoter-events/promoter-events.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import { NONPROFIT_APP_FEE_RATE } from './nonprofit-gate';
 
 export class SponsorshipCheckoutDto {
   buyerName?: string;
@@ -143,10 +141,10 @@ export class SponsorshipCheckoutService {
     if (priceCents < 50) {
       throw new BadRequestException('This level cannot be purchased online.');
     }
-    // Buyer pays processing + platform fee on top; the non-profit nets the price.
-    const totalCents = grossUp(priceCents);
+    // Buyer pays processing + the reduced non-profit platform fee on top; the non-profit nets the price.
+    const totalCents = grossUp(priceCents, NONPROFIT_APP_FEE_RATE);
     const feeCents = totalCents - priceCents;
-    const appFeeCents = Math.round(totalCents * APP_FEE_RATE);
+    const appFeeCents = Math.round(totalCents * NONPROFIT_APP_FEE_RATE);
     const price = priceCents / 100;
     const fmv = Math.min(Number(level.fair_market_value), price);
 

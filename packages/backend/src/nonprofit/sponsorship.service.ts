@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { grossUp } from '../promoter-events/promoter-events.service';
+import { NONPROFIT_APP_FEE_RATE } from './nonprofit-gate';
 import { NonprofitService } from './nonprofit.service';
 
 export class SponsorshipLevelDto {
@@ -297,7 +298,8 @@ export class SponsorshipService {
     // Buyers pay the processing + platform fee on top of the price.
     return (data ?? []).map((l) => {
       const priceCents = Math.round(Number(l.price) * 100);
-      const totalCents = priceCents > 0 ? grossUp(priceCents) : 0;
+      const totalCents =
+        priceCents > 0 ? grossUp(priceCents, NONPROFIT_APP_FEE_RATE) : 0;
       return {
         ...l,
         service_fee: (totalCents - priceCents) / 100,

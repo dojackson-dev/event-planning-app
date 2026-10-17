@@ -12,6 +12,9 @@ import { SmsNotificationsService } from '../messaging/sms-notifications.service'
 import Stripe from 'stripe';
 import {
   assertNonprofitCanSell,
+  isVerifiedNonprofit,
+  NONPROFIT_APP_FEE_RATE,
+  NonprofitFields,
   nonprofitSalesBlocked,
 } from '../nonprofit/nonprofit-gate';
 import {
@@ -44,14 +47,24 @@ export const APP_FEE_RATE = 0.03; // 3% platform fee → goes to our account
 export const STRIPE_PCT = 0.029; // Stripe's % fee
 export const STRIPE_FIXED = 30; // Stripe's fixed fee in cents ($0.30)
 
+/** 1.5% for verified non-profits, otherwise the standard 3%. */
+export function platformFeeRate(
+  promoter: NonprofitFields | null | undefined,
+): number {
+  return isVerifiedNonprofit(promoter) ? NONPROFIT_APP_FEE_RATE : APP_FEE_RATE;
+}
+
 /**
  * Gross-up helper: calculates the total charge so that after Stripe's
  * processing fee AND the platform fee, the promoter nets the face value.
- *   totalCharge = ceil((ticketTotal + 0.30) / (1 - 0.029 - 0.03))
+ *   totalCharge = ceil((ticketTotal + 0.30) / (1 - 0.029 - feeRate))
  */
-export function grossUp(ticketTotalCents: number): number {
+export function grossUp(
+  ticketTotalCents: number,
+  feeRate: number = APP_FEE_RATE,
+): number {
   return Math.ceil(
-    (ticketTotalCents + STRIPE_FIXED) / (1 - STRIPE_PCT - APP_FEE_RATE),
+    (ticketTotalCents + STRIPE_FIXED) / (1 - STRIPE_PCT - feeRate),
   );
 }
 
@@ -478,9 +491,10 @@ export class PromoterEventsService {
 
     const unitAmount = Math.round(Number(tier.price) * 100);
     const ticketTotal = unitAmount * quantity;
-    const totalCharge = grossUp(ticketTotal);
+    const feeRate = platformFeeRate(promoter);
+    const totalCharge = grossUp(ticketTotal, feeRate);
     const serviceFee = totalCharge - ticketTotal;
-    const appFeeAmount = Math.round(totalCharge * APP_FEE_RATE);
+    const appFeeAmount = Math.round(totalCharge * feeRate);
 
     const successUrl = returnUrl
       ? `${returnUrl}${returnUrl.includes('?') ? '&' : '?'}session_id={CHECKOUT_SESSION_ID}`
@@ -1045,9 +1059,10 @@ export class PromoterEventsService {
       });
     }
 
-    const totalCharge = grossUp(ticketTotal);
+    const feeRate = platformFeeRate(promoter);
+    const totalCharge = grossUp(ticketTotal, feeRate);
     const serviceFee = totalCharge - ticketTotal;
-    const appFeeAmount = Math.round(totalCharge * APP_FEE_RATE);
+    const appFeeAmount = Math.round(totalCharge * feeRate);
 
     lineItems.push({
       price_data: {

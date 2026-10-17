@@ -60,6 +60,7 @@ export default function EventVipPage({ params }: { params: { id: string } }) {
   const [layout, setLayout] = useState<Layout | null>(null)
   const [loading, setLoading] = useState(true)
   const [eventTitle, setEventTitle] = useState('')
+  const [feeRate, setFeeRate] = useState(0.03)
 
   const [selectedPkg, setSelectedPkg] = useState<VipPackage | null>(null)
   const [selectedServices, setSelectedServices] = useState<Record<string, number>>({})
@@ -85,6 +86,8 @@ export default function EventVipPage({ params }: { params: { id: string } }) {
         setServiceItems(vipRes.data.service_items || [])
         setLayout(vipRes.data.layout || null)
         setEventTitle(eventRes.data?.title || 'Event')
+        const promoter = eventRes.data?.promoter_accounts
+        setFeeRate(promoter?.is_nonprofit && promoter?.nonprofit_status === 'verified' ? 0.015 : 0.03)
       } finally {
         setLoading(false)
       }
@@ -111,7 +114,7 @@ export default function EventVipPage({ params }: { params: { id: string } }) {
 
   const packagePrice = selectedPkg ? Number(selectedPkg.price) : 0
   const subtotal = packagePrice + serviceTotal
-  const platformFee = Math.ceil(subtotal * 0.03 * 100) / 100
+  const platformFee = Math.ceil(subtotal * feeRate * 100) / 100
   const total = subtotal + platformFee
 
   const adjustService = (id: string, delta: number) => {

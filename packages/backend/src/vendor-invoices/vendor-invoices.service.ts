@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
+import { applicationFeeCents } from '../payments/platform-fee';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import Stripe from 'stripe';
 import * as nodemailer from 'nodemailer';
@@ -842,7 +843,10 @@ export class VendorInvoicesService {
     // Platform fee (3%) deducted from vendor's payout
     sessionParams.payment_intent_data = {
       transfer_data: { destination: vendor.stripe_account_id },
-      application_fee_amount: platformFeeCents,
+      application_fee_amount: applicationFeeCents(
+        platformFeeCents,
+        stripeFeeCents,
+      ),
       metadata: { vendor_invoice_id: invoice.id },
     };
 

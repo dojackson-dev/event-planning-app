@@ -494,7 +494,8 @@ export class PromoterEventsService {
     const feeRate = platformFeeRate(promoter);
     const totalCharge = grossUp(ticketTotal, feeRate);
     const serviceFee = totalCharge - ticketTotal;
-    const appFeeAmount = Math.round(totalCharge * feeRate);
+    // The whole service fee is ours: it covers Stripe's bill and our platform fee, so the promoter nets the price.
+    const appFeeAmount = serviceFee;
 
     const successUrl = returnUrl
       ? `${returnUrl}${returnUrl.includes('?') ? '&' : '?'}session_id={CHECKOUT_SESSION_ID}`
@@ -1062,7 +1063,8 @@ export class PromoterEventsService {
     const feeRate = platformFeeRate(promoter);
     const totalCharge = grossUp(ticketTotal, feeRate);
     const serviceFee = totalCharge - ticketTotal;
-    const appFeeAmount = Math.round(totalCharge * feeRate);
+    // The whole service fee is ours: it covers Stripe's bill and our platform fee, so the promoter nets the price.
+    const appFeeAmount = serviceFee;
 
     lineItems.push({
       price_data: {

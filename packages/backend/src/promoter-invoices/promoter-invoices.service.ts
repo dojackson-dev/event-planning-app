@@ -7,6 +7,10 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
+import {
+  applicationFeeCents,
+  processingFeeCents,
+} from '../payments/platform-fee';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import Stripe from 'stripe';
 import * as nodemailer from 'nodemailer';
@@ -508,6 +512,8 @@ export class PromoterInvoicesService {
     const feeRate =
       DIRECT_PAYMENT_FEE_BY_PLAN[promoter?.plan] ?? DEFAULT_FEE_RATE;
     const feeCents = Math.round(amountCents * feeRate);
+    // The payer covers Stripe's processing fee, which the platform is billed for.
+    const processingCents = processingFeeCents(amountCents);
 
     const bnplMethods = [
       'afterpay_clearpay',
@@ -534,6 +540,17 @@ export class PromoterInvoicesService {
           },
           quantity: 1,
         },
+        {
+          price_data: {
+            currency: 'usd',
+            unit_amount: processingCents,
+            product_data: {
+              name: 'Stripe Processing Fee',
+              description: 'Credit/debit card processing fee (2.9% + $0.30)',
+            },
+          },
+          quantity: 1,
+        },
       ],
       success_url: `${this.frontendUrl}/promoter-pay/${token}?paid=true`,
       cancel_url: `${this.frontendUrl}/promoter-pay/${token}?canceled=true`,
@@ -543,7 +560,7 @@ export class PromoterInvoicesService {
       },
       client_reference_id: invoice.id,
       payment_intent_data: {
-        application_fee_amount: feeCents,
+        application_fee_amount: applicationFeeCents(feeCents, processingCents),
         transfer_data: { destination: promoter.stripe_account_id },
         metadata: { promoter_invoice_id: invoice.id },
       },

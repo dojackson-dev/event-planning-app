@@ -196,7 +196,7 @@ function PromoterPayContent() {
                   {paying ? 'Redirecting…' : `Pay $${Number(invoice.total_amount).toFixed(2)}`}
                 </button>
                 <div className="flex items-center justify-center gap-1.5 mt-3 text-xs text-gray-400">
-                  <Lock className="w-3 h-3" /> Secured by Stripe. 3% platform fee applies.
+                  <Lock className="w-3 h-3" /> Secured by Stripe. A card processing fee (2.9% + $0.30) is added at checkout.
                 </div>
               </>
             )}

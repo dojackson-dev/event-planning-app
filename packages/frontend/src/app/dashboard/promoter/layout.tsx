@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Megaphone, Home, Calendar, CalendarDays, FileText, Users, Settings, Menu, X, LogOut, Mic2, Store, ScrollText, Link2 } from 'lucide-react'
+import { Megaphone, Home, Calendar, CalendarDays, FileText, Users, UserCog, Settings, Menu, X, LogOut, Mic2, Store, ScrollText, Link2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
+import api from '@/lib/api'
 import RoleSwitcher from '@/components/RoleSwitcher'
 
 interface NavItem {
@@ -19,12 +20,20 @@ export default function PromoterLayout({ children }: { children: React.ReactNode
   const router = useRouter()
   const { user, loading, logout } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [teamRole, setTeamRole] = useState<'owner' | 'admin' | 'staff' | null>(null)
 
   useEffect(() => {
     if (!loading && !user) {
       router.push('/promoter/login')
     }
   }, [user, loading, router])
+
+  useEffect(() => {
+    if (!user) return
+    api.get('/promoter-team/me')
+      .then(res => setTeamRole(res.data?.role ?? null))
+      .catch(() => setTeamRole(null))
+  }, [user])
 
   const navItems: NavItem[] = [
     { href: '/dashboard/promoter',                label: 'Dashboard',    icon: <Home className="h-5 w-5" /> },
@@ -37,6 +46,9 @@ export default function PromoterLayout({ children }: { children: React.ReactNode
     { href: '/dashboard/promoter/calendar',       label: 'Calendar',     icon: <CalendarDays className="h-5 w-5" /> },
     { href: '/dashboard/promoter/booking-link',   label: 'Booking Link', icon: <Link2 className="h-5 w-5" /> },
     { href: '/dashboard/promoter/profile',        label: 'Profile',      icon: <Settings className="h-5 w-5" /> },
+    ...(teamRole === 'owner'
+      ? [{ href: '/dashboard/promoter/team', label: 'Team', icon: <UserCog className="h-5 w-5" /> }]
+      : []),
   ]
 
   return (
@@ -119,6 +131,11 @@ export default function PromoterLayout({ children }: { children: React.ReactNode
             {user && (
               <span className="text-sm text-gray-600 hidden sm:block">
                 {user.firstName} {user.lastName}
+              </span>
+            )}
+            {(teamRole === 'admin' || teamRole === 'staff') && (
+              <span className="px-2 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 rounded capitalize">
+                Team {teamRole}
               </span>
             )}
           </div>

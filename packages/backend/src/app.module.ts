@@ -46,6 +46,7 @@ import { PredictHQModule } from './predicthq/predicthq.module';
 import { ExternalEventsModule } from './external-events/external-events.module';
 import { TicketEvolutionModule } from './ticket-evolution/ticket-evolution.module';
 import { NonprofitModule } from './nonprofit/nonprofit.module';
+import { PromoterTeamModule } from './promoter-team/promoter-team.module';
 
 @Module({
   imports: [
@@ -96,6 +97,7 @@ import { NonprofitModule } from './nonprofit/nonprofit.module';
     ExternalEventsModule,
     TicketEvolutionModule,
     NonprofitModule,
+    PromoterTeamModule,
   ],
   controllers: [AppController],
   providers: [AppService],

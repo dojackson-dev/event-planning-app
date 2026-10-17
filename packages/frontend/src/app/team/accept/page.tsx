@@ -10,6 +10,8 @@ interface InviteInfo {
   businessName: string
   ownerName: string
   role: string
+  portal?: 'promoter'
+  existingUser?: boolean
 }
 
 function AcceptInviteContent() {
@@ -47,6 +49,14 @@ function AcceptInviteContent() {
     try {
       setSubmitting(true)
       const res = await api.post('/team/accept', { token, firstName, lastName, password })
+      const isPromoter = res.data?.portal === 'promoter'
+      const hasSession = !!res.data?.session?.access_token
+      // Existing accounts join without a new session; they sign in normally afterwards
+      if (isPromoter && !hasSession) {
+        setSubmitted(true)
+        setTimeout(() => router.push('/promoter/login'), 2000)
+        return
+      }
       // Store session
       if (res.data?.session?.access_token) {
         localStorage.setItem('access_token',  res.data.session.access_token)
@@ -57,10 +67,11 @@ function AcceptInviteContent() {
       if (res.data?.user)       localStorage.setItem('user',         JSON.stringify(res.data.user))
       if (res.data?.roles)      localStorage.setItem('user_roles',   JSON.stringify(res.data.roles))
       if (res.data?.ownerAccountId) localStorage.setItem('owner_account_id', res.data.ownerAccountId)
-      localStorage.setItem('active_role', 'associate')
-      localStorage.setItem('user_role',   'associate')
+      const activeRole = isPromoter ? 'promoter' : 'associate'
+      localStorage.setItem('active_role', activeRole)
+      localStorage.setItem('user_role',   activeRole)
       setSubmitted(true)
-      setTimeout(() => router.push('/dashboard'), 1500)
+      setTimeout(() => router.push(isPromoter ? '/dashboard/promoter' : '/dashboard'), 1500)
     } catch (err: any) {
       setSubmitError(err?.response?.data?.message || 'Something went wrong. Please try again.')
     } finally {
@@ -94,7 +105,9 @@ function AcceptInviteContent() {
         <div className="max-w-md w-full bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
           <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
           <h1 className="text-xl font-semibold text-gray-900 mb-2">Welcome aboard!</h1>
-          <p className="text-gray-500 text-sm">Taking you to the dashboard…</p>
+          <p className="text-gray-500 text-sm">
+            {info?.existingUser ? 'Taking you to log in with your existing account…' : 'Taking you to the dashboard…'}
+          </p>
         </div>
       </div>
     )
@@ -117,11 +130,18 @@ function AcceptInviteContent() {
           <div className="px-8 py-6">
             <p className="text-sm text-gray-600 mb-6 text-center">
               <span className="font-medium text-gray-900">{info?.ownerName}</span> has invited{' '}
-              <span className="font-medium text-gray-900">{info?.email}</span> to join their team as an{' '}
+              <span className="font-medium text-gray-900">{info?.email}</span> to join their team as{' '}
+              {/^[aeiou]/i.test(info?.role ?? '') ? 'an' : 'a'}{' '}
               <span className="font-medium text-primary-600">{info?.role}</span>.
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              {info?.existingUser ? (
+                <p className="text-sm text-gray-600 text-center">
+                  You already have an EventEcos account. Accept to add this team to it, then log in as usual.
+                </p>
+              ) : (
+              <>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
@@ -168,6 +188,8 @@ function AcceptInviteContent() {
                   </button>
                 </div>
               </div>
+              </>
+              )}
 
               {submitError && (
                 <div className="flex items-center gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">

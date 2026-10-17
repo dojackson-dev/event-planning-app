@@ -13,6 +13,10 @@ import {
 import { PromoterEventsService } from './promoter-events.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
+  PromoterAccessPolicy,
+  PromoterAccessService,
+} from '../promoter-team/promoter-access.service';
+import {
   CreatePromoterEventDto,
   UpdatePromoterEventDto,
   CreateTicketTierDto,
@@ -24,9 +28,13 @@ export class PromoterEventsController {
   constructor(
     private readonly service: PromoterEventsService,
     private readonly supabaseService: SupabaseService,
+    private readonly access: PromoterAccessService,
   ) {}
 
-  private async getUserId(authorization: string): Promise<string> {
+  private async getUserId(
+    authorization: string,
+    policy: PromoterAccessPolicy = 'self',
+  ): Promise<string> {
     if (!authorization)
       throw new UnauthorizedException('No authorization header');
     const token = authorization.replace('Bearer ', '');
@@ -34,14 +42,14 @@ export class PromoterEventsController {
       token.startsWith('local-') &&
       process.env.ALLOW_LOCAL_DEV_AUTH === 'true'
     )
-      return token.replace('local-', '');
+      return this.access.resolveUserId(token.replace('local-', ''), policy);
     const supabase = this.supabaseService.setAuthContext(token);
     const {
       data: { user },
       error,
     } = await supabase.auth.getUser();
     if (error || !user) throw new UnauthorizedException('Invalid token');
-    return user.id;
+    return this.access.resolveUserId(user.id, policy);
   }
 
   // ── PUBLIC routes (no auth) ───────────────────────────────────
@@ -151,13 +159,13 @@ export class PromoterEventsController {
     @Headers('authorization') auth: string,
     @Body() dto: CreatePromoterEventDto,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'write');
     return this.service.createEvent(userId, dto);
   }
 
   @Get('mine')
   async listMine(@Headers('authorization') auth: string) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'read');
     return this.service.listEvents(userId);
   }
 
@@ -166,7 +174,7 @@ export class PromoterEventsController {
     @Headers('authorization') auth: string,
     @Param('id') id: string,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'read');
     return this.service.getEvent(userId, id);
   }
 
@@ -176,7 +184,7 @@ export class PromoterEventsController {
     @Param('id') id: string,
     @Body() dto: UpdatePromoterEventDto,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'write');
     return this.service.updateEvent(userId, id, dto);
   }
 
@@ -185,7 +193,7 @@ export class PromoterEventsController {
     @Headers('authorization') auth: string,
     @Param('id') id: string,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'write');
     return this.service.deleteEvent(userId, id);
   }
 
@@ -196,7 +204,7 @@ export class PromoterEventsController {
     @Param('id') eventId: string,
     @Body() dto: CreateTicketTierDto,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'write');
     return this.service.addTicketTier(userId, eventId, dto);
   }
 
@@ -206,7 +214,7 @@ export class PromoterEventsController {
     @Param('tierId') tierId: string,
     @Body() dto: UpdateTicketTierDto,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'write');
     return this.service.updateTicketTier(userId, tierId, dto);
   }
 
@@ -215,7 +223,7 @@ export class PromoterEventsController {
     @Headers('authorization') auth: string,
     @Param('tierId') tierId: string,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'write');
     return this.service.deleteTicketTier(userId, tierId);
   }
 
@@ -226,7 +234,7 @@ export class PromoterEventsController {
     @Param('id') eventId: string,
     @Body() body: { ticket_id: string },
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'scan');
     return this.service.scanTicket(userId, eventId, body.ticket_id);
   }
 
@@ -236,7 +244,7 @@ export class PromoterEventsController {
     @Headers('authorization') auth: string,
     @Param('id') eventId: string,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'read');
     return this.service.getEventAttendees(userId, eventId);
   }
 
@@ -247,7 +255,7 @@ export class PromoterEventsController {
     @Param('id') eventId: string,
     @Param('ticketId') ticketId: string,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'write');
     await this.service.resendTicketConfirmation(userId, eventId, ticketId);
     return { success: true };
   }
@@ -265,7 +273,7 @@ export class PromoterEventsController {
       recipient_name?: string;
     },
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'write');
     return this.service.sendCompTicket(
       userId,
       eventId,

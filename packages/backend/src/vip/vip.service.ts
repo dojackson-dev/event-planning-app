@@ -8,7 +8,11 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
 import Stripe from 'stripe';
-import { assertNonprofitCanSell } from '../nonprofit/nonprofit-gate';
+import {
+  assertNonprofitCanSell,
+  isVerifiedNonprofit,
+  NONPROFIT_APP_FEE_RATE,
+} from '../nonprofit/nonprofit-gate';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import { MailService } from '../mail/mail.service';
 import {
@@ -27,8 +31,8 @@ const APP_FEE_RATE = 0.03;
 const STRIPE_PCT = 0.029;
 const STRIPE_FIXED = 30;
 
-function grossUp(cents: number): number {
-  return Math.ceil((cents + STRIPE_FIXED) / (1 - STRIPE_PCT - APP_FEE_RATE));
+function grossUp(cents: number, feeRate: number): number {
+  return Math.ceil((cents + STRIPE_FIXED) / (1 - STRIPE_PCT - feeRate));
 }
 
 @Injectable()
@@ -364,9 +368,12 @@ export class VipService {
 
     const packageCents = Math.round(Number(pkg.price) * 100);
     const subtotal = packageCents + serviceTotal;
-    const totalCharge = grossUp(subtotal);
+    const feeRate = isVerifiedNonprofit(promoter)
+      ? NONPROFIT_APP_FEE_RATE
+      : APP_FEE_RATE;
+    const totalCharge = grossUp(subtotal, feeRate);
     const serviceFee = totalCharge - subtotal;
-    const appFeeAmount = Math.round(totalCharge * APP_FEE_RATE);
+    const appFeeAmount = Math.round(totalCharge * feeRate);
 
     const successUrl = dto.return_url
       ? `${dto.return_url}${dto.return_url.includes('?') ? '&' : '?'}vip_session={CHECKOUT_SESSION_ID}`

@@ -200,10 +200,10 @@ describe('SponsorshipCheckoutService.createCheckout', () => {
       metadata: Record<string, string>;
       success_url: string;
     };
-    // $1,000 price: total = ceil((100000 + 30) / (1 - 0.029 - 0.03))
+    // $1,000 price at the 1.5% non-profit rate: total = ceil((100000 + 30) / (1 - 0.029 - 0.015))
     expect(params.line_items[0].price_data.unit_amount).toBe(100000);
-    expect(params.line_items[1].price_data.unit_amount).toBe(6302);
-    expect(params.payment_intent_data.application_fee_amount).toBe(3189);
+    expect(params.line_items[1].price_data.unit_amount).toBe(4634);
+    expect(params.payment_intent_data.application_fee_amount).toBe(1570);
     expect(params.payment_intent_data.transfer_data.destination).toBe(
       'acct_123',
     );
@@ -226,8 +226,8 @@ describe('SponsorshipCheckoutService.createCheckout', () => {
       price: 1000,
       fair_market_value: 150,
       deductible_amount: 850,
-      service_fee: 63.02,
-      total_charged: 1063.02,
+      service_fee: 46.34,
+      total_charged: 1046.34,
     });
   });
 

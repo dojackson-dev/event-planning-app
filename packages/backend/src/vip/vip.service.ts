@@ -373,7 +373,8 @@ export class VipService {
       : APP_FEE_RATE;
     const totalCharge = grossUp(subtotal, feeRate);
     const serviceFee = totalCharge - subtotal;
-    const appFeeAmount = Math.round(totalCharge * feeRate);
+    // The whole service fee is ours: it covers Stripe's bill and our platform fee, so the promoter nets the price.
+    const appFeeAmount = serviceFee;
 
     const successUrl = dto.return_url
       ? `${dto.return_url}${dto.return_url.includes('?') ? '&' : '?'}vip_session={CHECKOUT_SESSION_ID}`

@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
+import { applicationFeeCents } from '../payments/platform-fee';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import Stripe from 'stripe';
 import * as nodemailer from 'nodemailer';
@@ -578,7 +579,12 @@ export class ArtistInvoicesService {
         Number(invoice.discount_amount)) *
         100,
     );
-    const feeCents = Math.round(baseCents * APP_FEE_RATE);
+    const platformFeeCents = Math.round(baseCents * APP_FEE_RATE);
+    // The client already pays Stripe's fee inside the invoice total; the application fee covers it plus our platform fee.
+    const feeCents = applicationFeeCents(
+      platformFeeCents,
+      Math.max(0, amountCents - baseCents),
+    );
 
     const bnplMethods = [
       'afterpay_clearpay',

@@ -203,7 +203,8 @@ describe('SponsorshipCheckoutService.createCheckout', () => {
     // $1,000 price at the 1.5% non-profit rate: total = ceil((100000 + 30) / (1 - 0.029 - 0.015))
     expect(params.line_items[0].price_data.unit_amount).toBe(100000);
     expect(params.line_items[1].price_data.unit_amount).toBe(4634);
-    expect(params.payment_intent_data.application_fee_amount).toBe(1570);
+    // Application fee is the whole service fee (Stripe's bill + our 1.5%), so the non-profit nets the price.
+    expect(params.payment_intent_data.application_fee_amount).toBe(4634);
     expect(params.payment_intent_data.transfer_data.destination).toBe(
       'acct_123',
     );

@@ -144,7 +144,8 @@ export class SponsorshipCheckoutService {
     // Buyer pays processing + the reduced non-profit platform fee on top; the non-profit nets the price.
     const totalCents = grossUp(priceCents, NONPROFIT_APP_FEE_RATE);
     const feeCents = totalCents - priceCents;
-    const appFeeCents = Math.round(totalCents * NONPROFIT_APP_FEE_RATE);
+    // The whole service fee is ours: it covers Stripe's bill and our platform fee, so the non-profit nets the price.
+    const appFeeCents = feeCents;
     const price = priceCents / 100;
     const fmv = Math.min(Number(level.fair_market_value), price);
 

@@ -8,6 +8,10 @@ import {
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { SupabaseService } from '../supabase/supabase.service';
+import {
+  applicationFeeCents,
+  processingFeeCents,
+} from '../payments/platform-fee';
 import { VendorInvoicesService } from '../vendor-invoices/vendor-invoices.service';
 import { ArtistInvoicesService } from '../artist-invoices/artist-invoices.service';
 import { PromoterInvoicesService } from '../promoter-invoices/promoter-invoices.service';
@@ -400,7 +404,10 @@ export class StripeService {
         const feeRate = this.resolveOwnerPlatformFeeRate(ownerAccount);
         const platformFeeCents = Math.round(amountCents * feeRate);
         transferData = {
-          application_fee_amount: platformFeeCents,
+          application_fee_amount: applicationFeeCents(
+            platformFeeCents,
+            stripeFeeCents,
+          ),
           transfer_data: { destination: connectId },
         };
       }
@@ -2043,6 +2050,7 @@ export class StripeService {
     clientSecret: string;
     paymentIntentId: string;
     feeCents: number;
+    totalCents: number;
   }> {
     const admin = this.supabaseService.getAdminClient();
 
@@ -2052,10 +2060,14 @@ export class StripeService {
     }
 
     const feeRate = this.resolveOwnerPlatformFeeRate(owner);
-    const feeCents = Math.round(amountCents * feeRate);
+    const platformFeeCents = Math.round(amountCents * feeRate);
+    // The payer covers Stripe's processing fee, which the platform is billed for.
+    const processingCents = processingFeeCents(amountCents);
+    const totalCents = amountCents + processingCents;
+    const feeCents = applicationFeeCents(platformFeeCents, processingCents);
 
     const paymentIntent = await this.stripe.paymentIntents.create({
-      amount: amountCents,
+      amount: totalCents,
       currency: 'usd',
       application_fee_amount: feeCents,
       transfer_data: { destination: owner.stripe_connect_id },
@@ -2069,9 +2081,9 @@ export class StripeService {
     // Record in stripe_payments ledger
     await admin.from('stripe_payments').insert({
       type: 'client_to_owner',
-      amount_cents: amountCents,
+      amount_cents: totalCents,
       fee_cents: feeCents,
-      net_cents: amountCents - feeCents,
+      net_cents: totalCents - feeCents,
       stripe_payment_intent_id: paymentIntent.id,
       owner_account_id: owner.id,
       description,
@@ -2082,6 +2094,7 @@ export class StripeService {
       clientSecret: paymentIntent.client_secret!,
       paymentIntentId: paymentIntent.id,
       feeCents,
+      totalCents,
     };
   }
 
@@ -2357,7 +2370,7 @@ export class StripeService {
       const feeRate = this.resolveOwnerPlatformFeeRate(owner);
       const feeCents = Math.round(safeCents * feeRate);
       sessionParams.payment_intent_data = {
-        application_fee_amount: feeCents,
+        application_fee_amount: applicationFeeCents(feeCents, stripeFeeCents),
         transfer_data: { destination: owner!.stripe_connect_id! },
         metadata: { invoice_id: inv.id },
       };

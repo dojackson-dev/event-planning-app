@@ -27,11 +27,12 @@ describe('non-profit platform fee', () => {
     expect(grossUp(5000, 0.015)).toBeLessThan(grossUp(5000));
   });
 
-  it('after Stripe and platform fees the promoter nets at least the face value', () => {
+  it('application fee leaves the promoter the price and us the full platform fee after Stripe', () => {
     const face = 25000;
     const total = grossUp(face, 0.015);
-    const stripeFee = total * 0.029 + 30;
-    const appFee = Math.round(total * 0.015);
-    expect(total - stripeFee - appFee).toBeGreaterThanOrEqual(face - 1);
+    const appFee = total - face;
+    const stripeFee = Math.round(total * 0.029) + 30;
+    expect(total - appFee).toBe(face);
+    expect(Math.abs(appFee - stripeFee - total * 0.015)).toBeLessThanOrEqual(2);
   });
 });

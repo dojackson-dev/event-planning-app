@@ -1028,6 +1028,107 @@ export class MailService {
     }
   }
 
+  /** Sponsorship receipt with the IRS quid-pro-quo disclosure (value received vs. deductible). */
+  async sendSponsorshipReceipt(params: {
+    toEmail: string;
+    buyerName: string;
+    companyName?: string | null;
+    eventTitle: string;
+    eventDate?: string | null;
+    eventId?: string | null;
+    levelName: string;
+    orgName?: string | null;
+    orgEin?: string | null;
+    tablesIncluded: number;
+    seatsPerTable: number;
+    ticketsIncluded: number;
+    price: number;
+    fairMarketValue: number;
+    deductibleAmount: number;
+    serviceFee: number;
+    totalCharged: number;
+  }): Promise<void> {
+    const esc = (s: string) =>
+      s
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    const usd = (n: number) => `$${n.toFixed(2)}`;
+    try {
+      const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+      const org = params.orgName ? esc(params.orgName) : 'the organization';
+      const ein = params.orgEin
+        ? `${params.orgEin.slice(0, 2)}-${params.orgEin.slice(2)}`
+        : null;
+      const date = params.eventDate
+        ? new Date(`${params.eventDate}T12:00:00`).toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })
+        : null;
+      const includes = [
+        params.tablesIncluded > 0
+          ? `${params.tablesIncluded} table(s) of ${params.seatsPerTable}`
+          : null,
+        params.ticketsIncluded > 0
+          ? `${params.ticketsIncluded} ticket(s)`
+          : null,
+      ].filter(Boolean) as string[];
+      const row = (label: string, value: string, bold = false) =>
+        `<tr><td style="padding: 4px 0; color: #6b7280;">${label}</td><td style="padding: 4px 0; text-align: right; ${bold ? 'font-weight: 700;' : 'font-weight: 600;'}">${value}</td></tr>`;
+
+      const html = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb; padding: 32px 16px;">
+          <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08);">
+            ${this.getEmailHeader('Thank you for sponsoring!', 'Your sponsorship is confirmed')}
+            <div style="padding: 32px;">
+              <p style="color: #374151; font-size: 15px; margin: 0 0 16px;">Hi ${esc(params.buyerName)}${params.companyName ? ` (${esc(params.companyName)})` : ''},</p>
+              <p style="color: #374151; font-size: 15px; margin: 0 0 20px;">Thank you for sponsoring <strong>${esc(params.eventTitle)}</strong>${date ? ` on ${date}` : ''}. ${org} appreciates your support.</p>
+              <div style="background: #f5f3ff; border-left: 4px solid #7c3aed; border-radius: 8px; padding: 20px 24px; margin: 0 0 24px;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #374151;">
+                  ${row('Sponsorship level', esc(params.levelName))}
+                  ${includes.length ? row('Includes', includes.join(', ')) : ''}
+                  ${row('Sponsorship amount', usd(params.price))}
+                  ${row('Service fee', usd(params.serviceFee))}
+                  ${row('Total charged', usd(params.totalCharged), true)}
+                </table>
+              </div>
+              <h3 style="color: #1f2937; font-size: 16px; margin: 0 0 8px;">Tax receipt</h3>
+              <p style="color: #374151; font-size: 14px; line-height: 1.6; margin: 0 0 8px;">
+                ${org}${ein ? ` (EIN ${ein})` : ''} is a tax-exempt organization under section 501(c)(3) of the Internal Revenue Code.
+              </p>
+              <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #374151;">
+                ${row('Sponsorship amount', usd(params.price))}
+                ${row('Estimated value of goods or services you received', usd(params.fairMarketValue))}
+                ${row('Amount that may be tax-deductible', usd(params.deductibleAmount), true)}
+              </table>
+              <p style="color: #6b7280; font-size: 12px; line-height: 1.6; margin: 12px 0 0;">
+                The deductible amount is your sponsorship minus the good-faith estimate of the value of goods and services you received. The service fee is not included. This is not tax advice; please consult your tax advisor.
+              </p>
+              ${params.eventId ? `<div style="text-align: center; margin: 28px 0 0;"><a href="${frontendUrl}/events/${params.eventId}" style="display: inline-block; background: #7c3aed; color: white; padding: 14px 36px; text-decoration: none; border-radius: 8px; font-size: 15px; font-weight: 600;">View Event</a></div>` : ''}
+            </div>
+          </div>
+        </div>`;
+
+      const text = `Thank you for sponsoring ${params.eventTitle}!\n\nLevel: ${params.levelName}\nSponsorship amount: ${usd(params.price)}\nService fee: ${usd(params.serviceFee)}\nTotal charged: ${usd(params.totalCharged)}\n\nTax receipt: ${params.orgName ?? 'The organization'}${ein ? ` (EIN ${ein})` : ''} is a 501(c)(3) tax-exempt organization.\nEstimated value of goods or services received: ${usd(params.fairMarketValue)}\nAmount that may be tax-deductible: ${usd(params.deductibleAmount)}\n(The service fee is not included. This is not tax advice.)`;
+
+      await this.transporter.sendMail({
+        from: `"${(params.orgName ?? 'Eventecos').replace(/"/g, '')} via Eventecos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
+        to: params.toEmail,
+        subject: `Your sponsorship of ${params.eventTitle} is confirmed`,
+        html,
+        text,
+      });
+      console.log('[MailService] Sponsorship receipt sent to', params.toEmail);
+    } catch (error) {
+      console.error('[MailService] Sponsorship receipt email failed:', error);
+      // Non-fatal — webhook must not throw
+    }
+  }
+
   /** Sends a VIP order confirmation email with QR code */
   async sendVipOrderConfirmation(params: {
     toEmail: string;

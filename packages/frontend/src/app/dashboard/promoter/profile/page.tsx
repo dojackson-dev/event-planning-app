@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import ConnectBankButton from '@/components/ConnectBankButton'
+import NonprofitVerification from '@/components/NonprofitVerification'
 
 interface PromoterProfile {
   id: string
@@ -311,6 +312,9 @@ export default function PromoterProfilePage() {
           />
         </div>
       </div>
+
+      {/* Non-profit (before Payments so Stripe is created as a non-profit) */}
+      <NonprofitVerification />
 
       {/* Payments */}
       <div id="payments" className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">

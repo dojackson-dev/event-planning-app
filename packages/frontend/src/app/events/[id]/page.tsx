@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
+import NonprofitBadge from '@/components/NonprofitBadge'
 import {
   MapPin, Clock, Tag, Ticket, Loader2, CheckCircle,
   Calendar, Users, Minus, Plus, ExternalLink,
@@ -34,6 +35,9 @@ interface PromoterAccount {
   contact_name: string
   instagram: string | null
   website: string | null
+  is_nonprofit?: boolean | null
+  nonprofit_status?: string | null
+  nonprofit_legal_name?: string | null
 }
 
 interface PublicEvent {
@@ -52,6 +56,7 @@ interface PublicEvent {
   age_restriction: string | null
   ticket_tiers: TicketTier[]
   promoter_accounts: PromoterAccount | null
+  sales_paused?: boolean
 }
 
 export default function PublicEventDetailPage({ params }: { params: { id: string } }) {
@@ -69,6 +74,7 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
   const [purchasing, setPurchasing] = useState(false)
   const [purchaseError, setPurchaseError] = useState('')
   const [vipPackages, setVipPackages] = useState<VipPackage[]>([])
+  const [sponsorLevels, setSponsorLevels] = useState<Array<{ id: string; name: string; price: number }>>([])
 
   const successSession = searchParams?.get('session_id')
   const paidParam = searchParams?.get('paid') === 'true'
@@ -84,6 +90,9 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
       .finally(() => setLoading(false))
     api.get(`/vip/public/events/${id}`)
       .then(r => setVipPackages((r.data.packages || []).filter((p: VipPackage) => p.status !== 'hidden' && p.inventory_sold < p.inventory)))
+      .catch(() => {})
+    api.get(`/nonprofit/public/events/${id}/sponsorship-levels`)
+      .then(r => setSponsorLevels(r.data || []))
       .catch(() => {})
   }, [id])
 
@@ -252,6 +261,7 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
               <div className="max-w-4xl mx-auto px-4 pb-6 w-full">
                 <h1 className="text-3xl md:text-4xl font-bold">{event.title}</h1>
                 {promoterName && <p className="text-purple-200 mt-1">By {promoterName}</p>}
+                <NonprofitBadge promoter={event.promoter_accounts} tone="dark" className="mt-2" />
               </div>
             </div>
           </div>
@@ -259,6 +269,7 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
           <div className="max-w-4xl mx-auto px-4 py-10">
             <h1 className="text-3xl md:text-4xl font-bold">{event.title}</h1>
             {promoterName && <p className="text-purple-200 mt-1">By {promoterName}</p>}
+            <NonprofitBadge promoter={event.promoter_accounts} tone="dark" className="mt-2" />
           </div>
         )}
       </div>
@@ -341,6 +352,25 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
           <div className="bg-white border border-gray-200 rounded-2xl p-5 sticky top-4 space-y-4">
             <h2 className="font-bold text-gray-900">Get Tickets</h2>
 
+            {/* Non-profit sponsorships */}
+            {sponsorLevels.length > 0 && (
+              <Link href={`/events/${id}/sponsor`}
+                className="block p-3 bg-gradient-to-r from-pink-50 to-rose-50 border border-pink-200 rounded-xl hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-pink-800 text-sm">Become a Sponsor</span>
+                  <span className="text-xs text-pink-600 font-medium">View levels →</span>
+                </div>
+                <p className="text-xs text-pink-700 mt-1">
+                  {sponsorLevels.length} level{sponsorLevels.length === 1 ? '' : 's'} from ${Math.min(...sponsorLevels.map(l => Number(l.price))).toLocaleString()}
+                </p>
+              </Link>
+            )}
+
+            {event.sales_paused ? (
+              <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                Ticket sales are paused until this organization&apos;s non-profit status is verified.
+              </div>
+            ) : (<>
             {/* VIP upsell - first option */}
             <Link href={`/events/${id}/vip`}
               className="block p-3 bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-200 rounded-xl hover:shadow-md transition-shadow">
@@ -491,6 +521,7 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
                 )}
               </form>
             )}
+            </>)}
           </div>
 
 

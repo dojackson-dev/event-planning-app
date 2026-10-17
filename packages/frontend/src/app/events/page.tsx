@@ -5,6 +5,7 @@ import Link from 'next/link'
 import api from '@/lib/api'
 import { MapPin, Calendar, Tag, Search, Filter, Loader2, Ticket, ExternalLink } from 'lucide-react'
 import DashboardReturnButton from '@/components/DashboardReturnButton'
+import NonprofitBadge from '@/components/NonprofitBadge'
 
 interface TicketTier {
   id: string
@@ -17,6 +18,9 @@ interface TicketTier {
 interface PromoterAccount {
   company_name: string | null
   contact_name: string
+  is_nonprofit?: boolean | null
+  nonprofit_status?: string | null
+  nonprofit_legal_name?: string | null
 }
 
 interface TicketmasterEvent {
@@ -755,6 +759,7 @@ export default function PublicEventsPage() {
                         {ev.age_restriction}
                       </span>
                     )}
+                    <NonprofitBadge promoter={ev.promoter_accounts} className="absolute top-2 left-2 max-w-[70%] bg-white/90" />
                   </div>
 
                   <div className="p-4">

@@ -11,6 +11,10 @@ import { MailService } from '../mail/mail.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import Stripe from 'stripe';
 import {
+  assertNonprofitCanSell,
+  nonprofitSalesBlocked,
+} from '../nonprofit/nonprofit-gate';
+import {
   CreatePromoterEventDto,
   UpdatePromoterEventDto,
   CreateTicketTierDto,
@@ -36,16 +40,16 @@ function haversineDistanceMiles(
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-const APP_FEE_RATE = 0.03; // 3% platform fee → goes to our account
-const STRIPE_PCT = 0.029; // Stripe's % fee
-const STRIPE_FIXED = 30; // Stripe's fixed fee in cents ($0.30)
+export const APP_FEE_RATE = 0.03; // 3% platform fee → goes to our account
+export const STRIPE_PCT = 0.029; // Stripe's % fee
+export const STRIPE_FIXED = 30; // Stripe's fixed fee in cents ($0.30)
 
 /**
  * Gross-up helper: calculates the total charge so that after Stripe's
  * processing fee AND the platform fee, the promoter nets the face value.
  *   totalCharge = ceil((ticketTotal + 0.30) / (1 - 0.029 - 0.03))
  */
-function grossUp(ticketTotalCents: number): number {
+export function grossUp(ticketTotalCents: number): number {
   return Math.ceil(
     (ticketTotalCents + STRIPE_FIXED) / (1 - STRIPE_PCT - APP_FEE_RATE),
   );
@@ -80,7 +84,7 @@ export class PromoterEventsService {
     const { data, error } = await admin
       .from('promoter_accounts')
       .select(
-        'id, stripe_account_id, stripe_connect_status, company_name, contact_name, email',
+        'id, stripe_account_id, stripe_connect_status, company_name, contact_name, email, is_nonprofit, nonprofit_status',
       )
       .eq('user_id', userId)
       .maybeSingle();
@@ -94,6 +98,7 @@ export class PromoterEventsService {
   async createEvent(userId: string, dto: CreatePromoterEventDto) {
     const admin = this.supabaseService.getAdminClient();
     const promoter = await this.getPromoterAccount(userId);
+    if (dto.status === 'published') assertNonprofitCanSell(promoter);
 
     const { data: event, error } = await admin
       .from('public_events')
@@ -163,6 +168,7 @@ export class PromoterEventsService {
   ) {
     const admin = this.supabaseService.getAdminClient();
     const promoter = await this.getPromoterAccount(userId);
+    if (dto.status === 'published') assertNonprofitCanSell(promoter);
 
     const { data: existing } = await admin
       .from('public_events')
@@ -353,7 +359,7 @@ export class PromoterEventsService {
     let query = admin
       .from('public_events')
       .select(
-        '*, ticket_tiers(id, name, price, quantity, quantity_sold), promoter_accounts(company_name, contact_name, profile_image_url)',
+        '*, ticket_tiers(id, name, price, quantity, quantity_sold), promoter_accounts(company_name, contact_name, profile_image_url, is_nonprofit, nonprofit_status, nonprofit_legal_name)',
       )
       .eq('status', 'published')
       .gte('event_date', from)
@@ -362,6 +368,21 @@ export class PromoterEventsService {
 
     if (dateTo) query = query.lte('event_date', dateTo);
     if (category) query = query.eq('category', category);
+
+    // Declared non-profits stay out of public lists until IRS-verified.
+    const { data: paused } = await admin
+      .from('promoter_accounts')
+      .select('id')
+      .eq('is_nonprofit', true)
+      .neq('nonprofit_status', 'verified');
+    const pausedIds = (paused ?? []).map((p: { id: string }) => p.id);
+    if (pausedIds.length) {
+      query = query.not(
+        'promoter_account_id',
+        'in',
+        `(${pausedIds.join(',')})`,
+      );
+    }
     if (!zipCode) query = query.range(offset, offset + limit - 1);
 
     const { data, error } = await query;
@@ -396,14 +417,17 @@ export class PromoterEventsService {
     const { data, error } = await admin
       .from('public_events')
       .select(
-        '*, ticket_tiers(id, name, price, quantity, quantity_sold, description), promoter_accounts(company_name, contact_name, profile_image_url, location, instagram, website)',
+        '*, ticket_tiers(id, name, price, quantity, quantity_sold, description), promoter_accounts(company_name, contact_name, profile_image_url, location, instagram, website, is_nonprofit, nonprofit_status, nonprofit_legal_name)',
       )
       .eq('id', eventId)
       .neq('status', 'cancelled')
       .maybeSingle();
 
     if (error || !data) throw new NotFoundException('Event not found');
-    return data;
+    return {
+      ...data,
+      sales_paused: nonprofitSalesBlocked(data.promoter_accounts),
+    };
   }
 
   // ── STRIPE CHECKOUT for tickets ───────────────────────────────
@@ -422,7 +446,7 @@ export class PromoterEventsService {
     const { data: event } = await admin
       .from('public_events')
       .select(
-        '*, promoter_accounts(stripe_account_id, stripe_connect_status, company_name, contact_name, enable_bnpl)',
+        '*, promoter_accounts(stripe_account_id, stripe_connect_status, company_name, contact_name, enable_bnpl, is_nonprofit, nonprofit_status)',
       )
       .eq('id', eventId)
       .eq('status', 'published')
@@ -444,6 +468,7 @@ export class PromoterEventsService {
       throw new BadRequestException(`Only ${available} tickets remaining`);
 
     const promoter = event.promoter_accounts;
+    assertNonprofitCanSell(promoter);
     if (
       !promoter?.stripe_account_id ||
       promoter.stripe_connect_status !== 'active'
@@ -963,7 +988,7 @@ export class PromoterEventsService {
     const { data: event } = await admin
       .from('public_events')
       .select(
-        '*, promoter_accounts(stripe_account_id, stripe_connect_status, company_name, enable_bnpl)',
+        '*, promoter_accounts(stripe_account_id, stripe_connect_status, company_name, enable_bnpl, is_nonprofit, nonprofit_status)',
       )
       .eq('id', eventId)
       .eq('status', 'published')
@@ -971,6 +996,7 @@ export class PromoterEventsService {
     if (!event) throw new NotFoundException('Event not found');
 
     const promoter = event.promoter_accounts;
+    assertNonprofitCanSell(promoter);
     if (
       !promoter?.stripe_account_id ||
       promoter.stripe_connect_status !== 'active'

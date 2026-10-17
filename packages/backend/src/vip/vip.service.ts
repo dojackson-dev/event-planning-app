@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
 import Stripe from 'stripe';
+import { assertNonprofitCanSell } from '../nonprofit/nonprofit-gate';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import { MailService } from '../mail/mail.service';
 import {
@@ -299,7 +300,7 @@ export class VipService {
     const { data: event } = await admin
       .from('public_events')
       .select(
-        '*, promoter_accounts(stripe_account_id, stripe_connect_status, company_name, enable_bnpl)',
+        '*, promoter_accounts(stripe_account_id, stripe_connect_status, company_name, enable_bnpl, is_nonprofit, nonprofit_status)',
       )
       .eq('id', eventId)
       .eq('status', 'published')
@@ -307,6 +308,7 @@ export class VipService {
     if (!event) throw new NotFoundException('Event not found or not published');
 
     const promoter = event.promoter_accounts;
+    assertNonprofitCanSell(promoter);
     if (
       !promoter?.stripe_account_id ||
       promoter.stripe_connect_status !== 'active'

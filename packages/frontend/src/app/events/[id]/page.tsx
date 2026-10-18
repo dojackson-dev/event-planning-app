@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
 import NonprofitBadge from '@/components/NonprofitBadge'
+import PayMethodToggle, { grossUpDollars, type PayMethod } from '@/components/PayMethodToggle'
 import {
   MapPin, Clock, Tag, Ticket, Loader2, CheckCircle,
   Calendar, Users, Minus, Plus, ExternalLink,
@@ -57,6 +58,7 @@ interface PublicEvent {
   ticket_tiers: TicketTier[]
   promoter_accounts: PromoterAccount | null
   sales_paused?: boolean
+  pay_later_available?: boolean
 }
 
 export default function PublicEventDetailPage({ params }: { params: { id: string } }) {
@@ -73,6 +75,7 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
   const [buyerPhone, setBuyerPhone] = useState('')
   const [purchasing, setPurchasing] = useState(false)
   const [purchaseError, setPurchaseError] = useState('')
+  const [payMethod, setPayMethod] = useState<PayMethod>('card')
   const [vipPackages, setVipPackages] = useState<VipPackage[]>([])
   const [sponsorLevels, setSponsorLevels] = useState<Array<{ id: string; name: string; price: number }>>([])
 
@@ -114,6 +117,7 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
       const res = await api.post(`/promoter-events/public/${id}/checkout`, {
         items,
         buyer_email: buyerEmail,
+        pay_method: payMethod,
         ...(buyerPhone ? { buyer_phone: buyerPhone } : {}),
       })
       if (res.data?.url) {
@@ -150,9 +154,8 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
     event.ticket_tiers.every(t => t.quantity_sold >= t.quantity)
 
   // Fee breakdown (mirrors backend grossUp)
-  const STRIPE_PCT   = 0.029
-  const STRIPE_FIXED = 0.30
   const APP_FEE_RATE = event.promoter_accounts?.is_nonprofit && event.promoter_accounts?.nonprofit_status === 'verified' ? 0.015 : 0.03
+  const activePayMethod: PayMethod = event.pay_later_available ? payMethod : 'card'
 
   const totalItems = Object.entries(tierQtys).filter(([, q]) => q > 0)
   const faceValue = totalItems.reduce((sum, [tierId, qty]) => {
@@ -160,9 +163,7 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
     return sum + (tier ? Number(tier.price) * qty : 0)
   }, 0)
   const totalTickets = totalItems.reduce((sum, [, qty]) => sum + qty, 0)
-  const totalCharge = faceValue > 0
-    ? Math.ceil((faceValue * 100 + STRIPE_FIXED * 100) / (1 - STRIPE_PCT - APP_FEE_RATE)) / 100
-    : 0
+  const totalCharge = faceValue > 0 ? grossUpDollars(faceValue, activePayMethod, APP_FEE_RATE) : 0
   const serviceFee = +(totalCharge - faceValue).toFixed(2)
 
   const adjustQty = (tierId: string, delta: number, max: number) => {
@@ -496,6 +497,11 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
                         </div>
                       )
                     })}
+                    {faceValue > 0 && event.pay_later_available && (
+                      <div className="pt-1.5">
+                        <PayMethodToggle value={activePayMethod} onChange={setPayMethod} disabled={purchasing} />
+                      </div>
+                    )}
                     {faceValue > 0 && (
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-500">Service fee</span>

@@ -59,8 +59,14 @@ export class ArtistInvoicesController {
 
   /** POST /artist-invoices/public/:token/checkout — External client initiates payment */
   @Post('public/:token/checkout')
-  async createPublicCheckout(@Param('token') token: string) {
-    return this.artistInvoicesService.createCheckoutSession(token);
+  async createPublicCheckout(
+    @Param('token') token: string,
+    @Body() body?: { pay_method?: string },
+  ) {
+    return this.artistInvoicesService.createCheckoutSession(
+      token,
+      body?.pay_method,
+    );
   }
 
   /** POST /artist-invoices/public/:token/verify-payment — Verify Stripe session and mark paid */

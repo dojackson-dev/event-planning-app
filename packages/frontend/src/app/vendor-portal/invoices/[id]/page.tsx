@@ -215,7 +215,7 @@ function VendorInvoiceDetailPageContent() {
                 </div>
                 <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm">
                   <div className="text-gray-600">
-                    <span className="font-medium">Platform fee (5%):</span> ${(Number(invoice.total_amount) * 0.05).toFixed(2)}
+                    <span className="font-medium">Platform fee (3%):</span> ${(Number(invoice.total_amount) * 0.03).toFixed(2)}
                   </div>
                   <div className="font-bold text-gray-900">
                     Your net payout: <span className="text-green-700">${(Number(invoice.total_amount) * 0.95).toFixed(2)}</span>
@@ -263,8 +263,8 @@ function VendorInvoiceDetailPageContent() {
             </div>
             {!isPaid && (
               <div className="flex justify-between text-sm text-orange-600 pt-1">
-                <span>Platform fee (5%)</span>
-                <span>-${(Number(invoice.total_amount) * 0.05).toFixed(2)}</span>
+                <span>Platform fee (3%)</span>
+                <span>-${(Number(invoice.total_amount) * 0.03).toFixed(2)}</span>
               </div>
             )}
             {!isPaid && (

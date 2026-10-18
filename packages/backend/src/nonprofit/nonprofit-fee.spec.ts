@@ -22,8 +22,8 @@ describe('non-profit platform fee', () => {
   });
 
   it('grossUp defaults to the 3% rate and is cheaper for buyers at 1.5%', () => {
-    expect(grossUp(100000)).toBe(106302);
-    expect(grossUp(100000, 0.015)).toBe(104634);
+    expect(grossUp(100000)).toBe(106529);
+    expect(grossUp(100000, 0.015)).toBe(104854);
     expect(grossUp(5000, 0.015)).toBeLessThan(grossUp(5000));
   });
 
@@ -33,6 +33,9 @@ describe('non-profit platform fee', () => {
     const appFee = total - face;
     const stripeFee = Math.round(total * 0.029) + 30;
     expect(total - appFee).toBe(face);
-    expect(Math.abs(appFee - stripeFee - total * 0.015)).toBeLessThanOrEqual(2);
+    // Stripe's real card bill is 2.9% + $0.30; the 0.2% allowance for international cards is extra margin.
+    const margin = appFee - stripeFee - total * 0.015;
+    expect(margin).toBeGreaterThanOrEqual(-2);
+    expect(margin).toBeLessThanOrEqual(total * 0.002 + 2);
   });
 });

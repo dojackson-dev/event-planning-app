@@ -4,7 +4,11 @@ import { VendorInvoicesService } from './vendor-invoices.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 
-function setup(vendorStatus: string, stripeAccount?: Record<string, unknown>) {
+function setup(
+  vendorStatus: string,
+  stripeAccount?: Record<string, unknown>,
+  enableBnpl = false,
+) {
   const invoice = {
     id: 'inv-1',
     invoice_number: 'BINV-2026-00001',
@@ -17,7 +21,7 @@ function setup(vendorStatus: string, stripeAccount?: Record<string, unknown>) {
       stripe_account_id: 'acct_test',
       stripe_connect_status: vendorStatus,
       business_name: 'DJ Vision',
-      enable_bnpl: false,
+      enable_bnpl: enableBnpl,
     },
   };
   const updates: Array<{ table: string; values: unknown }> = [];
@@ -105,6 +109,41 @@ describe('Vendor invoice checkout and Stripe readiness', () => {
     await expect(service.createCheckoutSession('tok')).rejects.toThrow(
       BadRequestException,
     );
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('card checkout never offers pay-later methods and uses the card processing fee', async () => {
+    const { service, create } = setup('active', undefined, true);
+    await service.createCheckoutSession('tok');
+    const params = create.mock.calls[0][0];
+    expect(params.payment_method_types).toEqual(['card', 'us_bank_account']);
+    // $800 + (800 + 0.30) / (1 - 3.1%) processing
+    expect(params.line_items[1].price_data.unit_amount).toBe(
+      Math.round(80030 / 0.969) - 80000,
+    );
+  });
+
+  it('pay-later checkout offers only Afterpay/Klarna/Affirm and charges the higher fee', async () => {
+    const { service, create } = setup('active', undefined, true);
+    await service.createCheckoutSession('tok', 'pay_later');
+    const params = create.mock.calls[0][0];
+    expect(params.payment_method_types).toEqual([
+      'afterpay_clearpay',
+      'klarna',
+      'affirm',
+    ]);
+    const fee = params.line_items[1].price_data.unit_amount;
+    expect(fee).toBe(Math.round(80030 / 0.94) - 80000);
+    expect(params.payment_intent_data.application_fee_amount).toBe(
+      Math.round(80000 * 0.03) + fee,
+    );
+  });
+
+  it('rejects pay-later when the vendor has not enabled it', async () => {
+    const { service, create } = setup('active');
+    await expect(
+      service.createCheckoutSession('tok', 'pay_later'),
+    ).rejects.toThrow(BadRequestException);
     expect(create).not.toHaveBeenCalled();
   });
 });

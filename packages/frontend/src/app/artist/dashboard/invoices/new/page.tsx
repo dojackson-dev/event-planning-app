@@ -136,7 +136,7 @@ function NewArtistInvoiceForm() {
   const baseAmount = Math.max(0, subtotal + taxAmount - discountAmount)
   const platformFee = Math.round(baseAmount * 0.03 * 100) / 100
   // Platform fee is charged to artist (deducted from payout); processing fee still passed to client.
-  const total = Math.round(((baseAmount + 0.30) / 0.971) * 100) / 100
+  const total = Math.round(((baseAmount + 0.30) / (1 - 0.031)) * 100) / 100
   const processingFee = Math.round((total - baseAmount) * 100) / 100
 
   const addItem = () => setItems(prev => [...prev, newItem()])
@@ -315,7 +315,7 @@ function NewArtistInvoiceForm() {
             {baseAmount > 0 && (
               <>
                 <div className="flex justify-between text-orange-600">
-                  <span>Stripe processing (2.9% + $0.30)</span><span>+${processingFee.toFixed(2)}</span>
+                  <span>Payment processing (3.1% + $0.30)</span><span>+${processingFee.toFixed(2)}</span>
                 </div>
               </>
             )}

@@ -544,7 +544,7 @@ export class StripeController {
   @Post('invoice-pay/:token/checkout')
   async publicInvoiceCheckout(
     @Param('token') token: string,
-    @Body() body: { amountCents: number },
+    @Body() body: { amountCents: number; pay_method?: string },
   ): Promise<{ url: string }> {
     const { amountCents } = body;
     if (!amountCents || amountCents < 50) {
@@ -555,6 +555,7 @@ export class StripeController {
     const url = await this.stripeService.createPublicInvoiceCheckout(
       token,
       amountCents,
+      body.pay_method,
     );
     return { url };
   }

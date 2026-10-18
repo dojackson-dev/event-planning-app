@@ -18,6 +18,11 @@ import {
   nonprofitSalesBlocked,
 } from '../nonprofit/nonprofit-gate';
 import {
+  grossUp as grossUpWithMethod,
+  paymentMethodTypesFor,
+  PayMethod,
+} from '../payments/platform-fee';
+import {
   CreatePromoterEventDto,
   UpdatePromoterEventDto,
   CreateTicketTierDto,
@@ -57,15 +62,13 @@ export function platformFeeRate(
 /**
  * Gross-up helper: calculates the total charge so that after Stripe's
  * processing fee AND the platform fee, the promoter nets the face value.
- *   totalCharge = ceil((ticketTotal + 0.30) / (1 - 0.029 - feeRate))
  */
 export function grossUp(
   ticketTotalCents: number,
   feeRate: number = APP_FEE_RATE,
+  method: PayMethod = 'card',
 ): number {
-  return Math.ceil(
-    (ticketTotalCents + STRIPE_FIXED) / (1 - STRIPE_PCT - feeRate),
-  );
+  return grossUpWithMethod(ticketTotalCents, feeRate, method);
 }
 
 @Injectable()
@@ -430,15 +433,18 @@ export class PromoterEventsService {
     const { data, error } = await admin
       .from('public_events')
       .select(
-        '*, ticket_tiers(id, name, price, quantity, quantity_sold, description), promoter_accounts(company_name, contact_name, profile_image_url, location, instagram, website, is_nonprofit, nonprofit_status, nonprofit_legal_name)',
+        '*, ticket_tiers(id, name, price, quantity, quantity_sold, description), promoter_accounts(company_name, contact_name, profile_image_url, location, instagram, website, is_nonprofit, nonprofit_status, nonprofit_legal_name, enable_bnpl)',
       )
       .eq('id', eventId)
       .neq('status', 'cancelled')
       .maybeSingle();
 
     if (error || !data) throw new NotFoundException('Event not found');
+    const { enable_bnpl, ...promoterPublic } = data.promoter_accounts ?? {};
     return {
       ...data,
+      promoter_accounts: data.promoter_accounts ? promoterPublic : null,
+      pay_later_available: !!enable_bnpl,
       sales_paused: nonprofitSalesBlocked(data.promoter_accounts),
     };
   }
@@ -453,6 +459,7 @@ export class PromoterEventsService {
     buyerEmail?: string,
     returnUrl?: string,
     buyerName?: string,
+    payMethod: PayMethod = 'card',
   ) {
     const admin = this.supabaseService.getAdminClient();
 
@@ -492,7 +499,11 @@ export class PromoterEventsService {
     const unitAmount = Math.round(Number(tier.price) * 100);
     const ticketTotal = unitAmount * quantity;
     const feeRate = platformFeeRate(promoter);
-    const totalCharge = grossUp(ticketTotal, feeRate);
+    const paymentMethodTypes = paymentMethodTypesFor(
+      promoter?.enable_bnpl,
+      payMethod,
+    );
+    const totalCharge = grossUp(ticketTotal, feeRate, payMethod);
     const serviceFee = totalCharge - ticketTotal;
     // The whole service fee is ours: it covers Stripe's bill and our platform fee, so the promoter nets the price.
     const appFeeAmount = serviceFee;
@@ -505,15 +516,16 @@ export class PromoterEventsService {
       : `${this.frontendUrl}/events/${eventId}?canceled=true`;
 
     const session = await this.stripe.checkout.sessions.create({
-      payment_method_types: promoter?.enable_bnpl
-        ? ['card', 'afterpay_clearpay', 'klarna', 'affirm']
-        : ['card'],
+      payment_method_types: paymentMethodTypes,
       mode: 'payment',
       ...(buyerEmail ? { customer_email: buyerEmail } : {}),
       // Collect billing address so Stripe Tax can determine the correct jurisdiction
       billing_address_collection: 'required',
-      // Stripe Tax: EventEcos remits tax on ticket sales
-      automatic_tax: { enabled: true },
+      // Stripe Tax: EventEcos remits tax on ticket sales (set STRIPE_TAX_ENABLED=false where Stripe Tax isn't configured)
+      automatic_tax: {
+        enabled:
+          this.configService.get<string>('STRIPE_TAX_ENABLED') !== 'false',
+      },
       line_items: [
         {
           price_data: {
@@ -997,6 +1009,7 @@ export class PromoterEventsService {
     buyerEmail?: string,
     returnUrl?: string,
     buyerName?: string,
+    payMethod: PayMethod = 'card',
   ) {
     const admin = this.supabaseService.getAdminClient();
 
@@ -1061,7 +1074,11 @@ export class PromoterEventsService {
     }
 
     const feeRate = platformFeeRate(promoter);
-    const totalCharge = grossUp(ticketTotal, feeRate);
+    const paymentMethodTypes = paymentMethodTypesFor(
+      promoter?.enable_bnpl,
+      payMethod,
+    );
+    const totalCharge = grossUp(ticketTotal, feeRate, payMethod);
     const serviceFee = totalCharge - ticketTotal;
     // The whole service fee is ours: it covers Stripe's bill and our platform fee, so the promoter nets the price.
     const appFeeAmount = serviceFee;
@@ -1088,15 +1105,16 @@ export class PromoterEventsService {
       : `${this.frontendUrl}/events/${eventId}?canceled=true`;
 
     const session = await this.stripe.checkout.sessions.create({
-      payment_method_types: promoter?.enable_bnpl
-        ? ['card', 'afterpay_clearpay', 'klarna', 'affirm']
-        : ['card'],
+      payment_method_types: paymentMethodTypes,
       mode: 'payment',
       ...(buyerEmail ? { customer_email: buyerEmail } : {}),
       // Collect billing address so Stripe Tax can determine the correct jurisdiction
       billing_address_collection: 'required',
-      // Stripe Tax: EventEcos remits tax on ticket sales
-      automatic_tax: { enabled: true },
+      // Stripe Tax: EventEcos remits tax on ticket sales (set STRIPE_TAX_ENABLED=false where Stripe Tax isn't configured)
+      automatic_tax: {
+        enabled:
+          this.configService.get<string>('STRIPE_TAX_ENABLED') !== 'false',
+      },
       line_items: lineItems,
       payment_intent_data: {
         application_fee_amount: appFeeAmount,

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { AlertCircle, ArrowLeft, Loader2 } from 'lucide-react'
+import { AlertCircle, ArrowLeft, Copy, ExternalLink, Loader2 } from 'lucide-react'
 import api from '@/lib/api'
 import AuctionForm, { AuctionFormValues } from '../_components/AuctionForm'
 import BiddersTab from '../_components/BiddersTab'
@@ -52,6 +52,13 @@ export default function ManageAuctionPage() {
   const [actionError, setActionError] = useState<string | null>(null)
   const [issues, setIssues] = useState<string[]>([])
   const [saved, setSaved] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const copyPublicLink = async () => {
+    await navigator.clipboard.writeText(`${window.location.origin}/auctions/${id}`)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
 
   const load = useCallback(async () => {
     try {
@@ -141,6 +148,18 @@ export default function ManageAuctionPage() {
             {auction.event_title ? ` | ${auction.event_title}` : ''}
           </p>
           {!canWrite && <p className="mt-1 text-xs text-gray-400">You have view-only access.</p>}
+          {auction.status === 'draft' ? (
+            <p className="mt-2 text-sm text-gray-500">Not public yet. Publish the auction to get a bidder link.</p>
+          ) : auction.status !== 'cancelled' ? (
+            <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
+              <a href={`/auctions/${auction.id}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-purple-600 hover:underline">
+                <ExternalLink className="h-4 w-4" /> View public page
+              </a>
+              <button onClick={copyPublicLink} className="inline-flex items-center gap-1 text-gray-600 hover:text-gray-900">
+                <Copy className="h-4 w-4" /> {copied ? 'Link copied' : 'Copy link'}
+              </button>
+            </div>
+          ) : null}
         </div>
         {editable && (
           <div className="flex gap-2">

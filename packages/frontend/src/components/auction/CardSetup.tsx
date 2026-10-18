@@ -25,6 +25,7 @@ export default function CardSetup({ auctionId, onSaved }: Props) {
   useEffect(() => {
     let cancelled = false
     let element: StripePaymentElement | null = null
+    let readyTimer: ReturnType<typeof setTimeout> | null = null
 
     async function init() {
       setLoading(true)
@@ -47,6 +48,17 @@ export default function CardSetup({ auctionId, onSaved }: Props) {
         element = elements.create('payment', { layout: 'tabs', wallets: { applePay: 'never', googlePay: 'never' } })
         if (mountRef.current) element.mount(mountRef.current)
         element.on('ready', () => !cancelled && setLoading(false))
+        element.on('loaderror', (e) => {
+          if (cancelled) return
+          setError(e.error?.message ?? 'The card form could not load. Please try again.')
+          setLoading(false)
+        })
+        readyTimer = setTimeout(() => {
+          if (cancelled) return
+          setError('The card form is taking too long to load. Check your connection or try a different browser.')
+          setLoading(false)
+        }, 15000)
+        element.on('ready', () => readyTimer && clearTimeout(readyTimer))
       } catch (err) {
         if (cancelled) return
         setError(parseApiError(err, 'Could not load the card form. Please try again.').message)
@@ -56,6 +68,7 @@ export default function CardSetup({ auctionId, onSaved }: Props) {
     init()
     return () => {
       cancelled = true
+      if (readyTimer) clearTimeout(readyTimer)
       element?.destroy()
     }
   }, [auctionId, attempt])
@@ -84,11 +97,12 @@ export default function CardSetup({ auctionId, onSaved }: Props) {
   return (
     <div>
       {loading && <div className="flex items-center gap-2 py-6 text-sm text-gray-500"><Loader2 className="h-4 w-4 animate-spin" /> Loading secure card form...</div>}
-      <div ref={mountRef} className={loading ? 'hidden' : ''} />
+      {/* Must stay rendered: Stripe never fires `ready` inside a display:none container. */}
+      <div ref={mountRef} />
       {error && (
         <p role="alert" className="mt-3 text-sm text-red-600">
           {error}{' '}
-          {!loading && !stripeRef.current && <button type="button" onClick={() => setAttempt((a) => a + 1)} className="font-medium underline">Try again</button>}
+          {!loading && <button type="button" onClick={() => setAttempt((a) => a + 1)} className="font-medium underline">Try again</button>}
         </p>
       )}
       {!loading && stripeRef.current && (

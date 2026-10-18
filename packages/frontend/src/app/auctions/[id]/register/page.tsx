@@ -38,7 +38,7 @@ export default function RegisterPage() {
   const [smsConsent, setSmsConsent] = useState(false)
   const [emailCode, setEmailCode] = useState('')
   const [phoneCode, setPhoneCode] = useState('')
-  const [verified, setVerified] = useState({ email: false, phone: false })
+  const [entered, setEntered] = useState({ email: false, sms: false })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
@@ -73,6 +73,9 @@ export default function RegisterPage() {
         smsConsent,
       })
       setCooldown(res.data.resend_after_seconds)
+      setEntered({ email: false, sms: false })
+      setEmailCode('')
+      setPhoneCode('')
       if (!res.data.sent.email || !res.data.sent.sms) setInfo('One of your codes was sent recently. Use the code you already received, or resend in a minute.')
       setStep('verify')
     } catch (err) {
@@ -92,14 +95,13 @@ export default function RegisterPage() {
         channel,
         code: channel === 'email' ? emailCode : phoneCode,
       })
-      setVerified(res.data.verified)
+      setEntered((prev) => ({ ...prev, [channel]: true }))
       if (res.data.token) {
         setBidderToken(id, res.data.token, res.data.token_expires_at)
         await reload()
         setStep('card')
       } else if (res.data.verified.email && res.data.verified.phone) {
-        // Both confirmed, but one code predates the latest send: ask for a fresh one.
-        setInfo('Both are verified, but a newer code was sent. Enter the most recent code to continue.')
+        setInfo('Almost there. Request a new code with Resend if one of your codes is no longer the latest one we sent.')
       }
     } catch (err) {
       fail(err)
@@ -114,6 +116,7 @@ export default function RegisterPage() {
       const res = await auctionApi.post<{ message: string; resend_after_seconds: number }>(`/${id}/register/resend`, { email, channel })
       setCooldown(res.data.resend_after_seconds)
       setInfo(res.data.message)
+      setEntered((prev) => ({ ...prev, [channel]: false }))
     } catch (err) {
       fail(err)
     }
@@ -180,7 +183,7 @@ export default function RegisterPage() {
           <div className="space-y-6">
             <p className="text-sm text-gray-600">Enter the codes we sent to <strong>{email}</strong> and your phone. Each is valid for 10 minutes.</p>
             {(['email', 'sms'] as const).map((channel) => {
-              const done = channel === 'email' ? verified.email : verified.phone
+              const done = entered[channel]
               const code = channel === 'email' ? emailCode : phoneCode
               return (
                 <div key={channel} className="space-y-2">

@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import type Stripe from 'stripe';
 
 /**
  * Platform-fee rule: EventEcos always keeps its full platform fee. Stripe bills the
@@ -88,6 +89,71 @@ export function applicationFeeCents(
   processingFee: number,
 ): number {
   return platformFeeCents + processingFee;
+}
+
+export const MAX_SALES_TAX_RATE_PCT = 20;
+
+/** Seller-entered tax percent for an event; invalid or missing values mean no tax. */
+export function salesTaxRatePct(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? Math.min(n, MAX_SALES_TAX_RATE_PCT) : 0;
+}
+
+/**
+ * Ticket/VIP order pricing when the seller owes sales tax. Tax applies to the price and the service fee,
+ * passes 100% to the seller, and Stripe's fee on the tax is covered by the service fee.
+ * The promoter nets `subtotalCents` + tax; the platform keeps `serviceFee` (its fee plus Stripe's bill).
+ */
+export function ticketPricing(
+  subtotalCents: number,
+  feeRate: number,
+  method: PayMethod = 'card',
+  taxRate = 0,
+): { serviceFee: number; tax: number; total: number } {
+  const rate = salesTaxRatePct(taxRate);
+  if (rate === 0) {
+    const total = grossUp(subtotalCents, feeRate, method);
+    return { serviceFee: total - subtotalCents, tax: 0, total };
+  }
+  const { pct, fixedCents } = processingRate(method);
+  const k = rate / 100;
+  const q = feeRate + pct * (1 + k);
+  const serviceFee = Math.ceil((q * subtotalCents + fixedCents) / (1 - q));
+  const tax = Math.round(k * (subtotalCents + serviceFee));
+  return { serviceFee, tax, total: subtotalCents + serviceFee + tax };
+}
+
+/** Checkout lines for the service fee and, when the seller charges tax, a separate sales tax line. */
+export function serviceFeeLines(
+  serviceFee: number,
+  tax: number,
+  taxRate: number,
+  feeDescription: string,
+): Stripe.Checkout.SessionCreateParams.LineItem[] {
+  const lines: Stripe.Checkout.SessionCreateParams.LineItem[] = [
+    {
+      price_data: {
+        currency: 'usd',
+        product_data: { name: 'Service fee', description: feeDescription },
+        unit_amount: serviceFee,
+      },
+      quantity: 1,
+    },
+  ];
+  if (tax > 0) {
+    lines.push({
+      price_data: {
+        currency: 'usd',
+        product_data: {
+          name: `Sales tax (${Number(salesTaxRatePct(taxRate).toFixed(3))}%)`,
+          description: 'Collected on behalf of the event organizer',
+        },
+        unit_amount: tax,
+      },
+      quantity: 1,
+    });
+  }
+  return lines;
 }
 
 /** Checkout payment_method_types; rejects pay-later when the seller hasn't enabled it. */

@@ -16,9 +16,11 @@ import {
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import { MailService } from '../mail/mail.service';
 import {
-  grossUp,
   normalizePayMethod,
   paymentMethodTypesFor,
+  salesTaxRatePct,
+  serviceFeeLines,
+  ticketPricing,
 } from '../payments/platform-fee';
 import {
   CreateVipSectionDto,
@@ -354,11 +356,8 @@ export class VipService {
             currency: 'usd',
             product_data: {
               name: item.name,
-              // Tax code: general admission / live event ticket
-              tax_code: 'txcd_90000001',
             },
             unit_amount: Math.round(Number(item.price) * 100),
-            tax_behavior: 'exclusive',
           },
           quantity: si.quantity,
         });
@@ -375,9 +374,14 @@ export class VipService {
       promoter?.enable_bnpl,
       payMethod,
     );
-    const totalCharge = grossUp(subtotal, feeRate, payMethod);
-    const serviceFee = totalCharge - subtotal;
-    // The whole service fee is ours: it covers Stripe's bill and our platform fee, so the promoter nets the price.
+    const taxRate = salesTaxRatePct(event.sales_tax_rate);
+    const { serviceFee, tax: salesTax } = ticketPricing(
+      subtotal,
+      feeRate,
+      payMethod,
+      taxRate,
+    );
+    // The whole service fee is ours: it covers Stripe's bill and our platform fee, so the promoter nets the price plus any sales tax.
     const appFeeAmount = serviceFee;
 
     const successUrl = dto.return_url
@@ -391,13 +395,6 @@ export class VipService {
       payment_method_types: paymentMethodTypes,
       mode: 'payment',
       ...(dto.buyer_email ? { customer_email: dto.buyer_email } : {}),
-      // Collect billing address so Stripe Tax can determine the correct jurisdiction
-      billing_address_collection: 'required',
-      // Stripe Tax: EventEcos remits tax on VIP ticket sales (set STRIPE_TAX_ENABLED=false where Stripe Tax isn't configured)
-      automatic_tax: {
-        enabled:
-          this.configService.get<string>('STRIPE_TAX_ENABLED') !== 'false',
-      },
       line_items: [
         {
           price_data: {
@@ -406,30 +403,18 @@ export class VipService {
               name: `${event.title} — ${pkg.name}`,
               description:
                 pkg.description || `VIP Package · ${pkg.capacity} guests`,
-              // Tax code: general admission / live event ticket
-              tax_code: 'txcd_90000001',
             },
             unit_amount: packageCents,
-            // Tax is calculated on top of this price (shown as separate line item)
-            tax_behavior: 'exclusive',
           },
           quantity: 1,
         },
         ...serviceLineItems,
-        {
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              name: 'Service fee',
-              description: 'Platform & processing fee',
-              // Service fees are generally not taxable
-              tax_code: 'txcd_00000000',
-            },
-            unit_amount: serviceFee,
-            tax_behavior: 'exclusive',
-          },
-          quantity: 1,
-        },
+        ...serviceFeeLines(
+          serviceFee,
+          salesTax,
+          taxRate,
+          'Platform & processing fee',
+        ),
       ],
       payment_intent_data: {
         application_fee_amount: appFeeAmount,

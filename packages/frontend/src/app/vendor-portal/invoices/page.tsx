@@ -31,7 +31,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
 }
 
 export default function VendorInvoicesPage() {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const [invoices, setInvoices] = useState<VendorInvoice[]>([])
   const [loading, setLoading] = useState(true)
@@ -40,10 +40,11 @@ export default function VendorInvoicesPage() {
   const [stripeReady, setStripeReady] = useState(true)
 
   useEffect(() => {
+    if (authLoading) return
     if (!user) { router.push('/login'); return }
     fetchInvoices()
     fetchStripeStatus()
-  }, [user])
+  }, [user, authLoading])
 
   const fetchStripeStatus = async () => {
     try {

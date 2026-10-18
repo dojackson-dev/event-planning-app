@@ -324,20 +324,20 @@ describe('computeOrderAmounts', () => {
       computeOrderAmounts({ subtotalCents: 10_000, taxCents: 0, rate: 0.015 }),
     ).toEqual({
       platformFeeCents: 150,
-      processingFeeCents: 334,
+      processingFeeCents: 356,
       taxCents: 0,
-      totalCents: 10_484,
-      applicationFeeCents: 484,
+      totalCents: 10_506,
+      applicationFeeCents: 506,
       recipientNetCents: 10_000,
     });
     expect(
       computeOrderAmounts({ subtotalCents: 10_000, taxCents: 700, rate: 0.03 }),
     ).toEqual({
       platformFeeCents: 300,
-      processingFeeCents: 359,
+      processingFeeCents: 383,
       taxCents: 700,
-      totalCents: 11_359,
-      applicationFeeCents: 1_359,
+      totalCents: 11_383,
+      applicationFeeCents: 1_383,
       recipientNetCents: 10_000,
     });
   });
@@ -363,10 +363,11 @@ describe('computeOrderAmounts', () => {
             a.platformFeeCents + a.processingFeeCents + a.taxCents,
           );
 
+          // Stripe's real card bill is 2.9% + 30c; the 0.2% international allowance is margin on top of the target.
           const platformNet = a.applicationFeeCents - stripeBill(a.totalCents);
-          expect(
-            Math.abs(platformNet - (a.platformFeeCents + a.taxCents)),
-          ).toBeLessThanOrEqual(1);
+          const margin = platformNet - (a.platformFeeCents + a.taxCents);
+          expect(margin).toBeGreaterThanOrEqual(-1);
+          expect(margin).toBeLessThanOrEqual(a.totalCents * 0.002 + 1);
         }
       }
     }

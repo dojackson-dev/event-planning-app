@@ -464,7 +464,7 @@ export class StripeService {
           'Webhook signature verification failed',
           lastError?.message,
         );
-        throw new Error(`Webhook error: ${lastError?.message}`);
+        throw new BadRequestException(`Webhook error: ${lastError?.message}`);
       }
       event = verified;
     } else {

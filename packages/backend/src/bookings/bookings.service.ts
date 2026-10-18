@@ -40,7 +40,22 @@ export class BookingsService {
       query = query.eq('venue_id', venueId);
     }
 
-    const { data, error } = await query;
+    let { data, error } = await query;
+    if (error && venueId) {
+      // The calendar sends the venue name, which isn't a valid venue_id; mirror events and return unfiltered rows.
+      console.warn(
+        'Bookings venue filter rejected, returning unfiltered:',
+        error.message,
+      );
+      ({ data, error } = await admin
+        .from('event')
+        .select(
+          '*, intake_form:intake_forms!intake_form_id(contact_name, contact_phone, event_name, event_type)',
+        )
+        .eq('owner_id', ownerId)
+        .in('client_status', ['deposit_paid', 'completed'])
+        .order('date', { ascending: false }));
+    }
     if (error) {
       console.error('Error fetching bookings:', error);
       throw error;

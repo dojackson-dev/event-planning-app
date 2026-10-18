@@ -7,11 +7,13 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import EnterpriseContactModal from '@/components/EnterpriseContactModal'
+import BookDemoModal from '@/components/BookDemoModal'
 
 export default function Home() {
   const { isAuthenticated, loading, user } = useAuth()
   const router = useRouter()
   const [showEnterpriseModal, setShowEnterpriseModal] = useState(false)
+  const [showDemoModal, setShowDemoModal] = useState(false)
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly')
 
   const taglines = [
@@ -99,6 +101,13 @@ export default function Home() {
                 <Sparkles className="h-3.5 w-3.5" />
                 Live Demo
               </Link>
+              <button
+                type="button"
+                onClick={() => setShowDemoModal(true)}
+                className="text-sm font-bold bg-white text-primary-700 hover:bg-primary-50 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                Book a Demo
+              </button>
             </div>
 
             {/* Right CTA */}
@@ -247,6 +256,13 @@ export default function Home() {
             >
               See Live Demo
             </a>
+            <button
+              type="button"
+              onClick={() => setShowDemoModal(true)}
+              className="border-2 border-gray-300 text-gray-700 hover:bg-gray-50 font-bold px-10 py-4 rounded-lg transition-colors text-lg"
+            >
+              Book a Demo
+            </button>
           </div>
           <p className="text-center text-sm text-gray-500 mt-4">30-day free trial. No credit card required.</p>
         </div>
@@ -389,6 +405,13 @@ export default function Home() {
           >
             Launch Live Demo <ArrowRight className="h-5 w-5" />
           </a>
+          <button
+            type="button"
+            onClick={() => setShowDemoModal(true)}
+            className="ml-0 sm:ml-4 mt-4 sm:mt-0 inline-flex items-center gap-2 border-2 border-white text-white hover:bg-white/10 font-bold px-10 py-4 rounded-lg transition-colors text-lg"
+          >
+            Book a Demo
+          </button>
         </div>
       </section>
 
@@ -696,6 +719,13 @@ export default function Home() {
             >
               See Live Demo
             </a>
+            <button
+              type="button"
+              onClick={() => setShowDemoModal(true)}
+              className="bg-white/20 hover:bg-white/30 text-white font-bold px-8 py-4 rounded-lg transition-colors text-lg"
+            >
+              Book a Demo
+            </button>
           </div>
         </div>
       </section>
@@ -766,6 +796,7 @@ export default function Home() {
       </footer>
 
       <EnterpriseContactModal isOpen={showEnterpriseModal} onClose={() => setShowEnterpriseModal(false)} />
+      <BookDemoModal isOpen={showDemoModal} onClose={() => setShowDemoModal(false)} />
     </div>
   )
 }

@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from 'next'
 import { Poppins } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '@/contexts/AuthContext'
-import DemoModeBanner from '@/components/DemoModeBanner'
 import HeyCatchInit from '@/components/HeyCatchInit'
 
 const poppins = Poppins({ subsets: ['latin'], weight: ['400', '500', '600', '700'] })
@@ -90,7 +89,6 @@ export default function RootLayout({
         />
         <HeyCatchInit />
         <AuthProvider>
-          <DemoModeBanner />
           {children}
         </AuthProvider>
       </body>

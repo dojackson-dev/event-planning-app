@@ -77,8 +77,14 @@ export class VendorInvoicesController {
 
   /** POST /vendor-invoices/public/:token/checkout — External client initiates payment */
   @Post('public/:token/checkout')
-  async createPublicCheckout(@Param('token') token: string) {
-    return this.vendorInvoicesService.createCheckoutSession(token);
+  async createPublicCheckout(
+    @Param('token') token: string,
+    @Body() body?: { pay_method?: string },
+  ) {
+    return this.vendorInvoicesService.createCheckoutSession(
+      token,
+      body?.pay_method,
+    );
   }
 
   /** POST /vendor-invoices/public/:token/verify-payment — Verify Stripe session and mark paid (webhook fallback) */

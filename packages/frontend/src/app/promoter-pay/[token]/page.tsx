@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { CheckCircle2, Loader2, AlertCircle, CreditCard, Lock, Megaphone } from 'lucide-react'
+import PayMethodToggle, { CARD_RATE_LABEL, PAY_LATER_RATE_LABEL, type PayMethod } from '@/components/PayMethodToggle'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
@@ -24,6 +25,8 @@ interface PublicPromoterInvoice {
   terms: string | null
   promoter_invoice_items: Array<{ id: string; description: string; quantity: number; unit_price: number; amount: number }>
   promoter_accounts: { company_name?: string; contact_name?: string; email: string; location?: string }
+  pay_later_available?: boolean
+  processing_fee_cents?: { card: number; pay_later: number }
 }
 
 function PromoterPayContent() {
@@ -35,6 +38,7 @@ function PromoterPayContent() {
   const [loading, setLoading] = useState(true)
   const [paying, setPaying] = useState(false)
   const [error, setError] = useState('')
+  const [payMethod, setPayMethod] = useState<PayMethod>('card')
 
   const justPaid = searchParams.get('paid') === 'true'
   const wasCanceled = searchParams.get('canceled') === 'true'
@@ -67,6 +71,7 @@ function PromoterPayContent() {
       const res = await fetch(`${API_URL}/promoter-invoices/public/${token}/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pay_method: payMethod }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.message || 'Failed to initiate payment')
@@ -99,6 +104,9 @@ function PromoterPayContent() {
   const isCancelled = invoice.status === 'cancelled'
   const promoter = invoice.promoter_accounts
   const displayName = promoter?.company_name || promoter?.contact_name || 'Promoter'
+  const activePayMethod: PayMethod = invoice.pay_later_available ? payMethod : 'card'
+  const feeCents = invoice.processing_fee_cents?.[activePayMethod]
+  const feeText = feeCents != null ? `$${(feeCents / 100).toFixed(2)}` : null
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
@@ -190,13 +198,18 @@ function PromoterPayContent() {
                     <AlertCircle className="w-4 h-4" /> {error}
                   </p>
                 )}
+                {invoice.pay_later_available && (
+                  <div className="mb-3">
+                    <PayMethodToggle value={activePayMethod} onChange={setPayMethod} disabled={paying} />
+                  </div>
+                )}
                 <button onClick={handlePay} disabled={paying}
                   className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white font-semibold py-3 rounded-xl hover:bg-purple-700 transition-colors disabled:opacity-60 text-base">
                   {paying ? <Loader2 className="w-5 h-5 animate-spin" /> : <CreditCard className="w-5 h-5" />}
                   {paying ? 'Redirecting…' : `Pay $${Number(invoice.total_amount).toFixed(2)}`}
                 </button>
                 <div className="flex items-center justify-center gap-1.5 mt-3 text-xs text-gray-400">
-                  <Lock className="w-3 h-3" /> Secured by Stripe. A card processing fee (2.9% + $0.30) is added at checkout.
+                  <Lock className="w-3 h-3" /> Secured by Stripe. A {activePayMethod === 'pay_later' ? `pay-later processing fee (${PAY_LATER_RATE_LABEL})` : `processing fee (${CARD_RATE_LABEL})`}{feeText ? ` of ${feeText}` : ''} is added at checkout.
                 </div>
               </>
             )}

@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { FileText, CheckCircle2, Loader2, AlertCircle, CreditCard, Lock, Building2, ArrowLeft } from 'lucide-react'
+import PayMethodToggle, { CARD_RATE_LABEL, PAY_LATER_RATE_LABEL, type PayMethod } from '@/components/PayMethodToggle'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
@@ -25,6 +26,8 @@ interface PublicInvoice {
   terms: string | null
   vendor_invoice_items: Array<{ id: string; description: string; quantity: number; unit_price: number; amount: number }>
   vendor_accounts: { business_name: string; email: string; phone: string; city: string; state: string; profile_image_url: string | null }
+  pay_later_available?: boolean
+  processing_fee_cents?: { card: number; pay_later: number }
 }
 
 function PublicInvoicePayPageContent() {
@@ -36,6 +39,7 @@ function PublicInvoicePayPageContent() {
   const [loading, setLoading] = useState(true)
   const [paying, setPaying] = useState(false)
   const [error, setError] = useState('')
+  const [payMethod, setPayMethod] = useState<PayMethod>('card')
 
   const justPaid = searchParams.get('paid') === 'true'
   const wasCanceled = searchParams.get('canceled') === 'true'
@@ -71,6 +75,7 @@ function PublicInvoicePayPageContent() {
       const res = await fetch(`${API_URL}/vendor-invoices/public/${token}/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pay_method: payMethod }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.message || 'Failed to initiate payment')
@@ -106,7 +111,9 @@ function PublicInvoicePayPageContent() {
   const isPaid = invoice.status === 'paid' || justPaid
   const isCancelled = invoice.status === 'cancelled'
   const vendor = invoice.vendor_accounts
-  const feeNote = '5% platform fee applies to payments processed via EventEcos.'
+  const activePayMethod: PayMethod = invoice.pay_later_available ? payMethod : 'card'
+  const feeCents = invoice.processing_fee_cents?.[activePayMethod]
+  const feeNote = `A payment processing fee (${activePayMethod === 'pay_later' ? PAY_LATER_RATE_LABEL : CARD_RATE_LABEL}${feeCents != null ? `, $${(feeCents / 100).toFixed(2)}` : ''}) is added at checkout.`
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
@@ -241,6 +248,11 @@ function PublicInvoicePayPageContent() {
                   <p className="text-sm text-red-500 mb-3 flex items-center gap-2">
                     <AlertCircle className="w-4 h-4" /> {error}
                   </p>
+                )}
+                {invoice.pay_later_available && (
+                  <div className="mb-3">
+                    <PayMethodToggle value={activePayMethod} onChange={setPayMethod} disabled={paying} />
+                  </div>
                 )}
                 <button
                   onClick={handlePay}

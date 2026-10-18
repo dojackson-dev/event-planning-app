@@ -608,7 +608,7 @@ export default function Home() {
             {[
               {
                 q: 'What does it actually cost to sell a ticket?',
-                a: 'On the Free plan, you pay a 3% platform fee on direct payments (1.5% on Pro, 1% on Premium). For ticket sales, the customer separately pays a 3% ticket fee plus Stripe\'s standard processing rate (currently 2.9% + $0.30 per transaction). Example on Free: a $100 ticket costs the buyer about $100 + $3 (ticket fee) + ~$3.20 (Stripe) \u2248 $106.20, and you receive $100 minus your 3% platform fee.',
+                a: 'On the Free plan, you pay a 3% platform fee on direct payments (1.5% on Pro, 1% on Premium). For ticket sales, the customer separately pays a 3% ticket fee (1.5% for verified non-profits) plus payment processing of 3.1% + $0.30 for cards (6% + $0.30 if they choose pay later with Afterpay, Klarna or Affirm, where you offer it). Example on Free: a $100 ticket costs the buyer about $106.80 by card ($100 + $3.20 ticket fee + $3.60 processing, rounded), and you receive the full $100.',
               },
               {
                 q: 'Where are my contracts and documents stored, and who can access them?',
@@ -654,7 +654,7 @@ export default function Home() {
               '@context': 'https://schema.org',
               '@type': 'FAQPage',
               mainEntity: [
-                { q: 'What does it actually cost to sell a ticket?', a: 'On the Free plan, you pay a 3% platform fee on direct payments (1.5% on Pro, 1% on Premium). For ticket sales, the customer separately pays a 3% ticket fee plus Stripe\'s standard processing rate.' },
+                { q: 'What does it actually cost to sell a ticket?', a: 'On the Free plan, you pay a 3% platform fee on direct payments (1.5% on Pro, 1% on Premium). For ticket sales, the customer separately pays a 3% ticket fee (1.5% for verified non-profits) plus payment processing (3.1% + $0.30 for cards).' },
                 { q: 'Where are my contracts and documents stored, and who can access them?', a: 'Contracts and documents are stored in your EventEcos account and are only visible to you and the clients you share them with.' },
                 { q: 'Can I export my data if I leave?', a: 'Yes \u2014 contact support for a full export of your bookings, clients, and documents.' },
                 { q: 'What happens after my 30-day free trial?', a: 'You choose a paid plan or continue on the Free plan. Nothing is charged automatically.' },

@@ -147,7 +147,7 @@ function VendorPaymentsPageContent() {
       <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-6 text-sm text-blue-700 flex items-start gap-2">
         <DollarSign className="w-4 h-4 mt-0.5 flex-shrink-0" />
         <span>
-          Stripe&apos;s processing fee (2.9% + $0.30) is added to your total at checkout.
+          A payment processing fee (3.1% + $0.30 for cards, 6% + $0.30 for pay later) is added to your total at checkout.
           A <strong>3% platform fee</strong> is deducted from the vendor&apos;s payout.
         </span>
       </div>
@@ -266,7 +266,7 @@ function InvoiceRow({
         </p>
         {!isPaid && !isCancelled && (
           <p className="text-xs text-gray-400">
-            +Stripe fee at checkout
+            +processing fee at checkout
           </p>
         )}
         {isPaid ? (

@@ -7,7 +7,13 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
-import { applicationFeeCents } from '../payments/platform-fee';
+import {
+  applicationFeeCents,
+  normalizePayMethod,
+  paymentMethodTypesFor,
+  processingFeeCents,
+  processingRateLabel,
+} from '../payments/platform-fee';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import Stripe from 'stripe';
 import * as nodemailer from 'nodemailer';
@@ -666,7 +672,7 @@ export class VendorInvoicesService {
     const { data, error } = await admin
       .from('vendor_invoices')
       .select(
-        '*, vendor_invoice_items(*), vendor_accounts(business_name, email, phone, city, state, profile_image_url)',
+        '*, vendor_invoice_items(*), vendor_accounts(business_name, email, phone, city, state, profile_image_url, enable_bnpl)',
       )
       .eq('public_token', token)
       .single();
@@ -683,13 +689,23 @@ export class VendorInvoicesService {
     }
 
     // Strip internal fields before returning to unauthenticated caller
+    const { enable_bnpl, ...vendorPublic } = data.vendor_accounts ?? {};
     const {
       public_token: _tok,
       stripe_checkout_session_id: _sess,
       stripe_payment_intent_id: _pi,
       ...safe
     } = data;
-    return safe;
+    const amountCents = Math.round(Number(data.amount_due) * 100);
+    return {
+      ...safe,
+      vendor_accounts: data.vendor_accounts ? vendorPublic : null,
+      pay_later_available: !!enable_bnpl,
+      processing_fee_cents: {
+        card: processingFeeCents(amountCents, 'card'),
+        pay_later: processingFeeCents(amountCents, 'pay_later'),
+      },
+    };
   }
 
   // ─── Stripe Checkout for public invoice payment ──────────────────────────────
@@ -737,7 +753,9 @@ export class VendorInvoicesService {
 
   async createCheckoutSession(
     token: string,
+    payMethodInput: unknown = 'card',
   ): Promise<{ url: string; feeCents: number }> {
+    const payMethod = normalizePayMethod(payMethodInput);
     const admin = this.supabaseService.getAdminClient();
 
     const { data: invoice, error } = await admin
@@ -763,18 +781,13 @@ export class VendorInvoicesService {
       invoice.vendor_account_id,
       vendor,
     );
-    const bnplMethods = [
-      'afterpay_clearpay',
-      'klarna',
-      'affirm',
-      'us_bank_account',
-    ] as const;
-
     const sessionParams: Stripe.Checkout.SessionCreateParams = {
       mode: 'payment',
-      payment_method_types: vendor?.enable_bnpl
-        ? ['card', ...bnplMethods]
-        : ['card'],
+      payment_method_types: paymentMethodTypesFor(
+        vendor?.enable_bnpl,
+        payMethod,
+        { bankDebit: true },
+      ),
       customer_email: invoice.client_email,
       line_items: [
         {
@@ -809,10 +822,8 @@ export class VendorInvoicesService {
 
     const platformFeeCents = Math.round(amountCents * OWNER_BOOKING_FEE_RATE);
 
-    // Gross up the charge so the payer absorbs Stripe's processing fee (2.9% + $0.30).
-    // Formula: gross = (amount + 0.30) / (1 - 0.029)
-    const grossCents = Math.round((amountCents + 30) / 0.971);
-    const stripeFeeCents = grossCents - amountCents;
+    // The payer absorbs Stripe's processing fee for the chosen payment method.
+    const stripeFeeCents = processingFeeCents(amountCents, payMethod);
 
     // Replace the base line item with the grossed-up amount
     sessionParams.line_items = [
@@ -832,8 +843,11 @@ export class VendorInvoicesService {
           currency: 'usd',
           unit_amount: stripeFeeCents,
           product_data: {
-            name: 'Stripe Processing Fee',
-            description: 'Credit/debit card processing fee (2.9% + $0.30)',
+            name:
+              payMethod === 'pay_later'
+                ? 'Pay-later Processing Fee'
+                : 'Payment Processing Fee',
+            description: `${payMethod === 'pay_later' ? 'Afterpay / Klarna / Affirm' : 'Card'} processing fee (${processingRateLabel(payMethod)})`,
           },
         },
         quantity: 1,

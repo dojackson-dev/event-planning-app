@@ -365,6 +365,7 @@ export class ClientPortalController {
   async createInvoiceCheckout(
     @Headers('x-client-token') token: string,
     @Param('id') id: string,
+    @Body() body?: { pay_method?: string },
   ) {
     const session = this.requireSession(token);
     return this.clientPortalService.createInvoiceCheckout(
@@ -372,6 +373,7 @@ export class ClientPortalController {
       session.clientId,
       session.phone,
       `${session.firstName} ${session.lastName}`.trim() || 'Client',
+      body?.pay_method,
     );
   }
 

@@ -146,7 +146,7 @@ export default function ConnectBankButton({ role, email }: ConnectBankButtonProp
               <div className="flex-1">
                 <p className="text-sm font-semibold text-gray-900">Buy Now, Pay Later options</p>
                 <p className="text-sm text-gray-600 mt-0.5">
-                  Let your clients pay with Afterpay, Klarna, or Affirm. Clients pay nothing extra — you receive the same amount.
+                  Let your clients choose Afterpay, Klarna, or Affirm at checkout. You receive the same amount either way.
                 </p>
               </div>
               <button
@@ -165,7 +165,7 @@ export default function ConnectBankButton({ role, email }: ConnectBankButtonProp
             <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-md p-3">
               <Info className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
               <p className="text-xs text-amber-800">
-                <strong>Processing fee notice:</strong> Afterpay, Klarna, and Affirm charge <strong>~6%</strong> per transaction (vs. 2.9% + $0.30 for cards). This fee is deducted from your payout by Stripe. ACH Direct Debit charges 0.8% (capped at $5).
+                <strong>Processing fee notice:</strong> Afterpay, Klarna, and Affirm cost about <strong>6% + $0.30</strong> per transaction (vs. 3.1% + $0.30 charged for cards). Buyers see both options at checkout and the buyer who picks pay later pays that higher processing fee, not you. Bank debit (ACH) is offered with the card option on invoices.
               </p>
             </div>
           </div>

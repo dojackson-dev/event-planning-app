@@ -7,7 +7,15 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
-import { applicationFeeCents } from '../payments/platform-fee';
+import {
+  applicationFeeCents,
+  chargeTotalWithProcessing,
+  normalizePayMethod,
+  PayMethod,
+  payLaterSurchargeCents,
+  paymentMethodTypesFor,
+  processingRateLabel,
+} from '../payments/platform-fee';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import Stripe from 'stripe';
 import * as nodemailer from 'nodemailer';
@@ -65,7 +73,8 @@ export class ArtistInvoicesService {
     // Platform fee is charged to the artist (deducted from payout via application_fee_amount).
     // Stripe processing fee is still passed through to the client.
     const platformFeeAmount = Math.round(baseAmount * APP_FEE_RATE * 100) / 100;
-    const totalAmount = Math.round(((baseAmount + 0.3) / 0.971) * 100) / 100;
+    const totalAmount =
+      chargeTotalWithProcessing(Math.round(baseAmount * 100)) / 100;
     const processingFeeAmount =
       Math.round((totalAmount - baseAmount) * 100) / 100;
     return {
@@ -512,7 +521,7 @@ export class ArtistInvoicesService {
     const { data, error } = await admin
       .from('artist_invoices')
       .select(
-        '*, artist_invoice_items(*), artist_accounts(artist_name, stage_name, booking_email, booking_phone, location, profile_image_url)',
+        '*, artist_invoice_items(*), artist_accounts(artist_name, stage_name, booking_email, booking_phone, location, profile_image_url, enable_bnpl)',
       )
       .eq('public_token', token)
       .single();
@@ -527,20 +536,30 @@ export class ArtistInvoicesService {
       data.status = 'viewed';
     }
 
+    const { enable_bnpl, ...artistPublic } = data.artist_accounts ?? {};
     const {
       public_token: _tok,
       stripe_checkout_session_id: _sess,
       stripe_payment_intent_id: _pi,
       ...safe
     } = data;
-    return safe;
+    return {
+      ...safe,
+      artist_accounts: data.artist_accounts ? artistPublic : null,
+      pay_later_available: !!enable_bnpl,
+      pay_later_surcharge_cents: payLaterSurchargeCents(
+        Math.round(Number(data.amount_due) * 100),
+      ),
+    };
   }
 
   // ─── Stripe Checkout for public invoice payment ────────────────────────────
 
   async createCheckoutSession(
     token: string,
+    payMethodInput: unknown = 'card',
   ): Promise<{ url: string; feeCents: number }> {
+    const payMethod: PayMethod = normalizePayMethod(payMethodInput);
     const admin = this.supabaseService.getAdminClient();
 
     const { data: invoice, error } = await admin
@@ -580,24 +599,21 @@ export class ArtistInvoicesService {
         100,
     );
     const platformFeeCents = Math.round(baseCents * APP_FEE_RATE);
-    // The client already pays Stripe's fee inside the invoice total; the application fee covers it plus our platform fee.
+    // The client already pays Stripe's fee inside the invoice total; pay-later adds the higher fee as its own line.
+    const surchargeCents =
+      payMethod === 'pay_later' ? payLaterSurchargeCents(amountCents) : 0;
     const feeCents = applicationFeeCents(
       platformFeeCents,
-      Math.max(0, amountCents - baseCents),
+      Math.max(0, amountCents - baseCents) + surchargeCents,
     );
-
-    const bnplMethods = [
-      'afterpay_clearpay',
-      'klarna',
-      'affirm',
-      'us_bank_account',
-    ] as const;
 
     const session = await this.stripe.checkout.sessions.create({
       mode: 'payment',
-      payment_method_types: artist?.enable_bnpl
-        ? ['card', ...bnplMethods]
-        : ['card'],
+      payment_method_types: paymentMethodTypesFor(
+        artist?.enable_bnpl,
+        payMethod,
+        { bankDebit: true },
+      ),
       customer_email: invoice.client_email,
       line_items: [
         {
@@ -611,6 +627,21 @@ export class ArtistInvoicesService {
           },
           quantity: 1,
         },
+        ...(surchargeCents > 0
+          ? [
+              {
+                price_data: {
+                  currency: 'usd',
+                  unit_amount: surchargeCents,
+                  product_data: {
+                    name: 'Pay-later processing fee',
+                    description: `Afterpay / Klarna / Affirm fee (${processingRateLabel('pay_later')})`,
+                  },
+                },
+                quantity: 1,
+              },
+            ]
+          : []),
       ],
       success_url: `${this.frontendUrl}/artist-pay/${token}?paid=true`,
       cancel_url: `${this.frontendUrl}/artist-pay/${token}?canceled=true`,

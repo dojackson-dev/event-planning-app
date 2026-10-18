@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { CheckCircle2, Loader2, AlertCircle, CreditCard, Lock, Music } from 'lucide-react'
+import PayMethodToggle, { type PayMethod } from '@/components/PayMethodToggle'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
@@ -24,6 +25,8 @@ interface PublicArtistInvoice {
   terms: string | null
   artist_invoice_items: Array<{ id: string; description: string; quantity: number; unit_price: number; amount: number }>
   artist_accounts: { artist_name: string; stage_name?: string; email: string; city?: string; state?: string; profile_image_url?: string | null }
+  pay_later_available?: boolean
+  pay_later_surcharge_cents?: number
 }
 
 function ArtistPayContent() {
@@ -35,6 +38,7 @@ function ArtistPayContent() {
   const [loading, setLoading] = useState(true)
   const [paying, setPaying] = useState(false)
   const [error, setError] = useState('')
+  const [payMethod, setPayMethod] = useState<PayMethod>('card')
 
   const justPaid = searchParams.get('paid') === 'true'
   const wasCanceled = searchParams.get('canceled') === 'true'
@@ -67,6 +71,7 @@ function ArtistPayContent() {
       const res = await fetch(`${API_URL}/artist-invoices/public/${token}/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pay_method: payMethod }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.message || 'Failed to initiate payment')
@@ -104,6 +109,9 @@ function ArtistPayContent() {
   // Stripe processing fee is passed through to the client.
   const invoiceBase = Number(invoice.subtotal) + Number(invoice.tax_amount) - Number(invoice.discount_amount)
   const processingFee = Math.round((Number(invoice.total_amount) - invoiceBase) * 100) / 100
+  const activePayMethod: PayMethod = invoice.pay_later_available ? payMethod : 'card'
+  const payLaterSurcharge = activePayMethod === 'pay_later' ? (invoice.pay_later_surcharge_cents ?? 0) / 100 : 0
+  const payTotal = Number(invoice.total_amount) + payLaterSurcharge
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
@@ -170,10 +178,13 @@ function ArtistPayContent() {
                 <div className="flex justify-between text-green-600"><span>Discount</span><span>-${Number(invoice.discount_amount).toFixed(2)}</span></div>
               )}
               {invoiceBase > 0 && processingFee > 0 && (
-                <div className="flex justify-between text-orange-500 text-xs"><span>Processing fee (2.9% + $0.30)</span><span>+${processingFee.toFixed(2)}</span></div>
+                <div className="flex justify-between text-orange-500 text-xs"><span>Processing fee</span><span>+${processingFee.toFixed(2)}</span></div>
+              )}
+              {payLaterSurcharge > 0 && (
+                <div className="flex justify-between text-orange-500 text-xs"><span>Pay-later fee (Afterpay, Klarna, Affirm)</span><span>+${payLaterSurcharge.toFixed(2)}</span></div>
               )}
               <div className="flex justify-between font-bold text-gray-900 text-base pt-2 border-t border-gray-100">
-                <span>Total</span><span>${Number(invoice.total_amount).toFixed(2)}</span>
+                <span>Total</span><span>${payTotal.toFixed(2)}</span>
               </div>
             </div>
           </div>
@@ -207,10 +218,15 @@ function ArtistPayContent() {
                     <AlertCircle className="w-4 h-4" /> {error}
                   </p>
                 )}
+                {invoice.pay_later_available && (
+                  <div className="mb-3">
+                    <PayMethodToggle value={activePayMethod} onChange={setPayMethod} disabled={paying} />
+                  </div>
+                )}
                 <button onClick={handlePay} disabled={paying}
                   className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white font-semibold py-3 rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-60 text-base">
                   {paying ? <Loader2 className="w-5 h-5 animate-spin" /> : <CreditCard className="w-5 h-5" />}
-                  {paying ? 'Redirecting…' : `Pay $${Number(invoice.total_amount).toFixed(2)}`}
+                  {paying ? 'Redirecting…' : `Pay $${payTotal.toFixed(2)}`}
                 </button>
                 <div className="flex items-center justify-center gap-1.5 mt-3 text-xs text-gray-400">
                   <Lock className="w-3 h-3" /> Secured by Stripe. Fees included in total.

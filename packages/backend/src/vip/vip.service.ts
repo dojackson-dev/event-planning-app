@@ -16,6 +16,11 @@ import {
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import { MailService } from '../mail/mail.service';
 import {
+  grossUp,
+  normalizePayMethod,
+  paymentMethodTypesFor,
+} from '../payments/platform-fee';
+import {
   CreateVipSectionDto,
   CreateVipPackageDto,
   UpdateVipPackageDto,
@@ -28,12 +33,6 @@ import {
 } from './dto/vip.dto';
 
 const APP_FEE_RATE = 0.03;
-const STRIPE_PCT = 0.029;
-const STRIPE_FIXED = 30;
-
-function grossUp(cents: number, feeRate: number): number {
-  return Math.ceil((cents + STRIPE_FIXED) / (1 - STRIPE_PCT - feeRate));
-}
 
 @Injectable()
 export class VipService {
@@ -371,7 +370,12 @@ export class VipService {
     const feeRate = isVerifiedNonprofit(promoter)
       ? NONPROFIT_APP_FEE_RATE
       : APP_FEE_RATE;
-    const totalCharge = grossUp(subtotal, feeRate);
+    const payMethod = normalizePayMethod(dto.pay_method);
+    const paymentMethodTypes = paymentMethodTypesFor(
+      promoter?.enable_bnpl,
+      payMethod,
+    );
+    const totalCharge = grossUp(subtotal, feeRate, payMethod);
     const serviceFee = totalCharge - subtotal;
     // The whole service fee is ours: it covers Stripe's bill and our platform fee, so the promoter nets the price.
     const appFeeAmount = serviceFee;
@@ -384,15 +388,16 @@ export class VipService {
       : `${this.frontendUrl}/events/${eventId}?vip_canceled=true`;
 
     const session = await this.stripe.checkout.sessions.create({
-      payment_method_types: promoter?.enable_bnpl
-        ? ['card', 'afterpay_clearpay', 'klarna', 'affirm']
-        : ['card'],
+      payment_method_types: paymentMethodTypes,
       mode: 'payment',
       ...(dto.buyer_email ? { customer_email: dto.buyer_email } : {}),
       // Collect billing address so Stripe Tax can determine the correct jurisdiction
       billing_address_collection: 'required',
-      // Stripe Tax: EventEcos remits tax on VIP ticket sales
-      automatic_tax: { enabled: true },
+      // Stripe Tax: EventEcos remits tax on VIP ticket sales (set STRIPE_TAX_ENABLED=false where Stripe Tax isn't configured)
+      automatic_tax: {
+        enabled:
+          this.configService.get<string>('STRIPE_TAX_ENABLED') !== 'false',
+      },
       line_items: [
         {
           price_data: {
@@ -1333,29 +1338,37 @@ export class VipService {
 
   async getPublicVipInfo(eventId: string) {
     const admin = this.supabaseService.getAdminClient();
-    const [packagesRes, serviceItemsRes, layoutsRes] = await Promise.all([
-      admin
-        .from('vip_packages')
-        .select('*, vip_sections(name)')
-        .eq('public_event_id', eventId)
-        .neq('status', 'hidden')
-        .order('price', { ascending: true }),
-      admin
-        .from('vip_service_items')
-        .select('id, name, category, price, requires_approval')
-        .eq('public_event_id', eventId)
-        .eq('status', 'active'),
-      admin
-        .from('vip_layouts')
-        .select('id, file_url, file_type, description')
-        .eq('public_event_id', eventId)
-        .order('created_at', { ascending: false })
-        .limit(1),
-    ]);
+    const [packagesRes, serviceItemsRes, layoutsRes, promoterRes] =
+      await Promise.all([
+        admin
+          .from('vip_packages')
+          .select('*, vip_sections(name)')
+          .eq('public_event_id', eventId)
+          .neq('status', 'hidden')
+          .order('price', { ascending: true }),
+        admin
+          .from('vip_service_items')
+          .select('id, name, category, price, requires_approval')
+          .eq('public_event_id', eventId)
+          .eq('status', 'active'),
+        admin
+          .from('vip_layouts')
+          .select('id, file_url, file_type, description')
+          .eq('public_event_id', eventId)
+          .order('created_at', { ascending: false })
+          .limit(1),
+        admin
+          .from('public_events')
+          .select('promoter_accounts(enable_bnpl)')
+          .eq('id', eventId)
+          .maybeSingle(),
+      ]);
     return {
       packages: packagesRes.data || [],
       service_items: serviceItemsRes.data || [],
       layout: layoutsRes.data?.[0] || null,
+      pay_later_available: !!(promoterRes.data as any)?.promoter_accounts
+        ?.enable_bnpl,
     };
   }
 

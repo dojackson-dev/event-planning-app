@@ -1278,12 +1278,16 @@ export class ClientPortalService {
       ...new Set(invoices.map((i: any) => i.owner_id).filter(Boolean)),
     ];
     const fromNameById: Record<string, string> = {};
+    const payLaterByOwner: Record<string, boolean> = {};
     if (ownerIds.length) {
       const { data: ownerAccounts } = await supabase
         .from('owner_accounts')
-        .select('primary_owner_id, business_name')
+        .select('primary_owner_id, business_name, enable_bnpl')
         .in('primary_owner_id', ownerIds);
       for (const oa of ownerAccounts || []) {
+        if (oa.primary_owner_id) {
+          payLaterByOwner[oa.primary_owner_id] = !!oa.enable_bnpl;
+        }
         if (oa.primary_owner_id && oa.business_name) {
           fromNameById[oa.primary_owner_id] = oa.business_name;
         }
@@ -1346,6 +1350,7 @@ export class ClientPortalService {
         ...i,
         items: clientVisibleItems(i.items),
         from_name: i.owner_id ? (fromNameById[i.owner_id] ?? null) : null,
+        pay_later_available: i.owner_id ? !!payLaterByOwner[i.owner_id] : false,
       })),
       ...vendorInvoices,
     ].sort(
@@ -1360,6 +1365,7 @@ export class ClientPortalService {
     clientId: string,
     clientPhone: string,
     clientName: string,
+    payMethod?: string,
   ): Promise<{ url: string }> {
     const supabase = this.supabaseService.getAdminClient();
     const phoneVariants = buildPhoneVariants(clientPhone);
@@ -1412,6 +1418,7 @@ export class ClientPortalService {
     const url = await this.stripeService.createInvoiceCheckoutSession(
       invoiceId,
       clientName,
+      payMethod,
     );
     return { url };
   }

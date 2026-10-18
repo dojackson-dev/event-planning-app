@@ -10,7 +10,11 @@ import Stripe from 'stripe';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
   applicationFeeCents,
+  normalizePayMethod,
+  PayMethod,
+  paymentMethodTypesFor,
   processingFeeCents,
+  processingRateLabel,
 } from '../payments/platform-fee';
 import { VendorInvoicesService } from '../vendor-invoices/vendor-invoices.service';
 import { ArtistInvoicesService } from '../artist-invoices/artist-invoices.service';
@@ -325,7 +329,9 @@ export class StripeService {
   async createInvoiceCheckoutSession(
     invoiceId: string,
     clientName: string,
+    payMethodInput: unknown = 'card',
   ): Promise<string> {
+    const payMethod: PayMethod = normalizePayMethod(payMethodInput);
     const admin = this.supabaseService.getAdminClient();
 
     const { data: invoice } = await admin
@@ -345,9 +351,8 @@ export class StripeService {
     const amountCents = Math.round(Number(invoice.amount_due) * 100);
     if (amountCents < 50) throw new Error('Amount too small to process');
 
-    // Gross up so the client absorbs Stripe's processing fee (2.9% + $0.30)
-    const grossCents = Math.round((amountCents + 30) / 0.971);
-    const stripeFeeCents = grossCents - amountCents;
+    // Gross up so the client absorbs Stripe's processing fee for the chosen method
+    const stripeFeeCents = processingFeeCents(amountCents, payMethod);
 
     const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
       {
@@ -366,8 +371,11 @@ export class StripeService {
           currency: 'usd',
           unit_amount: stripeFeeCents,
           product_data: {
-            name: 'Stripe Processing Fee',
-            description: 'Credit/debit card processing fee (2.9% + $0.30)',
+            name:
+              payMethod === 'pay_later'
+                ? 'Pay-later Processing Fee'
+                : 'Payment Processing Fee',
+            description: `${payMethod === 'pay_later' ? 'Afterpay / Klarna / Affirm' : 'Card'} processing fee (${processingRateLabel(payMethod)})`,
           },
         },
         quantity: 1,
@@ -414,9 +422,11 @@ export class StripeService {
     }
 
     const session = await this.stripe.checkout.sessions.create({
-      payment_method_types: ownerAccount?.enable_bnpl
-        ? ['card', 'afterpay_clearpay', 'klarna', 'affirm', 'us_bank_account']
-        : ['card'],
+      payment_method_types: paymentMethodTypesFor(
+        ownerAccount?.enable_bnpl,
+        payMethod,
+        { bankDebit: true },
+      ),
       line_items: lineItems,
       mode: 'payment',
       ...(invoice.client_email ? { customer_email: invoice.client_email } : {}),
@@ -2272,7 +2282,7 @@ export class StripeService {
       .from('invoices')
       .select(
         `
-        id, invoice_number, client_name, client_email,
+        id, invoice_number, client_name, client_email, owner_id,
         total_amount, amount_paid, amount_due, discount_amount, status,
         issue_date, due_date, notes, terms,
         deposit_percentage, deposit_due_days_before, final_payment_due_days_before,
@@ -2284,7 +2294,21 @@ export class StripeService {
       .maybeSingle();
 
     if (error || !data) throw new Error('Invoice not found');
-    return { ...data, items: clientVisibleItems((data as any).items) };
+    const { owner_id: ownerId, ...publicData } = data as any;
+    let payLaterAvailable = false;
+    if (ownerId) {
+      const { data: owner } = await admin
+        .from('owner_accounts')
+        .select('enable_bnpl')
+        .eq('id', ownerId)
+        .maybeSingle();
+      payLaterAvailable = !!owner?.enable_bnpl;
+    }
+    return {
+      ...publicData,
+      items: clientVisibleItems(publicData.items),
+      pay_later_available: payLaterAvailable,
+    };
   }
 
   /**
@@ -2294,7 +2318,9 @@ export class StripeService {
   async createPublicInvoiceCheckout(
     token: string,
     amountCents: number,
+    payMethodInput: unknown = 'card',
   ): Promise<string> {
+    const payMethod: PayMethod = normalizePayMethod(payMethodInput);
     const admin = this.supabaseService.getAdminClient();
 
     const { data: inv, error } = await admin
@@ -2330,15 +2356,16 @@ export class StripeService {
 
     const description = `Invoice ${inv.invoice_number} — $${(safeCents / 100).toFixed(2)}`;
 
-    // Gross up so payer absorbs Stripe's processing fee (2.9% + $0.30)
-    const grossCents = Math.round((safeCents + 30) / 0.971);
-    const stripeFeeCents = grossCents - safeCents;
+    // Gross up so the payer absorbs Stripe's processing fee for the chosen method
+    const stripeFeeCents = processingFeeCents(safeCents, payMethod);
 
     const sessionParams: any = {
       mode: 'payment',
-      payment_method_types: owner?.enable_bnpl
-        ? ['card', 'afterpay_clearpay', 'klarna', 'affirm', 'us_bank_account']
-        : ['card'],
+      payment_method_types: paymentMethodTypesFor(
+        owner?.enable_bnpl,
+        payMethod,
+        { bankDebit: true },
+      ),
       ...(inv.client_email ? { customer_email: inv.client_email } : {}),
       line_items: [
         {
@@ -2354,8 +2381,11 @@ export class StripeService {
             currency: 'usd',
             unit_amount: stripeFeeCents,
             product_data: {
-              name: 'Stripe Processing Fee',
-              description: 'Credit/debit card processing fee (2.9% + $0.30)',
+              name:
+                payMethod === 'pay_later'
+                  ? 'Pay-later Processing Fee'
+                  : 'Payment Processing Fee',
+              description: `${payMethod === 'pay_later' ? 'Afterpay / Klarna / Affirm' : 'Card'} processing fee (${processingRateLabel(payMethod)})`,
             },
           },
           quantity: 1,

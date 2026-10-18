@@ -61,8 +61,14 @@ export class PromoterInvoicesController {
   }
 
   @Post('public/:token/checkout')
-  async createPublicCheckout(@Param('token') token: string) {
-    return this.promoterInvoicesService.createCheckoutSession(token);
+  async createPublicCheckout(
+    @Param('token') token: string,
+    @Body() body?: { pay_method?: string },
+  ) {
+    return this.promoterInvoicesService.createCheckoutSession(
+      token,
+      body?.pay_method,
+    );
   }
 
   @Post('public/:token/verify-payment')

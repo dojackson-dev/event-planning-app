@@ -285,7 +285,7 @@ export default function VendorInvoiceDetailPage() {
 
       {/* Fee disclaimer */}
       <p className="text-center text-xs text-gray-400 mt-4">
-        A 5% platform fee + Stripe&apos;s standard processing fees apply to all payments collected through EventEcos.
+        A 3% platform fee (deducted from the vendor&apos;s payout) applies to payments collected through EventEcos; the payer also covers payment processing.
       </p>
     </div>
   )

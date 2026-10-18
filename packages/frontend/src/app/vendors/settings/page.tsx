@@ -456,8 +456,8 @@ export default function VendorSettingsPage() {
                   <h4 className="text-sm font-semibold text-blue-800 mb-2">💰 How vendor payouts work</h4>
                   <ul className="text-sm text-blue-700 space-y-1.5">
                     <li>• Event owners pay you directly through EventEcos</li>
-                    <li>• EventEcos collects a <strong>5% platform fee</strong> per transaction</li>
-                    <li>• Stripe&apos;s standard card processing fees also apply (~2.9% + 30¢)</li>
+                    <li>• EventEcos collects a <strong>3% platform fee</strong> per transaction</li>
+                    <li>• The payer covers payment processing (3.1% + 30¢ for cards, 6% + 30¢ for pay later)</li>
                     <li>• Funds arrive in your bank within 2 business days after payout</li>
                     <li>• All payment handling is secure and managed by Stripe</li>
                   </ul>

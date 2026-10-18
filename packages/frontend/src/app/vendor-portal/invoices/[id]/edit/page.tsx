@@ -340,8 +340,8 @@ export default function EditVendorInvoicePage() {
               {total > 0 && (
                 <>
                   <div className="flex justify-between text-sm text-orange-600">
-                    <span>Platform fee (5%)</span>
-                    <span>-${(total * 0.05).toFixed(2)}</span>
+                    <span>Platform fee (3%)</span>
+                    <span>-${(total * 0.03).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-sm font-semibold text-green-700">
                     <span>Your net payout</span>

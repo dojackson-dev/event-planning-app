@@ -41,6 +41,7 @@
 
 | Agent | Task | Branch / Worktree | PR / Commit | Notes |
 |-------|------|-------------------|-------------|-------|
+| GitHub Copilot | Pay-later (BNPL) priced per buyer choice + 0.2% intl-card allowance + fee copy audit | demo (uncommitted) | not committed | Backend: payments/platform-fee.ts (pay_method, card 3.1%+$0.30, pay-later 6%+$0.30), tickets/VIP/artist/promoter/vendor/owner invoice checkouts, client-portal. Frontend: components/PayMethodToggle.tsx, pay pages, fee copy. |
 | vendor-agent | Vendor mobile V1: dashboard shell + profile view/edit | agent/mobile/vendor-v1 | not committed | Files: app/(vendor)/{_layout,index,profile}.tsx. Uses GET/PUT /vendors/account/me + GET /vendors/bookings/mine. `npx tsc --noEmit` passes. roleRouting.ts flipped to /(vendor). |
 | artist-agent | Artist mobile A1: dashboard shell + profile + rider | agent/mobile/artist-v1 | not committed | Files: app/(artist)/{_layout,index,profile,rider}.tsx. Uses GET/PUT /artists/me/profile + /artists/me/rider (confirmed). `npx tsc --noEmit` passes. roleRouting.ts flipped to /(artist). |
 | promoter-agent | Promoter mobile P1: dashboard shell + profile | agent/mobile/promoter-v1 | not committed | Files: app/(promoter)/{_layout,index,profile}.tsx, types/promoter.ts. Uses GET/PUT /promoter/profile (confirmed). `npx tsc --noEmit` passes. roleRouting.ts flipped to /(promoter). |

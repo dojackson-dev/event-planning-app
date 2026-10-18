@@ -14,6 +14,7 @@ export class CreatePromoterEventDto {
   image_url?: string;
   status?: 'draft' | 'published' | 'cancelled'; // default draft
   age_restriction?: string; // 18+, 21+, all_ages
+  sales_tax_rate?: number; // percent the seller charges on tickets, 0-20
   ticket_tiers?: CreateTicketTierDto[];
 }
 
@@ -33,6 +34,7 @@ export class UpdatePromoterEventDto {
   image_url?: string;
   status?: 'draft' | 'published' | 'cancelled';
   age_restriction?: string;
+  sales_tax_rate?: number;
 }
 
 export class CreateTicketTierDto {

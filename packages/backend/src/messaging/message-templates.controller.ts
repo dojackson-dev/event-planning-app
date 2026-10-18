@@ -1,63 +1,122 @@
 import {
+  Body,
   Controller,
+  Delete,
   Get,
+  Headers,
+  Param,
   Post,
   Put,
-  Delete,
-  Body,
-  Param,
-  ParseIntPipe,
+  UnauthorizedException,
 } from '@nestjs/common';
-import { MessageTemplatesService } from './message-templates.service';
-import { MessageTemplate } from '../entities/message-template.entity';
+import {
+  MessageTemplateInput,
+  MessageTemplatesService,
+} from './message-templates.service';
+import { SupabaseService } from '../supabase/supabase.service';
 
 @Controller('message-templates')
 export class MessageTemplatesController {
   constructor(
     private readonly messageTemplatesService: MessageTemplatesService,
+    private readonly supabaseService: SupabaseService,
   ) {}
 
+  /** Templates belong to an owner account; only its active owner may manage them. */
+  private async getOwnerAccountId(authorization?: string): Promise<string> {
+    if (!authorization)
+      throw new UnauthorizedException('No authorization header');
+    const token = authorization.replace('Bearer ', '');
+    const supabase = this.supabaseService.setAuthContext(token);
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
+    if (error || !user) throw new UnauthorizedException('Invalid token');
+
+    const admin = this.supabaseService.getAdminClient();
+    const { data: membership } = await admin
+      .from('memberships')
+      .select('owner_account_id')
+      .eq('user_id', user.id)
+      .eq('role', 'owner')
+      .eq('is_active', true)
+      .limit(1)
+      .maybeSingle();
+    if (!membership?.owner_account_id)
+      throw new UnauthorizedException('Owner account not found');
+    return membership.owner_account_id;
+  }
+
   @Get()
-  async findAll(): Promise<MessageTemplate[]> {
-    return this.messageTemplatesService.findAll();
+  async findAll(@Headers('authorization') auth: string) {
+    return this.messageTemplatesService.findAll(
+      await this.getOwnerAccountId(auth),
+    );
   }
 
   @Get('active')
-  async findActive(): Promise<MessageTemplate[]> {
-    return this.messageTemplatesService.findActive();
+  async findActive(@Headers('authorization') auth: string) {
+    return this.messageTemplatesService.findAll(
+      await this.getOwnerAccountId(auth),
+      true,
+    );
   }
 
   @Get(':id')
   async findOne(
-    @Param('id', ParseIntPipe) id: number,
-  ): Promise<MessageTemplate | null> {
-    return this.messageTemplatesService.findOne(id);
+    @Headers('authorization') auth: string,
+    @Param('id') id: string,
+  ) {
+    return this.messageTemplatesService.findOne(
+      await this.getOwnerAccountId(auth),
+      id,
+    );
   }
 
   @Post()
   async create(
-    @Body() template: Partial<MessageTemplate>,
-  ): Promise<MessageTemplate> {
-    return this.messageTemplatesService.create(template);
+    @Headers('authorization') auth: string,
+    @Body() body: MessageTemplateInput,
+  ) {
+    return this.messageTemplatesService.create(
+      await this.getOwnerAccountId(auth),
+      body,
+    );
   }
 
   @Put(':id')
   async update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() template: Partial<MessageTemplate>,
-  ): Promise<MessageTemplate | null> {
-    return this.messageTemplatesService.update(id, template);
+    @Headers('authorization') auth: string,
+    @Param('id') id: string,
+    @Body() body: MessageTemplateInput,
+  ) {
+    return this.messageTemplatesService.update(
+      await this.getOwnerAccountId(auth),
+      id,
+      body,
+    );
   }
 
   @Post(':id/toggle')
-  async toggleActive(
-    @Param('id', ParseIntPipe) id: number,
-  ): Promise<MessageTemplate | null> {
-    return this.messageTemplatesService.toggleActive(id);
+  async toggle(
+    @Headers('authorization') auth: string,
+    @Param('id') id: string,
+  ) {
+    return this.messageTemplatesService.toggleActive(
+      await this.getOwnerAccountId(auth),
+      id,
+    );
   }
 
   @Delete(':id')
-  async delete(@Param('id', ParseIntPipe) id: number): Promise<void> {
-    return this.messageTemplatesService.delete(id);
+  async remove(
+    @Headers('authorization') auth: string,
+    @Param('id') id: string,
+  ) {
+    return this.messageTemplatesService.remove(
+      await this.getOwnerAccountId(auth),
+      id,
+    );
   }
 }

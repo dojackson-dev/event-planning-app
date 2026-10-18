@@ -324,7 +324,7 @@ export default function PromoterProfilePage() {
         </div>
         <p className="text-sm text-gray-500">
           Connect your bank account via Stripe to receive payouts from ticket sales.
-          The platform collects a 3% fee on each transaction.
+          The platform fee is 3% on ticket sales (1.5% for verified non-profits), paid by the buyer; invoices use your plan&apos;s rate.
         </p>
         {profile?.email && (
           <ConnectBankButton role="promoter" email={profile.email} />

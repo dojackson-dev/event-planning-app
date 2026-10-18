@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { PromoterEventsService } from './promoter-events.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import { normalizePayMethod } from '../payments/platform-fee';
 import {
   PromoterAccessPolicy,
   PromoterAccessService,
@@ -123,8 +124,10 @@ export class PromoterEventsController {
       buyer_email?: string;
       buyer_name?: string;
       return_url?: string;
+      pay_method?: string;
     },
   ) {
+    const payMethod = normalizePayMethod(body.pay_method);
     if (body.items && body.items.length > 0) {
       return this.service.createMultiTierCheckout(
         id,
@@ -133,6 +136,7 @@ export class PromoterEventsController {
         body.buyer_email,
         body.return_url,
         body.buyer_name,
+        payMethod,
       );
     }
     return this.service.createTicketCheckout(
@@ -143,6 +147,7 @@ export class PromoterEventsController {
       body.buyer_email,
       body.return_url,
       body.buyer_name,
+      payMethod,
     );
   }
 

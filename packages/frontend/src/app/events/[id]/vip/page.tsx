@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
+import PayMethodToggle, { ticketPricingDollars, type PayMethod } from '@/components/PayMethodToggle'
 import {
   Crown, Users, DollarSign, Star, Loader2, CheckCircle,
   ArrowLeft, Package, Wine, Utensils, Shield, Headphones,
@@ -61,6 +62,9 @@ export default function EventVipPage({ params }: { params: { id: string } }) {
   const [loading, setLoading] = useState(true)
   const [eventTitle, setEventTitle] = useState('')
   const [feeRate, setFeeRate] = useState(0.03)
+  const [taxRate, setTaxRate] = useState(0)
+  const [payLaterAvailable, setPayLaterAvailable] = useState(false)
+  const [payMethod, setPayMethod] = useState<PayMethod>('card')
 
   const [selectedPkg, setSelectedPkg] = useState<VipPackage | null>(null)
   const [selectedServices, setSelectedServices] = useState<Record<string, number>>({})
@@ -85,9 +89,11 @@ export default function EventVipPage({ params }: { params: { id: string } }) {
         setPackages(vipRes.data.packages || [])
         setServiceItems(vipRes.data.service_items || [])
         setLayout(vipRes.data.layout || null)
+        setPayLaterAvailable(!!vipRes.data.pay_later_available)
         setEventTitle(eventRes.data?.title || 'Event')
         const promoter = eventRes.data?.promoter_accounts
         setFeeRate(promoter?.is_nonprofit && promoter?.nonprofit_status === 'verified' ? 0.015 : 0.03)
+        setTaxRate(Number(eventRes.data?.sales_tax_rate) || 0)
       } finally {
         setLoading(false)
       }
@@ -114,8 +120,12 @@ export default function EventVipPage({ params }: { params: { id: string } }) {
 
   const packagePrice = selectedPkg ? Number(selectedPkg.price) : 0
   const subtotal = packagePrice + serviceTotal
-  const platformFee = Math.ceil(subtotal * feeRate * 100) / 100
-  const total = subtotal + platformFee
+  const activePayMethod: PayMethod = payLaterAvailable ? payMethod : 'card'
+  const pricing = subtotal > 0
+    ? ticketPricingDollars(subtotal, activePayMethod, feeRate, taxRate)
+    : { serviceFee: 0, tax: 0, total: 0 }
+  const total = pricing.total
+  const platformFee = pricing.serviceFee
 
   const adjustService = (id: string, delta: number) => {
     setSelectedServices(prev => {
@@ -145,6 +155,7 @@ export default function EventVipPage({ params }: { params: { id: string } }) {
           buyer_email: buyerEmail,
           buyer_phone: buyerPhone || undefined,
           service_items: serviceItemsPayload.length > 0 ? serviceItemsPayload : undefined,
+          pay_method: activePayMethod,
           return_url: `${window.location.origin}/events/${eventId}?vip_paid=true`,
         },
       )
@@ -417,9 +428,20 @@ export default function EventVipPage({ params }: { params: { id: string } }) {
                     )
                   })}
                   <div className="border-t border-purple-200 mt-2 pt-2 flex justify-between text-xs text-gray-500">
-                    <span>Platform fee (3%)</span>
+                    <span>Service fee</span>
                     <span>${platformFee.toFixed(2)}</span>
                   </div>
+                  {pricing.tax > 0 && (
+                    <div className="pt-1 flex justify-between text-xs text-gray-500">
+                      <span>Sales tax ({taxRate}%)</span>
+                      <span>${pricing.tax.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {payLaterAvailable && (
+                    <div className="mt-2">
+                      <PayMethodToggle value={activePayMethod} onChange={setPayMethod} disabled={purchasing} />
+                    </div>
+                  )}
                   <div className="flex justify-between font-bold text-gray-900 mt-2 pt-2 border-t border-purple-200">
                     <span>Total</span>
                     <span>${total.toFixed(2)}</span>

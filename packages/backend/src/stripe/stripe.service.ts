@@ -11,7 +11,11 @@ import Stripe from 'stripe';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
   applicationFeeCents,
+  normalizePayMethod,
+  PayMethod,
+  paymentMethodTypesFor,
   processingFeeCents,
+  processingRateLabel,
 } from '../payments/platform-fee';
 import { VendorInvoicesService } from '../vendor-invoices/vendor-invoices.service';
 import { ArtistInvoicesService } from '../artist-invoices/artist-invoices.service';
@@ -328,7 +332,9 @@ export class StripeService {
   async createInvoiceCheckoutSession(
     invoiceId: string,
     clientName: string,
+    payMethodInput: unknown = 'card',
   ): Promise<string> {
+    const payMethod: PayMethod = normalizePayMethod(payMethodInput);
     const admin = this.supabaseService.getAdminClient();
 
     const { data: invoice } = await admin
@@ -348,9 +354,8 @@ export class StripeService {
     const amountCents = Math.round(Number(invoice.amount_due) * 100);
     if (amountCents < 50) throw new Error('Amount too small to process');
 
-    // Gross up so the client absorbs Stripe's processing fee (2.9% + $0.30)
-    const grossCents = Math.round((amountCents + 30) / 0.971);
-    const stripeFeeCents = grossCents - amountCents;
+    // Gross up so the client absorbs Stripe's processing fee for the chosen method
+    const stripeFeeCents = processingFeeCents(amountCents, payMethod);
 
     const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
       {
@@ -369,8 +374,11 @@ export class StripeService {
           currency: 'usd',
           unit_amount: stripeFeeCents,
           product_data: {
-            name: 'Stripe Processing Fee',
-            description: 'Credit/debit card processing fee (2.9% + $0.30)',
+            name:
+              payMethod === 'pay_later'
+                ? 'Pay-later Processing Fee'
+                : 'Payment Processing Fee',
+            description: `${payMethod === 'pay_later' ? 'Afterpay / Klarna / Affirm' : 'Card'} processing fee (${processingRateLabel(payMethod)})`,
           },
         },
         quantity: 1,
@@ -383,20 +391,10 @@ export class StripeService {
       | undefined;
     let ownerAccount: any = null;
     if (invoice.owner_id) {
-      ownerAccount = await this.getOwnerAccountByUserId(
+      ownerAccount = await this.getOwnerAccountForInvoice(
         invoice.owner_id,
         admin,
       );
-      if (!ownerAccount) {
-        const { data: ownerById } = await admin
-          .from('owner_accounts')
-          .select(
-            'stripe_connect_id, stripe_connect_status, subscription_status, plan_id',
-          )
-          .eq('id', invoice.owner_id)
-          .maybeSingle();
-        ownerAccount = ownerById;
-      }
 
       const connectId =
         ownerAccount?.stripe_connect_id ?? ownerAccount?.stripe_account_id;
@@ -417,9 +415,11 @@ export class StripeService {
     }
 
     const session = await this.stripe.checkout.sessions.create({
-      payment_method_types: ownerAccount?.enable_bnpl
-        ? ['card', 'afterpay_clearpay', 'klarna', 'affirm', 'us_bank_account']
-        : ['card'],
+      payment_method_types: paymentMethodTypesFor(
+        ownerAccount?.enable_bnpl,
+        payMethod,
+        { bankDebit: true },
+      ),
       line_items: lineItems,
       mode: 'payment',
       ...(invoice.client_email ? { customer_email: invoice.client_email } : {}),
@@ -467,7 +467,7 @@ export class StripeService {
           'Webhook signature verification failed',
           lastError?.message,
         );
-        throw new Error(`Webhook error: ${lastError?.message}`);
+        throw new BadRequestException(`Webhook error: ${lastError?.message}`);
       }
       event = verified;
     } else {
@@ -1528,6 +1528,24 @@ export class StripeService {
   // Platform fee rate is resolved per-payment via resolveOwnerPlatformFeeRate() (3% / 1.5% / 1%)
 
   /**
+   * invoices.owner_id holds either the owner's auth user id or the owner_accounts id,
+   * so try the user-id lookup first and fall back to the account id.
+   */
+  private async getOwnerAccountForInvoice(
+    ownerRef: string,
+    admin: any,
+  ): Promise<any> {
+    const byUser = await this.getOwnerAccountByUserId(ownerRef, admin);
+    if (byUser) return byUser;
+    const { data } = await admin
+      .from('owner_accounts')
+      .select('*')
+      .eq('id', ownerRef)
+      .maybeSingle();
+    return data ?? null;
+  }
+
+  /**
    * Resolves the owner_accounts row for a given auth user ID.
    * Primary path: memberships table (user_id → owner_account_id).
    * Fallback: direct user_id column on owner_accounts.
@@ -2328,7 +2346,7 @@ export class StripeService {
       .from('invoices')
       .select(
         `
-        id, invoice_number, client_name, client_email,
+        id, invoice_number, client_name, client_email, owner_id,
         total_amount, amount_paid, amount_due, discount_amount, status,
         issue_date, due_date, notes, terms,
         deposit_percentage, deposit_due_days_before, final_payment_due_days_before,
@@ -2340,7 +2358,17 @@ export class StripeService {
       .maybeSingle();
 
     if (error || !data) throw new Error('Invoice not found');
-    return { ...data, items: clientVisibleItems((data as any).items) };
+    const { owner_id: ownerId, ...publicData } = data as any;
+    let payLaterAvailable = false;
+    if (ownerId) {
+      const owner = await this.getOwnerAccountForInvoice(ownerId, admin);
+      payLaterAvailable = !!owner?.enable_bnpl;
+    }
+    return {
+      ...publicData,
+      items: clientVisibleItems(publicData.items),
+      pay_later_available: payLaterAvailable,
+    };
   }
 
   /**
@@ -2350,7 +2378,9 @@ export class StripeService {
   async createPublicInvoiceCheckout(
     token: string,
     amountCents: number,
+    payMethodInput: unknown = 'card',
   ): Promise<string> {
+    const payMethod: PayMethod = normalizePayMethod(payMethodInput);
     const admin = this.supabaseService.getAdminClient();
 
     const { data: inv, error } = await admin
@@ -2372,29 +2402,28 @@ export class StripeService {
     // Look up owner Connect account + subscription plan for fee rate
     let owner: any = null;
     if (inv.owner_id) {
-      const { data } = await admin
-        .from('owner_accounts')
-        .select(
-          'stripe_connect_id, stripe_connect_status, subscription_status, plan_name, plan_id, enable_bnpl',
-        )
-        .eq('id', inv.owner_id)
-        .maybeSingle();
-      owner = data;
+      owner = await this.getOwnerAccountForInvoice(inv.owner_id, admin);
     }
     const hasConnect =
       owner?.stripe_connect_id && owner?.stripe_connect_status === 'active';
+    if (!hasConnect) {
+      this.logger.warn(
+        `Invoice ${inv.id} has no active owner Connect account; payment will not be routed to an owner`,
+      );
+    }
 
     const description = `Invoice ${inv.invoice_number} — $${(safeCents / 100).toFixed(2)}`;
 
-    // Gross up so payer absorbs Stripe's processing fee (2.9% + $0.30)
-    const grossCents = Math.round((safeCents + 30) / 0.971);
-    const stripeFeeCents = grossCents - safeCents;
+    // Gross up so the payer absorbs Stripe's processing fee for the chosen method
+    const stripeFeeCents = processingFeeCents(safeCents, payMethod);
 
     const sessionParams: any = {
       mode: 'payment',
-      payment_method_types: owner?.enable_bnpl
-        ? ['card', 'afterpay_clearpay', 'klarna', 'affirm', 'us_bank_account']
-        : ['card'],
+      payment_method_types: paymentMethodTypesFor(
+        owner?.enable_bnpl,
+        payMethod,
+        { bankDebit: true },
+      ),
       ...(inv.client_email ? { customer_email: inv.client_email } : {}),
       line_items: [
         {
@@ -2410,8 +2439,11 @@ export class StripeService {
             currency: 'usd',
             unit_amount: stripeFeeCents,
             product_data: {
-              name: 'Stripe Processing Fee',
-              description: 'Credit/debit card processing fee (2.9% + $0.30)',
+              name:
+                payMethod === 'pay_later'
+                  ? 'Pay-later Processing Fee'
+                  : 'Payment Processing Fee',
+              description: `${payMethod === 'pay_later' ? 'Afterpay / Klarna / Affirm' : 'Card'} processing fee (${processingRateLabel(payMethod)})`,
             },
           },
           quantity: 1,

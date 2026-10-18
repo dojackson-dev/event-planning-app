@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from 'next/navigation'
 import {
   FileText, CheckCircle2, Loader2, AlertCircle, CreditCard, Lock, Calendar,
 } from 'lucide-react'
+import PayMethodToggle, { CARD_RATE_LABEL, PAY_LATER_RATE_LABEL, type PayMethod } from '@/components/PayMethodToggle'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
@@ -25,6 +26,7 @@ interface PublicOwnerInvoice {
   deposit_percentage: number | null
   deposit_due_days_before: number | null
   final_payment_due_days_before: number | null
+  pay_later_available?: boolean
   booking?: { event?: { id: string; name: string; date: string } }
   items: Array<{
     id: string
@@ -50,6 +52,7 @@ function OwnerInvoicePayPageContent() {
   const [loading, setLoading] = useState(true)
   const [paying, setPaying] = useState(false)
   const [error, setError] = useState('')
+  const [payMethod, setPayMethod] = useState<PayMethod>('card')
   const [selection, setSelection] = useState<PaymentSelection>('full')
   const [customAmount, setCustomAmount] = useState('')
 
@@ -119,7 +122,7 @@ function OwnerInvoicePayPageContent() {
       const res = await fetch(`${API_URL}/stripe/invoice-pay/${token}/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amountCents }),
+        body: JSON.stringify({ amountCents, pay_method: payMethod }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.message || 'Failed to initiate payment')
@@ -366,6 +369,11 @@ function OwnerInvoicePayPageContent() {
                   </p>
                 )}
 
+                {invoice.pay_later_available && (
+                  <div className="mb-3">
+                    <PayMethodToggle value={payMethod} onChange={setPayMethod} disabled={paying} />
+                  </div>
+                )}
                 <button
                   onClick={handlePay}
                   disabled={disablePay}
@@ -382,7 +390,7 @@ function OwnerInvoicePayPageContent() {
                 </button>
 
                 <div className="flex items-center justify-center gap-1.5 mt-3 text-xs text-gray-400">
-                  <Lock className="w-3 h-3" /> Secure payment powered by Stripe
+                  <Lock className="w-3 h-3" /> Secure payment powered by Stripe. A processing fee ({invoice.pay_later_available && payMethod === 'pay_later' ? PAY_LATER_RATE_LABEL : CARD_RATE_LABEL}) is added at checkout.
                 </div>
               </>
             )}

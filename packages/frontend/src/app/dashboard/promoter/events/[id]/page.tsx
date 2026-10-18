@@ -46,6 +46,7 @@ interface PromoterEvent {
   category: string | null
   image_url: string | null
   age_restriction: string | null
+  sales_tax_rate?: number | null
   status: 'draft' | 'published' | 'cancelled'
   ticket_tiers: TicketTier[]
 }
@@ -121,6 +122,9 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
   const [venueType, setVenueType] = useState('')
   const [category, setCategory] = useState('')
   const [ageRestriction, setAgeRestriction] = useState('')
+  const [salesTaxRate, setSalesTaxRate] = useState('')
+  // Only send the field when it matters so saving works before the sales_tax_rate migration is run
+  const salesTaxPayload = salesTaxRate === '' ? (event?.sales_tax_rate ? 0 : undefined) : Number(salesTaxRate)
   const [imageUrl, setImageUrl] = useState('')
   const [status, setStatus] = useState<'draft' | 'published' | 'cancelled'>('draft')
 
@@ -164,6 +168,7 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
       setVenueType(ev.venue_type || '')
       setCategory(ev.category || '')
       setAgeRestriction(ev.age_restriction || '')
+      setSalesTaxRate(ev.sales_tax_rate ? String(Number(ev.sales_tax_rate)) : '')
       setImageUrl(ev.image_url || '')
       setStatus(ev.status)
       setAttendees(attRes.data || [])
@@ -184,6 +189,7 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
         category: category || undefined,
         venue_type: venueType || undefined,
         age_restriction: ageRestriction || undefined, image_url: imageUrl || undefined,
+        sales_tax_rate: salesTaxPayload,
         status,
       })
       setEvent(prev => ({ ...res.data, ticket_tiers: prev?.ticket_tiers ?? [] }))
@@ -253,6 +259,7 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
         state: state || undefined, zip_code: zipCode || undefined,
         category: category || undefined, venue_type: venueType || undefined,
         age_restriction: ageRestriction || undefined, image_url: imageUrl || undefined,
+        sales_tax_rate: salesTaxPayload,
         status: 'published',
       })
       setStatus('published')
@@ -277,6 +284,7 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
         state: state || undefined, zip_code: zipCode || undefined,
         category: category || undefined, venue_type: venueType || undefined,
         age_restriction: ageRestriction || undefined, image_url: imageUrl || undefined,
+        sales_tax_rate: salesTaxPayload,
         status: 'draft',
       })
       setStatus('draft')
@@ -494,6 +502,13 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
                     <option value="18+">18+</option>
                     <option value="21+">21+</option>
                   </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Sales tax (%)</label>
+                  <input type="number" min="0" max="20" step="0.001" value={salesTaxRate} onChange={e => setSalesTaxRate(e.target.value)}
+                    placeholder="0"
+                    className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white" />
+                  <p className="text-xs text-gray-400 mt-1">You are responsible for sales tax on tickets. Buyers see it as a separate line and it is paid to you in full; remit it yourself.</p>
                 </div>
               </div>
               <div>

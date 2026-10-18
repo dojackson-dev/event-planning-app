@@ -147,6 +147,21 @@ async function main() {
   ok(`Owner account: ${ownerAccount.id}`);
   ok(`Owner account: ${ownerAccount.id}`);
 
+  // Team, audit and other owner endpoints resolve the owner through this membership row
+  const { data: existingMembership } = await supabase
+    .from('memberships')
+    .select('id')
+    .eq('user_id', ownerUserId)
+    .eq('owner_account_id', ownerAccount.id)
+    .maybeSingle();
+  if (!existingMembership) {
+    const { error: memErr } = await supabase
+      .from('memberships')
+      .insert({ user_id: ownerUserId, owner_account_id: ownerAccount.id, role: 'owner', is_active: true });
+    if (memErr) throw new Error(`memberships: ${memErr.message}`);
+  }
+  ok('Owner membership ensured');
+
   // ── 2. VENUE ───────────────────────────────────────────────────────────────
   console.log('\n2️⃣  Venue...');
   let venue;

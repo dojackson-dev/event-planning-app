@@ -88,7 +88,7 @@ function ClientInvoicesContent() {
     })
   }
 
-  const handlePayNow = async (invoice: any) => {
+  const handlePayNow = async (invoice: any, payMethod: 'card' | 'pay_later' = 'card') => {
     try {
       setPaying(invoice.id)
       // Vendor invoices use a public pay page; regular invoices use Stripe checkout
@@ -96,7 +96,7 @@ function ClientInvoicesContent() {
         window.location.href = `/pay/${invoice.public_token}`
         return
       }
-      const res = await clientApi.post(`/invoices/${invoice.id}/checkout`)
+      const res = await clientApi.post(`/invoices/${invoice.id}/checkout`, { pay_method: payMethod })
       window.location.href = res.data.url
     } catch (err: any) {
       console.error('Failed to create checkout session', err)
@@ -404,6 +404,18 @@ function ClientInvoicesContent() {
                         <CreditCard className="h-4 w-4" />
                         {paying === invoice.id ? 'Redirecting to payment…' : `Pay $${Number(invoice.amount_due ?? invoice.total_amount ?? 0).toFixed(2)} Now`}
                       </button>
+                      {invoice.pay_later_available && invoice._type !== 'vendor_invoice' && (
+                        <button
+                          onClick={() => handlePayNow(invoice, 'pay_later')}
+                          disabled={paying === invoice.id}
+                          className="mt-2 w-full sm:w-auto sm:ml-2 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                        >
+                          Pay later with Afterpay, Klarna or Affirm
+                        </button>
+                      )}
+                      <p className="mt-2 text-xs text-gray-400">
+                        A payment processing fee is added at checkout: 3.1% + $0.30 for cards, 6% + $0.30 for pay later.
+                      </p>
                     </div>
                   )}
                 </div>

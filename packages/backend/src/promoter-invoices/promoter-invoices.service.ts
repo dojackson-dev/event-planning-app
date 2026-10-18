@@ -9,7 +9,10 @@ import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
   applicationFeeCents,
+  normalizePayMethod,
+  paymentMethodTypesFor,
   processingFeeCents,
+  processingRateLabel,
 } from '../payments/platform-fee';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import Stripe from 'stripe';
@@ -448,7 +451,7 @@ export class PromoterInvoicesService {
     const { data, error } = await admin
       .from('promoter_invoices')
       .select(
-        '*, promoter_invoice_items(*), promoter_accounts(company_name, contact_name, email, phone, location, profile_image_url)',
+        '*, promoter_invoice_items(*), promoter_accounts(company_name, contact_name, email, phone, location, profile_image_url, enable_bnpl)',
       )
       .eq('public_token', token)
       .single();
@@ -463,20 +466,32 @@ export class PromoterInvoicesService {
       data.status = 'viewed';
     }
 
+    const { enable_bnpl, ...promoterPublic } = data.promoter_accounts ?? {};
     const {
       public_token: _tok,
       stripe_checkout_session_id: _sess,
       stripe_payment_intent_id: _pi,
       ...safe
     } = data;
-    return safe;
+    const amountCents = Math.round(Number(data.amount_due) * 100);
+    return {
+      ...safe,
+      promoter_accounts: data.promoter_accounts ? promoterPublic : null,
+      pay_later_available: !!enable_bnpl,
+      processing_fee_cents: {
+        card: processingFeeCents(amountCents, 'card'),
+        pay_later: processingFeeCents(amountCents, 'pay_later'),
+      },
+    };
   }
 
   // ─── Stripe Checkout ──────────────────────────────────────────────────────
 
   async createCheckoutSession(
     token: string,
+    payMethodInput: unknown = 'card',
   ): Promise<{ url: string; feeCents: number }> {
+    const payMethod = normalizePayMethod(payMethodInput);
     const admin = this.supabaseService.getAdminClient();
 
     const { data: invoice, error } = await admin
@@ -513,20 +528,15 @@ export class PromoterInvoicesService {
       DIRECT_PAYMENT_FEE_BY_PLAN[promoter?.plan] ?? DEFAULT_FEE_RATE;
     const feeCents = Math.round(amountCents * feeRate);
     // The payer covers Stripe's processing fee, which the platform is billed for.
-    const processingCents = processingFeeCents(amountCents);
-
-    const bnplMethods = [
-      'afterpay_clearpay',
-      'klarna',
-      'affirm',
-      'us_bank_account',
-    ] as const;
+    const processingCents = processingFeeCents(amountCents, payMethod);
 
     const session = await this.stripe.checkout.sessions.create({
       mode: 'payment',
-      payment_method_types: promoter?.enable_bnpl
-        ? ['card', ...bnplMethods]
-        : ['card'],
+      payment_method_types: paymentMethodTypesFor(
+        promoter?.enable_bnpl,
+        payMethod,
+        { bankDebit: true },
+      ),
       customer_email: invoice.client_email,
       line_items: [
         {
@@ -545,8 +555,11 @@ export class PromoterInvoicesService {
             currency: 'usd',
             unit_amount: processingCents,
             product_data: {
-              name: 'Stripe Processing Fee',
-              description: 'Credit/debit card processing fee (2.9% + $0.30)',
+              name:
+                payMethod === 'pay_later'
+                  ? 'Pay-later Processing Fee'
+                  : 'Payment Processing Fee',
+              description: `${payMethod === 'pay_later' ? 'Afterpay / Klarna / Affirm' : 'Card'} processing fee (${processingRateLabel(payMethod)})`,
             },
           },
           quantity: 1,

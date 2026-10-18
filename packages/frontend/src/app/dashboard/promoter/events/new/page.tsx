@@ -67,6 +67,7 @@ export default function NewPromoterEventPage() {
   const [venueType, setVenueType] = useState('')
   const [category, setCategory] = useState('')
   const [ageRestriction, setAgeRestriction] = useState('')
+  const [salesTaxRate, setSalesTaxRate] = useState('')
   const [imageUrl, setImageUrl] = useState('')
   const [bannerFile, setBannerFile] = useState<File | null>(null)
   const [bannerPreview, setBannerPreview] = useState('')
@@ -170,6 +171,7 @@ export default function NewPromoterEventPage() {
         venue_type: venueType || undefined,
         category: category || undefined,
         age_restriction: ageRestriction || undefined,
+        sales_tax_rate: salesTaxRate === '' ? undefined : Number(salesTaxRate),
         image_url: finalImageUrl || undefined,
         status: saveStatus ?? status,
         ticket_tiers: ticket_tiers.length > 0 ? ticket_tiers : undefined,
@@ -242,6 +244,13 @@ export default function NewPromoterEventPage() {
                 <option value="18+">18+</option>
                 <option value="21+">21+</option>
               </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Sales tax (%)</label>
+              <input type="number" min="0" max="20" step="0.001" value={salesTaxRate} onChange={e => setSalesTaxRate(e.target.value)}
+                placeholder="0"
+                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white" />
+              <p className="text-xs text-gray-400 mt-1">You are responsible for sales tax on tickets. Buyers see it as a separate line and it is paid to you in full; remit it yourself.</p>
             </div>
           </div>
           {/* Banner Upload */}

@@ -11,9 +11,19 @@ export function processingPct(method: PayMethod) {
   return method === 'pay_later' ? PAY_LATER_PCT : CARD_PCT
 }
 
-/** Total so the seller nets `amount` after processing and an optional platform fee rate. */
-export function grossUpDollars(amount: number, method: PayMethod, feeRate = 0) {
-  return Math.ceil(((amount + PROCESSING_FIXED) / (1 - processingPct(method) - feeRate)) * 100) / 100
+/** Mirrors backend ticketPricing: tax applies to price + service fee and passes to the seller in full. */
+export function ticketPricingDollars(amount: number, method: PayMethod, feeRate: number, taxPct = 0) {
+  const cents = Math.round(amount * 100)
+  const k = Math.min(Math.max(Number(taxPct) || 0, 0), 20) / 100
+  const fixed = Math.round(PROCESSING_FIXED * 100)
+  if (k === 0) {
+    const total = Math.ceil((cents + fixed) / (1 - processingPct(method) - feeRate))
+    return { serviceFee: (total - cents) / 100, tax: 0, total: total / 100 }
+  }
+  const q = feeRate + processingPct(method) * (1 + k)
+  const serviceFee = Math.ceil((q * cents + fixed) / (1 - q))
+  const tax = Math.round(k * (cents + serviceFee))
+  return { serviceFee: serviceFee / 100, tax: tax / 100, total: (cents + serviceFee + tax) / 100 }
 }
 
 interface Props {

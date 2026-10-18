@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
 import NonprofitBadge from '@/components/NonprofitBadge'
-import PayMethodToggle, { grossUpDollars, type PayMethod } from '@/components/PayMethodToggle'
+import PayMethodToggle, { ticketPricingDollars, type PayMethod } from '@/components/PayMethodToggle'
 import {
   MapPin, Clock, Tag, Ticket, Loader2, CheckCircle,
   Calendar, Users, Minus, Plus, ExternalLink,
@@ -58,6 +58,7 @@ interface PublicEvent {
   ticket_tiers: TicketTier[]
   promoter_accounts: PromoterAccount | null
   sales_paused?: boolean
+  sales_tax_rate?: number | string | null
   pay_later_available?: boolean
 }
 
@@ -163,8 +164,11 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
     return sum + (tier ? Number(tier.price) * qty : 0)
   }, 0)
   const totalTickets = totalItems.reduce((sum, [, qty]) => sum + qty, 0)
-  const totalCharge = faceValue > 0 ? grossUpDollars(faceValue, activePayMethod, APP_FEE_RATE) : 0
-  const serviceFee = +(totalCharge - faceValue).toFixed(2)
+  const pricing = faceValue > 0
+    ? ticketPricingDollars(faceValue, activePayMethod, APP_FEE_RATE, Number(event.sales_tax_rate) || 0)
+    : { serviceFee: 0, tax: 0, total: 0 }
+  const totalCharge = pricing.total
+  const serviceFee = pricing.serviceFee
 
   const adjustQty = (tierId: string, delta: number, max: number) => {
     setTierQtys(prev => {
@@ -508,15 +512,16 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
                         <span className="text-gray-500">${serviceFee.toFixed(2)}</span>
                       </div>
                     )}
+                    {faceValue > 0 && pricing.tax > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">Sales tax ({Number(event.sales_tax_rate)}%)</span>
+                        <span className="text-gray-500">${pricing.tax.toFixed(2)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between text-sm font-bold border-t border-gray-100 pt-1.5 mt-1.5">
                       <span className="text-gray-800">Total</span>
                       <span>{faceValue === 0 ? 'Free' : `$${totalCharge.toFixed(2)}`}</span>
                     </div>
-                    {faceValue > 0 && (
-                      <p className="text-xs text-gray-400 text-center">
-                        + applicable sales tax calculated at checkout
-                      </p>
-                    )}
                     <button type="submit" disabled={purchasing || !buyerEmail}
                       className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white font-bold py-3 rounded-xl hover:bg-purple-700 disabled:opacity-60 mt-2">
                       {purchasing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ticket className="w-4 h-4" />}

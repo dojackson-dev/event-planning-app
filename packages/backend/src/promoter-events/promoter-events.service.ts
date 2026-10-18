@@ -19,8 +19,12 @@ import {
 } from '../nonprofit/nonprofit-gate';
 import {
   grossUp as grossUpWithMethod,
+  MAX_SALES_TAX_RATE_PCT,
   paymentMethodTypesFor,
   PayMethod,
+  salesTaxRatePct,
+  serviceFeeLines,
+  ticketPricing,
 } from '../payments/platform-fee';
 import {
   CreatePromoterEventDto,
@@ -111,6 +115,15 @@ export class PromoterEventsService {
 
   // ── EVENTS CRUD ───────────────────────────────────────────────
 
+  private validTaxRate(value: unknown): number {
+    const n = Number(value);
+    if (!Number.isFinite(n) || n < 0 || n > MAX_SALES_TAX_RATE_PCT)
+      throw new BadRequestException(
+        `sales_tax_rate must be between 0 and ${MAX_SALES_TAX_RATE_PCT}`,
+      );
+    return n;
+  }
+
   async createEvent(userId: string, dto: CreatePromoterEventDto) {
     const admin = this.supabaseService.getAdminClient();
     const promoter = await this.getPromoterAccount(userId);
@@ -133,6 +146,9 @@ export class PromoterEventsService {
         category: dto.category ?? null,
         image_url: dto.image_url ?? null,
         age_restriction: dto.age_restriction ?? null,
+        ...(dto.sales_tax_rate !== undefined
+          ? { sales_tax_rate: this.validTaxRate(dto.sales_tax_rate) }
+          : {}),
         status: dto.status ?? 'draft',
       })
       .select()
@@ -210,6 +226,8 @@ export class PromoterEventsService {
     if (dto.image_url !== undefined) updates.image_url = dto.image_url;
     if (dto.age_restriction !== undefined)
       updates.age_restriction = dto.age_restriction;
+    if (dto.sales_tax_rate !== undefined)
+      updates.sales_tax_rate = this.validTaxRate(dto.sales_tax_rate);
     if (dto.status !== undefined) updates.status = dto.status;
 
     const { data, error } = await admin
@@ -503,8 +521,13 @@ export class PromoterEventsService {
       promoter?.enable_bnpl,
       payMethod,
     );
-    const totalCharge = grossUp(ticketTotal, feeRate, payMethod);
-    const serviceFee = totalCharge - ticketTotal;
+    const taxRate = salesTaxRatePct(event.sales_tax_rate);
+    const { serviceFee, tax: salesTax } = ticketPricing(
+      ticketTotal,
+      feeRate,
+      payMethod,
+      taxRate,
+    );
     // The whole service fee is ours: it covers Stripe's bill and our platform fee, so the promoter nets the price.
     const appFeeAmount = serviceFee;
 
@@ -519,13 +542,6 @@ export class PromoterEventsService {
       payment_method_types: paymentMethodTypes,
       mode: 'payment',
       ...(buyerEmail ? { customer_email: buyerEmail } : {}),
-      // Collect billing address so Stripe Tax can determine the correct jurisdiction
-      billing_address_collection: 'required',
-      // Stripe Tax: EventEcos remits tax on ticket sales (set STRIPE_TAX_ENABLED=false where Stripe Tax isn't configured)
-      automatic_tax: {
-        enabled:
-          this.configService.get<string>('STRIPE_TAX_ENABLED') !== 'false',
-      },
       line_items: [
         {
           price_data: {
@@ -535,31 +551,20 @@ export class PromoterEventsService {
               description: event.venue_name
                 ? `${event.event_date} at ${event.venue_name}`
                 : event.event_date,
-              // Tax code: general admission / live event ticket
-              tax_code: 'txcd_90000001',
             },
             unit_amount: unitAmount,
-            // Tax is calculated on top of this price (shown as separate line item)
-            tax_behavior: 'exclusive',
           },
           quantity,
         },
-        {
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              name: 'Service fee',
-              description: 'Covers payment processing and platform fee',
-              // Service fees are generally not taxable
-              tax_code: 'txcd_00000000',
-            },
-            unit_amount: serviceFee,
-            tax_behavior: 'exclusive',
-          },
-          quantity: 1,
-        },
+        ...serviceFeeLines(
+          serviceFee,
+          salesTax,
+          taxRate,
+          'Covers payment processing and platform fee',
+        ),
       ],
       payment_intent_data: {
+        // The seller owes sales tax: it passes to the promoter in full, only the service fee is ours.
         application_fee_amount: appFeeAmount,
         transfer_data: { destination: promoter.stripe_account_id },
       },
@@ -1062,12 +1067,8 @@ export class PromoterEventsService {
             description: event.venue_name
               ? `${event.event_date} at ${event.venue_name}`
               : event.event_date,
-            // Tax code: general admission / live event ticket
-            tax_code: 'txcd_90000001',
           },
           unit_amount: unitAmount,
-          // Tax is calculated on top of this price (shown as separate line item at checkout)
-          tax_behavior: 'exclusive',
         },
         quantity: item.quantity,
       });
@@ -1078,24 +1079,24 @@ export class PromoterEventsService {
       promoter?.enable_bnpl,
       payMethod,
     );
-    const totalCharge = grossUp(ticketTotal, feeRate, payMethod);
-    const serviceFee = totalCharge - ticketTotal;
+    const taxRate = salesTaxRatePct(event.sales_tax_rate);
+    const { serviceFee, tax: salesTax } = ticketPricing(
+      ticketTotal,
+      feeRate,
+      payMethod,
+      taxRate,
+    );
     // The whole service fee is ours: it covers Stripe's bill and our platform fee, so the promoter nets the price.
     const appFeeAmount = serviceFee;
 
-    lineItems.push({
-      price_data: {
-        currency: 'usd',
-        product_data: {
-          name: 'Service fee',
-          description: 'Covers payment processing and platform fee',
-          tax_code: 'txcd_00000000',
-        },
-        unit_amount: serviceFee,
-        tax_behavior: 'exclusive',
-      },
-      quantity: 1,
-    });
+    lineItems.push(
+      ...serviceFeeLines(
+        serviceFee,
+        salesTax,
+        taxRate,
+        'Covers payment processing and platform fee',
+      ),
+    );
 
     const successUrl = returnUrl
       ? `${returnUrl}${returnUrl.includes('?') ? '&' : '?'}session_id={CHECKOUT_SESSION_ID}`
@@ -1108,13 +1109,6 @@ export class PromoterEventsService {
       payment_method_types: paymentMethodTypes,
       mode: 'payment',
       ...(buyerEmail ? { customer_email: buyerEmail } : {}),
-      // Collect billing address so Stripe Tax can determine the correct jurisdiction
-      billing_address_collection: 'required',
-      // Stripe Tax: EventEcos remits tax on ticket sales (set STRIPE_TAX_ENABLED=false where Stripe Tax isn't configured)
-      automatic_tax: {
-        enabled:
-          this.configService.get<string>('STRIPE_TAX_ENABLED') !== 'false',
-      },
       line_items: lineItems,
       payment_intent_data: {
         application_fee_amount: appFeeAmount,

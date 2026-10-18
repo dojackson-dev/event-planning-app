@@ -10,8 +10,11 @@ import {
   paymentMethodTypesFor,
   processingFeeCents,
   processingRateLabel,
+  salesTaxRatePct,
+  serviceFeeLines,
   STRIPE_CARD_FIXED_CENTS,
   STRIPE_CARD_PCT,
+  ticketPricing,
 } from './platform-fee';
 
 /** What Stripe bills the platform for a domestic card charge. */
@@ -125,5 +128,65 @@ describe('platform fee is always kept in full', () => {
     expect(() => paymentMethodTypesFor(false, 'pay_later')).toThrow();
     expect(processingRateLabel('card')).toBe('3.1% + $0.30');
     expect(processingRateLabel('pay_later')).toBe('6% + $0.30');
+  });
+});
+
+describe('seller-set sales tax on tickets', () => {
+  it('with no tax rate it matches the plain gross-up exactly', () => {
+    for (const price of [2000, 5000, 100000]) {
+      const p = ticketPricing(price, 0.03, 'card', 0);
+      expect(p.tax).toBe(0);
+      expect(p.total).toBe(grossUp(price, 0.03));
+    }
+  });
+
+  it.each([
+    [5000, 0.03, 7],
+    [10000, 0.015, 8.25],
+    [100000, 0.03, 6.5],
+  ])(
+    'price %i at fee %d and tax %d%%: promoter nets price + tax, platform keeps its fee after Stripe',
+    (price, feeRate, taxPct) => {
+      const { serviceFee, tax, total } = ticketPricing(
+        price,
+        feeRate,
+        'card',
+        taxPct,
+      );
+      expect(total).toBe(price + serviceFee + tax);
+      // tax is charged on the price and the service fee
+      expect(
+        Math.abs(tax - (taxPct / 100) * (price + serviceFee)),
+      ).toBeLessThanOrEqual(0.5);
+      // promoter receives total minus the application fee (= service fee)
+      expect(total - serviceFee).toBe(price + tax);
+      // platform nets the service fee less Stripe's bill on the whole charge (tax included)
+      const platformNet = serviceFee - stripeBill(total);
+      const platformFee = feeRate * (price + serviceFee);
+      expect(platformNet - platformFee).toBeGreaterThanOrEqual(-2);
+    },
+  );
+
+  it('pay-later also covers Stripe on the tax', () => {
+    const { serviceFee, total } = ticketPricing(10000, 0.03, 'pay_later', 8);
+    expect(
+      serviceFee - payLaterBill(total) - 0.03 * (10000 + serviceFee),
+    ).toBeGreaterThanOrEqual(-2);
+  });
+
+  it('ignores invalid, negative and excessive tax rates', () => {
+    expect(salesTaxRatePct('abc')).toBe(0);
+    expect(salesTaxRatePct(-5)).toBe(0);
+    expect(salesTaxRatePct(undefined)).toBe(0);
+    expect(salesTaxRatePct(99)).toBe(20);
+    expect(salesTaxRatePct('8.25')).toBe(8.25);
+  });
+
+  it('adds a separate Sales tax line only when tax applies', () => {
+    expect(serviceFeeLines(500, 0, 0, 'x')).toHaveLength(1);
+    const lines = serviceFeeLines(500, 40, 8.25, 'x');
+    expect(lines).toHaveLength(2);
+    expect(lines[1].price_data?.product_data?.name).toBe('Sales tax (8.25%)');
+    expect(lines[1].price_data?.unit_amount).toBe(40);
   });
 });

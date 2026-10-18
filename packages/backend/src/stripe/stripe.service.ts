@@ -388,20 +388,10 @@ export class StripeService {
       | undefined;
     let ownerAccount: any = null;
     if (invoice.owner_id) {
-      ownerAccount = await this.getOwnerAccountByUserId(
+      ownerAccount = await this.getOwnerAccountForInvoice(
         invoice.owner_id,
         admin,
       );
-      if (!ownerAccount) {
-        const { data: ownerById } = await admin
-          .from('owner_accounts')
-          .select(
-            'stripe_connect_id, stripe_connect_status, subscription_status, plan_id',
-          )
-          .eq('id', invoice.owner_id)
-          .maybeSingle();
-        ownerAccount = ownerById;
-      }
 
       const connectId =
         ownerAccount?.stripe_connect_id ?? ownerAccount?.stripe_account_id;
@@ -1482,6 +1472,24 @@ export class StripeService {
   // Platform fee rate is resolved per-payment via resolveOwnerPlatformFeeRate() (3% / 1.5% / 1%)
 
   /**
+   * invoices.owner_id holds either the owner's auth user id or the owner_accounts id,
+   * so try the user-id lookup first and fall back to the account id.
+   */
+  private async getOwnerAccountForInvoice(
+    ownerRef: string,
+    admin: any,
+  ): Promise<any> {
+    const byUser = await this.getOwnerAccountByUserId(ownerRef, admin);
+    if (byUser) return byUser;
+    const { data } = await admin
+      .from('owner_accounts')
+      .select('*')
+      .eq('id', ownerRef)
+      .maybeSingle();
+    return data ?? null;
+  }
+
+  /**
    * Resolves the owner_accounts row for a given auth user ID.
    * Primary path: memberships table (user_id → owner_account_id).
    * Fallback: direct user_id column on owner_accounts.
@@ -2297,11 +2305,7 @@ export class StripeService {
     const { owner_id: ownerId, ...publicData } = data as any;
     let payLaterAvailable = false;
     if (ownerId) {
-      const { data: owner } = await admin
-        .from('owner_accounts')
-        .select('enable_bnpl')
-        .eq('id', ownerId)
-        .maybeSingle();
+      const owner = await this.getOwnerAccountForInvoice(ownerId, admin);
       payLaterAvailable = !!owner?.enable_bnpl;
     }
     return {
@@ -2342,17 +2346,15 @@ export class StripeService {
     // Look up owner Connect account + subscription plan for fee rate
     let owner: any = null;
     if (inv.owner_id) {
-      const { data } = await admin
-        .from('owner_accounts')
-        .select(
-          'stripe_connect_id, stripe_connect_status, subscription_status, plan_name, plan_id, enable_bnpl',
-        )
-        .eq('id', inv.owner_id)
-        .maybeSingle();
-      owner = data;
+      owner = await this.getOwnerAccountForInvoice(inv.owner_id, admin);
     }
     const hasConnect =
       owner?.stripe_connect_id && owner?.stripe_connect_status === 'active';
+    if (!hasConnect) {
+      this.logger.warn(
+        `Invoice ${inv.id} has no active owner Connect account; payment will not be routed to an owner`,
+      );
+    }
 
     const description = `Invoice ${inv.invoice_number} — $${(safeCents / 100).toFixed(2)}`;
 

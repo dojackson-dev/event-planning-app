@@ -20,8 +20,14 @@ export default tseslint.config(
       sourceType: 'commonjs',
       parserOptions: {
         projectService: {
-          allowDefaultProject: ['test/*.ts', 'src/*.spec.ts', 'src/*/*.spec.ts'],
-          maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 20,
+          allowDefaultProject: [
+            'test/*.ts',
+            'src/*.spec.ts',
+            'src/*/*.spec.ts',
+            'src/*/*/*.spec.ts',
+            'src/*/*/*/*.spec.ts',
+          ],
+          maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 60,
         },
         tsconfigRootDir: import.meta.dirname,
       },

@@ -65,6 +65,7 @@ export const AUCTION_OUTBOX_KINDS = [
   'outbid',
   'won',
   'reserve_not_met',
+  'item_withdrawn',
   'order_created',
   'payment_succeeded',
   'payment_failed',

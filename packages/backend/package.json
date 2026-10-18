@@ -29,6 +29,7 @@
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.1.9",
     "@nestjs/schedule": "^6.0.1",
+    "@nestjs/throttler": "^6.7.1",
     "@nestjs/typeorm": "^11.0.0",
     "@supabase/supabase-js": "^2.84.0",
     "@types/nodemailer": "^7.0.6",
@@ -98,6 +99,9 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "moduleNameMapper": {
+      "^(\\.{1,2}/.*)\\.js$": "$1"
+    }
   }
 }

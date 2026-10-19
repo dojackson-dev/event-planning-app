@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { MailService } from '../mail/mail.service';
+import { isBilledTo } from '../artist-invoices/invoice-recipient';
 import { TwilioService } from '../messaging/twilio.service';
 import {
   CreatePromoterBookingDto,
@@ -201,13 +202,37 @@ export class PromoterBookingsService {
     const { data, error } = await admin
       .from('artist_invoices')
       .select(
-        'id, invoice_number, total_amount, amount_due, amount_paid, status, public_token, issue_date, due_date, created_at, artist_account_id, artist_accounts(artist_name, stage_name)',
+        'id, invoice_number, total_amount, amount_due, amount_paid, status, public_token, issue_date, due_date, created_at, artist_account_id, client_email, artist_accounts(artist_name, stage_name)',
       )
       .in('artist_account_id', artistIds)
+      .neq('status', 'draft')
       .order('created_at', { ascending: false });
 
     if (error) throw new Error(error.message);
-    return data ?? [];
+
+    // A booked artist may also invoice other clients; only invoices addressed to this promoter belong here.
+    const myEmails = await this.promoterEmails(userId, promoterAccountId);
+    return (data ?? [])
+      .filter((invoice: any) => isBilledTo(invoice.client_email, myEmails))
+      .map(({ client_email: _email, ...invoice }: any) => invoice);
+  }
+
+  private async promoterEmails(
+    userId: string,
+    promoterAccountId: string,
+  ): Promise<string[]> {
+    const admin = this.supabaseService.getAdminClient();
+    const [account, user] = await Promise.all([
+      admin
+        .from('promoter_accounts')
+        .select('email')
+        .eq('id', promoterAccountId)
+        .maybeSingle(),
+      admin.from('users').select('email').eq('id', userId).maybeSingle(),
+    ]);
+    return [account.data?.email, user.data?.email].filter(
+      (email): email is string => Boolean(email),
+    );
   }
 
   async listBookingsForArtist(userId: string) {

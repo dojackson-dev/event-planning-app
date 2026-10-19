@@ -19,6 +19,7 @@ import {
 } from '../payments/platform-fee';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import Stripe from 'stripe';
+import { isBilledTo } from './invoice-recipient';
 import * as nodemailer from 'nodemailer';
 import {
   CreateArtistInvoiceDto,
@@ -206,17 +207,27 @@ export class ArtistInvoicesService {
     // (the promoter is effectively the client being billed)
     const { data: promoterAccount } = await admin
       .from('promoter_accounts')
-      .select('id')
+      .select('id, email')
       .eq('user_id', userId)
       .maybeSingle();
-    if (promoterAccount) {
+    if (promoterAccount && data.status !== 'draft') {
       const { data: booking } = await admin
         .from('promoter_bookings')
         .select('id')
         .eq('promoter_account_id', promoterAccount.id)
         .eq('artist_account_id', data.artist_account_id)
         .maybeSingle();
-      if (booking) return data;
+      const { data: user } = await admin
+        .from('users')
+        .select('email')
+        .eq('id', userId)
+        .maybeSingle();
+      if (
+        booking &&
+        isBilledTo(data.client_email, [promoterAccount.email, user?.email])
+      ) {
+        return data;
+      }
     }
 
     throw new ForbiddenException('Access denied');

@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { EventType } from '@/types'
+import { validateClientContact } from '@/lib/intakeContact'
 import { Calendar, Users, Clock, DollarSign, FileText, ArrowLeft, ArrowRight, CheckCircle } from 'lucide-react'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
@@ -80,6 +81,7 @@ function PublicIntakeForm({ params }: { params: { ownerId: string } }) {
     lastName: '',
     email: '',
     phone: '',
+    address: '',
     preferredContact: 'phone' as 'phone' | 'email' | 'text',
     eventType: EventType.BIRTHDAY_PARTY,
     eventName: '',
@@ -153,6 +155,13 @@ function PublicIntakeForm({ params }: { params: { ownerId: string } }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    const contactError = validateClientContact(formData)
+    if (contactError) {
+      setError(contactError)
+      setCurrentStep(1)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
     setLoading(true)
 
     try {
@@ -165,8 +174,9 @@ function PublicIntakeForm({ params }: { params: { ownerId: string } }) {
         guest_count: parseInt(formData.estimatedGuests) || null,
         venue_preference: formData.preferredVenue || null,
         contact_name: `${formData.firstName} ${formData.lastName}`.trim(),
-        contact_email: formData.email,
-        contact_phone: formData.phone || null,
+        contact_email: formData.email.trim(),
+        contact_phone: formData.phone.trim(),
+        contact_address: formData.address.trim(),
         services_needed: [
           formData.needsCatering && 'Catering',
           formData.needsDecorator && 'Decoration',
@@ -211,7 +221,18 @@ function PublicIntakeForm({ params }: { params: { ownerId: string } }) {
     }
   }
 
-  const nextStep = () => { setCurrentStep(prev => Math.min(prev + 1, 5)); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+  const nextStep = () => {
+    if (currentStep === 1) {
+      const contactError = validateClientContact(formData)
+      if (contactError) {
+        setError(contactError)
+        return
+      }
+      setError('')
+    }
+    setCurrentStep(prev => Math.min(prev + 1, 5))
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
   const prevStep = () => { setCurrentStep(prev => Math.max(prev - 1, 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }
 
   if (submitted) {
@@ -316,6 +337,12 @@ function PublicIntakeForm({ params }: { params: { ownerId: string } }) {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number *</label>
                   <input type="tel" name="phone" required value={formData.phone} onChange={handleChange}
                     placeholder="(555) 123-4567"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Address *</label>
+                  <input type="text" name="address" required value={formData.address} onChange={handleChange}
+                    placeholder="Street, City, State ZIP"
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
                 </div>
               </div>

@@ -18,6 +18,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   decorations:        '🎨 Decorations',
   sales_tax:          '📊 Sales Tax',
   items:              '📦 Items',
+  furniture:          '🪑 Furniture',
   misc:               '✨ Miscellaneous',
 }
 

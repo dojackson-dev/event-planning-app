@@ -863,6 +863,7 @@ event!event_id(id, name, date),
     userId: string,
     id: string,
     invoiceData: Partial<Invoice>,
+    notifyUpdate = true,
   ): Promise<Invoice> {
     const { data, error } = await supabase
       .from('invoices')
@@ -884,7 +885,7 @@ event!event_id(id, name, date),
     }
 
     // Notify client via SMS only when the invoice has already been sent
-    if (result.status === 'sent') {
+    if (notifyUpdate && result.status === 'sent') {
       try {
         const phone = await this.lookupClientPhone(supabase, result);
         const clientName = result.client_name || 'Valued Client';
@@ -917,7 +918,8 @@ event!event_id(id, name, date),
       updateData.paid_date = new Date().toISOString().split('T')[0];
     }
 
-    const updated = await this.update(supabase, userId, id, updateData);
+    // The status-specific message below replaces the generic "invoice updated" SMS.
+    const updated = await this.update(supabase, userId, id, updateData, false);
 
     // ── SMS notifications ──────────────────────────────────────────────────
     try {

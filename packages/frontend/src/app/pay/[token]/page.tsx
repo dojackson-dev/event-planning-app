@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { FileText, CheckCircle2, Loader2, AlertCircle, CreditCard, Lock, Building2, ArrowLeft } from 'lucide-react'
+import PaidDashboardLink from '@/components/PaidDashboardLink'
 import PayMethodToggle, { rateLabel, type PayMethod } from '@/components/PayMethodToggle'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
@@ -228,12 +229,7 @@ function PublicInvoicePayPageContent() {
                   <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
                   Payment received. Thank you!
                 </div>
-                <Link
-                  href="/dashboard"
-                  className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white font-semibold py-3 rounded-xl hover:bg-gray-800 transition-colors text-sm"
-                >
-                  <ArrowLeft className="w-4 h-4" /> Go to Dashboard
-                </Link>
+                <PaidDashboardLink autoRedirect={justPaid} />
               </div>
             ) : isCancelled ? (
               <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 text-gray-500 rounded-xl px-4 py-3 text-sm">

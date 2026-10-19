@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from 'next/navigation'
 import {
   FileText, CheckCircle2, Loader2, AlertCircle, CreditCard, Lock, Calendar,
 } from 'lucide-react'
+import PaidDashboardLink from '@/components/PaidDashboardLink'
 import PayMethodToggle, { rateLabel, type PayMethod } from '@/components/PayMethodToggle'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
@@ -283,9 +284,12 @@ function OwnerInvoicePayPageContent() {
           {/* Payment selection / CTA */}
           <div className="px-6 py-5">
             {isPaid ? (
-              <div className="flex items-center gap-3 bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 text-sm font-medium">
-                <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
-                Payment received. Thank you!
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 text-sm font-medium">
+                  <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+                  Payment received. Thank you!
+                </div>
+                <PaidDashboardLink autoRedirect={justPaid} />
               </div>
             ) : isCancelled ? (
               <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 text-gray-500 rounded-xl px-4 py-3 text-sm">

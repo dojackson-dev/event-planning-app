@@ -14,7 +14,6 @@ interface SeatmapProps {
   venueId: string
   configurationId: string
   ticketGroups: { tevo_section_name: string; retail_price: number }[]
-  showLegend?: boolean
 }
 const TicketMap = dynamic<SeatmapProps>(
   () => import('@ticketevolution/seatmaps-client').then(m => m.TicketMap as any),
@@ -185,7 +184,6 @@ export default function TicketEvolutionEventDetailPage({ params }: { params: { i
                     venueId={String(event.venue_id)}
                     configurationId={String(event.configuration_id)}
                     ticketGroups={ticketGroups}
-                    showLegend={false}
                   />
                 </div>
               </div>
@@ -201,6 +199,7 @@ export default function TicketEvolutionEventDetailPage({ params }: { params: { i
             <h2 className="font-bold text-gray-900 flex items-center gap-2">
               <Ticket className="w-5 h-5 text-purple-500" />Ticket Options
             </h2>
+            <p className="text-xs text-gray-400">Prices shown are all-in, with fees included.</p>
             {event.listings.length === 0 ? (
               <p className="text-sm text-gray-400 py-4 text-center">No tickets currently listed.</p>
             ) : (
@@ -217,6 +216,9 @@ export default function TicketEvolutionEventDetailPage({ params }: { params: { i
                           {listing.quantity} available{listing.format ? ` · ${listing.format}` : ''}
                         </p>
                       </div>
+                      <span className="text-sm font-bold text-gray-800 shrink-0 ml-3">
+                        ${listing.retail_price.toLocaleString()}
+                      </span>
                       {listing.checkout_url && (
                         <a
                           href={listing.checkout_url}

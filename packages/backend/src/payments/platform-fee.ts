@@ -220,7 +220,7 @@ export function serviceFeeLines(
 export function paymentMethodTypesFor(
   enableBnpl: boolean | null | undefined,
   method: PayMethod,
-  opts: { bankDebit?: boolean } = {},
+  opts: { bankDebit?: boolean; bankAlways?: boolean } = {},
 ): Array<'card' | 'us_bank_account' | (typeof PAY_LATER_METHODS)[number]> {
   if (method === 'pay_later') {
     if (!enableBnpl)
@@ -230,7 +230,7 @@ export function paymentMethodTypesFor(
     return [...PAY_LATER_METHODS];
   }
   if (method === 'bank') {
-    if (!enableBnpl || !opts.bankDebit)
+    if ((!enableBnpl && !opts.bankAlways) || !opts.bankDebit)
       throw new BadRequestException(
         'Bank payment is not available for this seller',
       );

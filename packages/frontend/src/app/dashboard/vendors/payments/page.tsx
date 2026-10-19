@@ -88,16 +88,10 @@ function VendorPaymentsPageContent() {
     }
   }, [])
 
-  const handlePay = async (invoice: OwnerBookingInvoice) => {
+  // The pay page lets the owner choose card or bank (ACH) before checkout.
+  const handlePay = (invoice: OwnerBookingInvoice) => {
     setPayingId(invoice.id)
-    try {
-      const { data } = await api.post(`/vendor-invoices/public/${invoice.public_token}/checkout`)
-      if (data?.url) window.location.href = data.url
-    } catch (e: any) {
-      alert(e.response?.data?.message || 'Failed to initiate payment')
-    } finally {
-      setPayingId(null)
-    }
+    router.push(`/pay/${invoice.public_token}`)
   }
 
   const unpaid = invoices.filter(i => !['paid', 'cancelled'].includes(i.status))
@@ -147,7 +141,7 @@ function VendorPaymentsPageContent() {
       <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-6 text-sm text-blue-700 flex items-start gap-2">
         <DollarSign className="w-4 h-4 mt-0.5 flex-shrink-0" />
         <span>
-          A payment processing fee (3.1% + $0.30 for cards, 6% + $0.30 for pay later) is added to your total at checkout.
+          A payment processing fee (3.1% + $0.30 for cards, 0.8% up to $5 for bank account, 6% + $0.30 for pay later) is added to your total at checkout.
           A <strong>3% platform fee</strong> is deducted from the vendor&apos;s payout.
         </span>
       </div>
@@ -280,7 +274,7 @@ function InvoiceRow({
             className="flex items-center gap-1.5 bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-indigo-700 disabled:opacity-50"
           >
             {paying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CreditCard className="w-3.5 h-3.5" />}
-            {paying ? 'Redirecting…' : 'Pay Now'}
+            {paying ? 'Opening…' : 'Pay Now'}
           </button>
         ) : null}
       </div>

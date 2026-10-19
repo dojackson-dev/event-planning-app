@@ -105,6 +105,7 @@ export enum ServiceItemCategory {
   DECORATIONS = 'decorations',
   SALES_TAX = 'sales_tax',
   ITEMS = 'items',
+  FURNITURE = 'furniture',
   MISC = 'misc',
 }
 

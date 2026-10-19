@@ -4,6 +4,7 @@
 
 | Agent | Task | Branch / Worktree | Files claimed | Status | Notes |
 |-------|------|-------------------|---------------|--------|-------|
+| GitHub Copilot invoice-edit-fix | Invoice edit fails (client_address column missing in prod); resend sends duplicate SMS with no feedback | main | packages/backend/src/invoices/invoices-supabase.service.ts, packages/backend/migrations/add-invoices-client-address.sql, packages/frontend/src/app/dashboard/invoices/[id]/page.tsx | ready-for-review | Local commit on main, not pushed. Migration add-invoices-client-address.sql optional. |
 | GitHub Copilot demo-leads | Save Book a Demo requests to demo_requests; sales portal Leads tab with claim/release/status | dev | packages/backend/src/{contact,affiliates}/**, migrations/create-demo-requests.sql, frontend sales-portal/dashboard | ready-for-review | Needs migration run on demo then prod. Local commit only. |
 | GitHub Copilot rsvp-dedupe | RSVP invites: exclude duplicate guests (same phone/email, same name without contact) on add, bulk add, edit, send-all | dev | packages/backend/src/rsvp/**, packages/frontend/src/app/client-portal/rsvp/page.tsx | ready-for-review | Local commit only, not pushed. |
 | GitHub Copilot book-demo | Remove demo banner; Book a Demo form emailing sales@eventecos.com | dev | packages/backend/src/contact/**, mail.service.ts (sendDemoRequest), frontend BookDemoModal, app/page.tsx, app/layout.tsx | ready-for-review | Local commit only, not pushed. |

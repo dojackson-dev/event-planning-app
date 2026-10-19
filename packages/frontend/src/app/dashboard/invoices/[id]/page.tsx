@@ -90,6 +90,9 @@ export default function InvoiceDetailPage() {
       // Use the /status endpoint so the backend also sends SMS/email notification
       await api.put(`/invoices/${invoice.id}/status`, { status })
       fetchInvoice()
+      if (status === InvoiceStatus.SENT || status === InvoiceStatus.OVERDUE) {
+        alert('Invoice sent to the client.')
+      }
     } catch (error) {
       console.error('Failed to update status:', error)
       alert('Failed to update status')
@@ -245,7 +248,10 @@ export default function InvoiceDetailPage() {
         client_name: editClientName || null,
         client_email: editClientEmail || null,
         client_phone: editClientPhone || null,
-        client_address: editClientAddress || null,
+        // Only sent when changed: older databases lack the client_address column and reject the whole update.
+        ...(editClientAddress !== (invoice.client_address || '')
+          ? { client_address: editClientAddress || null }
+          : {}),
         due_date: editDueDate,
         tax_rate: editTaxRate,
         discount_amount: editDiscountAmount,

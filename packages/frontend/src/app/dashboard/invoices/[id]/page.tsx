@@ -181,7 +181,7 @@ export default function InvoiceDetailPage() {
       booking?.contact_phone ||
       ''
     )
-    setEditClientAddress(invoice.client_address || '')
+    setEditClientAddress(invoice.client_address || intakeForm?.contact_address || '')
     setEditDueDate(invoice.due_date || '')
     setEditTaxRate(Number(invoice.tax_rate) || 0)
     setEditDiscountAmount(Number(invoice.discount_amount) || 0)

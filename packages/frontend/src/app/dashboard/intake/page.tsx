@@ -6,6 +6,7 @@ import api from '@/lib/api'
 import { EventType } from '@/types'
 import { Calendar, Users, Clock, DollarSign, FileText, ArrowLeft, ArrowRight, Building2 } from 'lucide-react'
 import { useOwnerBrand } from '@/contexts/OwnerBrandContext'
+import { validateClientContact } from '@/lib/intakeContact'
 
 interface Venue {
   id: number | string
@@ -92,6 +93,7 @@ function ClientIntakePageInner() {
     lastName: '',
     email: '',
     phone: '',
+    address: '',
     preferredContact: 'phone' as 'phone' | 'email' | 'text',
     
     // Event Details
@@ -186,6 +188,13 @@ function ClientIntakePageInner() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    const contactError = validateClientContact(formData)
+    if (contactError) {
+      setError(contactError)
+      setCurrentStep(1)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
     setLoading(true)
 
     try {
@@ -200,8 +209,9 @@ function ClientIntakePageInner() {
         guest_count: parseInt(formData.estimatedGuests) || null,
         venue_preference: formData.preferredVenue || null,
         contact_name: `${formData.firstName} ${formData.lastName}`.trim() || 'Unknown',
-        contact_email: formData.email || 'unknown@example.com',
-        contact_phone: formData.phone || null,
+        contact_email: formData.email.trim(),
+        contact_phone: formData.phone.trim(),
+        contact_address: formData.address.trim(),
         services_needed: [
           formData.needsCatering && 'Catering',
           formData.needsDecorator && 'Decoration',
@@ -262,7 +272,17 @@ function ClientIntakePageInner() {
     }
   }
 
-  const nextStep = () => setCurrentStep(prev => Math.min(prev + 1, 5))
+  const nextStep = () => {
+    if (currentStep === 1) {
+      const contactError = validateClientContact(formData)
+      if (contactError) {
+        setError(contactError)
+        return
+      }
+      setError('')
+    }
+    setCurrentStep(prev => Math.min(prev + 1, 5))
+  }
   const prevStep = () => setCurrentStep(prev => Math.max(prev - 1, 1))
 
   return (
@@ -407,6 +427,21 @@ function ClientIntakePageInner() {
                   value={formData.phone}
                   onChange={handleChange}
                   placeholder="(555) 123-4567"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Address *
+                </label>
+                <input
+                  type="text"
+                  name="address"
+                  required
+                  value={formData.address}
+                  onChange={handleChange}
+                  placeholder="Street, City, State ZIP"
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 />
               </div>

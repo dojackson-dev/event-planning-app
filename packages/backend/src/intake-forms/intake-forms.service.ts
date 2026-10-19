@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { MailService } from '../mail/mail.service';
 import { TwilioService } from '../messaging/twilio.service';
@@ -123,6 +123,7 @@ export class IntakeFormsService {
       event_name,
       event_end_time,
       event_description,
+      contact_address,
       ...rest
     } = createDto;
 
@@ -142,6 +143,7 @@ export class IntakeFormsService {
       ...(event_name ? { event_name } : {}),
       ...(event_description ? { event_description } : {}),
       ...(event_end_time ? { event_end_time } : {}),
+      ...(contact_address ? { contact_address } : {}),
     };
 
     let insertResult = await supabaseAdmin
@@ -809,9 +811,23 @@ export class IntakeFormsService {
       preferred_contact,
       venue_id,
       event_description,
+      contact_address,
       ...safeDto
     } = dto;
     const venueId: string | null = venue_id || null;
+
+    const missing = [
+      ['email', safeDto.contact_email],
+      ['phone number', safeDto.contact_phone],
+      ['address', contact_address],
+    ]
+      .filter(([, value]) => !String(value ?? '').trim())
+      .map(([label]) => label);
+    if (missing.length > 0) {
+      throw new BadRequestException(
+        `Please provide your ${missing.join(', ')}.`,
+      );
+    }
 
     if (safeDto.contact_phone) {
       safeDto.contact_phone = normalizePhone(safeDto.contact_phone);
@@ -824,6 +840,7 @@ export class IntakeFormsService {
       user_id: ownerId,
       ...(venueId ? { venue_id: venueId } : {}),
       ...(event_description ? { event_description } : {}),
+      contact_address: String(contact_address).trim(),
     };
     const { data: d1, error: e1 } = await supabaseAdmin
       .from('intake_forms')

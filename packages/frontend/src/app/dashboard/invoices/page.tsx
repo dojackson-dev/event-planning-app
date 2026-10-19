@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
+import AttentionBanner from '@/components/AttentionBanner'
+import { useAttentionFilter, INVOICE_ATTENTION } from '@/lib/attentionFilter'
 import { Invoice, InvoiceStatus } from '@/types'
 import { Plus, Search } from 'lucide-react'
 import { useVenue } from '@/contexts/VenueContext'
@@ -25,6 +27,7 @@ export default function InvoicesPage() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<InvoiceStatus | 'all'>('all')
   const [searchTerm, setSearchTerm] = useState('')
+  const [attention, clearAttention] = useAttentionFilter()
   const router = useRouter()
   const { user } = useAuth()
   const { activeVenue } = useVenue()
@@ -86,6 +89,7 @@ export default function InvoicesPage() {
 
   const filteredInvoices = invoices
     .filter(inv => filter === 'all' || inv.status === filter)
+    .filter(inv => !attention || !INVOICE_ATTENTION[attention] || INVOICE_ATTENTION[attention].match(inv))
     .filter(inv => {
       if (!searchTerm) return true
       const q = searchTerm.toLowerCase()
@@ -131,6 +135,10 @@ export default function InvoicesPage() {
           )}
         </div>
       </div>
+
+      {attention && INVOICE_ATTENTION[attention] && (
+        <AttentionBanner label={INVOICE_ATTENTION[attention].label} onClear={clearAttention} />
+      )}
 
       {/* Search + Filter */}
       <div className="mb-6 flex flex-col sm:flex-row gap-3">

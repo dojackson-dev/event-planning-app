@@ -130,6 +130,12 @@ describe('platform fee is always kept in full', () => {
       paymentMethodTypesFor(false, 'bank', { bankDebit: true }),
     ).toThrow();
     expect(() => paymentMethodTypesFor(true, 'bank')).toThrow();
+    expect(
+      paymentMethodTypesFor(false, 'bank', {
+        bankDebit: true,
+        bankAlways: true,
+      }),
+    ).toEqual(['us_bank_account']);
     expect(paymentMethodTypesFor(true, 'pay_later')).toEqual([
       ...PAY_LATER_METHODS,
     ]);

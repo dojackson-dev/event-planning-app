@@ -155,12 +155,12 @@ describe('Vendor invoice checkout and Stripe readiness', () => {
     );
   });
 
-  it('rejects bank payment when the vendor has not enabled it', async () => {
+  it('offers bank payment even when the vendor has not enabled pay-later', async () => {
     const { service, create } = setup('active');
-    await expect(service.createCheckoutSession('tok', 'bank')).rejects.toThrow(
-      BadRequestException,
-    );
-    expect(create).not.toHaveBeenCalled();
+    await service.createCheckoutSession('tok', 'bank');
+    expect(create.mock.calls[0][0].payment_method_types).toEqual([
+      'us_bank_account',
+    ]);
   });
 
   it('rejects pay-later when the vendor has not enabled it', async () => {

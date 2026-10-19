@@ -701,7 +701,7 @@ export class VendorInvoicesService {
       ...safe,
       vendor_accounts: data.vendor_accounts ? vendorPublic : null,
       pay_later_available: !!enable_bnpl,
-      bank_available: !!enable_bnpl,
+      bank_available: true,
       processing_fee_cents: {
         card: processingFeeCents(amountCents, 'card'),
         pay_later: processingFeeCents(amountCents, 'pay_later'),
@@ -788,7 +788,7 @@ export class VendorInvoicesService {
       payment_method_types: paymentMethodTypesFor(
         vendor?.enable_bnpl,
         payMethod,
-        { bankDebit: true },
+        { bankDebit: true, bankAlways: true },
       ),
       customer_email: invoice.client_email,
       line_items: [

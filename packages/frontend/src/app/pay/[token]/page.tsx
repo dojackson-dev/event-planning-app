@@ -77,7 +77,7 @@ function PublicInvoicePayPageContent() {
       const res = await fetch(`${API_URL}/vendor-invoices/public/${token}/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pay_method: payMethod }),
+        body: JSON.stringify({ pay_method: activePayMethod }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.message || 'Failed to initiate payment')
@@ -113,7 +113,10 @@ function PublicInvoicePayPageContent() {
   const isPaid = invoice.status === 'paid' || justPaid
   const isCancelled = invoice.status === 'cancelled'
   const vendor = invoice.vendor_accounts
-  const activePayMethod: PayMethod = invoice.pay_later_available ? payMethod : 'card'
+  const activePayMethod: PayMethod =
+    payMethod === 'bank' && invoice.bank_available ? 'bank'
+    : payMethod === 'pay_later' && invoice.pay_later_available ? 'pay_later'
+    : 'card'
   const feeCents = invoice.processing_fee_cents?.[activePayMethod]
   const feeNote = `A payment processing fee (${rateLabel(activePayMethod)}${feeCents != null ? `, $${(feeCents / 100).toFixed(2)}` : ''}) is added at checkout.`
 
@@ -246,9 +249,9 @@ function PublicInvoicePayPageContent() {
                     <AlertCircle className="w-4 h-4" /> {error}
                   </p>
                 )}
-                {invoice.pay_later_available && (
+                {(invoice.pay_later_available || invoice.bank_available) && (
                   <div className="mb-3">
-                    <PayMethodToggle value={activePayMethod} onChange={setPayMethod} disabled={paying} showBank={invoice.bank_available} />
+                    <PayMethodToggle value={activePayMethod} onChange={setPayMethod} disabled={paying} showBank={invoice.bank_available} showPayLater={invoice.pay_later_available} />
                   </div>
                 )}
                 <button

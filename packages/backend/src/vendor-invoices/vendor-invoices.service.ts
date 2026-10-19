@@ -10,9 +10,9 @@ import { SupabaseService } from '../supabase/supabase.service';
 import {
   applicationFeeCents,
   normalizePayMethod,
+  processingFeeLine,
   paymentMethodTypesFor,
   processingFeeCents,
-  processingRateLabel,
 } from '../payments/platform-fee';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import Stripe from 'stripe';
@@ -701,9 +701,11 @@ export class VendorInvoicesService {
       ...safe,
       vendor_accounts: data.vendor_accounts ? vendorPublic : null,
       pay_later_available: !!enable_bnpl,
+      bank_available: !!enable_bnpl,
       processing_fee_cents: {
         card: processingFeeCents(amountCents, 'card'),
         pay_later: processingFeeCents(amountCents, 'pay_later'),
+        bank: processingFeeCents(amountCents, 'bank'),
       },
     };
   }
@@ -755,7 +757,7 @@ export class VendorInvoicesService {
     token: string,
     payMethodInput: unknown = 'card',
   ): Promise<{ url: string; feeCents: number }> {
-    const payMethod = normalizePayMethod(payMethodInput);
+    const payMethod = normalizePayMethod(payMethodInput, true);
     const admin = this.supabaseService.getAdminClient();
 
     const { data: invoice, error } = await admin
@@ -842,13 +844,7 @@ export class VendorInvoicesService {
         price_data: {
           currency: 'usd',
           unit_amount: stripeFeeCents,
-          product_data: {
-            name:
-              payMethod === 'pay_later'
-                ? 'Pay-later Processing Fee'
-                : 'Payment Processing Fee',
-            description: `${payMethod === 'pay_later' ? 'Afterpay / Klarna / Affirm' : 'Card'} processing fee (${processingRateLabel(payMethod)})`,
-          },
+          product_data: processingFeeLine(payMethod),
         },
         quantity: 1,
       },

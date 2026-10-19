@@ -4,6 +4,7 @@
 
 | Agent | Task | Branch / Worktree | Files claimed | Status | Notes |
 |-------|------|-------------------|---------------|--------|-------|
+| GitHub Copilot ach-bank | Invoices: separate Bank account (ACH) pay method at 0.8% (max $5); card option no longer includes ACH | dev | packages/backend/src/{payments,stripe,vendor-invoices,promoter-invoices,artist-invoices,client-portal}/**, frontend pay pages + PayMethodToggle | ready-for-review | Not pushed. Needs demo test with a Stripe test bank account. |
 | GitHub Copilot demo-leads | Save Book a Demo requests to demo_requests; sales portal Leads tab with claim/release/status | dev | packages/backend/src/{contact,affiliates}/**, migrations/create-demo-requests.sql, frontend sales-portal/dashboard | ready-for-review | Needs migration run on demo then prod. Local commit only. |
 | GitHub Copilot rsvp-dedupe | RSVP invites: exclude duplicate guests (same phone/email, same name without contact) on add, bulk add, edit, send-all | dev | packages/backend/src/rsvp/**, packages/frontend/src/app/client-portal/rsvp/page.tsx | ready-for-review | Local commit only, not pushed. |
 | GitHub Copilot book-demo | Remove demo banner; Book a Demo form emailing sales@eventecos.com | dev | packages/backend/src/contact/**, mail.service.ts (sendDemoRequest), frontend BookDemoModal, app/page.tsx, app/layout.tsx | ready-for-review | Local commit only, not pushed. |

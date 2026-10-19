@@ -1,4 +1,4 @@
-export type PayMethod = 'card' | 'pay_later'
+export type PayMethod = 'card' | 'pay_later' | 'bank'
 
 // Keep in sync with packages/backend/src/payments/platform-fee.ts
 export const CARD_PCT = 0.031
@@ -6,9 +6,14 @@ export const PAY_LATER_PCT = 0.06
 export const PROCESSING_FIXED = 0.3
 export const CARD_RATE_LABEL = '3.1% + $0.30'
 export const PAY_LATER_RATE_LABEL = '6% + $0.30'
+export const BANK_RATE_LABEL = '0.8% (max $5)'
+
+export function rateLabel(method: PayMethod) {
+  return method === 'pay_later' ? PAY_LATER_RATE_LABEL : method === 'bank' ? BANK_RATE_LABEL : CARD_RATE_LABEL
+}
 
 export function processingPct(method: PayMethod) {
-  return method === 'pay_later' ? PAY_LATER_PCT : CARD_PCT
+  return method === 'pay_later' ? PAY_LATER_PCT : method === 'bank' ? 0.008 : CARD_PCT
 }
 
 /** Mirrors backend ticketPricing: tax applies to price + service fee and passes to the seller in full. */
@@ -30,11 +35,14 @@ interface Props {
   value: PayMethod
   onChange: (method: PayMethod) => void
   disabled?: boolean
+  /** Invoices only: offer a lower-fee bank (ACH) payment. */
+  showBank?: boolean
 }
 
-export default function PayMethodToggle({ value, onChange, disabled }: Props) {
+export default function PayMethodToggle({ value, onChange, disabled, showBank }: Props) {
   const options: { id: PayMethod; label: string; note: string }[] = [
     { id: 'card', label: 'Card', note: `Processing ${CARD_RATE_LABEL}` },
+    ...(showBank ? [{ id: 'bank' as PayMethod, label: 'Bank account', note: `ACH bank debit, takes a few business days · processing ${BANK_RATE_LABEL}` }] : []),
     { id: 'pay_later', label: 'Pay later', note: `Afterpay, Klarna, Affirm · processing ${PAY_LATER_RATE_LABEL}` },
   ]
   return (

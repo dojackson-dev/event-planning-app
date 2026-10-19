@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { CheckCircle2, Loader2, AlertCircle, CreditCard, Lock, Megaphone } from 'lucide-react'
-import PayMethodToggle, { CARD_RATE_LABEL, PAY_LATER_RATE_LABEL, type PayMethod } from '@/components/PayMethodToggle'
+import PayMethodToggle, { rateLabel, type PayMethod } from '@/components/PayMethodToggle'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
@@ -26,7 +26,8 @@ interface PublicPromoterInvoice {
   promoter_invoice_items: Array<{ id: string; description: string; quantity: number; unit_price: number; amount: number }>
   promoter_accounts: { company_name?: string; contact_name?: string; email: string; location?: string }
   pay_later_available?: boolean
-  processing_fee_cents?: { card: number; pay_later: number }
+  bank_available?: boolean
+  processing_fee_cents?: { card: number; pay_later: number; bank?: number }
 }
 
 function PromoterPayContent() {
@@ -200,7 +201,7 @@ function PromoterPayContent() {
                 )}
                 {invoice.pay_later_available && (
                   <div className="mb-3">
-                    <PayMethodToggle value={activePayMethod} onChange={setPayMethod} disabled={paying} />
+                    <PayMethodToggle value={activePayMethod} onChange={setPayMethod} disabled={paying} showBank={invoice.bank_available} />
                   </div>
                 )}
                 <button onClick={handlePay} disabled={paying}
@@ -209,7 +210,7 @@ function PromoterPayContent() {
                   {paying ? 'Redirecting…' : `Pay $${Number(invoice.total_amount).toFixed(2)}`}
                 </button>
                 <div className="flex items-center justify-center gap-1.5 mt-3 text-xs text-gray-400">
-                  <Lock className="w-3 h-3" /> Secured by Stripe. A {activePayMethod === 'pay_later' ? `pay-later processing fee (${PAY_LATER_RATE_LABEL})` : `processing fee (${CARD_RATE_LABEL})`}{feeText ? ` of ${feeText}` : ''} is added at checkout.
+                  <Lock className="w-3 h-3" /> Secured by Stripe. A {`${activePayMethod === 'pay_later' ? 'pay-later ' : activePayMethod === 'bank' ? 'bank payment ' : ''}processing fee (${rateLabel(activePayMethod)})`}{feeText ? ` of ${feeText}` : ''} is added at checkout.
                 </div>
               </>
             )}

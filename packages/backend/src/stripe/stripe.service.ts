@@ -11,10 +11,10 @@ import { SupabaseService } from '../supabase/supabase.service';
 import {
   applicationFeeCents,
   normalizePayMethod,
+  processingFeeLine,
   PayMethod,
   paymentMethodTypesFor,
   processingFeeCents,
-  processingRateLabel,
 } from '../payments/platform-fee';
 import { VendorInvoicesService } from '../vendor-invoices/vendor-invoices.service';
 import { ArtistInvoicesService } from '../artist-invoices/artist-invoices.service';
@@ -331,7 +331,7 @@ export class StripeService {
     clientName: string,
     payMethodInput: unknown = 'card',
   ): Promise<string> {
-    const payMethod: PayMethod = normalizePayMethod(payMethodInput);
+    const payMethod: PayMethod = normalizePayMethod(payMethodInput, true);
     const admin = this.supabaseService.getAdminClient();
 
     const { data: invoice } = await admin
@@ -370,13 +370,7 @@ export class StripeService {
         price_data: {
           currency: 'usd',
           unit_amount: stripeFeeCents,
-          product_data: {
-            name:
-              payMethod === 'pay_later'
-                ? 'Pay-later Processing Fee'
-                : 'Payment Processing Fee',
-            description: `${payMethod === 'pay_later' ? 'Afterpay / Klarna / Affirm' : 'Card'} processing fee (${processingRateLabel(payMethod)})`,
-          },
+          product_data: processingFeeLine(payMethod),
         },
         quantity: 1,
       },
@@ -2312,6 +2306,7 @@ export class StripeService {
       ...publicData,
       items: clientVisibleItems(publicData.items),
       pay_later_available: payLaterAvailable,
+      bank_available: payLaterAvailable,
     };
   }
 
@@ -2324,7 +2319,7 @@ export class StripeService {
     amountCents: number,
     payMethodInput: unknown = 'card',
   ): Promise<string> {
-    const payMethod: PayMethod = normalizePayMethod(payMethodInput);
+    const payMethod: PayMethod = normalizePayMethod(payMethodInput, true);
     const admin = this.supabaseService.getAdminClient();
 
     const { data: inv, error } = await admin
@@ -2382,13 +2377,7 @@ export class StripeService {
           price_data: {
             currency: 'usd',
             unit_amount: stripeFeeCents,
-            product_data: {
-              name:
-                payMethod === 'pay_later'
-                  ? 'Pay-later Processing Fee'
-                  : 'Payment Processing Fee',
-              description: `${payMethod === 'pay_later' ? 'Afterpay / Klarna / Affirm' : 'Card'} processing fee (${processingRateLabel(payMethod)})`,
-            },
+            product_data: processingFeeLine(payMethod),
           },
           quantity: 1,
         },

@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { FileText, CheckCircle2, Loader2, AlertCircle, CreditCard, Lock, Building2, ArrowLeft } from 'lucide-react'
-import PayMethodToggle, { CARD_RATE_LABEL, PAY_LATER_RATE_LABEL, type PayMethod } from '@/components/PayMethodToggle'
+import PayMethodToggle, { rateLabel, type PayMethod } from '@/components/PayMethodToggle'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
@@ -27,7 +27,8 @@ interface PublicInvoice {
   vendor_invoice_items: Array<{ id: string; description: string; quantity: number; unit_price: number; amount: number }>
   vendor_accounts: { business_name: string; email: string; phone: string; city: string; state: string; profile_image_url: string | null }
   pay_later_available?: boolean
-  processing_fee_cents?: { card: number; pay_later: number }
+  bank_available?: boolean
+  processing_fee_cents?: { card: number; pay_later: number; bank?: number }
 }
 
 function PublicInvoicePayPageContent() {
@@ -113,7 +114,7 @@ function PublicInvoicePayPageContent() {
   const vendor = invoice.vendor_accounts
   const activePayMethod: PayMethod = invoice.pay_later_available ? payMethod : 'card'
   const feeCents = invoice.processing_fee_cents?.[activePayMethod]
-  const feeNote = `A payment processing fee (${activePayMethod === 'pay_later' ? PAY_LATER_RATE_LABEL : CARD_RATE_LABEL}${feeCents != null ? `, $${(feeCents / 100).toFixed(2)}` : ''}) is added at checkout.`
+  const feeNote = `A payment processing fee (${rateLabel(activePayMethod)}${feeCents != null ? `, $${(feeCents / 100).toFixed(2)}` : ''}) is added at checkout.`
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
@@ -251,7 +252,7 @@ function PublicInvoicePayPageContent() {
                 )}
                 {invoice.pay_later_available && (
                   <div className="mb-3">
-                    <PayMethodToggle value={activePayMethod} onChange={setPayMethod} disabled={paying} />
+                    <PayMethodToggle value={activePayMethod} onChange={setPayMethod} disabled={paying} showBank={invoice.bank_available} />
                   </div>
                 )}
                 <button

@@ -11,6 +11,7 @@ import {
   applicationFeeCents,
   chargeTotalWithProcessing,
   normalizePayMethod,
+  bankTotalForCardTotalCents,
   PayMethod,
   payLaterSurchargeCents,
   paymentMethodTypesFor,
@@ -547,7 +548,11 @@ export class ArtistInvoicesService {
       ...safe,
       artist_accounts: data.artist_accounts ? artistPublic : null,
       pay_later_available: !!enable_bnpl,
+      bank_available: !!enable_bnpl,
       pay_later_surcharge_cents: payLaterSurchargeCents(
+        Math.round(Number(data.amount_due) * 100),
+      ),
+      bank_total_cents: bankTotalForCardTotalCents(
         Math.round(Number(data.amount_due) * 100),
       ),
     };
@@ -559,7 +564,7 @@ export class ArtistInvoicesService {
     token: string,
     payMethodInput: unknown = 'card',
   ): Promise<{ url: string; feeCents: number }> {
-    const payMethod: PayMethod = normalizePayMethod(payMethodInput);
+    const payMethod: PayMethod = normalizePayMethod(payMethodInput, true);
     const admin = this.supabaseService.getAdminClient();
 
     const { data: invoice, error } = await admin
@@ -602,9 +607,14 @@ export class ArtistInvoicesService {
     // The client already pays Stripe's fee inside the invoice total; pay-later adds the higher fee as its own line.
     const surchargeCents =
       payMethod === 'pay_later' ? payLaterSurchargeCents(amountCents) : 0;
+    // A bank payment drops the baked-in card fee down to the bank fee.
+    const chargeCents =
+      payMethod === 'bank'
+        ? bankTotalForCardTotalCents(amountCents)
+        : amountCents;
     const feeCents = applicationFeeCents(
       platformFeeCents,
-      Math.max(0, amountCents - baseCents) + surchargeCents,
+      Math.max(0, chargeCents - baseCents) + surchargeCents,
     );
 
     const session = await this.stripe.checkout.sessions.create({
@@ -619,7 +629,7 @@ export class ArtistInvoicesService {
         {
           price_data: {
             currency: 'usd',
-            unit_amount: amountCents,
+            unit_amount: chargeCents,
             product_data: {
               name: `Invoice ${invoice.invoice_number}`,
               description: `Payment to ${artistName}`,

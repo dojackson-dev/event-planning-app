@@ -5,7 +5,7 @@ import { useParams, useSearchParams } from 'next/navigation'
 import {
   FileText, CheckCircle2, Loader2, AlertCircle, CreditCard, Lock, Calendar,
 } from 'lucide-react'
-import PayMethodToggle, { CARD_RATE_LABEL, PAY_LATER_RATE_LABEL, type PayMethod } from '@/components/PayMethodToggle'
+import PayMethodToggle, { rateLabel, type PayMethod } from '@/components/PayMethodToggle'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
@@ -27,6 +27,7 @@ interface PublicOwnerInvoice {
   deposit_due_days_before: number | null
   final_payment_due_days_before: number | null
   pay_later_available?: boolean
+  bank_available?: boolean
   booking?: { event?: { id: string; name: string; date: string } }
   items: Array<{
     id: string
@@ -371,7 +372,7 @@ function OwnerInvoicePayPageContent() {
 
                 {invoice.pay_later_available && (
                   <div className="mb-3">
-                    <PayMethodToggle value={payMethod} onChange={setPayMethod} disabled={paying} />
+                    <PayMethodToggle value={payMethod} onChange={setPayMethod} disabled={paying} showBank={invoice.bank_available} />
                   </div>
                 )}
                 <button
@@ -390,7 +391,7 @@ function OwnerInvoicePayPageContent() {
                 </button>
 
                 <div className="flex items-center justify-center gap-1.5 mt-3 text-xs text-gray-400">
-                  <Lock className="w-3 h-3" /> Secure payment powered by Stripe. A processing fee ({invoice.pay_later_available && payMethod === 'pay_later' ? PAY_LATER_RATE_LABEL : CARD_RATE_LABEL}) is added at checkout.
+                  <Lock className="w-3 h-3" /> Secure payment powered by Stripe. A processing fee ({rateLabel(invoice.pay_later_available ? payMethod : 'card')}) is added at checkout.
                 </div>
               </>
             )}

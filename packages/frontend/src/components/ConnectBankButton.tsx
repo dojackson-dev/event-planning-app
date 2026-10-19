@@ -165,7 +165,7 @@ export default function ConnectBankButton({ role, email }: ConnectBankButtonProp
             <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-md p-3">
               <Info className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
               <p className="text-xs text-amber-800">
-                <strong>Processing fee notice:</strong> Afterpay, Klarna, and Affirm cost about <strong>6% + $0.30</strong> per transaction (vs. 3.1% + $0.30 charged for cards). Buyers see both options at checkout and the buyer who picks pay later pays that higher processing fee, not you. Bank debit (ACH) is offered with the card option on invoices.
+                <strong>Processing fee notice:</strong> Afterpay, Klarna, and Affirm cost about <strong>6% + $0.30</strong> per transaction (vs. 3.1% + $0.30 charged for cards). Buyers see their options at checkout and the buyer who picks pay later pays that higher processing fee, not you. Bank debit (ACH) is a separate &quot;Bank account&quot; option on invoices, charged at 0.8% (max $5), also paid by the buyer.
               </p>
             </div>
           </div>
@@ -216,7 +216,7 @@ export default function ConnectBankButton({ role, email }: ConnectBankButtonProp
           <div className="flex items-start gap-2 bg-indigo-50 border border-indigo-200 rounded-md p-3">
             <Info className="h-4 w-4 text-indigo-600 flex-shrink-0 mt-0.5" />
             <p className="text-xs text-indigo-800">
-              Once connected, you can optionally offer <strong>Afterpay, Klarna, Affirm, and ACH Direct Debit</strong> to your clients. BNPL methods carry a <strong>~6% processing fee</strong>; ACH is 0.8% (capped at $5).
+              Once connected, you can optionally offer <strong>Afterpay, Klarna, Affirm, and ACH Direct Debit</strong> to your clients. BNPL methods carry a <strong>~6% processing fee</strong>; a bank account (ACH) is 0.8% (max $5). The buyer pays the processing fee for the method they choose.
             </p>
           </div>
           <button

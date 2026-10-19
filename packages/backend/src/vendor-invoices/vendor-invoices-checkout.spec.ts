@@ -116,7 +116,7 @@ describe('Vendor invoice checkout and Stripe readiness', () => {
     const { service, create } = setup('active', undefined, true);
     await service.createCheckoutSession('tok');
     const params = create.mock.calls[0][0];
-    expect(params.payment_method_types).toEqual(['card', 'us_bank_account']);
+    expect(params.payment_method_types).toEqual(['card']);
     // $800 + (800 + 0.30) / (1 - 3.1%) processing
     expect(params.line_items[1].price_data.unit_amount).toBe(
       Math.round(80030 / 0.969) - 80000,
@@ -137,6 +137,30 @@ describe('Vendor invoice checkout and Stripe readiness', () => {
     expect(params.payment_intent_data.application_fee_amount).toBe(
       Math.round(80000 * 0.03) + fee,
     );
+  });
+
+  it('bank checkout offers only bank accounts and charges the capped ACH fee', async () => {
+    const { service, create } = setup('active', undefined, true);
+    await service.createCheckoutSession('tok', 'bank');
+    const params = create.mock.calls[0][0];
+    expect(params.payment_method_types).toEqual(['us_bank_account']);
+    // $800 is above the $625 point where the $5 cap applies.
+    const fee = params.line_items[1].price_data.unit_amount;
+    expect(fee).toBe(500);
+    expect(params.line_items[1].price_data.product_data.name).toBe(
+      'Bank Payment Processing Fee',
+    );
+    expect(params.payment_intent_data.application_fee_amount).toBe(
+      Math.round(80000 * 0.03) + 500,
+    );
+  });
+
+  it('rejects bank payment when the vendor has not enabled it', async () => {
+    const { service, create } = setup('active');
+    await expect(service.createCheckoutSession('tok', 'bank')).rejects.toThrow(
+      BadRequestException,
+    );
+    expect(create).not.toHaveBeenCalled();
   });
 
   it('rejects pay-later when the vendor has not enabled it', async () => {

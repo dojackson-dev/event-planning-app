@@ -88,7 +88,7 @@ function ClientInvoicesContent() {
     })
   }
 
-  const handlePayNow = async (invoice: any, payMethod: 'card' | 'pay_later' = 'card') => {
+  const handlePayNow = async (invoice: any, payMethod: 'card' | 'pay_later' | 'bank' = 'card') => {
     try {
       setPaying(invoice.id)
       // Vendor invoices use a public pay page; regular invoices use Stripe checkout
@@ -413,8 +413,17 @@ function ClientInvoicesContent() {
                           Pay later with Afterpay, Klarna or Affirm
                         </button>
                       )}
+                      {invoice.bank_available && invoice._type !== 'vendor_invoice' && (
+                        <button
+                          onClick={() => handlePayNow(invoice, 'bank')}
+                          disabled={paying === invoice.id}
+                          className="mt-2 w-full sm:w-auto sm:ml-2 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                        >
+                          Pay from a bank account (lower fee)
+                        </button>
+                      )}
                       <p className="mt-2 text-xs text-gray-400">
-                        A payment processing fee is added at checkout: 3.1% + $0.30 for cards, 6% + $0.30 for pay later.
+                        A payment processing fee is added at checkout: 3.1% + $0.30 for cards, 0.8% (max $5) for a bank account, 6% + $0.30 for pay later.
                       </p>
                     </div>
                   )}

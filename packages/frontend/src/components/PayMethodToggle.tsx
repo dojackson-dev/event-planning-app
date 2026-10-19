@@ -37,13 +37,14 @@ interface Props {
   disabled?: boolean
   /** Invoices only: offer a lower-fee bank (ACH) payment. */
   showBank?: boolean
+  showPayLater?: boolean
 }
 
-export default function PayMethodToggle({ value, onChange, disabled, showBank }: Props) {
+export default function PayMethodToggle({ value, onChange, disabled, showBank, showPayLater = true }: Props) {
   const options: { id: PayMethod; label: string; note: string }[] = [
     { id: 'card', label: 'Card', note: `Processing ${CARD_RATE_LABEL}` },
     ...(showBank ? [{ id: 'bank' as PayMethod, label: 'Bank account', note: `ACH bank debit, takes a few business days · processing ${BANK_RATE_LABEL}` }] : []),
-    { id: 'pay_later', label: 'Pay later', note: `Afterpay, Klarna, Affirm · processing ${PAY_LATER_RATE_LABEL}` },
+    ...(showPayLater ? [{ id: 'pay_later' as PayMethod, label: 'Pay later', note: `Afterpay, Klarna, Affirm · processing ${PAY_LATER_RATE_LABEL}` }] : []),
   ]
   return (
     <fieldset className="space-y-2" disabled={disabled}>

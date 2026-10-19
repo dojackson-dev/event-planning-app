@@ -19,6 +19,7 @@ function setup(checkoutBase?: string) {
             row: 'W',
             quantity: 4,
             retail_price: 23.62,
+            retail_price_inclusive: 27.5,
           },
         ],
       };
@@ -61,6 +62,11 @@ describe('Ticket Evolution Hosted Checkout links', () => {
     expect(detail.listings[0].checkout_url).toBe(
       'https://checkout.eventecos.com/checkout/payment/982605/4749803604',
     );
+  });
+
+  it('shows the all-in price (retail_price_inclusive) to buyers', async () => {
+    const detail = await setup(undefined).getPublicEventDetail(982605);
+    expect(detail.listings[0].retail_price).toBe(27.5);
   });
 
   it('offers no checkout link when the checkout domain is not configured', async () => {

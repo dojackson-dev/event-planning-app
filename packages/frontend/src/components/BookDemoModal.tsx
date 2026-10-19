@@ -16,7 +16,7 @@ const ROLES = [
   { value: 'vendor', label: 'Vendor', hint: 'DJ, photographer, decor, catering and more' },
 ]
 
-const EMPTY = { name: '', phone: '', role: '', description: '' }
+const EMPTY = { name: '', phone: '', roles: [] as string[], description: '' }
 
 export default function BookDemoModal({ isOpen, onClose }: Props) {
   const [form, setForm] = useState(EMPTY)
@@ -28,8 +28,8 @@ export default function BookDemoModal({ isOpen, onClose }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!form.role) {
-      setError('Choose the role that fits you best.')
+    if (!form.roles.length) {
+      setError('Choose at least one role that fits you.')
       return
     }
     setError('')
@@ -111,19 +111,19 @@ export default function BookDemoModal({ isOpen, onClose }: Props) {
               </div>
 
               <fieldset>
-                <legend className="block text-sm font-medium text-gray-700 mb-2">I am a... *</legend>
+                <legend className="block text-sm font-medium text-gray-700 mb-2">I am a... * <span className="font-normal text-gray-400">(select all that apply)</span></legend>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {ROLES.map(r => (
                     <label
                       key={r.value}
-                      className={`flex items-start gap-2 border rounded-lg px-3 py-2.5 cursor-pointer transition-colors ${form.role === r.value ? 'border-accent-500 bg-accent-50' : 'border-gray-300 hover:bg-gray-50'}`}
+                      className={`flex items-start gap-2 border rounded-lg px-3 py-2.5 cursor-pointer transition-colors ${form.roles.includes(r.value) ? 'border-accent-500 bg-accent-50' : 'border-gray-300 hover:bg-gray-50'}`}
                     >
                       <input
-                        type="radio"
+                        type="checkbox"
                         name="demo-role"
                         value={r.value}
-                        checked={form.role === r.value}
-                        onChange={() => setForm(f => ({ ...f, role: r.value }))}
+                        checked={form.roles.includes(r.value)}
+                        onChange={() => setForm(f => ({ ...f, roles: f.roles.includes(r.value) ? f.roles.filter(v => v !== r.value) : [...f.roles, r.value] }))}
                         className="mt-1"
                       />
                       <span>

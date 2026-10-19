@@ -10,10 +10,16 @@ function setup(sent = true) {
   return { controller, sendDemoRequest };
 }
 
-const valid = {
+const valid: {
+  name: string;
+  phone: string;
+  roles?: string[];
+  role?: string;
+  description?: string;
+} = {
   name: 'Jane Smith',
   phone: '(404) 555-0123',
-  role: 'venue_owner',
+  roles: ['venue_owner'],
   description: 'Two venues, 5 staff',
 };
 const req = { ip: '1.2.3.4', headers: {} };
@@ -32,6 +38,28 @@ describe('ContactController.demoRequest', () => {
     });
   });
 
+  it('combines several selected roles into one label', async () => {
+    const { controller, sendDemoRequest } = setup();
+    await controller.demoRequest(
+      { ...valid, roles: ['promoter', 'vendor', 'promoter'] },
+      req,
+    );
+    expect(sendDemoRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ role: 'Promoter, Vendor' }),
+    );
+  });
+
+  it('still accepts the single role field', async () => {
+    const { controller, sendDemoRequest } = setup();
+    await controller.demoRequest(
+      { name: 'Jane Smith', phone: valid.phone, role: 'artist' },
+      req,
+    );
+    expect(sendDemoRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ role: 'Artist' }),
+    );
+  });
+
   it('treats the description as optional', async () => {
     const { controller, sendDemoRequest } = setup();
     await controller.demoRequest({ ...valid, description: '  ' }, req);
@@ -44,9 +72,15 @@ describe('ContactController.demoRequest', () => {
     ['missing name', { ...valid, name: ' ' }],
     ['bad phone', { ...valid, phone: 'call me' }],
     ['short phone', { ...valid, phone: '12345' }],
-    ['unknown role', { ...valid, role: 'admin' }],
-    ['inherited key as role', { ...valid, role: 'constructor' }],
-    ['missing role', { ...valid, role: undefined as unknown as string }],
+    ['unknown role', { ...valid, roles: ['admin'] }],
+    ['inherited key as role', { ...valid, roles: ['constructor'] }],
+    [
+      'one bad role among good ones',
+      { ...valid, roles: ['promoter', 'admin'] },
+    ],
+    ['non-string role', { ...valid, roles: [1 as unknown as string] }],
+    ['empty roles', { ...valid, roles: [] }],
+    ['missing role', { ...valid, roles: undefined }],
     ['long description', { ...valid, description: 'x'.repeat(2001) }],
   ])('rejects %s', async (_label, body) => {
     const { controller, sendDemoRequest } = setup();

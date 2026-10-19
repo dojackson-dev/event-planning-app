@@ -24,7 +24,9 @@ const DEMO_MAX_PER_WINDOW = 5;
 class DemoRequestDto {
   name!: string;
   phone!: string;
-  role!: string;
+  roles?: string[];
+  /** Single-role form of `roles`, still accepted. */
+  role?: string;
   description?: string;
 }
 
@@ -91,15 +93,23 @@ export class ContactController {
     ) {
       throw new BadRequestException('Enter a valid phone number.');
     }
-    const roleLabel = Object.prototype.hasOwnProperty.call(
-      DEMO_ROLES,
-      body?.role,
-    )
-      ? DEMO_ROLES[body.role]
-      : undefined;
-    if (!roleLabel) {
-      throw new BadRequestException('Choose the role that fits you best.');
+    const requested: unknown[] = Array.isArray(body?.roles)
+      ? body.roles
+      : body?.role !== undefined
+        ? [body.role]
+        : [];
+    const roleKeys = [...new Set(requested)];
+    const validRoles = roleKeys.every(
+      (key) =>
+        typeof key === 'string' &&
+        Object.prototype.hasOwnProperty.call(DEMO_ROLES, key),
+    );
+    if (!roleKeys.length || !validRoles) {
+      throw new BadRequestException('Choose at least one role that fits you.');
     }
+    const roleLabel = (roleKeys as string[])
+      .map((k) => DEMO_ROLES[k])
+      .join(', ');
     if (description.length > 2000) {
       throw new BadRequestException(
         'Description must be 2000 characters or fewer.',

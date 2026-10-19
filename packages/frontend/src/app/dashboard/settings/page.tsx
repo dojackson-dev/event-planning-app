@@ -1077,7 +1077,7 @@ function PromoterModeTab() {
             </li>
             <li className="flex items-center gap-2">
               <span className="h-1.5 w-1.5 rounded-full bg-blue-500 flex-shrink-0" />
-              Platform fee of 3-5% per ticket sold
+              Platform fee of 3% per ticket sold
             </li>
           </ul>
           {error && (

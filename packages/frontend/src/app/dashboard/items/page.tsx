@@ -6,7 +6,7 @@ import Pagination from '@/components/Pagination'
 import { Item, ItemType, ServiceItemCategory } from '@/types'
 import ImageUpload from '@/components/ImageUpload'
 import { useVenue } from '@/contexts/VenueContext'
-import { Plus, Edit, Trash2, Package, Music, Lightbulb, Users, Utensils, Sparkles, Building2, Grid3x3, Clock, Percent, Mic, Wine, Shield, DollarSign, Monitor, Calendar } from 'lucide-react'
+import { Plus, Edit, Trash2, Package, Music, Lightbulb, Users, Utensils, Sparkles, Building2, Grid3x3, Clock, Percent, Mic, Wine, Shield, DollarSign, Monitor, Calendar, Armchair } from 'lucide-react'
 
 // Use ServiceItemCategory enum values to match database
 const categoryLabels: Record<string, string> = {
@@ -23,6 +23,7 @@ const categoryLabels: Record<string, string> = {
   [ServiceItemCategory.DECORATIONS]: 'Decorations',
   [ServiceItemCategory.SALES_TAX]: 'Sales Tax',
   [ServiceItemCategory.ITEMS]: 'Items',
+  [ServiceItemCategory.FURNITURE]: 'Furniture',
   [ServiceItemCategory.MISC]: 'Miscellaneous',
 }
 
@@ -41,6 +42,7 @@ const categoryIcons: Record<string, React.ComponentType<any>> = {
   [ServiceItemCategory.DECORATIONS]: Sparkles,
   [ServiceItemCategory.SALES_TAX]: Percent,
   [ServiceItemCategory.ITEMS]: Package,
+  [ServiceItemCategory.FURNITURE]: Armchair,
   [ServiceItemCategory.MISC]: Grid3x3,
 }
 
@@ -58,6 +60,7 @@ const categoryColors: Record<string, string> = {
   [ServiceItemCategory.DECORATIONS]: 'bg-pink-100 text-pink-600',
   [ServiceItemCategory.SALES_TAX]: 'bg-gray-100 text-gray-600',
   [ServiceItemCategory.ITEMS]: 'bg-orange-100 text-orange-600',
+  [ServiceItemCategory.FURNITURE]: 'bg-lime-100 text-lime-600',
   [ServiceItemCategory.MISC]: 'bg-gray-100 text-gray-600',
 }
 

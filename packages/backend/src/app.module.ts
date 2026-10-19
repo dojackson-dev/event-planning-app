@@ -35,6 +35,7 @@ import { PromoterBookingsModule } from './promoter-bookings/promoter-bookings.mo
 import { PromoterEventsModule } from './promoter-events/promoter-events.module';
 import { TeamModule } from './team/team.module';
 import { RemindersModule } from './reminders/reminders.module';
+import { AssistantModule } from './assistant/assistant.module';
 import { AuditModule } from './audit/audit.module';
 import { RsvpModule } from './rsvp/rsvp.module';
 import { ContactModule } from './contact/contact.module';
@@ -86,6 +87,7 @@ import { PromoterTeamModule } from './promoter-team/promoter-team.module';
     PromoterEventsModule,
     TeamModule,
     RemindersModule,
+    AssistantModule,
     AuditModule,
     RsvpModule,
     ContactModule,

@@ -79,11 +79,12 @@ export class VendorInvoicesController {
   @Post('public/:token/checkout')
   async createPublicCheckout(
     @Param('token') token: string,
-    @Body() body?: { pay_method?: string },
+    @Body() body?: { pay_method?: string; pay_amount?: string },
   ) {
     return this.vendorInvoicesService.createCheckoutSession(
       token,
       body?.pay_method,
+      body?.pay_amount,
     );
   }
 

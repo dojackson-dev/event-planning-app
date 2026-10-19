@@ -88,7 +88,7 @@ function ClientInvoicesContent() {
     })
   }
 
-  const handlePayNow = async (invoice: any, payMethod: 'card' | 'pay_later' | 'bank' = 'card') => {
+  const handlePayNow = async (invoice: any, payMethod: 'card' | 'pay_later' | 'bank' = 'card', payAmount: 'full' | 'deposit' = 'full') => {
     try {
       setPaying(invoice.id)
       // Vendor invoices use a public pay page; regular invoices use Stripe checkout
@@ -96,7 +96,7 @@ function ClientInvoicesContent() {
         window.location.href = `/pay/${invoice.public_token}`
         return
       }
-      const res = await clientApi.post(`/invoices/${invoice.id}/checkout`, { pay_method: payMethod })
+      const res = await clientApi.post(`/invoices/${invoice.id}/checkout`, { pay_method: payMethod, pay_amount: payAmount })
       window.location.href = res.data.url
     } catch (err: any) {
       console.error('Failed to create checkout session', err)
@@ -390,6 +390,16 @@ function ClientInvoicesContent() {
                   {/* CTA: Pay now */}
                   {invoice.status !== 'paid' && invoice.status !== 'cancelled' && (
                     <div className="mt-4 pt-4 border-t border-gray-100">
+                      {invoice._type !== 'vendor_invoice' && Number(invoice.deposit_percentage) > 0 && Number(invoice.amount_paid ?? 0) === 0 && (
+                        <button
+                          onClick={() => handlePayNow(invoice, 'card', 'deposit')}
+                          disabled={paying === invoice.id}
+                          className="mb-2 w-full sm:w-auto sm:mr-2 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm border-2 border-emerald-600 text-emerald-700 hover:bg-emerald-50 disabled:opacity-60"
+                        >
+                          <CreditCard className="h-4 w-4" />
+                          Pay {Number(invoice.deposit_percentage)}% deposit (${(Number(invoice.total_amount ?? 0) * Number(invoice.deposit_percentage) / 100).toFixed(2)})
+                        </button>
+                      )}
                       <button
                         onClick={() => handlePayNow(invoice)}
                         disabled={paying === invoice.id}

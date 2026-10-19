@@ -24,6 +24,8 @@ interface VendorInvoice {
   status: 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue' | 'cancelled'
   issue_date: string
   due_date: string
+  deposit_amount?: number | null
+  balance_due_date?: string | null
   paid_at?: string
   notes?: string
   terms?: string
@@ -215,6 +217,12 @@ export default function VendorInvoiceDetailPage() {
               <span className="text-gray-500 text-sm">Due Date: </span>
               <span className="font-medium text-sm">{invoice.due_date}</span>
             </div>
+            {invoice.deposit_amount != null && (
+              <div className="text-xs text-gray-500 mt-1">
+                Deposit ${Number(invoice.deposit_amount).toFixed(2)} due {invoice.due_date}
+                {invoice.balance_due_date ? ` · Balance due ${invoice.balance_due_date}` : ''}
+              </div>
+            )}
           </div>
         </div>
 

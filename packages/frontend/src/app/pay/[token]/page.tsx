@@ -5,6 +5,8 @@ import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { FileText, CheckCircle2, Loader2, AlertCircle, CreditCard, Lock, Building2, ArrowLeft } from 'lucide-react'
 import PaidDashboardLink from '@/components/PaidDashboardLink'
+import InvoiceDepositChoice from '@/components/InvoiceDepositChoice'
+import { chargeAmount, depositInfo, type PayAmount } from '@/lib/invoiceDeposit'
 import PayMethodToggle, { rateLabel, type PayMethod } from '@/components/PayMethodToggle'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
@@ -23,6 +25,9 @@ interface PublicInvoice {
   discount_amount: number
   total_amount: number
   amount_due: number
+  amount_paid?: number
+  deposit_amount?: number | null
+  balance_due_date?: string | null
   notes: string | null
   terms: string | null
   vendor_invoice_items: Array<{ id: string; description: string; quantity: number; unit_price: number; amount: number }>
@@ -30,6 +35,7 @@ interface PublicInvoice {
   pay_later_available?: boolean
   bank_available?: boolean
   processing_fee_cents?: { card: number; pay_later: number; bank?: number }
+  deposit_processing_fee_cents?: { card: number; pay_later: number; bank?: number }
 }
 
 function PublicInvoicePayPageContent() {
@@ -42,19 +48,20 @@ function PublicInvoicePayPageContent() {
   const [paying, setPaying] = useState(false)
   const [error, setError] = useState('')
   const [payMethod, setPayMethod] = useState<PayMethod>('card')
+  const [payAmount, setPayAmount] = useState<PayAmount>('deposit')
 
   const justPaid = searchParams.get('paid') === 'true'
   const wasCanceled = searchParams.get('canceled') === 'true'
 
   useEffect(() => {
-    if (justPaid) {
-      // Verify with Stripe and mark paid in DB (webhook fallback for local dev)
-      fetch(`${API_URL}/vendor-invoices/public/${token}/verify-payment`, { method: 'POST' })
-        .then(r => r.json())
-        .then(d => d.paid && setInvoice(prev => prev ? { ...prev, status: 'paid' } : prev))
-        .catch(() => {})
+    // Verify with Stripe and record the payment first (webhook fallback), so the invoice reloads with the right balance.
+    const load = async () => {
+      if (justPaid) {
+        await fetch(`${API_URL}/vendor-invoices/public/${token}/verify-payment`, { method: 'POST' }).catch(() => {})
+      }
+      await fetchInvoice()
     }
-    fetchInvoice()
+    load()
   }, [token])
 
   const fetchInvoice = async () => {
@@ -77,7 +84,7 @@ function PublicInvoicePayPageContent() {
       const res = await fetch(`${API_URL}/vendor-invoices/public/${token}/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pay_method: activePayMethod }),
+        body: JSON.stringify({ pay_method: activePayMethod, pay_amount: payAmount }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.message || 'Failed to initiate payment')
@@ -110,14 +117,18 @@ function PublicInvoicePayPageContent() {
 
   if (!invoice) return null
 
-  const isPaid = invoice.status === 'paid' || justPaid
+  const info = depositInfo(invoice)
+  const effectiveAmount: PayAmount = info.remaining > 0 ? payAmount : 'full'
+  const chargeNow = chargeAmount(info, effectiveAmount)
+  const isDepositCharge = effectiveAmount === 'deposit' && info.remaining > 0
+  const isPaid = invoice.status === 'paid' || (justPaid && !info.partiallyPaid)
   const isCancelled = invoice.status === 'cancelled'
   const vendor = invoice.vendor_accounts
   const activePayMethod: PayMethod =
     payMethod === 'bank' && invoice.bank_available ? 'bank'
     : payMethod === 'pay_later' && invoice.pay_later_available ? 'pay_later'
     : 'card'
-  const feeCents = invoice.processing_fee_cents?.[activePayMethod]
+  const feeCents = (isDepositCharge ? invoice.deposit_processing_fee_cents : invoice.processing_fee_cents)?.[activePayMethod]
   const feeNote = `A payment processing fee (${rateLabel(activePayMethod)}${feeCents != null ? `, $${(feeCents / 100).toFixed(2)}` : ''}) is added at checkout.`
 
   return (
@@ -213,6 +224,12 @@ function PublicInvoicePayPageContent() {
                 <span>Total</span>
                 <span>${Number(invoice.total_amount).toFixed(2)}</span>
               </div>
+              {info.has && (
+                <div className="flex justify-between text-gray-600 pt-1">
+                  <span>{isDepositCharge ? 'Deposit due now' : info.paid > 0 ? 'Balance due' : 'Due now'}</span>
+                  <span>${chargeNow.toFixed(2)}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -249,6 +266,16 @@ function PublicInvoicePayPageContent() {
                     <AlertCircle className="w-4 h-4" /> {error}
                   </p>
                 )}
+                {justPaid && info.partiallyPaid && (
+                  <div className="flex items-center gap-3 bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 text-sm font-medium mb-3">
+                    <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+                    Payment received. Thank you!
+                  </div>
+                )}
+                <InvoiceDepositChoice
+                  info={info} value={effectiveAmount} onChange={setPayAmount}
+                  dueDate={invoice.due_date} balanceDueDate={invoice.balance_due_date} disabled={paying}
+                />
                 {(invoice.pay_later_available || invoice.bank_available) && (
                   <div className="mb-3">
                     <PayMethodToggle value={activePayMethod} onChange={setPayMethod} disabled={paying} showBank={invoice.bank_available} showPayLater={invoice.pay_later_available} />
@@ -262,7 +289,7 @@ function PublicInvoicePayPageContent() {
                   {paying ? (
                     <><Loader2 className="w-5 h-5 animate-spin" /> Redirecting to payment…</>
                   ) : (
-                    <><CreditCard className="w-5 h-5" /> Pay ${Number(invoice.amount_due).toFixed(2)}</>
+                    <><CreditCard className="w-5 h-5" /> Pay ${chargeNow.toFixed(2)}</>
                   )}
                 </button>
                 <div className="flex items-center justify-center gap-1.5 mt-3 text-xs text-gray-400">

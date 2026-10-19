@@ -2,6 +2,61 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { SupabaseService } from '../supabase/supabase.service';
 import { MailService } from '../mail/mail.service';
+import { SmsNotificationsService } from '../messaging/sms-notifications.service';
+import { nextPaymentDue } from '../payments/invoice-deposit';
+
+// Days before a due date that clients are reminded (0 = the day it is due).
+const DUE_REMINDER_DAYS = [7, 3, 0];
+
+interface InvoiceReminderSource {
+  table: string;
+  statuses: string[];
+  /** Relation to join for the name of whoever is being paid. */
+  payeeSelect: string;
+  payeeName: (row: any) => string | null;
+  payPath: (token: string) => string;
+  /** Owner invoices have no separate balance date, so they can be limited by due_date in SQL. */
+  singleDueDate: boolean;
+}
+
+const INVOICE_REMINDER_SOURCES: InvoiceReminderSource[] = [
+  {
+    table: 'artist_invoices',
+    statuses: ['sent', 'viewed'],
+    payeeSelect: 'artist_accounts(stage_name, artist_name)',
+    payeeName: (r) =>
+      r.artist_accounts?.stage_name || r.artist_accounts?.artist_name || null,
+    payPath: (t) => `/artist-pay/${t}`,
+    singleDueDate: false,
+  },
+  {
+    table: 'promoter_invoices',
+    statuses: ['sent', 'viewed'],
+    payeeSelect: 'promoter_accounts(company_name, contact_name)',
+    payeeName: (r) =>
+      r.promoter_accounts?.company_name ||
+      r.promoter_accounts?.contact_name ||
+      null,
+    payPath: (t) => `/promoter-pay/${t}`,
+    singleDueDate: false,
+  },
+  {
+    table: 'vendor_invoices',
+    statuses: ['sent', 'viewed'],
+    payeeSelect: 'vendor_accounts(business_name)',
+    payeeName: (r) => r.vendor_accounts?.business_name || null,
+    payPath: (t) => `/pay/${t}`,
+    singleDueDate: false,
+  },
+  {
+    table: 'invoices',
+    statuses: ['sent', 'partial'],
+    payeeSelect: '',
+    payeeName: () => null,
+    payPath: (t) => `/pay/invoice/${t}`,
+    singleDueDate: true,
+  },
+];
 
 @Injectable()
 export class RemindersService {
@@ -10,6 +65,7 @@ export class RemindersService {
   constructor(
     private readonly supabaseService: SupabaseService,
     private readonly mailService: MailService,
+    private readonly smsNotifications: SmsNotificationsService,
   ) {}
 
   // ─── Date helpers ──────────────────────────────────────────────────────────
@@ -441,6 +497,139 @@ export class RemindersService {
         this.logger.error(
           `Final payment reminder failed (invoice ${invoice.id})`,
           err.message,
+        );
+      }
+    }
+  }
+
+  // ─── 6. Invoice due-date reminders — 10:30 AM CDT (15:30 UTC) ─────────────
+  // Texts and emails the client 7 days out, 3 days out and on the day a payment
+  // is due. With a deposit, the deposit date applies until the deposit is paid and
+  // the balance date after. Covers artist, promoter, vendor and owner invoices.
+  @Cron('30 15 * * *')
+  async sendInvoiceDueReminders(): Promise<void> {
+    const admin = this.supabaseService.getAdminClient();
+    const today = this.today();
+    for (const source of INVOICE_REMINDER_SOURCES) {
+      try {
+        await this.remindForSource(admin, source, today);
+      } catch (err: any) {
+        this.logger.error(
+          `Invoice due reminders failed for ${source.table}`,
+          err?.message,
+        );
+      }
+    }
+  }
+
+  private async remindForSource(
+    admin: any,
+    source: InvoiceReminderSource,
+    today: string,
+  ): Promise<void> {
+    let query = admin
+      .from(source.table)
+      .select(source.payeeSelect ? `*, ${source.payeeSelect}` : '*')
+      .in('status', source.statuses)
+      .gt('amount_due', 0);
+    if (source.singleDueDate) query = query.gte('due_date', today);
+
+    const { data: invoices, error } = await query;
+    if (error) {
+      this.logger.error(
+        `Due reminder query failed for ${source.table}`,
+        error.message,
+      );
+      return;
+    }
+
+    const due = (invoices ?? []).flatMap((invoice: any) => {
+      const next = nextPaymentDue(invoice);
+      if (!next.date) return [];
+      const daysOut = this.daysDiff(next.date.slice(0, 10), today);
+      return DUE_REMINDER_DAYS.includes(daysOut)
+        ? [{ invoice, next, daysOut }]
+        : [];
+    });
+    if (!due.length) return;
+
+    // Owner invoices name the business via the owner account.
+    const ownerNames: Record<string, string> = {};
+    if (source.table === 'invoices') {
+      const ownerIds = [
+        ...new Set(due.map((d) => d.invoice.owner_id).filter(Boolean)),
+      ];
+      if (ownerIds.length) {
+        const { data: owners } = await admin
+          .from('owner_accounts')
+          .select('primary_owner_id, business_name')
+          .in('primary_owner_id', ownerIds);
+        for (const o of owners ?? []) {
+          ownerNames[o.primary_owner_id] = o.business_name;
+        }
+      }
+    }
+
+    this.logger.log(
+      `Invoice due reminders (${source.table}): ${due.length} to send`,
+    );
+
+    const baseUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+    for (const { invoice, next, daysOut } of due) {
+      try {
+        const payee =
+          source.table === 'invoices'
+            ? (ownerNames[invoice.owner_id] ?? 'your event venue')
+            : (source.payeeName(invoice) ?? 'your provider');
+        const payUrl = invoice.public_token
+          ? `${baseUrl}${source.payPath(invoice.public_token)}`
+          : `${baseUrl}/client-portal/invoices`;
+        const amount = next.cents / 100;
+        const dueLabel = new Date(next.date + 'T00:00:00Z').toLocaleDateString(
+          'en-US',
+          { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' },
+        );
+        const what =
+          next.kind === 'deposit'
+            ? 'deposit'
+            : next.kind === 'balance'
+              ? 'remaining balance'
+              : 'payment';
+        const clientName = invoice.client_name ?? 'Client';
+        const reference = `invoice ${invoice.invoice_number} from ${payee}${next.kind === 'deposit' ? ' (deposit)' : next.kind === 'balance' ? ' (balance)' : ''}`;
+
+        // SMS (skipped by the sender when there is no usable phone number)
+        await this.smsNotifications.paymentReminder(
+          invoice.client_phone ?? null,
+          clientName,
+          amount,
+          dueLabel,
+          reference,
+          payUrl,
+        );
+
+        // Standalone owner invoices already get a day-of email from the final-payment reminder.
+        const dayOfEmailSent =
+          source.table === 'invoices' && !invoice.event_id && daysOut === 0;
+        if (invoice.client_email && !dayOfEmailSent) {
+          const when =
+            daysOut === 0
+              ? 'is due <strong>today</strong>'
+              : `is due in <strong>${daysOut} days</strong>`;
+          await this.mailService.sendReminderEmail({
+            toEmail: invoice.client_email,
+            toName: clientName,
+            subject:
+              daysOut === 0
+                ? `Payment due today — Invoice #${invoice.invoice_number}`
+                : `Payment due in ${daysOut} days — Invoice #${invoice.invoice_number}`,
+            body: `Your ${what} of <strong>$${amount.toFixed(2)}</strong> for invoice <strong>#${invoice.invoice_number}</strong> from <strong>${payee}</strong> ${when} (${dueLabel}).\n\nPay securely online: <a href="${payUrl}">${payUrl}</a>\n\nIf you have already paid or have any questions, please contact ${payee} directly.`,
+          });
+        }
+      } catch (err: any) {
+        this.logger.error(
+          `Invoice due reminder failed (${source.table} ${invoice.id})`,
+          err?.message,
         );
       }
     }

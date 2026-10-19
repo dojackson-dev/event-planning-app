@@ -23,6 +23,8 @@ interface PromoterInvoice {
   status: 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue' | 'cancelled'
   issue_date: string
   due_date: string
+  deposit_amount?: number | null
+  balance_due_date?: string | null
   paid_at?: string
   notes?: string
   terms?: string
@@ -162,6 +164,9 @@ export default function PromoterInvoiceDetailPage() {
             <div className="text-right text-sm text-gray-500">
               <p>Issued: {invoice.issue_date}</p>
               <p>Due: {invoice.due_date}</p>
+              {invoice.deposit_amount != null && (
+                <p>Deposit ${Number(invoice.deposit_amount).toFixed(2)} due {invoice.due_date}{invoice.balance_due_date ? ` · Balance due ${invoice.balance_due_date}` : ''}</p>
+              )}
               {invoice.paid_at && <p className="text-green-600">Paid: {invoice.paid_at.split('T')[0]}</p>}
             </div>
           </div>

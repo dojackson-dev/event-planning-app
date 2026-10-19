@@ -330,6 +330,7 @@ export class StripeService {
     invoiceId: string,
     clientName: string,
     payMethodInput: unknown = 'card',
+    payAmountInput?: unknown,
   ): Promise<string> {
     const payMethod: PayMethod = normalizePayMethod(payMethodInput, true);
     const admin = this.supabaseService.getAdminClient();
@@ -337,7 +338,7 @@ export class StripeService {
     const { data: invoice } = await admin
       .from('invoices')
       .select(
-        'id, invoice_number, total_amount, amount_due, amount_paid, status, owner_id, client_name, client_email',
+        'id, invoice_number, total_amount, amount_due, amount_paid, status, owner_id, client_name, client_email, deposit_percentage',
       )
       .eq('id', invoiceId)
       .maybeSingle();
@@ -348,7 +349,21 @@ export class StripeService {
     if (invoice.amount_due <= 0)
       throw new Error('Invoice is already fully paid');
 
-    const amountCents = Math.round(Number(invoice.amount_due) * 100);
+    const fullCents = Math.round(Number(invoice.amount_due) * 100);
+    // The deposit is only offered before anything has been paid, matching the public pay page.
+    const depositCents =
+      payAmountInput === 'deposit' &&
+      Number(invoice.deposit_percentage) > 0 &&
+      Number(invoice.amount_paid ?? 0) === 0
+        ? Math.round(
+            ((Number(invoice.total_amount) *
+              Number(invoice.deposit_percentage)) /
+              100) *
+              100,
+          )
+        : fullCents;
+    const amountCents = Math.min(depositCents, fullCents);
+    const isDeposit = amountCents < fullCents;
     if (amountCents < 50) throw new Error('Amount too small to process');
 
     // Gross up so the client absorbs Stripe's processing fee for the chosen method
@@ -360,7 +375,7 @@ export class StripeService {
           currency: 'usd',
           unit_amount: amountCents,
           product_data: {
-            name: `Invoice #${invoice.invoice_number}`,
+            name: `${isDeposit ? 'Deposit — ' : ''}Invoice #${invoice.invoice_number}`,
             description: `Payment from ${clientName || invoice.client_name || 'Client'}`,
           },
         },
@@ -416,10 +431,11 @@ export class StripeService {
       ...(invoice.client_email ? { customer_email: invoice.client_email } : {}),
       success_url: `${this.frontendUrl}/client-portal/invoices?paid=true&invoice=${invoice.invoice_number}&iid=${invoiceId}&sid={CHECKOUT_SESSION_ID}`,
       cancel_url: `${this.frontendUrl}/client-portal/invoices?canceled=true`,
-      metadata: { invoice_id: invoiceId },
+      // credit_cents is what the invoice is credited (the amount excluding the processing fee).
+      metadata: { invoice_id: invoiceId, credit_cents: String(amountCents) },
       payment_intent_data: {
         ...transferData,
-        metadata: { invoice_id: invoiceId },
+        metadata: { invoice_id: invoiceId, credit_cents: String(amountCents) },
       },
     });
 
@@ -571,7 +587,11 @@ export class StripeService {
     // ── App invoice one-time payment ─────────────────────────────────────────
     if (invoiceId) {
       if (isPaid) {
-        await this.markInvoicePaid(invoiceId, session.amount_total ?? 0);
+        await this.markInvoicePaid(
+          invoiceId,
+          this.creditCents(session.metadata, session.amount_total ?? 0),
+          paymentIntentId,
+        );
         this.logger.log(
           `Invoice ${invoiceId} marked paid via checkout session ${session.id}`,
         );
@@ -786,7 +806,8 @@ export class StripeService {
     if (session.metadata?.invoice_id) {
       await this.markInvoicePaid(
         session.metadata.invoice_id,
-        session.amount_total ?? 0,
+        this.creditCents(session.metadata, session.amount_total ?? 0),
+        paymentIntentId,
       );
       this.logger.log(
         `Invoice ${session.metadata.invoice_id} paid via async ACH — session ${session.id}`,
@@ -873,7 +894,11 @@ export class StripeService {
     const meta = paymentIntent.metadata ?? {};
 
     if (meta.invoice_id) {
-      await this.markInvoicePaid(meta.invoice_id, paymentIntent.amount);
+      await this.markInvoicePaid(
+        meta.invoice_id,
+        this.creditCents(meta, paymentIntent.amount),
+        paymentIntent.id,
+      );
       this.logger.log(
         `Invoice ${meta.invoice_id} marked paid via PaymentIntent ${paymentIntent.id}`,
       );
@@ -974,6 +999,15 @@ export class StripeService {
     }
   }
 
+  /** Amount to credit an invoice: the checkout's credit_cents when recorded (excludes the processing fee), else the amount charged. */
+  private creditCents(
+    metadata: Record<string, string> | null | undefined,
+    chargedCents: number,
+  ): number {
+    const credit = Number(metadata?.credit_cents);
+    return Number.isFinite(credit) && credit > 0 ? credit : chargedCents;
+  }
+
   /**
    * Record a (possibly partial) payment against an invoice.
    * - Adds amountCents to amount_paid, recalculates amount_due.
@@ -982,6 +1016,7 @@ export class StripeService {
   private async markInvoicePaid(
     invoiceId: string,
     amountCents: number,
+    paymentIntentId?: string | null,
   ): Promise<void> {
     const admin = this.supabaseService.getAdminClient();
     const amountDollars = amountCents / 100;
@@ -989,10 +1024,23 @@ export class StripeService {
     const { data: invoice } = await admin
       .from('invoices')
       .select(
-        'total_amount, amount_paid, client_phone, client_name, invoice_number, owner_id, booking_id, intake_form_id, event_id',
+        'total_amount, amount_paid, status, stripe_payment_intent_id, client_phone, client_name, invoice_number, owner_id, booking_id, intake_form_id, event_id',
       )
       .eq('id', invoiceId)
       .maybeSingle();
+
+    // checkout.session.completed and payment_intent.succeeded both fire for one card payment;
+    // a payment already recorded for this PaymentIntent must not be credited twice.
+    if (
+      paymentIntentId &&
+      invoice?.stripe_payment_intent_id === paymentIntentId &&
+      invoice.status !== 'processing'
+    ) {
+      this.logger.log(
+        `Invoice ${invoiceId} already credited for PaymentIntent ${paymentIntentId}; skipping`,
+      );
+      return;
+    }
 
     const total = Number(invoice?.total_amount ?? amountDollars);
     const previouslyPaid = Number(invoice?.amount_paid ?? 0);
@@ -1006,6 +1054,9 @@ export class StripeService {
         status: isFullyPaid ? 'paid' : 'partial',
         amount_paid: isFullyPaid ? total : newAmountPaid,
         amount_due: isFullyPaid ? 0 : newAmountDue,
+        ...(paymentIntentId
+          ? { stripe_payment_intent_id: paymentIntentId }
+          : {}),
         ...(isFullyPaid ? { paid_date: new Date().toISOString() } : {}),
         updated_at: new Date().toISOString(),
       })
@@ -2230,7 +2281,13 @@ export class StripeService {
     if ((session.metadata as any)?.invoice_id !== invoice.id)
       return { status: invoice.status, paid: false };
 
-    await this.markInvoicePaid(invoice.id, session.amount_total ?? 0);
+    await this.markInvoicePaid(
+      invoice.id,
+      this.creditCents(session.metadata, session.amount_total ?? 0),
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : (session.payment_intent?.id ?? null),
+    );
     this.logger.log(
       `Invoice ${invoice.id} verified and marked paid via session ${session.id} (webhook fallback)`,
     );
@@ -2266,7 +2323,13 @@ export class StripeService {
     if ((session.metadata as any)?.invoice_id !== invoiceId)
       return { status: invoice.status, paid: false };
 
-    await this.markInvoicePaid(invoiceId, session.amount_total ?? 0);
+    await this.markInvoicePaid(
+      invoiceId,
+      this.creditCents(session.metadata, session.amount_total ?? 0),
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : (session.payment_intent?.id ?? null),
+    );
     this.logger.log(
       `Client portal invoice ${invoiceId} verified and marked paid via session ${session.id} (webhook fallback)`,
     );
@@ -2384,7 +2447,7 @@ export class StripeService {
       ],
       success_url: `${this.frontendUrl}/pay/invoice/${token}?paid=true&sid={CHECKOUT_SESSION_ID}`,
       cancel_url: `${this.frontendUrl}/pay/invoice/${token}?canceled=true`,
-      metadata: { invoice_id: inv.id },
+      metadata: { invoice_id: inv.id, credit_cents: String(safeCents) },
     };
 
     if (hasConnect) {
@@ -2393,10 +2456,12 @@ export class StripeService {
       sessionParams.payment_intent_data = {
         application_fee_amount: applicationFeeCents(feeCents, stripeFeeCents),
         transfer_data: { destination: owner!.stripe_connect_id! },
-        metadata: { invoice_id: inv.id },
+        metadata: { invoice_id: inv.id, credit_cents: String(safeCents) },
       };
     } else {
-      sessionParams.payment_intent_data = { metadata: { invoice_id: inv.id } };
+      sessionParams.payment_intent_data = {
+        metadata: { invoice_id: inv.id, credit_cents: String(safeCents) },
+      };
     }
 
     const session = await this.stripe.checkout.sessions.create(sessionParams);

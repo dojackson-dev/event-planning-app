@@ -26,7 +26,9 @@ interface PublicArtistInvoice {
   artist_invoice_items: Array<{ id: string; description: string; quantity: number; unit_price: number; amount: number }>
   artist_accounts: { artist_name: string; stage_name?: string; email: string; city?: string; state?: string; profile_image_url?: string | null }
   pay_later_available?: boolean
+  bank_available?: boolean
   pay_later_surcharge_cents?: number
+  bank_total_cents?: number
 }
 
 function ArtistPayContent() {
@@ -111,7 +113,9 @@ function ArtistPayContent() {
   const processingFee = Math.round((Number(invoice.total_amount) - invoiceBase) * 100) / 100
   const activePayMethod: PayMethod = invoice.pay_later_available ? payMethod : 'card'
   const payLaterSurcharge = activePayMethod === 'pay_later' ? (invoice.pay_later_surcharge_cents ?? 0) / 100 : 0
-  const payTotal = Number(invoice.total_amount) + payLaterSurcharge
+  const bankTotal = activePayMethod === 'bank' && invoice.bank_total_cents != null ? Math.min(invoice.bank_total_cents / 100, Number(invoice.total_amount)) : null
+  const bankAdjustment = bankTotal != null ? bankTotal - Number(invoice.total_amount) : 0
+  const payTotal = bankTotal ?? Number(invoice.total_amount) + payLaterSurcharge
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
@@ -180,6 +184,9 @@ function ArtistPayContent() {
               {invoiceBase > 0 && processingFee > 0 && (
                 <div className="flex justify-between text-orange-500 text-xs"><span>Processing fee</span><span>+${processingFee.toFixed(2)}</span></div>
               )}
+              {bankAdjustment < 0 && (
+                <div className="flex justify-between text-green-600 text-xs"><span>Bank payment: lower processing fee</span><span>-${Math.abs(bankAdjustment).toFixed(2)}</span></div>
+              )}
               {payLaterSurcharge > 0 && (
                 <div className="flex justify-between text-orange-500 text-xs"><span>Pay-later fee (Afterpay, Klarna, Affirm)</span><span>+${payLaterSurcharge.toFixed(2)}</span></div>
               )}
@@ -220,7 +227,7 @@ function ArtistPayContent() {
                 )}
                 {invoice.pay_later_available && (
                   <div className="mb-3">
-                    <PayMethodToggle value={activePayMethod} onChange={setPayMethod} disabled={paying} />
+                    <PayMethodToggle value={activePayMethod} onChange={setPayMethod} disabled={paying} showBank={invoice.bank_available} />
                   </div>
                 )}
                 <button onClick={handlePay} disabled={paying}

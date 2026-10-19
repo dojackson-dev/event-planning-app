@@ -1685,6 +1685,55 @@ export class MailService {
     }
   }
 
+  /** Emails a "Book a Demo" request to sales. Returns false when delivery fails so the caller can tell the visitor. */
+  async sendDemoRequest(params: {
+    name: string;
+    phone: string;
+    role: string;
+    description?: string;
+  }): Promise<boolean> {
+    const name = this.escapeHtml(params.name);
+    const phone = this.escapeHtml(params.phone);
+    const role = this.escapeHtml(params.role);
+    const description = params.description
+      ? this.escapeHtml(params.description)
+      : '';
+    const mailOptions = {
+      from: `"EventEcos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
+      to: 'sales@eventecos.com',
+      subject: `Demo Request — ${params.role} (${params.name.replace(/[\r\n]+/g, ' ')})`,
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f9fafb;padding:32px 16px;">
+          <div style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+            ${this.getEmailHeader('Demo Request', 'Someone wants a walkthrough of EventEcos')}
+            <div style="padding:32px;">
+              <table style="width:100%;border-collapse:collapse;font-size:14px;color:#374151;">
+                <tr><td style="padding:8px 0;color:#6b7280;width:120px;">Name</td><td style="padding:8px 0;font-weight:600;">${name}</td></tr>
+                <tr><td style="padding:8px 0;color:#6b7280;">Phone</td><td style="padding:8px 0;font-weight:600;"><a href="tel:${phone}" style="color:#7c3aed;">${phone}</a></td></tr>
+                <tr><td style="padding:8px 0;color:#6b7280;">Role</td><td style="padding:8px 0;font-weight:600;">${role}</td></tr>
+              </table>
+              ${
+                description
+                  ? `<div style="margin-top:24px;background:#f3f4f6;border-radius:8px;padding:20px;">
+                <p style="margin:0;color:#6b7280;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Notes</p>
+                <p style="margin:12px 0 0;color:#1f2937;white-space:pre-wrap;">${description}</p>
+              </div>`
+                  : ''
+              }
+            </div>
+          </div>
+        </div>
+      `,
+    };
+    try {
+      await this.transporter.sendMail(mailOptions);
+      return true;
+    } catch (error) {
+      console.error('[MailService] sendDemoRequest failed:', error);
+      return false;
+    }
+  }
+
   /**
    * Sends a VIP package confirmation email with QR code after Stripe checkout.
    */

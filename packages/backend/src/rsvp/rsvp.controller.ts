@@ -97,7 +97,11 @@ export class RsvpController {
     const actor = await this.requireSession(headers);
     if (!Array.isArray(body?.guests))
       throw new BadRequestException('guests array is required');
-    return this.rsvpService.bulkAddGuests(intakeFormId, actor, body.guests);
+    return this.rsvpService.bulkAddGuestsDetailed(
+      intakeFormId,
+      actor,
+      body.guests,
+    );
   }
 
   /** Update a guest (table assignment, phone, etc.). */

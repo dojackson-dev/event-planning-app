@@ -160,7 +160,7 @@ export default function PromoterBillingPage() {
         <h1 className="text-2xl font-bold text-gray-900">Plan & Billing</h1>
         <p className="text-gray-500 mt-1">
           Your plan determines the platform fee on direct payments (invoices).
-          Ticket sales fees are always 3% (1.5% for verified non-profits) and are passed to the buyer, along with payment processing (3.1% + $0.30 for cards).
+          Ticket and VIP sales fees are always 3% (1.5% for verified non-profits) and are passed to the buyer, along with payment processing (3.1% + $0.30 for cards).
         </p>
       </div>
 

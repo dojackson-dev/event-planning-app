@@ -508,7 +508,7 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
                     )}
                     {faceValue > 0 && (
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">Service fee</span>
+                        <span className="text-gray-500">Service fee<span className="block text-xs text-gray-400">Includes EventEcos fee and card processing</span></span>
                         <span className="text-gray-500">${serviceFee.toFixed(2)}</span>
                       </div>
                     )}

@@ -199,10 +199,14 @@ export default function ClientRsvpPage() {
           guest_email: parts[2] || undefined,
         }
       }).filter(g => g.guest_name)
-      await rsvpApi.post(`/guests/${selectedEvent.intake_form_id}/bulk`, { guests })
+      const res = await rsvpApi.post(`/guests/${selectedEvent.intake_form_id}/bulk`, { guests })
+      const skipped: Array<{ guest_name: string; reason: string }> = res.data?.skipped ?? []
       setBulkText('')
       setShowBulk(false)
       await refreshGuests()
+      if (skipped.length) {
+        alert(`Added ${res.data?.added?.length ?? 0} guest(s). Skipped ${skipped.length} duplicate${skipped.length === 1 ? '' : 's'}:\n${skipped.map(s => `- ${s.guest_name}: ${s.reason}`).join('\n')}`)
+      }
     } catch (err: any) {
       alert(err?.response?.data?.message || 'Failed to add guests')
     } finally {
@@ -256,7 +260,7 @@ export default function ClientRsvpPage() {
     setSendingAll(true)
     try {
       const res = await rsvpApi.post(`/send-all/${selectedEvent.intake_form_id}`)
-      alert(`Sent ${res.data.sent} invite${res.data.sent !== 1 ? 's' : ''}${res.data.skipped ? `, skipped ${res.data.skipped} (no contact info)` : ''}.`)
+      alert(`Sent ${res.data.sent} invite${res.data.sent !== 1 ? 's' : ''}${res.data.skipped ? `, skipped ${res.data.skipped} (no contact info)` : ''}${res.data.duplicates ? `, ${res.data.duplicates} not sent (same phone or email already invited)` : ''}.`)
       await refreshGuests()
     } catch (err: any) {
       alert(err?.response?.data?.message || 'Failed to send invites')

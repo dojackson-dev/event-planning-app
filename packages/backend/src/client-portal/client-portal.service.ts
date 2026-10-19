@@ -1351,6 +1351,7 @@ export class ClientPortalService {
         items: clientVisibleItems(i.items),
         from_name: i.owner_id ? (fromNameById[i.owner_id] ?? null) : null,
         pay_later_available: i.owner_id ? !!payLaterByOwner[i.owner_id] : false,
+        bank_available: i.owner_id ? !!payLaterByOwner[i.owner_id] : false,
       })),
       ...vendorInvoices,
     ].sort(

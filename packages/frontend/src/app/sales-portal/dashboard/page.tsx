@@ -6,6 +6,7 @@ import Link from 'next/link'
 import api from '@/lib/api'
 import { useAffiliateAuth } from '@/contexts/AffiliateAuthContext'
 import { Search, RefreshCw, Users, TrendingUp, CheckCircle, XCircle, X } from 'lucide-react'
+import LeadsTab from './LeadsTab'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -169,7 +170,7 @@ function StatCard({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type Tab = 'overview' | 'referrals' | 'commissions' | 'users' | 'affiliates'
+type Tab = 'overview' | 'leads' | 'referrals' | 'commissions' | 'users' | 'affiliates'
 
 export default function SalesPortalDashboard() {
   const { affiliate: authAffiliate, isAuthenticated, loading: authLoading, logout } = useAffiliateAuth()
@@ -405,7 +406,7 @@ export default function SalesPortalDashboard() {
           <div className="flex gap-1 border-b border-gray-200 mb-6 overflow-x-auto">
             {isManager ? (
               <>  
-                {(['overview', 'users', 'affiliates'] as Tab[]).map(t => (
+                {(['overview', 'leads', 'users', 'affiliates'] as Tab[]).map(t => (
                   <button
                     key={t}
                     onClick={() => setTab(t)}
@@ -416,13 +417,13 @@ export default function SalesPortalDashboard() {
                   >
                     {t === 'users' && <Users className="w-3.5 h-3.5" />}
                     {t === 'affiliates' && <TrendingUp className="w-3.5 h-3.5" />}
-                    {t === 'overview' ? 'Overview' : t === 'users' ? 'All Users' : 'Affiliates'}
+                    {t === 'overview' ? 'Overview' : t === 'leads' ? 'Leads' : t === 'users' ? 'All Users' : 'Affiliates'}
                   </button>
                 ))}
               </>
             ) : (
               <>
-                {(['overview', 'referrals', 'commissions'] as Tab[]).map(t => (
+                {(['overview', 'leads', 'referrals', 'commissions'] as Tab[]).map(t => (
                   <button
                     key={t}
                     onClick={() => setTab(t)}
@@ -437,6 +438,9 @@ export default function SalesPortalDashboard() {
               </>
             )}
           </div>
+
+          {/* ── Leads ─── */}
+          {tab === 'leads' && <LeadsTab isManager={isManager} />}
 
           {/* ── Overview ─── */}
           {tab === 'overview' && !isManager && (

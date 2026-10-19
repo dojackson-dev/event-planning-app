@@ -3,13 +3,25 @@ import {
   NotFoundException,
   UnauthorizedException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import { MailService } from '../mail/mail.service';
 import { GuestListsService } from '../guest-lists/guest-lists.service';
+import {
+  describeDuplicate,
+  findDuplicateGuest,
+  sharedContact,
+} from './rsvp-duplicates';
+import type { GuestContact } from './rsvp-duplicates';
 
 export type RsvpActor = string | { ownerId: string };
+
+export interface BulkAddResult {
+  added: any[];
+  skipped: Array<{ guest_name: string; reason: string }>;
+}
 
 function phoneLastFour(phone: string): string {
   return phone.replace(/\D/g, '').slice(-4);
@@ -166,6 +178,19 @@ export class RsvpService {
     ).maybeSingle();
     if (error) throw error;
     return data;
+  }
+
+  /** Contact details of every guest already on this event's list, used to exclude duplicates. */
+  private async loadGuestContacts(
+    intakeFormId: string,
+  ): Promise<Array<GuestContact & { id: string }>> {
+    const admin = this.supabaseService.getAdminClient();
+    const { data, error } = await admin
+      .from('rsvp_guests')
+      .select('id, guest_name, guest_phone, guest_email')
+      .eq('intake_form_id', intakeFormId);
+    if (error) throw error;
+    return data || [];
   }
 
   private async syncGuestForForm(
@@ -344,6 +369,16 @@ export class RsvpService {
     if (!guestData.guest_name?.trim())
       throw new BadRequestException('guest_name is required');
 
+    const duplicate = findDuplicateGuest(
+      guestData,
+      await this.loadGuestContacts(intakeFormId),
+    );
+    if (duplicate) {
+      throw new ConflictException(
+        `${duplicate.match.guest_name} is already on the guest list (${describeDuplicate(duplicate.reason)}).`,
+      );
+    }
+
     const admin = this.supabaseService.getAdminClient();
     const { data, error } = await admin
       .from('rsvp_guests')
@@ -361,7 +396,7 @@ export class RsvpService {
     return data;
   }
 
-  /** Bulk add guests (array of names + optional phone). */
+  /** Bulk add guests (array of names + optional phone). Returns only the guests that were created. */
   async bulkAddGuests(
     intakeFormId: string,
     clientPhone: RsvpActor,
@@ -372,27 +407,59 @@ export class RsvpService {
       table_assignment?: string;
     }>,
   ): Promise<any[]> {
+    return (await this.bulkAddGuestsDetailed(intakeFormId, clientPhone, guests))
+      .added;
+  }
+
+  /** Like bulkAddGuests, but also reports each guest skipped as a duplicate of the list or of an earlier row. */
+  async bulkAddGuestsDetailed(
+    intakeFormId: string,
+    clientPhone: RsvpActor,
+    guests: Array<{
+      guest_name: string;
+      guest_phone?: string;
+      guest_email?: string;
+      table_assignment?: string;
+    }>,
+  ): Promise<BulkAddResult> {
     const form = await this.verifyClientOwnsForm(intakeFormId, clientPhone);
-    if (!guests.length) return [];
+    if (!guests.length) return { added: [], skipped: [] };
 
     const admin = this.supabaseService.getAdminClient();
-    const rows = guests
-      .map((g) => ({
+    const known: GuestContact[] = await this.loadGuestContacts(intakeFormId);
+    const rows: Array<Record<string, string | null>> = [];
+    const skipped: BulkAddResult['skipped'] = [];
+    for (const g of guests) {
+      const guest_name =
+        typeof g?.guest_name === 'string' ? g.guest_name.trim() : '';
+      if (!guest_name) continue;
+      const row = {
         intake_form_id: intakeFormId,
         owner_id: form.user_id,
-        guest_name: g.guest_name.trim(),
+        guest_name,
         guest_phone: g.guest_phone?.trim() || null,
         guest_email: g.guest_email?.trim() || null,
         table_assignment: g.table_assignment?.trim() || null,
-      }))
-      .filter((g) => g.guest_name);
+      };
+      const duplicate = findDuplicateGuest(row, known);
+      if (duplicate) {
+        skipped.push({
+          guest_name,
+          reason: `Duplicate of ${duplicate.match.guest_name} (${describeDuplicate(duplicate.reason)})`,
+        });
+        continue;
+      }
+      known.push(row);
+      rows.push(row);
+    }
+    if (!rows.length) return { added: [], skipped };
 
     const { data, error } = await admin
       .from('rsvp_guests')
       .insert(rows)
       .select();
     if (error) throw error;
-    return data || [];
+    return { added: data || [], skipped };
   }
 
   /** Update a guest (table assignment, etc.) */
@@ -423,6 +490,26 @@ export class RsvpService {
       if (field === 'guest_name' && !value.trim())
         throw new BadRequestException('guest_name is required');
       allowedUpdates[field] = value.trim();
+    }
+
+    if (
+      'guest_name' in allowedUpdates ||
+      'guest_phone' in allowedUpdates ||
+      'guest_email' in allowedUpdates
+    ) {
+      const all = await this.loadGuestContacts(intakeFormId);
+      const current = all.find((g) => g.id === guestId);
+      if (current) {
+        const duplicate = findDuplicateGuest(
+          { ...current, ...allowedUpdates },
+          all.filter((g) => g.id !== guestId),
+        );
+        if (duplicate) {
+          throw new ConflictException(
+            `${duplicate.match.guest_name} is already on the guest list (${describeDuplicate(duplicate.reason)}).`,
+          );
+        }
+      }
     }
     const { data, error } = await admin
       .from('rsvp_guests')
@@ -484,28 +571,36 @@ export class RsvpService {
     return data;
   }
 
-  /** Send RSVP invites to all guests that haven't been sent one yet. */
+  /** Send RSVP invites to all guests that haven't been sent one yet. A phone or email that was already invited is not messaged again. */
   async sendAllInvites(
     intakeFormId: string,
     clientPhone: RsvpActor,
-  ): Promise<{ sent: number; skipped: number }> {
+  ): Promise<{ sent: number; skipped: number; duplicates: number }> {
     const form = await this.verifyClientOwnsForm(intakeFormId, clientPhone);
     const admin = this.supabaseService.getAdminClient();
 
-    const { data: guests } = await admin
+    const { data: allGuests } = await admin
       .from('rsvp_guests')
       .select('*')
-      .eq('intake_form_id', intakeFormId)
-      .is('sms_sent_at', null);
+      .eq('intake_form_id', intakeFormId);
 
-    if (!guests?.length) return { sent: 0, skipped: 0 };
+    const guests = (allGuests || []).filter((g: any) => !g.sms_sent_at);
+    if (!guests.length) return { sent: 0, skipped: 0, duplicates: 0 };
 
+    const invited: GuestContact[] = (allGuests || []).filter(
+      (g: any) => g.sms_sent_at,
+    );
     let sent = 0;
     let skipped = 0;
+    let duplicates = 0;
 
     for (const guest of guests) {
       if (!guest.guest_phone && !guest.guest_email) {
         skipped++;
+        continue;
+      }
+      if (invited.some((other) => sharedContact(guest, other))) {
+        duplicates++;
         continue;
       }
       try {
@@ -514,13 +609,14 @@ export class RsvpService {
           .from('rsvp_guests')
           .update({ sms_sent_at: new Date().toISOString() })
           .eq('id', guest.id);
+        invited.push(guest);
         sent++;
       } catch {
         skipped++;
       }
     }
 
-    return { sent, skipped };
+    return { sent, skipped, duplicates };
   }
 
   private async doSendInvite(guest: any, form: any): Promise<void> {

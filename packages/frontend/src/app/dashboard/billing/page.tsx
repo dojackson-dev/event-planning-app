@@ -43,7 +43,7 @@ const PLANS = [
     features: [
       '1 venue',
       'No team members included',
-      'Additional team members at $15/mo each',
+      'Upgrade to Pro or Premium to add team members',
       'Ticket sales: customer pays 3% platform fee + card processing',
       'Direct payments: payer pays card processing; recipient pays 3% platform fee',
       'Invoices, estimates & contracts available with Stripe payments activated',
@@ -518,7 +518,7 @@ export default function BillingPage() {
           })}
         </div>
         <p className="text-xs text-gray-400 mt-3 text-center">
-          Cancel anytime. Platform fees shown are EventEcos platform fees on direct payments (invoices). Ticket sales carry a 3% fee paid by the buyer (1.5% for verified non-profits). The payer also covers payment processing: 3.1% + $0.30 for cards (includes a small allowance for international cards), or 6% + $0.30 for pay later (Afterpay, Klarna, Affirm) where the seller has turned it on.
+          Cancel anytime. Platform fees shown are EventEcos platform fees on direct payments (invoices). Ticket and VIP sales carry a 3% fee paid by the buyer (1.5% for verified non-profits). The payer also covers payment processing: 3.1% + $0.30 for cards (includes a small allowance for international cards), or 6% + $0.30 for pay later (Afterpay, Klarna, Affirm) where the seller has turned it on.
         </p>
       </div>
 

@@ -858,10 +858,10 @@ function SettingsPageContent() {
                 <h4 className="text-sm font-semibold text-blue-800 mb-2">💰 How payouts work</h4>
                 <ul className="text-sm text-blue-700 space-y-1">
                   <li>• Clients pay invoices through EventEcos — <strong>payment processing fees are paid by the client</strong> (3.1% + $0.30 for cards, 6% + $0.30 for pay later)</li>
-                  <li>• <strong>Venue Owners and Promoters</strong> pay a platform fee on received payments (3% free trial · 1.5% Pro · 1% Premium); <strong>Artists and Vendors</strong> pay 3%</li>
+                  <li>• <strong>Venue Owners and Promoters</strong> pay a platform fee on received payments (3% Free · 1.5% Pro · 1% Premium); <strong>Artists and Vendors</strong> pay 3%</li>
                   <li>• Whoever is paying always covers the payment processing fee</li>
                   <li>• Funds deposited to your bank within 2 business days via Stripe Connect</li>
-                  <li>• Ticket sales carry a separate <strong>3% fee paid by the buyer</strong> (1.5% for verified non-profits)</li>
+                  <li>• Ticket and VIP sales carry a separate <strong>3% fee paid by the buyer</strong> (1.5% for verified non-profits)</li>
                   <li>• Pay later (Afterpay, Klarna, Affirm) is optional for the buyer and only offered if you turn it on; the buyer pays its higher processing fee, you receive the same amount</li>
                 </ul>
               </div>

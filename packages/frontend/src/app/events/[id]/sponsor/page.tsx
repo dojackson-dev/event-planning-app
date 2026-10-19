@@ -219,7 +219,7 @@ export default function SponsorPage({ params }: { params: { id: string } }) {
 
             <dl className="rounded-lg bg-gray-50 p-3 text-sm space-y-1">
               <div className="flex justify-between"><dt className="text-gray-600">Sponsorship</dt><dd>{usd(selected.price)}</dd></div>
-              <div className="flex justify-between"><dt className="text-gray-600">Service fee</dt><dd>{usd(selected.service_fee)}</dd></div>
+              <div className="flex justify-between"><dt className="text-gray-600">Service fee<span className="block text-xs text-gray-400">Includes EventEcos fee and card processing</span></dt><dd>{usd(selected.service_fee)}</dd></div>
               <div className="flex justify-between font-semibold border-t border-gray-200 pt-1"><dt>Total</dt><dd>{usd(selected.buyer_total)}</dd></div>
               {selected.fair_market_value > 0 && (
                 <p className="text-xs text-gray-500 pt-1">

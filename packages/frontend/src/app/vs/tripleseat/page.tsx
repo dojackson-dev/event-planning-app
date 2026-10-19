@@ -56,8 +56,7 @@ export default function VsTripleseatPage() {
         </div>
 
         <p className="text-gray-500 text-sm">
-          Figures for Tripleseat are drawn from its own public marketing pages at the time of
-          writing and may have changed — confirm current details directly with Tripleseat.
+          Figures for Tripleseat are drawn from its own public marketing pages as of October 2026 and may have changed — confirm current details directly with Tripleseat.
         </p>
 
         <Link

@@ -53,7 +53,7 @@ export default function CustomerSupportPage() {
     },
     {
       question: 'What is your cancellation policy?',
-      answer: 'Cancellations made 30+ days before the event receive a full refund minus a 10% processing fee. Cancellations 14-30 days out receive 50% refund. Cancellations within 14 days are non-refundable but may be credited toward a future event.',
+      answer: 'Cancellations made 30+ days before the event receive a full refund minus a 10% cancellation fee. Cancellations 14-30 days out receive 50% refund. Cancellations within 14 days are non-refundable but may be credited toward a future event.',
       category: 'Policies'
     },
     {

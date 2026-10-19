@@ -428,7 +428,7 @@ export default function EventVipPage({ params }: { params: { id: string } }) {
                     )
                   })}
                   <div className="border-t border-purple-200 mt-2 pt-2 flex justify-between text-xs text-gray-500">
-                    <span>Service fee</span>
+                    <span>Service fee<span className="block text-gray-400">Includes EventEcos fee and card processing</span></span>
                     <span>${platformFee.toFixed(2)}</span>
                   </div>
                   {pricing.tax > 0 && (

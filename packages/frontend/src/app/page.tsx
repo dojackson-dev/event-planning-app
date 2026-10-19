@@ -598,7 +598,10 @@ export default function Home() {
             </div>
           </div>
 
-          <p className="text-center text-gray-500 text-sm mt-8">
+          <p className="text-center text-gray-500 text-sm mt-8 max-w-3xl mx-auto">
+            Card processing is 3.1% + $0.30, paid by the payer. Verified non-profits pay a 1.5% platform fee instead of 3% on ticket and VIP sales.
+          </p>
+          <p className="text-center text-gray-500 text-sm mt-3">
             All plans include a 30-day free trial. No credit card required to start.
           </p>
         </div>

@@ -10,13 +10,8 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { MailService } from '../mail/mail.service';
-
-export const DEMO_ROLES: Record<string, string> = {
-  venue_owner: 'Venue Owner',
-  promoter: 'Promoter',
-  artist: 'Artist',
-  vendor: 'Vendor',
-};
+import { DemoRequestsService } from './demo-requests.service';
+import { DEMO_ROLES } from './demo-roles';
 
 const DEMO_WINDOW_MS = 10 * 60_000;
 const DEMO_MAX_PER_WINDOW = 5;
@@ -42,7 +37,10 @@ class EnterpriseInquiryDto {
 export class ContactController {
   private readonly demoHits = new Map<string, number[]>();
 
-  constructor(private readonly mailService: MailService) {}
+  constructor(
+    private readonly mailService: MailService,
+    private readonly demoRequests: DemoRequestsService,
+  ) {}
 
   /** In-process per-IP limit so the public form cannot be used to flood the sales inbox. */
   private checkDemoRate(ip: string): void {
@@ -123,13 +121,20 @@ export class ContactController {
       ?.trim();
     this.checkDemoRate(forwardedIp || req?.ip || 'unknown');
 
+    // Save first so the lead exists for sales agents even if the email fails (and vice versa).
+    const saved = await this.demoRequests.create({
+      name,
+      phone,
+      roles: roleKeys as string[],
+      description: description || undefined,
+    });
     const sent = await this.mailService.sendDemoRequest({
       name,
       phone,
       role: roleLabel,
       description: description || undefined,
     });
-    if (!sent) {
+    if (!saved && !sent) {
       throw new ServiceUnavailableException(
         'We could not send your request. Please try again shortly.',
       );

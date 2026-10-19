@@ -1,13 +1,16 @@
 import { BadRequestException, HttpException } from '@nestjs/common';
 import { ContactController } from './contact.controller';
 import type { MailService } from '../mail/mail.service';
+import type { DemoRequestsService } from './demo-requests.service';
 
-function setup(sent = true) {
+function setup(sent = true, saved = true) {
   const sendDemoRequest = jest.fn().mockResolvedValue(sent);
-  const controller = new ContactController({
-    sendDemoRequest,
-  } as unknown as MailService);
-  return { controller, sendDemoRequest };
+  const create = jest.fn().mockResolvedValue(saved);
+  const controller = new ContactController(
+    { sendDemoRequest } as unknown as MailService,
+    { create } as unknown as DemoRequestsService,
+  );
+  return { controller, sendDemoRequest, create };
 }
 
 const valid: {
@@ -60,6 +63,34 @@ describe('ContactController.demoRequest', () => {
     );
   });
 
+  it('saves the request as a lead with the role keys', async () => {
+    const { controller, create } = setup();
+    await controller.demoRequest(
+      { ...valid, roles: ['promoter', 'vendor'] },
+      req,
+    );
+    expect(create).toHaveBeenCalledWith({
+      name: 'Jane Smith',
+      phone: '(404) 555-0123',
+      roles: ['promoter', 'vendor'],
+      description: 'Two venues, 5 staff',
+    });
+  });
+
+  it('still succeeds when only the email could not be sent', async () => {
+    const { controller } = setup(false, true);
+    await expect(controller.demoRequest(valid, req)).resolves.toEqual({
+      success: true,
+    });
+  });
+
+  it('still succeeds when only saving the lead failed', async () => {
+    const { controller } = setup(true, false);
+    await expect(controller.demoRequest(valid, req)).resolves.toEqual({
+      success: true,
+    });
+  });
+
   it('treats the description as optional', async () => {
     const { controller, sendDemoRequest } = setup();
     await controller.demoRequest({ ...valid, description: '  ' }, req);
@@ -90,8 +121,8 @@ describe('ContactController.demoRequest', () => {
     expect(sendDemoRequest).not.toHaveBeenCalled();
   });
 
-  it('reports a delivery failure instead of pretending it worked', async () => {
-    const { controller } = setup(false);
+  it('reports a failure only when the lead was neither saved nor emailed', async () => {
+    const { controller } = setup(false, false);
     await expect(controller.demoRequest(valid, req)).rejects.toMatchObject({
       status: 503,
     });

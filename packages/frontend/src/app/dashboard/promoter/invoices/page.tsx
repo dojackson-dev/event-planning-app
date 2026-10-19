@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
 import { Plus, Loader2, FileText, DollarSign, Copy, CheckCircle2, Send } from 'lucide-react'
+import { siteOrigin } from '@/lib/url'
 
-const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000'
 
 interface PromoterInvoice {
   id: string
@@ -54,7 +54,7 @@ export default function PromoterInvoicesPage() {
 
   const handleCopyLink = (inv: PromoterInvoice) => {
     if (!inv.public_token) return
-    navigator.clipboard.writeText(`${FRONTEND_URL}/promoter-pay/${inv.public_token}`)
+    navigator.clipboard.writeText(`${siteOrigin()}/promoter-pay/${inv.public_token}`)
     setCopiedId(inv.id)
     setTimeout(() => setCopiedId(null), 2000)
   }
@@ -224,7 +224,7 @@ export default function PromoterInvoicesPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <a
-                          href={`${FRONTEND_URL}/artist-pay/${b.public_token}`}
+                          href={`${siteOrigin()}/artist-pay/${b.public_token}`}
                           target="_blank"
                           rel="noreferrer"
                           className="text-xs text-blue-600 hover:underline"

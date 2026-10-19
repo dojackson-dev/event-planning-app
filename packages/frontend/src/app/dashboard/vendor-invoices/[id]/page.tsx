@@ -6,6 +6,7 @@ import api from '@/lib/api'
 import {
   Send, Copy, CheckCircle2, Loader2, Trash2, AlertCircle, ExternalLink
 } from 'lucide-react'
+import { siteOrigin } from '@/lib/url'
 
 interface VendorInvoice {
   id: string
@@ -41,7 +42,6 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
-const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000'
 
 export default function VendorInvoiceDetailPage() {
   const { id } = useParams() as { id: string }
@@ -71,7 +71,7 @@ export default function VendorInvoiceDetailPage() {
       })
   }, [id])
 
-  const payLink = invoice?.public_token ? `${FRONTEND_URL}/pay/${invoice.public_token}` : ''
+  const payLink = invoice?.public_token ? `${siteOrigin()}/pay/${invoice.public_token}` : ''
 
   const handleSend = async () => {
     setSending(true); setError('')

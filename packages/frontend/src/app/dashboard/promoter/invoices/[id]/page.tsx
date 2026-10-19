@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
 import { Send, Copy, CheckCircle2, Loader2, Trash2, ExternalLink } from 'lucide-react'
+import { siteOrigin } from '@/lib/url'
 
 interface PromoterInvoice {
   id: string
@@ -39,7 +40,6 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: 'bg-gray-100 text-gray-500',
 }
 
-const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000'
 
 export default function PromoterInvoiceDetailPage() {
   const { id } = useParams() as { id: string }
@@ -59,7 +59,7 @@ export default function PromoterInvoiceDetailPage() {
       .finally(() => setLoading(false))
   }, [id])
 
-  const payLink = invoice?.public_token ? `${FRONTEND_URL}/promoter-pay/${invoice.public_token}` : ''
+  const payLink = invoice?.public_token ? `${siteOrigin()}/promoter-pay/${invoice.public_token}` : ''
 
   const handleSend = async () => {
     setSending(true); setError('')

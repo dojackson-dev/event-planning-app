@@ -11,7 +11,13 @@ export async function apiRequest<T = any>(
   path: string,
   options: { method?: string; body?: any; timeoutMs?: number } = {},
 ): Promise<T> {
-  const { data: { session } } = await supabase.auth.getSession();
+  let { data: { session } } = await supabase.auth.getSession();
+  // Refresh proactively when the token is expired or about to expire (e.g. after
+  // the app was backgrounded) so the backend doesn't reject it as "Invalid token".
+  if (session?.expires_at && session.expires_at * 1000 - Date.now() < 60_000) {
+    const { data } = await supabase.auth.refreshSession();
+    if (data.session) session = data.session;
+  }
   const token = session?.access_token;
 
   const controller = new AbortController();

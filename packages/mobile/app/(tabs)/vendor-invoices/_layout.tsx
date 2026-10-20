@@ -6,7 +6,7 @@ export default function VendorInvoicesLayout() {
     <Stack
       screenOptions={{
         headerStyle: { backgroundColor: Colors.primary },
-        headerTintColor: '#FFFFFF',
+        headerTintColor: Colors.textWhite,
         headerTitleStyle: { fontWeight: '700', fontSize: 17 },
         headerBackTitle: 'Vendor Invoices',
       }}

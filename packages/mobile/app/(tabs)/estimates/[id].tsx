@@ -1,78 +1,64 @@
-import { useState, useEffect, useCallback } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Alert, ActivityIndicator,
-} from 'react-native';
-import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '@/lib/supabase';
+import { useCallback, useState } from 'react';
+import { View, Text, ScrollView, Alert, Linking } from 'react-native';
+import { Stack, useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { apiRequest } from '@/lib/api';
-import { Colors, Radius, Shadow } from '@/lib/theme';
+import { Colors } from '@/lib/theme';
+import LoadingState from '@/components/LoadingState';
+import {
+  toSnake, num, fmtMoney, fmtDate, isPastDue, errMsg, finStyles as f,
+  StatusBadge, ErrorState, Section, InfoRow, ActionButton,
+} from '@/components/FinUI';
 
-interface EstimateItem {
+interface Item {
   id: string;
   description: string;
   quantity: number;
   unit_price: number;
   amount: number;
+  discount_amount?: number;
 }
 
 interface Estimate {
   id: string;
-  estimate_number: string;
+  estimate_number?: string;
   status: string;
-  client_name: string | null;
-  client_phone: string | null;
-  subtotal: number;
-  tax_rate: number;
-  tax_amount: number;
-  discount_amount: number;
-  total_amount: number;
-  issue_date: string;
-  expiration_date: string;
-  notes: string | null;
-  terms: string | null;
-  intake_form?: { event_name?: string; contact_name?: string } | null;
-  estimate_items?: EstimateItem[];
+  client_name?: string;
+  client_phone?: string;
+  client_email?: string;
+  subtotal?: number;
+  tax_rate?: number;
+  tax_amount?: number;
+  discount_amount?: number;
+  total_amount?: number;
+  issue_date?: string;
+  expiration_date?: string;
+  viewed_at?: string | null;
+  converted_invoice_id?: string | null;
+  notes?: string;
+  terms?: string;
+  owner_business_name?: string;
+  intake_form?: { contact_name?: string; contact_phone?: string; contact_email?: string; event_name?: string } | null;
+  items?: Item[];
 }
-
-const fmt = (n: number) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(n || 0);
-
-const STATUS_COLORS: Record<string, string> = {
-  draft: '#6B7280',
-  sent: '#3B82F6',
-  viewed: '#8B5CF6',
-  approved: '#10B981',
-  rejected: '#EF4444',
-  expired: '#F59E0B',
-  converted: '#059669',
-};
-
-const formatDate = (iso: string) => {
-  if (!iso) return '';
-  return new Date(iso + (iso.includes('T') ? '' : 'T00:00:00')).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-};
 
 export default function EstimateDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [estimate, setEstimate] = useState<Estimate | null>(null);
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    if (!id) return;
     try {
-      const { data, error } = await supabase
-        .from('estimates')
-        .select(`*, intake_form:intake_forms!intake_form_id(event_name, contact_name), estimate_items(*)`)
-        .eq('id', id)
-        .single();
-      if (error) throw error;
-      setEstimate(data as unknown as Estimate);
+      setError('');
+      const data = await apiRequest(`/estimates/${id}`);
+      const est = toSnake<Estimate & { estimate_items?: Item[] }>(data);
+      if (!est.items && est.estimate_items) est.items = est.estimate_items;
+      setEstimate(est);
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to load estimate');
+      setError(errMsg(err, 'Failed to load estimate'));
     } finally {
       setLoading(false);
     }
@@ -80,232 +66,175 @@ export default function EstimateDetailScreen() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  const handleSend = async () => {
-    Alert.alert(
-      'Send Estimate',
-      `Send this estimate via SMS to ${estimate?.client_phone || 'the client'}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Send', onPress: async () => {
-            setActionLoading('send');
-            try {
-              await apiRequest(`/estimates/${id}/status`, { method: 'PUT', body: { status: 'sent' } });
-              await load();
-            } catch (err: any) {
-              Alert.alert('Error', err.message || 'Failed to send estimate');
-            } finally {
-              setActionLoading(null);
-            }
-          },
-        },
-      ]
-    );
+  const run = async (key: string, fn: () => Promise<void>, failMsg: string) => {
+    setBusy(key);
+    try {
+      await fn();
+    } catch (err: any) {
+      Alert.alert('Error', errMsg(err, failMsg));
+    } finally {
+      setBusy(null);
+    }
   };
 
-  const handleConvert = async () => {
-    Alert.alert(
-      'Convert to Invoice',
-      'This will create a new invoice based on this estimate. Continue?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Convert', onPress: async () => {
-            setActionLoading('convert');
-            try {
-              const invoice = await apiRequest<{ id: string }>(`/estimates/${id}/convert-to-invoice`, { method: 'POST' });
-              Alert.alert('Converted!', 'Invoice has been created.', [
-                { text: 'View Invoice', onPress: () => router.replace(`/(tabs)/invoices/${invoice.id}` as any) },
-                { text: 'Stay Here' },
-              ]);
-              await load();
-            } catch (err: any) {
-              Alert.alert('Error', err.message || 'Failed to convert estimate');
-            } finally {
-              setActionLoading(null);
-            }
-          },
-        },
-      ]
+  if (loading) return <><Stack.Screen options={{ title: 'Estimate' }} /><LoadingState message="Loading estimate..." /></>;
+  if (error || !estimate) {
+    return (
+      <>
+        <Stack.Screen options={{ title: 'Estimate' }} />
+        <ErrorState message={error || 'Estimate not found'} onRetry={load} />
+      </>
     );
-  };
+  }
 
-  const handleDelete = async () => {
-    Alert.alert('Delete Estimate', 'This cannot be undone. Continue?', [
+  const est = estimate;
+  const st = est.status;
+  const form = est.intake_form;
+  const clientName = est.client_name || form?.contact_name || form?.event_name || 'Client';
+  const clientPhone = est.client_phone || form?.contact_phone || '';
+  const clientEmail = est.client_email || form?.contact_email || '';
+  const number = est.estimate_number || `EST-${est.id.slice(-6).toUpperCase()}`;
+  const items = est.items || [];
+  const expired = st === 'sent' && isPastDue(est.expiration_date);
+  const canConvert = ['draft', 'sent', 'approved'].includes(st);
+
+  const setStatus = (next: string, doneMsg?: string) =>
+    run(`status-${next}`, async () => {
+      await apiRequest(`/estimates/${id}/status`, { method: 'PUT', body: { status: next } });
+      await load();
+      if (doneMsg) Alert.alert('Done', doneMsg);
+    }, 'Failed to update estimate');
+
+  const confirmStatus = (title: string, body: string, next: string, doneMsg?: string, destructive = false) =>
+    Alert.alert(title, body, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: title, style: destructive ? 'destructive' : 'default', onPress: () => setStatus(next, doneMsg) },
+    ]);
+
+  const convert = () =>
+    Alert.alert('Create Invoice', 'Convert this estimate to an invoice? The estimate will be marked as converted.', [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Delete', style: 'destructive', onPress: async () => {
-          setActionLoading('delete');
-          try {
-            const { error } = await supabase.from('estimates').delete().eq('id', id);
-            if (error) throw error;
-            router.back();
-          } catch (err: any) {
-            Alert.alert('Error', err.message || 'Failed to delete');
-            setActionLoading(null);
-          }
-        },
+        text: 'Convert',
+        onPress: () => run('convert', async () => {
+          const inv = await apiRequest<{ id: string; invoice_number?: string }>(`/estimates/${id}/convert-to-invoice`, { method: 'POST' });
+          Alert.alert('Invoice created', inv.invoice_number ? `Invoice ${inv.invoice_number} was created.` : 'Invoice created.', [
+            { text: 'View Invoice', onPress: () => router.replace(`/(tabs)/invoices/${inv.id}` as any) },
+            { text: 'Stay Here' },
+          ]);
+          await load();
+        }, 'Failed to convert to invoice'),
       },
     ]);
-  };
 
-  if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color={Colors.primary} /></View>;
-  }
-  if (!estimate) {
-    return <View style={styles.center}><Text style={styles.errorText}>Estimate not found</Text></View>;
-  }
-
-  const st = estimate.status;
-  const statusColor = STATUS_COLORS[st] || '#6B7280';
-  const isExpired = estimate.expiration_date && new Date(estimate.expiration_date + 'T23:59:59') < new Date();
-  const displayName = estimate.client_name || estimate.intake_form?.contact_name || estimate.intake_form?.event_name || 'Client';
+  const remove = () =>
+    Alert.alert('Delete Estimate', 'This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive',
+        onPress: () => run('delete', async () => {
+          await apiRequest(`/estimates/${id}`, { method: 'DELETE' });
+          router.back();
+        }, 'Failed to delete estimate'),
+      },
+    ]);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Header */}
-      <View style={styles.headerCard}>
-        <View style={styles.headerTop}>
-          <View>
-            <Text style={styles.estimateNumber}>{estimate.estimate_number}</Text>
-            <Text style={styles.clientName}>{displayName}</Text>
+    <>
+      <Stack.Screen options={{ title: number }} />
+      <ScrollView style={f.container} contentContainerStyle={f.content}>
+        <View style={f.headerCard}>
+          <View style={f.headerTop}>
+            <View style={{ flex: 1 }}>
+              <Text style={f.headerNum}>{number}</Text>
+              <Text style={f.headerName}>{clientName}</Text>
+              {!!est.owner_business_name && <Text style={f.headerSub}>From {est.owner_business_name}</Text>}
+            </View>
+            <View style={{ alignItems: 'flex-end', gap: 6 }}>
+              <StatusBadge status={st} />
+              {!!est.viewed_at && <StatusBadge status="approved" label="Viewed" />}
+            </View>
           </View>
-          <View style={[styles.statusBadge, { backgroundColor: statusColor + '20', borderColor: statusColor }]}>
-            <Text style={[styles.statusText, { color: statusColor }]}>{st.charAt(0).toUpperCase() + st.slice(1)}</Text>
-          </View>
+          <Text style={f.headerAmount}>{fmtMoney(est.total_amount)}</Text>
+          <Text style={[f.progressText, { marginTop: 8 }, expired && { color: Colors.error, fontWeight: '600' }]}>
+            Issued {fmtDate(est.issue_date)} · Expires {fmtDate(est.expiration_date)}{expired ? ' (past)' : ''}
+          </Text>
         </View>
-        <Text style={styles.totalAmount}>{fmt(estimate.total_amount)}</Text>
-        <View style={styles.dateLine}>
-          <Ionicons name="calendar-outline" size={13} color={Colors.textMuted} />
-          <Text style={styles.dateText}>Issued {formatDate(estimate.issue_date)}</Text>
-          <Text style={[styles.dateText, isExpired && styles.expired]}> · Expires {formatDate(estimate.expiration_date)}{isExpired ? ' (Expired)' : ''}</Text>
+
+        <View style={f.actionRow}>
+          {canConvert && <ActionButton icon="receipt-outline" label="Create Invoice" tone="success" onPress={convert} loading={busy === 'convert'} disabled={!!busy} />}
+          {st === 'converted' && !!est.converted_invoice_id && (
+            <ActionButton icon="open-outline" label="Open Invoice" tone="success"
+              onPress={() => router.push(`/(tabs)/invoices/${est.converted_invoice_id}` as any)} />
+          )}
+          {st === 'draft' && (
+            <ActionButton icon="send-outline" label="Send to Client" onPress={() =>
+              confirmStatus('Send', `Send this estimate to ${clientName}${clientPhone ? ` (${clientPhone})` : ''}?`, 'sent', 'Estimate sent to the client.')}
+              loading={busy === 'status-sent'} disabled={!!busy} />
+          )}
+          {st === 'draft' && (
+            <ActionButton icon="create-outline" label="Edit" tone="neutral"
+              onPress={() => router.push({ pathname: '/(tabs)/estimates/edit', params: { id } } as any)} disabled={!!busy} />
+          )}
+          {st === 'sent' && (
+            <ActionButton icon="checkmark-circle-outline" label="Mark Approved" tone="success"
+              onPress={() => confirmStatus('Mark Approved', 'Mark this estimate as approved by the client?', 'approved')}
+              loading={busy === 'status-approved'} disabled={!!busy} />
+          )}
+          {st === 'sent' && (
+            <ActionButton icon="close-circle-outline" label="Mark Rejected" tone="danger"
+              onPress={() => confirmStatus('Mark Rejected', 'Mark this estimate as rejected?', 'rejected', undefined, true)}
+              loading={busy === 'status-rejected'} disabled={!!busy} />
+          )}
+          {expired && (
+            <ActionButton icon="time-outline" label="Mark Expired" tone="neutral"
+              onPress={() => confirmStatus('Mark Expired', 'The client did not respond in time. Mark as expired?', 'expired')}
+              loading={busy === 'status-expired'} disabled={!!busy} />
+          )}
+          {!!clientPhone && <ActionButton icon="call-outline" label="Call Client" tone="neutral" onPress={() => Linking.openURL(`tel:${clientPhone}`)} />}
+          {st !== 'converted' && (
+            <ActionButton icon="trash-outline" label="Delete" tone="danger" onPress={remove} loading={busy === 'delete'} disabled={!!busy} />
+          )}
         </View>
-      </View>
+        {st !== 'draft' && st !== 'converted' && (
+          <Text style={[f.lineMeta, { marginTop: -8, marginBottom: 16 }]}>
+            Sent estimates can't be edited. To change anything, create a new estimate.
+          </Text>
+        )}
 
-      {/* Actions */}
-      <View style={styles.actionRow}>
-        {(st === 'draft' || st === 'viewed') && (
-          <TouchableOpacity
-            style={[styles.actionBtn, styles.sendBtn, actionLoading === 'send' && styles.btnLoading]}
-            onPress={handleSend}
-            disabled={!!actionLoading}
-          >
-            {actionLoading === 'send' ? <ActivityIndicator size="small" color="#FFF" /> : (
-              <><Ionicons name="send-outline" size={16} color="#FFF" /><Text style={styles.actionBtnText}>Send</Text></>
-            )}
-          </TouchableOpacity>
-        )}
-        {(['sent', 'viewed', 'approved'].includes(st) && st !== 'converted') && (
-          <TouchableOpacity
-            style={[styles.actionBtn, styles.convertBtn, actionLoading === 'convert' && styles.btnLoading]}
-            onPress={handleConvert}
-            disabled={!!actionLoading}
-          >
-            {actionLoading === 'convert' ? <ActivityIndicator size="small" color="#FFF" /> : (
-              <><Ionicons name="arrow-forward-circle-outline" size={16} color="#FFF" /><Text style={styles.actionBtnText}>Convert</Text></>
-            )}
-          </TouchableOpacity>
-        )}
-        {st !== 'converted' && (
-          <TouchableOpacity
-            style={[styles.actionBtn, styles.deleteBtn, actionLoading === 'delete' && styles.btnLoading]}
-            onPress={handleDelete}
-            disabled={!!actionLoading}
-          >
-            {actionLoading === 'delete' ? <ActivityIndicator size="small" color={Colors.error} /> : (
-              <><Ionicons name="trash-outline" size={16} color={Colors.error} /><Text style={[styles.actionBtnText, { color: Colors.error }]}>Delete</Text></>
-            )}
-          </TouchableOpacity>
-        )}
-      </View>
+        <Section title="Client">
+          <InfoRow label="Name" value={clientName} />
+          {!!clientEmail && <InfoRow label="Email" value={clientEmail} />}
+          <InfoRow label="Phone" value={clientPhone || '—'} last />
+        </Section>
 
-      {/* Line items */}
-      {estimate.estimate_items && estimate.estimate_items.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Line Items</Text>
-          <View style={styles.card}>
-            {estimate.estimate_items.map((item, i) => (
-              <View key={item.id} style={[styles.lineItem, i === (estimate.estimate_items!.length - 1) && styles.lineItemLast]}>
-                <View style={styles.lineItemLeft}>
-                  <Text style={styles.lineDesc}>{item.description}</Text>
-                  <Text style={styles.lineQty}>{item.quantity} × {fmt(item.unit_price)}</Text>
+        {items.length > 0 && (
+          <Section title="Line Items">
+            {items.map((item, idx) => (
+              <View key={item.id} style={[f.lineRow, idx < items.length - 1 && f.lineBorder]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={f.lineDesc}>{item.description}</Text>
+                  <Text style={f.lineMeta}>
+                    {num(item.quantity)} × {fmtMoney(item.unit_price)}
+                    {num(item.discount_amount) > 0 ? ` · −${fmtMoney(item.discount_amount)} discount` : ''}
+                  </Text>
                 </View>
-                <Text style={styles.lineAmount}>{fmt(item.amount)}</Text>
+                <Text style={f.lineAmt}>{fmtMoney(item.amount)}</Text>
               </View>
             ))}
-          </View>
-        </View>
-      )}
+          </Section>
+        )}
 
-      {/* Totals */}
-      <View style={styles.section}>
-        <Text style={styles.sectionLabel}>Totals</Text>
-        <View style={styles.card}>
-          <View style={styles.totalRow}><Text style={styles.totalLabel}>Subtotal</Text><Text style={styles.totalValue}>{fmt(estimate.subtotal)}</Text></View>
-          {estimate.discount_amount > 0 && (
-            <View style={styles.totalRow}><Text style={styles.totalLabel}>Discount</Text><Text style={[styles.totalValue, { color: Colors.success }]}>-{fmt(estimate.discount_amount)}</Text></View>
-          )}
-          {estimate.tax_amount > 0 && (
-            <View style={styles.totalRow}><Text style={styles.totalLabel}>Tax ({estimate.tax_rate}%)</Text><Text style={styles.totalValue}>{fmt(estimate.tax_amount)}</Text></View>
-          )}
-          <View style={[styles.totalRow, { borderBottomWidth: 0, marginTop: 4 }]}>
-            <Text style={styles.totalFinalLabel}>Total</Text>
-            <Text style={styles.totalFinalValue}>{fmt(estimate.total_amount)}</Text>
-          </View>
-        </View>
-      </View>
+        <Section title="Totals">
+          <InfoRow label="Subtotal" value={fmtMoney(est.subtotal)} />
+          {num(est.tax_rate) > 0 && <InfoRow label={`Tax (${num(est.tax_rate)}%)`} value={fmtMoney(est.tax_amount)} />}
+          {num(est.discount_amount) > 0 && <InfoRow label="Discount" value={`−${fmtMoney(est.discount_amount)}`} valueColor={Colors.error} />}
+          <InfoRow label="Total" value={fmtMoney(est.total_amount)} bold last />
+        </Section>
 
-      {estimate.notes && (
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Notes</Text>
-          <View style={styles.card}><Text style={styles.noteText}>{estimate.notes}</Text></View>
-        </View>
-      )}
-      {estimate.terms && (
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Terms</Text>
-          <View style={styles.card}><Text style={styles.noteText}>{estimate.terms}</Text></View>
-        </View>
-      )}
-    </ScrollView>
+        {!!est.notes && <Section title="Notes"><Text style={f.bodyText}>{est.notes}</Text></Section>}
+        {!!est.terms && <Section title="Terms"><Text style={f.bodyText}>{est.terms}</Text></Section>}
+      </ScrollView>
+    </>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  content: { padding: 16, paddingBottom: 40 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  errorText: { fontSize: 16, color: Colors.textMuted },
-  headerCard: { backgroundColor: Colors.surface, borderRadius: Radius.xl, padding: 20, ...Shadow.md, marginBottom: 12 },
-  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
-  estimateNumber: { fontSize: 12, fontWeight: '700', color: Colors.textMuted, letterSpacing: 0.5 },
-  clientName: { fontSize: 20, fontWeight: '700', color: Colors.textPrimary, marginTop: 2 },
-  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1 },
-  statusText: { fontSize: 12, fontWeight: '700' },
-  totalAmount: { fontSize: 36, fontWeight: '800', color: '#7C3AED', marginBottom: 10 },
-  dateLine: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  dateText: { fontSize: 13, color: Colors.textMuted },
-  expired: { color: Colors.error, fontWeight: '600' },
-  actionRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
-  actionBtn: { flex: 1, borderRadius: Radius.lg, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  actionBtnText: { fontSize: 14, fontWeight: '700', color: '#FFF' },
-  sendBtn: { backgroundColor: '#3B82F6' },
-  convertBtn: { backgroundColor: '#059669' },
-  deleteBtn: { backgroundColor: Colors.error + '15', borderWidth: 1, borderColor: Colors.error },
-  btnLoading: { opacity: 0.6 },
-  section: { marginBottom: 16 },
-  sectionLabel: { fontSize: 12, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
-  card: { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: 16, ...Shadow.sm },
-  lineItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.border },
-  lineItemLast: { borderBottomWidth: 0 },
-  lineItemLeft: { flex: 1, paddingRight: 12 },
-  lineDesc: { fontSize: 15, fontWeight: '500', color: Colors.textPrimary },
-  lineQty: { fontSize: 13, color: Colors.textMuted, marginTop: 2 },
-  lineAmount: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary },
-  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.border },
-  totalLabel: { fontSize: 14, color: Colors.textSecondary },
-  totalValue: { fontSize: 14, fontWeight: '600', color: Colors.textPrimary },
-  totalFinalLabel: { fontSize: 16, fontWeight: '700', color: Colors.textPrimary },
-  totalFinalValue: { fontSize: 22, fontWeight: '800', color: '#7C3AED' },
-  noteText: { fontSize: 14, color: Colors.textSecondary, lineHeight: 20 },
-});

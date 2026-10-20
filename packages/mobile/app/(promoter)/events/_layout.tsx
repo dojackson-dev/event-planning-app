@@ -12,6 +12,11 @@ export default function PromoterEventsLayout() {
       }}
     >
       <Stack.Screen name="index" options={{ title: 'My Events' }} />
+      <Stack.Screen name="new" options={{ title: 'New Event' }} />
+      <Stack.Screen name="edit" options={{ title: 'Edit Event' }} />
+      <Stack.Screen name="attendees" options={{ title: 'Attendees & Check-in' }} />
+      <Stack.Screen name="scan" options={{ title: 'Scan Tickets' }} />
+      <Stack.Screen name="vip" options={{ title: 'VIP' }} />
       <Stack.Screen name="[id]" options={{ title: 'Event Details' }} />
     </Stack>
   );

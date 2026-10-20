@@ -7,6 +7,7 @@ import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { apiRequest } from '@/lib/api';
 import { Colors, Radius, Shadow } from '@/lib/theme';
+import DateTimeField from '@/components/DateTimeField';
 
 interface ArtistDetail {
   id: string;
@@ -231,14 +232,7 @@ export default function ArtistDetailScreen() {
             keyboardType="phone-pad"
           />
 
-          <Text style={styles.label}>Event Date</Text>
-          <TextInput
-            style={styles.input}
-            value={eventDate}
-            onChangeText={setEventDate}
-            placeholder="YYYY-MM-DD"
-            placeholderTextColor={Colors.textMuted}
-          />
+          <DateTimeField label="Event Date" mode="date" value={eventDate} onChange={setEventDate} clearable />
 
           <Text style={styles.label}>Venue</Text>
           <TextInput

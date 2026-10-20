@@ -46,7 +46,14 @@ module.exports = {
           backgroundColor: "#ffffff"
         }
       ],
-      "expo-status-bar"
+      "expo-status-bar",
+      "@react-native-community/datetimepicker",
+      [
+        "expo-camera",
+        {
+          cameraPermission: "Allow EventEcos to use the camera to scan ticket and VIP QR codes at the door."
+        }
+      ]
     ]
   }
 }

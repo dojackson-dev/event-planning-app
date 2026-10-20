@@ -1,11 +1,13 @@
 import { useCallback, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert } from 'react-native';
-import { useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, Linking } from 'react-native';
+import { useLocalSearchParams, useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { apiRequest } from '@/lib/api';
 import { Colors, Radius, Shadow } from '@/lib/theme';
 import LoadingState from '@/components/LoadingState';
 import EmptyState from '@/components/EmptyState';
+import AppButton from '@/components/AppButton';
+import NetChips from '@/components/NetChips';
 
 interface BookingDetail {
   id: string;
@@ -47,7 +49,7 @@ function fmtMoney(n: number | null | undefined) {
 
 function fmtDate(dateStr?: string | null) {
   if (!dateStr) return 'TBD';
-  const d = new Date(dateStr);
+  const d = new Date(dateStr.includes('T') ? dateStr : `${dateStr}T00:00:00`);
   if (Number.isNaN(d.getTime())) return dateStr;
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 }
@@ -71,6 +73,8 @@ export default function ArtistBookingDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [responding, setResponding] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const router = useRouter();
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -105,6 +109,51 @@ export default function ArtistBookingDetailScreen() {
       Alert.alert('Error', err.message || 'Failed to respond to booking.');
     } finally {
       setResponding(false);
+    }
+  };
+
+  const updateStatus = async (status: string) => {
+    if (!id || !booking || status === booking.status) return;
+    setBusy(true);
+    try {
+      await apiRequest(`/artist-bookings/${id}`, { method: 'PUT', body: { status } });
+      await load();
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to update booking.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deleteBooking = () => {
+    Alert.alert('Delete booking?', 'This permanently removes the booking.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          setBusy(true);
+          try {
+            await apiRequest(`/artist-bookings/${id}`, { method: 'DELETE' });
+            router.back();
+          } catch (err: any) {
+            Alert.alert('Error', err.message || 'Failed to delete booking.');
+            setBusy(false);
+          }
+        },
+      },
+    ]);
+  };
+
+  const sendRider = async () => {
+    setBusy(true);
+    try {
+      await apiRequest(`/promoter-bookings/${id}/send-rider`, { method: 'POST' });
+      Alert.alert('Rider sent', 'Your rider was emailed to the promoter.');
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to send rider. Make sure your rider is filled in.');
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -172,8 +221,16 @@ export default function ArtistBookingDetailScreen() {
       {!isPromoter && (booking.client_email || booking.client_phone) && (
         <View style={[styles.card, Shadow.sm]}>
           <Text style={styles.sectionTitle}>Client Contact</Text>
-          {booking.client_email && <InfoRow icon="mail-outline" label="Email" value={booking.client_email} />}
-          {booking.client_phone && <InfoRow icon="call-outline" label="Phone" value={booking.client_phone} />}
+          {booking.client_email && (
+            <TouchableOpacity onPress={() => Linking.openURL(`mailto:${booking.client_email}`)}>
+              <InfoRow icon="mail-outline" label="Email" value={booking.client_email} />
+            </TouchableOpacity>
+          )}
+          {booking.client_phone && (
+            <TouchableOpacity onPress={() => Linking.openURL(`tel:${booking.client_phone}`)}>
+              <InfoRow icon="call-outline" label="Phone" value={booking.client_phone} />
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
@@ -182,6 +239,24 @@ export default function ArtistBookingDetailScreen() {
           <Text style={styles.sectionTitle}>Notes</Text>
           <Text style={styles.notesText}>{booking.notes}</Text>
         </View>
+      )}
+
+      {!isPromoter && (
+        <View style={[styles.card, Shadow.sm]}>
+          <Text style={styles.sectionTitle}>Update Status</Text>
+          <View style={styles.chipBleed}>
+            <NetChips
+              value={booking.status}
+              onChange={updateStatus}
+              options={Object.entries(STATUS_STYLES).map(([value, v]) => ({ value, label: v.label }))}
+            />
+          </View>
+          <AppButton title="Delete Booking" variant="outline" onPress={deleteBooking} loading={busy} style={styles.deleteBtn} textStyle={{ color: Colors.error }} />
+        </View>
+      )}
+
+      {isPromoter && booking.status === 'confirmed' && (
+        <AppButton title="Email My Rider to Promoter" variant="secondary" onPress={sendRider} loading={busy} style={styles.riderBtn} />
       )}
 
       {canRespond && (
@@ -231,6 +306,9 @@ const styles = StyleSheet.create({
   infoTextWrap: { flex: 1 },
   infoLabel: { fontSize: 11, color: Colors.textMuted },
   infoValue: { fontSize: 14, color: Colors.textPrimary, marginTop: 2, fontWeight: '600' },
+  chipBleed: { marginHorizontal: -16 },
+  deleteBtn: { marginTop: 8, borderColor: Colors.error },
+  riderBtn: { marginBottom: 12 },
   notesText: { fontSize: 14, color: Colors.textSecondary, lineHeight: 20 },
   actionsRow: { flexDirection: 'row', gap: 10, marginTop: 4, marginBottom: 20 },
   actionBtn: { flex: 1, paddingVertical: 12, borderRadius: Radius.lg, alignItems: 'center' },

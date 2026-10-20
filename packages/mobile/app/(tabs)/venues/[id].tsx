@@ -80,7 +80,7 @@ export default function VenueDetailScreen() {
           state: state.trim() || undefined,
           zipCode: zipCode.trim() || undefined,
           phone: phone.trim() || undefined,
-          website: website.trim() || undefined,
+          website: website.trim() ? (/^https?:\/\//i.test(website.trim()) ? website.trim() : `https://${website.trim()}`) : undefined,
           capacity: capacity.trim() ? Number(capacity) : undefined,
           description: description.trim() || undefined,
         },

@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Modal, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Modal, View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import SignatureScreen, { SignatureViewRef } from 'react-native-signature-canvas';
 import { Colors, Radius } from '@/lib/theme';
 
@@ -29,6 +29,7 @@ export default function SignaturePad({ visible, onClose, onSave }: SignaturePadP
           <SignatureScreen
             ref={ref}
             onOK={handleOK}
+            onEmpty={() => Alert.alert('Signature required', 'Please sign in the box before saving.')}
             descriptionText=""
             webStyle={`.m-signature-pad { box-shadow: none; border: none; }
               .m-signature-pad--body { border: none; }
@@ -68,5 +69,5 @@ const styles = StyleSheet.create({
     flex: 2, paddingVertical: 14, borderRadius: Radius.md, alignItems: 'center',
     backgroundColor: Colors.primary,
   },
-  saveText: { fontSize: 16, fontWeight: '700', color: '#fff' },
+  saveText: { fontSize: 16, fontWeight: '700', color: Colors.textWhite },
 });

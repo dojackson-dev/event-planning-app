@@ -347,8 +347,8 @@ export default function NewContractScreen() {
       </View>
 
       <TouchableOpacity style={[styles.createBtn, saving && styles.createBtnDisabled]} onPress={handleCreate} disabled={saving}>
-        {saving ? <ActivityIndicator color="#FFF" size="small" /> : (
-          <><Ionicons name="document-text-outline" size={18} color="#FFF" /><Text style={styles.createBtnText}>Create Contract</Text></>
+        {saving ? <ActivityIndicator color={Colors.textWhite} size="small" /> : (
+          <><Ionicons name="document-text-outline" size={18} color={Colors.textWhite} /><Text style={styles.createBtnText}>Create Contract</Text></>
         )}
       </TouchableOpacity>
     </ScrollView>
@@ -373,5 +373,5 @@ const styles = StyleSheet.create({
   rowInput: { flex: 1 },
   createBtn: { backgroundColor: Colors.primary, borderRadius: Radius.lg, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 8 },
   createBtnDisabled: { opacity: 0.6 },
-  createBtnText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
+  createBtnText: { color: Colors.textWhite, fontSize: 16, fontWeight: '700' },
 });

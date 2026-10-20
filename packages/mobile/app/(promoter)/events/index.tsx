@@ -120,6 +120,13 @@ export default function PromoterEventsScreen() {
       contentContainerStyle={styles.list}
       data={events}
       keyExtractor={(item) => item.id}
+      ListHeaderComponent={
+        <AppButton
+          title="+ Create Event"
+          onPress={() => router.push('/(promoter)/events/new' as any)}
+          style={styles.createBtn}
+        />
+      }
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.purple} />}
       renderItem={({ item }) => {
         const meta = STATUS_META[item.status] || STATUS_META.draft;
@@ -176,6 +183,7 @@ const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12 },
   errorText: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center' },
   retryBtn: { marginTop: 8, paddingHorizontal: 32 },
+  createBtn: { backgroundColor: Colors.purple, marginBottom: 12 },
 
   card: {
     backgroundColor: Colors.surface, borderRadius: Radius.lg, marginBottom: 12,

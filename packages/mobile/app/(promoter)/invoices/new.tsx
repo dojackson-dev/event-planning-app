@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { apiRequest } from '@/lib/api';
 import { Colors, Radius, Shadow } from '@/lib/theme';
+import DateTimeField from '@/components/DateTimeField';
 
 interface LineItem {
   id: string;
@@ -125,22 +126,8 @@ export default function NewPromoterInvoiceScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>Dates</Text>
         <View style={styles.card}>
-          <Text style={styles.fieldLabel}>Issue Date (YYYY-MM-DD) *</Text>
-          <TextInput
-            style={styles.input}
-            value={issueDate}
-            onChangeText={setIssueDate}
-            placeholder="YYYY-MM-DD"
-            placeholderTextColor={Colors.textMuted}
-          />
-          <Text style={styles.fieldLabel}>Due Date (YYYY-MM-DD) *</Text>
-          <TextInput
-            style={styles.input}
-            value={dueDate}
-            onChangeText={setDueDate}
-            placeholder="YYYY-MM-DD"
-            placeholderTextColor={Colors.textMuted}
-          />
+          <DateTimeField label="Issue Date" mode="date" value={issueDate} onChange={setIssueDate} required />
+          <DateTimeField label="Due Date" mode="date" value={dueDate} onChange={setDueDate} required />
         </View>
       </View>
 

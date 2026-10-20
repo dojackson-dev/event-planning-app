@@ -7,6 +7,8 @@ import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { apiRequest } from '@/lib/api';
 import { Colors, Radius, Shadow } from '@/lib/theme';
+import LoadingState from '@/components/LoadingState';
+import AcctErrorState from '@/components/AcctErrorState';
 
 const FRONTEND_URL = 'https://eventecos.com';
 
@@ -36,10 +38,10 @@ interface BookingRequest {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string }> = {
-  pending:   { label: 'Pending',   bg: '#FEF3C7', text: '#92400E' },
-  confirmed: { label: 'Confirmed', bg: '#D1FAE5', text: '#065F46' },
-  declined:  { label: 'Declined',  bg: '#FEE2E2', text: '#991B1B' },
-  cancelled: { label: 'Cancelled', bg: '#F3F4F6', text: '#6B7280' },
+  pending:   { label: 'Pending',   bg: Colors.warningLight, text: Colors.warningText },
+  confirmed: { label: 'Confirmed', bg: Colors.successLight, text: Colors.successText },
+  declined:  { label: 'Declined',  bg: Colors.errorLight,   text: Colors.errorText },
+  cancelled: { label: 'Cancelled', bg: Colors.borderLight,  text: Colors.textSecondary },
 };
 
 const SLUG_REGEX = /^[a-z0-9-]{3,60}$/;
@@ -47,7 +49,9 @@ const SLUG_REGEX = /^[a-z0-9-]{3,60}$/;
 export default function BookingLinkScreen() {
   const [link, setLink] = useState<BookingLink | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [slug, setSlug] = useState('');
   const [isActive, setIsActive] = useState(true);
@@ -55,6 +59,7 @@ export default function BookingLinkScreen() {
 
   const [requests, setRequests] = useState<BookingRequest[]>([]);
   const [requestsLoading, setRequestsLoading] = useState(true);
+  const [requestsError, setRequestsError] = useState<string | null>(null);
   const [respondingId, setRespondingId] = useState<string | null>(null);
 
   useFocusEffect(useCallback(() => {
@@ -62,18 +67,22 @@ export default function BookingLinkScreen() {
     loadRequests();
   }, []));
 
+  // Fills the form from the server copy so the UI always shows what is actually saved.
+  const applyLink = (data: BookingLink) => {
+    setLink(data);
+    setSlug(data.slug);
+    setIsActive(data.is_active);
+    setCustomMessage(data.custom_message ?? '');
+  };
+
   const loadLink = async () => {
     setLoading(true);
     try {
       const data = await apiRequest<BookingLink | null>('/owner/booking-links/mine');
-      if (data) {
-        setLink(data);
-        setSlug(data.slug);
-        setIsActive(data.is_active);
-        setCustomMessage(data.custom_message ?? '');
-      }
-    } catch {
-      // no link yet — leave form empty
+      if (data) applyLink(data);
+      setLoadError(null);
+    } catch (err: any) {
+      setLoadError(err?.message || 'Failed to load your booking link.');
     } finally {
       setLoading(false);
     }
@@ -83,15 +92,17 @@ export default function BookingLinkScreen() {
     setRequestsLoading(true);
     try {
       const data = await apiRequest<BookingRequest[]>('/owner/booking-links/requests');
-      setRequests(data || []);
-    } catch {
-      setRequests([]);
+      setRequests(Array.isArray(data) ? data : []);
+      setRequestsError(null);
+    } catch (err: any) {
+      setRequestsError(err?.message || 'Failed to load booking requests.');
     } finally {
       setRequestsLoading(false);
     }
   };
 
   const handleSave = async () => {
+    setSaveMessage(null);
     if (!slug.trim()) { Alert.alert('Validation', 'A slug is required.'); return; }
     if (!SLUG_REGEX.test(slug)) {
       Alert.alert('Validation', 'Slug must be 3-60 characters: lowercase letters, numbers, and hyphens only.');
@@ -99,18 +110,24 @@ export default function BookingLinkScreen() {
     }
     setSaving(true);
     try {
-      const data = await apiRequest<BookingLink>('/owner/booking-links', {
+      // Same endpoint and body as the web booking-link page.
+      const saved = await apiRequest<BookingLink>('/owner/booking-links', {
         method: 'POST',
         body: { slug, isActive, customMessage: customMessage || undefined },
       });
-      setLink(data);
-      Alert.alert('Saved', 'Booking link saved!');
+      applyLink(saved);
+      // Re-fetch so the form reflects the persisted server state, not just the POST echo.
+      const fresh = await apiRequest<BookingLink | null>('/owner/booking-links/mine').catch(() => null);
+      if (fresh) applyLink(fresh);
+      setSaveMessage({ type: 'success', text: 'Booking link saved!' });
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to save booking link.');
+      setSaveMessage({ type: 'error', text: err?.message || 'Failed to save booking link.' });
     } finally {
       setSaving(false);
     }
   };
+
+  const suggestSlug = () => setSlug(`venue-${Math.random().toString(36).substring(2, 8)}`);
 
   const handleShare = (url: string) => {
     Share.share({ message: url }).catch(() => {});
@@ -133,12 +150,11 @@ export default function BookingLinkScreen() {
 
   const bookingUrl = link ? `${FRONTEND_URL}/book-venue/${link.slug}` : '';
 
-  if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color={Colors.primary} /></View>;
-  }
+  if (loading) return <LoadingState message="Loading booking link…" />;
+  if (loadError) return <AcctErrorState message={loadError} onRetry={() => { loadLink(); loadRequests(); }} />;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       {/* Settings card */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Venue Booking Link</Text>
@@ -166,8 +182,9 @@ export default function BookingLinkScreen() {
         <View style={styles.section}>
           <Text style={styles.label}>Booking Link URL</Text>
           <Text style={styles.hint}>Becomes /book-venue/your-slug. Lowercase letters, numbers, hyphens only.</Text>
+          <View style={styles.slugRow}>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { flex: 1 }]}
             value={slug}
             onChangeText={v => setSlug(v.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
             placeholder="my-venue-name"
@@ -175,6 +192,10 @@ export default function BookingLinkScreen() {
             autoCapitalize="none"
             autoCorrect={false}
           />
+          <TouchableOpacity style={styles.suggestBtn} onPress={suggestSlug}>
+            <Text style={styles.suggestText}>Suggest</Text>
+          </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.section}>
@@ -196,12 +217,15 @@ export default function BookingLinkScreen() {
             <Text style={styles.settingLabel}>Booking Link Active</Text>
             <Text style={styles.hint}>When inactive, visitors see a "not available" message.</Text>
           </View>
-          <Switch value={isActive} onValueChange={setIsActive} trackColor={{ false: Colors.border, true: Colors.primary }} thumbColor="#FFF" />
+          <Switch value={isActive} onValueChange={setIsActive} trackColor={{ false: Colors.border, true: Colors.primary }} thumbColor={Colors.surface} />
         </View>
 
         <TouchableOpacity style={[styles.saveBtn, saving && styles.saveBtnDisabled]} onPress={handleSave} disabled={saving}>
-          {saving ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={styles.saveBtnText}>Save Booking Link</Text>}
+          {saving ? <ActivityIndicator size="small" color={Colors.textWhite} /> : <Text style={styles.saveBtnText}>Save Booking Link</Text>}
         </TouchableOpacity>
+        {saveMessage && (
+          <Text style={[styles.banner, saveMessage.type === 'success' ? styles.bannerOk : styles.bannerErr]}>{saveMessage.text}</Text>
+        )}
       </View>
 
       {/* Requests */}
@@ -210,6 +234,12 @@ export default function BookingLinkScreen() {
 
         {requestsLoading ? (
           <ActivityIndicator size="small" color={Colors.primary} style={{ marginVertical: 20 }} />
+        ) : requestsError ? (
+          <View style={styles.emptyPrompt}>
+            <Ionicons name="alert-circle-outline" size={22} color={Colors.error} />
+            <Text style={styles.emptyPromptText}>{requestsError}</Text>
+            <TouchableOpacity onPress={loadRequests}><Text style={styles.shareBtnText}>Try again</Text></TouchableOpacity>
+          </View>
         ) : requests.length === 0 ? (
           <View style={styles.emptyPrompt}>
             <Ionicons name="calendar-outline" size={22} color={Colors.textMuted} />
@@ -259,8 +289,8 @@ export default function BookingLinkScreen() {
                       disabled={respondingId === req.id}
                     >
                       {respondingId === req.id
-                        ? <ActivityIndicator size="small" color="#FFF" />
-                        : <><Ionicons name="checkmark" size={15} color="#FFF" /><Text style={styles.confirmBtnText}>Accept</Text></>}
+                        ? <ActivityIndicator size="small" color={Colors.textWhite} />
+                        : <><Ionicons name="checkmark" size={15} color={Colors.textWhite} /><Text style={styles.confirmBtnText}>Accept</Text></>}
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.actionBtn, styles.declineBtn]}
@@ -311,9 +341,15 @@ const styles = StyleSheet.create({
   settingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 18, paddingTop: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.border },
   settingLabel: { fontSize: 14, fontWeight: '600', color: Colors.textPrimary },
 
+  slugRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  suggestBtn: { paddingHorizontal: 12, paddingVertical: 12, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
+  suggestText: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
+  banner: { marginTop: 12, padding: 10, borderRadius: Radius.md, fontSize: 13, overflow: 'hidden' },
+  bannerOk: { backgroundColor: Colors.successLight, color: Colors.successText },
+  bannerErr: { backgroundColor: Colors.errorLight, color: Colors.errorText },
   saveBtn: { backgroundColor: Colors.primary, borderRadius: Radius.lg, padding: 16, alignItems: 'center', marginTop: 20 },
   saveBtnDisabled: { opacity: 0.6 },
-  saveBtnText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
+  saveBtnText: { color: Colors.textWhite, fontSize: 16, fontWeight: '700' },
 
   requestCard: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.border, paddingVertical: 14 },
   requestHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 },
@@ -329,7 +365,7 @@ const styles = StyleSheet.create({
   actionRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
   actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 9, borderRadius: Radius.md },
   confirmBtn: { backgroundColor: Colors.primary },
-  confirmBtnText: { color: '#FFF', fontSize: 13, fontWeight: '700' },
+  confirmBtnText: { color: Colors.textWhite, fontSize: 13, fontWeight: '700' },
   declineBtn: { borderWidth: 1, borderColor: Colors.error },
   declineBtnText: { color: Colors.error, fontSize: 13, fontWeight: '700' },
 });

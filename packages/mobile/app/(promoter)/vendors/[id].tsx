@@ -7,6 +7,7 @@ import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { apiRequest } from '@/lib/api';
 import { Colors, Radius, Shadow } from '@/lib/theme';
+import DateTimeField from '@/components/DateTimeField';
 
 // Shape returned by GET /vendors/:id (vendor_accounts row, snake_case).
 interface VendorDetail {
@@ -175,14 +176,7 @@ export default function PromoterVendorDetailScreen() {
             placeholderTextColor={Colors.textMuted}
           />
 
-          <Text style={styles.label}>Event Date *</Text>
-          <TextInput
-            style={styles.input}
-            value={eventDate}
-            onChangeText={setEventDate}
-            placeholder="YYYY-MM-DD"
-            placeholderTextColor={Colors.textMuted}
-          />
+          <DateTimeField label="Event Date" mode="date" value={eventDate} onChange={setEventDate} required />
 
           <Text style={styles.label}>Venue</Text>
           <TextInput

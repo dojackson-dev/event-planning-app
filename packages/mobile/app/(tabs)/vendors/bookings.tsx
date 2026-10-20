@@ -1,12 +1,14 @@
 import { useState, useCallback } from 'react';
 import {
   View, Text, FlatList, StyleSheet, ActivityIndicator,
-  RefreshControl, TouchableOpacity, Alert,
+  RefreshControl, TouchableOpacity, Alert, TextInput,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { apiRequest } from '@/lib/api';
 import { Colors, Radius, Shadow } from '@/lib/theme';
+import NetChips from '@/components/NetChips';
+import { fmtDate, fmtMoney, fmtTime } from '@/components/netFormat';
 
 // Shape returned by GET /vendors/bookings/owner (vendor_bookings row + joined
 // vendor_accounts relation), per frontend `Booking`/`EventVendorBooking`
@@ -17,7 +19,12 @@ interface VendorBooking {
   vendor_account_id: string;
   event_name?: string;
   event_date?: string;
+  start_time?: string | null;
+  end_time?: string | null;
+  venue_name?: string | null;
   status: string;
+  invoiceId?: string | null;
+  invoiceStatus?: string | null;
   agreed_amount?: number;
   deposit_amount?: number;
   notes?: string;
@@ -27,19 +34,24 @@ interface VendorBooking {
 // Confirmed enum from packages/backend/migrations/add-vendors.sql
 // vendor_bookings.status CHECK constraint.
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  pending: { bg: '#FEF3C7', text: '#92400E' },
-  confirmed: { bg: '#D1FAE5', text: '#065F46' },
-  declined: { bg: '#FEE2E2', text: '#991B1B' },
-  cancelled: { bg: '#F3F4F6', text: '#6B7280' },
-  completed: { bg: '#DBEAFE', text: '#1E40AF' },
+  pending: { bg: Colors.warningLight, text: Colors.warningText },
+  confirmed: { bg: Colors.successLight, text: Colors.successText },
+  declined: { bg: Colors.errorLight, text: Colors.errorText },
+  cancelled: { bg: Colors.borderLight, text: Colors.textSecondary },
+  completed: { bg: Colors.infoLight, text: Colors.infoText },
 };
 
+const FILTERS = ['', 'pending', 'confirmed', 'completed', 'declined', 'cancelled'];
+
 export default function VendorBookingsScreen() {
+  const router = useRouter();
   const [bookings, setBookings] = useState<VendorBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [filter, setFilter] = useState('');
+  const [search, setSearch] = useState('');
 
   const load = useCallback(async () => {
     setError('');
@@ -97,11 +109,53 @@ export default function VendorBookingsScreen() {
     );
   }
 
+  // Upcoming first (soonest), then past (most recent first) — same ordering as web.
+  const today = new Date().toISOString().slice(0, 10);
+  const q = search.trim().toLowerCase();
+  const visible = bookings
+    .filter((b) => (!filter || b.status === filter)
+      && (!q || (b.vendor_accounts?.business_name || '').toLowerCase().includes(q) || (b.event_name || '').toLowerCase().includes(q)))
+    .sort((a, b) => {
+      const da = (a.event_date || '').slice(0, 10);
+      const db = (b.event_date || '').slice(0, 10);
+      const af = da >= today;
+      const bf = db >= today;
+      if (af && bf) return da.localeCompare(db);
+      if (!af && !bf) return db.localeCompare(da);
+      return af ? -1 : 1;
+    });
+  const counts = bookings.reduce<Record<string, number>>((acc, b) => ({ ...acc, [b.status]: (acc[b.status] || 0) + 1 }), {});
+
   return (
     <FlatList
       style={styles.container}
       contentContainerStyle={styles.content}
-      data={bookings}
+      data={visible}
+      ListHeaderComponent={
+        <View style={styles.headerWrap}>
+          <View style={styles.searchRow}>
+            <Ionicons name="search" size={16} color={Colors.textMuted} />
+            <TextInput
+              style={styles.searchInput}
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search vendor or event"
+              placeholderTextColor={Colors.textMuted}
+              autoCapitalize="none"
+            />
+          </View>
+          <View style={styles.chipBleed}>
+            <NetChips
+              value={filter}
+              onChange={setFilter}
+              options={FILTERS.map((f) => ({
+                value: f,
+                label: f ? `${f.charAt(0).toUpperCase()}${f.slice(1)}${counts[f] ? ` (${counts[f]})` : ''}` : `All (${bookings.length})`,
+              }))}
+            />
+          </View>
+        </View>
+      }
       keyExtractor={(item) => item.id}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
@@ -127,16 +181,35 @@ export default function VendorBookingsScreen() {
               {item.event_date && (
                 <View style={styles.metaItem}>
                   <Ionicons name="calendar-outline" size={13} color={Colors.textMuted} />
-                  <Text style={styles.metaText}>{item.event_date}</Text>
+                  <Text style={styles.metaText}>
+                    {fmtDate(item.event_date)}
+                    {item.start_time ? ` · ${fmtTime(item.start_time)}${item.end_time ? ` – ${fmtTime(item.end_time)}` : ''}` : ''}
+                  </Text>
+                </View>
+              )}
+              {!!item.venue_name && (
+                <View style={styles.metaItem}>
+                  <Ionicons name="location-outline" size={13} color={Colors.textMuted} />
+                  <Text style={styles.metaText}>{item.venue_name}</Text>
                 </View>
               )}
               {item.agreed_amount != null && (
                 <View style={styles.metaItem}>
                   <Ionicons name="cash-outline" size={13} color={Colors.textMuted} />
-                  <Text style={styles.metaText}>${Number(item.agreed_amount).toLocaleString()}</Text>
+                  <Text style={styles.metaText}>{fmtMoney(item.agreed_amount)}{item.deposit_amount ? ` (deposit ${fmtMoney(item.deposit_amount)})` : ''}</Text>
                 </View>
               )}
             </View>
+            {!!item.invoiceStatus && (
+              <View style={styles.metaRow2}>
+                <Text style={styles.metaText}>Invoice: {item.invoiceStatus}</Text>
+                {item.invoiceStatus !== 'paid' && (
+                  <TouchableOpacity onPress={() => router.push('/(tabs)/vendor-invoices' as any)}>
+                    <Text style={styles.payLink}>View invoices</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
             {canCancel && (
               <TouchableOpacity
                 style={styles.cancelBtn}
@@ -160,9 +233,9 @@ export default function VendorBookingsScreen() {
             size={48}
             color={Colors.textMuted}
           />
-          <Text style={styles.emptyTitle}>{error ? 'Something went wrong' : 'No vendor bookings yet'}</Text>
+          <Text style={styles.emptyTitle}>{error ? 'Something went wrong' : bookings.length ? 'No matching bookings' : 'No vendor bookings yet'}</Text>
           <Text style={styles.emptyText}>
-            {error || 'Bookings you request from vendors will appear here.'}
+            {error || (bookings.length ? 'Try a different status filter or search.' : 'Bookings you request from vendors will appear here.')}
           </Text>
         </View>
       }
@@ -181,7 +254,16 @@ const styles = StyleSheet.create({
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.full },
   badgeText: { fontSize: 12, fontWeight: '600' },
   divider: { height: 1, backgroundColor: Colors.border, marginVertical: 10 },
-  metaRow: { flexDirection: 'row', gap: 16 },
+  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
+  metaRow2: { flexDirection: 'row', gap: 12, marginTop: 8, alignItems: 'center' },
+  payLink: { fontSize: 13, fontWeight: '700', color: Colors.primary },
+  headerWrap: { marginBottom: 4 },
+  chipBleed: { marginHorizontal: -16 },
+  searchRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.surface,
+    borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingHorizontal: 12,
+  },
+  searchInput: { flex: 1, paddingVertical: 10, fontSize: 14, color: Colors.textPrimary },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   metaText: { fontSize: 13, color: Colors.textMuted },
   cancelBtn: {

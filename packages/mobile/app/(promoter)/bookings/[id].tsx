@@ -2,7 +2,8 @@ import { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, Alert,
 } from 'react-native';
-import { useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { useLocalSearchParams, useFocusEffect, useRouter } from 'expo-router';
+import NetChips from '@/components/NetChips';
 import { Ionicons } from '@expo/vector-icons';
 import { apiRequest } from '@/lib/api';
 import { Colors, Radius, Shadow } from '@/lib/theme';
@@ -68,6 +69,7 @@ export default function BookingDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
+  const router = useRouter();
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -114,6 +116,39 @@ export default function BookingDetailScreen() {
         },
       ]
     );
+  };
+
+  const changeStatus = async (status: string) => {
+    if (!booking || status === booking.status) return;
+    setUpdating(true);
+    try {
+      const data = await apiRequest<PromoterBookingDetail>(`/promoter-bookings/${id}`, { method: 'PUT', body: { status } });
+      setBooking(data);
+    } catch (e: any) {
+      Alert.alert('Failed to update booking', e.message || 'Please try again.');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleDelete = () => {
+    Alert.alert('Delete booking?', 'This permanently removes the booking.', [
+      { text: 'Keep', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          setUpdating(true);
+          try {
+            await apiRequest(`/promoter-bookings/${id}`, { method: 'DELETE' });
+            router.back();
+          } catch (e: any) {
+            Alert.alert('Failed to delete booking', e.message || 'Please try again.');
+            setUpdating(false);
+          }
+        },
+      },
+    ]);
   };
 
   if (loading) {
@@ -202,6 +237,15 @@ export default function BookingDetailScreen() {
       )}
 
       {/* Actions */}
+      <Text style={styles.statusHeading}>Update status</Text>
+      <View style={styles.chipBleed}>
+        <NetChips
+          value={booking.status}
+          onChange={changeStatus}
+          activeColor={Colors.purple}
+          options={Object.keys(STATUS_COLORS).map((k) => ({ value: k, label: STATUS_LABELS[k] || k }))}
+        />
+      </View>
       {canCancel && (
         <TouchableOpacity
           style={[styles.cancelBtn, updating && styles.cancelBtnDisabled]}
@@ -216,11 +260,18 @@ export default function BookingDetailScreen() {
           )}
         </TouchableOpacity>
       )}
+      <TouchableOpacity style={styles.deleteLink} onPress={handleDelete} disabled={updating}>
+        <Text style={styles.deleteText}>Delete booking</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  statusHeading: { fontSize: 12, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', marginTop: 8 },
+  chipBleed: { marginHorizontal: -16, marginBottom: 8 },
+  deleteLink: { alignItems: 'center', paddingVertical: 14 },
+  deleteText: { fontSize: 13, fontWeight: '600', color: Colors.error },
   container: { flex: 1, backgroundColor: Colors.background },
   content: { padding: 16, paddingBottom: 48, gap: 12 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, padding: 24 },

@@ -58,7 +58,7 @@ export default function TabsLayout() {
             single-file screens don't otherwise account for themselves. */}
         <Tabs.Screen name="dashboard" options={{ href: null, headerShown: true, title: 'Dashboard' }} />
         <Tabs.Screen name="bookings" options={{ href: null, headerShown: true, title: 'Bookings' }} />
-        <Tabs.Screen name="clients" options={{ href: null, headerShown: true, title: 'Clients' }} />
+        <Tabs.Screen name="clients" options={{ href: null, headerShown: true, title: 'Clients & Leads' }} />
         <Tabs.Screen name="calendar" options={{ href: null, headerShown: true, title: 'Calendar' }} />
         <Tabs.Screen name="settings" options={{ href: null, headerShown: true, title: 'Settings' }} />
 
@@ -74,6 +74,15 @@ export default function TabsLayout() {
         <Tabs.Screen name="booking-link" options={{ href: null, headerShown: false }} />
         <Tabs.Screen name="door-lists" options={{ href: null, headerShown: false }} />
         <Tabs.Screen name="contracts" options={{ href: null, headerShown: false }} />
+        <Tabs.Screen name="payments" options={{ href: null, headerShown: false }} />
+        <Tabs.Screen name="billing" options={{ href: null, headerShown: false }} />
+        <Tabs.Screen name="items" options={{ href: null, headerShown: false }} />
+        <Tabs.Screen name="message-templates" options={{ href: null, headerShown: false }} />
+        <Tabs.Screen name="team" options={{ href: null, headerShown: false }} />
+        <Tabs.Screen name="security" options={{ href: null, headerShown: false }} />
+        <Tabs.Screen name="guest-lists" options={{ href: null, headerShown: false }} />
+        <Tabs.Screen name="rsvp" options={{ href: null, headerShown: false }} />
+        <Tabs.Screen name="artists" options={{ href: null, headerShown: false }} />
       </Tabs>
 
       {atOwnerRoot && (

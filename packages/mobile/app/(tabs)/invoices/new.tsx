@@ -8,12 +8,22 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { apiRequest } from '@/lib/api';
 import { Colors, Radius, Shadow } from '@/lib/theme';
+import DateTimeField from '@/components/DateTimeField';
+import { asArray, errMsg, num, toSnake } from '@/components/FinUI';
 
 interface LineItem {
   id: string;
   description: string;
   quantity: string;
   unit_price: string;
+  service_item_id?: string;
+}
+
+interface CatalogItem {
+  id: string;
+  name: string;
+  default_price: number;
+  is_active?: boolean;
 }
 
 interface EventOption {
@@ -31,7 +41,7 @@ const uid = () => Math.random().toString(36).slice(2);
 
 export default function NewInvoiceScreen() {
   const router = useRouter();
-  const { eventId } = useLocalSearchParams<{ eventId?: string }>();
+  const { eventId, estimateId } = useLocalSearchParams<{ eventId?: string; estimateId?: string }>();
   const [events, setEvents] = useState<EventOption[]>([]);
   const [selectedEventId, setSelectedEventId] = useState('');
   const [clientName, setClientName] = useState('');
@@ -51,8 +61,62 @@ export default function NewInvoiceScreen() {
   );
   const [saving, setSaving] = useState(false);
   const [showEventPicker, setShowEventPicker] = useState(false);
+  const [catalog, setCatalog] = useState<CatalogItem[]>([]);
+  const [showCatalog, setShowCatalog] = useState(false);
+  const [estimateEventId, setEstimateEventId] = useState('');
 
-  useEffect(() => { loadEvents(); }, []);
+  useEffect(() => { loadEvents(); loadCatalog(); }, []);
+
+  // Link the estimate's event without overwriting the pre-filled client details
+  useEffect(() => {
+    if (!estimateEventId || events.length === 0) return;
+    const ev = events.find(e => e.id === estimateEventId);
+    if (ev) {
+      setSelectedEventId(ev.id);
+      setEventLabel(`${ev.intake_form?.event_name || ev.name} — ${new Date(ev.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`);
+    }
+  }, [estimateEventId, events]);
+
+  // Pre-fill from an estimate (opened via "Create Invoice" on the estimate screen)
+  useEffect(() => {
+    if (!estimateId) return;
+    apiRequest(`/estimates/${estimateId}`).then((raw: any) => {
+      const est = toSnake<any>(raw);
+      const rows: any[] = est.items || [];
+      if (rows.length > 0) {
+        setLineItems(rows.map(r => ({
+          id: uid(),
+          description: r.description || '',
+          quantity: String(num(r.quantity) || 1),
+          unit_price: String(num(r.unit_price)),
+          service_item_id: r.service_item_id || undefined,
+        })));
+      }
+      if (est.discount_amount) setGlobalDiscount(String(num(est.discount_amount)));
+      if (est.tax_rate) { setIncludeTax(true); setTaxRate(String(num(est.tax_rate))); }
+      if (est.client_name) setClientName(est.client_name);
+      if (est.client_phone) setClientPhone(est.client_phone);
+      if (est.event_id) setEstimateEventId(est.event_id);
+    }).catch((err: any) => Alert.alert('Estimate', errMsg(err, 'Could not load the estimate to pre-fill.')));
+  }, [estimateId]);
+
+  const loadCatalog = async () => {
+    try {
+      const data = await apiRequest('/service-items');
+      setCatalog(asArray<CatalogItem>(data).filter(i => i.is_active !== false));
+    } catch {
+      setCatalog([]);
+    }
+  };
+
+  const addFromCatalog = (item: CatalogItem) => {
+    setLineItems(prev => {
+      const blank = prev.length === 1 && !prev[0].description.trim() && !prev[0].unit_price;
+      const next = { id: uid(), description: item.name, quantity: '1', unit_price: String(num(item.default_price)), service_item_id: item.id };
+      return blank ? [next] : [...prev, next];
+    });
+    setShowCatalog(false);
+  };
 
   // Auto-select event if navigated from event detail page
   useEffect(() => {
@@ -90,8 +154,9 @@ export default function NewInvoiceScreen() {
     return sum + (parseFloat(l.quantity) || 0) * (parseFloat(l.unit_price) || 0);
   }, 0);
   const discount = parseFloat(globalDiscount) || 0;
-  const taxAmount = includeTax ? (subtotal - discount) * (parseFloat(taxRate) || 0) / 100 : 0;
-  const total = subtotal - discount + taxAmount;
+  // Matches the backend: tax is on the subtotal, the extra discount comes off after.
+  const taxAmount = includeTax ? subtotal * (parseFloat(taxRate) || 0) / 100 : 0;
+  const total = subtotal + taxAmount - discount;
 
   const handleCreate = async () => {
     const validItems = lineItems.filter(l => l.description.trim() && parseFloat(l.unit_price) > 0);
@@ -107,6 +172,7 @@ export default function NewInvoiceScreen() {
       const selectedEvent = events.find(e => e.id === selectedEventId);
 
       const items = validItems.map((item, idx) => ({
+        service_item_id: item.service_item_id || null,
         description: item.description,
         quantity: parseFloat(item.quantity) || 1,
         unit_price: parseFloat(item.unit_price) || 0,
@@ -126,6 +192,7 @@ export default function NewInvoiceScreen() {
             owner_id: user.id,
             created_by: user.id,
             intake_form_id: selectedEvent?.intake_form_id || null,
+            event_id: selectedEvent?.id || null,
             client_name: clientName || null,
             client_phone: clientPhone || null,
             subtotal,
@@ -261,6 +328,26 @@ export default function NewInvoiceScreen() {
           <Ionicons name="add-circle-outline" size={16} color={Colors.primary} />
           <Text style={styles.addBtnText}>Add Line Item</Text>
         </TouchableOpacity>
+        {catalog.length > 0 && (
+          <>
+            <TouchableOpacity style={styles.addBtn} onPress={() => setShowCatalog(v => !v)}>
+              <Ionicons name="pricetags-outline" size={16} color={Colors.primary} />
+              <Text style={styles.addBtnText}>{showCatalog ? 'Hide Items & Packages' : 'Add from Items & Packages'}</Text>
+            </TouchableOpacity>
+            {showCatalog && (
+              <View style={styles.dropdown}>
+                <ScrollView nestedScrollEnabled>
+                  {catalog.map(ci => (
+                    <TouchableOpacity key={ci.id} style={styles.dropdownItem} onPress={() => addFromCatalog(ci)}>
+                      <Text style={styles.dropdownText} numberOfLines={1}>{ci.name}</Text>
+                      <Text style={styles.dropdownSub}>{fmt(num(ci.default_price))}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+          </>
+        )}
       </View>
 
       {/* Totals */}
@@ -289,7 +376,7 @@ export default function NewInvoiceScreen() {
                 value={includeTax}
                 onValueChange={setIncludeTax}
                 trackColor={{ false: Colors.border, true: Colors.primary }}
-                thumbColor="#FFF"
+                thumbColor={Colors.textWhite}
                 style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
               />
             </View>
@@ -318,25 +405,9 @@ export default function NewInvoiceScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>Dates</Text>
         <View style={styles.card}>
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Issue Date</Text>
-            <TextInput
-              style={styles.inlineInput}
-              value={issueDate}
-              onChangeText={setIssueDate}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={Colors.textMuted}
-            />
-          </View>
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Due Date</Text>
-            <TextInput
-              style={styles.inlineInput}
-              value={dueDate}
-              onChangeText={setDueDate}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={Colors.textMuted}
-            />
+          <View style={{ marginBottom: -12 }}>
+            <DateTimeField label="Issue Date" mode="date" value={issueDate} onChange={setIssueDate} />
+            <DateTimeField label="Due Date" mode="date" value={dueDate} onChange={setDueDate} />
           </View>
         </View>
       </View>
@@ -372,9 +443,9 @@ export default function NewInvoiceScreen() {
         onPress={handleCreate}
         disabled={saving}
       >
-        {saving ? <ActivityIndicator color="#FFF" size="small" /> : (
+        {saving ? <ActivityIndicator color={Colors.textWhite} size="small" /> : (
           <>
-            <Ionicons name="receipt-outline" size={18} color="#FFF" />
+            <Ionicons name="receipt-outline" size={18} color={Colors.textWhite} />
             <Text style={styles.createBtnText}>Create Invoice</Text>
           </>
         )}
@@ -443,5 +514,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 8,
   },
   createBtnDisabled: { opacity: 0.6 },
-  createBtnText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
+  createBtnText: { color: Colors.textWhite, fontSize: 16, fontWeight: '700' },
 });

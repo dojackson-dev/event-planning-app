@@ -5,10 +5,12 @@ export default function BookingLinkLayout() {
   return (
     <Stack
       screenOptions={{
-        headerStyle: { backgroundColor: Colors.primary },
-        headerTintColor: '#FFFFFF',
+        headerStyle: { backgroundColor: Colors.surface },
+        headerTintColor: Colors.textPrimary,
+        headerShadowVisible: false,
         headerTitleStyle: { fontWeight: '700', fontSize: 17 },
         headerBackButtonDisplayMode: 'minimal',
+        contentStyle: { backgroundColor: Colors.background },
       }}
     >
       <Stack.Screen name="index" options={{ title: 'Booking Link' }} />

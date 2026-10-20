@@ -1,7 +1,5 @@
 import { useCallback, useState } from 'react';
-import {
-  View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl,
-} from 'react-native';
+import { View, Text, ScrollView, StyleSheet, RefreshControl } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { apiRequest } from '@/lib/api';
@@ -10,12 +8,16 @@ import LoadingState from '@/components/LoadingState';
 import EmptyState from '@/components/EmptyState';
 import AppButton from '@/components/AppButton';
 import SectionHeader from '@/components/SectionHeader';
+import NetNavRow from '@/components/NetNavRow';
+import NetPayoutsCard from '@/components/NetPayoutsCard';
+import NetSignOutButton from '@/components/NetSignOutButton';
 
 interface VendorAccount {
   id: string;
   business_name: string;
   category?: string;
   is_verified?: boolean;
+  email?: string;
 }
 
 interface VendorBooking {
@@ -157,90 +159,67 @@ export default function VendorDashboardScreen() {
       )}
 
       <SectionHeader title="Manage" />
-      <TouchableOpacity
-        style={[styles.navCard, Shadow.sm]}
+      <NetNavRow
+        icon="calendar-outline"
+        title="Bookings"
+        subtitle="View and manage your bookings"
         onPress={() => router.push('/(vendor)/bookings' as any)}
-        activeOpacity={0.8}
-      >
-        <View style={styles.navIconWrap}>
-          <Ionicons name="calendar-outline" size={22} color={Colors.primary} />
-        </View>
-        <View style={styles.navTextWrap}>
-          <Text style={styles.navTitle}>Bookings</Text>
-          <Text style={styles.navSubtitle}>View and manage your confirmed bookings</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.navCard, Shadow.sm]}
+      />
+      <NetNavRow
+        icon="mail-unread-outline"
+        title="Booking Requests"
+        subtitle="Review and respond to new requests"
         onPress={() => router.push('/(vendor)/booking-requests' as any)}
-        activeOpacity={0.8}
-      >
-        <View style={styles.navIconWrap}>
-          <Ionicons name="mail-unread-outline" size={22} color={Colors.primary} />
-        </View>
-        <View style={styles.navTextWrap}>
-          <Text style={styles.navTitle}>Booking Requests</Text>
-          <Text style={styles.navSubtitle}>Review and respond to new requests</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.navCard, Shadow.sm]}
-        onPress={() => router.push('/(vendor)/profile' as any)}
-        activeOpacity={0.8}
-      >
-        <View style={styles.navIconWrap}>
-          <Ionicons name="person-circle-outline" size={22} color={Colors.primary} />
-        </View>
-        <View style={styles.navTextWrap}>
-          <Text style={styles.navTitle}>Business Profile</Text>
-          <Text style={styles.navSubtitle}>View and edit your vendor profile</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.navCard, Shadow.sm]}
+      />
+      <NetNavRow
+        icon="today-outline"
+        title="Calendar"
+        subtitle="Your upcoming booked dates"
+        onPress={() => router.push('/(vendor)/calendar' as any)}
+      />
+      <NetNavRow
+        icon="document-text-outline"
+        title="Invoices"
+        subtitle="Create and track invoices for clients"
         onPress={() => router.push('/(vendor)/invoices' as any)}
-        activeOpacity={0.8}
-      >
-        <View style={styles.navIconWrap}>
-          <Ionicons name="document-text-outline" size={22} color={Colors.primary} />
-        </View>
-        <View style={styles.navTextWrap}>
-          <Text style={styles.navTitle}>Invoices</Text>
-          <Text style={styles.navSubtitle}>Create and track invoices for clients</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.navCard, Shadow.sm]}
-        onPress={() => router.push('/(vendor)/booking-link' as any)}
-        activeOpacity={0.8}
-      >
-        <View style={styles.navIconWrap}>
-          <Ionicons name="link-outline" size={22} color={Colors.primary} />
-        </View>
-        <View style={styles.navTextWrap}>
-          <Text style={styles.navTitle}>Booking Link</Text>
-          <Text style={styles.navSubtitle}>Share a public link for clients to book you</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.navCard, Shadow.sm]}
+      />
+      <NetNavRow
+        icon="trending-up-outline"
+        title="Earnings"
+        subtitle="Revenue, paid and outstanding"
+        onPress={() => router.push('/(vendor)/earnings' as any)}
+      />
+      <NetNavRow
+        icon="star-outline"
+        title="Reviews"
+        subtitle="What clients say about you"
+        onPress={() => router.push('/(vendor)/reviews' as any)}
+      />
+      <NetNavRow
+        icon="document-lock-outline"
+        title="Contracts"
+        subtitle="View and sign contracts sent by venues"
         onPress={() => router.push('/(vendor)/contracts' as any)}
-        activeOpacity={0.8}
-      >
-        <View style={styles.navIconWrap}>
-          <Ionicons name="document-lock-outline" size={22} color={Colors.primary} />
-        </View>
-        <View style={styles.navTextWrap}>
-          <Text style={styles.navTitle}>Contracts</Text>
-          <Text style={styles.navSubtitle}>View and sign contracts sent by venues</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
-      </TouchableOpacity>
+      />
+      <NetNavRow
+        icon="link-outline"
+        title="Booking Link"
+        subtitle="Share a public link for clients to book you"
+        onPress={() => router.push('/(vendor)/booking-link' as any)}
+      />
+      <NetNavRow
+        icon="person-circle-outline"
+        title="Business Profile"
+        subtitle="View and edit your vendor profile"
+        onPress={() => router.push('/(vendor)/profile' as any)}
+      />
+
+      <SectionHeader title="Payouts" />
+      <NetPayoutsCard role="vendor" email={profile?.email} />
+
+      <View style={styles.signOutWrap}>
+        <NetSignOutButton />
+      </View>
     </ScrollView>
   );
 }
@@ -249,6 +228,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   content: { padding: 16, paddingBottom: 40 },
   retryWrap: { paddingHorizontal: 32, marginTop: -20 },
+  signOutWrap: { marginTop: 12 },
 
   heroCard: {
     backgroundColor: Colors.primary, borderRadius: Radius.xl,
@@ -270,16 +250,4 @@ const styles = StyleSheet.create({
   statNumber: { fontSize: 22, fontWeight: '800', color: Colors.textPrimary },
   statLabel: { fontSize: 12, color: Colors.textMuted, marginTop: 4 },
 
-  navCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: Colors.surface, borderRadius: Radius.lg,
-    padding: 14, marginBottom: 10,
-  },
-  navIconWrap: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: Colors.primaryLight, alignItems: 'center', justifyContent: 'center',
-  },
-  navTextWrap: { flex: 1 },
-  navTitle: { fontSize: 15, fontWeight: '600', color: Colors.textPrimary },
-  navSubtitle: { fontSize: 12, color: Colors.textMuted, marginTop: 1 },
 });

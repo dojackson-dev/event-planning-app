@@ -6,7 +6,7 @@ export default function EstimatesLayout() {
     <Stack
       screenOptions={{
         headerStyle: { backgroundColor: Colors.primary },
-        headerTintColor: '#FFFFFF',
+        headerTintColor: Colors.textWhite,
         headerTitleStyle: { fontWeight: '700', fontSize: 17 },
         headerBackTitle: 'Estimates',
       }}
@@ -14,6 +14,7 @@ export default function EstimatesLayout() {
       <Stack.Screen name="index" options={{ title: 'Estimates' }} />
       <Stack.Screen name="new" options={{ title: 'New Estimate', headerBackTitle: 'Back' }} />
       <Stack.Screen name="[id]" options={{ title: 'Estimate' }} />
+      <Stack.Screen name="edit" options={{ title: 'Edit Estimate', headerBackTitle: 'Back' }} />
     </Stack>
   );
 }

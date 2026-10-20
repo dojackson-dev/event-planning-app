@@ -51,7 +51,7 @@ function StatusPill({ status }: { status: string }) {
 
 function formatDate(dateStr: string | null | undefined) {
   if (!dateStr) return 'Date TBD';
-  const d = new Date(dateStr);
+  const d = new Date(dateStr.includes('T') ? dateStr : `${dateStr}T00:00:00`);
   if (Number.isNaN(d.getTime())) return dateStr;
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
@@ -146,7 +146,11 @@ export default function ArtistBookingsScreen() {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
     >
-      <SectionHeader title="Bookings" subtitle={`${items.length} total`} />
+      <SectionHeader
+        title="Bookings"
+        subtitle={`${items.length} total`}
+        action={{ label: '+ New', onPress: () => router.push('/(artist)/bookings/new' as any) }}
+      />
 
       {items.length === 0 ? (
         <EmptyState

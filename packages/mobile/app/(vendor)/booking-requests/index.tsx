@@ -7,6 +7,7 @@ import LoadingState from '@/components/LoadingState';
 import EmptyState from '@/components/EmptyState';
 import AppButton from '@/components/AppButton';
 import BookingRequestCard from '@/components/BookingRequestCard';
+import NetChips from '@/components/NetChips';
 import type { VendorBookingRequest } from '@/types/vendorBooking';
 
 export default function VendorBookingRequestsScreen() {
@@ -15,6 +16,7 @@ export default function VendorBookingRequestsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [respondingId, setRespondingId] = useState<string | null>(null);
+  const [filter, setFilter] = useState('');
 
   const load = useCallback(async () => {
     setError(null);
@@ -40,10 +42,13 @@ export default function VendorBookingRequestsScreen() {
     load();
   };
 
-  const respond = async (id: string, status: 'confirmed' | 'declined') => {
+  const respond = async (id: string, status: 'confirmed' | 'declined', quotedAmount?: number) => {
     setRespondingId(id);
     try {
-      await apiRequest(`/vendors/booking-requests/${id}`, { method: 'PUT', body: { status } });
+      await apiRequest(`/vendors/booking-requests/${id}`, {
+        method: 'PUT',
+        body: { status, ...(quotedAmount !== undefined && { quotedAmount }) },
+      });
       await load();
     } catch (err: any) {
       Alert.alert('Error', err?.message || 'Failed to update the booking request');
@@ -86,22 +91,37 @@ export default function VendorBookingRequestsScreen() {
     );
   }
 
+  const visible = filter ? requests.filter((r) => r.status === filter) : requests;
+
   return (
+    <View style={styles.container}>
+    <NetChips
+      value={filter}
+      onChange={setFilter}
+      options={[
+        { value: '', label: `All (${requests.length})` },
+        { value: 'pending', label: `Pending (${requests.filter((r) => r.status === 'pending').length})` },
+        { value: 'confirmed', label: 'Confirmed' },
+        { value: 'declined', label: 'Declined' },
+      ]}
+    />
     <FlatList
       style={styles.container}
       contentContainerStyle={styles.content}
-      data={requests}
+      data={visible}
+      ListEmptyComponent={<EmptyState icon="filter-outline" title="No matching requests" message="Try a different status filter." />}
       keyExtractor={(item) => item.id}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
       renderItem={({ item }) => (
         <BookingRequestCard
           request={item}
           busy={respondingId === item.id}
-          onAccept={item.status === 'pending' ? () => respond(item.id, 'confirmed') : undefined}
+          onAccept={item.status === 'pending' ? (q) => respond(item.id, 'confirmed', q) : undefined}
           onDecline={item.status === 'pending' ? () => confirmDecline(item.id) : undefined}
         />
       )}
     />
+    </View>
   );
 }
 

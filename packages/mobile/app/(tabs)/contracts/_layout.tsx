@@ -6,7 +6,7 @@ export default function ContractsLayout() {
     <Stack
       screenOptions={{
         headerStyle: { backgroundColor: Colors.primary },
-        headerTintColor: '#fff',
+        headerTintColor: Colors.textWhite,
         headerBackTitle: 'Back',
       }}
     >

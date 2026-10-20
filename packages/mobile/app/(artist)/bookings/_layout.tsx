@@ -12,6 +12,7 @@ export default function ArtistBookingsLayout() {
       }}
     >
       <Stack.Screen name="index" options={{ title: 'Bookings' }} />
+      <Stack.Screen name="new" options={{ title: 'New Booking' }} />
       <Stack.Screen name="[id]" options={{ title: 'Booking Details' }} />
     </Stack>
   );

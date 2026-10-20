@@ -13,6 +13,8 @@ export default function EventsLayout() {
       }}
     >
       <Stack.Screen name="index" options={{ title: 'Events' }} />
+      <Stack.Screen name="new" options={{ title: 'New Event' }} />
+      <Stack.Screen name="[id]" options={{ title: 'Event' }} />
     </Stack>
   );
 }

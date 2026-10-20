@@ -1,49 +1,63 @@
-import { useCallback, useState } from 'react';
-import {
-  View, Text, FlatList, StyleSheet, ActivityIndicator,
-  RefreshControl, TouchableOpacity,
-} from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { View, Text, FlatList, RefreshControl, TouchableOpacity } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { apiRequest } from '@/lib/api';
-import { Colors, Radius, Shadow } from '@/lib/theme';
+import { Colors } from '@/lib/theme';
 import EmptyState from '@/components/EmptyState';
 import LoadingState from '@/components/LoadingState';
+import {
+  asArray, fmtDate, parseDate, errMsg, finStyles as f,
+  StatusBadge, ErrorState, ErrorBanner, SearchBar, FilterChips,
+} from '@/components/FinUI';
 
 interface Contract {
   id: string;
   contract_number?: string;
   title?: string;
-  status: 'draft' | 'sent' | 'signed' | 'voided';
+  status: string;
   client_name?: string;
   created_at?: string;
+  updated_at?: string;
+  sent_date?: string;
+  viewed_at?: string | null;
+  signed_date?: string;
+  owner_signature_data?: string | null;
+  owner_signer_name?: string | null;
+  contract_type?: string;
 }
 
-const STATUS_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
-  draft:  { bg: '#F3F4F6', text: '#6B7280', dot: '#9CA3AF' },
-  sent:   { bg: '#DBEAFE', text: '#1E40AF', dot: '#3B82F6' },
-  signed: { bg: '#D1FAE5', text: '#065F46', dot: '#10B981' },
-  voided: { bg: '#FEE2E2', text: '#991B1B', dot: '#EF4444' },
-};
+const FILTERS = [
+  { key: 'all', label: 'All' },
+  { key: 'draft', label: 'Draft' },
+  { key: 'sent', label: 'Sent' },
+  { key: 'signed', label: 'Signed' },
+  { key: 'voided', label: 'Voided' },
+  { key: 'cancelled', label: 'Cancelled' },
+];
 
-const statusLabel = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+// Same rule as the web list: cancelled contracts older than 7 days only show under the Cancelled filter.
+const recentlyCancelled = (c: Contract) => {
+  const d = parseDate(c.updated_at || c.created_at);
+  return !d || (Date.now() - d.getTime()) / 86400000 <= 7;
+};
 
 export default function ContractsScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [filter, setFilter] = useState('all');
+  const [search, setSearch] = useState('');
 
   const fetchContracts = useCallback(async () => {
     try {
       setError('');
-      const data = await apiRequest<Contract[]>('/contracts');
-      setContracts(Array.isArray(data) ? data : []);
+      const data = await apiRequest('/contracts');
+      setContracts(asArray<Contract>(data));
     } catch (err: any) {
-      setError(err.message || 'Failed to load contracts');
+      setError(errMsg(err, 'Failed to load contracts'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -52,48 +66,76 @@ export default function ContractsScreen() {
 
   useFocusEffect(useCallback(() => { fetchContracts(); }, [fetchContracts]));
 
-  if (loading) return <LoadingState />;
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return contracts
+      .filter(c => (c.status === 'cancelled' && filter !== 'cancelled' ? recentlyCancelled(c) : filter === 'all' || c.status === filter))
+      .filter(c => !q || (c.title || '').toLowerCase().includes(q) || (c.contract_number || '').toLowerCase().includes(q) || (c.client_name || '').toLowerCase().includes(q));
+  }, [contracts, filter, search]);
+
+  if (loading) return <LoadingState message="Loading contracts..." />;
+  if (error && contracts.length === 0) return <ErrorState message={error} onRetry={fetchContracts} />;
 
   return (
-    <View style={styles.container}>
-      <View style={[styles.headerRow, { paddingTop: insets.top + 56 }]}>
-        <View style={{ flex: 1 }} />
-        <TouchableOpacity style={styles.newBtn} onPress={() => router.push('/(tabs)/contracts/new' as any)}>
-          <Ionicons name="add" size={18} color="#FFF" />
-          <Text style={styles.newBtnText}>New</Text>
+    <View style={f.container}>
+      <SearchBar value={search} onChangeText={setSearch} placeholder="Search title, number or client" />
+      <FilterChips options={FILTERS} value={filter} onChange={setFilter} />
+      <View style={f.headerRow}>
+        <Text style={f.headerTitle}>{filtered.length} {filtered.length === 1 ? 'contract' : 'contracts'}</Text>
+        <TouchableOpacity style={f.newBtn} onPress={() => router.push('/(tabs)/contracts/new' as any)}>
+          <Ionicons name="add" size={18} color={Colors.textWhite} />
+          <Text style={f.newBtnText}>New</Text>
         </TouchableOpacity>
       </View>
+      {!!error && <ErrorBanner message={error} onRetry={fetchContracts} />}
+
       <FlatList
-        data={contracts}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={contracts.length === 0 ? styles.emptyContainer : styles.list}
+        data={filtered}
+        keyExtractor={item => item.id}
+        contentContainerStyle={f.list}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchContracts(); }} />
+          <RefreshControl refreshing={refreshing} tintColor={Colors.primary}
+            onRefresh={() => { setRefreshing(true); fetchContracts(); }} />
         }
         ListEmptyComponent={
           <EmptyState
             icon="document-text-outline"
-            title={error ? 'Something went wrong' : 'No contracts yet'}
-            message={error || 'Create a venue booking agreement from one of your events, or send an upload from the web app.'}
+            title={contracts.length === 0 ? 'No contracts yet' : 'No contracts match'}
+            message={contracts.length === 0
+              ? 'Create a venue booking agreement for one of your events.'
+              : 'Try a different search or status filter.'}
           />
         }
         renderItem={({ item }) => {
-          const sc = STATUS_COLORS[item.status] ?? STATUS_COLORS.draft;
+          const needsCounter = item.status === 'signed' && !item.owner_signature_data;
           return (
             <TouchableOpacity
-              style={[styles.card, Shadow.sm]}
+              style={f.card}
               onPress={() => router.push(`/(tabs)/contracts/${item.id}` as any)}
+              activeOpacity={0.75}
             >
-              <View style={styles.cardHeader}>
-                <Text style={styles.cardTitle} numberOfLines={1}>{item.title || item.contract_number || 'Contract'}</Text>
-                <View style={[styles.badge, { backgroundColor: sc.bg }]}>
-                  <View style={[styles.dot, { backgroundColor: sc.dot }]} />
-                  <Text style={[styles.badgeText, { color: sc.text }]}>{statusLabel(item.status)}</Text>
+              <View style={f.cardRow}>
+                <View style={f.cardLeft}>
+                  <Text style={f.cardNum}>{item.contract_number || 'Contract'}</Text>
+                  <Text style={f.cardTitle} numberOfLines={1}>{item.title || 'Untitled contract'}</Text>
+                  {!!item.client_name && <Text style={f.cardMeta} numberOfLines={1}>{item.client_name}</Text>}
+                  <Text style={f.cardMeta}>
+                    {item.signed_date ? `Signed ${fmtDate(item.signed_date)}` : item.sent_date ? `Sent ${fmtDate(item.sent_date)}` : `Created ${fmtDate(item.created_at)}`}
+                  </Text>
                 </View>
-              </View>
-              {!!item.client_name && <Text style={styles.subText}>{item.client_name}</Text>}
-              <View style={styles.footerRow}>
-                <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+                <View style={f.cardRight}>
+                  <StatusBadge status={item.status} />
+                  {!!item.viewed_at && item.status === 'sent' && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 6 }}>
+                      <Ionicons name="eye-outline" size={12} color={Colors.successText} />
+                      <Text style={[f.cardMeta, { marginTop: 0, color: Colors.successText }]}>Viewed</Text>
+                    </View>
+                  )}
+                  {needsCounter && (
+                    <Text style={[f.cardMeta, { color: Colors.warningText, fontWeight: '600' }]}>Needs counter-sign</Text>
+                  )}
+                  <Ionicons name="chevron-forward" size={14} color={Colors.textMuted} style={{ marginTop: 6 }} />
+                </View>
               </View>
             </TouchableOpacity>
           );
@@ -102,24 +144,3 @@ export default function ContractsScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 12 },
-  newBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: Colors.primary, paddingHorizontal: 14, paddingVertical: 7,
-    borderRadius: Radius.full,
-  },
-  newBtnText: { color: '#FFF', fontSize: 13, fontWeight: '600' },
-  list: { padding: 16, gap: 12 },
-  emptyContainer: { flexGrow: 1, justifyContent: 'center', padding: 16 },
-  card: { backgroundColor: '#fff', borderRadius: Radius.md, padding: 16 },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: Colors.textPrimary, flex: 1 },
-  badge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, gap: 4 },
-  dot: { width: 6, height: 6, borderRadius: 3 },
-  badgeText: { fontSize: 12, fontWeight: '600' },
-  subText: { fontSize: 14, color: Colors.textSecondary, marginTop: 4 },
-  footerRow: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 8 },
-});

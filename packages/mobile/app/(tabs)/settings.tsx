@@ -1,135 +1,147 @@
 import { useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Alert, ActivityIndicator, Switch,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Switch, Linking, Image,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { apiRequest } from '@/lib/api';
 import { Colors, Radius, Shadow } from '@/lib/theme';
+import AppButton from '@/components/AppButton';
+import LoadingState from '@/components/LoadingState';
+import AcctErrorState from '@/components/AcctErrorState';
+import AcctField from '@/components/AcctField';
 
-type Tab = 'profile' | 'billing' | 'password';
+const WEB_URL = 'https://eventecos.com';
 
-interface Profile {
-  first_name: string;
-  last_name: string;
-  email: string;
-  phone: string;
-}
+type Tab = 'profile' | 'business' | 'billing' | 'password' | 'account';
 
-interface PaymentSchedule {
-  deposit_percentage: number;
-  deposit_due_days: number;
-  final_payment_days: number;
-  require_deposit: boolean;
-}
-
-// The backend's /owner/payment-schedule endpoint uses camelCase keys and has
-// no separate "require deposit" flag — a null percentage means not required.
-interface PaymentScheduleApi {
-  depositPercentage: number | null;
-  depositDueDaysBefore: number | null;
-  finalPaymentDueDaysBefore: number | null;
-}
+const TABS: { value: Tab; label: string }[] = [
+  { value: 'profile', label: 'Profile' },
+  { value: 'business', label: 'Business' },
+  { value: 'billing', label: 'Billing' },
+  { value: 'password', label: 'Password' },
+  { value: 'account', label: 'Account' },
+];
 
 export default function SettingsScreen() {
   const [tab, setTab] = useState<Tab>('profile');
 
   return (
     <View style={styles.container}>
-      <View style={styles.tabBar}>
-        {(['profile', 'billing', 'password'] as Tab[]).map(t => (
-          <TouchableOpacity key={t} style={[styles.tab, tab === t && styles.tabActive]} onPress={() => setTab(t)}>
-            <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>
-              {t === 'profile' ? 'Profile' : t === 'billing' ? 'Billing' : 'Password'}
-            </Text>
-          </TouchableOpacity>
-        ))}
+      <View style={styles.tabBarWrap}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabBar}>
+          {TABS.map(t => (
+            <TouchableOpacity key={t.value} style={[styles.tab, tab === t.value && styles.tabActive]} onPress={() => setTab(t.value)}>
+              <Text style={[styles.tabText, tab === t.value && styles.tabTextActive]}>{t.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
       {tab === 'profile' && <ProfileTab />}
+      {tab === 'business' && <BusinessTab />}
       {tab === 'billing' && <BillingTab />}
       {tab === 'password' && <PasswordTab />}
+      {tab === 'account' && <AccountTab />}
     </View>
   );
 }
 
-function ProfileTab() {
-  const [profile, setProfile] = useState<Profile>({ first_name: '', last_name: '', email: '', phone: '' });
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+function Banner({ message }: { message: { type: 'success' | 'error'; text: string } | null }) {
+  if (!message) return null;
+  return (
+    <Text style={[styles.banner, message.type === 'success' ? styles.bannerOk : styles.bannerErr]}>{message.text}</Text>
+  );
+}
 
-  useFocusEffect(useCallback(() => {
-    const load = async () => {
-      setLoading(true);
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-        setProfile(prev => ({ ...prev, email: user.email || '' }));
-        const { data } = await supabase
-          .from('users')
-          .select('first_name, last_name, phone_number')
-          .eq('id', user.id)
-          .maybeSingle();
-        if (data) setProfile(prev => ({ ...prev, first_name: data.first_name || '', last_name: data.last_name || '', phone: data.phone_number || '' }));
-      } catch {
-        // silent
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, []));
+function ProfileTab() {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [originalEmail, setOriginalEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [me, owner] = await Promise.all([
+        apiRequest<any>('/auth/me'),
+        apiRequest<{ phoneNumber?: string | null }>('/owner/profile').catch(() => null),
+      ]);
+      const meta = me?.user_metadata || {};
+      setFirstName(meta.first_name || '');
+      setLastName(meta.last_name || '');
+      setEmail(me?.email || '');
+      setOriginalEmail(me?.email || '');
+      setPhone(owner?.phoneNumber || meta.phone || me?.phone || '');
+      setLoadError(null);
+    } catch (err: any) {
+      setLoadError(err?.message || 'Failed to load your profile.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const handleSave = async () => {
+    setMessage(null);
+    if (!firstName.trim() || !lastName.trim() || !email.trim()) {
+      setMessage({ type: 'error', text: 'First name, last name and email are required.' });
+      return;
+    }
     setSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-      const { error } = await supabase
-        .from('users')
-        .update({ first_name: profile.first_name, last_name: profile.last_name, phone_number: profile.phone })
-        .eq('id', user.id);
-      if (error) throw error;
-      Alert.alert('Saved', 'Profile updated.');
+      await apiRequest('/auth/profile', {
+        method: 'PUT',
+        body: { firstName: firstName.trim(), lastName: lastName.trim(), email: email.trim(), phone: phone.trim() },
+      });
+      const emailChanged = email.trim() !== originalEmail;
+      setOriginalEmail(email.trim());
+      setMessage({
+        type: 'success',
+        text: emailChanged ? 'Profile updated. Verify your new email address to finish the change.' : 'Profile updated successfully!',
+      });
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to save profile');
+      setMessage({ type: 'error', text: err?.message || 'Failed to update profile' });
     } finally {
       setSaving(false);
     }
   };
 
-  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color={Colors.primary} /></View>;
+  const confirmSignOut = () => {
+    Alert.alert('Sign Out', 'Are you sure?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign Out', style: 'destructive', onPress: () => supabase.auth.signOut() },
+    ]);
+  };
+
+  if (loading) return <LoadingState message="Loading profile…" />;
+  if (loadError) return <AcctErrorState message={loadError} onRetry={load} />;
 
   return (
-    <ScrollView style={styles.tabContent} contentContainerStyle={styles.tabContentInner}>
-      <View style={styles.section}>
-        <Text style={styles.label}>First Name</Text>
-        <TextInput style={styles.input} value={profile.first_name} onChangeText={v => setProfile(p => ({ ...p, first_name: v }))} placeholder="First name" placeholderTextColor={Colors.textMuted} />
-      </View>
-      <View style={styles.section}>
-        <Text style={styles.label}>Last Name</Text>
-        <TextInput style={styles.input} value={profile.last_name} onChangeText={v => setProfile(p => ({ ...p, last_name: v }))} placeholder="Last name" placeholderTextColor={Colors.textMuted} />
-      </View>
-      <View style={styles.section}>
-        <Text style={styles.label}>Email</Text>
-        <TextInput style={[styles.input, styles.inputDisabled]} value={profile.email} editable={false} keyboardType="email-address" />
-        <Text style={styles.hint}>Email cannot be changed here</Text>
-      </View>
-      <View style={styles.section}>
-        <Text style={styles.label}>Phone</Text>
-        <TextInput style={styles.input} value={profile.phone} onChangeText={v => setProfile(p => ({ ...p, phone: v }))} placeholder="+1 (555) 000-0000" placeholderTextColor={Colors.textMuted} keyboardType="phone-pad" />
-      </View>
-      <TouchableOpacity style={[styles.saveBtn, saving && styles.saveBtnDisabled]} onPress={handleSave} disabled={saving}>
-        {saving ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={styles.saveBtnText}>Save Profile</Text>}
-      </TouchableOpacity>
+    <ScrollView style={styles.tabContent} contentContainerStyle={styles.tabContentInner} keyboardShouldPersistTaps="handled">
+      <AcctField label="First name" required value={firstName} onChangeText={setFirstName} placeholder="First name" />
+      <AcctField label="Last name" required value={lastName} onChangeText={setLastName} placeholder="Last name" />
+      <AcctField
+        label="Email address"
+        required
+        value={email}
+        onChangeText={setEmail}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoCorrect={false}
+        hint="Changing your email will require you to verify the new address"
+      />
+      <AcctField label="Phone number" value={phone} onChangeText={setPhone} placeholder="(555) 123-4567" keyboardType="phone-pad" />
+      <AppButton title="Save changes" onPress={handleSave} loading={saving} />
+      <Banner message={message} />
 
-      <TouchableOpacity style={styles.signOutBtn} onPress={async () => {
-        Alert.alert('Sign Out', 'Are you sure?', [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Sign Out', style: 'destructive', onPress: () => supabase.auth.signOut() },
-        ]);
-      }}>
+      <TouchableOpacity style={styles.signOutBtn} onPress={confirmSignOut}>
         <Ionicons name="log-out-outline" size={18} color={Colors.error} />
         <Text style={styles.signOutText}>Sign Out</Text>
       </TouchableOpacity>
@@ -137,94 +149,204 @@ function ProfileTab() {
   );
 }
 
-function BillingTab() {
-  const [schedule, setSchedule] = useState<PaymentSchedule>({ deposit_percentage: 25, deposit_due_days: 30, final_payment_days: 7, require_deposit: true });
+function BusinessTab() {
+  const router = useRouter();
+  const [businessName, setBusinessName] = useState('');
+  const [savedName, setSavedName] = useState('');
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  useFocusEffect(useCallback(() => {
-    const load = async () => {
-      setLoading(true);
-      try {
-        const data = await apiRequest<PaymentScheduleApi>('/owner/payment-schedule');
-        if (data) {
-          setSchedule({
-            deposit_percentage: data.depositPercentage ?? 25,
-            deposit_due_days: data.depositDueDaysBefore ?? 30,
-            final_payment_days: data.finalPaymentDueDaysBefore ?? 7,
-            require_deposit: data.depositPercentage != null,
-          });
-        }
-      } catch {
-        // use defaults
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, []));
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await apiRequest<{ businessName?: string; logoUrl?: string | null; coverImageUrl?: string | null }>('/owner/profile');
+      setBusinessName(data?.businessName || '');
+      setSavedName(data?.businessName || '');
+      setLogoUrl(data?.logoUrl || null);
+      setCoverUrl(data?.coverImageUrl || null);
+      setLoadError(null);
+    } catch (err: any) {
+      setLoadError(err?.message || 'Failed to load business settings.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const handleSave = async () => {
+    setMessage(null);
+    const name = businessName.trim();
+    if (!name) { setMessage({ type: 'error', text: 'Business name cannot be empty.' }); return; }
+    if (name === savedName) return;
     setSaving(true);
     try {
-      const body: PaymentScheduleApi = {
-        depositPercentage: schedule.require_deposit ? schedule.deposit_percentage : null,
-        depositDueDaysBefore: schedule.require_deposit ? schedule.deposit_due_days : null,
-        finalPaymentDueDaysBefore: schedule.final_payment_days,
-      };
-      await apiRequest('/owner/payment-schedule', { method: 'PUT', body });
-      Alert.alert('Saved', 'Payment schedule updated.');
+      await apiRequest('/owner/profile', { method: 'PUT', body: { businessName: name } });
+      setSavedName(name);
+      setMessage({ type: 'success', text: 'Business name updated.' });
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to save');
+      setMessage({ type: 'error', text: err?.message || 'Failed to update business name. Please try again.' });
     } finally {
       setSaving(false);
     }
   };
 
-  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color={Colors.primary} /></View>;
+  if (loading) return <LoadingState message="Loading business settings…" />;
+  if (loadError) return <AcctErrorState message={loadError} onRetry={load} />;
 
   return (
-    <ScrollView style={styles.tabContent} contentContainerStyle={styles.tabContentInner}>
+    <ScrollView style={styles.tabContent} contentContainerStyle={styles.tabContentInner} keyboardShouldPersistTaps="handled">
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Deposit Settings</Text>
-        <View style={styles.settingRow}>
-          <Text style={styles.settingLabel}>Require Deposit</Text>
-          <Switch value={schedule.require_deposit} onValueChange={v => setSchedule(p => ({ ...p, require_deposit: v }))} trackColor={{ false: Colors.border, true: Colors.primary }} thumbColor="#FFF" />
+        <Text style={styles.cardTitle}>Business branding</Text>
+        <AcctField label="Business name" value={businessName} onChangeText={setBusinessName} placeholder="Your venue or company name" />
+        <AppButton title="Save business name" onPress={handleSave} loading={saving} disabled={!businessName.trim() || businessName.trim() === savedName} />
+        <Banner message={message} />
+
+        {coverUrl ? <Image source={{ uri: coverUrl }} style={styles.cover} resizeMode="cover" /> : null}
+        {logoUrl ? <Image source={{ uri: logoUrl }} style={styles.logo} resizeMode="contain" /> : null}
+        <Text style={styles.hint}>Logo and banner photos can be uploaded from the web dashboard.</Text>
+        <TouchableOpacity style={styles.linkRow} onPress={() => Linking.openURL(`${WEB_URL}/dashboard/settings?tab=branding`)}>
+          <Text style={styles.linkText}>Manage logo & banner on web</Text>
+          <Ionicons name="open-outline" size={16} color={Colors.primary} />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Venues</Text>
+        <Text style={styles.hint}>Add, edit or remove the venues under your account.</Text>
+        <TouchableOpacity style={styles.linkRow} onPress={() => router.push('/(tabs)/venues' as any)}>
+          <Text style={styles.linkText}>Manage venues</Text>
+          <Ionicons name="chevron-forward" size={16} color={Colors.primary} />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Bank account & payouts</Text>
+        <Text style={styles.hint}>Payouts are processed by Stripe Connect. Connect or update your bank account on the web dashboard.</Text>
+        <TouchableOpacity style={styles.linkRow} onPress={() => Linking.openURL(`${WEB_URL}/dashboard/settings?tab=payouts`)}>
+          <Text style={styles.linkText}>Manage payouts on web</Text>
+          <Ionicons name="open-outline" size={16} color={Colors.primary} />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Team & security</Text>
+        <TouchableOpacity style={styles.linkRow} onPress={() => router.push('/(tabs)/team' as any)}>
+          <Text style={styles.linkText}>Team members</Text>
+          <Ionicons name="chevron-forward" size={16} color={Colors.primary} />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.linkRow} onPress={() => router.push('/(tabs)/security' as any)}>
+          <Text style={styles.linkText}>Security personnel</Text>
+          <Ionicons name="chevron-forward" size={16} color={Colors.primary} />
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
+  );
+}
+
+function BillingTab() {
+  const [enabled, setEnabled] = useState(false);
+  const [depositPct, setDepositPct] = useState('50');
+  const [depositDays, setDepositDays] = useState('45');
+  const [finalDays, setFinalDays] = useState('14');
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const d = await apiRequest<{ depositPercentage: number | null; depositDueDaysBefore: number | null; finalPaymentDueDaysBefore: number | null }>('/owner/payment-schedule');
+      if (d?.depositPercentage != null) {
+        setEnabled(true);
+        setDepositPct(String(Number(d.depositPercentage)));
+        setDepositDays(String(Number(d.depositDueDaysBefore ?? 45)));
+        setFinalDays(String(Number(d.finalPaymentDueDaysBefore ?? 14)));
+      } else {
+        setEnabled(false);
+      }
+      setLoadError(null);
+    } catch (err: any) {
+      setLoadError(err?.message || 'Failed to load your payment schedule.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const handleSave = async () => {
+    setMessage(null);
+    const pct = Number(depositPct);
+    const dDays = Number(depositDays);
+    const fDays = Number(finalDays);
+    if (enabled) {
+      if (!Number.isFinite(pct) || pct < 1 || pct > 100) { setMessage({ type: 'error', text: 'Deposit must be between 1 and 100%.' }); return; }
+      if (!Number.isInteger(dDays) || dDays < 0 || !Number.isInteger(fDays) || fDays < 0) {
+        setMessage({ type: 'error', text: 'Due days must be whole numbers of 0 or more.' });
+        return;
+      }
+    }
+    setSaving(true);
+    try {
+      // Matches the web billing tab: all three values are cleared when deposits are not required.
+      await apiRequest('/owner/payment-schedule', {
+        method: 'PUT',
+        body: {
+          depositPercentage: enabled ? pct : null,
+          depositDueDaysBefore: enabled ? dDays : null,
+          finalPaymentDueDaysBefore: enabled ? fDays : null,
+        },
+      });
+      setMessage({ type: 'success', text: 'Payment schedule saved!' });
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.message || 'Failed to save payment schedule.' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <LoadingState message="Loading payment schedule…" />;
+  if (loadError) return <AcctErrorState message={loadError} onRetry={load} />;
+
+  const pct = Number(depositPct) || 0;
+
+  return (
+    <ScrollView style={styles.tabContent} contentContainerStyle={styles.tabContentInner} keyboardShouldPersistTaps="handled">
+      <Text style={styles.intro}>
+        Set your default deposit and payment due rules. These are applied to every new invoice you create.
+      </Text>
+
+      <View style={styles.card}>
+        <View style={styles.switchRow}>
+          <View style={{ flex: 1, marginRight: 10 }}>
+            <Text style={styles.switchTitle}>Require a deposit to confirm bookings</Text>
+            <Text style={styles.hint}>Clients pay a % upfront; the balance is due before the event.</Text>
+          </View>
+          <Switch value={enabled} onValueChange={setEnabled} trackColor={{ false: Colors.border, true: Colors.primary }} thumbColor={Colors.surface} />
         </View>
-        {schedule.require_deposit && (
-          <>
-            <View style={styles.settingRow}>
-              <Text style={styles.settingLabel}>Deposit Percentage</Text>
-              <View style={styles.numericInput}>
-                <TextInput style={styles.numericText} value={String(schedule.deposit_percentage)} onChangeText={v => setSchedule(p => ({ ...p, deposit_percentage: parseFloat(v) || 0 }))} keyboardType="decimal-pad" />
-                <Text style={styles.numericSuffix}>%</Text>
-              </View>
+
+        {enabled && (
+          <View style={{ marginTop: 16 }}>
+            <AcctField label="Deposit required (%)" value={depositPct} onChangeText={v => setDepositPct(v.replace(/[^0-9.]/g, ''))} keyboardType="decimal-pad" hint="% of the invoice total required as a deposit" />
+            <AcctField label="Deposit due (days before event)" value={depositDays} onChangeText={v => setDepositDays(v.replace(/\D/g, ''))} keyboardType="number-pad" />
+            <AcctField label="Final payment due (days before event)" value={finalDays} onChangeText={v => setFinalDays(v.replace(/\D/g, ''))} keyboardType="number-pad" />
+            <View style={styles.summary}>
+              <Text style={styles.summaryTitle}>How this will appear on invoices:</Text>
+              <Text style={styles.summaryText}>• Deposit ({pct}%) — due {depositDays || 0} days before the event</Text>
+              <Text style={styles.summaryText}>• Final payment ({Math.max(0, 100 - pct)}%) — due {finalDays || 0} days before the event</Text>
             </View>
-            <View style={styles.settingRow}>
-              <Text style={styles.settingLabel}>Deposit Due (days after booking)</Text>
-              <View style={styles.numericInput}>
-                <TextInput style={styles.numericText} value={String(schedule.deposit_due_days)} onChangeText={v => setSchedule(p => ({ ...p, deposit_due_days: parseInt(v) || 0 }))} keyboardType="number-pad" />
-                <Text style={styles.numericSuffix}>days</Text>
-              </View>
-            </View>
-          </>
+          </View>
         )}
       </View>
 
-      <View style={[styles.card, { marginTop: 16 }]}>
-        <Text style={styles.cardTitle}>Final Payment</Text>
-        <View style={styles.settingRow}>
-          <Text style={styles.settingLabel}>Days before event</Text>
-          <View style={styles.numericInput}>
-            <TextInput style={styles.numericText} value={String(schedule.final_payment_days)} onChangeText={v => setSchedule(p => ({ ...p, final_payment_days: parseInt(v) || 0 }))} keyboardType="number-pad" />
-            <Text style={styles.numericSuffix}>days</Text>
-          </View>
-        </View>
-      </View>
-
-      <TouchableOpacity style={[styles.saveBtn, saving && styles.saveBtnDisabled, { marginTop: 24 }]} onPress={handleSave} disabled={saving}>
-        {saving ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={styles.saveBtnText}>Save Payment Schedule</Text>}
-      </TouchableOpacity>
+      <AppButton title="Save billing settings" onPress={handleSave} loading={saving} style={{ marginTop: 16 }} />
+      <Banner message={message} />
     </ScrollView>
   );
 }
@@ -233,66 +355,131 @@ function PasswordTab() {
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [show, setShow] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const handleSave = async () => {
-    if (next.length < 8) { Alert.alert('Validation', 'Password must be at least 8 characters.'); return; }
-    if (next !== confirm) { Alert.alert('Validation', 'Passwords do not match.'); return; }
+    setMessage(null);
+    if (!current) { setMessage({ type: 'error', text: 'Enter your current password.' }); return; }
+    if (next !== confirm) { setMessage({ type: 'error', text: 'New passwords do not match' }); return; }
+    if (next.length < 6) { setMessage({ type: 'error', text: 'Password must be at least 6 characters' }); return; }
     setSaving(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password: next });
-      if (error) throw error;
-      Alert.alert('Saved', 'Password updated successfully.');
+      // Backend verifies the current password before updating, same as the web app.
+      await apiRequest('/auth/password', { method: 'PUT', body: { currentPassword: current, newPassword: next } });
+      setMessage({ type: 'success', text: 'Password changed successfully!' });
       setCurrent(''); setNext(''); setConfirm('');
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to update password');
+      setMessage({ type: 'error', text: err?.message || 'Failed to change password' });
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <ScrollView style={styles.tabContent} contentContainerStyle={styles.tabContentInner}>
-      <View style={styles.section}>
-        <Text style={styles.label}>New Password</Text>
-        <TextInput style={styles.input} value={next} onChangeText={setNext} secureTextEntry placeholder="At least 8 characters" placeholderTextColor={Colors.textMuted} />
-      </View>
-      <View style={styles.section}>
-        <Text style={styles.label}>Confirm New Password</Text>
-        <TextInput style={styles.input} value={confirm} onChangeText={setConfirm} secureTextEntry placeholder="Repeat new password" placeholderTextColor={Colors.textMuted} />
-      </View>
-      <TouchableOpacity style={[styles.saveBtn, saving && styles.saveBtnDisabled]} onPress={handleSave} disabled={saving}>
-        {saving ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={styles.saveBtnText}>Update Password</Text>}
+    <ScrollView style={styles.tabContent} contentContainerStyle={styles.tabContentInner} keyboardShouldPersistTaps="handled">
+      <AcctField label="Current password" value={current} onChangeText={setCurrent} secureTextEntry={!show} autoCapitalize="none" autoCorrect={false} />
+      <AcctField label="New password" value={next} onChangeText={setNext} secureTextEntry={!show} autoCapitalize="none" autoCorrect={false} hint="Must be at least 6 characters" />
+      <AcctField label="Confirm new password" value={confirm} onChangeText={setConfirm} secureTextEntry={!show} autoCapitalize="none" autoCorrect={false} />
+      <TouchableOpacity style={styles.showRow} onPress={() => setShow(s => !s)}>
+        <Ionicons name={show ? 'eye-off-outline' : 'eye-outline'} size={18} color={Colors.textSecondary} />
+        <Text style={styles.showText}>{show ? 'Hide passwords' : 'Show passwords'}</Text>
       </TouchableOpacity>
+      <AppButton title="Change password" onPress={handleSave} loading={saving} />
+      <Banner message={message} />
+    </ScrollView>
+  );
+}
+
+function AccountTab() {
+  const [confirming, setConfirming] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const handleDelete = async () => {
+    if (confirmText !== 'DELETE') { setMessage({ type: 'error', text: 'Please type DELETE to confirm' }); return; }
+    setDeleting(true);
+    setMessage(null);
+    try {
+      await apiRequest('/auth/account', { method: 'DELETE' });
+      await supabase.auth.signOut();
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.message || 'Failed to delete account' });
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <ScrollView style={styles.tabContent} contentContainerStyle={styles.tabContentInner} keyboardShouldPersistTaps="handled">
+      <View style={styles.danger}>
+        <View style={styles.dangerHeader}>
+          <Ionicons name="warning-outline" size={22} color={Colors.error} />
+          <Text style={styles.dangerTitle}>Danger zone</Text>
+        </View>
+        <Text style={styles.dangerText}>
+          Deleting your account is permanent and cannot be undone. This will:
+        </Text>
+        <Text style={styles.dangerText}>• Permanently delete your profile and personal information</Text>
+        <Text style={styles.dangerText}>• Remove your events, bookings and associated data</Text>
+        <Text style={styles.dangerText}>• Cancel any active subscriptions</Text>
+        <Text style={styles.dangerText}>• Delete client data and communication history</Text>
+      </View>
+
+      {!confirming ? (
+        <AppButton title="I understand, delete my account" onPress={() => setConfirming(true)} style={{ backgroundColor: Colors.error }} />
+      ) : (
+        <View style={styles.card}>
+          <Text style={styles.dangerText}>To confirm, type DELETE below:</Text>
+          <AcctField label="" value={confirmText} onChangeText={setConfirmText} placeholder="Type DELETE to confirm" autoCapitalize="characters" autoCorrect={false} />
+          <AppButton
+            title="Permanently delete account"
+            onPress={handleDelete}
+            loading={deleting}
+            disabled={confirmText !== 'DELETE'}
+            style={{ backgroundColor: Colors.error }}
+          />
+          <AppButton title="Cancel" variant="ghost" onPress={() => { setConfirming(false); setConfirmText(''); }} disabled={deleting} />
+        </View>
+      )}
+      <Banner message={message} />
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  tabBar: { flexDirection: 'row', backgroundColor: Colors.surface, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.border },
-  tab: { flex: 1, paddingVertical: 14, alignItems: 'center' },
+  tabBarWrap: { backgroundColor: Colors.surface, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.border },
+  tabBar: { paddingHorizontal: 8 },
+  tab: { paddingVertical: 14, paddingHorizontal: 14, alignItems: 'center' },
   tabActive: { borderBottomWidth: 2, borderBottomColor: Colors.primary },
   tabText: { fontSize: 14, fontWeight: '500', color: Colors.textMuted },
   tabTextActive: { color: Colors.primary, fontWeight: '700' },
   tabContent: { flex: 1 },
   tabContentInner: { padding: 20, paddingBottom: 40 },
-  section: { marginBottom: 16 },
-  label: { fontSize: 12, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 },
-  input: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 12, borderWidth: 1, borderColor: Colors.border, fontSize: 15, color: Colors.textPrimary },
-  inputDisabled: { opacity: 0.6 },
-  hint: { fontSize: 12, color: Colors.textMuted, marginTop: 4 },
-  card: { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: 16, ...Shadow.sm },
-  cardTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 16 },
-  settingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.border },
-  settingLabel: { fontSize: 14, color: Colors.textSecondary, flex: 1 },
-  numericInput: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.background, borderRadius: Radius.sm, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: Colors.border },
-  numericText: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, minWidth: 36, textAlign: 'right' },
-  numericSuffix: { fontSize: 13, color: Colors.textMuted, marginLeft: 4 },
-  saveBtn: { backgroundColor: Colors.primary, borderRadius: Radius.lg, padding: 16, alignItems: 'center' },
-  saveBtnDisabled: { opacity: 0.6 },
-  saveBtnText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
-  signOutBtn: { marginTop: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 14, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.error + '50', backgroundColor: Colors.error + '08' },
+  intro: { fontSize: 13, color: Colors.textSecondary, marginBottom: 14, lineHeight: 19 },
+  hint: { fontSize: 12, color: Colors.textMuted, marginTop: 2, lineHeight: 17 },
+  card: { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: 16, marginBottom: 16, ...Shadow.sm },
+  cardTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 12 },
+  banner: { marginTop: 14, padding: 10, borderRadius: Radius.md, fontSize: 13, overflow: 'hidden' },
+  bannerOk: { backgroundColor: Colors.successLight, color: Colors.successText },
+  bannerErr: { backgroundColor: Colors.errorLight, color: Colors.errorText },
+  signOutBtn: { marginTop: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 14, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.error, backgroundColor: Colors.errorLight },
   signOutText: { color: Colors.error, fontSize: 15, fontWeight: '600' },
+  cover: { width: '100%', height: 110, borderRadius: Radius.md, marginTop: 16, backgroundColor: Colors.borderLight },
+  logo: { width: 140, height: 56, marginTop: 12, alignSelf: 'flex-start' },
+  linkRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.border, marginTop: 6 },
+  linkText: { fontSize: 14, fontWeight: '600', color: Colors.primary },
+  switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  switchTitle: { fontSize: 14, fontWeight: '600', color: Colors.textPrimary },
+  summary: { backgroundColor: Colors.infoLight, borderRadius: Radius.md, padding: 12, gap: 2 },
+  summaryTitle: { fontSize: 13, fontWeight: '700', color: Colors.infoText, marginBottom: 2 },
+  summaryText: { fontSize: 13, color: Colors.infoText },
+  showRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 16 },
+  showText: { fontSize: 13, color: Colors.textSecondary },
+  danger: { backgroundColor: Colors.errorLight, borderRadius: Radius.lg, padding: 16, marginBottom: 16, gap: 4 },
+  dangerHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  dangerTitle: { fontSize: 16, fontWeight: '700', color: Colors.errorText },
+  dangerText: { fontSize: 13, color: Colors.errorText, lineHeight: 19 },
 });

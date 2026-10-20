@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { apiRequest } from '@/lib/api';
 import { Colors, Radius, Shadow } from '@/lib/theme';
+import DateTimeField from '@/components/DateTimeField';
 
 interface LineItem {
   id: string;
@@ -88,8 +89,8 @@ export default function NewEstimateScreen() {
 
   const subtotal = lineItems.reduce((sum, l) => sum + (parseFloat(l.quantity) || 0) * (parseFloat(l.unit_price) || 0), 0);
   const discount = parseFloat(globalDiscount) || 0;
-  const taxAmount = includeTax ? (subtotal - discount) * (parseFloat(taxRate) || 0) / 100 : 0;
-  const total = subtotal - discount + taxAmount;
+  const taxAmount = includeTax ? subtotal * (parseFloat(taxRate) || 0) / 100 : 0;
+  const total = subtotal + taxAmount - discount;
 
   const handleCreate = async () => {
     const validItems = lineItems.filter(l => l.description.trim() && parseFloat(l.unit_price) > 0);
@@ -109,6 +110,7 @@ export default function NewEstimateScreen() {
           estimate: {
             owner_id: user.id,
             intake_form_id: selectedEvent?.intake_form_id || null,
+            event_id: selectedEvent?.id || null,
             client_name: clientName || undefined,
             client_phone: clientPhone || undefined,
             subtotal,
@@ -226,7 +228,7 @@ export default function NewEstimateScreen() {
             <TextInput style={styles.inlineInput} value={globalDiscount} onChangeText={setGlobalDiscount} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={Colors.textMuted} />
           </View>
           <View style={styles.totalRow}>
-            <View style={styles.taxRow}><Text style={styles.totalLabel}>Tax</Text><Switch value={includeTax} onValueChange={setIncludeTax} trackColor={{ false: Colors.border, true: Colors.primary }} thumbColor="#FFF" style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }} /></View>
+            <View style={styles.taxRow}><Text style={styles.totalLabel}>Tax</Text><Switch value={includeTax} onValueChange={setIncludeTax} trackColor={{ false: Colors.border, true: Colors.primary }} thumbColor={Colors.textWhite} style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }} /></View>
             {includeTax && <View style={styles.taxInputRow}><TextInput style={[styles.inlineInput, { width: 60 }]} value={taxRate} onChangeText={setTaxRate} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={Colors.textMuted} /><Text style={styles.totalLabel}>%  →  {fmt(taxAmount)}</Text></View>}
           </View>
           <View style={[styles.totalRow, styles.totalFinal]}><Text style={styles.totalFinalLabel}>Total</Text><Text style={styles.totalFinalValue}>{fmt(total)}</Text></View>
@@ -237,8 +239,10 @@ export default function NewEstimateScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>Dates</Text>
         <View style={styles.card}>
-          <View style={styles.totalRow}><Text style={styles.totalLabel}>Issue Date</Text><TextInput style={styles.inlineInput} value={issueDate} onChangeText={setIssueDate} placeholder="YYYY-MM-DD" placeholderTextColor={Colors.textMuted} /></View>
-          <View style={styles.totalRow}><Text style={styles.totalLabel}>Expiration Date</Text><TextInput style={styles.inlineInput} value={expirationDate} onChangeText={setExpirationDate} placeholder="YYYY-MM-DD" placeholderTextColor={Colors.textMuted} /></View>
+          <View style={{ marginBottom: -12 }}>
+            <DateTimeField label="Issue Date" mode="date" value={issueDate} onChange={setIssueDate} />
+            <DateTimeField label="Expiration Date" mode="date" value={expirationDate} onChange={setExpirationDate} />
+          </View>
         </View>
       </View>
 
@@ -252,8 +256,8 @@ export default function NewEstimateScreen() {
       </View>
 
       <TouchableOpacity style={[styles.createBtn, saving && styles.createBtnDisabled]} onPress={handleCreate} disabled={saving}>
-        {saving ? <ActivityIndicator color="#FFF" size="small" /> : (
-          <><Ionicons name="document-text-outline" size={18} color="#FFF" /><Text style={styles.createBtnText}>Create Estimate</Text></>
+        {saving ? <ActivityIndicator color={Colors.textWhite} size="small" /> : (
+          <><Ionicons name="document-text-outline" size={18} color={Colors.textWhite} /><Text style={styles.createBtnText}>Create Estimate</Text></>
         )}
       </TouchableOpacity>
     </ScrollView>
@@ -293,8 +297,8 @@ const styles = StyleSheet.create({
   inlineInput: { backgroundColor: Colors.background, borderRadius: Radius.sm, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: Colors.border, fontSize: 14, color: Colors.textPrimary, minWidth: 80, textAlign: 'right' },
   totalFinal: { borderBottomWidth: 0, marginTop: 4 },
   totalFinalLabel: { fontSize: 16, fontWeight: '700', color: Colors.textPrimary },
-  totalFinalValue: { fontSize: 20, fontWeight: '800', color: '#7C3AED' },
-  createBtn: { backgroundColor: '#7C3AED', borderRadius: Radius.lg, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 8 },
+  totalFinalValue: { fontSize: 20, fontWeight: '800', color: Colors.purple },
+  createBtn: { backgroundColor: Colors.purple, borderRadius: Radius.lg, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 8 },
   createBtnDisabled: { opacity: 0.6 },
-  createBtnText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
+  createBtnText: { color: Colors.textWhite, fontSize: 16, fontWeight: '700' },
 });

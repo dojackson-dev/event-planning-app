@@ -21,6 +21,8 @@ export default function PromoterLayout() {
       <Stack.Screen name="vendor-bookings" options={{ headerShown: false }} />
       <Stack.Screen name="invoices" options={{ headerShown: false }} />
       <Stack.Screen name="artist-bills" options={{ headerShown: false }} />
+      <Stack.Screen name="contracts" options={{ headerShown: false }} />
+      <Stack.Screen name="booking-link" options={{ title: 'Booking Link' }} />
       <Stack.Screen name="calendar" options={{ title: 'Calendar' }} />
     </Stack>
   );

@@ -6,7 +6,7 @@ export default function InvoicesLayout() {
     <Stack
       screenOptions={{
         headerStyle: { backgroundColor: Colors.primary },
-        headerTintColor: '#FFFFFF',
+        headerTintColor: Colors.textWhite,
         headerTitleStyle: { fontWeight: '700', fontSize: 17 },
         headerBackTitle: 'Invoices',
       }}
@@ -14,6 +14,7 @@ export default function InvoicesLayout() {
       <Stack.Screen name="index" options={{ title: 'Invoices' }} />
       <Stack.Screen name="new" options={{ title: 'New Invoice', headerBackTitle: 'Back' }} />
       <Stack.Screen name="[id]" options={{ title: 'Invoice' }} />
+      <Stack.Screen name="edit" options={{ title: 'Edit Invoice', headerBackTitle: 'Back' }} />
     </Stack>
   );
 }

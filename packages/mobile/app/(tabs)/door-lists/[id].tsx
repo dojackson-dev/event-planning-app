@@ -1,13 +1,19 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View, Text, FlatList, StyleSheet, TextInput, TouchableOpacity,
-  ActivityIndicator, Alert, Switch,
+  ActivityIndicator, Alert, Switch, RefreshControl, Share,
 } from 'react-native';
-import { useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { useLocalSearchParams, useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { apiRequest } from '@/lib/api';
 import { Colors, Radius, Shadow } from '@/lib/theme';
 import EmptyState from '@/components/EmptyState';
+import LoadingState from '@/components/LoadingState';
+import EvtErrorState from '@/components/EvtErrorState';
+import { formatDate, formatTime } from '@/components/EvtDate';
+
+const FRONTEND_URL = 'https://eventecos.com';
+const AUTO_REFRESH_MS = 15000;
 
 interface Guest {
   id: number;
@@ -19,13 +25,17 @@ interface Guest {
   hasArrived?: boolean;
   is_vip?: boolean;
   isVip?: boolean;
+  arrived_at?: string | null;
+  arrivedAt?: string | null;
 }
 
 interface GuestListDetail {
   id: number;
   is_locked?: boolean;
   isLocked?: boolean;
-  event?: { name?: string; date?: string; startTime?: string | null } | null;
+  arrival_token?: string;
+  arrivalToken?: string;
+  event?: { name?: string; date?: string; startTime?: string | null; start_time?: string | null } | null;
   guests: Guest[];
 }
 
@@ -33,6 +43,7 @@ type FilterKey = 'all' | 'arrived' | 'pending' | 'vip';
 
 export default function DoorListDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
 
   const [guestList, setGuestList] = useState<GuestListDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -48,6 +59,8 @@ export default function DoorListDetailScreen() {
   const [importing, setImporting] = useState(false);
   const [lockUpdating, setLockUpdating] = useState(false);
   const [checkingIds, setCheckingIds] = useState<number[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -59,10 +72,17 @@ export default function DoorListDetailScreen() {
       setError(err.message || 'Failed to load door list');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [id]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const t = setInterval(load, AUTO_REFRESH_MS);
+    return () => clearInterval(t);
+  }, [autoRefresh, load]);
 
   const guests = guestList?.guests || [];
   const isLocked = !!(guestList?.is_locked ?? guestList?.isLocked);
@@ -70,7 +90,8 @@ export default function DoorListDetailScreen() {
   const stats = useMemo(() => {
     const arrived = guests.filter((g) => !!(g.has_arrived ?? g.hasArrived)).length;
     const vip = guests.filter((g) => !!(g.is_vip ?? g.isVip)).length;
-    return { total: guests.length, arrived, pending: guests.length - arrived, vip };
+    const withPlus = guests.reduce((sum, g) => sum + 1 + (g.plus_one_count ?? g.plusOneCount ?? 0), 0);
+    return { total: guests.length, arrived, pending: guests.length - arrived, vip, withPlus };
   }, [guests]);
 
   const filteredGuests = useMemo(() => {
@@ -156,18 +177,48 @@ export default function DoorListDetailScreen() {
     }
   };
 
-  if (loading) {
-    return <View style={styles.centered}><ActivityIndicator size="large" color={Colors.primary} /></View>;
-  }
+  const handleShareDoorLink = async () => {
+    const token = guestList?.arrival_token ?? guestList?.arrivalToken;
+    if (!token) {
+      Alert.alert('No link available', 'This door list has no arrival link yet.');
+      return;
+    }
+    try {
+      await Share.share({ message: `Door list arrival tracking:\n${FRONTEND_URL}/guest-list/arrival/${token}` });
+    } catch { /* user dismissed the share sheet */ }
+  };
 
-  if (error || !guestList) {
+  const handleExport = async () => {
+    const q = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    const rows = [
+      ['Name', 'Phone', 'VIP', 'Plus Ones', 'Arrived', 'Arrived At'].join(','),
+      ...guests.map((g) => [
+        q(g.name),
+        q(g.phone ?? ''),
+        (g.is_vip ?? g.isVip) ? 'Yes' : 'No',
+        String(g.plus_one_count ?? g.plusOneCount ?? 0),
+        (g.has_arrived ?? g.hasArrived) ? 'Yes' : 'No',
+        q(g.arrived_at ?? g.arrivedAt ?? ''),
+      ].join(',')),
+    ];
+    try {
+      await Share.share({ title: `${guestList?.event?.name || 'Door list'} guests`, message: rows.join('\n') });
+    } catch { /* user dismissed the share sheet */ }
+  };
+
+  if (loading) return <LoadingState message="Loading door list…" />;
+
+  if (!guestList) {
     return (
-      <View style={styles.centered}>
-        <Ionicons name="alert-circle-outline" size={32} color={Colors.error} />
-        <Text style={styles.errorText}>{error || 'Door list not found'}</Text>
-      </View>
+      <EvtErrorState
+        title="Couldn't load door list"
+        message={error || 'Door list not found'}
+        onRetry={() => { setLoading(true); load(); }}
+      />
     );
   }
+
+  const eventTime = guestList.event?.startTime ?? guestList.event?.start_time;
 
   return (
     <FlatList
@@ -175,13 +226,16 @@ export default function DoorListDetailScreen() {
       contentContainerStyle={styles.content}
       data={filteredGuests}
       keyExtractor={(item) => String(item.id)}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.primary} />}
+      keyboardShouldPersistTaps="handled"
       ListHeaderComponent={
         <View>
           <View style={[styles.headerCard, Shadow.md]}>
             <Text style={styles.eventName}>{guestList.event?.name || 'Guest List'}</Text>
             {guestList.event?.date && (
               <Text style={styles.eventDate}>
-                {guestList.event.date}{guestList.event.startTime ? ` at ${guestList.event.startTime}` : ''}
+                {formatDate(guestList.event.date, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                {eventTime ? ` at ${formatTime(eventTime)}` : ''}
               </Text>
             )}
             <View style={styles.statsRow}>
@@ -198,10 +252,11 @@ export default function DoorListDetailScreen() {
                 <Text style={styles.statLabel}>Pending</Text>
               </View>
               <View style={styles.statBox}>
-                <Text style={[styles.statNumber, { color: '#B45309' }]}>{stats.vip}</Text>
+                <Text style={[styles.statNumber, { color: Colors.warningText }]}>{stats.vip}</Text>
                 <Text style={styles.statLabel}>VIP</Text>
               </View>
             </View>
+            <Text style={styles.headcount}>{stats.withPlus} total headcount including plus-ones</Text>
             <View style={styles.lockRow}>
               <Text style={styles.lockLabel}>{isLocked ? 'List Locked' : 'List Open'}</Text>
               <Switch
@@ -225,6 +280,27 @@ export default function DoorListDetailScreen() {
                 <Ionicons name="refresh-outline" size={16} color={Colors.primary} />
               )}
               <Text style={styles.actionBtnText}>Import RSVP</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.actionsRow}>
+            <TouchableOpacity style={[styles.actionBtn, Shadow.sm]} onPress={handleShareDoorLink}>
+              <Ionicons name="share-outline" size={16} color={Colors.primary} />
+              <Text style={styles.actionBtnText}>Door Link</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.actionBtn, Shadow.sm]} onPress={handleExport}>
+              <Ionicons name="download-outline" size={16} color={Colors.primary} />
+              <Text style={styles.actionBtnText}>Export</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.actionsRow}>
+            <TouchableOpacity style={[styles.actionBtn, Shadow.sm]} onPress={() => setAutoRefresh((v) => !v)}>
+              <Ionicons name={autoRefresh ? 'sync-circle' : 'sync-circle-outline'} size={16} color={autoRefresh ? Colors.success : Colors.primary} />
+              <Text style={[styles.actionBtnText, autoRefresh && { color: Colors.success }]}>{autoRefresh ? 'Auto-refresh on' : 'Auto-refresh'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.actionBtn, Shadow.sm]} onPress={() => router.push(`/(tabs)/guest-lists/${guestList.id}` as any)}>
+              <Ionicons name="people-outline" size={16} color={Colors.primary} />
+              <Text style={styles.actionBtnText}>Manage List</Text>
             </TouchableOpacity>
           </View>
 
@@ -290,6 +366,11 @@ export default function DoorListDetailScreen() {
               </View>
               {item.phone && <Text style={styles.guestMeta}>{item.phone}</Text>}
               {plusOnes > 0 && <Text style={styles.guestMeta}>+{plusOnes} guest{plusOnes !== 1 ? 's' : ''}</Text>}
+              {arrived && (item.arrived_at ?? item.arrivedAt) ? (
+                <Text style={styles.guestMeta}>
+                  Arrived {new Date((item.arrived_at ?? item.arrivedAt) as string).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                </Text>
+              ) : null}
             </View>
             <TouchableOpacity
               style={[styles.arriveBtn, arrived ? styles.arriveBtnActive : styles.arriveBtnPending]}
@@ -330,6 +411,7 @@ const styles = StyleSheet.create({
   statBox: { alignItems: 'center', flex: 1 },
   statNumber: { fontSize: 18, fontWeight: '800', color: Colors.textPrimary },
   statLabel: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+  headcount: { fontSize: 12, color: Colors.textMuted, textAlign: 'center', marginTop: 10 },
   lockRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.borderLight },
   lockLabel: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
 
@@ -350,7 +432,7 @@ const styles = StyleSheet.create({
   vipLabel: { fontSize: 14, color: Colors.textPrimary, fontWeight: '600' },
   submitBtn: { backgroundColor: Colors.primary, borderRadius: Radius.lg, paddingVertical: 12, alignItems: 'center', marginTop: 14 },
   submitBtnDisabled: { opacity: 0.6 },
-  submitBtnText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
+  submitBtnText: { color: Colors.textWhite, fontSize: 14, fontWeight: '700' },
 
   searchRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
@@ -361,7 +443,7 @@ const styles = StyleSheet.create({
   filterChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.full, backgroundColor: Colors.surface },
   filterChipActive: { backgroundColor: Colors.primary },
   filterChipText: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary },
-  filterChipTextActive: { color: '#FFF' },
+  filterChipTextActive: { color: Colors.textWhite },
 
   guestCard: {
     flexDirection: 'row', alignItems: 'center', gap: 10,

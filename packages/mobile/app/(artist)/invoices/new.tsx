@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { apiRequest } from '@/lib/api';
 import { Colors, Radius, Shadow } from '@/lib/theme';
+import DateTimeField from '@/components/DateTimeField';
 
 interface LineItem {
   id: string;
@@ -130,26 +131,8 @@ export default function NewArtistInvoiceScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>Dates</Text>
         <View style={styles.card}>
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Issue Date</Text>
-            <TextInput
-              style={styles.inlineInput}
-              value={issueDate}
-              onChangeText={setIssueDate}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={Colors.textMuted}
-            />
-          </View>
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Due Date</Text>
-            <TextInput
-              style={styles.inlineInput}
-              value={dueDate}
-              onChangeText={setDueDate}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={Colors.textMuted}
-            />
-          </View>
+          <DateTimeField label="Issue Date" mode="date" value={issueDate} onChange={setIssueDate} />
+          <DateTimeField label="Due Date" mode="date" value={dueDate} onChange={setDueDate} />
         </View>
       </View>
 

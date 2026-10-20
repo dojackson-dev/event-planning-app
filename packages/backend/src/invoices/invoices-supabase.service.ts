@@ -771,18 +771,35 @@ event!event_id(id, name, date),
     itemId: string,
     itemData: Partial<InvoiceItem>,
   ): Promise<InvoiceItem> {
+    // Fields not being edited keep their stored values, so changing a quantity or price no longer wipes the line's discount.
+    const { data: current, error: currentError } = await supabase
+      .from('invoice_items')
+      .select('quantity, unit_price, discount_type, discount_value')
+      .eq('id', itemId)
+      .single();
+    if (currentError) throw currentError;
+
+    const changes: Partial<InvoiceItem> = {};
+    for (const key of [
+      'description',
+      'quantity',
+      'unit_price',
+      'discount_type',
+      'discount_value',
+    ] as const) {
+      if (itemData[key] !== undefined)
+        (changes as Record<string, unknown>)[key] = itemData[key];
+    }
+
     const { subtotal, discountAmount, amount } = this.calculateItemAmounts({
-      ...itemData,
-      quantity: itemData.quantity,
-      unit_price: itemData.unit_price,
-      discount_type: itemData.discount_type,
-      discount_value: itemData.discount_value,
+      ...current,
+      ...changes,
     });
 
     const { data, error } = await supabase
       .from('invoice_items')
       .update({
-        ...itemData,
+        ...changes,
         subtotal,
         discount_amount: discountAmount,
         amount,

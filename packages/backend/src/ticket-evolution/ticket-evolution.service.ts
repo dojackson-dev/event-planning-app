@@ -74,6 +74,7 @@ interface TicketEvolutionRawListing {
   row?: string | null;
   quantity?: number;
   retail_price?: number;
+  retail_price_inclusive?: number;
   format?: string | null;
 }
 
@@ -551,7 +552,8 @@ export class TicketEvolutionService {
       section: lg.section ?? null,
       row: lg.row ?? null,
       quantity: lg.quantity ?? 0,
-      retail_price: lg.retail_price ?? 0,
+      // All-in price (TEvo's recommendation; mandatory where requirements.inclusive_pricing is set).
+      retail_price: lg.retail_price_inclusive ?? lg.retail_price ?? 0,
       format: lg.format ?? null,
       checkout_url: this.hostedCheckoutUrl(id, lg.id),
     }));

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
+import InvoiceDepositFields from '@/components/InvoiceDepositFields'
 import { Plus, Trash2, Loader2, ChevronDown, BookOpen } from 'lucide-react'
 
 interface LineItem {
@@ -54,6 +55,8 @@ function NewArtistInvoiceForm() {
   const [clientPhone, setClientPhone] = useState('')
   const [issueDate, setIssueDate] = useState(today)
   const [dueDate, setDueDate] = useState(in30)
+  const [deposit, setDeposit] = useState('')
+  const [balanceDueDate, setBalanceDueDate] = useState('')
   const [items, setItems] = useState<LineItem[]>([newItem()])
   const [taxRate, setTaxRate] = useState(0)
   const [discountAmount, setDiscountAmount] = useState(0)
@@ -150,6 +153,8 @@ function NewArtistInvoiceForm() {
     client_phone: clientPhone || undefined,
     issue_date: issueDate,
     due_date: dueDate,
+    deposit_amount: deposit && parseFloat(deposit) > 0 ? parseFloat(deposit) : undefined,
+    balance_due_date: deposit && parseFloat(deposit) > 0 && balanceDueDate ? balanceDueDate : undefined,
     tax_rate: taxRate || 0,
     discount_amount: discountAmount || 0,
     notes: notes || undefined,
@@ -250,6 +255,11 @@ function NewArtistInvoiceForm() {
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
             </div>
           </div>
+          <InvoiceDepositFields
+            deposit={deposit} onDepositChange={setDeposit}
+            balanceDueDate={balanceDueDate} onBalanceDueDateChange={setBalanceDueDate}
+            total={total} dueDate={dueDate}
+          />
         </div>
 
         {/* Line Items */}

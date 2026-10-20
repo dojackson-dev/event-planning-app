@@ -1231,7 +1231,7 @@ export class ClientPortalService {
 
     const invoiceSelect = `
       id, invoice_number, status, total_amount, amount_due, amount_paid,
-      due_date, issue_date, paid_date, created_at, client_name, notes, owner_id,
+      due_date, issue_date, paid_date, created_at, client_name, notes, owner_id, deposit_percentage,
       items:invoice_items(id, description, quantity, unit_price, amount, item_type)
     `;
 
@@ -1367,6 +1367,7 @@ export class ClientPortalService {
     clientPhone: string,
     clientName: string,
     payMethod?: string,
+    payAmount?: string,
   ): Promise<{ url: string }> {
     const supabase = this.supabaseService.getAdminClient();
     const phoneVariants = buildPhoneVariants(clientPhone);
@@ -1420,6 +1421,7 @@ export class ClientPortalService {
       invoiceId,
       clientName,
       payMethod,
+      payAmount,
     );
     return { url };
   }

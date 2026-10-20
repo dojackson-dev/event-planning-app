@@ -17,6 +17,14 @@ import {
   paymentMethodTypesFor,
   processingRateLabel,
 } from '../payments/platform-fee';
+import {
+  applyCredit,
+  creditCentsFor,
+  depositRemainingCents,
+  hasDeposit,
+  normalizePayAmount,
+  validateDeposit,
+} from '../payments/invoice-deposit';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import Stripe from 'stripe';
 import { isBilledTo } from './invoice-recipient';
@@ -114,6 +122,13 @@ export class ArtistInvoicesService {
     const discountAmount = dto.discount_amount ?? 0;
     const { subtotal, taxAmount, totalAmount, amountDue } =
       this.calculateTotals(dto.items, taxRate, discountAmount);
+    const depositError = validateDeposit({
+      deposit_amount: dto.deposit_amount,
+      balance_due_date: dto.balance_due_date,
+      due_date: dto.due_date,
+      total_amount: totalAmount,
+    });
+    if (depositError) throw new BadRequestException(depositError);
 
     const { data: invoice, error: invErr } = await admin
       .from('artist_invoices')
@@ -135,6 +150,13 @@ export class ArtistInvoicesService {
         notes: dto.notes ?? null,
         terms: dto.terms ?? null,
         status: 'draft',
+        // Only written when a deposit is set so invoices without one never touch the new columns.
+        ...(dto.deposit_amount != null
+          ? {
+              deposit_amount: dto.deposit_amount,
+              balance_due_date: dto.balance_due_date ?? null,
+            }
+          : {}),
       })
       .select()
       .single();
@@ -250,6 +272,26 @@ export class ArtistInvoicesService {
       .single();
 
     if (!existing) throw new NotFoundException('Invoice not found');
+
+    if (
+      dto.deposit_amount !== undefined ||
+      dto.balance_due_date !== undefined ||
+      dto.due_date !== undefined
+    ) {
+      const depositError = validateDeposit({
+        deposit_amount:
+          dto.deposit_amount !== undefined
+            ? dto.deposit_amount
+            : existing.deposit_amount,
+        balance_due_date:
+          dto.balance_due_date !== undefined
+            ? dto.balance_due_date
+            : existing.balance_due_date,
+        due_date: dto.due_date ?? existing.due_date,
+        total_amount: Number(existing.total_amount),
+      });
+      if (depositError) throw new BadRequestException(depositError);
+    }
 
     const { error } = await admin
       .from('artist_invoices')
@@ -379,6 +421,11 @@ export class ArtistInvoicesService {
       .from('artist_invoice_items')
       .select('quantity, unit_price')
       .eq('artist_invoice_id', invoiceId);
+    const { data: current } = await admin
+      .from('artist_invoices')
+      .select('*')
+      .eq('id', invoiceId)
+      .maybeSingle();
 
     const { subtotal, taxAmount, totalAmount, amountDue } =
       this.calculateTotals(
@@ -393,7 +440,11 @@ export class ArtistInvoicesService {
         subtotal,
         tax_amount: taxAmount,
         total_amount: totalAmount,
-        amount_due: amountDue,
+        // With a deposit, payments already received stay credited when items change.
+        amount_due:
+          current?.deposit_amount != null
+            ? Math.max(0, totalAmount - Number(current.amount_paid ?? 0))
+            : amountDue,
         updated_at: new Date().toISOString(),
       })
       .eq('id', invoiceId);
@@ -553,6 +604,7 @@ export class ArtistInvoicesService {
       public_token: _tok,
       stripe_checkout_session_id: _sess,
       stripe_payment_intent_id: _pi,
+      pending_credit_cents: _pending,
       ...safe
     } = data;
     return {
@@ -566,6 +618,17 @@ export class ArtistInvoicesService {
       bank_total_cents: bankTotalForCardTotalCents(
         Math.round(Number(data.amount_due) * 100),
       ),
+      ...(hasDeposit(data)
+        ? {
+            deposit_remaining_cents: depositRemainingCents(data),
+            deposit_pay_later_surcharge_cents: payLaterSurchargeCents(
+              creditCentsFor(data, 'deposit'),
+            ),
+            deposit_bank_total_cents: bankTotalForCardTotalCents(
+              creditCentsFor(data, 'deposit'),
+            ),
+          }
+        : {}),
     };
   }
 
@@ -574,8 +637,10 @@ export class ArtistInvoicesService {
   async createCheckoutSession(
     token: string,
     payMethodInput: unknown = 'card',
+    payAmountInput?: unknown,
   ): Promise<{ url: string; feeCents: number }> {
     const payMethod: PayMethod = normalizePayMethod(payMethodInput, true);
+    const payAmount = normalizePayAmount(payAmountInput);
     const admin = this.supabaseService.getAdminClient();
 
     const { data: invoice, error } = await admin
@@ -592,9 +657,11 @@ export class ArtistInvoicesService {
     if (invoice.status === 'cancelled')
       throw new ForbiddenException('Invoice has been cancelled');
 
-    const amountCents = Math.round(Number(invoice.amount_due) * 100);
+    // Invoices without a deposit always charge the full amount due.
+    const amountCents = creditCentsFor(invoice, payAmount);
     if (amountCents <= 0)
       throw new ForbiddenException('Invoice amount must be greater than zero');
+    const isDepositPayment = hasDeposit(invoice) && payAmount === 'deposit';
 
     const artist = invoice.artist_accounts;
     const hasConnect =
@@ -608,12 +675,18 @@ export class ArtistInvoicesService {
 
     const artistName = artist?.stage_name || artist?.artist_name || 'Artist';
     // Platform fee is 3% of the base (subtotal + tax - discount), NOT of the gross total
-    const baseCents = Math.round(
+    const fullBaseCents = Math.round(
       (Number(invoice.subtotal) +
         Number(invoice.tax_amount) -
         Number(invoice.discount_amount)) *
         100,
     );
+    // A deposit carries the same share of the base (and so of the platform fee) as of the total.
+    const totalCents = Math.round(Number(invoice.total_amount) * 100);
+    const baseCents =
+      hasDeposit(invoice) && totalCents > 0
+        ? Math.round((fullBaseCents * amountCents) / totalCents)
+        : fullBaseCents;
     const platformFeeCents = Math.round(baseCents * APP_FEE_RATE);
     // The client already pays Stripe's fee inside the invoice total; pay-later adds the higher fee as its own line.
     const surchargeCents =
@@ -642,7 +715,7 @@ export class ArtistInvoicesService {
             currency: 'usd',
             unit_amount: chargeCents,
             product_data: {
-              name: `Invoice ${invoice.invoice_number}`,
+              name: `${isDepositPayment ? 'Deposit — ' : ''}Invoice ${invoice.invoice_number}`,
               description: `Payment to ${artistName}`,
             },
           },
@@ -679,6 +752,14 @@ export class ArtistInvoicesService {
       .from('artist_invoices')
       .update({
         stripe_checkout_session_id: session.id,
+        // Lets the webhook credit exactly what this checkout paid (deposit invoices only).
+        // A new checkout supersedes the previous payment, so late events for it can no longer match.
+        ...(invoice.deposit_amount != null
+          ? {
+              pending_credit_cents: amountCents,
+              stripe_payment_intent_id: null,
+            }
+          : {}),
         updated_at: new Date().toISOString(),
       })
       .eq('id', invoice.id);
@@ -691,6 +772,65 @@ export class ArtistInvoicesService {
 
   // ─── Called from webhook when payment succeeds ─────────────────────────────
 
+  /**
+   * Credits the in-flight checkout to an invoice that has a deposit.
+   * Returns null when it was already credited (webhook + verify can both fire).
+   */
+  private async creditDepositPayment(
+    invoice: any,
+    paymentIntentId: string | null,
+  ): Promise<{ fullyPaid: boolean; creditedCents: number } | null> {
+    const pending = Number(invoice.pending_credit_cents ?? 0);
+    if (pending <= 0) return null;
+    const admin = this.supabaseService.getAdminClient();
+    const credit = applyCredit(invoice, pending);
+    const { data: updated } = await admin
+      .from('artist_invoices')
+      .update({
+        status: credit.fullyPaid ? 'paid' : 'sent',
+        amount_paid: credit.amount_paid,
+        amount_due: credit.amount_due,
+        pending_credit_cents: null,
+        ...(credit.fullyPaid ? { paid_at: new Date().toISOString() } : {}),
+        ...(paymentIntentId
+          ? { stripe_payment_intent_id: paymentIntentId }
+          : {}),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', invoice.id)
+      .eq('pending_credit_cents', pending)
+      .select('id');
+    if (!updated?.length) return null;
+    return { fullyPaid: credit.fullyPaid, creditedCents: pending };
+  }
+
+  private async notifyPayment(
+    invoice: any,
+    paidAmount: number,
+    isDeposit: boolean,
+  ) {
+    try {
+      const artistAccount = invoice.artist_accounts as any;
+      const artistPhone: string | null = artistAccount?.booking_phone ?? null;
+      const artistName: string =
+        artistAccount?.stage_name || artistAccount?.artist_name || 'Artist';
+      await this.smsNotifications.vendorInvoicePaid(
+        artistPhone,
+        artistName,
+        invoice.client_name ?? 'Client',
+        paidAmount,
+      );
+      await this.smsNotifications.paymentReceived(
+        invoice.client_phone ?? null,
+        invoice.client_name ?? 'Valued Client',
+        paidAmount,
+        `${isDeposit ? 'a deposit on ' : ''}your invoice from ${artistName}`,
+      );
+    } catch {
+      // SMS errors must never break payment processing
+    }
+  }
+
   async markInvoicePaidBySession(
     sessionId: string,
     paymentIntentId: string | null,
@@ -698,9 +838,7 @@ export class ArtistInvoicesService {
     const admin = this.supabaseService.getAdminClient();
     const { data: invoice } = await admin
       .from('artist_invoices')
-      .select(
-        'id, total_amount, client_name, client_phone, artist_account_id, artist_accounts(artist_name, stage_name, booking_phone)',
-      )
+      .select('*, artist_accounts(artist_name, stage_name, booking_phone)')
       .eq('stripe_checkout_session_id', sessionId)
       .maybeSingle();
 
@@ -711,17 +849,29 @@ export class ArtistInvoicesService {
       return;
     }
 
-    await admin
-      .from('artist_invoices')
-      .update({
-        status: 'paid',
-        amount_paid: invoice.total_amount,
-        amount_due: 0,
-        paid_at: new Date().toISOString(),
-        stripe_payment_intent_id: paymentIntentId,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', invoice.id);
+    let paidAmount: number = invoice.total_amount;
+    let isDeposit = false;
+    if (invoice.deposit_amount != null) {
+      const credited = await this.creditDepositPayment(
+        invoice,
+        paymentIntentId,
+      );
+      if (!credited) return;
+      paidAmount = credited.creditedCents / 100;
+      isDeposit = !credited.fullyPaid;
+    } else {
+      await admin
+        .from('artist_invoices')
+        .update({
+          status: 'paid',
+          amount_paid: invoice.total_amount,
+          amount_due: 0,
+          paid_at: new Date().toISOString(),
+          stripe_payment_intent_id: paymentIntentId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', invoice.id);
+    }
 
     // Update linked booking status if exists
     await admin
@@ -730,29 +880,10 @@ export class ArtistInvoicesService {
       .eq('artist_invoice_id', invoice.id);
 
     this.logger.log(
-      `Artist invoice ${invoice.id} marked paid via session ${sessionId}`,
+      `Artist invoice ${invoice.id} payment recorded via session ${sessionId}`,
     );
 
-    try {
-      const artistAccount = invoice.artist_accounts as any;
-      const artistPhone: string | null = artistAccount?.booking_phone ?? null;
-      const artistName: string =
-        artistAccount?.stage_name || artistAccount?.artist_name || 'Artist';
-      await this.smsNotifications.vendorInvoicePaid(
-        artistPhone,
-        artistName,
-        invoice.client_name ?? 'Client',
-        invoice.total_amount,
-      );
-      await this.smsNotifications.paymentReceived(
-        (invoice as any).client_phone ?? null,
-        invoice.client_name ?? 'Valued Client',
-        invoice.total_amount,
-        `your invoice from ${artistName}`,
-      );
-    } catch {
-      // SMS errors must never break payment processing
-    }
+    await this.notifyPayment(invoice, paidAmount, isDeposit);
   }
 
   // ─── ACH delayed payment handlers ─────────────────────────────────────────
@@ -779,24 +910,31 @@ export class ArtistInvoicesService {
     const admin = this.supabaseService.getAdminClient();
     const { data: invoice } = await admin
       .from('artist_invoices')
-      .select(
-        'id, total_amount, client_name, client_phone, artist_accounts(artist_name, stage_name, booking_phone)',
-      )
+      .select('*, artist_accounts(artist_name, stage_name, booking_phone)')
       .eq('stripe_payment_intent_id', paymentIntentId)
       .maybeSingle();
 
     if (!invoice) return;
 
-    await admin
-      .from('artist_invoices')
-      .update({
-        status: 'paid',
-        amount_paid: invoice.total_amount,
-        amount_due: 0,
-        paid_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', invoice.id);
+    let paidAmount: number = invoice.total_amount;
+    let isDeposit = false;
+    if (invoice.deposit_amount != null) {
+      const credited = await this.creditDepositPayment(invoice, null);
+      if (!credited) return;
+      paidAmount = credited.creditedCents / 100;
+      isDeposit = !credited.fullyPaid;
+    } else {
+      await admin
+        .from('artist_invoices')
+        .update({
+          status: 'paid',
+          amount_paid: invoice.total_amount,
+          amount_due: 0,
+          paid_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', invoice.id);
+    }
 
     await admin
       .from('artist_bookings')
@@ -804,29 +942,10 @@ export class ArtistInvoicesService {
       .eq('artist_invoice_id', invoice.id);
 
     this.logger.log(
-      `Artist invoice ${invoice.id} marked paid via PaymentIntent ${paymentIntentId}`,
+      `Artist invoice ${invoice.id} payment recorded via PaymentIntent ${paymentIntentId}`,
     );
 
-    try {
-      const artistAccount = invoice.artist_accounts as any;
-      const artistPhone: string | null = artistAccount?.booking_phone ?? null;
-      const artistName: string =
-        artistAccount?.stage_name || artistAccount?.artist_name || 'Artist';
-      await this.smsNotifications.vendorInvoicePaid(
-        artistPhone,
-        artistName,
-        invoice.client_name ?? 'Client',
-        invoice.total_amount,
-      );
-      await this.smsNotifications.paymentReceived(
-        (invoice as any).client_phone ?? null,
-        invoice.client_name ?? 'Valued Client',
-        invoice.total_amount,
-        `your invoice from ${artistName}`,
-      );
-    } catch {
-      // SMS errors must never break payment processing
-    }
+    await this.notifyPayment(invoice, paidAmount, isDeposit);
   }
 
   async revertProcessingStatus(paymentIntentId: string) {
@@ -846,9 +965,7 @@ export class ArtistInvoicesService {
     const admin = this.supabaseService.getAdminClient();
     const { data: invoice } = await admin
       .from('artist_invoices')
-      .select(
-        'id, status, total_amount, stripe_checkout_session_id, client_name, client_phone, artist_accounts(artist_name, stage_name, booking_phone)',
-      )
+      .select('*, artist_accounts(artist_name, stage_name, booking_phone)')
       .eq('public_token', token)
       .maybeSingle();
 
@@ -868,17 +985,40 @@ export class ArtistInvoicesService {
         ? session.payment_intent
         : (session.payment_intent?.id ?? null);
 
-    await admin
-      .from('artist_invoices')
-      .update({
-        status: 'paid',
-        amount_paid: invoice.total_amount,
-        amount_due: 0,
-        paid_at: new Date().toISOString(),
-        stripe_payment_intent_id: paymentIntentId,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', invoice.id);
+    let paidAmount: number = invoice.total_amount;
+    let fullyPaid = true;
+    if (invoice.deposit_amount != null) {
+      const credited = await this.creditDepositPayment(
+        invoice,
+        paymentIntentId,
+      );
+      if (!credited) {
+        // The webhook already recorded it; report the current state.
+        const { data: fresh } = await admin
+          .from('artist_invoices')
+          .select('status')
+          .eq('id', invoice.id)
+          .maybeSingle();
+        return {
+          status: fresh?.status ?? invoice.status,
+          paid: fresh?.status === 'paid',
+        };
+      }
+      paidAmount = credited.creditedCents / 100;
+      fullyPaid = credited.fullyPaid;
+    } else {
+      await admin
+        .from('artist_invoices')
+        .update({
+          status: 'paid',
+          amount_paid: invoice.total_amount,
+          amount_due: 0,
+          paid_at: new Date().toISOString(),
+          stripe_payment_intent_id: paymentIntentId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', invoice.id);
+    }
 
     await admin
       .from('artist_bookings')
@@ -886,30 +1026,13 @@ export class ArtistInvoicesService {
       .eq('artist_invoice_id', invoice.id);
 
     this.logger.log(
-      `Artist invoice ${invoice.id} verified and marked paid (webhook fallback)`,
+      `Artist invoice ${invoice.id} verified and payment recorded (webhook fallback)`,
     );
 
-    try {
-      const artistAccount = invoice.artist_accounts as any;
-      const artistPhone: string | null = artistAccount?.booking_phone ?? null;
-      const artistName: string =
-        artistAccount?.stage_name || artistAccount?.artist_name || 'Artist';
-      await this.smsNotifications.vendorInvoicePaid(
-        artistPhone,
-        artistName,
-        invoice.client_name ?? 'Client',
-        invoice.total_amount,
-      );
-      await this.smsNotifications.paymentReceived(
-        (invoice as any).client_phone ?? null,
-        invoice.client_name ?? 'Valued Client',
-        invoice.total_amount,
-        `your invoice from ${artistName}`,
-      );
-    } catch {
-      // SMS errors must never break payment processing
-    }
+    await this.notifyPayment(invoice, paidAmount, !fullyPaid);
 
-    return { status: 'paid', paid: true };
+    return fullyPaid
+      ? { status: 'paid', paid: true }
+      : { status: 'sent', paid: false };
   }
 }

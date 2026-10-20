@@ -199,6 +199,7 @@ export default function TicketEvolutionEventDetailPage({ params }: { params: { i
             <h2 className="font-bold text-gray-900 flex items-center gap-2">
               <Ticket className="w-5 h-5 text-purple-500" />Ticket Options
             </h2>
+            <p className="text-xs text-gray-400">Prices shown are all-in, with fees included.</p>
             {event.listings.length === 0 ? (
               <p className="text-sm text-gray-400 py-4 text-center">No tickets currently listed.</p>
             ) : (

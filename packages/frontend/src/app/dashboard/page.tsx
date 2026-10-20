@@ -10,6 +10,7 @@ import { parseLocalDate } from '@/lib/dateUtils'
 import SetupChecklist from '@/components/SetupChecklist'
 import TrialBanner from '@/components/TrialBanner'
 import DemoTour from '@/components/DemoTour'
+import DashboardAssistant from '@/components/DashboardAssistant'
 import { useVenue } from '@/contexts/VenueContext'
 
 interface IntakeForm {
@@ -244,6 +245,8 @@ export default function DashboardPage() {
           </div>
         </Link>
       </div>
+
+      {user?.role === 'owner' && <DashboardAssistant />}
 
       {/* Upcoming Bookings - Next 7 Days */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 mb-6 sm:mb-8">

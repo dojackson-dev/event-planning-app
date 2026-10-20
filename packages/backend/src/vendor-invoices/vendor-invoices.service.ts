@@ -836,6 +836,10 @@ export class VendorInvoicesService {
       throw new ForbiddenException('Invoice is already paid');
     if (invoice.status === 'cancelled')
       throw new ForbiddenException('Invoice has been cancelled');
+    if (invoice.status === 'processing')
+      throw new ForbiddenException(
+        'A bank payment for this invoice is already processing',
+      );
 
     // Invoices without a deposit always charge the full amount due.
     const amountCents = creditCentsFor(invoice, payAmount);
@@ -1087,7 +1091,8 @@ export class VendorInvoicesService {
         stripe_payment_intent_id: paymentIntentId,
         updated_at: new Date().toISOString(),
       })
-      .eq('stripe_checkout_session_id', sessionId);
+      .eq('stripe_checkout_session_id', sessionId)
+      .neq('status', 'paid');
     this.logger.log(
       `Vendor invoice set to processing via session ${sessionId}`,
     );
@@ -1164,8 +1169,25 @@ export class VendorInvoicesService {
     const session = await this.stripe.checkout.sessions.retrieve(
       invoice.stripe_checkout_session_id,
     );
-    if (session.payment_status !== 'paid')
+    if (session.payment_status !== 'paid') {
+      // A bank debit finishes checkout as 'unpaid' while it clears; record that so the invoice stops offering Pay Now.
+      if (
+        session.status === 'complete' &&
+        session.payment_status === 'unpaid' &&
+        invoice.status !== 'processing'
+      ) {
+        const pendingIntent =
+          typeof session.payment_intent === 'string'
+            ? session.payment_intent
+            : (session.payment_intent?.id ?? null);
+        await this.markInvoiceProcessing(
+          invoice.stripe_checkout_session_id,
+          pendingIntent,
+        );
+        return { status: 'processing', paid: false };
+      }
       return { status: invoice.status, paid: false };
+    }
 
     // Stripe confirms paid — record it now (webhook fallback)
     const paymentIntentId =

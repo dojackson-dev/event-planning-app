@@ -22,13 +22,13 @@ function setup(
     stripe_checkout_session_id: 'cs_old',
     public_token: 'tok',
     total_amount: 800,
-    ...invoiceOver,
     vendor_accounts: {
       stripe_account_id: 'acct_test',
       stripe_connect_status: vendorStatus,
       business_name: 'DJ Vision',
       enable_bnpl: enableBnpl,
     },
+    ...invoiceOver,
   };
   const updates: Array<{ table: string; values: unknown }> = [];
   const database = {
@@ -50,13 +50,14 @@ function setup(
       return query;
     },
   };
+  const sms = { vendorInvoicePaymentSubmitted: jest.fn() };
   const service = new VendorInvoicesService(
     { getAdminClient: () => database } as unknown as SupabaseService,
     {
       get: (key: string, fallback?: string) =>
         key === 'STRIPE_SECRET_KEY' ? 'sk_test_x' : fallback,
     } as unknown as ConfigService,
-    {} as SmsNotificationsService,
+    sms as unknown as SmsNotificationsService,
   );
   const retrieve = jest.fn().mockResolvedValue(stripeAccount);
   const create = jest
@@ -71,7 +72,7 @@ function setup(
       },
     },
   };
-  return { service, retrieve, create, updates };
+  return { service, retrieve, create, updates, sms };
 }
 
 const ready = {
@@ -235,5 +236,27 @@ describe('Vendor invoice checkout and Stripe readiness', () => {
       paid: false,
     });
     expect(updates).toEqual([]);
+  });
+
+  it('texts the vendor once a bank payment is submitted, naming the payer and amount', async () => {
+    const { service, sms } = setup('active', undefined, true, {
+      client_name: 'The Rookery',
+      vendor_accounts: {
+        business_name: 'DJ Vision',
+        phone: '+15555550123',
+        email: null,
+      },
+    });
+    await (
+      service as unknown as {
+        notifyPaymentSubmitted: (id: string) => Promise<void>;
+      }
+    ).notifyPaymentSubmitted('inv-1');
+    expect(sms.vendorInvoicePaymentSubmitted).toHaveBeenCalledWith(
+      '+15555550123',
+      'DJ Vision',
+      'The Rookery',
+      800,
+    );
   });
 });

@@ -11,6 +11,7 @@ export type Intent =
   | 'estimate-followups'
   | 'missing-contracts'
   | 'what-changed'
+  | 'vendor-bills'
   | 'my-tasks';
 
 export const SUGGESTED_QUESTIONS: { intent: Intent; question: string }[] = [
@@ -26,6 +27,10 @@ export const SUGGESTED_QUESTIONS: { intent: Intent; question: string }[] = [
   {
     intent: 'missing-contracts',
     question: 'Are any upcoming events missing contracts?',
+  },
+  {
+    intent: 'vendor-bills',
+    question: 'Which vendors do I need to pay?',
   },
   { intent: 'what-changed', question: 'What changed recently?' },
   { intent: 'my-tasks', question: 'Show outstanding items assigned to me.' },
@@ -56,6 +61,7 @@ export function matchIntent(question: string): Intent | null {
   if (/contract|signature|signed|sign\b/.test(q)) return 'missing-contracts';
   if (/changed|since my last|what.?s new|new activity|recent/.test(q))
     return 'what-changed';
+  if (/vendor|\bbills?\b/.test(q)) return 'vendor-bills';
   if (/final payment|owe|balance|unpaid|payment|overdue|invoice/.test(q))
     return 'final-payments';
   return null;
@@ -235,6 +241,34 @@ export function answerIntent(
           ? `Every event in the next ${UPCOMING_DAYS} days has a signed contract.`
           : `${plural(items.length, 'event')} in the next ${UPCOMING_DAYS} days ${items.length === 1 ? 'does' : 'do'} not have a signed contract.`,
       items: capped(items),
+    };
+  }
+
+  if (intent === 'vendor-bills') {
+    const bills = [...(input.vendorBills ?? [])].sort((a, b) =>
+      (a.due ?? '9999').localeCompare(b.due ?? '9999'),
+    );
+    const total = bills.reduce((n, b) => n + b.amount, 0);
+    return {
+      intent,
+      answer:
+        bills.length === 0
+          ? 'You have no vendor invoices waiting to be paid.'
+          : `${plural(bills.length, 'vendor invoice')} to pay, ${money(total)} in total, earliest due date first.${more(bills.length)}`,
+      items: capped(
+        bills.map((b) => {
+          const late = b.due && b.due < today ? daysBetween(b.due, today) : 0;
+          return {
+            label: `${b.vendor} \u2014 ${money(b.amount)}`,
+            detail: b.due
+              ? late
+                ? `${plural(late, 'day')} overdue`
+                : `due ${shortDate(b.due)}`
+              : 'Not invoiced yet',
+            href: b.href,
+          };
+        }),
+      ),
     };
   }
 

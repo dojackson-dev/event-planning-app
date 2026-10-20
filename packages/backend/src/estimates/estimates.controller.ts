@@ -56,18 +56,29 @@ export class EstimatesController {
   ): Promise<Estimate[]> {
     const userId = await this.getUserId(authorization);
     const supabaseAdmin = this.supabaseService.getAdminClient();
-    // Another owner's id is never honored; the list is always the caller's own.
-    if (ownerId && ownerId !== userId)
+    // A team member sees their owner's estimates; any other owner id is refused.
+    const owners = await this.estimatesService.accessibleOwnerIds(
+      supabaseAdmin,
+      userId,
+    );
+    if (ownerId && !owners.includes(ownerId))
       throw new ForbiddenException('You can only list your own estimates');
+    const scopeOwner =
+      ownerId ||
+      (await this.estimatesService.effectiveOwnerId(supabaseAdmin, userId));
     if (eventId)
       return this.estimatesService.findByEvent(supabaseAdmin, eventId, userId);
     if (intakeFormId)
       return this.estimatesService.findByIntakeForm(
         supabaseAdmin,
         intakeFormId,
-        userId,
+        scopeOwner,
       );
-    return this.estimatesService.findByOwner(supabaseAdmin, userId, venueId);
+    return this.estimatesService.findByOwner(
+      supabaseAdmin,
+      scopeOwner,
+      venueId,
+    );
   }
 
   @Get(':id')
@@ -105,7 +116,7 @@ export class EstimatesController {
   ): Promise<Estimate> {
     const userId = await this.getUserId(authorization);
     const supabaseAdmin = this.supabaseService.getAdminClient();
-    await this.estimatesService.assertOwner(supabaseAdmin, id, userId);
+    await this.estimatesService.assertEditable(supabaseAdmin, id, userId);
     return this.estimatesService.update(supabaseAdmin, id, estimateData);
   }
 
@@ -117,7 +128,12 @@ export class EstimatesController {
   ): Promise<Estimate> {
     const userId = await this.getUserId(authorization);
     const supabaseAdmin = this.supabaseService.getAdminClient();
-    await this.estimatesService.assertOwner(supabaseAdmin, id, userId);
+    await this.estimatesService.assertStatusChange(
+      supabaseAdmin,
+      id,
+      userId,
+      status,
+    );
     return this.estimatesService.updateStatus(supabaseAdmin, id, status);
   }
 
@@ -129,7 +145,7 @@ export class EstimatesController {
   ): Promise<EstimateItem[]> {
     const userId = await this.getUserId(authorization);
     const supabaseAdmin = this.supabaseService.getAdminClient();
-    await this.estimatesService.assertOwner(supabaseAdmin, id, userId);
+    await this.estimatesService.assertEditable(supabaseAdmin, id, userId);
     return this.estimatesService.addItems(supabaseAdmin, id, items);
   }
 
@@ -141,7 +157,11 @@ export class EstimatesController {
   ): Promise<EstimateItem> {
     const userId = await this.getUserId(authorization);
     const supabaseAdmin = this.supabaseService.getAdminClient();
-    await this.estimatesService.assertItemOwner(supabaseAdmin, itemId, userId);
+    await this.estimatesService.assertItemEditable(
+      supabaseAdmin,
+      itemId,
+      userId,
+    );
     return this.estimatesService.updateItem(supabaseAdmin, itemId, itemData);
   }
 
@@ -152,7 +172,11 @@ export class EstimatesController {
   ): Promise<void> {
     const userId = await this.getUserId(authorization);
     const supabaseAdmin = this.supabaseService.getAdminClient();
-    await this.estimatesService.assertItemOwner(supabaseAdmin, itemId, userId);
+    await this.estimatesService.assertItemEditable(
+      supabaseAdmin,
+      itemId,
+      userId,
+    );
     return this.estimatesService.deleteItem(supabaseAdmin, itemId);
   }
 

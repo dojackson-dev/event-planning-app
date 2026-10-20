@@ -18,7 +18,7 @@ interface PublicInvoice {
   client_email: string
   issue_date: string
   due_date: string
-  status: 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue' | 'cancelled'
+  status: 'draft' | 'sent' | 'viewed' | 'processing' | 'paid' | 'overdue' | 'cancelled'
   subtotal: number
   tax_rate: number
   tax_amount: number
@@ -121,7 +121,8 @@ function PublicInvoicePayPageContent() {
   const effectiveAmount: PayAmount = info.remaining > 0 ? payAmount : 'full'
   const chargeNow = chargeAmount(info, effectiveAmount)
   const isDepositCharge = effectiveAmount === 'deposit' && info.remaining > 0
-  const isPaid = invoice.status === 'paid' || (justPaid && !info.partiallyPaid)
+  const isPaid = invoice.status === 'paid'
+  const isProcessing = invoice.status === 'processing'
   const isCancelled = invoice.status === 'cancelled'
   const vendor = invoice.vendor_accounts
   const activePayMethod: PayMethod =
@@ -250,6 +251,11 @@ function PublicInvoicePayPageContent() {
                   Payment received. Thank you!
                 </div>
                 <PaidDashboardLink autoRedirect={justPaid} />
+              </div>
+            ) : isProcessing ? (
+              <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 text-blue-700 rounded-xl px-4 py-3 text-sm font-medium">
+                <Loader2 className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                <span>Your bank payment was submitted and is processing. It can take a few business days to clear, and this invoice will show as paid once it does. There is nothing more to do.</span>
               </div>
             ) : isCancelled ? (
               <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 text-gray-500 rounded-xl px-4 py-3 text-sm">

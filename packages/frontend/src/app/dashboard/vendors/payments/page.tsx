@@ -25,7 +25,7 @@ interface OwnerBookingInvoice {
   total_amount: number
   amount_due: number
   amount_paid: number
-  status: 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue' | 'cancelled'
+  status: 'draft' | 'sent' | 'viewed' | 'processing' | 'paid' | 'overdue' | 'cancelled'
   due_date: string
   issue_date: string
   notes: string | null
@@ -47,6 +47,7 @@ const STATUS_CONFIG: Record<string, { label: string; classes: string; icon: Reac
   draft: { label: 'Draft', classes: 'bg-gray-100 text-gray-600', icon: <Clock className="w-3.5 h-3.5" /> },
   sent: { label: 'Awaiting Payment', classes: 'bg-amber-100 text-amber-700', icon: <Clock className="w-3.5 h-3.5" /> },
   viewed: { label: 'Awaiting Payment', classes: 'bg-amber-100 text-amber-700', icon: <Clock className="w-3.5 h-3.5" /> },
+  processing: { label: 'Payment processing', classes: 'bg-blue-100 text-blue-700', icon: <Clock className="w-3.5 h-3.5" /> },
   paid: { label: 'Paid', classes: 'bg-green-100 text-green-700', icon: <CheckCircle className="w-3.5 h-3.5" /> },
   overdue: { label: 'Overdue', classes: 'bg-red-100 text-red-700', icon: <AlertCircle className="w-3.5 h-3.5" /> },
   cancelled: { label: 'Cancelled', classes: 'bg-gray-100 text-gray-400', icon: null },
@@ -59,7 +60,7 @@ function VendorPaymentsPageContent() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [payingId, setPayingId] = useState<string | null>(null)
-  const [justPaid, setJustPaid] = useState(false)
+  const [payResult, setPayResult] = useState<'paid' | 'processing' | 'pending' | null>(null)
 
   const fetchInvoices = () => {
     setLoading(true)
@@ -74,10 +75,10 @@ function VendorPaymentsPageContent() {
     const token = searchParams.get('token')
 
     if (paid && token) {
-      setJustPaid(true)
-      // Webhook fallback: verify payment with Stripe and mark as paid in DB
-      api.post(`/vendor-invoices/public/${token}/verify-payment`)
-        .catch(() => {})
+      // Webhook fallback: ask Stripe what really happened before telling the owner anything.
+      api.post<{ status: string; paid: boolean }>(`/vendor-invoices/public/${token}/verify-payment`)
+        .then(r => setPayResult(r.data?.paid ? 'paid' : r.data?.status === 'processing' ? 'processing' : 'pending'))
+        .catch(() => setPayResult('pending'))
         .finally(() => {
           fetchInvoices()
           // Clean the URL params
@@ -116,10 +117,22 @@ function VendorPaymentsPageContent() {
       </div>
 
       {/* Payment success banner */}
-      {justPaid && (
+      {payResult === 'paid' && (
         <div className="flex items-center gap-3 bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 mb-5 text-sm font-medium">
           <CheckCircle className="w-5 h-5 flex-shrink-0" />
           Payment successful! Your invoice has been marked as paid.
+        </div>
+      )}
+      {payResult === 'processing' && (
+        <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 text-blue-700 rounded-xl px-4 py-3 mb-5 text-sm font-medium">
+          <Clock className="w-5 h-5 flex-shrink-0" />
+          Your bank payment was submitted and is processing. It can take a few business days to clear; the invoice will show as paid once it does.
+        </div>
+      )}
+      {payResult === 'pending' && (
+        <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3 mb-5 text-sm font-medium">
+          <AlertCircle className="w-5 h-5 flex-shrink-0" />
+          We have not received confirmation of a payment yet. If you finished paying, check again in a minute; if not, use Pay Now to try again.
         </div>
       )}
 
@@ -208,7 +221,8 @@ function InvoiceRow({
   const cfg = STATUS_CONFIG[invoice.status] ?? STATUS_CONFIG.sent
   const isPaid = invoice.status === 'paid'
   const isCancelled = invoice.status === 'cancelled'
-  const canPay = !isPaid && !isCancelled && invoice.public_token
+  const isProcessing = invoice.status === 'processing'
+  const canPay = !isPaid && !isCancelled && !isProcessing && invoice.public_token
 
   const eventName  = invoice.vendor_bookings?.event_name ?? '—'
   const eventDate  = invoice.vendor_bookings?.event_date
@@ -258,7 +272,7 @@ function InvoiceRow({
         <p className={`text-base font-bold ${isPaid ? 'text-green-600' : 'text-gray-900'}`}>
           ${Number(invoice.total_amount).toFixed(2)}
         </p>
-        {!isPaid && !isCancelled && (
+        {!isPaid && !isCancelled && !isProcessing && (
           <p className="text-xs text-gray-400">
             +processing fee at checkout
           </p>
@@ -266,6 +280,10 @@ function InvoiceRow({
         {isPaid ? (
           <span className="text-xs text-green-600 flex items-center gap-1">
             <CheckCircle className="w-3.5 h-3.5" /> Paid
+          </span>
+        ) : isProcessing ? (
+          <span className="text-xs text-blue-600 flex items-center gap-1">
+            <Clock className="w-3.5 h-3.5" /> Processing
           </span>
         ) : canPay ? (
           <button

@@ -8,6 +8,8 @@ function setup(
   vendorStatus: string,
   stripeAccount?: Record<string, unknown>,
   enableBnpl = false,
+  invoiceOver: Record<string, unknown> = {},
+  session: Record<string, unknown> = {},
 ) {
   const invoice = {
     id: 'inv-1',
@@ -17,6 +19,10 @@ function setup(
     amount_due: 800,
     client_email: 'owner@example.test',
     vendor_account_id: 'vendor-1',
+    stripe_checkout_session_id: 'cs_old',
+    public_token: 'tok',
+    total_amount: 800,
+    ...invoiceOver,
     vendor_accounts: {
       stripe_account_id: 'acct_test',
       stripe_connect_status: vendorStatus,
@@ -28,11 +34,12 @@ function setup(
   const database = {
     from: (table: string) => {
       const query: Record<string, jest.Mock> = {};
-      for (const method of ['select', 'eq'])
+      for (const method of ['select', 'eq', 'neq'])
         query[method] = jest.fn(() => query);
       query.single = jest
         .fn()
         .mockResolvedValue({ data: invoice, error: null });
+      query.maybeSingle = query.single;
       query.update = jest.fn((values: unknown) => {
         updates.push({ table, values });
         return query;
@@ -57,7 +64,12 @@ function setup(
     .mockResolvedValue({ id: 'cs_1', url: 'https://checkout.test/cs_1' });
   (service as unknown as { stripe: unknown }).stripe = {
     accounts: { retrieve },
-    checkout: { sessions: { create } },
+    checkout: {
+      sessions: {
+        create,
+        retrieve: jest.fn().mockResolvedValue(session),
+      },
+    },
   };
   return { service, retrieve, create, updates };
 }
@@ -169,5 +181,59 @@ describe('Vendor invoice checkout and Stripe readiness', () => {
       service.createCheckoutSession('tok', 'pay_later'),
     ).rejects.toThrow(BadRequestException);
     expect(create).not.toHaveBeenCalled();
+  });
+
+  it('refuses a second checkout while a bank payment is still processing', async () => {
+    const { service, create } = setup('active', undefined, true, {
+      status: 'processing',
+    });
+    await expect(service.createCheckoutSession('tok', 'bank')).rejects.toThrow(
+      'already processing',
+    );
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('marks the invoice processing when Stripe shows a completed bank debit that has not cleared', async () => {
+    const { service, updates } = setup(
+      'active',
+      undefined,
+      true,
+      {},
+      {
+        status: 'complete',
+        payment_status: 'unpaid',
+        payment_intent: 'pi_ach',
+      },
+    );
+    await expect(service.verifyPayment('tok')).resolves.toEqual({
+      status: 'processing',
+      paid: false,
+    });
+    expect(updates).toContainEqual({
+      table: 'vendor_invoices',
+      values: expect.objectContaining({
+        status: 'processing',
+        stripe_payment_intent_id: 'pi_ach',
+      }),
+    });
+  });
+
+  it('leaves the invoice alone when the checkout was never completed', async () => {
+    const { service, updates } = setup(
+      'active',
+      undefined,
+      true,
+      {},
+      {
+        status: 'open',
+        payment_status: 'unpaid',
+        payment_intent: null,
+      },
+    );
+    await expect(service.verifyPayment('tok')).resolves.toEqual({
+      status: 'sent',
+      paid: false,
+    });
+    expect(updates).toEqual([]);
   });
 });

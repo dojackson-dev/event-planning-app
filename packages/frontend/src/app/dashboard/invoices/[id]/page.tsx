@@ -12,9 +12,13 @@ interface EditItem {
   quantity: number
   unit_price: number
   item_type: 'revenue' | 'expense'
+  discount_type: 'none' | 'percentage' | 'fixed'
+  discount_value: number
   _originalDescription: string
   _originalQty: number
   _originalUnitPrice: number
+  _originalDiscountType: 'none' | 'percentage' | 'fixed'
+  _originalDiscountValue: number
   _deleted: boolean
   _isNew: boolean
 }
@@ -196,9 +200,13 @@ export default function InvoiceDetailPage() {
           quantity: Number(item.quantity),
           unit_price: Number(item.unit_price),
           item_type: (item.item_type || 'revenue') as 'revenue' | 'expense',
+          discount_type: (item.discount_type || 'none') as 'none' | 'percentage' | 'fixed',
+          discount_value: Number(item.discount_value) || 0,
           _originalDescription: item.description,
           _originalQty: Number(item.quantity),
           _originalUnitPrice: Number(item.unit_price),
+          _originalDiscountType: (item.discount_type || 'none') as 'none' | 'percentage' | 'fixed',
+          _originalDiscountValue: Number(item.discount_value) || 0,
           _deleted: false,
           _isNew: false,
         }))
@@ -210,7 +218,7 @@ export default function InvoiceDetailPage() {
     if (!invoice) return
     setSaving(true)
     try {
-      const newItems: Array<{ description: string; quantity: number; unit_price: number; item_type: string }> = []
+      const newItems: Array<{ description: string; quantity: number; unit_price: number; item_type: string; discount_type: string; discount_value: number }> = []
 
       for (const item of editItems) {
         if (item._isNew && !item._deleted) {
@@ -219,6 +227,8 @@ export default function InvoiceDetailPage() {
             quantity: item.quantity,
             unit_price: item.unit_price,
             item_type: item.item_type,
+            discount_type: item.discount_type,
+            discount_value: item.discount_type === 'none' ? 0 : item.discount_value,
           })
         } else if (!item._isNew && item._deleted && item.id) {
           await api.delete(`/invoices/items/${item.id}`)
@@ -226,7 +236,10 @@ export default function InvoiceDetailPage() {
           const descChanged = item.description !== item._originalDescription
           const qtyChanged = item.quantity !== item._originalQty
           const priceChanged = item.unit_price !== item._originalUnitPrice
-          if (descChanged || qtyChanged || priceChanged) {
+          const discountChanged =
+            item.discount_type !== item._originalDiscountType ||
+            item.discount_value !== item._originalDiscountValue
+          if (descChanged || qtyChanged || priceChanged || discountChanged) {
             let desc = item.description
             if (descChanged && !desc.startsWith('Updated: ')) {
               desc = `Updated: ${desc}`
@@ -235,6 +248,8 @@ export default function InvoiceDetailPage() {
               description: desc,
               quantity: item.quantity,
               unit_price: item.unit_price,
+              discount_type: item.discount_type,
+              discount_value: item.discount_type === 'none' ? 0 : item.discount_value,
             })
           }
         }
@@ -825,9 +840,13 @@ export default function InvoiceDetailPage() {
                       quantity: 1,
                       unit_price: 0,
                       item_type: 'revenue',
+                      discount_type: 'none',
+                      discount_value: 0,
                       _originalDescription: '',
                       _originalQty: 1,
                       _originalUnitPrice: 0,
+                      _originalDiscountType: 'none',
+                      _originalDiscountValue: 0,
                       _deleted: false,
                       _isNew: true,
                     }])}
@@ -844,7 +863,7 @@ export default function InvoiceDetailPage() {
                     <div className="col-span-1" />
                   </div>
                   {editItems.map((item, idx) => item._deleted ? null : (
-                    <div key={idx} className="grid grid-cols-12 gap-2 items-center">
+                    <div key={idx} className="grid grid-cols-12 gap-2 items-center border-b border-gray-100 pb-2">
                       <div className="col-span-6">
                         <input
                           type="text"
@@ -901,6 +920,38 @@ export default function InvoiceDetailPage() {
                         >
                           ×
                         </button>
+                      </div>
+                      <div className="col-span-12 flex flex-wrap items-center gap-2 text-xs text-gray-600">
+                        <span>Discount</span>
+                        <select
+                          value={item.discount_type}
+                          onChange={e => {
+                            const updated = [...editItems]
+                            const discount_type = e.target.value as 'none' | 'percentage' | 'fixed'
+                            updated[idx] = { ...updated[idx], discount_type, discount_value: discount_type === 'none' ? 0 : updated[idx].discount_value }
+                            setEditItems(updated)
+                          }}
+                          className="px-2 py-1 border border-gray-300 rounded-md text-xs"
+                        >
+                          <option value="none">None</option>
+                          <option value="percentage">Percent (%)</option>
+                          <option value="fixed">Fixed ($)</option>
+                        </select>
+                        {item.discount_type !== 'none' && (
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={item.discount_value}
+                            onChange={e => {
+                              const updated = [...editItems]
+                              updated[idx] = { ...updated[idx], discount_value: Number(e.target.value) }
+                              setEditItems(updated)
+                            }}
+                            className="w-24 px-2 py-1 border border-gray-300 rounded-md text-xs"
+                            aria-label="Discount amount"
+                          />
+                        )}
                       </div>
                     </div>
                   ))}

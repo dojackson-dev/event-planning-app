@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -149,11 +150,44 @@ export class EstimatesService {
     return { subtotal, discountAmount, amount };
   }
 
+  // ─── Ownership ──────────────────────────────────────────────────────────────
+
+  /** The controller uses an admin client, so every estimate request must prove the estimate is the caller's. */
+  async assertOwner(
+    supabase: SupabaseClient,
+    estimateId: string,
+    userId: string,
+  ): Promise<void> {
+    const { data } = await supabase
+      .from('estimates')
+      .select('owner_id')
+      .eq('id', estimateId)
+      .maybeSingle();
+    // Not found and not yours look the same, so IDs can't be probed.
+    if (!data || data.owner_id !== userId)
+      throw new NotFoundException('Estimate not found');
+  }
+
+  async assertItemOwner(
+    supabase: SupabaseClient,
+    itemId: string,
+    userId: string,
+  ): Promise<void> {
+    const { data } = await supabase
+      .from('estimate_items')
+      .select('estimate_id')
+      .eq('id', itemId)
+      .maybeSingle();
+    if (!data) throw new NotFoundException('Estimate item not found');
+    await this.assertOwner(supabase, data.estimate_id, userId);
+  }
+
   // ─── Finders ────────────────────────────────────────────────────────────────
 
   async findByEvent(
     supabase: SupabaseClient,
     eventId: string,
+    userId: string,
   ): Promise<Estimate[]> {
     try {
       // Get event's intake_form_id, owner_id, and any booking IDs linked to this event
@@ -165,6 +199,8 @@ export class EstimatesService {
           .single(),
         supabase.from('bookings').select('id').eq('event_id', eventId),
       ]);
+
+      if (eventResult.data?.owner_id !== userId) return [];
 
       const filters: string[] = [`event_id.eq.${eventId}`];
 
@@ -183,6 +219,7 @@ export class EstimatesService {
         .from('estimates')
         .select('*, items:estimate_items(*)')
         .or(filters.join(','))
+        .eq('owner_id', userId)
         .order('created_at', { ascending: false });
       if (error) throw error;
 
@@ -380,7 +417,9 @@ export class EstimatesService {
     estimateData: Partial<Estimate>,
     items?: Partial<EstimateItem>[],
   ): Promise<Estimate> {
-    const ownerId = estimateData.owner_id || userId;
+    if (estimateData.owner_id && estimateData.owner_id !== userId)
+      throw new ForbiddenException('You can only create your own estimates');
+    const ownerId = userId;
 
     // Generate estimate number
     const { data: latest } = await supabase

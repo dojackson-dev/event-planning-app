@@ -303,6 +303,12 @@ export default function InvoiceDetailPage() {
   const canEditInvoice =
     [InvoiceStatus.DRAFT, InvoiceStatus.SENT, InvoiceStatus.OVERDUE].includes(invoice.status) &&
     Number(invoice.amount_paid || 0) === 0
+  // Item discounts are already netted out of the subtotal, so the client sees one number for everything saved.
+  const itemDiscountTotal = (invoice.items || [])
+    .filter(i => !i.item_type || i.item_type === 'revenue')
+    .reduce((sum, i) => sum + (Number(i.discount_amount) || 0), 0)
+  const extraDiscount = Number(invoice.discount_amount) || 0
+  const totalDiscounts = itemDiscountTotal + extraDiscount
   const canCancelInvoice =
     [InvoiceStatus.SENT, InvoiceStatus.OVERDUE].includes(invoice.status) &&
     Number(invoice.amount_paid || 0) === 0
@@ -560,10 +566,22 @@ export default function InvoiceDetailPage() {
                 <span className="font-semibold">${Number(invoice.tax_amount).toFixed(2)}</span>
               </div>
             )}
-            {invoice.discount_amount > 0 && (
+            {itemDiscountTotal > 0 && (
+              <div className="flex justify-between py-2 text-red-600">
+                <span>Item discounts:</span>
+                <span>-${itemDiscountTotal.toFixed(2)}</span>
+              </div>
+            )}
+            {extraDiscount > 0 && (
               <div className="flex justify-between py-2 text-red-600">
                 <span>Additional discount:</span>
-                <span>-${Number(invoice.discount_amount).toFixed(2)}</span>
+                <span>-${extraDiscount.toFixed(2)}</span>
+              </div>
+            )}
+            {totalDiscounts > 0 && (
+              <div className="flex justify-between py-2 text-red-600 font-semibold border-t border-gray-100">
+                <span>Total discounts:</span>
+                <span>-${totalDiscounts.toFixed(2)}</span>
               </div>
             )}
             <div className="flex justify-between py-2 border-t border-gray-300 text-lg font-bold">

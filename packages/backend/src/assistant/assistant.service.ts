@@ -3,6 +3,7 @@ import { createHash } from 'crypto';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
   AssistantSummary,
+  RECENT_DAYS,
   UPCOMING_DAYS,
   buildAssistantSummary,
 } from './assistant-summary';
@@ -29,11 +30,21 @@ export class AssistantService {
       .toISOString()
       .slice(0, 10);
 
-    const [events, invoices, estimates, contracts, leads] = await Promise.all([
+    const since = new Date(Date.now() - RECENT_DAYS * 86400000).toISOString();
+
+    const [
+      events,
+      invoices,
+      estimates,
+      contracts,
+      leads,
+      paidInvoices,
+      signedContracts,
+    ] = await Promise.all([
       admin
         .from('event')
         .select(
-          'id, name, date, start_time, status, deposit_paid, deposit_amount',
+          'id, name, date, start_time, status, deposit_paid, deposit_amount, intake_form_id',
         )
         .eq('owner_id', userId)
         .gte('date', today)
@@ -43,9 +54,7 @@ export class AssistantService {
       // Exclude by status rather than listing the open ones so an older status enum can't break the query.
       admin
         .from('invoices')
-        .select(
-          'id, invoice_number, client_name, status, total_amount, amount_due, due_date',
-        )
+        .select('*')
         .eq('owner_id', userId)
         .neq('status', 'paid')
         .neq('status', 'cancelled')
@@ -53,24 +62,42 @@ export class AssistantService {
       admin
         .from('estimates')
         .select(
-          'id, estimate_number, client_name, status, total_amount, expiration_date',
+          'id, estimate_number, client_name, status, total_amount, issue_date, expiration_date',
         )
         .eq('owner_id', userId)
         .in('status', ['draft', 'sent', 'approved'])
         .limit(500),
       admin
         .from('contracts')
-        .select('id, contract_number, title, client_name, status, sent_date')
+        .select(
+          'id, contract_number, title, client_name, status, sent_date, event_id, intake_form_id',
+        )
         .eq('owner_id', userId)
         .in('status', ['draft', 'sent'])
         .limit(500),
       admin
         .from('intake_forms')
-        .select('id, contact_name, event_type, event_date')
+        .select('id, contact_name, event_type, event_date, created_at')
         .eq('user_id', userId)
         .eq('status', 'new')
         .order('created_at', { ascending: false })
         .limit(500),
+      admin
+        .from('invoices')
+        .select('id, invoice_number, client_name, total_amount, paid_date')
+        .eq('owner_id', userId)
+        .eq('status', 'paid')
+        .gte('paid_date', since)
+        .order('paid_date', { ascending: false })
+        .limit(20),
+      admin
+        .from('contracts')
+        .select('id, title, client_name, signed_date')
+        .eq('owner_id', userId)
+        .eq('status', 'signed')
+        .gte('signed_date', since)
+        .order('signed_date', { ascending: false })
+        .limit(20),
     ]);
 
     for (const [name, result] of Object.entries({
@@ -79,6 +106,8 @@ export class AssistantService {
       estimates,
       contracts,
       leads,
+      paidInvoices,
+      signedContracts,
     })) {
       if (result.error)
         this.logger.warn(
@@ -93,6 +122,10 @@ export class AssistantService {
       estimates: estimates.data ?? [],
       contracts: contracts.data ?? [],
       leads: leads.data ?? [],
+      recent: {
+        paidInvoices: paidInvoices.data ?? [],
+        signedContracts: signedContracts.data ?? [],
+      },
     });
   }
 

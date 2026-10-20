@@ -174,6 +174,157 @@ describe('assistant summary', () => {
   });
 });
 
+describe('assistant priorities and recent activity', () => {
+  const events = [
+    {
+      id: 'soon',
+      name: 'Johnson Wedding',
+      date: '2026-10-21',
+      status: 'scheduled',
+      intake_form_id: 'intake-1',
+    },
+    {
+      id: 'later',
+      name: 'Corporate Reception',
+      date: '2026-11-01',
+      status: 'scheduled',
+    },
+  ];
+
+  it('groups everything outstanding on one event into a single line with who acts', () => {
+    const s = buildAssistantSummary({
+      ...empty,
+      events,
+      contracts: [
+        {
+          id: 'c1',
+          title: 'Wedding Agreement',
+          status: 'sent',
+          intake_form_id: 'intake-1',
+        },
+      ],
+      invoices: [
+        {
+          id: 'i1',
+          invoice_number: 'INV-1',
+          status: 'sent',
+          amount_due: 1200,
+          total_amount: 1200,
+          due_date: '2026-10-10',
+          event_id: 'soon',
+        },
+        {
+          id: 'i2',
+          invoice_number: 'INV-2',
+          status: 'draft',
+          amount_due: 300,
+          total_amount: 300,
+          event_id: 'soon',
+        },
+      ],
+    });
+    const johnson = s.priorities.find((p) => p.key === 'event-soon')!;
+    expect(johnson.title).toContain('Johnson Wedding');
+    expect(johnson.severity).toBe('urgent');
+    expect(johnson.href).toBe('/dashboard/events/soon/manage');
+    expect(johnson.reasons).toEqual([
+      { actor: 'client', text: expect.stringContaining('awaiting the client') },
+      { actor: 'client', text: expect.stringContaining('$1,200.00') },
+      { actor: 'you', text: expect.stringContaining("hasn't been sent") },
+    ]);
+    expect(johnson.reasons[0].text).toContain('in 2 days');
+    // Linked records are not repeated as standalone lines.
+    expect(s.priorities.map((p) => p.key)).toEqual(['event-soon']);
+  });
+
+  it('ranks a near event above a distant one and standalone overdue invoices between them', () => {
+    const s = buildAssistantSummary({
+      ...empty,
+      events: [
+        ...events,
+        {
+          id: 'far',
+          name: 'Gala',
+          date: '2026-10-30',
+          status: 'scheduled',
+          deposit_paid: false,
+          deposit_amount: 500,
+        },
+      ],
+      contracts: [{ id: 'c1', title: 'A', status: 'draft', event_id: 'soon' }],
+      invoices: [
+        {
+          id: 'o1',
+          invoice_number: 'INV-9',
+          status: 'sent',
+          amount_due: 100,
+          total_amount: 100,
+          due_date: '2026-10-01',
+        },
+      ],
+    });
+    expect(s.priorities.map((p) => p.key)).toEqual([
+      'event-soon',
+      'invoices-overdue',
+      'event-far',
+    ]);
+    expect(s.priorities[1].reasons[0].text).toContain('18 days past due');
+    expect(s.priorities[2].reasons[0]).toEqual({
+      actor: 'client',
+      text: "The $500.00 deposit hasn't been paid.",
+    });
+  });
+
+  it('only flags estimates with no response after five days', () => {
+    const s = buildAssistantSummary({
+      ...empty,
+      estimates: [
+        { id: 'a', status: 'sent', issue_date: '2026-10-17' },
+        { id: 'b', status: 'sent', issue_date: '2026-10-10' },
+      ],
+    });
+    const stale = s.priorities.find((p) => p.key === 'estimates-stale')!;
+    expect(stale.title).toBe('1 estimate with no response');
+    expect(stale.reasons[0].text).toContain('9 days');
+  });
+
+  it('lists payments, signatures and inquiries from the last week, newest first', () => {
+    const s = buildAssistantSummary({
+      ...empty,
+      leads: [
+        { id: 'l1', contact_name: 'Sam', created_at: '2026-10-18T10:00:00Z' },
+        { id: 'l2', contact_name: 'Old', created_at: '2026-09-01T10:00:00Z' },
+      ],
+      recent: {
+        paidInvoices: [
+          {
+            id: 'i1',
+            invoice_number: 'INV-1',
+            client_name: 'Williams',
+            total_amount: 600,
+            paid_date: '2026-10-19T09:00:00Z',
+          },
+        ],
+        signedContracts: [
+          {
+            id: 'c1',
+            title: 'Venue Agreement',
+            client_name: 'Williams',
+            signed_date: '2026-10-15T09:00:00Z',
+          },
+          { id: 'c2', title: 'Old', signed_date: '2026-09-01T09:00:00Z' },
+        ],
+      },
+    });
+    expect(s.recentActivity.map((a) => a.text)).toEqual([
+      'Payment received: $600.00 from Williams (invoice INV-1).',
+      'New inquiry from Sam.',
+      'Williams signed Venue Agreement.',
+    ]);
+    expect(s.recentActivity[0].href).toBe('/dashboard/invoices/i1');
+  });
+});
+
 describe('assistant narrative', () => {
   const summary = buildAssistantSummary({
     ...empty,
@@ -209,15 +360,16 @@ describe('assistant narrative', () => {
   it('returns trimmed plain text from the model', async () => {
     const fetchImpl = jest.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({
-        choices: [
-          {
-            message: {
-              content: '  One invoice is overdue.\n\nFollow up today.  ',
+      json: () =>
+        Promise.resolve({
+          choices: [
+            {
+              message: {
+                content: '  One invoice is overdue.\n\nFollow up today.  ',
+              },
             },
-          },
-        ],
-      }),
+          ],
+        }),
     });
     const text = await generateNarrative(summary, {
       apiKey: 'k',
@@ -230,7 +382,7 @@ describe('assistant narrative', () => {
   it('returns null when the gateway fails', async () => {
     const failing = jest
       .fn()
-      .mockResolvedValue({ ok: false, json: async () => ({}) });
+      .mockResolvedValue({ ok: false, json: () => Promise.resolve({}) });
     expect(
       await generateNarrative(summary, {
         apiKey: 'k',

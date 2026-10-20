@@ -1029,13 +1029,23 @@ export class VendorInvoicesService {
   async markInvoicePaidBySession(
     sessionId: string,
     paymentIntentId: string | null,
+    invoiceId?: string,
   ) {
     const admin = this.supabaseService.getAdminClient();
-    const { data: invoice } = await admin
+    let { data: invoice } = await admin
       .from('vendor_invoices')
       .select('*, vendor_accounts(business_name, phone)')
       .eq('stripe_checkout_session_id', sessionId)
       .maybeSingle();
+
+    // Each Pay Now click replaces the stored session, so an earlier tab's payment is found by invoice id instead.
+    if (!invoice && invoiceId) {
+      ({ data: invoice } = await admin
+        .from('vendor_invoices')
+        .select('*, vendor_accounts(business_name, phone)')
+        .eq('id', invoiceId)
+        .maybeSingle());
+    }
 
     if (!invoice) {
       this.logger.warn(
@@ -1082,17 +1092,37 @@ export class VendorInvoicesService {
   async markInvoiceProcessing(
     sessionId: string,
     paymentIntentId: string | null,
+    invoiceId?: string,
   ) {
     const admin = this.supabaseService.getAdminClient();
-    await admin
+    const patch = {
+      status: 'processing',
+      stripe_payment_intent_id: paymentIntentId,
+      updated_at: new Date().toISOString(),
+    };
+    const bySession = await admin
       .from('vendor_invoices')
-      .update({
-        status: 'processing',
-        stripe_payment_intent_id: paymentIntentId,
-        updated_at: new Date().toISOString(),
-      })
+      .update(patch)
       .eq('stripe_checkout_session_id', sessionId)
-      .neq('status', 'paid');
+      .neq('status', 'paid')
+      .select('id');
+    if (bySession.error) {
+      this.logger.error(
+        `Could not mark vendor invoice processing (session ${sessionId}): ${bySession.error.message}`,
+      );
+      return;
+    }
+    if ((bySession.data ?? []).length === 0 && invoiceId) {
+      const byId = await admin
+        .from('vendor_invoices')
+        .update({ ...patch, stripe_checkout_session_id: sessionId })
+        .eq('id', invoiceId)
+        .neq('status', 'paid');
+      if (byId.error)
+        this.logger.error(
+          `Could not mark vendor invoice ${invoiceId} processing: ${byId.error.message}`,
+        );
+    }
     this.logger.log(
       `Vendor invoice set to processing via session ${sessionId}`,
     );

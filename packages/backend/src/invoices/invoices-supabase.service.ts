@@ -857,7 +857,8 @@ event!event_id(id, name, date),
       invoice.discount_amount,
     );
 
-    const actualAmountDue = totalAmount - invoice.amount_paid;
+    // An invoice edited after a deposit owes the new total less what was already paid, never a negative balance.
+    const actualAmountDue = Math.max(0, totalAmount - invoice.amount_paid);
 
     const { data, error } = await supabase
       .from('invoices')

@@ -136,3 +136,48 @@ describe('InvoicesService.updateInvoiceItem', () => {
     });
   });
 });
+
+describe('InvoicesService.recalculateInvoice after a payment', () => {
+  function setup(
+    items: Array<{ amount: number }>,
+    invoice: Record<string, unknown>,
+  ) {
+    const service = new InvoicesService({} as any, {} as any, {} as any);
+    jest.spyOn(service, 'findOne').mockResolvedValue(invoice as any);
+    jest.spyOn(service, 'findInvoiceItems').mockResolvedValue(items as any);
+    const write = {
+      update: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      select: jest.fn().mockReturnThis(),
+      single: jest.fn().mockResolvedValue({ data: {}, error: null }),
+    };
+    const supabase = { from: jest.fn().mockReturnValue(write) };
+    return { service, supabase, write };
+  }
+
+  it('keeps the deposit and raises the balance when services are added', async () => {
+    const { service, supabase, write } = setup(
+      [{ amount: 1500 }, { amount: 500 }],
+      { tax_rate: 0, discount_amount: 0, amount_paid: 500 },
+    );
+    await service.recalculateInvoice(supabase as any, 'owner-1', 'inv-1');
+    expect(write.update).toHaveBeenCalledWith({
+      subtotal: 2000,
+      tax_amount: 0,
+      total_amount: 2000,
+      amount_due: 1500,
+    });
+  });
+
+  it('never records a negative balance', async () => {
+    const { service, supabase, write } = setup([{ amount: 300 }], {
+      tax_rate: 0,
+      discount_amount: 0,
+      amount_paid: 500,
+    });
+    await service.recalculateInvoice(supabase as any, 'owner-1', 'inv-1');
+    expect(write.update).toHaveBeenCalledWith(
+      expect.objectContaining({ total_amount: 300, amount_due: 0 }),
+    );
+  });
+});

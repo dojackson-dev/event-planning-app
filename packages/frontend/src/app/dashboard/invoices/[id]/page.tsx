@@ -216,6 +216,23 @@ export default function InvoiceDetailPage() {
 
   const handleSaveEdit = async () => {
     if (!invoice) return
+    const alreadyPaid = Number(invoice.amount_paid) || 0
+    if (alreadyPaid > 0) {
+      const lineTotal = (item: EditItem) => {
+        const gross = item.quantity * item.unit_price
+        const discount =
+          item.discount_type === 'percentage' ? gross * (item.discount_value / 100)
+          : item.discount_type === 'fixed' ? item.discount_value
+          : 0
+        return Math.max(0, gross - discount)
+      }
+      const subtotal = editItems.filter(i => !i._deleted).reduce((sum, i) => sum + lineTotal(i), 0)
+      const newTotal = subtotal + subtotal * (editTaxRate / 100) - editDiscountAmount
+      if (newTotal < alreadyPaid) {
+        alert(`The new total ($${newTotal.toFixed(2)}) is less than the $${alreadyPaid.toFixed(2)} already paid. Raise the total or refund the difference first.`)
+        return
+      }
+    }
     setSaving(true)
     try {
       const newItems: Array<{ description: string; quantity: number; unit_price: number; item_type: string; discount_type: string; discount_value: number }> = []
@@ -300,9 +317,13 @@ export default function InvoiceDetailPage() {
     )
   }
 
-  const canEditInvoice =
-    [InvoiceStatus.DRAFT, InvoiceStatus.SENT, InvoiceStatus.OVERDUE].includes(invoice.status) &&
-    Number(invoice.amount_paid || 0) === 0
+  // Services are often added after a deposit, so a partly paid invoice stays editable; the balance follows the new total.
+  const canEditInvoice = [
+    InvoiceStatus.DRAFT,
+    InvoiceStatus.SENT,
+    InvoiceStatus.OVERDUE,
+    InvoiceStatus.PARTIAL,
+  ].includes(invoice.status)
   // Item discounts are already netted out of the subtotal, so the client sees one number for everything saved.
   const itemDiscountTotal = (invoice.items || [])
     .filter(i => !i.item_type || i.item_type === 'revenue')
@@ -765,6 +786,11 @@ export default function InvoiceDetailPage() {
           <div className="bg-white rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <h3 className="text-lg font-semibold mb-6">Edit Invoice</h3>
+              {Number(invoice.amount_paid) > 0 && (
+                <p className="mb-4 rounded-md bg-blue-50 border border-blue-200 px-3 py-2 text-sm text-blue-800">
+                  ${Number(invoice.amount_paid).toFixed(2)} has already been paid. Changes update the total, and the balance due becomes the new total minus what has been paid.
+                </p>
+              )}
 
               {/* Client Info */}
               <div className="mb-6">

@@ -4,39 +4,18 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { AlertCircle, ArrowRight, Calendar, CheckCircle2, ChevronDown, Sparkles } from 'lucide-react'
 import api from '@/lib/api'
-
-type Severity = 'urgent' | 'attention' | 'info'
-
-interface AssistantItem { label: string; detail: string; href: string }
-interface AssistantTask {
-  key: string
-  label: string
-  count: number
-  amount?: number
-  severity: Severity
-  href: string
-  items: AssistantItem[]
-}
-interface AssistantEvent { id: string; name: string; date: string; startTime: string | null; href: string; notes: string[] }
-interface PriorityReason { text: string; actor: 'you' | 'client' }
-interface AssistantPriority {
-  key: string
-  severity: Severity
-  title: string
-  reasons: PriorityReason[]
-  href: string
-  actionLabel: string
-}
-interface AssistantActivity { text: string; at: string; href: string }
-interface AssistantSummary {
-  generatedAt: string
-  headline: string
-  allClear: boolean
-  upcomingEvents: AssistantEvent[]
-  priorities: AssistantPriority[]
-  recentActivity: AssistantActivity[]
-  tasks: AssistantTask[]
-}
+import AssistantAsk from './assistant/AssistantAsk'
+import AssistantDraftModal from './assistant/AssistantDraftModal'
+import {
+  errorMessage,
+  type AssistantPriority,
+  type AssistantSummary,
+  type Draft,
+  type DraftTarget,
+  type PriorityReason,
+  type Severity,
+  type AssistantRole,
+} from './assistant/assistantTypes'
 
 const SEVERITY_DOT: Record<Severity, string> = {
   urgent: 'bg-red-500',
@@ -49,6 +28,12 @@ const ACTOR_LABEL: Record<PriorityReason['actor'], { text: string; classes: stri
   client: { text: 'Awaiting client', classes: 'bg-gray-100 text-gray-600' },
 }
 
+const SNOOZE_OPTIONS = [
+  { label: 'Tomorrow', days: 1 },
+  { label: '3 days', days: 3 },
+  { label: '1 week', days: 7 },
+]
+
 const INITIAL_PRIORITIES = 5
 
 const formatDate = (iso: string) =>
@@ -57,31 +42,96 @@ const formatDate = (iso: string) =>
 const formatDay = (iso: string) =>
   new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
-export default function DashboardAssistant() {
+const snoozeUntil = (days: number) => new Date(Date.now() + days * 86400000).toISOString().slice(0, 10)
+
+export default function DashboardAssistant({ role = 'owner' }: { role?: AssistantRole }) {
   const [summary, setSummary] = useState<AssistantSummary | null>(null)
   const [narrative, setNarrative] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [showAll, setShowAll] = useState(false)
+  const [showHidden, setShowHidden] = useState(false)
+  const [menu, setMenu] = useState<{ key: string; mode: 'snooze' | 'draft' } | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [actionError, setActionError] = useState('')
+  const [draft, setDraft] = useState<Draft | null>(null)
+  const [digest, setDigest] = useState<boolean | null>(null)
+  const [digestError, setDigestError] = useState('')
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const load = useCallback(async (quiet = false) => {
+    if (!quiet) setLoading(true)
     setError(false)
     try {
-      const res = await api.get<AssistantSummary>('/assistant/summary')
+      const res = await api.get<AssistantSummary>('/assistant/summary', { params: { role } })
       setSummary(res.data)
-      // The AI note is optional and slower, so it fills in after the summary is already on screen.
-      api.get<{ text: string | null }>('/assistant/narrative', { timeout: 15000 })
-        .then(r => setNarrative(r.data?.text ?? null))
-        .catch(() => setNarrative(null))
+      if (!quiet) {
+        // The AI note is optional and slower, so it fills in after the summary is already on screen.
+        api.get<{ text: string | null }>('/assistant/narrative', { timeout: 15000, params: { role } })
+          .then(r => setNarrative(r.data?.text ?? null))
+          .catch(() => setNarrative(null))
+      }
     } catch {
       setError(true)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [role])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    load()
+    // The email briefing is built for owners only.
+    if (role !== 'owner') return
+    api.get<{ digestEnabled: boolean }>('/assistant/preferences')
+      .then(r => setDigest(!!r.data?.digestEnabled))
+      .catch(() => setDigest(null))
+  }, [load, role])
+
+  const run = async (action: () => Promise<unknown>, failure: string) => {
+    setBusy(true)
+    setActionError('')
+    try {
+      await action()
+      setMenu(null)
+      await load(true)
+    } catch (e) {
+      setActionError(errorMessage(e, failure))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const snooze = (p: AssistantPriority, days: number) =>
+    run(() => api.post('/assistant/dismiss', { role, key: p.key, kind: 'snooze', until: snoozeUntil(days) }), 'Could not snooze this item.')
+
+  const markHandled = (p: AssistantPriority) =>
+    run(() => api.post('/assistant/dismiss', { role, key: p.key, kind: 'handled' }), 'Could not hide this item.')
+
+  const restore = (key: string) =>
+    run(() => api.delete(`/assistant/dismiss/${encodeURIComponent(key)}`, { params: { role } }), 'Could not restore this item.')
+
+  const openDraft = async (target: DraftTarget) => {
+    setBusy(true)
+    setActionError('')
+    try {
+      const res = await api.post<Draft>('/assistant/draft', { type: target.type, id: target.id })
+      setDraft(res.data)
+      setMenu(null)
+    } catch (e) {
+      setActionError(errorMessage(e, 'Could not prepare a draft.'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const toggleDigest = async (enabled: boolean) => {
+    setDigestError('')
+    try {
+      const res = await api.put<{ digestEnabled: boolean }>('/assistant/preferences', { digestEnabled: enabled })
+      setDigest(res.data.digestEnabled)
+    } catch (e) {
+      setDigestError(errorMessage(e, 'Could not update your email preference.'))
+    }
+  }
 
   const priorities = summary?.priorities ?? []
   const visiblePriorities = showAll ? priorities : priorities.slice(0, INITIAL_PRIORITIES)
@@ -96,7 +146,7 @@ export default function DashboardAssistant() {
           <h2 className="text-lg sm:text-xl font-bold text-gray-900">Your EventEcos Assistant</h2>
         </div>
         {summary && (
-          <button type="button" onClick={load} className="text-xs text-gray-400 hover:text-gray-600" title="Refresh">
+          <button type="button" onClick={() => load(true)} className="text-xs text-gray-400 hover:text-gray-600" title="Refresh">
             Updated {new Date(summary.generatedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
           </button>
         )}
@@ -111,7 +161,7 @@ export default function DashboardAssistant() {
       ) : error || !summary ? (
         <div className="p-4 sm:p-6 text-sm text-gray-600 flex items-center justify-between gap-3">
           <span className="flex items-center gap-2"><AlertCircle className="h-4 w-4 text-gray-400" /> Couldn&apos;t load your summary right now.</span>
-          <button type="button" onClick={load} className="text-indigo-600 hover:underline font-medium">Try again</button>
+          <button type="button" onClick={() => load()} className="text-indigo-600 hover:underline font-medium">Try again</button>
         </div>
       ) : (
         <div className="p-4 sm:p-6 space-y-5">
@@ -129,6 +179,8 @@ export default function DashboardAssistant() {
               <CheckCircle2 className="h-4 w-4" /> Nothing is waiting on you.
             </p>
           )}
+
+          {actionError && <p className="text-sm text-red-600" role="alert">{actionError}</p>}
 
           {priorities.length > 0 && (
             <div>
@@ -157,6 +209,45 @@ export default function DashboardAssistant() {
                         {p.actionLabel} <ArrowRight className="h-4 w-4 ml-1" />
                       </Link>
                     </div>
+
+                    <div className="mt-2 ml-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                      {p.targets.length > 0 && (
+                        <button type="button" disabled={busy} onClick={() => p.targets.length === 1 ? openDraft(p.targets[0]) : setMenu(menu?.key === p.key && menu.mode === 'draft' ? null : { key: p.key, mode: 'draft' })} className="text-indigo-600 hover:underline disabled:opacity-50">
+                          Draft follow-up
+                        </button>
+                      )}
+                      {summary.canDismiss && (
+                        <>
+                          <button type="button" disabled={busy} onClick={() => setMenu(menu?.key === p.key && menu.mode === 'snooze' ? null : { key: p.key, mode: 'snooze' })} className="text-gray-500 hover:text-gray-800 hover:underline disabled:opacity-50">
+                            Snooze
+                          </button>
+                          <button type="button" disabled={busy} onClick={() => markHandled(p)} title="Hides this line until something on it changes. Your records are not changed." className="text-gray-500 hover:text-gray-800 hover:underline disabled:opacity-50">
+                            Mark handled
+                          </button>
+                        </>
+                      )}
+                    </div>
+
+                    {menu?.key === p.key && menu.mode === 'snooze' && (
+                      <div className="mt-2 ml-4 flex flex-wrap items-center gap-2 text-xs">
+                        <span className="text-gray-500">Remind me in:</span>
+                        {SNOOZE_OPTIONS.map(o => (
+                          <button key={o.days} type="button" disabled={busy} onClick={() => snooze(p, o.days)} className="rounded-full border border-gray-200 px-2.5 py-1 text-gray-700 hover:border-indigo-300 disabled:opacity-50">
+                            {o.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {menu?.key === p.key && menu.mode === 'draft' && (
+                      <div className="mt-2 ml-4 flex flex-wrap items-center gap-2 text-xs">
+                        <span className="text-gray-500">Follow up about:</span>
+                        {p.targets.map(t => (
+                          <button key={t.id} type="button" disabled={busy} onClick={() => openDraft(t)} className="rounded-full border border-gray-200 px-2.5 py-1 text-gray-700 hover:border-indigo-300 disabled:opacity-50">
+                            {t.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -165,6 +256,26 @@ export default function DashboardAssistant() {
                   {showAll ? 'Show fewer' : hiddenCount > 0 ? `Show all tasks (${hiddenCount} more)` : 'Show all tasks'}
                   <ChevronDown className={`h-4 w-4 transition-transform ${showAll ? 'rotate-180' : ''}`} />
                 </button>
+              )}
+            </div>
+          )}
+
+          {summary.hidden.length > 0 && (
+            <div>
+              <button type="button" onClick={() => setShowHidden(v => !v)} className="text-xs text-gray-500 hover:text-gray-800 hover:underline">
+                {showHidden ? 'Hide' : 'Show'} {summary.hidden.length} snoozed or handled {summary.hidden.length === 1 ? 'item' : 'items'}
+              </button>
+              {showHidden && (
+                <ul className="mt-2 space-y-1">
+                  {summary.hidden.map(h => (
+                    <li key={h.key} className="flex items-center justify-between gap-3 text-xs text-gray-600">
+                      <span className="min-w-0 truncate">
+                        {h.title} <span className="text-gray-400">· {h.kind === 'snooze' && h.until ? `snoozed until ${formatDate(h.until)}` : 'handled'}</span>
+                      </span>
+                      <button type="button" disabled={busy} onClick={() => restore(h.key)} className="flex-shrink-0 text-indigo-600 hover:underline disabled:opacity-50">Restore</button>
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
           )}
@@ -179,7 +290,7 @@ export default function DashboardAssistant() {
                       <span className={`h-2 w-2 rounded-full flex-shrink-0 ${SEVERITY_DOT[task.severity]}`} aria-hidden />
                       <span className="truncate">{task.label}</span>
                       <span className="text-xs font-semibold text-gray-700 bg-gray-100 rounded-full px-2 py-0.5">{task.count}</span>
-                      {task.amount ? <span className="text-xs text-gray-500 whitespace-nowrap">${task.amount.toFixed(2)}</span> : null}
+                      {task.amount ? <span className="text-xs text-gray-500 whitespace-nowrap">${task.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> : null}
                     </span>
                     <Link href={task.href} className="text-sm text-indigo-600 hover:text-indigo-800 font-medium flex items-center flex-shrink-0">
                       Review <ArrowRight className="h-4 w-4 ml-1" />
@@ -228,8 +339,22 @@ export default function DashboardAssistant() {
               </ul>
             </div>
           )}
+
+          <AssistantAsk role={role} suggestions={summary.suggestedQuestions} />
+
+          {digest !== null && (
+            <div className="border-t border-gray-100 pt-3">
+              <label className="flex items-center gap-2 text-xs text-gray-600">
+                <input type="checkbox" checked={digest} onChange={e => toggleDigest(e.target.checked)} />
+                Email me this briefing every morning
+              </label>
+              {digestError && <p className="mt-1 text-xs text-red-600" role="alert">{digestError}</p>}
+            </div>
+          )}
         </div>
       )}
+
+      {draft && <AssistantDraftModal draft={draft} onClose={() => setDraft(null)} />}
     </section>
   )
 }

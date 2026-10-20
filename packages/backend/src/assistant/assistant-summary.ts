@@ -27,11 +27,36 @@ export interface AssistantEvent {
   notes: string[];
 }
 
+export interface PriorityReason {
+  text: string;
+  /** Who has to move next: the owner, or the client. */
+  actor: 'you' | 'client';
+}
+
+/** One line on the dashboard: an event with everything outstanding on it, or a standalone group of records. */
+export interface AssistantPriority {
+  key: string;
+  severity: TaskSeverity;
+  title: string;
+  reasons: PriorityReason[];
+  href: string;
+  actionLabel: string;
+}
+
+export interface AssistantActivity {
+  text: string;
+  at: string;
+  href: string;
+}
+
 export interface AssistantSummary {
   generatedAt: string;
   headline: string;
   allClear: boolean;
   upcomingEvents: AssistantEvent[];
+  /** Most urgent first; events are grouped so one event is one line. */
+  priorities: AssistantPriority[];
+  recentActivity: AssistantActivity[];
   tasks: AssistantTask[];
 }
 
@@ -42,11 +67,16 @@ export interface SummaryInput {
   estimates: any[];
   contracts: any[];
   leads: any[];
+  recent?: { paidInvoices?: any[]; signedContracts?: any[] };
 }
 
 export const UPCOMING_DAYS = 14;
+export const RECENT_DAYS = 7;
 const DUE_SOON_DAYS = 7;
 const ITEMS_PER_TASK = 3;
+const URGENT_EVENT_DAYS = 3;
+const STALE_ESTIMATE_DAYS = 5;
+const MAX_ACTIVITY = 5;
 
 const addDays = (date: string, days: number): string => {
   const d = new Date(`${date}T00:00:00Z`);
@@ -57,7 +87,8 @@ const addDays = (date: string, days: number): string => {
 const day = (value: unknown): string | null =>
   typeof value === 'string' && value.length >= 10 ? value.slice(0, 10) : null;
 
-const money = (n: number) => `$${n.toFixed(2)}`;
+const money = (n: number) =>
+  `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const longDate = (date: string) =>
   new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', {
@@ -71,6 +102,26 @@ const SEVERITY_ORDER: Record<TaskSeverity, number> = {
   attention: 1,
   info: 2,
 };
+
+const daysBetween = (from: string, to: string): number =>
+  Math.round(
+    (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) /
+      86400000,
+  );
+
+const when = (days: number): string =>
+  days <= 0 ? 'today' : days === 1 ? 'tomorrow' : `in ${days} days`;
+
+const weekdayDate = (date: string) =>
+  new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  });
+
+const plural = (n: number, word: string, many = `${word}s`) =>
+  `${n} ${n === 1 ? word : many}`;
 
 /** Same predicates are applied by the invoice/estimate/contract list pages for ?attention=. */
 export function buildAssistantSummary(input: SummaryInput): AssistantSummary {
@@ -253,6 +304,273 @@ export function buildAssistantSummary(input: SummaryInput): AssistantSummary {
           : [],
     }));
 
+  // ── Priorities: one line per event, then standalone groups ──────────────
+  const ranked: { p: AssistantPriority; rank: number }[] = [];
+  const claimed = new Set<string>();
+  const unsigned = input.contracts.filter(
+    (c) => c.status === 'sent' || c.status === 'draft',
+  );
+
+  for (const e of input.events) {
+    const date = day(e.date);
+    if (!date || date < today || date > addDays(today, UPCOMING_DAYS)) continue;
+    if (e.status === 'cancelled') continue;
+    const days = daysBetween(today, date);
+    const reasons: PriorityReason[] = [];
+    let hasOverdue = false;
+
+    for (const c of unsigned) {
+      const linked =
+        (c.event_id && c.event_id === e.id) ||
+        (e.intake_form_id && c.intake_form_id === e.intake_form_id);
+      if (!linked) continue;
+      claimed.add(`c:${c.id}`);
+      reasons.push(
+        c.status === 'sent'
+          ? {
+              actor: 'client',
+              text: `The contract is still awaiting the client's signature and the event is ${when(days)}.`,
+            }
+          : {
+              actor: 'you',
+              text: `The contract hasn't been sent yet and the event is ${when(days)}.`,
+            },
+      );
+    }
+
+    const linkedInvoices = input.invoices.filter(
+      (i) => i.event_id && i.event_id === e.id,
+    );
+    const eventOverdue = overdue.filter((i) => linkedInvoices.includes(i));
+    const eventUnpaid = sent.filter(
+      (i) => linkedInvoices.includes(i) && !eventOverdue.includes(i),
+    );
+    const eventDrafts = linkedInvoices.filter((i) => i.status === 'draft');
+    for (const i of [...eventOverdue, ...eventUnpaid, ...eventDrafts])
+      claimed.add(`i:${i.id}`);
+    if (eventOverdue.length > 0) {
+      hasOverdue = true;
+      reasons.push({
+        actor: 'client',
+        text: `${money(sum(eventOverdue))} on ${plural(eventOverdue.length, 'invoice')} is overdue.`,
+      });
+    }
+    if (eventUnpaid.length > 0) {
+      reasons.push({
+        actor: 'client',
+        text: `${money(sum(eventUnpaid))} is still unpaid${eventUnpaid.length === 1 && day(eventUnpaid[0].due_date) ? ` (due ${longDate(day(eventUnpaid[0].due_date)!)})` : ''}.`,
+      });
+    }
+    if (eventDrafts.length > 0) {
+      reasons.push({
+        actor: 'you',
+        text: `${plural(eventDrafts.length, 'invoice')} for this event ${eventDrafts.length === 1 ? "hasn't" : "haven't"} been sent.`,
+      });
+    }
+    if (e.deposit_paid === false && Number(e.deposit_amount ?? 0) > 0) {
+      reasons.push({
+        actor: 'client',
+        text: `The ${money(Number(e.deposit_amount))} deposit hasn't been paid.`,
+      });
+    }
+    if (reasons.length === 0) continue;
+
+    ranked.push({
+      rank: days,
+      p: {
+        key: `event-${e.id}`,
+        severity:
+          days <= URGENT_EVENT_DAYS || hasOverdue ? 'urgent' : 'attention',
+        title: `${e.name || 'Event'} \u2014 ${weekdayDate(date)}`,
+        reasons,
+        href: `/dashboard/events/${e.id}/manage`,
+        actionLabel: 'Review event',
+      },
+    });
+  }
+
+  const looseOverdue = overdue.filter((i) => !claimed.has(`i:${i.id}`));
+  if (looseOverdue.length > 0) {
+    const oldest = looseOverdue
+      .map((i) => daysBetween(day(i.due_date)!, today))
+      .reduce((a, b) => Math.max(a, b), 0);
+    ranked.push({
+      rank: URGENT_EVENT_DAYS + 1,
+      p: {
+        key: 'invoices-overdue',
+        severity: 'urgent',
+        title: `${plural(looseOverdue.length, 'overdue invoice')} totaling ${money(sum(looseOverdue))}`,
+        reasons: [
+          {
+            actor: 'client',
+            text: `The oldest is ${plural(oldest, 'day')} past due.`,
+          },
+        ],
+        href: '/dashboard/invoices?attention=overdue',
+        actionLabel: 'View overdue invoices',
+      },
+    });
+  }
+
+  const looseDueSoon = dueSoon.filter((i) => !claimed.has(`i:${i.id}`));
+  if (looseDueSoon.length > 0) {
+    ranked.push({
+      rank: URGENT_EVENT_DAYS + 2,
+      p: {
+        key: 'invoices-due-soon',
+        severity: 'attention',
+        title: `${plural(looseDueSoon.length, 'invoice')} due in the next ${DUE_SOON_DAYS} days totaling ${money(sum(looseDueSoon))}`,
+        reasons: [
+          {
+            actor: 'client',
+            text: 'Payment is expected soon; a reminder can help.',
+          },
+        ],
+        href: '/dashboard/invoices?attention=due-soon',
+        actionLabel: 'View invoices',
+      },
+    });
+  }
+
+  const looseUnsigned = unsigned.filter(
+    (c) => c.status === 'sent' && !claimed.has(`c:${c.id}`),
+  );
+  if (looseUnsigned.length > 0) {
+    ranked.push({
+      rank: 100,
+      p: {
+        key: 'contracts-unsigned',
+        severity: 'attention',
+        title: `${plural(looseUnsigned.length, 'contract')} waiting for a signature`,
+        reasons: [{ actor: 'client', text: 'The client has not signed yet.' }],
+        href: '/dashboard/contracts?attention=unsigned',
+        actionLabel: 'Review contracts',
+      },
+    });
+  }
+
+  const approved = input.estimates.filter((e) => e.status === 'approved');
+  if (approved.length > 0) {
+    ranked.push({
+      rank: 101,
+      p: {
+        key: 'estimates-approved',
+        severity: 'attention',
+        title: `${plural(approved.length, 'approved estimate')} ready to invoice`,
+        reasons: [
+          {
+            actor: 'you',
+            text: 'The client said yes; turn it into an invoice.',
+          },
+        ],
+        href: '/dashboard/estimates?attention=approved',
+        actionLabel: 'Review estimates',
+      },
+    });
+  }
+
+  const stale = input.estimates.filter(
+    (e) =>
+      e.status === 'sent' &&
+      day(e.issue_date) &&
+      daysBetween(day(e.issue_date)!, today) >= STALE_ESTIMATE_DAYS,
+  );
+  if (stale.length > 0) {
+    const waiting = Math.max(
+      ...stale.map((e) => daysBetween(day(e.issue_date)!, today)),
+    );
+    ranked.push({
+      rank: 102,
+      p: {
+        key: 'estimates-stale',
+        severity: 'attention',
+        title: `${plural(stale.length, 'estimate')} with no response`,
+        reasons: [
+          {
+            actor: 'client',
+            text: `The longest has been waiting ${plural(waiting, 'day')}; a follow-up may help.`,
+          },
+        ],
+        href: '/dashboard/estimates?attention=awaiting',
+        actionLabel: 'Review estimates',
+      },
+    });
+  }
+
+  if (input.leads.length > 0) {
+    ranked.push({
+      rank: 103,
+      p: {
+        key: 'leads-new',
+        severity: 'attention',
+        title: `${plural(input.leads.length, 'new inquiry', 'new inquiries')} to follow up`,
+        reasons: [
+          { actor: 'you', text: 'New leads respond best to a quick reply.' },
+        ],
+        href: '/dashboard/clients',
+        actionLabel: 'View inquiries',
+      },
+    });
+  }
+
+  const looseDrafts = input.invoices.filter(
+    (i) => i.status === 'draft' && !claimed.has(`i:${i.id}`),
+  );
+  if (looseDrafts.length > 0) {
+    ranked.push({
+      rank: 104,
+      p: {
+        key: 'invoices-unsent',
+        severity: 'info',
+        title: `${plural(looseDrafts.length, 'draft invoice')} not yet sent`,
+        reasons: [{ actor: 'you', text: 'Nothing is owed until it is sent.' }],
+        href: '/dashboard/invoices?attention=unsent',
+        actionLabel: 'Review drafts',
+      },
+    });
+  }
+
+  ranked.sort(
+    (a, b) =>
+      SEVERITY_ORDER[a.p.severity] - SEVERITY_ORDER[b.p.severity] ||
+      a.rank - b.rank,
+  );
+  const priorities = ranked.map((r) => r.p);
+
+  // ── Recent activity ─────────────────────────────────────────────────────
+  const since = addDays(today, -RECENT_DAYS);
+  const activity: AssistantActivity[] = [];
+  for (const i of input.recent?.paidInvoices ?? []) {
+    const at = day(i.paid_date);
+    if (!at || at < since) continue;
+    activity.push({
+      text: `Payment received: ${money(Number(i.total_amount ?? 0))} from ${i.client_name ?? 'a client'}${i.invoice_number ? ` (invoice ${i.invoice_number})` : ''}.`,
+      at: String(i.paid_date),
+      href: `/dashboard/invoices/${i.id}`,
+    });
+  }
+  for (const c of input.recent?.signedContracts ?? []) {
+    const at = day(c.signed_date);
+    if (!at || at < since) continue;
+    activity.push({
+      text: `${c.client_name ?? 'A client'} signed ${c.title || 'a contract'}.`,
+      at: String(c.signed_date),
+      href: `/dashboard/contracts/${c.id}`,
+    });
+  }
+  for (const l of input.leads) {
+    const at = day(l.created_at);
+    if (!at || at < since) continue;
+    activity.push({
+      text: `New inquiry from ${l.contact_name || 'a new lead'}.`,
+      at: String(l.created_at),
+      href: `/dashboard/clients/${l.id}`,
+    });
+  }
+  const recentActivity = activity
+    .sort((a, b) => b.at.localeCompare(a.at))
+    .slice(0, MAX_ACTIVITY);
+
   // ── Headline ────────────────────────────────────────────────────────────
   const attentionCount = tasks.reduce((n, t) => n + t.count, 0);
   const parts: string[] = [];
@@ -276,6 +594,8 @@ export function buildAssistantSummary(input: SummaryInput): AssistantSummary {
     headline: headline.charAt(0).toUpperCase() + headline.slice(1),
     allClear: attentionCount === 0 && upcomingEvents.length === 0,
     upcomingEvents,
+    priorities,
+    recentActivity,
     tasks,
   };
 }

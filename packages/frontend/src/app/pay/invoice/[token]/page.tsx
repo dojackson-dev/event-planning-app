@@ -260,12 +260,34 @@ function OwnerInvoicePayPageContent() {
 
             {/* Total */}
             <div className="mt-4 pt-4 border-t border-gray-100">
-              {Number(invoice.discount_amount) > 0 && (
-                <div className="flex justify-between text-sm text-green-700 mb-2">
-                  <span>Additional discount</span>
-                  <span>−${Number(invoice.discount_amount).toFixed(2)}</span>
-                </div>
-              )}
+              {(() => {
+                const itemDiscounts = (invoice.items ?? [])
+                  .filter(item => item.item_type !== 'internal_note')
+                  .reduce((sum, item) => sum + (Number(item.discount_amount) || 0), 0)
+                const extra = Number(invoice.discount_amount) || 0
+                const total = itemDiscounts + extra
+                if (total <= 0) return null
+                return (
+                  <div className="mb-2 space-y-1 text-sm text-green-700">
+                    {itemDiscounts > 0 && (
+                      <div className="flex justify-between">
+                        <span>Item discounts</span>
+                        <span>−${itemDiscounts.toFixed(2)}</span>
+                      </div>
+                    )}
+                    {extra > 0 && (
+                      <div className="flex justify-between">
+                        <span>Additional discount</span>
+                        <span>−${extra.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-semibold">
+                      <span>Total discounts</span>
+                      <span>−${total.toFixed(2)}</span>
+                    </div>
+                  </div>
+                )
+              })()}
               <div className="flex justify-between font-bold text-gray-900 text-base">
                 <span>Total</span>
                 <span>${Number(invoice.total_amount).toFixed(2)}</span>

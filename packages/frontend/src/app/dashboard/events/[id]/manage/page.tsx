@@ -669,7 +669,7 @@ export default function EventManagementPage() {
         name: formData.eventName,
         date: formData.eventDate,
         startTime: formData.startTime,
-        endTime: formData.endTime,
+        endTime: formData.endTime || null,
         venueId: formData.venueId || null,
         maxGuests: formData.estimatedGuests || null,
       });

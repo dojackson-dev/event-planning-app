@@ -53,10 +53,10 @@ export default function PayoutsPage() {
             </ul>
             <div className="mt-3 space-y-2">
               <div className="bg-white border border-blue-200 rounded-lg px-3 py-2 text-sm text-blue-800">
-                <span className="font-semibold">Owner-paid bookings:</span> EventEcos collects a <strong>1.5% platform fee</strong> when an event owner pays you through the platform.
+                <span className="font-semibold">Platform fee:</span> EventEcos collects a <strong>3% platform fee</strong> on payments made through the platform, deducted from your payout.
               </div>
               <div className="bg-white border border-blue-200 rounded-lg px-3 py-2 text-sm text-blue-800">
-                <span className="font-semibold">Direct/general bookings:</span> EventEcos collects a <strong>2.5% platform fee</strong> on payments from clients who book you directly.
+                <span className="font-semibold">Processing:</span> the payer covers payment processing (3.1% + $0.30 for cards, 6% + $0.30 for pay later), so you receive the invoice amount minus the 3% fee.
               </div>
             </div>
           </div>

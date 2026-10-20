@@ -26,7 +26,10 @@ export class GuestListsController {
       throw new UnauthorizedException('No authorization header');
     const token = authorization.replace('Bearer ', '');
 
-    if (token.startsWith('local-')) {
+    if (
+      token.startsWith('local-') &&
+      process.env.ALLOW_LOCAL_DEV_AUTH === 'true'
+    ) {
       return token.replace('local-', '');
     }
 
@@ -54,8 +57,8 @@ export class GuestListsController {
   @Get('by-event/:eventId')
   async findByEvent(
     @Headers('authorization') authorization: string,
-    @Param('eventId', ParseIntPipe) eventId: number,
-  ): Promise<any | null> {
+    @Param('eventId') eventId: string,
+  ): Promise<any> {
     const userId = await this.getUserId(authorization);
     await this.guestListsService.assertOwnsEvent(eventId, userId);
     return this.guestListsService.findByEvent(eventId);
@@ -65,12 +68,12 @@ export class GuestListsController {
   // token/code (the secret itself), not the caller's identity, so these
   // intentionally do not require a Bearer auth header.
   @Get('share/:token')
-  async findByShareToken(@Param('token') token: string): Promise<any | null> {
+  async findByShareToken(@Param('token') token: string): Promise<any> {
     return this.guestListsService.findByShareToken(token);
   }
 
   @Get('code/:code')
-  async findByAccessCode(@Param('code') code: string): Promise<any | null> {
+  async findByAccessCode(@Param('code') code: string): Promise<any> {
     return this.guestListsService.findByAccessCode(code);
   }
 
@@ -86,7 +89,7 @@ export class GuestListsController {
   }
 
   @Get('arrival/:token')
-  async findByArrivalToken(@Param('token') token: string): Promise<any | null> {
+  async findByArrivalToken(@Param('token') token: string): Promise<any> {
     return this.guestListsService.findByArrivalToken(token);
   }
 
@@ -94,7 +97,7 @@ export class GuestListsController {
   async findOne(
     @Headers('authorization') authorization: string,
     @Param('id', ParseIntPipe) id: number,
-  ): Promise<any | null> {
+  ): Promise<any> {
     const userId = await this.getUserId(authorization);
     await this.guestListsService.assertGuestListOwnership(id, userId);
     return this.guestListsService.findOne(id);
@@ -119,7 +122,7 @@ export class GuestListsController {
     @Headers('authorization') authorization: string,
     @Param('id', ParseIntPipe) id: number,
     @Body() guestList: any,
-  ): Promise<any | null> {
+  ): Promise<any> {
     const userId = await this.getUserId(authorization);
     await this.guestListsService.assertGuestListOwnership(id, userId);
     return this.guestListsService.update(id, guestList);
@@ -129,7 +132,7 @@ export class GuestListsController {
   async lock(
     @Headers('authorization') authorization: string,
     @Param('id', ParseIntPipe) id: number,
-  ): Promise<any | null> {
+  ): Promise<any> {
     const userId = await this.getUserId(authorization);
     await this.guestListsService.assertGuestListOwnership(id, userId);
     return this.guestListsService.lock(id);
@@ -139,7 +142,7 @@ export class GuestListsController {
   async unlock(
     @Headers('authorization') authorization: string,
     @Param('id', ParseIntPipe) id: number,
-  ): Promise<any | null> {
+  ): Promise<any> {
     const userId = await this.getUserId(authorization);
     await this.guestListsService.assertGuestListOwnership(id, userId);
     return this.guestListsService.unlock(id);
@@ -182,7 +185,7 @@ export class GuestListsController {
     @Headers('authorization') authorization: string,
     @Param('guestId', ParseIntPipe) guestId: number,
     @Body() guest: any,
-  ): Promise<any | null> {
+  ): Promise<any> {
     const userId = await this.getUserId(authorization);
     await this.guestListsService.assertGuestOwnership(guestId, userId);
     return this.guestListsService.updateGuest(guestId, guest);
@@ -202,7 +205,7 @@ export class GuestListsController {
   async markArrival(
     @Headers('authorization') authorization: string,
     @Param('guestId', ParseIntPipe) guestId: number,
-  ): Promise<any | null> {
+  ): Promise<any> {
     const userId = await this.getUserId(authorization);
     await this.guestListsService.assertGuestOwnership(guestId, userId);
     return this.guestListsService.markArrival(guestId);
@@ -212,7 +215,7 @@ export class GuestListsController {
   async unmarkArrival(
     @Headers('authorization') authorization: string,
     @Param('guestId', ParseIntPipe) guestId: number,
-  ): Promise<any | null> {
+  ): Promise<any> {
     const userId = await this.getUserId(authorization);
     await this.guestListsService.assertGuestOwnership(guestId, userId);
     return this.guestListsService.unmarkArrival(guestId);

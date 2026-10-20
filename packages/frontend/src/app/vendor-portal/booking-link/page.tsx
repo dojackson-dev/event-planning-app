@@ -4,11 +4,11 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
 import { Link2, Copy, CheckCircle2, Loader2, Globe, MessageSquare, Percent, Save } from 'lucide-react'
+import EmbedBookingSection from '@/components/EmbedBookingSection'
 
 interface BookingLink {
   id: string
   slug: string
-  short_code: string | null
   is_active: boolean
   custom_message: string | null
   default_deposit_percentage: number | null
@@ -19,7 +19,6 @@ export default function VendorBookingLinkPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [copied, setCopied] = useState(false)
-  const [copiedShort, setCopiedShort] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -82,18 +81,11 @@ export default function VendorBookingLinkPage() {
   }
 
   const bookingUrl = link ? `${window.location.origin}/book/${link.slug}` : ''
-  const shortUrl = link?.short_code ? `${window.location.origin}/b/${link.short_code}` : ''
 
   const copyLink = () => {
     navigator.clipboard.writeText(bookingUrl)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
-  }
-
-  const copyShortLink = () => {
-    navigator.clipboard.writeText(shortUrl)
-    setCopiedShort(true)
-    setTimeout(() => setCopiedShort(false), 2000)
   }
 
   const suggestSlug = () => {
@@ -134,31 +126,6 @@ export default function VendorBookingLinkPage() {
               </div>
               <p className="text-xs text-green-600/70 mt-1.5">Best for your website, email, or social media — the readable slug adds context.</p>
             </div>
-
-            {/* Short URL */}
-            {shortUrl && (
-              <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Link2 className="w-4 h-4 flex-shrink-0 text-indigo-500" />
-                    <div className="min-w-0">
-                      <p className="text-xs text-indigo-400 mb-0.5">Short link</p>
-                      <a href={shortUrl} target="_blank" rel="noreferrer" className="text-sm font-medium text-indigo-700 hover:underline truncate block">
-                        {shortUrl}
-                      </a>
-                    </div>
-                  </div>
-                  <button
-                    onClick={copyShortLink}
-                    className="flex-shrink-0 inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 transition-colors"
-                  >
-                    {copiedShort ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    {copiedShort ? 'Copied!' : 'Copy'}
-                  </button>
-                </div>
-                <p className="text-xs text-indigo-600/70 mt-1.5">Best for texting, printing, or QR codes — shorter and easier to share.</p>
-              </div>
-            )}
           </div>
         )}
 
@@ -262,6 +229,8 @@ export default function VendorBookingLinkPage() {
                 </button>
               </div>
             </div>
+
+            {link && <EmbedBookingSection url={bookingUrl} />}
 
             <div className="flex justify-end">
               <button

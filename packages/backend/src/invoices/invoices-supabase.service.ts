@@ -771,18 +771,35 @@ event!event_id(id, name, date),
     itemId: string,
     itemData: Partial<InvoiceItem>,
   ): Promise<InvoiceItem> {
+    // Fields not being edited keep their stored values, so changing a quantity or price no longer wipes the line's discount.
+    const { data: current, error: currentError } = await supabase
+      .from('invoice_items')
+      .select('quantity, unit_price, discount_type, discount_value')
+      .eq('id', itemId)
+      .single();
+    if (currentError) throw currentError;
+
+    const changes: Partial<InvoiceItem> = {};
+    for (const key of [
+      'description',
+      'quantity',
+      'unit_price',
+      'discount_type',
+      'discount_value',
+    ] as const) {
+      if (itemData[key] !== undefined)
+        (changes as Record<string, unknown>)[key] = itemData[key];
+    }
+
     const { subtotal, discountAmount, amount } = this.calculateItemAmounts({
-      ...itemData,
-      quantity: itemData.quantity,
-      unit_price: itemData.unit_price,
-      discount_type: itemData.discount_type,
-      discount_value: itemData.discount_value,
+      ...current,
+      ...changes,
     });
 
     const { data, error } = await supabase
       .from('invoice_items')
       .update({
-        ...itemData,
+        ...changes,
         subtotal,
         discount_amount: discountAmount,
         amount,
@@ -834,14 +851,14 @@ event!event_id(id, name, date),
     const invoice = await this.findOne(supabase, userId, invoiceId);
     const items = await this.findInvoiceItems(supabase, userId, invoiceId);
 
-    const { subtotal, taxAmount, totalAmount, amountDue } =
-      this.calculateInvoiceTotals(
-        items,
-        invoice.tax_rate,
-        invoice.discount_amount,
-      );
+    const { subtotal, taxAmount, totalAmount } = this.calculateInvoiceTotals(
+      items,
+      invoice.tax_rate,
+      invoice.discount_amount,
+    );
 
-    const actualAmountDue = totalAmount - invoice.amount_paid;
+    // An invoice edited after a deposit owes the new total less what was already paid, never a negative balance.
+    const actualAmountDue = Math.max(0, totalAmount - invoice.amount_paid);
 
     const { data, error } = await supabase
       .from('invoices')
@@ -864,6 +881,7 @@ event!event_id(id, name, date),
     userId: string,
     id: string,
     invoiceData: Partial<Invoice>,
+    notifyUpdate = true,
   ): Promise<Invoice> {
     const { data, error } = await supabase
       .from('invoices')
@@ -885,7 +903,7 @@ event!event_id(id, name, date),
     }
 
     // Notify client via SMS only when the invoice has already been sent
-    if (result.status === 'sent') {
+    if (notifyUpdate && result.status === 'sent') {
       try {
         const phone = await this.lookupClientPhone(supabase, result);
         const clientName = result.client_name || 'Valued Client';
@@ -918,7 +936,8 @@ event!event_id(id, name, date),
       updateData.paid_date = new Date().toISOString().split('T')[0];
     }
 
-    const updated = await this.update(supabase, userId, id, updateData);
+    // The status-specific message below replaces the generic "invoice updated" SMS.
+    const updated = await this.update(supabase, userId, id, updateData, false);
 
     // ── SMS notifications ──────────────────────────────────────────────────
     try {
@@ -1089,6 +1108,13 @@ event!event_id(id, name, date),
     userId: string,
     id: string,
   ): Promise<void> {
+    const invoice = await this.findOne(supabase, userId, id);
+    if (invoice.status !== 'draft' || Number(invoice.amount_paid || 0) > 0) {
+      throw new BadRequestException(
+        'Only unpaid draft invoices can be permanently deleted. Cancel sent invoices to preserve their history.',
+      );
+    }
+
     const { error } = await supabase.from('invoices').delete().eq('id', id);
 
     if (error) throw error;

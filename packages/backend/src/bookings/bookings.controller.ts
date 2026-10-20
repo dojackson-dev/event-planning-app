@@ -31,7 +31,10 @@ export class BookingsController {
     const token = this.extractToken(authorization);
 
     // Handle dev tokens (local-<uuid> format)
-    if (token.startsWith('local-')) {
+    if (
+      token.startsWith('local-') &&
+      process.env.ALLOW_LOCAL_DEV_AUTH === 'true'
+    ) {
       const userId = token.replace('local-', '');
       if (userId) return userId;
       throw new UnauthorizedException('Invalid dev token format');
@@ -70,17 +73,17 @@ export class BookingsController {
     @Headers('authorization') authorization: string,
     @Query('venueId') venueId?: string,
   ): Promise<any[]> {
-    await this.getUserId(authorization);
+    const userId = await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.bookingsService.findAll(supabaseWithAuth, venueId);
+    return this.bookingsService.findAll(supabaseWithAuth, userId, venueId);
   }
 
   @Get(':id')
   async findOne(
     @Headers('authorization') authorization: string,
     @Param('id') id: string,
-  ): Promise<any | null> {
+  ): Promise<any> {
     await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
@@ -92,7 +95,7 @@ export class BookingsController {
     @Headers('authorization') authorization: string,
     @Param('id') id: string,
     @Body() updateBookingDto: any,
-  ): Promise<any | null> {
+  ): Promise<any> {
     await this.getUserId(authorization);
     const token = this.extractToken(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);

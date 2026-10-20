@@ -12,6 +12,10 @@ import {
 import { VipService } from './vip.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
+  PromoterAccessPolicy,
+  PromoterAccessService,
+} from '../promoter-team/promoter-access.service';
+import {
   CreateVipSectionDto,
   CreateVipPackageDto,
   UpdateVipPackageDto,
@@ -28,9 +32,13 @@ export class VipController {
   constructor(
     private readonly service: VipService,
     private readonly supabaseService: SupabaseService,
+    private readonly access: PromoterAccessService,
   ) {}
 
-  private async getUserId(authorization: string): Promise<string> {
+  private async getUserId(
+    authorization: string,
+    policy: PromoterAccessPolicy = 'self',
+  ): Promise<string> {
     if (!authorization)
       throw new UnauthorizedException('No authorization header');
     const token = authorization.replace('Bearer ', '');
@@ -40,7 +48,7 @@ export class VipController {
       error,
     } = await supabase.auth.getUser();
     if (error || !user) throw new UnauthorizedException('Invalid token');
-    return user.id;
+    return this.access.resolveUserId(user.id, policy);
   }
 
   // ── PUBLIC ────────────────────────────────────────────────────
@@ -117,7 +125,7 @@ export class VipController {
     @Param('eventId') eventId: string,
     @Body() dto: CreateVipSectionDto,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'write');
     return this.service.createSection(userId, eventId, dto);
   }
 
@@ -131,7 +139,7 @@ export class VipController {
     @Headers('authorization') auth: string,
     @Param('sectionId') sectionId: string,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'write');
     return this.service.deleteSection(userId, sectionId);
   }
 
@@ -143,7 +151,7 @@ export class VipController {
     @Param('eventId') eventId: string,
     @Body() dto: CreateVipPackageDto,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'write');
     return this.service.createPackage(userId, eventId, dto);
   }
 
@@ -158,7 +166,7 @@ export class VipController {
     @Param('packageId') packageId: string,
     @Body() dto: UpdateVipPackageDto,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'write');
     return this.service.updatePackage(userId, packageId, dto);
   }
 
@@ -167,7 +175,7 @@ export class VipController {
     @Headers('authorization') auth: string,
     @Param('packageId') packageId: string,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'write');
     return this.service.deletePackage(userId, packageId);
   }
 
@@ -179,7 +187,7 @@ export class VipController {
     @Param('eventId') eventId: string,
     @Body() dto: CreateVipServiceItemDto,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'write');
     return this.service.createServiceItem(userId, eventId, dto);
   }
 
@@ -193,7 +201,7 @@ export class VipController {
     @Headers('authorization') auth: string,
     @Param('itemId') itemId: string,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'write');
     return this.service.deleteServiceItem(userId, itemId);
   }
 
@@ -206,7 +214,7 @@ export class VipController {
     @Body()
     body: { file_url: string; file_type?: string; description?: string },
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'write');
     return this.service.saveLayout(
       userId,
       eventId,
@@ -228,7 +236,7 @@ export class VipController {
     @Headers('authorization') auth: string,
     @Param('eventId') eventId: string,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'read');
     return this.service.listOrders(userId, eventId);
   }
 
@@ -249,7 +257,7 @@ export class VipController {
     @Param('eventId') eventId: string,
     @Body() dto: ScanVipDto,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'scan');
     return this.service.scanVip(userId, eventId, dto);
   }
 
@@ -280,7 +288,7 @@ export class VipController {
     @Param('eventId') eventId: string,
     @Body() dto: CreateVipConciergeDto,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'write');
     return this.service.createConcierge(userId, eventId, dto);
   }
 
@@ -289,7 +297,7 @@ export class VipController {
     @Headers('authorization') auth: string,
     @Param('eventId') eventId: string,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'read');
     return this.service.listConcierges(userId, eventId);
   }
 
@@ -298,7 +306,7 @@ export class VipController {
     @Headers('authorization') auth: string,
     @Param('conciergeId') conciergeId: string,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'write');
     return this.service.deleteConcierge(userId, conciergeId);
   }
 
@@ -310,7 +318,7 @@ export class VipController {
     @Param('orderId') orderId: string,
     @Body() dto: AssignConciergeDto,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'write');
     return this.service.assignConcierge(userId, orderId, dto);
   }
 
@@ -322,7 +330,7 @@ export class VipController {
     @Param('serviceOrderId') serviceOrderId: string,
     @Body() dto: UpdateServiceOrderDto,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'write');
     return this.service.updateServiceOrder(userId, serviceOrderId, dto);
   }
 }

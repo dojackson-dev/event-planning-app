@@ -8,8 +8,20 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
 import Stripe from 'stripe';
+import {
+  assertNonprofitCanSell,
+  isVerifiedNonprofit,
+  NONPROFIT_APP_FEE_RATE,
+} from '../nonprofit/nonprofit-gate';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import { MailService } from '../mail/mail.service';
+import {
+  normalizePayMethod,
+  paymentMethodTypesFor,
+  salesTaxRatePct,
+  serviceFeeLines,
+  ticketPricing,
+} from '../payments/platform-fee';
 import {
   CreateVipSectionDto,
   CreateVipPackageDto,
@@ -23,12 +35,6 @@ import {
 } from './dto/vip.dto';
 
 const APP_FEE_RATE = 0.03;
-const STRIPE_PCT = 0.029;
-const STRIPE_FIXED = 30;
-
-function grossUp(cents: number): number {
-  return Math.ceil((cents + STRIPE_FIXED) / (1 - STRIPE_PCT - APP_FEE_RATE));
-}
 
 @Injectable()
 export class VipService {
@@ -299,7 +305,7 @@ export class VipService {
     const { data: event } = await admin
       .from('public_events')
       .select(
-        '*, promoter_accounts(stripe_account_id, stripe_connect_status, company_name, enable_bnpl)',
+        '*, promoter_accounts(stripe_account_id, stripe_connect_status, company_name, enable_bnpl, is_nonprofit, nonprofit_status)',
       )
       .eq('id', eventId)
       .eq('status', 'published')
@@ -307,6 +313,7 @@ export class VipService {
     if (!event) throw new NotFoundException('Event not found or not published');
 
     const promoter = event.promoter_accounts;
+    assertNonprofitCanSell(promoter);
     if (
       !promoter?.stripe_account_id ||
       promoter.stripe_connect_status !== 'active'
@@ -349,11 +356,8 @@ export class VipService {
             currency: 'usd',
             product_data: {
               name: item.name,
-              // Tax code: general admission / live event ticket
-              tax_code: 'txcd_90000001',
             },
             unit_amount: Math.round(Number(item.price) * 100),
-            tax_behavior: 'exclusive',
           },
           quantity: si.quantity,
         });
@@ -362,9 +366,23 @@ export class VipService {
 
     const packageCents = Math.round(Number(pkg.price) * 100);
     const subtotal = packageCents + serviceTotal;
-    const totalCharge = grossUp(subtotal);
-    const serviceFee = totalCharge - subtotal;
-    const appFeeAmount = Math.round(totalCharge * APP_FEE_RATE);
+    const feeRate = isVerifiedNonprofit(promoter)
+      ? NONPROFIT_APP_FEE_RATE
+      : APP_FEE_RATE;
+    const payMethod = normalizePayMethod(dto.pay_method);
+    const paymentMethodTypes = paymentMethodTypesFor(
+      promoter?.enable_bnpl,
+      payMethod,
+    );
+    const taxRate = salesTaxRatePct(event.sales_tax_rate);
+    const { serviceFee, tax: salesTax } = ticketPricing(
+      subtotal,
+      feeRate,
+      payMethod,
+      taxRate,
+    );
+    // The whole service fee is ours: it covers Stripe's bill and our platform fee, so the promoter nets the price plus any sales tax.
+    const appFeeAmount = serviceFee;
 
     const successUrl = dto.return_url
       ? `${dto.return_url}${dto.return_url.includes('?') ? '&' : '?'}vip_session={CHECKOUT_SESSION_ID}`
@@ -374,15 +392,9 @@ export class VipService {
       : `${this.frontendUrl}/events/${eventId}?vip_canceled=true`;
 
     const session = await this.stripe.checkout.sessions.create({
-      payment_method_types: promoter?.enable_bnpl
-        ? ['card', 'afterpay_clearpay', 'klarna', 'affirm']
-        : ['card'],
+      payment_method_types: paymentMethodTypes,
       mode: 'payment',
       ...(dto.buyer_email ? { customer_email: dto.buyer_email } : {}),
-      // Collect billing address so Stripe Tax can determine the correct jurisdiction
-      billing_address_collection: 'required',
-      // Stripe Tax: EventEcos remits tax on VIP ticket sales
-      automatic_tax: { enabled: true },
       line_items: [
         {
           price_data: {
@@ -391,30 +403,18 @@ export class VipService {
               name: `${event.title} — ${pkg.name}`,
               description:
                 pkg.description || `VIP Package · ${pkg.capacity} guests`,
-              // Tax code: general admission / live event ticket
-              tax_code: 'txcd_90000001',
             },
             unit_amount: packageCents,
-            // Tax is calculated on top of this price (shown as separate line item)
-            tax_behavior: 'exclusive',
           },
           quantity: 1,
         },
         ...serviceLineItems,
-        {
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              name: 'Service fee',
-              description: 'Platform & processing fee',
-              // Service fees are generally not taxable
-              tax_code: 'txcd_00000000',
-            },
-            unit_amount: serviceFee,
-            tax_behavior: 'exclusive',
-          },
-          quantity: 1,
-        },
+        ...serviceFeeLines(
+          serviceFee,
+          salesTax,
+          taxRate,
+          'Platform & processing fee',
+        ),
       ],
       payment_intent_data: {
         application_fee_amount: appFeeAmount,
@@ -1323,29 +1323,37 @@ export class VipService {
 
   async getPublicVipInfo(eventId: string) {
     const admin = this.supabaseService.getAdminClient();
-    const [packagesRes, serviceItemsRes, layoutsRes] = await Promise.all([
-      admin
-        .from('vip_packages')
-        .select('*, vip_sections(name)')
-        .eq('public_event_id', eventId)
-        .neq('status', 'hidden')
-        .order('price', { ascending: true }),
-      admin
-        .from('vip_service_items')
-        .select('id, name, category, price, requires_approval')
-        .eq('public_event_id', eventId)
-        .eq('status', 'active'),
-      admin
-        .from('vip_layouts')
-        .select('id, file_url, file_type, description')
-        .eq('public_event_id', eventId)
-        .order('created_at', { ascending: false })
-        .limit(1),
-    ]);
+    const [packagesRes, serviceItemsRes, layoutsRes, promoterRes] =
+      await Promise.all([
+        admin
+          .from('vip_packages')
+          .select('*, vip_sections(name)')
+          .eq('public_event_id', eventId)
+          .neq('status', 'hidden')
+          .order('price', { ascending: true }),
+        admin
+          .from('vip_service_items')
+          .select('id, name, category, price, requires_approval')
+          .eq('public_event_id', eventId)
+          .eq('status', 'active'),
+        admin
+          .from('vip_layouts')
+          .select('id, file_url, file_type, description')
+          .eq('public_event_id', eventId)
+          .order('created_at', { ascending: false })
+          .limit(1),
+        admin
+          .from('public_events')
+          .select('promoter_accounts(enable_bnpl)')
+          .eq('id', eventId)
+          .maybeSingle(),
+      ]);
     return {
       packages: packagesRes.data || [],
       service_items: serviceItemsRes.data || [],
       layout: layoutsRes.data?.[0] || null,
+      pay_later_available: !!(promoterRes.data as any)?.promoter_accounts
+        ?.enable_bnpl,
     };
   }
 

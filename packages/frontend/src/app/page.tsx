@@ -2,16 +2,18 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { Users, Store, Calendar, Zap, BarChart3, Shield, ArrowRight, MapPin, Ticket } from 'lucide-react'
+import { Users, Store, Calendar, Zap, BarChart3, Shield, ArrowRight, MapPin, Ticket, Sparkles, Facebook, Linkedin, Lock, Heart } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import EnterpriseContactModal from '@/components/EnterpriseContactModal'
+import BookDemoModal from '@/components/BookDemoModal'
 
 export default function Home() {
   const { isAuthenticated, loading, user } = useAuth()
   const router = useRouter()
   const [showEnterpriseModal, setShowEnterpriseModal] = useState(false)
+  const [showDemoModal, setShowDemoModal] = useState(false)
 
   const taglines = [
     '"Events, vendors, venues — all in one ecosystem."',
@@ -91,9 +93,20 @@ export default function Home() {
               <Link href="#features" className="text-white hover:text-primary-100 font-medium text-sm border border-white/40 hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors">
                 Features
               </Link>
-              <a href="https://demo.eventecos.com/demo" target="_blank" rel="noopener noreferrer" className="text-white hover:text-primary-100 font-medium text-sm border border-white/40 hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors">
+              <Link
+                href="/demo"
+                className="flex items-center gap-1.5 text-sm font-bold bg-white/20 hover:bg-white/30 text-white border border-white/50 hover:border-white/80 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
                 Live Demo
-              </a>
+              </Link>
+              <button
+                type="button"
+                onClick={() => setShowDemoModal(true)}
+                className="text-sm font-bold bg-white text-primary-700 hover:bg-primary-50 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                Book a Demo
+              </button>
             </div>
 
             {/* Right CTA */}
@@ -105,13 +118,19 @@ export default function Home() {
                 Client Portal
               </Link>
               <Link
+                href="#pricing"
+                className="text-gray-700 md:text-white font-medium text-sm border border-gray-300 md:border-white/40 hover:border-gray-400 md:hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                Pricing
+              </Link>
+              <Link
                 href="/login"
                 className="text-gray-700 md:text-white font-medium text-sm border border-gray-300 md:border-white/40 hover:border-gray-400 md:hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors"
               >
                 Login
               </Link>
               <Link
-                href="/signup"
+                href="https://eventecos.com/signup"
                 className="bg-accent-500 hover:bg-accent-600 text-white font-semibold px-5 py-1.5 rounded-lg transition-colors text-sm whitespace-nowrap"
               >
                 Get Started
@@ -169,11 +188,15 @@ export default function Home() {
             <div className="flex flex-col justify-center">
               
               <h1 className="text-5xl lg:text-6xl font-bold text-gray-900 mb-6 leading-tight">
-                Manage Your Event Business <span className="text-accent-500">Effortlessly</span>
+                Book more events. <span className="text-accent-500">Never double-book.</span> Stop chasing deposits.
               </h1>
               
-              <p className="text-xl text-gray-600 mb-8 max-w-lg">
-                EventEcos is the all-in-one platform built for venue owners, event planners, and promoters. Streamline bookings, manage clients, and grow your business — all in one place.
+              <p className="text-xl text-gray-600 mb-4 max-w-lg">
+                EventEcos is the venue booking and event management platform for venue owners, event planners, and promoters. Streamline bookings, manage clients, and grow your business — all in one place.
+              </p>
+
+              <p className="text-base text-gray-500 mb-8 max-w-lg">
+                Plus a marketplace that sends you venue and vendor leads.
               </p>
             </div>
 
@@ -219,7 +242,7 @@ export default function Home() {
           {/* CTA centered below both columns */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center mt-12">
             <Link
-              href="/signup"
+              href="https://eventecos.com/signup"
               className="bg-accent-500 hover:bg-accent-600 text-white font-bold px-10 py-4 rounded-lg transition-colors flex items-center gap-2 text-lg shadow-lg hover:shadow-xl"
             >
               Get Started <ArrowRight className="h-5 w-5" />
@@ -232,7 +255,60 @@ export default function Home() {
             >
               See Live Demo
             </a>
+            <button
+              type="button"
+              onClick={() => setShowDemoModal(true)}
+              className="border-2 border-gray-300 text-gray-700 hover:bg-gray-50 font-bold px-10 py-4 rounded-lg transition-colors text-lg"
+            >
+              Book a Demo
+            </button>
           </div>
+          <p className="text-center text-sm text-gray-500 mt-4">30-day free trial. No credit card required.</p>
+        </div>
+      </section>
+
+      {/* Trust Signals */}
+      <section className="py-10 px-4 sm:px-6 lg:px-8 bg-gray-50 border-y border-gray-100">
+        <div className="max-w-6xl mx-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
+            <div className="flex items-center gap-3 justify-center sm:justify-start">
+              <div className="h-10 w-10 rounded-full bg-accent-100 flex items-center justify-center flex-shrink-0">
+                <Lock className="h-5 w-5 text-accent-600" />
+              </div>
+              <p className="text-sm font-medium text-gray-700">Payments secured by Stripe</p>
+            </div>
+            <div className="flex items-center gap-3 justify-center sm:justify-start">
+              <div className="h-10 w-10 rounded-full bg-accent-100 flex items-center justify-center flex-shrink-0">
+                <Shield className="h-5 w-5 text-accent-600" />
+              </div>
+              <p className="text-sm font-medium text-gray-700">Your contracts & documents stay private</p>
+            </div>
+            <div className="flex items-center gap-3 justify-center sm:justify-start">
+              <div className="h-10 w-10 rounded-full bg-accent-100 flex items-center justify-center flex-shrink-0">
+                <Heart className="h-5 w-5 text-accent-600" />
+              </div>
+              <p className="text-sm font-medium text-gray-700">No long-term contract, cancel anytime</p>
+            </div>
+          </div>
+
+          {/* Founder credibility */}
+          <Link
+            href="/about"
+            className="group flex flex-col sm:flex-row items-center gap-6 bg-white rounded-2xl border border-gray-200 p-6 sm:p-8 hover:border-accent-300 hover:shadow-lg transition-all"
+          >
+            <img
+              src="/lib/nixon-family.jpg"
+              alt="Larry and Dee Nixon, founders of EventEcos"
+              className="h-20 w-20 rounded-full object-cover border-2 border-accent-200 flex-shrink-0"
+            />
+            <div className="text-center sm:text-left">
+              <p className="text-gray-900 font-semibold mb-1">Built by people who've actually run events</p>
+              <p className="text-gray-600 text-sm">
+                Larry &amp; Dee Nixon have spent 30+ years planning, hosting, and coordinating events — EventEcos is built from that firsthand experience, not a spreadsheet of feature requests.
+              </p>
+            </div>
+            <ArrowRight className="h-5 w-5 text-accent-500 flex-shrink-0 ml-auto hidden sm:block group-hover:translate-x-1 transition-transform" />
+          </Link>
         </div>
       </section>
 
@@ -255,8 +331,8 @@ export default function Home() {
               <div className="h-12 w-12 bg-accent-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-accent-200 transition-colors">
                 <Calendar className="h-6 w-6 text-accent-600" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Event Management</h3>
-              <p className="text-gray-600">Create and manage all your events in one centralized calendar. Set availability, block dates, and manage your capacity effortlessly.</p>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Capture the inquiry, send the proposal, take the deposit</h3>
+              <p className="text-gray-600">Create and manage all your events in one centralized calendar. Set availability, block dates, and manage your capacity.</p>
             </div>
 
             {/* Feature 2 */}
@@ -284,7 +360,7 @@ export default function Home() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Payment Processing</h3>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Collect the deposit, get paid on time</h3>
               <p className="text-gray-600">Accept deposits and payments online. Track payment status, send invoices, and automate your billing workflow.</p>
             </div>
 
@@ -328,8 +404,50 @@ export default function Home() {
           >
             Launch Live Demo <ArrowRight className="h-5 w-5" />
           </a>
+          <button
+            type="button"
+            onClick={() => setShowDemoModal(true)}
+            className="ml-0 sm:ml-4 mt-4 sm:mt-0 inline-flex items-center gap-2 border-2 border-white text-white hover:bg-white/10 font-bold px-10 py-4 rounded-lg transition-colors text-lg"
+          >
+            Book a Demo
+          </button>
         </div>
       </section>
+
+      {/* CTA after How It Works */}
+      <div className="bg-white py-8 px-4 text-center border-b border-gray-100">
+        <Link
+          href="https://eventecos.com/signup"
+          className="inline-flex items-center gap-2 bg-accent-500 hover:bg-accent-600 text-white font-bold px-10 py-4 rounded-lg transition-colors text-lg shadow-lg"
+        >
+          Get Started <ArrowRight className="h-5 w-5" />
+        </Link>
+      </div>
+
+      {/* Testimonials Section — TODO(D3.2): populate TESTIMONIALS below with real,
+          named customer quotes (first name, last name, business name, role, photo,
+          specific outcome) before this section can go live. Do not fabricate
+          quotes — ask the first 5-10 paying customers. Section renders nothing
+          until TESTIMONIALS has entries. */}
+      {(() => {
+        const TESTIMONIALS: Array<{ quote: string; name: string; business: string; role: string }> = []
+        if (TESTIMONIALS.length === 0) return null
+        return (
+          <section className="py-20 px-4 sm:px-6 lg:px-8 bg-white">
+            <div className="max-w-6xl mx-auto">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                {TESTIMONIALS.map((t) => (
+                  <div key={t.name} className="bg-gray-50 rounded-2xl p-6 border border-gray-100">
+                    <p className="text-gray-700 mb-4">&ldquo;{t.quote}&rdquo;</p>
+                    <p className="font-bold text-gray-900">{t.name}</p>
+                    <p className="text-gray-500 text-sm">{t.role}, {t.business}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        )
+      })()}
 
       {/* Directory & Events CTA */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gray-900 text-white">
@@ -415,11 +533,11 @@ export default function Home() {
               </div>
               <p className="text-gray-500 text-sm mb-6">Get started at no cost</p>
               <ul className="space-y-2.5 text-sm text-gray-600 mb-8 flex-1">
-                {['1 venue', 'No team members', '3% platform fee on direct payments', 'Ticket sales (customer pays 3% + Stripe)', 'Basic listing', 'Invoices, estimates & contracts (Stripe required)'].map(f => (
+                {['1 venue', 'No team members', '3% platform fee on direct payments', 'Ticket sales (customer pays 3% + card processing)', 'Basic listing', 'Invoices, estimates & contracts (Stripe required)'].map(f => (
                   <li key={f} className="flex items-start gap-2"><span className="text-accent-500 mt-0.5">✓</span>{f}</li>
                 ))}
               </ul>
-              <Link href="/signup" className="block text-center bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold py-2.5 rounded-lg transition-colors text-sm">
+              <Link href="https://eventecos.com/signup" className="block text-center bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold py-2.5 rounded-lg transition-colors text-sm">
                 Get Started
               </Link>
             </div>
@@ -432,13 +550,14 @@ export default function Home() {
                 <span className="text-4xl font-bold text-gray-900">$149</span>
                 <span className="text-gray-500 mb-1">/mo</span>
               </div>
+              <p className="text-gray-500 text-xs mb-1">$149/mo — less than one booked event&apos;s worth of admin time.</p>
               <p className="text-gray-500 text-sm mb-6">For growing event businesses</p>
               <ul className="space-y-2.5 text-sm text-gray-600 mb-8 flex-1">
-                {['3 venues', '3 team members', '1.5% platform fee on direct payments', 'Ticket sales (customer pays 3% + Stripe)', 'Invoices, estimates & contracts + payment tools', 'Vendor management, door list & SMS', 'Priority support'].map(f => (
+                {['3 venues', '3 team members', '1.5% platform fee on direct payments', 'Ticket sales (customer pays 3% + card processing)', 'Invoices, estimates & contracts + payment tools', 'Vendor management, door list & SMS', 'Priority support'].map(f => (
                   <li key={f} className="flex items-start gap-2"><span className="text-accent-500 mt-0.5">✓</span>{f}</li>
                 ))}
               </ul>
-              <Link href="/signup" className="block text-center bg-accent-500 hover:bg-accent-600 text-white font-semibold py-2.5 rounded-lg transition-colors text-sm">
+              <Link href="https://eventecos.com/signup" className="block text-center bg-accent-500 hover:bg-accent-600 text-white font-semibold py-2.5 rounded-lg transition-colors text-sm">
                 Start Pro
               </Link>
             </div>
@@ -452,11 +571,11 @@ export default function Home() {
               </div>
               <p className="text-gray-500 text-sm mb-6">For high-volume operators</p>
               <ul className="space-y-2.5 text-sm text-gray-600 mb-8 flex-1">
-                {['5 venues', '5 team members', '1% platform fee on direct payments', 'Ticket sales (customer pays 3% + Stripe)', 'All Pro features', 'Multi-venue management', 'Custom branding', 'Dedicated account manager'].map(f => (
+                {['5 venues', '5 team members', '1% platform fee on direct payments', 'Ticket sales (customer pays 3% + card processing)', 'All Pro features', 'Multi-venue management', 'Custom branding', 'Dedicated account manager'].map(f => (
                   <li key={f} className="flex items-start gap-2"><span className="text-accent-500 mt-0.5">✓</span>{f}</li>
                 ))}
               </ul>
-              <Link href="/signup" className="block text-center bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold py-2.5 rounded-lg transition-colors text-sm">
+              <Link href="https://eventecos.com/signup" className="block text-center bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold py-2.5 rounded-lg transition-colors text-sm">
                 Start Premium
               </Link>
             </div>
@@ -479,10 +598,88 @@ export default function Home() {
             </div>
           </div>
 
-          <p className="text-center text-gray-500 text-sm mt-8">
+          <p className="text-center text-gray-500 text-sm mt-8 max-w-3xl mx-auto">
+            Card processing is 3.1% + $0.30, paid by the payer. Verified non-profits pay a 1.5% platform fee instead of 3% on ticket and VIP sales.
+          </p>
+          <p className="text-center text-gray-500 text-sm mt-3">
             All plans include a 30-day free trial. No credit card required to start.
           </p>
         </div>
+      </section>
+
+      {/* FAQ Section */}
+      <section id="faq" className="py-20 px-4 sm:px-6 lg:px-8 bg-gray-50">
+        <div className="max-w-3xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">Frequently Asked Questions</h2>
+            <p className="text-lg text-gray-600">Straight answers on fees, data, and support.</p>
+          </div>
+          <div className="space-y-8">
+            {[
+              {
+                q: 'What does it actually cost to sell a ticket?',
+                a: 'On the Free plan, you pay a 3% platform fee on direct payments (1.5% on Pro, 1% on Premium). For ticket sales, the customer separately pays a 3% ticket fee (1.5% for verified non-profits) plus payment processing of 3.1% + $0.30 for cards (6% + $0.30 if they choose pay later with Afterpay, Klarna or Affirm, where you offer it). Example on Free: a $100 ticket costs the buyer about $106.80 by card ($100 + $3.20 ticket fee + $3.60 processing, rounded), and you receive the full $100.',
+              },
+              {
+                q: 'Where are my contracts and documents stored, and who can access them?',
+                a: 'Contracts, liability insurance, and other documents you upload are stored in your EventEcos account and are only visible to you and the specific clients you share them with \u2014 they are not public or searchable.',
+              },
+              {
+                q: 'Can I export my data if I leave?',
+                a: 'Yes. There is no self-serve export button today \u2014 contact support and we will get you a full export of your bookings, clients, and documents.',
+              },
+              {
+                q: 'What happens after my 30-day free trial?',
+                a: 'You choose a paid plan (Pro, Premium, or Enterprise) or continue on the Free plan. Nothing is charged automatically without you selecting a plan.',
+              },
+              {
+                q: 'Do I need a Stripe account?',
+                a: 'Yes, Stripe is required to accept online payments, deposits, and ticket sales directly through EventEcos.',
+              },
+              {
+                q: 'What support do I get?',
+                a: 'All plans include standard support. Pro adds priority support, and Premium and Enterprise include a dedicated account manager.',
+              },
+              {
+                q: 'Can I cancel anytime?',
+                a: 'Yes. There is no long-term contract \u2014 you can change or cancel your plan at any time.',
+              },
+              {
+                q: 'What if I manage more than one venue?',
+                a: 'Pro supports up to 3 venues and Premium up to 5, each with multi-venue management tools. Need more? Enterprise offers unlimited venues with custom pricing.',
+              },
+            ].map((item) => (
+              <div key={item.q}>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">{item.q}</h3>
+                <p className="text-gray-600">{item.a}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+        <script
+          type="application/ld+json"
+          // eslint-disable-next-line react/no-danger
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'FAQPage',
+              mainEntity: [
+                { q: 'What does it actually cost to sell a ticket?', a: 'On the Free plan, you pay a 3% platform fee on direct payments (1.5% on Pro, 1% on Premium). For ticket sales, the customer separately pays a 3% ticket fee (1.5% for verified non-profits) plus payment processing (3.1% + $0.30 for cards).' },
+                { q: 'Where are my contracts and documents stored, and who can access them?', a: 'Contracts and documents are stored in your EventEcos account and are only visible to you and the clients you share them with.' },
+                { q: 'Can I export my data if I leave?', a: 'Yes \u2014 contact support for a full export of your bookings, clients, and documents.' },
+                { q: 'What happens after my 30-day free trial?', a: 'You choose a paid plan or continue on the Free plan. Nothing is charged automatically.' },
+                { q: 'Do I need a Stripe account?', a: 'Yes, Stripe is required to accept online payments, deposits, and ticket sales.' },
+                { q: 'What support do I get?', a: 'All plans include standard support; Pro adds priority support; Premium and Enterprise include a dedicated account manager.' },
+                { q: 'Can I cancel anytime?', a: 'Yes, there is no long-term contract.' },
+                { q: 'What if I manage more than one venue?', a: 'Pro supports up to 3 venues, Premium up to 5, and Enterprise offers unlimited venues.' },
+              ].map((i) => ({
+                '@type': 'Question',
+                name: i.q,
+                acceptedAnswer: { '@type': 'Answer', text: i.a },
+              })),
+            }),
+          }}
+        />
       </section>
 
       {/* Final CTA */}
@@ -492,11 +689,11 @@ export default function Home() {
             Ready to Transform Your Event Business?
           </h2>
           <p className="text-xl text-primary-100 mb-8">
-            Join thousands of event professionals managing their businesses with EventEcos.
+            The all-in-one platform for venue owners, event planners, and promoters.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
-              href="/signup"
+              href="https://eventecos.com/signup"
               className="bg-white hover:bg-accent-50 text-accent-600 font-bold px-8 py-4 rounded-lg transition-colors text-lg shadow-lg"
             >
               Get Started
@@ -509,6 +706,13 @@ export default function Home() {
             >
               See Live Demo
             </a>
+            <button
+              type="button"
+              onClick={() => setShowDemoModal(true)}
+              className="bg-white/20 hover:bg-white/30 text-white font-bold px-8 py-4 rounded-lg transition-colors text-lg"
+            >
+              Book a Demo
+            </button>
           </div>
         </div>
       </section>
@@ -516,14 +720,14 @@ export default function Home() {
       {/* Footer */}
       <footer className="bg-gray-900 border-t border-gray-800 py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
             <div>
               <Link href="/">
                 <div className="inline-block bg-white rounded-xl p-2">
                   <img src="/lib/EventEcos-Logo.jpg" alt="EventEcos" style={{ height: '90px', width: 'auto' }} />
                 </div>
               </Link>
-              <p className="text-gray-400 text-sm">The complete event management platform.</p>
+              <p className="text-gray-400 text-sm mt-4">The complete event management platform.</p>
             </div>
             <div>
               <h4 className="text-white font-bold mb-4">Product</h4>
@@ -536,22 +740,50 @@ export default function Home() {
               </ul>
             </div>
             <div>
+              <h4 className="text-white font-bold mb-4">Follow Us</h4>
+              <div className="flex items-center gap-3 mb-3">
+                <a
+                  href="https://www.facebook.com/people/EventEcos/61580708045237/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="EventEcos on Facebook"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#1877F2] text-white shadow-lg shadow-[#1877F2]/30 transition-transform duration-200 hover:-translate-y-0.5 hover:brightness-110"
+                >
+                  <Facebook className="h-5 w-5" />
+                </a>
+                <a
+                  href="https://www.linkedin.com/company/eventecos/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="EventEcos on LinkedIn"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#0A66C2] text-white shadow-lg shadow-[#0A66C2]/30 transition-transform duration-200 hover:-translate-y-0.5 hover:brightness-110"
+                >
+                  <Linkedin className="h-5 w-5" />
+                </a>
+              </div>
+              <p className="text-gray-400 text-sm">Stay connected with company news, event updates, and more.</p>
+            </div>
+            <div>
               <h4 className="text-white font-bold mb-4">Legal</h4>
               <ul className="space-y-2 text-gray-400 text-sm">
+                <li><Link href="/about" className="hover:text-white">About</Link></li>
                 <li><Link href="/privacy-policy" className="hover:text-white">Privacy</Link></li>
                 <li><Link href="/terms-of-service" className="hover:text-white">Terms</Link></li>
+                <li><Link href="/vs/tripleseat" className="hover:text-white">EventEcos vs Tripleseat</Link></li>
+                <li><Link href="/vs/perfect-venue" className="hover:text-white">EventEcos vs Perfect Venue</Link></li>
               </ul>
             </div>
           </div>
           <div className="border-t border-gray-800 pt-8">
             <p className="text-center text-gray-400 text-sm">
-              &copy; 2026 EventEcos. All rights reserved. Powering the Event Ecosystem.
+              &copy; 2026 EventEcos, a DoVenue Suites product. All rights reserved.
             </p>
           </div>
         </div>
       </footer>
 
       <EnterpriseContactModal isOpen={showEnterpriseModal} onClose={() => setShowEnterpriseModal(false)} />
+      <BookDemoModal isOpen={showDemoModal} onClose={() => setShowDemoModal(false)} />
     </div>
   )
 }

@@ -13,6 +13,10 @@ import {
 import { PromoterInvoicesService } from './promoter-invoices.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
+  PromoterAccessPolicy,
+  PromoterAccessService,
+} from '../promoter-team/promoter-access.service';
+import {
   CreatePromoterInvoiceDto,
   UpdatePromoterInvoiceDto,
   PromoterInvoiceItemDto,
@@ -25,20 +29,28 @@ export class PromoterInvoicesController {
   constructor(
     private readonly promoterInvoicesService: PromoterInvoicesService,
     private readonly supabaseService: SupabaseService,
+    private readonly access: PromoterAccessService,
   ) {}
 
-  private async getUserId(authorization: string): Promise<string> {
+  private async getUserId(
+    authorization: string,
+    policy: PromoterAccessPolicy = 'self',
+  ): Promise<string> {
     if (!authorization)
       throw new UnauthorizedException('No authorization header');
     const token = authorization.replace('Bearer ', '');
-    if (token.startsWith('local-')) return token.replace('local-', '');
+    if (
+      token.startsWith('local-') &&
+      process.env.ALLOW_LOCAL_DEV_AUTH === 'true'
+    )
+      return this.access.resolveUserId(token.replace('local-', ''), policy);
     const supabase = this.supabaseService.setAuthContext(token);
     const {
       data: { user },
       error,
     } = await supabase.auth.getUser();
     if (error || !user) throw new UnauthorizedException('Invalid token');
-    return user.id;
+    return this.access.resolveUserId(user.id, policy);
   }
 
   // ─── PUBLIC ───────────────────────────────────────────────────────────────
@@ -49,8 +61,15 @@ export class PromoterInvoicesController {
   }
 
   @Post('public/:token/checkout')
-  async createPublicCheckout(@Param('token') token: string) {
-    return this.promoterInvoicesService.createCheckoutSession(token);
+  async createPublicCheckout(
+    @Param('token') token: string,
+    @Body() body?: { pay_method?: string; pay_amount?: string },
+  ) {
+    return this.promoterInvoicesService.createCheckoutSession(
+      token,
+      body?.pay_method,
+      body?.pay_amount,
+    );
   }
 
   @Post('public/:token/verify-payment')
@@ -65,13 +84,13 @@ export class PromoterInvoicesController {
     @Headers('authorization') auth: string,
     @Body() dto: CreatePromoterInvoiceDto,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'write');
     return this.promoterInvoicesService.createInvoice(userId, dto);
   }
 
   @Get('mine')
   async listInvoices(@Headers('authorization') auth: string) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'read');
     return this.promoterInvoicesService.listInvoices(userId);
   }
 
@@ -80,7 +99,7 @@ export class PromoterInvoicesController {
     @Headers('authorization') auth: string,
     @Param('id') id: string,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'read');
     return this.promoterInvoicesService.getInvoice(userId, id);
   }
 
@@ -90,7 +109,7 @@ export class PromoterInvoicesController {
     @Param('id') id: string,
     @Body() dto: UpdatePromoterInvoiceDto,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'write');
     return this.promoterInvoicesService.updateInvoice(userId, id, dto);
   }
 
@@ -99,7 +118,7 @@ export class PromoterInvoicesController {
     @Headers('authorization') auth: string,
     @Param('id') id: string,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'write');
     return this.promoterInvoicesService.deleteInvoice(userId, id);
   }
 
@@ -108,7 +127,7 @@ export class PromoterInvoicesController {
     @Headers('authorization') auth: string,
     @Param('id') id: string,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'write');
     return this.promoterInvoicesService.sendInvoice(userId, id);
   }
 
@@ -118,7 +137,7 @@ export class PromoterInvoicesController {
     @Param('id') id: string,
     @Body() item: PromoterInvoiceItemDto,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'write');
     return this.promoterInvoicesService.addItem(userId, id, item);
   }
 
@@ -128,7 +147,7 @@ export class PromoterInvoicesController {
     @Param('itemId') itemId: string,
     @Body() item: Partial<PromoterInvoiceItemDto>,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'write');
     return this.promoterInvoicesService.updateItem(userId, itemId, item);
   }
 
@@ -137,7 +156,7 @@ export class PromoterInvoicesController {
     @Headers('authorization') auth: string,
     @Param('itemId') itemId: string,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'write');
     return this.promoterInvoicesService.deleteItem(userId, itemId);
   }
 }

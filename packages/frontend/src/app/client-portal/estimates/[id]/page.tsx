@@ -129,12 +129,14 @@ export default function ClientEstimateDetailPage() {
           <div className="px-6 py-4 border-b border-gray-100">
             <h2 className="font-semibold text-gray-800">Line Items</h2>
           </div>
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[560px] text-sm">
             <thead>
               <tr className="bg-gray-50 text-xs text-gray-500 uppercase">
                 <th className="px-6 py-3 text-left">Description</th>
                 <th className="px-4 py-3 text-right">Qty</th>
                 <th className="px-4 py-3 text-right">Unit Price</th>
+                <th className="px-4 py-3 text-right">Item Discount</th>
                 <th className="px-4 py-3 text-right">Amount</th>
               </tr>
             </thead>
@@ -146,6 +148,13 @@ export default function ClientEstimateDetailPage() {
                   <td className="px-4 py-3 text-right text-gray-600">
                     ${Number(item.unit_price ?? 0).toFixed(2)}
                   </td>
+                  <td className="px-4 py-3 text-right">
+                    {Number(item.discount_amount) > 0 ? (
+                      <span className="text-green-700">−${Number(item.discount_amount).toFixed(2)}</span>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-right font-medium text-gray-800">
                     ${Number(item.amount ?? item.subtotal ?? 0).toFixed(2)}
                   </td>
@@ -153,6 +162,7 @@ export default function ClientEstimateDetailPage() {
               ))}
             </tbody>
           </table>
+          </div>
 
           {/* Totals */}
           <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 space-y-1">
@@ -162,7 +172,7 @@ export default function ClientEstimateDetailPage() {
             </div>
             {Number(estimate.discount_amount) > 0 && (
               <div className="flex justify-between text-sm text-green-700">
-                <span>Discount</span>
+                <span>Additional discount</span>
                 <span>−${Number(estimate.discount_amount).toFixed(2)}</span>
               </div>
             )}

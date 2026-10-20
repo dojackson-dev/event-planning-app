@@ -7,6 +7,20 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
+import {
+  applicationFeeCents,
+  normalizePayMethod,
+  processingFeeLine,
+  paymentMethodTypesFor,
+  processingFeeCents,
+} from '../payments/platform-fee';
+import {
+  applyCredit,
+  creditCentsFor,
+  hasDeposit,
+  normalizePayAmount,
+  validateDeposit,
+} from '../payments/invoice-deposit';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import Stripe from 'stripe';
 import * as nodemailer from 'nodemailer';
@@ -92,6 +106,13 @@ export class PromoterInvoicesService {
     const discountAmount = dto.discount_amount ?? 0;
     const { subtotal, taxAmount, totalAmount, amountDue } =
       this.calculateTotals(dto.items, taxRate, discountAmount);
+    const depositError = validateDeposit({
+      deposit_amount: dto.deposit_amount,
+      balance_due_date: dto.balance_due_date,
+      due_date: dto.due_date,
+      total_amount: totalAmount,
+    });
+    if (depositError) throw new BadRequestException(depositError);
 
     const { data: invoice, error: invErr } = await admin
       .from('promoter_invoices')
@@ -113,6 +134,13 @@ export class PromoterInvoicesService {
         notes: dto.notes ?? null,
         terms: dto.terms ?? null,
         status: 'draft',
+        // Only written when a deposit is set so invoices without one never touch the new columns.
+        ...(dto.deposit_amount != null
+          ? {
+              deposit_amount: dto.deposit_amount,
+              balance_due_date: dto.balance_due_date ?? null,
+            }
+          : {}),
       })
       .select()
       .single();
@@ -170,11 +198,30 @@ export class PromoterInvoicesService {
     const promoterAccountId = await this.getPromoterAccountId(userId);
     const { data: existing } = await admin
       .from('promoter_invoices')
-      .select('id')
+      .select('*')
       .eq('id', invoiceId)
       .eq('promoter_account_id', promoterAccountId)
       .single();
     if (!existing) throw new NotFoundException('Invoice not found');
+    if (
+      dto.deposit_amount !== undefined ||
+      dto.balance_due_date !== undefined ||
+      dto.due_date !== undefined
+    ) {
+      const depositError = validateDeposit({
+        deposit_amount:
+          dto.deposit_amount !== undefined
+            ? dto.deposit_amount
+            : existing.deposit_amount,
+        balance_due_date:
+          dto.balance_due_date !== undefined
+            ? dto.balance_due_date
+            : existing.balance_due_date,
+        due_date: dto.due_date ?? existing.due_date,
+        total_amount: Number(existing.total_amount),
+      });
+      if (depositError) throw new BadRequestException(depositError);
+    }
     const { error } = await admin
       .from('promoter_invoices')
       .update({ ...dto, updated_at: new Date().toISOString() })
@@ -291,6 +338,11 @@ export class PromoterInvoicesService {
       .from('promoter_invoice_items')
       .select('quantity, unit_price')
       .eq('promoter_invoice_id', invoiceId);
+    const { data: current } = await admin
+      .from('promoter_invoices')
+      .select('*')
+      .eq('id', invoiceId)
+      .maybeSingle();
     const { subtotal, taxAmount, totalAmount, amountDue } =
       this.calculateTotals(
         (items ?? []) as { quantity: number; unit_price: number }[],
@@ -303,7 +355,11 @@ export class PromoterInvoicesService {
         subtotal,
         tax_amount: taxAmount,
         total_amount: totalAmount,
-        amount_due: amountDue,
+        // With a deposit, payments already received stay credited when items change.
+        amount_due:
+          current?.deposit_amount != null
+            ? Math.max(0, totalAmount - Number(current.amount_paid ?? 0))
+            : amountDue,
         updated_at: new Date().toISOString(),
       })
       .eq('id', invoiceId);
@@ -444,7 +500,7 @@ export class PromoterInvoicesService {
     const { data, error } = await admin
       .from('promoter_invoices')
       .select(
-        '*, promoter_invoice_items(*), promoter_accounts(company_name, contact_name, email, phone, location, profile_image_url)',
+        '*, promoter_invoice_items(*), promoter_accounts(company_name, contact_name, email, phone, location, profile_image_url, enable_bnpl)',
       )
       .eq('public_token', token)
       .single();
@@ -459,20 +515,47 @@ export class PromoterInvoicesService {
       data.status = 'viewed';
     }
 
+    const { enable_bnpl, ...promoterPublic } = data.promoter_accounts ?? {};
     const {
       public_token: _tok,
       stripe_checkout_session_id: _sess,
       stripe_payment_intent_id: _pi,
+      pending_credit_cents: _pending,
       ...safe
     } = data;
-    return safe;
+    const amountCents = Math.round(Number(data.amount_due) * 100);
+    const depositCents = creditCentsFor(data, 'deposit');
+    return {
+      ...safe,
+      promoter_accounts: data.promoter_accounts ? promoterPublic : null,
+      pay_later_available: !!enable_bnpl,
+      bank_available: !!enable_bnpl,
+      processing_fee_cents: {
+        card: processingFeeCents(amountCents, 'card'),
+        pay_later: processingFeeCents(amountCents, 'pay_later'),
+        bank: processingFeeCents(amountCents, 'bank'),
+      },
+      ...(hasDeposit(data)
+        ? {
+            deposit_processing_fee_cents: {
+              card: processingFeeCents(depositCents, 'card'),
+              pay_later: processingFeeCents(depositCents, 'pay_later'),
+              bank: processingFeeCents(depositCents, 'bank'),
+            },
+          }
+        : {}),
+    };
   }
 
   // ─── Stripe Checkout ──────────────────────────────────────────────────────
 
   async createCheckoutSession(
     token: string,
+    payMethodInput: unknown = 'card',
+    payAmountInput?: unknown,
   ): Promise<{ url: string; feeCents: number }> {
+    const payMethod = normalizePayMethod(payMethodInput, true);
+    const payAmount = normalizePayAmount(payAmountInput);
     const admin = this.supabaseService.getAdminClient();
 
     const { data: invoice, error } = await admin
@@ -489,9 +572,11 @@ export class PromoterInvoicesService {
     if (invoice.status === 'cancelled')
       throw new ForbiddenException('Invoice has been cancelled');
 
-    const amountCents = Math.round(Number(invoice.amount_due) * 100);
+    // Invoices without a deposit always charge the full amount due.
+    const amountCents = creditCentsFor(invoice, payAmount);
     if (amountCents <= 0)
       throw new ForbiddenException('Invoice amount must be greater than zero');
+    const isDepositPayment = hasDeposit(invoice) && payAmount === 'deposit';
 
     const promoter = invoice.promoter_accounts;
     if (
@@ -508,12 +593,16 @@ export class PromoterInvoicesService {
     const feeRate =
       DIRECT_PAYMENT_FEE_BY_PLAN[promoter?.plan] ?? DEFAULT_FEE_RATE;
     const feeCents = Math.round(amountCents * feeRate);
-
-    const bnplMethods = ['afterpay_clearpay', 'klarna', 'affirm', 'us_bank_account'] as const;
+    // The payer covers Stripe's processing fee, which the platform is billed for.
+    const processingCents = processingFeeCents(amountCents, payMethod);
 
     const session = await this.stripe.checkout.sessions.create({
       mode: 'payment',
-      payment_method_types: promoter?.enable_bnpl ? ['card', ...bnplMethods] : ['card'],
+      payment_method_types: paymentMethodTypesFor(
+        promoter?.enable_bnpl,
+        payMethod,
+        { bankDebit: true },
+      ),
       customer_email: invoice.client_email,
       line_items: [
         {
@@ -521,9 +610,17 @@ export class PromoterInvoicesService {
             currency: 'usd',
             unit_amount: amountCents,
             product_data: {
-              name: `Invoice ${invoice.invoice_number}`,
+              name: `${isDepositPayment ? 'Deposit — ' : ''}Invoice ${invoice.invoice_number}`,
               description: `Payment to ${promoterName}`,
             },
+          },
+          quantity: 1,
+        },
+        {
+          price_data: {
+            currency: 'usd',
+            unit_amount: processingCents,
+            product_data: processingFeeLine(payMethod),
           },
           quantity: 1,
         },
@@ -536,7 +633,7 @@ export class PromoterInvoicesService {
       },
       client_reference_id: invoice.id,
       payment_intent_data: {
-        application_fee_amount: feeCents,
+        application_fee_amount: applicationFeeCents(feeCents, processingCents),
         transfer_data: { destination: promoter.stripe_account_id },
         metadata: { promoter_invoice_id: invoice.id },
       },
@@ -546,6 +643,14 @@ export class PromoterInvoicesService {
       .from('promoter_invoices')
       .update({
         stripe_checkout_session_id: session.id,
+        // Lets the webhook credit exactly what this checkout paid (deposit invoices only).
+        // A new checkout supersedes the previous payment, so late events for it can no longer match.
+        ...(invoice.deposit_amount != null
+          ? {
+              pending_credit_cents: amountCents,
+              stripe_payment_intent_id: null,
+            }
+          : {}),
         updated_at: new Date().toISOString(),
       })
       .eq('id', invoice.id);
@@ -558,47 +663,43 @@ export class PromoterInvoicesService {
 
   // ─── Webhook handler ──────────────────────────────────────────────────────
 
-  async markInvoicePaidBySession(
-    sessionId: string,
+  /**
+   * Credits the in-flight checkout to an invoice that has a deposit.
+   * Returns null when it was already credited (webhook + verify can both fire).
+   */
+  private async creditDepositPayment(
+    invoice: any,
     paymentIntentId: string | null,
-  ) {
+  ): Promise<{ fullyPaid: boolean; creditedCents: number } | null> {
+    const pending = Number(invoice.pending_credit_cents ?? 0);
+    if (pending <= 0) return null;
     const admin = this.supabaseService.getAdminClient();
-    const { data: invoice } = await admin
-      .from('promoter_invoices')
-      .select(
-        'id, total_amount, client_name, client_phone, promoter_accounts(company_name, contact_name, phone)',
-      )
-      .eq('stripe_checkout_session_id', sessionId)
-      .maybeSingle();
-
-    if (!invoice) {
-      this.logger.warn(
-        `No promoter invoice found for Stripe session ${sessionId}`,
-      );
-      return;
-    }
-
-    await admin
+    const credit = applyCredit(invoice, pending);
+    const { data: updated } = await admin
       .from('promoter_invoices')
       .update({
-        status: 'paid',
-        amount_paid: invoice.total_amount,
-        amount_due: 0,
-        paid_at: new Date().toISOString(),
-        stripe_payment_intent_id: paymentIntentId,
+        status: credit.fullyPaid ? 'paid' : 'sent',
+        amount_paid: credit.amount_paid,
+        amount_due: credit.amount_due,
+        pending_credit_cents: null,
+        ...(credit.fullyPaid ? { paid_at: new Date().toISOString() } : {}),
+        ...(paymentIntentId
+          ? { stripe_payment_intent_id: paymentIntentId }
+          : {}),
         updated_at: new Date().toISOString(),
       })
-      .eq('id', invoice.id);
+      .eq('id', invoice.id)
+      .eq('pending_credit_cents', pending)
+      .select('id');
+    if (!updated?.length) return null;
+    return { fullyPaid: credit.fullyPaid, creditedCents: pending };
+  }
 
-    await admin
-      .from('promoter_bookings')
-      .update({ status: 'deposit_paid', updated_at: new Date().toISOString() })
-      .eq('promoter_invoice_id', invoice.id);
-
-    this.logger.log(
-      `Promoter invoice ${invoice.id} marked paid via session ${sessionId}`,
-    );
-
+  private async notifyPayment(
+    invoice: any,
+    paidAmount: number,
+    isDeposit: boolean,
+  ) {
     try {
       const promoterAccount = invoice.promoter_accounts as any;
       const promoterPhone: string | null = promoterAccount?.phone ?? null;
@@ -610,22 +711,79 @@ export class PromoterInvoicesService {
         promoterPhone,
         promoterName,
         invoice.client_name ?? 'Client',
-        invoice.total_amount,
+        paidAmount,
       );
       await this.smsNotifications.paymentReceived(
-        (invoice as any).client_phone ?? null,
+        invoice.client_phone ?? null,
         invoice.client_name ?? 'Valued Client',
-        invoice.total_amount,
-        `your invoice from ${promoterName}`,
+        paidAmount,
+        `${isDeposit ? 'a deposit on ' : ''}your invoice from ${promoterName}`,
       );
     } catch {
       // SMS errors must never break payment processing
     }
   }
 
+  async markInvoicePaidBySession(
+    sessionId: string,
+    paymentIntentId: string | null,
+  ) {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: invoice } = await admin
+      .from('promoter_invoices')
+      .select('*, promoter_accounts(company_name, contact_name, phone)')
+      .eq('stripe_checkout_session_id', sessionId)
+      .maybeSingle();
+
+    if (!invoice) {
+      this.logger.warn(
+        `No promoter invoice found for Stripe session ${sessionId}`,
+      );
+      return;
+    }
+
+    let paidAmount: number = invoice.total_amount;
+    let isDeposit = false;
+    if (invoice.deposit_amount != null) {
+      const credited = await this.creditDepositPayment(
+        invoice,
+        paymentIntentId,
+      );
+      if (!credited) return;
+      paidAmount = credited.creditedCents / 100;
+      isDeposit = !credited.fullyPaid;
+    } else {
+      await admin
+        .from('promoter_invoices')
+        .update({
+          status: 'paid',
+          amount_paid: invoice.total_amount,
+          amount_due: 0,
+          paid_at: new Date().toISOString(),
+          stripe_payment_intent_id: paymentIntentId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', invoice.id);
+    }
+
+    await admin
+      .from('promoter_bookings')
+      .update({ status: 'deposit_paid', updated_at: new Date().toISOString() })
+      .eq('promoter_invoice_id', invoice.id);
+
+    this.logger.log(
+      `Promoter invoice ${invoice.id} payment recorded via session ${sessionId}`,
+    );
+
+    await this.notifyPayment(invoice, paidAmount, isDeposit);
+  }
+
   // ─── ACH delayed payment handlers ────────────────────────────────────────
 
-  async markInvoiceProcessing(sessionId: string, paymentIntentId: string | null) {
+  async markInvoiceProcessing(
+    sessionId: string,
+    paymentIntentId: string | null,
+  ) {
     const admin = this.supabaseService.getAdminClient();
     await admin
       .from('promoter_invoices')
@@ -635,48 +793,51 @@ export class PromoterInvoicesService {
         updated_at: new Date().toISOString(),
       })
       .eq('stripe_checkout_session_id', sessionId);
-    this.logger.log(`Promoter invoice set to processing via session ${sessionId}`);
+    this.logger.log(
+      `Promoter invoice set to processing via session ${sessionId}`,
+    );
   }
 
   async markInvoicePaidByPaymentIntent(paymentIntentId: string) {
     const admin = this.supabaseService.getAdminClient();
     const { data: invoice } = await admin
       .from('promoter_invoices')
-      .select(
-        'id, total_amount, client_name, client_phone, promoter_accounts(company_name, contact_name, phone)',
-      )
+      .select('*, promoter_accounts(company_name, contact_name, phone)')
       .eq('stripe_payment_intent_id', paymentIntentId)
       .maybeSingle();
 
     if (!invoice) return;
 
-    await admin
-      .from('promoter_invoices')
-      .update({
-        status: 'paid',
-        amount_paid: invoice.total_amount,
-        amount_due: 0,
-        paid_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', invoice.id);
+    let paidAmount: number = invoice.total_amount;
+    let isDeposit = false;
+    if (invoice.deposit_amount != null) {
+      const credited = await this.creditDepositPayment(invoice, null);
+      if (!credited) return;
+      paidAmount = credited.creditedCents / 100;
+      isDeposit = !credited.fullyPaid;
+    } else {
+      await admin
+        .from('promoter_invoices')
+        .update({
+          status: 'paid',
+          amount_paid: invoice.total_amount,
+          amount_due: 0,
+          paid_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', invoice.id);
+    }
 
     await admin
       .from('promoter_bookings')
       .update({ status: 'deposit_paid', updated_at: new Date().toISOString() })
       .eq('promoter_invoice_id', invoice.id);
 
-    this.logger.log(`Promoter invoice ${invoice.id} marked paid via PaymentIntent ${paymentIntentId}`);
+    this.logger.log(
+      `Promoter invoice ${invoice.id} payment recorded via PaymentIntent ${paymentIntentId}`,
+    );
 
-    try {
-      const promoterAccount = invoice.promoter_accounts as any;
-      const promoterPhone: string | null = promoterAccount?.phone ?? null;
-      const promoterName: string = promoterAccount?.company_name || promoterAccount?.contact_name || 'Promoter';
-      await this.smsNotifications.vendorInvoicePaid(promoterPhone, promoterName, invoice.client_name ?? 'Client', invoice.total_amount);
-      await this.smsNotifications.paymentReceived((invoice as any).client_phone ?? null, invoice.client_name ?? 'Valued Client', invoice.total_amount, `your invoice from ${promoterName}`);
-    } catch {
-      // SMS errors must never break payment processing
-    }
+    await this.notifyPayment(invoice, paidAmount, isDeposit);
   }
 
   async revertProcessingStatus(paymentIntentId: string) {
@@ -696,9 +857,7 @@ export class PromoterInvoicesService {
     const admin = this.supabaseService.getAdminClient();
     const { data: invoice } = await admin
       .from('promoter_invoices')
-      .select(
-        'id, status, total_amount, stripe_checkout_session_id, client_name, client_phone, promoter_accounts(company_name, contact_name, phone)',
-      )
+      .select('*, promoter_accounts(company_name, contact_name, phone)')
       .eq('public_token', token)
       .maybeSingle();
 
@@ -718,17 +877,40 @@ export class PromoterInvoicesService {
         ? session.payment_intent
         : (session.payment_intent?.id ?? null);
 
-    await admin
-      .from('promoter_invoices')
-      .update({
-        status: 'paid',
-        amount_paid: invoice.total_amount,
-        amount_due: 0,
-        paid_at: new Date().toISOString(),
-        stripe_payment_intent_id: paymentIntentId,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', invoice.id);
+    let paidAmount: number = invoice.total_amount;
+    let fullyPaid = true;
+    if (invoice.deposit_amount != null) {
+      const credited = await this.creditDepositPayment(
+        invoice,
+        paymentIntentId,
+      );
+      if (!credited) {
+        // The webhook already recorded it; report the current state.
+        const { data: fresh } = await admin
+          .from('promoter_invoices')
+          .select('status')
+          .eq('id', invoice.id)
+          .maybeSingle();
+        return {
+          status: fresh?.status ?? invoice.status,
+          paid: fresh?.status === 'paid',
+        };
+      }
+      paidAmount = credited.creditedCents / 100;
+      fullyPaid = credited.fullyPaid;
+    } else {
+      await admin
+        .from('promoter_invoices')
+        .update({
+          status: 'paid',
+          amount_paid: invoice.total_amount,
+          amount_due: 0,
+          paid_at: new Date().toISOString(),
+          stripe_payment_intent_id: paymentIntentId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', invoice.id);
+    }
 
     await admin
       .from('promoter_bookings')
@@ -736,32 +918,13 @@ export class PromoterInvoicesService {
       .eq('promoter_invoice_id', invoice.id);
 
     this.logger.log(
-      `Promoter invoice ${invoice.id} verified and marked paid (webhook fallback)`,
+      `Promoter invoice ${invoice.id} verified and payment recorded (webhook fallback)`,
     );
 
-    try {
-      const promoterAccount = invoice.promoter_accounts as any;
-      const promoterPhone: string | null = promoterAccount?.phone ?? null;
-      const promoterName: string =
-        promoterAccount?.company_name ||
-        promoterAccount?.contact_name ||
-        'Promoter';
-      await this.smsNotifications.vendorInvoicePaid(
-        promoterPhone,
-        promoterName,
-        invoice.client_name ?? 'Client',
-        invoice.total_amount,
-      );
-      await this.smsNotifications.paymentReceived(
-        (invoice as any).client_phone ?? null,
-        invoice.client_name ?? 'Valued Client',
-        invoice.total_amount,
-        `your invoice from ${promoterName}`,
-      );
-    } catch {
-      // SMS errors must never break payment processing
-    }
+    await this.notifyPayment(invoice, paidAmount, !fullyPaid);
 
-    return { status: 'paid', paid: true };
+    return fullyPaid
+      ? { status: 'paid', paid: true }
+      : { status: 'sent', paid: false };
   }
 }

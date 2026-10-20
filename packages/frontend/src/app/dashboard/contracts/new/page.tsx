@@ -443,8 +443,8 @@ function NewContractForm() {
 
   const fetchVendors = async () => {
     try {
-      const res = await api.get<VendorAccount[]>('/vendors')
-      setVendors(res.data || [])
+      const res = await api.get<{ vendors: VendorAccount[] }>('/vendors/public')
+      setVendors(res.data?.vendors || [])
     } catch (error) {
       console.error('Failed to fetch vendors:', error)
     }

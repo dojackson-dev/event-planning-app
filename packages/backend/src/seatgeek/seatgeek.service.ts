@@ -55,8 +55,13 @@ export class SeatGeekService {
     const cached = this.cache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) return cached.data;
 
-    const query = new URLSearchParams({ client_id: clientId, sort: 'datetime_utc.asc' });
-    const clientSecret = this.configService.get<string>('SEATGEEK_CLIENT_SECRET');
+    const query = new URLSearchParams({
+      client_id: clientId,
+      sort: 'datetime_utc.asc',
+    });
+    const clientSecret = this.configService.get<string>(
+      'SEATGEEK_CLIENT_SECRET',
+    );
     if (clientSecret) query.set('client_secret', clientSecret);
 
     if (params.zip_code) {
@@ -77,7 +82,7 @@ export class SeatGeekService {
         this.logger.warn(`SeatGeek API returned ${res.status}`);
         return [];
       }
-      const body = await res.json() as any;
+      const body = await res.json();
       const raw: any[] = body?.events ?? [];
 
       const events: SeatGeekEvent[] = raw.map((e: any) => {
@@ -104,8 +109,13 @@ export class SeatGeekService {
         };
       });
 
-      this.cache.set(cacheKey, { data: events, expiresAt: Date.now() + CACHE_TTL_MS });
-      this.logger.log(`SeatGeek: ${events.length} events for ${JSON.stringify(params)}`);
+      this.cache.set(cacheKey, {
+        data: events,
+        expiresAt: Date.now() + CACHE_TTL_MS,
+      });
+      this.logger.log(
+        `SeatGeek: ${events.length} events for ${JSON.stringify(params)}`,
+      );
       return events;
     } catch (err) {
       this.logger.error('SeatGeek API error', (err as Error).message);

@@ -31,6 +31,9 @@ packages/backend/src/**/*.js.map
 .env.demo
 .env.*.local
 
+# Postman environment holds real API credentials, never commit
+packages/backend/ticket-evolution.postman_environment.json
+
 # IDE
 .vscode/
 .idea/
@@ -53,4 +56,10 @@ android/
 *.ipa
 *.apk
 event-planning-app/
+# Demo setup artifacts
+schema.sql
+schema-fixed.sql
+schema-public.sql
+demo-schema.sql
+supabase/.temp/
 *.tsbuildinfo

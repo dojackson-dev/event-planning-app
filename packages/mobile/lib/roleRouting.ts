@@ -18,7 +18,11 @@ export const ROLE_HOME: Record<string, string> = {
   promoter: '/(promoter)',
 };
 
-export const ATTENDEE_HOME = '/(tabs)/';
+// There is no real "attendee" role in the backend (see ROLE_HOME above) —
+// this is only reached when a role can't be resolved to a known one. Route
+// to the real, live-data guest experience (app/(guest)/) rather than the
+// old mock-data attendee tabs, which have been removed.
+export const ATTENDEE_HOME = '/(guest)';
 
 export function getRoleHomeRoute(role: string | null | undefined): string {
   if (role && ROLE_HOME[role]) return ROLE_HOME[role];

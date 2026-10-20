@@ -5,6 +5,8 @@ import { useParams, useSearchParams } from 'next/navigation'
 import {
   FileText, CheckCircle2, Loader2, AlertCircle, CreditCard, Lock, Calendar,
 } from 'lucide-react'
+import PaidDashboardLink from '@/components/PaidDashboardLink'
+import PayMethodToggle, { rateLabel, type PayMethod } from '@/components/PayMethodToggle'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
@@ -17,6 +19,7 @@ interface PublicOwnerInvoice {
   due_date: string
   status: 'draft' | 'sent' | 'partial' | 'paid' | 'overdue' | 'cancelled'
   total_amount: number
+  discount_amount: number
   amount_paid: number
   amount_due: number
   notes: string | null
@@ -24,6 +27,8 @@ interface PublicOwnerInvoice {
   deposit_percentage: number | null
   deposit_due_days_before: number | null
   final_payment_due_days_before: number | null
+  pay_later_available?: boolean
+  bank_available?: boolean
   booking?: { event?: { id: string; name: string; date: string } }
   items: Array<{
     id: string
@@ -31,6 +36,9 @@ interface PublicOwnerInvoice {
     quantity: number
     unit_price: number
     amount: number
+    discount_type?: 'none' | 'percentage' | 'fixed'
+    discount_value?: number
+    discount_amount?: number
     item_type?: string
   }>
 }
@@ -46,6 +54,7 @@ function OwnerInvoicePayPageContent() {
   const [loading, setLoading] = useState(true)
   const [paying, setPaying] = useState(false)
   const [error, setError] = useState('')
+  const [payMethod, setPayMethod] = useState<PayMethod>('card')
   const [selection, setSelection] = useState<PaymentSelection>('full')
   const [customAmount, setCustomAmount] = useState('')
 
@@ -115,7 +124,7 @@ function OwnerInvoicePayPageContent() {
       const res = await fetch(`${API_URL}/stripe/invoice-pay/${token}/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amountCents }),
+        body: JSON.stringify({ amountCents, pay_method: payMethod }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.message || 'Failed to initiate payment')
@@ -238,6 +247,11 @@ function OwnerInvoicePayPageContent() {
                     <div>
                       <p className="text-gray-800 font-medium">{item.description}</p>
                       <p className="text-gray-400 text-xs">{item.quantity} × ${Number(item.unit_price).toFixed(2)}</p>
+                      {Number(item.discount_amount) > 0 && (
+                        <p className="text-green-700 text-xs">
+                          Item discount{item.discount_type === 'percentage' ? ` (${Number(item.discount_value)}%)` : ''}: −${Number(item.discount_amount).toFixed(2)}
+                        </p>
+                      )}
                     </div>
                     <p className="font-semibold text-gray-900">${Number(item.amount).toFixed(2)}</p>
                   </div>
@@ -246,6 +260,34 @@ function OwnerInvoicePayPageContent() {
 
             {/* Total */}
             <div className="mt-4 pt-4 border-t border-gray-100">
+              {(() => {
+                const itemDiscounts = (invoice.items ?? [])
+                  .filter(item => item.item_type !== 'internal_note')
+                  .reduce((sum, item) => sum + (Number(item.discount_amount) || 0), 0)
+                const extra = Number(invoice.discount_amount) || 0
+                const total = itemDiscounts + extra
+                if (total <= 0) return null
+                return (
+                  <div className="mb-2 space-y-1 text-sm text-green-700">
+                    {itemDiscounts > 0 && (
+                      <div className="flex justify-between">
+                        <span>Item discounts</span>
+                        <span>−${itemDiscounts.toFixed(2)}</span>
+                      </div>
+                    )}
+                    {extra > 0 && (
+                      <div className="flex justify-between">
+                        <span>Additional discount</span>
+                        <span>−${extra.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-semibold">
+                      <span>Total discounts</span>
+                      <span>−${total.toFixed(2)}</span>
+                    </div>
+                  </div>
+                )
+              })()}
               <div className="flex justify-between font-bold text-gray-900 text-base">
                 <span>Total</span>
                 <span>${Number(invoice.total_amount).toFixed(2)}</span>
@@ -264,9 +306,12 @@ function OwnerInvoicePayPageContent() {
           {/* Payment selection / CTA */}
           <div className="px-6 py-5">
             {isPaid ? (
-              <div className="flex items-center gap-3 bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 text-sm font-medium">
-                <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
-                Payment received. Thank you!
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 text-sm font-medium">
+                  <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+                  Payment received. Thank you!
+                </div>
+                <PaidDashboardLink autoRedirect={justPaid} />
               </div>
             ) : isCancelled ? (
               <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 text-gray-500 rounded-xl px-4 py-3 text-sm">
@@ -351,6 +396,11 @@ function OwnerInvoicePayPageContent() {
                   </p>
                 )}
 
+                {invoice.pay_later_available && (
+                  <div className="mb-3">
+                    <PayMethodToggle value={payMethod} onChange={setPayMethod} disabled={paying} showBank={invoice.bank_available} />
+                  </div>
+                )}
                 <button
                   onClick={handlePay}
                   disabled={disablePay}
@@ -367,7 +417,7 @@ function OwnerInvoicePayPageContent() {
                 </button>
 
                 <div className="flex items-center justify-center gap-1.5 mt-3 text-xs text-gray-400">
-                  <Lock className="w-3 h-3" /> Secure payment powered by Stripe
+                  <Lock className="w-3 h-3" /> Secure payment powered by Stripe. A processing fee ({rateLabel(invoice.pay_later_available ? payMethod : 'card')}) is added at checkout.
                 </div>
               </>
             )}

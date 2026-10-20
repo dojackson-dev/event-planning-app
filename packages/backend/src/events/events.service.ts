@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { SupabaseService } from '../supabase/supabase.service';
 import { Event } from '../entities/event.entity';
@@ -6,6 +6,20 @@ import { Event } from '../entities/event.entity';
 @Injectable()
 export class EventsService {
   constructor(private readonly supabaseService: SupabaseService) {}
+
+  /**
+   * A cleared form field arrives as '' and Postgres rejects that for time, date and uuid columns, which
+   * surfaced as a 500 on save. Optional columns are cleared; required ones keep their stored value.
+   */
+  private withoutBlankValues(row: Record<string, unknown>) {
+    const clearable = ['end_time', 'venue_id', 'client_id', 'guest_count'];
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(row)) {
+      if (value !== '') result[key] = value;
+      else if (clearable.includes(key)) result[key] = null;
+    }
+    return result;
+  }
 
   private camelToSnakeCase(obj: any): any {
     if (!obj || typeof obj !== 'object') return obj;
@@ -23,7 +37,7 @@ export class EventsService {
 
     const result = {};
     for (const key in obj) {
-      if (obj.hasOwnProperty(key)) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
         // Use field mapping if available, otherwise convert camelCase to snake_case
         const snakeKey =
           fieldMapping[key] ||
@@ -50,7 +64,7 @@ export class EventsService {
 
     const result = {};
     for (const key in obj) {
-      if (obj.hasOwnProperty(key)) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
         // Use reverse field mapping if available, otherwise convert snake_case to camelCase
         const camelKey =
           reverseFieldMapping[key] ||
@@ -240,7 +254,9 @@ export class EventsService {
     event: Partial<Event>,
     userId: string,
   ): Promise<Event | null> {
-    const convertedEvent = this.camelToSnakeCase(event);
+    const convertedEvent = this.withoutBlankValues(
+      this.camelToSnakeCase(event),
+    );
     const { data, error } = await supabase
       .from('event')
       .update(convertedEvent)
@@ -289,9 +305,23 @@ export class EventsService {
     payload: any,
   ): Promise<any> {
     const admin = this.supabaseService.getAdminClient();
+    const { data: existing, error: existingError } = await admin
+      .from('event')
+      .select('management_data')
+      .eq('id', eventId)
+      .eq('owner_id', userId)
+      .single();
+    if (existingError) throw existingError;
+
+    // Merge so fields owned elsewhere (e.g. invitation images) survive a stale form save.
     const { data, error } = await admin
       .from('event')
-      .update({ management_data: payload })
+      .update({
+        management_data: {
+          ...((existing as any)?.management_data ?? {}),
+          ...payload,
+        },
+      })
       .eq('id', eventId)
       .eq('owner_id', userId)
       .select('management_data')
@@ -299,5 +329,41 @@ export class EventsService {
 
     if (error) throw error;
     return (data as any)?.management_data || {};
+  }
+
+  async setInvitationImages(
+    userId: string,
+    eventId: string,
+    images: unknown,
+  ): Promise<string[]> {
+    if (
+      !Array.isArray(images) ||
+      images.length > 2 ||
+      !images.every((url) => typeof url === 'string' && /^https:\/\//.test(url))
+    ) {
+      throw new BadRequestException('images must be up to 2 https URLs');
+    }
+
+    const admin = this.supabaseService.getAdminClient();
+    const { data: existing, error: existingError } = await admin
+      .from('event')
+      .select('management_data')
+      .eq('id', eventId)
+      .eq('owner_id', userId)
+      .single();
+    if (existingError) throw existingError;
+
+    const { error } = await admin
+      .from('event')
+      .update({
+        management_data: {
+          ...((existing as any)?.management_data ?? {}),
+          invitationImages: images,
+        },
+      })
+      .eq('id', eventId)
+      .eq('owner_id', userId);
+    if (error) throw error;
+    return images as string[];
   }
 }

@@ -245,7 +245,9 @@ export class VendorsService {
     const brandingById = new Map(
       (branding || []).map((b: any) => [
         b.id,
-        Array.isArray(b.owner_accounts) ? b.owner_accounts[0] : b.owner_accounts,
+        Array.isArray(b.owner_accounts)
+          ? b.owner_accounts[0]
+          : b.owner_accounts,
       ]),
     );
 
@@ -253,7 +255,8 @@ export class VendorsService {
       const ownerAccount = brandingById.get(v.id);
       return {
         ...v,
-        profile_image_url: v.profile_image_url || ownerAccount?.logo_url || null,
+        profile_image_url:
+          v.profile_image_url || ownerAccount?.logo_url || null,
         cover_image_url: ownerAccount?.cover_image_url || null,
       };
     });
@@ -305,16 +308,17 @@ export class VendorsService {
   }
 
   /** Fall back to the owner's branding logo/cover (Settings > Branding) when the venue has no image of its own. */
-  private applyOwnerBranding<T extends { profile_image_url?: string | null; owner_accounts?: any }>(
-    venue: T,
-  ) {
+  private applyOwnerBranding<
+    T extends { profile_image_url?: string | null; owner_accounts?: any },
+  >(venue: T) {
     const ownerAccount = Array.isArray(venue.owner_accounts)
       ? venue.owner_accounts[0]
       : venue.owner_accounts;
     const { owner_accounts, ...rest } = venue as any;
     return {
       ...rest,
-      profile_image_url: rest.profile_image_url || ownerAccount?.logo_url || null,
+      profile_image_url:
+        rest.profile_image_url || ownerAccount?.logo_url || null,
       cover_image_url: ownerAccount?.cover_image_url || null,
     };
   }
@@ -456,7 +460,8 @@ export class VendorsService {
         );
       } catch (smsErr) {
         // Don't fail the booking if SMS fails
-        const message = smsErr instanceof Error ? smsErr.message : String(smsErr);
+        const message =
+          smsErr instanceof Error ? smsErr.message : String(smsErr);
         this.logger.warn(
           `Failed to send SMS to vendor ${vendor.business_name}: ${message}`,
         );
@@ -987,7 +992,7 @@ export class VendorsService {
       if (data && data.length > 0) {
         return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
       }
-    } catch (err) {
+    } catch {
       this.logger.warn('Geocoding failed for zip:', zipCode);
     }
     return null;
@@ -1017,7 +1022,7 @@ export class VendorsService {
         zip: addr.postcode || '',
         displayName: data.display_name || '',
       };
-    } catch (err) {
+    } catch {
       this.logger.warn('Reverse geocoding failed for coords:', lat, lng);
     }
     return null;
@@ -1052,7 +1057,7 @@ export class VendorsService {
           lng: parseFloat(item.lon),
         };
       });
-    } catch (err) {
+    } catch {
       this.logger.warn('Address autocomplete failed for query:', query);
     }
     return [];
@@ -1075,26 +1080,6 @@ export class VendorsService {
   }
 
   /** Create or update the vendor's booking link (one per vendor). */
-  /** Generate a unique 6-char alphanumeric short code. */
-  private async generateShortCode(admin: any): Promise<string> {
-    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    for (let attempt = 0; attempt < 10; attempt++) {
-      let code = '';
-      for (let i = 0; i < 6; i++) {
-        code += chars[Math.floor(Math.random() * chars.length)];
-      }
-      const { data } = await admin
-        .from('vendor_booking_links')
-        .select('id')
-        .eq('short_code', code)
-        .maybeSingle();
-      if (!data) return code;
-    }
-    throw new Error(
-      'Could not generate a unique short code. Please try again.',
-    );
-  }
-
   async upsertBookingLink(userId: string, dto: UpsertBookingLinkDto) {
     const admin = this.supabaseService.getAdminClient();
     const vendorAccountId = await this.getVendorAccountIdByUserId(userId);
@@ -1117,20 +1102,20 @@ export class VendorsService {
       throw new BadRequestException('This booking link slug is already taken');
     }
 
-    const { data: existing } = await admin
+    const { data: existing, error: existingError } = await admin
       .from('vendor_booking_links')
-      .select('id, short_code')
+      .select('id')
       .eq('vendor_account_id', vendorAccountId)
       .maybeSingle();
-
-    // Preserve existing short_code or generate one for new links
-    const shortCode =
-      existing?.short_code ?? (await this.generateShortCode(admin));
+    if (existingError) {
+      throw new BadRequestException(
+        `Failed to look up existing booking link: ${existingError.message}`,
+      );
+    }
 
     const payload = {
       vendor_account_id: vendorAccountId,
       slug: dto.slug,
-      short_code: shortCode,
       is_active: dto.isActive ?? true,
       custom_message: dto.customMessage ?? null,
       default_deposit_percentage: dto.defaultDepositPercentage ?? null,
@@ -1145,6 +1130,10 @@ export class VendorsService {
         .select()
         .single();
       if (error) throw new BadRequestException(error.message);
+      if (!data)
+        throw new BadRequestException(
+          'Booking link update did not match any row',
+        );
       return data;
     } else {
       const { data, error } = await admin
@@ -1186,21 +1175,6 @@ export class VendorsService {
     if (error || !data)
       throw new NotFoundException('Booking link not found or inactive');
     return data;
-  }
-
-  /** Public: resolve a short code to its slug and return the full booking link info. */
-  async getPublicBookingLinkByShortCode(code: string) {
-    const admin = this.supabaseService.getAdminClient();
-    const { data, error } = await admin
-      .from('vendor_booking_links')
-      .select('slug')
-      .eq('short_code', code)
-      .eq('is_active', true)
-      .single();
-
-    if (error || !data)
-      throw new NotFoundException('Booking link not found or inactive');
-    return { slug: data.slug };
   }
 
   /** Public: submit a booking inquiry directly to a vendor by their account ID (no auth, no booking link required). */

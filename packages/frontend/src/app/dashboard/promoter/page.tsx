@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
+import DashboardAssistant from '@/components/DashboardAssistant'
 import {
   Calendar,
   Ticket,
@@ -202,7 +203,7 @@ function PromoterDashboardContent() {
               <h3 className="font-semibold text-amber-900">Connect Your Stripe Account</h3>
             </div>
             <p className="text-amber-800 text-sm mb-3">
-              Set up Stripe Connect to start accepting payments for ticket sales. The platform takes a 3% fee on all transactions.
+              Set up Stripe Connect to start accepting payments for ticket sales. The platform fee is 3% on ticket sales (1.5% for verified non-profits), paid by the buyer.
             </p>
             <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-100/50 px-3 py-2 rounded-lg w-fit">
               <Zap className="h-4 w-4" />
@@ -290,6 +291,8 @@ function PromoterDashboardContent() {
           <p className="text-xs text-gray-500 mt-2">Payment processing</p>
         </div>
       </div>
+
+      <DashboardAssistant role="promoter" />
 
       {/* Quick Actions */}
       <div className="quick-actions">

@@ -9,8 +9,8 @@ import {
   Mic2, FileText, Loader2, ChevronDown, Pencil, Trash2, CheckCircle,
   Copy, CheckCircle2, Send,
 } from 'lucide-react'
+import { siteOrigin } from '@/lib/url'
 
-const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000'
 
 interface ArtistInvoice {
   id: string
@@ -171,7 +171,7 @@ export default function PromoterBookingDetailPage() {
     ? `/dashboard/promoter/invoices/${booking.promoter_invoices.id}`
     : null
   const payLink = booking.promoter_invoices?.public_token
-    ? `${FRONTEND_URL}/promoter-pay/${booking.promoter_invoices.public_token}`
+    ? `${siteOrigin()}/promoter-pay/${booking.promoter_invoices.public_token}`
     : null
 
   const handleCopyPayLink = () => {
@@ -423,7 +423,7 @@ export default function PromoterBookingDetailPage() {
                     </p>
                   </div>
                   <a
-                    href={`${FRONTEND_URL}/artist-pay/${ai.public_token}`}
+                    href={`${siteOrigin()}/artist-pay/${ai.public_token}`}
                     target="_blank"
                     rel="noreferrer"
                     className="text-xs text-blue-600 hover:underline flex items-center gap-1"

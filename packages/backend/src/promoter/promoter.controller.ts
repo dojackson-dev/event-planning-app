@@ -12,6 +12,10 @@ import {
 } from '@nestjs/common';
 import { PromoterService } from './promoter.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import {
+  PromoterAccessPolicy,
+  PromoterAccessService,
+} from '../promoter-team/promoter-access.service';
 import { CreatePromoterDto, UpdatePromoterDto } from './dto/promoter.dto';
 
 @Controller('promoter')
@@ -21,19 +25,26 @@ export class PromoterController {
   constructor(
     private readonly promoterService: PromoterService,
     private readonly supabaseService: SupabaseService,
+    private readonly access: PromoterAccessService,
   ) {}
 
   // ─────────────────────────────────────────────
   // AUTH HELPER
   // ─────────────────────────────────────────────
 
-  private async getUserId(authorization: string): Promise<string> {
+  private async getUserId(
+    authorization: string,
+    policy: PromoterAccessPolicy = 'self',
+  ): Promise<string> {
     if (!authorization)
       throw new UnauthorizedException('No authorization header');
     const token = authorization.replace('Bearer ', '');
 
-    if (token.startsWith('local-')) {
-      return token.replace('local-', '');
+    if (
+      token.startsWith('local-') &&
+      process.env.ALLOW_LOCAL_DEV_AUTH === 'true'
+    ) {
+      return this.access.resolveUserId(token.replace('local-', ''), policy);
     }
 
     const supabase = this.supabaseService.setAuthContext(token);
@@ -42,7 +53,7 @@ export class PromoterController {
       error,
     } = await supabase.auth.getUser();
     if (error || !user) throw new UnauthorizedException('Invalid token');
-    return user.id;
+    return this.access.resolveUserId(user.id, policy);
   }
 
   // ─────────────────────────────────────────────
@@ -86,7 +97,7 @@ export class PromoterController {
    */
   @Get('profile')
   async getProfile(@Headers('authorization') authorization: string) {
-    const userId = await this.getUserId(authorization);
+    const userId = await this.getUserId(authorization, 'read');
     return this.promoterService.getPromoterProfile(userId);
   }
 
@@ -98,7 +109,7 @@ export class PromoterController {
     @Headers('authorization') authorization: string,
     @Body() dto: UpdatePromoterDto,
   ) {
-    const userId = await this.getUserId(authorization);
+    const userId = await this.getUserId(authorization, 'write');
     return this.promoterService.updatePromoterProfile(userId, dto);
   }
 
@@ -107,7 +118,7 @@ export class PromoterController {
    */
   @Get('dashboard')
   async getDashboard(@Headers('authorization') authorization: string) {
-    const userId = await this.getUserId(authorization);
+    const userId = await this.getUserId(authorization, 'read');
     return this.promoterService.getDashboardStats(userId);
   }
 
@@ -120,7 +131,7 @@ export class PromoterController {
     @Headers('authorization') authorization: string,
     @Body() body: { plan: string },
   ) {
-    const userId = await this.getUserId(authorization);
+    const userId = await this.getUserId(authorization, 'write');
     return this.promoterService.updatePlan(userId, body.plan);
   }
 
@@ -134,21 +145,21 @@ export class PromoterController {
     @Headers('authorization') authorization: string,
     @Body() dto: { slug: string; isActive?: boolean; customMessage?: string },
   ) {
-    const userId = await this.getUserId(authorization);
+    const userId = await this.getUserId(authorization, 'write');
     return this.promoterService.upsertBookingLink(userId, dto);
   }
 
   /** GET /promoter/booking-links/mine */
   @Get('booking-links/mine')
   async getMyBookingLink(@Headers('authorization') authorization: string) {
-    const userId = await this.getUserId(authorization);
+    const userId = await this.getUserId(authorization, 'read');
     return this.promoterService.getMyBookingLink(userId);
   }
 
   /** GET /promoter/booking-links/requests */
   @Get('booking-links/requests')
   async getBookingRequests(@Headers('authorization') authorization: string) {
-    const userId = await this.getUserId(authorization);
+    const userId = await this.getUserId(authorization, 'read');
     return this.promoterService.getPromoterBookingRequests(userId);
   }
 
@@ -159,18 +170,12 @@ export class PromoterController {
     @Param('id') requestId: string,
     @Body() body: { status: string },
   ) {
-    const userId = await this.getUserId(authorization);
+    const userId = await this.getUserId(authorization, 'write');
     return this.promoterService.updatePromoterBookingRequest(
       userId,
       requestId,
       body.status,
     );
-  }
-
-  /** GET /promoter/booking-link/s/:code — public: resolve short code */
-  @Get('booking-link/s/:code')
-  async getPublicBookingLinkByShortCode(@Param('code') code: string) {
-    return this.promoterService.getPublicBookingLinkByShortCode(code);
   }
 
   /** GET /promoter/booking-link/:slug — public: view booking link */

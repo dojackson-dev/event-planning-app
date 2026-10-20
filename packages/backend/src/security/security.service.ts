@@ -24,7 +24,7 @@ export class SecurityService {
     supabase: SupabaseClient,
     ownerId: string,
     id: string,
-  ): Promise<any | null> {
+  ): Promise<any> {
     const { data, error } = await supabase
       .from('security')
       .select('*, event:event(*)')
@@ -117,7 +117,7 @@ export class SecurityService {
     ownerId: string,
     id: string,
     securityData: any,
-  ): Promise<any | null> {
+  ): Promise<any> {
     const { eventId, arrivalTime, owner_id: _ownerId, ...rest } = securityData;
     const row: any = {
       ...rest,
@@ -152,7 +152,7 @@ export class SecurityService {
     supabase: SupabaseClient,
     ownerId: string,
     id: string,
-  ): Promise<any | null> {
+  ): Promise<any> {
     const { data, error } = await supabase
       .from('security')
       .update({ arrival_time: new Date().toISOString() })

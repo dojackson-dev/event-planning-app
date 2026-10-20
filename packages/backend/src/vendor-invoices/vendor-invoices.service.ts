@@ -7,6 +7,20 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
+import {
+  applicationFeeCents,
+  normalizePayMethod,
+  processingFeeLine,
+  paymentMethodTypesFor,
+  processingFeeCents,
+} from '../payments/platform-fee';
+import {
+  applyCredit,
+  creditCentsFor,
+  hasDeposit,
+  normalizePayAmount,
+  validateDeposit,
+} from '../payments/invoice-deposit';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import Stripe from 'stripe';
 import * as nodemailer from 'nodemailer';
@@ -98,6 +112,13 @@ export class VendorInvoicesService {
     const discountAmount = dto.discount_amount ?? 0;
     const { subtotal, taxAmount, totalAmount, amountDue } =
       this.calculateTotals(dto.items, taxRate, discountAmount);
+    const depositError = validateDeposit({
+      deposit_amount: dto.deposit_amount,
+      balance_due_date: dto.balance_due_date,
+      due_date: dto.due_date,
+      total_amount: totalAmount,
+    });
+    if (depositError) throw new BadRequestException(depositError);
 
     const { data: invoice, error: invErr } = await admin
       .from('vendor_invoices')
@@ -120,6 +141,13 @@ export class VendorInvoicesService {
         terms: dto.terms ?? null,
         status: 'draft',
         vendor_booking_id: dto.vendor_booking_id ?? null,
+        // Only written when a deposit is set so invoices without one never touch the new columns.
+        ...(dto.deposit_amount != null
+          ? {
+              deposit_amount: dto.deposit_amount,
+              balance_due_date: dto.balance_due_date ?? null,
+            }
+          : {}),
       })
       .select()
       .single();
@@ -325,7 +353,7 @@ export class VendorInvoicesService {
     const { data, error } = await admin
       .from('vendor_invoices')
       .select(
-        '*, vendor_invoice_items(*), vendor_accounts(business_name, email, phone, city, state)',
+        '*, vendor_invoice_items(*), vendor_accounts(business_name, email, phone, city, state, stripe_account_id, stripe_connect_status)',
       )
       .eq('id', invoiceId)
       .eq('vendor_account_id', vendorAccountId)
@@ -385,6 +413,26 @@ export class VendorInvoicesService {
       .single();
 
     if (!existing) throw new NotFoundException('Invoice not found');
+
+    if (
+      dto.deposit_amount !== undefined ||
+      dto.balance_due_date !== undefined ||
+      dto.due_date !== undefined
+    ) {
+      const depositError = validateDeposit({
+        deposit_amount:
+          dto.deposit_amount !== undefined
+            ? dto.deposit_amount
+            : existing.deposit_amount,
+        balance_due_date:
+          dto.balance_due_date !== undefined
+            ? dto.balance_due_date
+            : existing.balance_due_date,
+        due_date: dto.due_date ?? existing.due_date,
+        total_amount: Number(existing.total_amount),
+      });
+      if (depositError) throw new BadRequestException(depositError);
+    }
 
     const { error } = await admin
       .from('vendor_invoices')
@@ -514,6 +562,11 @@ export class VendorInvoicesService {
       .from('vendor_invoice_items')
       .select('quantity, unit_price')
       .eq('vendor_invoice_id', invoiceId);
+    const { data: current } = await admin
+      .from('vendor_invoices')
+      .select('*')
+      .eq('id', invoiceId)
+      .maybeSingle();
 
     const { subtotal, taxAmount, totalAmount, amountDue } =
       this.calculateTotals(
@@ -528,7 +581,11 @@ export class VendorInvoicesService {
         subtotal,
         tax_amount: taxAmount,
         total_amount: totalAmount,
-        amount_due: amountDue,
+        // With a deposit, payments already received stay credited when items change.
+        amount_due:
+          current?.deposit_amount != null
+            ? Math.max(0, totalAmount - Number(current.amount_paid ?? 0))
+            : amountDue,
         updated_at: new Date().toISOString(),
       })
       .eq('id', invoiceId);
@@ -548,32 +605,28 @@ export class VendorInvoicesService {
       .eq('id', vendorAccountId)
       .single();
 
-    // Only block sending if Stripe is not set up AND there is a client_email to send to
-    // (allows SMS-only delivery for testing without Stripe)
     const hasStripe =
       vendorAccount?.stripe_account_id &&
       vendorAccount.stripe_connect_status === 'active';
+    if (!hasStripe) {
+      throw new BadRequestException(
+        'You must connect a Stripe account before sending invoices. Go to Payouts in your dashboard to set up Stripe.',
+      );
+    }
 
     const invoice = await this.getInvoice(userId, invoiceId);
     const payUrl = `${this.frontendUrl}/pay/${invoice.public_token}`;
     const vendorName = invoice.vendor_accounts?.business_name ?? 'Your Vendor';
 
-    let emailSent = false;
-    if (hasStripe) {
-      emailSent = await this.sendInvoiceEmail({
-        to: invoice.client_email,
-        clientName: invoice.client_name,
-        vendorName,
-        invoiceNumber: invoice.invoice_number,
-        totalAmount: invoice.total_amount,
-        dueDate: invoice.due_date,
-        payUrl,
-      });
-    } else {
-      this.logger.warn(
-        `Skipping email for invoice ${invoiceId} — no active Stripe account. Will send SMS only.`,
-      );
-    }
+    const emailSent = await this.sendInvoiceEmail({
+      to: invoice.client_email,
+      clientName: invoice.client_name,
+      vendorName,
+      invoiceNumber: invoice.invoice_number,
+      totalAmount: invoice.total_amount,
+      dueDate: invoice.due_date,
+      payUrl,
+    });
 
     // Always mark as sent so the client portal shows it
     await admin
@@ -669,7 +722,7 @@ export class VendorInvoicesService {
     const { data, error } = await admin
       .from('vendor_invoices')
       .select(
-        '*, vendor_invoice_items(*), vendor_accounts(business_name, email, phone, city, state, profile_image_url)',
+        '*, vendor_invoice_items(*), vendor_accounts(business_name, email, phone, city, state, profile_image_url, enable_bnpl)',
       )
       .eq('public_token', token)
       .single();
@@ -686,20 +739,88 @@ export class VendorInvoicesService {
     }
 
     // Strip internal fields before returning to unauthenticated caller
+    const { enable_bnpl, ...vendorPublic } = data.vendor_accounts ?? {};
     const {
       public_token: _tok,
       stripe_checkout_session_id: _sess,
       stripe_payment_intent_id: _pi,
+      pending_credit_cents: _pending,
       ...safe
     } = data;
-    return safe;
+    const amountCents = Math.round(Number(data.amount_due) * 100);
+    const depositCents = creditCentsFor(data, 'deposit');
+    return {
+      ...safe,
+      vendor_accounts: data.vendor_accounts ? vendorPublic : null,
+      pay_later_available: !!enable_bnpl,
+      bank_available: true,
+      processing_fee_cents: {
+        card: processingFeeCents(amountCents, 'card'),
+        pay_later: processingFeeCents(amountCents, 'pay_later'),
+        bank: processingFeeCents(amountCents, 'bank'),
+      },
+      ...(hasDeposit(data)
+        ? {
+            deposit_processing_fee_cents: {
+              card: processingFeeCents(depositCents, 'card'),
+              pay_later: processingFeeCents(depositCents, 'pay_later'),
+              bank: processingFeeCents(depositCents, 'bank'),
+            },
+          }
+        : {}),
+    };
   }
 
   // ─── Stripe Checkout for public invoice payment ──────────────────────────────
 
+  /** The saved status only changes on a webhook or the vendor's own dashboard visit, so confirm with Stripe before refusing payment. */
+  private async vendorCanReceivePayments(
+    vendorAccountId: string,
+    vendor:
+      | {
+          stripe_account_id?: string | null;
+          stripe_connect_status?: string | null;
+        }
+      | null
+      | undefined,
+  ): Promise<boolean> {
+    if (!vendor?.stripe_account_id) return false;
+    if (vendor.stripe_connect_status === 'active') return true;
+
+    try {
+      const account = await this.stripe.accounts.retrieve(
+        vendor.stripe_account_id,
+      );
+      const ready =
+        account.details_submitted &&
+        account.charges_enabled &&
+        account.payouts_enabled;
+      if (!ready) return false;
+
+      await this.supabaseService
+        .getAdminClient()
+        .from('vendor_accounts')
+        .update({ stripe_connect_status: 'active' })
+        .eq('id', vendorAccountId);
+      this.logger.log(
+        `Vendor ${vendorAccountId} Stripe account confirmed active during checkout`,
+      );
+      return true;
+    } catch (err) {
+      this.logger.warn(
+        `Live Stripe check failed for vendor ${vendorAccountId}: ${(err as Error).message}`,
+      );
+      return false;
+    }
+  }
+
   async createCheckoutSession(
     token: string,
+    payMethodInput: unknown = 'card',
+    payAmountInput?: unknown,
   ): Promise<{ url: string; feeCents: number }> {
+    const payMethod = normalizePayMethod(payMethodInput, true);
+    const payAmount = normalizePayAmount(payAmountInput);
     const admin = this.supabaseService.getAdminClient();
 
     const { data: invoice, error } = await admin
@@ -715,21 +836,29 @@ export class VendorInvoicesService {
       throw new ForbiddenException('Invoice is already paid');
     if (invoice.status === 'cancelled')
       throw new ForbiddenException('Invoice has been cancelled');
+    if (invoice.status === 'processing')
+      throw new ForbiddenException(
+        'A bank payment for this invoice is already processing',
+      );
 
-    const amountCents = Math.round(Number(invoice.amount_due) * 100);
+    // Invoices without a deposit always charge the full amount due.
+    const amountCents = creditCentsFor(invoice, payAmount);
     if (amountCents <= 0)
       throw new ForbiddenException('Invoice amount must be greater than zero');
+    const isDepositPayment = hasDeposit(invoice) && payAmount === 'deposit';
 
     const vendor = invoice.vendor_accounts;
-    const hasConnect =
-      vendor?.stripe_account_id && vendor?.stripe_connect_status === 'active';
-    const bnplMethods = ['afterpay_clearpay', 'klarna', 'affirm', 'us_bank_account'] as const;
-
+    const hasConnect = await this.vendorCanReceivePayments(
+      invoice.vendor_account_id,
+      vendor,
+    );
     const sessionParams: Stripe.Checkout.SessionCreateParams = {
       mode: 'payment',
-      payment_method_types: vendor?.enable_bnpl
-        ? ['card', ...bnplMethods]
-        : ['card'],
+      payment_method_types: paymentMethodTypesFor(
+        vendor?.enable_bnpl,
+        payMethod,
+        { bankDebit: true, bankAlways: true },
+      ),
       customer_email: invoice.client_email,
       line_items: [
         {
@@ -737,7 +866,7 @@ export class VendorInvoicesService {
             currency: 'usd',
             unit_amount: amountCents,
             product_data: {
-              name: `Invoice ${invoice.invoice_number}`,
+              name: `${isDepositPayment ? 'Deposit — ' : ''}Invoice ${invoice.invoice_number}`,
               description: `Payment to ${vendor?.business_name ?? 'Vendor'}`,
             },
           },
@@ -764,10 +893,8 @@ export class VendorInvoicesService {
 
     const platformFeeCents = Math.round(amountCents * OWNER_BOOKING_FEE_RATE);
 
-    // Gross up the charge so the payer absorbs Stripe's processing fee (2.9% + $0.30).
-    // Formula: gross = (amount + 0.30) / (1 - 0.029)
-    const grossCents = Math.round((amountCents + 30) / 0.971);
-    const stripeFeeCents = grossCents - amountCents;
+    // The payer absorbs Stripe's processing fee for the chosen payment method.
+    const stripeFeeCents = processingFeeCents(amountCents, payMethod);
 
     // Replace the base line item with the grossed-up amount
     sessionParams.line_items = [
@@ -776,7 +903,7 @@ export class VendorInvoicesService {
           currency: 'usd',
           unit_amount: amountCents,
           product_data: {
-            name: `Invoice ${invoice.invoice_number}`,
+            name: `${isDepositPayment ? 'Deposit — ' : ''}Invoice ${invoice.invoice_number}`,
             description: `Payment to ${vendor?.business_name ?? 'Vendor'}`,
           },
         },
@@ -786,10 +913,7 @@ export class VendorInvoicesService {
         price_data: {
           currency: 'usd',
           unit_amount: stripeFeeCents,
-          product_data: {
-            name: 'Stripe Processing Fee',
-            description: 'Credit/debit card processing fee (2.9% + $0.30)',
-          },
+          product_data: processingFeeLine(payMethod),
         },
         quantity: 1,
       },
@@ -798,7 +922,10 @@ export class VendorInvoicesService {
     // Platform fee (3%) deducted from vendor's payout
     sessionParams.payment_intent_data = {
       transfer_data: { destination: vendor.stripe_account_id },
-      application_fee_amount: platformFeeCents,
+      application_fee_amount: applicationFeeCents(
+        platformFeeCents,
+        stripeFeeCents,
+      ),
       metadata: { vendor_invoice_id: invoice.id },
     };
 
@@ -809,6 +936,14 @@ export class VendorInvoicesService {
       .from('vendor_invoices')
       .update({
         stripe_checkout_session_id: session.id,
+        // Lets the webhook credit exactly what this checkout paid (deposit invoices only).
+        // A new checkout supersedes the previous payment, so late events for it can no longer match.
+        ...(invoice.deposit_amount != null
+          ? {
+              pending_credit_cents: amountCents,
+              stripe_payment_intent_id: null,
+            }
+          : {}),
         updated_at: new Date().toISOString(),
       })
       .eq('id', invoice.id);
@@ -821,51 +956,43 @@ export class VendorInvoicesService {
 
   // ─── Called from webhook when payment succeeds ──────────────────────────────
 
-  async markInvoicePaidBySession(
-    sessionId: string,
+  /**
+   * Credits the in-flight checkout to an invoice that has a deposit.
+   * Returns null when it was already credited (webhook + verify can both fire).
+   */
+  private async creditDepositPayment(
+    invoice: any,
     paymentIntentId: string | null,
-  ) {
+  ): Promise<{ fullyPaid: boolean; creditedCents: number } | null> {
+    const pending = Number(invoice.pending_credit_cents ?? 0);
+    if (pending <= 0) return null;
     const admin = this.supabaseService.getAdminClient();
-    const { data: invoice } = await admin
-      .from('vendor_invoices')
-      .select(
-        'id, total_amount, amount_due, vendor_booking_id, client_name, client_phone, vendor_account_id, vendor_accounts(business_name, phone)',
-      )
-      .eq('stripe_checkout_session_id', sessionId)
-      .maybeSingle();
-
-    if (!invoice) {
-      this.logger.warn(
-        `No vendor invoice found for Stripe session ${sessionId}`,
-      );
-      return;
-    }
-
-    await admin
+    const credit = applyCredit(invoice, pending);
+    const { data: updated } = await admin
       .from('vendor_invoices')
       .update({
-        status: 'paid',
-        amount_paid: invoice.total_amount,
-        amount_due: 0,
-        paid_at: new Date().toISOString(),
-        stripe_payment_intent_id: paymentIntentId,
+        status: credit.fullyPaid ? 'paid' : 'sent',
+        amount_paid: credit.amount_paid,
+        amount_due: credit.amount_due,
+        pending_credit_cents: null,
+        ...(credit.fullyPaid ? { paid_at: new Date().toISOString() } : {}),
+        ...(paymentIntentId
+          ? { stripe_payment_intent_id: paymentIntentId }
+          : {}),
         updated_at: new Date().toISOString(),
       })
-      .eq('id', invoice.id);
+      .eq('id', invoice.id)
+      .eq('pending_credit_cents', pending)
+      .select('id');
+    if (!updated?.length) return null;
+    return { fullyPaid: credit.fullyPaid, creditedCents: pending };
+  }
 
-    // Also mark the associated vendor booking as paid
-    if (invoice.vendor_booking_id) {
-      await admin
-        .from('vendor_bookings')
-        .update({ status: 'paid', updated_at: new Date().toISOString() })
-        .eq('id', invoice.vendor_booking_id);
-    }
-
-    this.logger.log(
-      `Vendor invoice ${invoice.id} marked paid via session ${sessionId}`,
-    );
-
-    // Notify vendor that payment was received
+  private async notifyPayment(
+    invoice: any,
+    paidAmount: number,
+    isDeposit: boolean,
+  ) {
     try {
       const vendorPhone: string | null =
         (invoice.vendor_accounts as any)?.phone ?? null;
@@ -875,75 +1002,266 @@ export class VendorInvoicesService {
         vendorPhone,
         vendorName,
         invoice.client_name ?? 'Client',
-        invoice.total_amount,
+        paidAmount,
       );
       // Also notify client that payment was received
       await this.smsNotifications.paymentReceived(
         invoice.client_phone ?? null,
         invoice.client_name ?? 'Valued Client',
-        invoice.total_amount,
-        `your invoice from ${vendorName}`,
+        paidAmount,
+        `${isDeposit ? 'a deposit on ' : ''}your invoice from ${vendorName}`,
       );
     } catch {
       // SMS errors must never break payment processing
     }
   }
 
-  // ─── ACH delayed payment handlers ───────────────────────────────────────────
-
-  async markInvoiceProcessing(sessionId: string, paymentIntentId: string | null) {
+  /** The vendor booking is only marked paid once the whole invoice is paid. */
+  private async markBookingPaid(invoice: any, fullyPaid: boolean) {
+    if (!fullyPaid || !invoice.vendor_booking_id) return;
     const admin = this.supabaseService.getAdminClient();
     await admin
+      .from('vendor_bookings')
+      .update({ status: 'paid', updated_at: new Date().toISOString() })
+      .eq('id', invoice.vendor_booking_id);
+  }
+
+  async markInvoicePaidBySession(
+    sessionId: string,
+    paymentIntentId: string | null,
+    invoiceId?: string,
+  ) {
+    const admin = this.supabaseService.getAdminClient();
+    let { data: invoice } = await admin
       .from('vendor_invoices')
-      .update({
-        status: 'processing',
-        stripe_payment_intent_id: paymentIntentId,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('stripe_checkout_session_id', sessionId);
-    this.logger.log(`Vendor invoice set to processing via session ${sessionId}`);
+      .select('*, vendor_accounts(business_name, phone)')
+      .eq('stripe_checkout_session_id', sessionId)
+      .maybeSingle();
+
+    // Each Pay Now click replaces the stored session, so an earlier tab's payment is found by invoice id instead.
+    if (!invoice && invoiceId) {
+      ({ data: invoice } = await admin
+        .from('vendor_invoices')
+        .select('*, vendor_accounts(business_name, phone)')
+        .eq('id', invoiceId)
+        .maybeSingle());
+    }
+
+    if (!invoice) {
+      this.logger.warn(
+        `No vendor invoice found for Stripe session ${sessionId}`,
+      );
+      return;
+    }
+
+    let paidAmount: number = invoice.total_amount;
+    let fullyPaid = true;
+    if (invoice.deposit_amount != null) {
+      const credited = await this.creditDepositPayment(
+        invoice,
+        paymentIntentId,
+      );
+      if (!credited) return;
+      paidAmount = credited.creditedCents / 100;
+      fullyPaid = credited.fullyPaid;
+    } else {
+      await admin
+        .from('vendor_invoices')
+        .update({
+          status: 'paid',
+          amount_paid: invoice.total_amount,
+          amount_due: 0,
+          paid_at: new Date().toISOString(),
+          stripe_payment_intent_id: paymentIntentId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', invoice.id);
+    }
+
+    await this.markBookingPaid(invoice, fullyPaid);
+
+    this.logger.log(
+      `Vendor invoice ${invoice.id} payment recorded via session ${sessionId}`,
+    );
+
+    await this.notifyPayment(invoice, paidAmount, !fullyPaid);
+  }
+
+  // ─── ACH delayed payment handlers ───────────────────────────────────────────
+
+  async markInvoiceProcessing(
+    sessionId: string,
+    paymentIntentId: string | null,
+    invoiceId?: string,
+  ) {
+    const admin = this.supabaseService.getAdminClient();
+    const patch = {
+      status: 'processing',
+      stripe_payment_intent_id: paymentIntentId,
+      updated_at: new Date().toISOString(),
+    };
+    // Skipping rows already processing means only the first of the webhook and the page-return check notifies.
+    const bySession = await admin
+      .from('vendor_invoices')
+      .update(patch)
+      .eq('stripe_checkout_session_id', sessionId)
+      .neq('status', 'paid')
+      .neq('status', 'processing')
+      .select('id');
+    if (bySession.error) {
+      this.logger.error(
+        `Could not mark vendor invoice processing (session ${sessionId}): ${bySession.error.message}`,
+      );
+      return;
+    }
+    let changed: string[] = (bySession.data ?? []).map((r: any) => r.id);
+    if (changed.length === 0 && invoiceId) {
+      const byId = await admin
+        .from('vendor_invoices')
+        .update({ ...patch, stripe_checkout_session_id: sessionId })
+        .eq('id', invoiceId)
+        .neq('status', 'paid')
+        .neq('status', 'processing')
+        .select('id');
+      if (byId.error)
+        this.logger.error(
+          `Could not mark vendor invoice ${invoiceId} processing: ${byId.error.message}`,
+        );
+      changed = (byId.data ?? []).map((r: any) => r.id);
+    }
+    this.logger.log(
+      `Vendor invoice set to processing via session ${sessionId}`,
+    );
+    for (const id of changed) await this.notifyPaymentSubmitted(id);
+  }
+
+  /** Tells the vendor a bank payment is on its way; it is not paid until the bank clears. */
+  private async notifyPaymentSubmitted(invoiceId: string) {
+    try {
+      const { data: invoice } = await this.supabaseService
+        .getAdminClient()
+        .from('vendor_invoices')
+        .select(
+          'invoice_number, client_name, total_amount, amount_due, vendor_accounts(business_name, phone, email)',
+        )
+        .eq('id', invoiceId)
+        .maybeSingle();
+      const vendor = (
+        Array.isArray(invoice?.vendor_accounts)
+          ? invoice?.vendor_accounts[0]
+          : invoice?.vendor_accounts
+      ) as
+        | { business_name?: string; phone?: string; email?: string }
+        | undefined;
+      if (!invoice || !vendor) return;
+
+      const amount = Number(invoice.amount_due ?? invoice.total_amount ?? 0);
+      const vendorName = vendor.business_name ?? 'Vendor';
+      const clientName = invoice.client_name ?? 'Client';
+      await this.smsNotifications.vendorInvoicePaymentSubmitted(
+        vendor.phone,
+        vendorName,
+        clientName,
+        amount,
+      );
+      if (vendor.email)
+        await this.sendPaymentSubmittedEmail({
+          to: vendor.email,
+          vendorName,
+          clientName,
+          invoiceNumber: invoice.invoice_number,
+          amount,
+        });
+    } catch (err) {
+      // A failed notification must never undo or block recording the payment.
+      this.logger.warn(
+        `Payment-submitted notification failed: ${(err as Error).message}`,
+      );
+    }
+  }
+
+  private async sendPaymentSubmittedEmail(params: {
+    to: string;
+    vendorName: string;
+    clientName: string;
+    invoiceNumber: string;
+    amount: number;
+  }) {
+    const smtpHost = this.configService.get<string>('SMTP_HOST');
+    const smtpUser = this.configService.get<string>('SMTP_USER');
+    const smtpPass = this.configService.get<string>('SMTP_PASS');
+    if (!smtpHost || !smtpUser || !smtpPass) {
+      this.logger.warn(
+        'SMTP not configured — payment-submitted email not sent.',
+      );
+      return;
+    }
+    const escape = (v: string) =>
+      v
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: Number(this.configService.get<string>('SMTP_PORT', '587')),
+      secure: false,
+      auth: { user: smtpUser, pass: smtpPass },
+    });
+    const amount = `$${params.amount.toFixed(2)}`;
+    await transporter.sendMail({
+      from: `"EventEcos" <${this.configService.get<string>('SMTP_FROM', smtpUser)}>`,
+      to: params.to,
+      subject: `Payment submitted for invoice ${params.invoiceNumber}`,
+      html: `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;">
+        <h2 style="color:#4f46e5;">Payment on its way</h2>
+        <p>Hi ${escape(params.vendorName)},</p>
+        <p>${escape(params.clientName)} submitted a bank payment of <strong>${amount}</strong> for invoice <strong>${escape(params.invoiceNumber)}</strong>.</p>
+        <p>Bank payments usually take 4&ndash;5 business days to clear. Your invoice will show as paid, and we will let you know, once the funds arrive.</p>
+        <p style="color:#666;font-size:13px;">Powered by EventEcos</p>
+      </div>`,
+    });
+    this.logger.log(`Payment-submitted email sent to ${params.to}`);
   }
 
   async markInvoicePaidByPaymentIntent(paymentIntentId: string) {
     const admin = this.supabaseService.getAdminClient();
     const { data: invoice } = await admin
       .from('vendor_invoices')
-      .select(
-        'id, total_amount, vendor_booking_id, client_name, client_phone, vendor_accounts(business_name, phone)',
-      )
+      .select('*, vendor_accounts(business_name, phone)')
       .eq('stripe_payment_intent_id', paymentIntentId)
       .maybeSingle();
 
     if (!invoice) return;
 
-    await admin
-      .from('vendor_invoices')
-      .update({
-        status: 'paid',
-        amount_paid: invoice.total_amount,
-        amount_due: 0,
-        paid_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', invoice.id);
-
-    if (invoice.vendor_booking_id) {
+    let paidAmount: number = invoice.total_amount;
+    let fullyPaid = true;
+    if (invoice.deposit_amount != null) {
+      const credited = await this.creditDepositPayment(invoice, null);
+      if (!credited) return;
+      paidAmount = credited.creditedCents / 100;
+      fullyPaid = credited.fullyPaid;
+    } else {
       await admin
-        .from('vendor_bookings')
-        .update({ status: 'paid', updated_at: new Date().toISOString() })
-        .eq('id', invoice.vendor_booking_id);
+        .from('vendor_invoices')
+        .update({
+          status: 'paid',
+          amount_paid: invoice.total_amount,
+          amount_due: 0,
+          paid_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', invoice.id);
     }
 
-    this.logger.log(`Vendor invoice ${invoice.id} marked paid via PaymentIntent ${paymentIntentId}`);
+    await this.markBookingPaid(invoice, fullyPaid);
 
-    try {
-      const vendorPhone: string | null = (invoice.vendor_accounts as any)?.phone ?? null;
-      const vendorName: string = (invoice.vendor_accounts as any)?.business_name ?? 'Vendor';
-      await this.smsNotifications.vendorInvoicePaid(vendorPhone, vendorName, invoice.client_name ?? 'Client', invoice.total_amount);
-      await this.smsNotifications.paymentReceived(invoice.client_phone ?? null, invoice.client_name ?? 'Valued Client', invoice.total_amount, `your invoice from ${vendorName}`);
-    } catch {
-      // SMS errors must never break payment processing
-    }
+    this.logger.log(
+      `Vendor invoice ${invoice.id} payment recorded via PaymentIntent ${paymentIntentId}`,
+    );
+
+    await this.notifyPayment(invoice, paidAmount, !fullyPaid);
   }
 
   async revertProcessingStatus(paymentIntentId: string) {
@@ -963,9 +1281,7 @@ export class VendorInvoicesService {
     const admin = this.supabaseService.getAdminClient();
     const { data: invoice } = await admin
       .from('vendor_invoices')
-      .select(
-        'id, status, total_amount, stripe_checkout_session_id, vendor_booking_id, client_name, client_phone, vendor_accounts(business_name, phone)',
-      )
+      .select('*, vendor_accounts(business_name, phone)')
       .eq('public_token', token)
       .maybeSingle();
 
@@ -980,61 +1296,78 @@ export class VendorInvoicesService {
     const session = await this.stripe.checkout.sessions.retrieve(
       invoice.stripe_checkout_session_id,
     );
-    if (session.payment_status !== 'paid')
+    if (session.payment_status !== 'paid') {
+      // A bank debit finishes checkout as 'unpaid' while it clears; record that so the invoice stops offering Pay Now.
+      if (
+        session.status === 'complete' &&
+        session.payment_status === 'unpaid' &&
+        invoice.status !== 'processing'
+      ) {
+        const pendingIntent =
+          typeof session.payment_intent === 'string'
+            ? session.payment_intent
+            : (session.payment_intent?.id ?? null);
+        await this.markInvoiceProcessing(
+          invoice.stripe_checkout_session_id,
+          pendingIntent,
+        );
+        return { status: 'processing', paid: false };
+      }
       return { status: invoice.status, paid: false };
+    }
 
-    // Stripe confirms paid — mark it now (webhook fallback)
+    // Stripe confirms paid — record it now (webhook fallback)
     const paymentIntentId =
       typeof session.payment_intent === 'string'
         ? session.payment_intent
         : (session.payment_intent?.id ?? null);
 
-    await admin
-      .from('vendor_invoices')
-      .update({
-        status: 'paid',
-        amount_paid: invoice.total_amount,
-        amount_due: 0,
-        paid_at: new Date().toISOString(),
-        stripe_payment_intent_id: paymentIntentId,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', invoice.id);
-
-    // Also mark the associated vendor booking as paid
-    if (invoice.vendor_booking_id) {
+    let paidAmount: number = invoice.total_amount;
+    let fullyPaid = true;
+    if (invoice.deposit_amount != null) {
+      const credited = await this.creditDepositPayment(
+        invoice,
+        paymentIntentId,
+      );
+      if (!credited) {
+        // The webhook already recorded it; report the current state.
+        const { data: fresh } = await admin
+          .from('vendor_invoices')
+          .select('status')
+          .eq('id', invoice.id)
+          .maybeSingle();
+        return {
+          status: fresh?.status ?? invoice.status,
+          paid: fresh?.status === 'paid',
+        };
+      }
+      paidAmount = credited.creditedCents / 100;
+      fullyPaid = credited.fullyPaid;
+    } else {
       await admin
-        .from('vendor_bookings')
-        .update({ status: 'paid', updated_at: new Date().toISOString() })
-        .eq('id', invoice.vendor_booking_id);
+        .from('vendor_invoices')
+        .update({
+          status: 'paid',
+          amount_paid: invoice.total_amount,
+          amount_due: 0,
+          paid_at: new Date().toISOString(),
+          stripe_payment_intent_id: paymentIntentId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', invoice.id);
     }
 
+    await this.markBookingPaid(invoice, fullyPaid);
+
     this.logger.log(
-      `Vendor invoice ${invoice.id} verified and marked paid (webhook fallback)`,
+      `Vendor invoice ${invoice.id} verified and payment recorded (webhook fallback)`,
     );
 
     // Send SMS notifications (same as webhook path)
-    try {
-      const vendorPhone: string | null =
-        (invoice.vendor_accounts as any)?.phone ?? null;
-      const vendorName: string =
-        (invoice.vendor_accounts as any)?.business_name ?? 'Vendor';
-      await this.smsNotifications.vendorInvoicePaid(
-        vendorPhone,
-        vendorName,
-        invoice.client_name ?? 'Client',
-        invoice.total_amount,
-      );
-      await this.smsNotifications.paymentReceived(
-        invoice.client_phone ?? null,
-        invoice.client_name ?? 'Valued Client',
-        invoice.total_amount,
-        `your invoice from ${vendorName}`,
-      );
-    } catch {
-      // SMS errors must never break payment processing
-    }
+    await this.notifyPayment(invoice, paidAmount, !fullyPaid);
 
-    return { status: 'paid', paid: true };
+    return fullyPaid
+      ? { status: 'paid', paid: true }
+      : { status: 'sent', paid: false };
   }
 }

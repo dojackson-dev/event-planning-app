@@ -4,6 +4,8 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { analytics } from '../analytics/heycatch';
+import { AuditService } from '../audit/audit.service';
 import {
   RegisterDto,
   LoginDto,
@@ -13,7 +15,10 @@ import {
 
 @Injectable()
 export class AuthService {
-  constructor(private supabaseService: SupabaseService) {}
+  constructor(
+    private supabaseService: SupabaseService,
+    private auditService: AuditService,
+  ) {}
 
   async register(registerDto: RegisterDto) {
     const supabase = this.supabaseService.getClient();
@@ -59,6 +64,23 @@ export class AuthService {
       );
     }
 
+    if (data.user) {
+      await analytics.setIdentity(
+        data.user.id,
+        {
+          email: registerDto.email,
+          name: `${registerDto.firstName} ${registerDto.lastName}`,
+          plan: 'free',
+        },
+        { signup_date: new Date().toISOString() },
+      );
+      await analytics.trackEvent(
+        'signup_completed',
+        { role: registerDto.role },
+        { userId: data.user.id },
+      );
+    }
+
     return {
       user: data.user,
       session: data.session,
@@ -76,6 +98,8 @@ export class AuthService {
     if (error) {
       throw new UnauthorizedException(error.message);
     }
+
+    this.auditService.recordLogin(data.user.id, null, 'legacy').catch(() => {});
 
     return {
       access_token: data.session.access_token,
@@ -269,15 +293,39 @@ export class AuthService {
         type: 'delete' as const,
         column: 'reviewer_user_id',
       },
+      {
+        table: 'artist_accounts',
+        type: 'delete' as const,
+        column: 'user_id',
+      },
+      {
+        table: 'promoter_accounts',
+        type: 'delete' as const,
+        column: 'user_id',
+      },
+      {
+        table: 'activity_log',
+        type: 'update' as const,
+        column: 'actor_user_id',
+        payload: { actor_user_id: null },
+      },
+      {
+        table: 'client_profiles',
+        type: 'delete' as const,
+        column: 'user_id',
+      },
+      {
+        table: 'team_invitations',
+        type: 'update' as const,
+        column: 'invited_by_user_id',
+        payload: { invited_by_user_id: null },
+      },
       { table: 'users', type: 'delete' as const, column: 'id' },
     ];
 
     for (const step of cleanupSteps) {
       try {
-        let result:
-          | { error?: { message?: string } | null }
-          | null
-          | undefined;
+        let result: { error?: { message?: string } | null } | null | undefined;
 
         if (step.type === 'delete') {
           result = await supabase

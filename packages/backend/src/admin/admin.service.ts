@@ -469,14 +469,19 @@ export class AdminService {
     try {
       let authPage = 1;
       while (true) {
-        const { data: authData } = await supabase.auth.admin.listUsers({ page: authPage, perPage: 1000 });
+        const { data: authData } = await supabase.auth.admin.listUsers({
+          page: authPage,
+          perPage: 1000,
+        });
         for (const u of authData?.users ?? []) {
           authSignInMap.set(u.id, u.last_sign_in_at ?? null);
         }
         if ((authData?.users?.length ?? 0) < 1000) break;
         authPage++;
       }
-    } catch { /* non-fatal */ }
+    } catch {
+      /* non-fatal */
+    }
 
     const activity = (data || []).map((u: any) => ({
       ...u,
@@ -661,7 +666,7 @@ export class AdminService {
 
   async updateTrialSettings(trialDays: number) {
     const supabase = this.supabaseService.getAdminClient();
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('app_settings')
       .upsert(
         { key: 'FREE_TRIAL_DAYS', value: String(trialDays) },

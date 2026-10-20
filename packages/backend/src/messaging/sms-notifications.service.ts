@@ -354,6 +354,19 @@ export class SmsNotificationsService {
     );
   }
 
+  async vendorInvoicePaymentSubmitted(
+    phone: string | null | undefined,
+    vendorName: string,
+    clientName: string,
+    amount: number,
+  ): Promise<void> {
+    const amt = `$${Number(amount).toFixed(2)}`;
+    await this.trySend(
+      phone,
+      `EventEcos Vendor Invoice Message\n${clientName} submitted a bank payment of ${amt}. It usually takes 4-5 business days to clear; we will text you when it arrives. View your invoices: ${this.url('/vendor-portal/invoices')} — ${vendorName}`,
+    );
+  }
+
   async vendorInvoicePaid(
     phone: string | null | undefined,
     vendorName: string,
@@ -465,6 +478,21 @@ export class SmsNotificationsService {
    */
   async send(phone: string | null | undefined, body: string): Promise<void> {
     await this.trySend(phone, body);
+  }
+
+  // ─── CLIENT PORTAL TEAM MEMBERS ──────────────────────────────────────────
+
+  async clientTeamMemberAdded(
+    phone: string | null | undefined,
+    memberName: string | null | undefined,
+    eventName: string,
+    addedByName: string,
+  ): Promise<void> {
+    const greeting = memberName ? `Hi ${memberName}, ` : 'Hi, ';
+    await this.trySend(
+      phone,
+      `EventEcos\n${greeting}${addedByName} added you to help manage "${eventName}". Log in with this phone number to view and manage it: ${this.url('/client-login')}`,
+    );
   }
 
   async vipPurchaseConfirmed(

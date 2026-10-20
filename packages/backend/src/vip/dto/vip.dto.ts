@@ -61,6 +61,7 @@ export class VipCheckoutDto {
     special_request?: string;
   }[];
   return_url?: string;
+  pay_method?: 'card' | 'pay_later';
 }
 
 export class ScanVipDto {

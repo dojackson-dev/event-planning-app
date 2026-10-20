@@ -76,6 +76,9 @@ export class TicketmasterService {
     category?: string;
     keyword?: string;
     size?: number;
+    date_from?: string;
+    date_to?: string;
+    page?: number;
   }): Promise<TicketmasterEvent[]> {
     const apiKey = this.configService.get<string>('TICKETMASTER_API_KEY');
     if (!apiKey) return [];
@@ -102,11 +105,18 @@ export class TicketmasterService {
     }
     if (params.keyword) query.set('keyword', params.keyword);
     query.set('size', String(params.size ?? 20));
-    // Only future events
-    query.set(
-      'startDateTime',
-      new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
-    );
+    if (params.page !== undefined) query.set('page', String(params.page));
+    // Only future events — or the caller's explicit date range (e.g. a
+    // selected month), so a busy near-term date can't crowd out later ones.
+    const today = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+    const startDateTime =
+      params.date_from && params.date_from > today.slice(0, 10)
+        ? `${params.date_from}T00:00:00Z`
+        : today;
+    query.set('startDateTime', startDateTime);
+    if (params.date_to) {
+      query.set('endDateTime', `${params.date_to}T23:59:59Z`);
+    }
 
     try {
       const res = await fetch(`${this.baseUrl}?${query.toString()}`);

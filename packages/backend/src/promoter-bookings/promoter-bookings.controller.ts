@@ -14,6 +14,10 @@ import {
 import { PromoterBookingsService } from './promoter-bookings.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
+  PromoterAccessPolicy,
+  PromoterAccessService,
+} from '../promoter-team/promoter-access.service';
+import {
   CreatePromoterBookingDto,
   UpdatePromoterBookingDto,
 } from './dto/promoter-booking.dto';
@@ -25,20 +29,28 @@ export class PromoterBookingsController {
   constructor(
     private readonly promoterBookingsService: PromoterBookingsService,
     private readonly supabaseService: SupabaseService,
+    private readonly access: PromoterAccessService,
   ) {}
 
-  private async getUserId(authorization: string): Promise<string> {
+  private async getUserId(
+    authorization: string,
+    policy: PromoterAccessPolicy = 'self',
+  ): Promise<string> {
     if (!authorization)
       throw new UnauthorizedException('No authorization header');
     const token = authorization.replace('Bearer ', '');
-    if (token.startsWith('local-')) return token.replace('local-', '');
+    if (
+      token.startsWith('local-') &&
+      process.env.ALLOW_LOCAL_DEV_AUTH === 'true'
+    )
+      return this.access.resolveUserId(token.replace('local-', ''), policy);
     const supabase = this.supabaseService.setAuthContext(token);
     const {
       data: { user },
       error,
     } = await supabase.auth.getUser();
     if (error || !user) throw new UnauthorizedException('Invalid token');
-    return user.id;
+    return this.access.resolveUserId(user.id, policy);
   }
 
   @Post()
@@ -46,13 +58,13 @@ export class PromoterBookingsController {
     @Headers('authorization') auth: string,
     @Body() dto: CreatePromoterBookingDto,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'write');
     return this.promoterBookingsService.createBooking(userId, dto);
   }
 
   @Get('mine')
   async listBookings(@Headers('authorization') auth: string) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'read');
     return this.promoterBookingsService.listBookings(userId);
   }
 
@@ -64,7 +76,7 @@ export class PromoterBookingsController {
 
   @Get('artist-invoices/mine')
   async listArtistInvoicesForPromoter(@Headers('authorization') auth: string) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'read');
     return this.promoterBookingsService.listArtistInvoicesForPromoter(userId);
   }
 
@@ -96,7 +108,7 @@ export class PromoterBookingsController {
     @Headers('authorization') auth: string,
     @Param('id') id: string,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'read');
     return this.promoterBookingsService.getBooking(userId, id);
   }
 
@@ -106,7 +118,7 @@ export class PromoterBookingsController {
     @Param('id') id: string,
     @Body() dto: UpdatePromoterBookingDto,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'write');
     return this.promoterBookingsService.updateBooking(userId, id, dto);
   }
 
@@ -115,7 +127,7 @@ export class PromoterBookingsController {
     @Headers('authorization') auth: string,
     @Param('id') id: string,
   ) {
-    const userId = await this.getUserId(auth);
+    const userId = await this.getUserId(auth, 'write');
     return this.promoterBookingsService.deleteBooking(userId, id);
   }
 }

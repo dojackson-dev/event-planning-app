@@ -46,9 +46,23 @@ describe('IntakeFormsService – createPublic', () => {
       providers: [
         IntakeFormsService,
         { provide: SupabaseService, useValue: supabaseService },
-        { provide: MailService, useValue: { sendClientInvitation: jest.fn().mockResolvedValue(undefined), sendNewLeadNotification: jest.fn().mockResolvedValue(undefined) } },
-        { provide: TwilioService, useValue: { sendSMS: jest.fn().mockResolvedValue(undefined) } },
-        { provide: SmsNotificationsService, useValue: { newIntakeFormSubmission: jest.fn().mockResolvedValue(undefined) } },
+        {
+          provide: MailService,
+          useValue: {
+            sendClientInvitation: jest.fn().mockResolvedValue(undefined),
+            sendNewLeadNotification: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: TwilioService,
+          useValue: { sendSMS: jest.fn().mockResolvedValue(undefined) },
+        },
+        {
+          provide: SmsNotificationsService,
+          useValue: {
+            newIntakeFormSubmission: jest.fn().mockResolvedValue(undefined),
+          },
+        },
         { provide: EventsService, useValue: {} },
       ],
     }).compile();
@@ -67,7 +81,11 @@ describe('IntakeFormsService – createPublic', () => {
         insertedRows.push(...rows);
         return {
           select: () => ({
-            single: () => Promise.resolve({ data: { id: 'form-1', ...rows[0] }, error: null }),
+            single: () =>
+              Promise.resolve({
+                data: { id: 'form-1', ...rows[0] },
+                error: null,
+              }),
           }),
         };
       }),
@@ -84,10 +102,15 @@ describe('IntakeFormsService – createPublic', () => {
       event_date: '2026-10-01',
       contact_name: 'Bob Jones',
       contact_email: 'bob@test.com',
+      contact_phone: '6015550100',
+      contact_address: '1 Main St, Jackson, MS 39201',
       event_description: 'A surprise party for my wife',
     });
 
-    expect(insertedRows[0]).toHaveProperty('event_description', 'A surprise party for my wife');
+    expect(insertedRows[0]).toHaveProperty(
+      'event_description',
+      'A surprise party for my wife',
+    );
   });
 
   it('strips accessibility_requirements, preferred_contact, venue_id, and event_description from safeDto', async () => {
@@ -97,7 +120,11 @@ describe('IntakeFormsService – createPublic', () => {
         insertedRows.push(...rows);
         return {
           select: () => ({
-            single: () => Promise.resolve({ data: { id: 'form-1', ...rows[0] }, error: null }),
+            single: () =>
+              Promise.resolve({
+                data: { id: 'form-1', ...rows[0] },
+                error: null,
+              }),
           }),
         };
       }),
@@ -114,6 +141,8 @@ describe('IntakeFormsService – createPublic', () => {
       event_date: '2026-11-01',
       contact_name: 'Carla D',
       contact_email: 'carla@test.com',
+      contact_phone: '6015550100',
+      contact_address: '1 Main St, Jackson, MS 39201',
       accessibility_requirements: 'wheelchair ramp',
       preferred_contact: 'email',
       venue_id: 'venue-abc',
@@ -125,7 +154,10 @@ describe('IntakeFormsService – createPublic', () => {
     expect(insertedRows[0]).not.toHaveProperty('preferred_contact');
     // venue_id is included in extras, so it CAN appear — but only once via extras
     // event_description IS included via extras (not spread from safeDto)
-    expect(insertedRows[0]).toHaveProperty('event_description', 'Annual summit');
+    expect(insertedRows[0]).toHaveProperty(
+      'event_description',
+      'Annual summit',
+    );
     expect(insertedRows[0]).toHaveProperty('venue_id', 'venue-abc');
   });
 
@@ -140,17 +172,26 @@ describe('IntakeFormsService – createPublic', () => {
           // First attempt (with event_description + venue_id) → column error
           return {
             select: () => ({
-              single: () => Promise.resolve({
-                data: null,
-                error: { message: 'column "event_description" of relation "intake_forms" does not exist', code: '42703' },
-              }),
+              single: () =>
+                Promise.resolve({
+                  data: null,
+                  error: {
+                    message:
+                      'column "event_description" of relation "intake_forms" does not exist',
+                    code: '42703',
+                  },
+                }),
             }),
           };
         }
         // Second attempt (base payload) → success
         return {
           select: () => ({
-            single: () => Promise.resolve({ data: { id: 'form-2', ...rows[0] }, error: null }),
+            single: () =>
+              Promise.resolve({
+                data: { id: 'form-2', ...rows[0] },
+                error: null,
+              }),
           }),
         };
       }),
@@ -167,6 +208,8 @@ describe('IntakeFormsService – createPublic', () => {
       event_date: '2026-09-01',
       contact_name: 'Dave E',
       contact_email: 'dave@test.com',
+      contact_phone: '6015550100',
+      contact_address: '1 Main St, Jackson, MS 39201',
       event_description: 'Surprise party',
     });
 
@@ -179,10 +222,11 @@ describe('IntakeFormsService – createPublic', () => {
     const mockChain = {
       insert: jest.fn().mockReturnValue({
         select: () => ({
-          single: () => Promise.resolve({
-            data: null,
-            error: { message: 'connection refused' },
-          }),
+          single: () =>
+            Promise.resolve({
+              data: null,
+              error: { message: 'connection refused' },
+            }),
         }),
       }),
       select: jest.fn().mockReturnThis(),
@@ -199,6 +243,8 @@ describe('IntakeFormsService – createPublic', () => {
         event_date: '2026-09-01',
         contact_name: 'Eve F',
         contact_email: 'eve@test.com',
+        contact_phone: '6015550100',
+        contact_address: '1 Main St, Jackson, MS 39201',
       }),
     ).rejects.toThrow('Public intake form insert failed');
   });
@@ -210,7 +256,11 @@ describe('IntakeFormsService – createPublic', () => {
         insertedRows.push(...rows);
         return {
           select: () => ({
-            single: () => Promise.resolve({ data: { id: 'form-3', ...rows[0] }, error: null }),
+            single: () =>
+              Promise.resolve({
+                data: { id: 'form-3', ...rows[0] },
+                error: null,
+              }),
           }),
         };
       }),
@@ -227,9 +277,63 @@ describe('IntakeFormsService – createPublic', () => {
       event_date: '2026-09-01',
       contact_name: 'Frank G',
       contact_email: 'frank@test.com',
+      contact_phone: '6015550100',
+      contact_address: '1 Main St, Jackson, MS 39201',
       // no event_description
     });
 
     expect(insertedRows[0]).not.toHaveProperty('event_description');
+  });
+
+  it('rejects a submission missing email, phone, or address', async () => {
+    adminClient.from = jest.fn();
+
+    await expect(
+      service.createPublic('owner-1', {
+        event_type: 'birthday_party',
+        event_date: '2026-09-01',
+        contact_name: 'No Contact',
+        contact_email: '  ',
+      }),
+    ).rejects.toThrow('Please provide your email, phone number, address.');
+    expect(adminClient.from).not.toHaveBeenCalled();
+  });
+
+  it('stores the trimmed contact_address on the intake form', async () => {
+    const insertedRows: any[] = [];
+    const mockChain = {
+      insert: jest.fn().mockImplementation((rows: any[]) => {
+        insertedRows.push(...rows);
+        return {
+          select: () => ({
+            single: () =>
+              Promise.resolve({
+                data: { id: 'form-4', ...rows[0] },
+                error: null,
+              }),
+          }),
+        };
+      }),
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+      update: jest.fn().mockReturnThis(),
+      single: jest.fn().mockResolvedValue({ data: null, error: null }),
+    };
+    adminClient.from = jest.fn().mockReturnValue(mockChain);
+
+    await service.createPublic('owner-1', {
+      event_type: 'birthday_party',
+      event_date: '2026-09-01',
+      contact_name: 'Gina H',
+      contact_email: 'gina@test.com',
+      contact_phone: '6015550100',
+      contact_address: '  9 Oak Ave, Jackson, MS  ',
+    });
+
+    expect(insertedRows[0]).toHaveProperty(
+      'contact_address',
+      '9 Oak Ave, Jackson, MS',
+    );
   });
 });

@@ -43,9 +43,9 @@ const PLANS = [
     features: [
       '1 venue',
       'No team members included',
-      'Additional team members at $15/mo each',
-      'Ticket sales: customer pays 3% EventEcos fee + Stripe processing',
-      'Direct payments: payer pays Stripe processing; recipient pays 3% EventEcos fee',
+      'Upgrade to Pro or Premium to add team members',
+      'Ticket sales: customer pays 3% platform fee + card processing',
+      'Direct payments: payer pays card processing; recipient pays 3% platform fee',
       'Invoices, estimates & contracts available with Stripe payments activated',
       'Basic listing only without Stripe payments',
     ],
@@ -64,8 +64,8 @@ const PLANS = [
     features: [
       'Up to 3 venues',
       'Up to 3 team members',
-      'Ticket sales: customer pays 3% EventEcos fee + Stripe processing',
-      'Direct payments: payer pays Stripe processing; recipient pays 1.5% EventEcos fee',
+      'Ticket sales: customer pays 3% platform fee + card processing',
+      'Direct payments: payer pays card processing; recipient pays 1.5% platform fee',
       'Invoices, estimates, contracts & payment tools',
       'Vendor management, door list & security',
       'SMS notifications',
@@ -86,8 +86,8 @@ const PLANS = [
     features: [
       'Up to 5 venues',
       'Up to 5 team members',
-      'Ticket sales: customer pays 3% EventEcos fee + Stripe processing',
-      'Direct payments: payer pays Stripe processing; recipient pays 1% EventEcos fee (lowest rate)',
+      'Ticket sales: customer pays 3% platform fee + card processing',
+      'Direct payments: payer pays card processing; recipient pays 1% platform fee (lowest rate)',
       'Invoices, estimates, contracts & advanced payment tools',
       'Multi-venue support & custom branding',
       'Ticket sales & promoter tools',
@@ -108,8 +108,8 @@ const PLANS = [
     features: [
       'Custom venue limits',
       'Custom team member limits',
-      'Ticket sales: customer pays 3% EventEcos fee + Stripe processing (customizable)',
-      'Direct payments: payer pays Stripe processing; recipient pays EventEcos fee (rates customizable)',
+      'Ticket sales: customer pays 3% platform fee + card processing (customizable)',
+      'Direct payments: payer pays card processing; recipient pays platform fee (rates customizable)',
       'Invoices, estimates, contracts, payment tools & advanced reporting',
       'Custom workflows, tailored pricing & premium support',
       'Dedicated onboarding support',
@@ -297,6 +297,33 @@ export default function BillingPage() {
         <p className="text-gray-500 mt-1">Manage your EventEcos plan and payment settings</p>
       </div>
 
+      {/* ── Payout Setup Reminder — always visible until Connect is active, regardless of plan ── */}
+      {connectStatus?.status !== 'active' && (
+        <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 mb-8 flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex items-start gap-3">
+            <div className="bg-indigo-100 p-2 rounded-lg">
+              <Link2 className="h-5 w-5 text-indigo-600" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-indigo-900">
+                {connectStatus?.status === 'pending' ? 'Finish setting up your payout account' : 'Add your banking information to get paid'}
+              </p>
+              <p className="text-sm text-indigo-700 mt-0.5">
+                Connect your bank details via Stripe to accept client payments and receive payouts. This is required even on the Free plan.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleConnectOnboarding}
+            disabled={connectLoading}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 whitespace-nowrap"
+          >
+            {connectLoading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
+            {connectStatus?.status === 'pending' ? 'Continue Setup' : 'Add Banking Info'}
+          </button>
+        </div>
+      )}
+
       {/* ── Current Status Card ── */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
         <div className="flex items-center justify-between flex-wrap gap-4">
@@ -344,24 +371,26 @@ export default function BillingPage() {
         </div>
       </div>
 
-      {/* ── Stripe Test Mode Banner ── */}
-      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-8 flex items-start gap-3">
-        <Zap className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
-        <div>
-          <p className="text-sm font-medium text-amber-800">Test Mode Active</p>
-          <p className="text-sm text-amber-700 mt-0.5">
-            Use test card <span className="font-mono font-bold">4242 4242 4242 4242</span> with any future expiry and any CVC.{' '}
-            <a
-              href="https://stripe.com/docs/testing#cards"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:no-underline"
-            >
-              View all test cards →
-            </a>
-          </p>
+      {/* ── Stripe Test Mode Banner — only shown when Stripe is genuinely in test mode ── */}
+      {process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.startsWith('pk_test_') && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-8 flex items-start gap-3">
+          <Zap className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-amber-800">Test Mode Active</p>
+            <p className="text-sm text-amber-700 mt-0.5">
+              Use test card <span className="font-mono font-bold">4242 4242 4242 4242</span> with any future expiry and any CVC.{' '}
+              <a
+                href="https://stripe.com/docs/testing#cards"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:no-underline"
+              >
+                View all test cards →
+              </a>
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ── Upgrade Hero (free/trial users) ── */}
       {!isSubscribed && (
@@ -489,7 +518,7 @@ export default function BillingPage() {
           })}
         </div>
         <p className="text-xs text-gray-400 mt-3 text-center">
-          Cancel anytime. Stripe processing fees apply to all transactions. Platform fees shown are EventEcos fees on direct payments only.
+          Cancel anytime. Platform fees shown are EventEcos platform fees on direct payments (invoices). Ticket and VIP sales carry a 3% fee paid by the buyer (1.5% for verified non-profits). The payer also covers payment processing: 3.1% + $0.30 for cards (includes a small allowance for international cards), or 6% + $0.30 for pay later (Afterpay, Klarna, Affirm) where the seller has turned it on.
         </p>
       </div>
 
@@ -507,7 +536,7 @@ export default function BillingPage() {
               </div>
               <p className="text-sm text-gray-500">
                 Connect your Stripe account to accept payments from clients and pay vendors.
-                For direct payments, the payer covers Stripe processing and the recipient pays the EventEcos platform fee: <strong>3%</strong> Free · <strong>1.5%</strong> Pro · <strong>1%</strong> Premium &amp; Enterprise.
+                For direct payments, the payer covers card processing and the recipient pays the EventEcos platform fee: <strong>3%</strong> Free · <strong>1.5%</strong> Pro · <strong>1%</strong> Premium &amp; Enterprise.
               </p>
               {connectStatus?.connectId && (
                 <p className="text-xs text-gray-400 mt-1 font-mono">{connectStatus.connectId}</p>

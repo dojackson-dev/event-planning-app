@@ -26,7 +26,9 @@ async function writeUsers(users: any[]) {
   const dir = join(__dirname, '..', '..', 'data');
   try {
     await fs.mkdir(dir, { recursive: true });
-  } catch {}
+  } catch {
+    // writeFile below reports any real failure
+  }
   await fs.writeFile(DATA_PATH, JSON.stringify(users, null, 2), 'utf8');
 }
 

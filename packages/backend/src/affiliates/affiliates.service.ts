@@ -215,13 +215,21 @@ export class AffiliatesService {
     if (sessionError) {
       // Registration succeeded but auto-login failed — not critical
       this.mailService
-        .sendWelcomeEmail({ toEmail: dto.email, firstName: dto.firstName, role: 'affiliate' })
+        .sendWelcomeEmail({
+          toEmail: dto.email,
+          firstName: dto.firstName,
+          role: 'affiliate',
+        })
         .catch(() => {});
       return { affiliate, session: null };
     }
 
     this.mailService
-      .sendWelcomeEmail({ toEmail: dto.email, firstName: dto.firstName, role: 'affiliate' })
+      .sendWelcomeEmail({
+        toEmail: dto.email,
+        firstName: dto.firstName,
+        role: 'affiliate',
+      })
       .catch(() => {});
 
     return {
@@ -586,7 +594,10 @@ export class AffiliatesService {
     try {
       let page = 1;
       while (true) {
-        const { data: authPage } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+        const { data: authPage } = await admin.auth.admin.listUsers({
+          page,
+          perPage: 1000,
+        });
         for (const u of authPage?.users ?? []) {
           authSignInMap.set(u.id, u.last_sign_in_at ?? null);
         }

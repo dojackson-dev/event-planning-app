@@ -9,12 +9,14 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { TeamService } from './team.service';
+import { PromoterTeamService } from '../promoter-team/promoter-team.service';
 import { SupabaseService } from '../supabase/supabase.service';
 
 @Controller('team')
 export class TeamController {
   constructor(
     private readonly teamService: TeamService,
+    private readonly promoterTeam: PromoterTeamService,
     private readonly supabaseService: SupabaseService,
   ) {}
 
@@ -59,10 +61,13 @@ export class TeamController {
   /** GET /team/invite-info/:token — public, no auth required */
   @Get('invite-info/:token')
   async getInviteInfo(@Param('token') token: string) {
+    if (await this.promoterTeam.hasInvite(token)) {
+      return this.promoterTeam.getInviteInfo(token);
+    }
     return this.teamService.getInviteInfo(token);
   }
 
-  /** POST /team/accept */
+  /** POST /team/accept — venue associate invites and promoter team invites share this route */
   @Post('accept')
   async acceptInvite(
     @Body('token') token: string,
@@ -71,6 +76,14 @@ export class TeamController {
     @Body('lastName') lastName: string,
   ) {
     if (!token) throw new UnauthorizedException('Token is required');
+    if (await this.promoterTeam.hasInvite(token)) {
+      return this.promoterTeam.acceptInvite(
+        token,
+        password,
+        firstName,
+        lastName,
+      );
+    }
     return this.teamService.acceptInvite(token, password, firstName, lastName);
   }
 

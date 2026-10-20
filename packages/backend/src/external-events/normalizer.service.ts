@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
+import { createHash } from 'crypto';
 import {
   EventSourceRecord,
   RawExternalEvent,
 } from './connectors/connector.types';
+import { normalizeTitle } from './dedupe.service';
 
 export interface NormalizedExternalEvent {
   source_id: string;
@@ -46,7 +48,24 @@ export class NormalizerService {
 
     return {
       source_id: source.id,
-      external_id: externalId,
+      // Don't trust the connector's raw externalId as a stable dedupe key —
+      // some APIs (e.g. Google Events via the RapidAPI "Real-Time Events
+      // Search" REST/JSON source) return an ephemeral per-request token in
+      // that field, which changes on every scheduled sync and causes the
+      // same real-world recurring event to be re-inserted as a new row each
+      // time instead of being upserted in place (onConflict: source_id,
+      // external_id). Derive a stable content-based id instead, from fields
+      // that stay consistent across syncs for the same real occurrence.
+      external_id: createHash('sha1')
+        .update(
+          [
+            normalizeTitle(title),
+            (raw.venueName || '').trim().toLowerCase(),
+            raw.eventDate || '',
+            raw.startTime || '',
+          ].join('|'),
+        )
+        .digest('hex'),
       title,
       description: raw.description?.trim() || null,
       event_date: raw.eventDate || null,

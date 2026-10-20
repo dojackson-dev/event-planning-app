@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { Colors, Radius } from '@/lib/theme';
+import { getSessionHomeRoute } from '@/lib/roleRouting';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -28,9 +29,12 @@ export default function LoginScreen() {
       if (error) throw error;
 
       if (data.session) {
-        // Role-based routing handled by _layout.tsx onAuthStateChange
-        // Just navigate to tabs root — the layout will redirect based on role
-        router.replace('/(tabs)/');
+        // Resolve the real role-based destination directly instead of
+        // navigating to the bare /(tabs)/ route and waiting for
+        // _layout.tsx's onAuthStateChange listener to redirect again —
+        // that extra hop caused a visible flash of the wrong screen.
+        const homeRoute = await getSessionHomeRoute(data.session.user);
+        router.replace(homeRoute as never);
       }
     } catch (error: any) {
       // Check if error is related to email verification

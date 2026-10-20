@@ -1,19 +1,21 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { Event } from '@/types'
 import { ArrowLeft } from 'lucide-react'
 import { parseLocalDate } from '@/lib/dateUtils'
 
-export default function NewSecurityPage() {
+function NewSecurityPageContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const preselectedEventId = searchParams.get('eventId') || ''
   const { user } = useAuth()
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
-  const [eventId, setEventId] = useState('')
+  const [eventId, setEventId] = useState(preselectedEventId)
   const [events, setEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -58,7 +60,7 @@ export default function NewSecurityPage() {
       }
 
       await api.post('/security', securityData)
-      router.push('/dashboard/security')
+      router.push(preselectedEventId ? `/dashboard/events/${preselectedEventId}/manage` : '/dashboard/security')
     } catch (error) {
       console.error('Failed to create security:', error)
       alert('Failed to create security personnel')
@@ -158,5 +160,13 @@ export default function NewSecurityPage() {
         </div>
       </form>
     </div>
+  )
+}
+
+export default function NewSecurityPage() {
+  return (
+    <Suspense>
+      <NewSecurityPageContent />
+    </Suspense>
   )
 }

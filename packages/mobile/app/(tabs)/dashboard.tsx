@@ -109,7 +109,7 @@ export default function DashboardScreen() {
       {/* Stats Grid */}
       <View style={styles.grid}>
         {[
-          { icon: 'calendar-outline', label: 'Upcoming Events', value: stats.upcomingEvents, color: Colors.primary, bg: Colors.primaryLight, route: '/(tabs)/events' },
+          { icon: 'calendar-outline', label: 'Upcoming Events', value: stats.upcomingEvents, color: Colors.primary, bg: Colors.primaryLight, route: '/(tabs)/calendar' },
           { icon: 'checkmark-circle-outline', label: 'Booked Events', value: stats.confirmedBookings, color: Colors.success, bg: Colors.successLight, route: '/(tabs)/bookings' },
           { icon: 'people-outline', label: 'Total Clients', value: stats.totalClients, color: Colors.purple, bg: Colors.purpleLight, route: '/(tabs)/clients' },
           { icon: 'receipt-outline', label: 'Unpaid Invoices', value: stats.unpaidInvoices, color: Colors.error, bg: Colors.errorLight, route: '/(tabs)/invoices' },
@@ -149,7 +149,7 @@ export default function DashboardScreen() {
       <Text style={styles.sectionTitle}>Quick Actions</Text>
       <View style={styles.navList}>
         {[
-          { icon: 'calendar', color: Colors.primary, bg: Colors.primaryLight, label: 'Events', route: '/(tabs)/events' },
+          { icon: 'calendar', color: Colors.primary, bg: Colors.primaryLight, label: 'Events', route: '/(tabs)/calendar' },
           { icon: 'calendar-outline', color: '#0EA5E9', bg: '#E0F2FE', label: 'Calendar', route: '/(tabs)/calendar' },
           { icon: 'link-outline', color: '#8B5CF6', bg: '#EDE9FE', label: 'Booking Link', route: '/(tabs)/booking-link' },
         ].map((item) => (
@@ -168,10 +168,10 @@ export default function DashboardScreen() {
         ))}
       </View>
 
-      {/* Switch to attendee view */}
-      <TouchableOpacity style={styles.switchBtn} onPress={() => router.replace('/(tabs)/')}>
+      {/* Switch to the public guest browsing experience */}
+      <TouchableOpacity style={styles.switchBtn} onPress={() => router.push('/(guest)')}>
         <Ionicons name="earth-outline" size={16} color={Colors.primary} />
-        <Text style={styles.switchText}>Browse EventEcos as Attendee</Text>
+        <Text style={styles.switchText}>Browse EventEcos as Guest</Text>
       </TouchableOpacity>
     </ScrollView>
   );

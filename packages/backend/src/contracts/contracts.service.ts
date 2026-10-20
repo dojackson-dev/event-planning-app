@@ -71,7 +71,7 @@ export class ContractsService {
     return data || [];
   }
 
-  async findOne(supabase: SupabaseClient, id: string): Promise<any | null> {
+  async findOne(supabase: SupabaseClient, id: string): Promise<any> {
     const { data, error } = await supabase
       .from('contracts')
       .select('*')
@@ -98,13 +98,28 @@ export class ContractsService {
     return data;
   }
 
+  // Generates the next CON-<year>-##### number from the highest existing
+  // number for that year (not a raw row count, which goes stale/collides
+  // as soon as any contract has ever been deleted).
+  private async nextContractNumber(
+    admin: SupabaseClient,
+    year: number,
+  ): Promise<string> {
+    const { data: last } = await admin
+      .from('contracts')
+      .select('contract_number')
+      .like('contract_number', `CON-${year}-%`)
+      .order('contract_number', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const match = last?.contract_number?.match(/-(\d+)$/);
+    const nextNum = match ? parseInt(match[1], 10) + 1 : 1;
+    return `CON-${year}-${String(nextNum).padStart(5, '0')}`;
+  }
+
   async create(supabase: SupabaseClient, contractData: any): Promise<any> {
     const admin = this.supabaseService.getAdminClient();
-
-    const { count } = await admin
-      .from('contracts')
-      .select('*', { count: 'exact', head: true });
-    const contractNumber = `CON-${new Date().getFullYear()}-${String((count || 0) + 1).padStart(5, '0')}`;
+    const year = new Date().getFullYear();
 
     // Auto-populate client contact info from the linked intake form so that
     // sendContract() can SMS the client without a separate lookup.
@@ -137,21 +152,30 @@ export class ContractsService {
       }
     }
 
-    const payload: any = {
+    const basePayload: any = {
       ...contractData,
-      contract_number: contractNumber,
       status: contractData.status || 'draft',
     };
-    if (clientName) payload.client_name = clientName;
-    if (clientPhone) payload.client_phone = clientPhone;
-    if (clientEmail) payload.client_email = clientEmail;
+    if (clientName) basePayload.client_name = clientName;
+    if (clientPhone) basePayload.client_phone = clientPhone;
+    if (clientEmail) basePayload.client_email = clientEmail;
 
-    const { data, error } = await admin
-      .from('contracts')
-      .insert([payload])
-      .select()
-      .single();
-    if (error) {
+    // Retry a few times on a contract_number collision (e.g. a concurrent
+    // create, or a gap left by a previously deleted contract) rather than
+    // failing the whole request.
+    const maxAttempts = 5;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const contractNumber = await this.nextContractNumber(admin, year);
+      const { data, error } = await admin
+        .from('contracts')
+        .insert([{ ...basePayload, contract_number: contractNumber }])
+        .select()
+        .single();
+      if (!error) return data;
+
+      if (error.code === '23505' && attempt < maxAttempts - 1) {
+        continue; // contract_number collision — retry with a fresh number
+      }
       console.error(
         '[ContractsService] insert error:',
         error.message,
@@ -160,14 +184,13 @@ export class ContractsService {
       );
       throw new Error(error.message);
     }
-    return data;
   }
 
   async update(
     supabase: SupabaseClient,
     id: string,
     contractData: any,
-  ): Promise<any | null> {
+  ): Promise<any> {
     const { data, error } = await supabase
       .from('contracts')
       .update(contractData)
@@ -280,7 +303,7 @@ export class ContractsService {
       signerName: string;
       ipAddress?: string;
     },
-  ): Promise<any | null> {
+  ): Promise<any> {
     const { data, error } = await supabase
       .from('contracts')
       .update({
@@ -368,10 +391,7 @@ export class ContractsService {
     return data;
   }
 
-  async sendContract(
-    supabase: SupabaseClient,
-    id: string,
-  ): Promise<any | null> {
+  async sendContract(supabase: SupabaseClient, id: string): Promise<any> {
     const { data, error } = await supabase
       .from('contracts')
       .update({

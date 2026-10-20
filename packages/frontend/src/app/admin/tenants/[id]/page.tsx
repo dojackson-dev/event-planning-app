@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { normalizeWebsite } from '@/lib/url'
 import { Building2, Globe, Mail, Phone, MapPin, Trash2, Save, ExternalLink } from 'lucide-react'
 
 interface Tenant {
@@ -72,7 +73,7 @@ export default function TenantDetailPage({ params }: { params: { id: string } })
         .update({
           name: formData.name,
           subdomain: formData.subdomain,
-          custom_url: formData.custom_url || null,
+          custom_url: normalizeWebsite(formData.custom_url) ?? null,
           subscription_status: formData.subscription_status
         })
         .eq('id', id)
@@ -227,17 +228,18 @@ export default function TenantDetailPage({ params }: { params: { id: string } })
                     Custom Website URL
                   </label>
                   <input
-                    type="url"
+                    type="text"
+                    inputMode="url"
                     id="custom_url"
                     name="custom_url"
                     value={formData.custom_url}
                     onChange={handleChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                    placeholder="https://www.example.com"
+                    placeholder="www.example.com"
                   />
                   {formData.custom_url && (
                     <a
-                      href={formData.custom_url}
+                      href={normalizeWebsite(formData.custom_url)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="mt-2 inline-flex items-center text-sm text-primary-600 hover:text-primary-800"

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
+import DashboardAssistant from '@/components/DashboardAssistant'
 import { useAuth } from '@/contexts/AuthContext'
 import {
   Mic2,
@@ -202,6 +203,8 @@ export default function ArtistDashboard() {
             </div>
           )}
         </div>
+
+        <DashboardAssistant role="artist" />
 
         {/* Quick actions */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -1,0 +1,147 @@
+{
+  "info": {
+    "name": "Ticket Evolution (Victory Live) Exchange API v9",
+    "description": "Explore the TEvo Exchange API. The collection-level pre-request script auto-computes the X-Token/X-Signature headers using the same HMAC-SHA256 signing scheme as packages/backend/src/ticket-evolution/ticket-evolution.service.ts, so you never sign requests by hand.\n\nBefore using: create a Postman Environment (don't edit this collection file) with variables apiToken and apiSecret set to your sandbox credentials, and select that environment before sending requests. Never commit real credentials into this collection file.\n\nTo explore a new endpoint not listed here: duplicate the 'Template (duplicate me)' request, change the URL path and query params, and the signing still works automatically — GET/DELETE sign the sorted query string, POST/PUT sign the raw JSON body.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "https://api.sandbox.ticketevolution.com" },
+    { "key": "apiToken", "value": "" },
+    { "key": "apiSecret", "value": "" }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Mirrors ticket-evolution.service.ts's sign()/request() logic exactly.",
+          "const token = pm.environment.get('apiToken') || pm.collectionVariables.get('apiToken');",
+          "const secret = pm.environment.get('apiSecret') || pm.collectionVariables.get('apiSecret');",
+          "if (!token || !secret) {",
+          "  console.warn('apiToken/apiSecret not set — create a Postman Environment with these variables.');",
+          "}",
+          "",
+          "const method = pm.request.method;",
+          "const host = pm.request.url.getHost();",
+          "const path = '/' + pm.request.url.path.join('/');",
+          "",
+          "let signedSuffix;",
+          "if (method === 'POST' || method === 'PUT') {",
+          "  signedSuffix = (pm.request.body && pm.request.body.raw) ? pm.request.body.raw : '';",
+          "} else {",
+          "  const params = pm.request.url.query.all().filter((p) => !p.disabled);",
+          "  params.sort((a, b) => a.key.localeCompare(b.key));",
+          "  signedSuffix = params",
+          "    .map((p) => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`)",
+          "    .join('&');",
+          "}",
+          "",
+          "const stringToSign = `${method} ${host}${path}?${signedSuffix}`;",
+          "const signature = CryptoJS.HmacSHA256(stringToSign, secret).toString(CryptoJS.enc.Base64);",
+          "",
+          "pm.request.headers.upsert({ key: 'Accept', value: 'application/json' });",
+          "pm.request.headers.upsert({ key: 'Content-Type', value: 'application/json' });",
+          "pm.request.headers.upsert({ key: 'X-Token', value: token });",
+          "pm.request.headers.upsert({ key: 'X-Signature', value: signature });"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Events - search",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/v9/events?page=1&per_page=25",
+          "host": ["{{baseUrl}}"],
+          "path": ["v9", "events"],
+          "query": [
+            { "key": "page", "value": "1" },
+            { "key": "per_page", "value": "25" },
+            { "key": "name", "value": "", "disabled": true },
+            { "key": "occurs_at.gte", "value": "", "disabled": true },
+            { "key": "occurs_at.lt", "value": "", "disabled": true },
+            { "key": "venue_id", "value": "", "disabled": true },
+            { "key": "performer_id", "value": "", "disabled": true }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Events - show",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/v9/events/:id",
+          "host": ["{{baseUrl}}"],
+          "path": ["v9", "events", ":id"],
+          "variable": [{ "key": "id", "value": "REPLACE_WITH_EVENT_ID" }]
+        }
+      }
+    },
+    {
+      "name": "Listings - by event",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/v9/listings?event_id=REPLACE_WITH_EVENT_ID&page=1&per_page=25",
+          "host": ["{{baseUrl}}"],
+          "path": ["v9", "listings"],
+          "query": [
+            { "key": "event_id", "value": "REPLACE_WITH_EVENT_ID" },
+            { "key": "page", "value": "1" },
+            { "key": "per_page", "value": "25" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Venues - search",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/v9/venues?page=1&per_page=25",
+          "host": ["{{baseUrl}}"],
+          "path": ["v9", "venues"],
+          "query": [
+            { "key": "page", "value": "1" },
+            { "key": "per_page", "value": "25" },
+            { "key": "name", "value": "", "disabled": true },
+            { "key": "city", "value": "", "disabled": true },
+            { "key": "state", "value": "", "disabled": true }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Performers - search",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/v9/performers?page=1&per_page=25",
+          "host": ["{{baseUrl}}"],
+          "path": ["v9", "performers"],
+          "query": [
+            { "key": "page", "value": "1" },
+            { "key": "per_page", "value": "25" },
+            { "key": "name", "value": "", "disabled": true }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Template (duplicate me for new endpoints)",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/v9/REPLACE_WITH_RESOURCE_PATH",
+          "host": ["{{baseUrl}}"],
+          "path": ["v9", "REPLACE_WITH_RESOURCE_PATH"]
+        },
+        "description": "Duplicate this request for any endpoint from https://victorylive.atlassian.net/wiki/spaces/API/pages/983125 (e.g. categories, clients, orders, payments, accounts, credentials). Signing is automatic via the collection's pre-request script — for POST/PUT, set the Body to raw JSON and it will be signed correctly."
+      }
+    }
+  ]
+}

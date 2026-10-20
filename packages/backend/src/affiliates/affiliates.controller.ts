@@ -12,6 +12,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { AffiliatesService } from './affiliates.service';
+import { LeadsService } from './leads.service';
 import { AffiliateGuard } from './guards/affiliate.guard';
 import {
   RegisterAffiliateDto,
@@ -22,7 +23,10 @@ import {
 
 @Controller('affiliates')
 export class AffiliatesController {
-  constructor(private readonly affiliatesService: AffiliatesService) {}
+  constructor(
+    private readonly affiliatesService: AffiliatesService,
+    private readonly leadsService: LeadsService,
+  ) {}
 
   // ─── Public ──────────────────────────────────────────────────────────────
 
@@ -120,5 +124,39 @@ export class AffiliatesController {
   @UseGuards(AffiliateGuard)
   async getManagerAffiliates(@Req() req: any) {
     return this.affiliatesService.getManagerAffiliates(req.affiliate.email);
+  }
+
+  // ─── Leads (Book a Demo requests) ────────────────────────────────────────
+
+  /** Unclaimed leads plus the agent's own (the manager sees all). */
+  @Get('leads')
+  @UseGuards(AffiliateGuard)
+  async listLeads(@Req() req: any) {
+    return this.leadsService.list(req.affiliate);
+  }
+
+  @Post('leads/:id/claim')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(AffiliateGuard)
+  async claimLead(@Req() req: any, @Param('id') id: string) {
+    return this.leadsService.claim(id, req.affiliate);
+  }
+
+  @Post('leads/:id/release')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(AffiliateGuard)
+  async releaseLead(@Req() req: any, @Param('id') id: string) {
+    return this.leadsService.release(id, req.affiliate);
+  }
+
+  /** Update the status or notes of a lead you claimed. */
+  @Patch('leads/:id')
+  @UseGuards(AffiliateGuard)
+  async updateLead(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() body: { status?: unknown; notes?: unknown },
+  ) {
+    return this.leadsService.update(id, req.affiliate, body ?? {});
   }
 }

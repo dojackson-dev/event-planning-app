@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
+import NonprofitBadge from '@/components/NonprofitBadge'
+import PayMethodToggle, { ticketPricingDollars, type PayMethod } from '@/components/PayMethodToggle'
 import {
   MapPin, Clock, Tag, Ticket, Loader2, CheckCircle,
   Calendar, Users, Minus, Plus, ExternalLink,
@@ -34,6 +36,9 @@ interface PromoterAccount {
   contact_name: string
   instagram: string | null
   website: string | null
+  is_nonprofit?: boolean | null
+  nonprofit_status?: string | null
+  nonprofit_legal_name?: string | null
 }
 
 interface PublicEvent {
@@ -52,6 +57,9 @@ interface PublicEvent {
   age_restriction: string | null
   ticket_tiers: TicketTier[]
   promoter_accounts: PromoterAccount | null
+  sales_paused?: boolean
+  sales_tax_rate?: number | string | null
+  pay_later_available?: boolean
 }
 
 export default function PublicEventDetailPage({ params }: { params: { id: string } }) {
@@ -68,7 +76,9 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
   const [buyerPhone, setBuyerPhone] = useState('')
   const [purchasing, setPurchasing] = useState(false)
   const [purchaseError, setPurchaseError] = useState('')
+  const [payMethod, setPayMethod] = useState<PayMethod>('card')
   const [vipPackages, setVipPackages] = useState<VipPackage[]>([])
+  const [sponsorLevels, setSponsorLevels] = useState<Array<{ id: string; name: string; price: number }>>([])
 
   const successSession = searchParams?.get('session_id')
   const paidParam = searchParams?.get('paid') === 'true'
@@ -84,6 +94,9 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
       .finally(() => setLoading(false))
     api.get(`/vip/public/events/${id}`)
       .then(r => setVipPackages((r.data.packages || []).filter((p: VipPackage) => p.status !== 'hidden' && p.inventory_sold < p.inventory)))
+      .catch(() => {})
+    api.get(`/nonprofit/public/events/${id}/sponsorship-levels`)
+      .then(r => setSponsorLevels(r.data || []))
       .catch(() => {})
   }, [id])
 
@@ -105,6 +118,7 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
       const res = await api.post(`/promoter-events/public/${id}/checkout`, {
         items,
         buyer_email: buyerEmail,
+        pay_method: payMethod,
         ...(buyerPhone ? { buyer_phone: buyerPhone } : {}),
       })
       if (res.data?.url) {
@@ -141,9 +155,8 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
     event.ticket_tiers.every(t => t.quantity_sold >= t.quantity)
 
   // Fee breakdown (mirrors backend grossUp)
-  const STRIPE_PCT   = 0.029
-  const STRIPE_FIXED = 0.30
-  const APP_FEE_RATE = 0.03
+  const APP_FEE_RATE = event.promoter_accounts?.is_nonprofit && event.promoter_accounts?.nonprofit_status === 'verified' ? 0.015 : 0.03
+  const activePayMethod: PayMethod = event.pay_later_available ? payMethod : 'card'
 
   const totalItems = Object.entries(tierQtys).filter(([, q]) => q > 0)
   const faceValue = totalItems.reduce((sum, [tierId, qty]) => {
@@ -151,10 +164,11 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
     return sum + (tier ? Number(tier.price) * qty : 0)
   }, 0)
   const totalTickets = totalItems.reduce((sum, [, qty]) => sum + qty, 0)
-  const totalCharge = faceValue > 0
-    ? Math.ceil((faceValue * 100 + STRIPE_FIXED * 100) / (1 - STRIPE_PCT - APP_FEE_RATE)) / 100
-    : 0
-  const serviceFee = +(totalCharge - faceValue).toFixed(2)
+  const pricing = faceValue > 0
+    ? ticketPricingDollars(faceValue, activePayMethod, APP_FEE_RATE, Number(event.sales_tax_rate) || 0)
+    : { serviceFee: 0, tax: 0, total: 0 }
+  const totalCharge = pricing.total
+  const serviceFee = pricing.serviceFee
 
   const adjustQty = (tierId: string, delta: number, max: number) => {
     setTierQtys(prev => {
@@ -252,6 +266,7 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
               <div className="max-w-4xl mx-auto px-4 pb-6 w-full">
                 <h1 className="text-3xl md:text-4xl font-bold">{event.title}</h1>
                 {promoterName && <p className="text-purple-200 mt-1">By {promoterName}</p>}
+                <NonprofitBadge promoter={event.promoter_accounts} tone="dark" className="mt-2" />
               </div>
             </div>
           </div>
@@ -259,6 +274,7 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
           <div className="max-w-4xl mx-auto px-4 py-10">
             <h1 className="text-3xl md:text-4xl font-bold">{event.title}</h1>
             {promoterName && <p className="text-purple-200 mt-1">By {promoterName}</p>}
+            <NonprofitBadge promoter={event.promoter_accounts} tone="dark" className="mt-2" />
           </div>
         )}
       </div>
@@ -341,6 +357,25 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
           <div className="bg-white border border-gray-200 rounded-2xl p-5 sticky top-4 space-y-4">
             <h2 className="font-bold text-gray-900">Get Tickets</h2>
 
+            {/* Non-profit sponsorships */}
+            {sponsorLevels.length > 0 && (
+              <Link href={`/events/${id}/sponsor`}
+                className="block p-3 bg-gradient-to-r from-pink-50 to-rose-50 border border-pink-200 rounded-xl hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-pink-800 text-sm">Become a Sponsor</span>
+                  <span className="text-xs text-pink-600 font-medium">View levels →</span>
+                </div>
+                <p className="text-xs text-pink-700 mt-1">
+                  {sponsorLevels.length} level{sponsorLevels.length === 1 ? '' : 's'} from ${Math.min(...sponsorLevels.map(l => Number(l.price))).toLocaleString()}
+                </p>
+              </Link>
+            )}
+
+            {event.sales_paused ? (
+              <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                Ticket sales are paused until this organization&apos;s non-profit status is verified.
+              </div>
+            ) : (<>
             {/* VIP upsell - first option */}
             <Link href={`/events/${id}/vip`}
               className="block p-3 bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-200 rounded-xl hover:shadow-md transition-shadow">
@@ -466,21 +501,27 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
                         </div>
                       )
                     })}
+                    {faceValue > 0 && event.pay_later_available && (
+                      <div className="pt-1.5">
+                        <PayMethodToggle value={activePayMethod} onChange={setPayMethod} disabled={purchasing} />
+                      </div>
+                    )}
                     {faceValue > 0 && (
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">Service fee</span>
+                        <span className="text-gray-500">Service fee<span className="block text-xs text-gray-400">Includes EventEcos fee and card processing</span></span>
                         <span className="text-gray-500">${serviceFee.toFixed(2)}</span>
+                      </div>
+                    )}
+                    {faceValue > 0 && pricing.tax > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">Sales tax ({Number(event.sales_tax_rate)}%)</span>
+                        <span className="text-gray-500">${pricing.tax.toFixed(2)}</span>
                       </div>
                     )}
                     <div className="flex justify-between text-sm font-bold border-t border-gray-100 pt-1.5 mt-1.5">
                       <span className="text-gray-800">Total</span>
                       <span>{faceValue === 0 ? 'Free' : `$${totalCharge.toFixed(2)}`}</span>
                     </div>
-                    {faceValue > 0 && (
-                      <p className="text-xs text-gray-400 text-center">
-                        + applicable sales tax calculated at checkout
-                      </p>
-                    )}
                     <button type="submit" disabled={purchasing || !buyerEmail}
                       className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white font-bold py-3 rounded-xl hover:bg-purple-700 disabled:opacity-60 mt-2">
                       {purchasing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ticket className="w-4 h-4" />}
@@ -491,6 +532,7 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
                 )}
               </form>
             )}
+            </>)}
           </div>
 
 

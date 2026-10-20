@@ -11,6 +11,22 @@ import { MailService } from '../mail/mail.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import Stripe from 'stripe';
 import {
+  assertNonprofitCanSell,
+  isVerifiedNonprofit,
+  NONPROFIT_APP_FEE_RATE,
+  NonprofitFields,
+  nonprofitSalesBlocked,
+} from '../nonprofit/nonprofit-gate';
+import {
+  grossUp as grossUpWithMethod,
+  MAX_SALES_TAX_RATE_PCT,
+  paymentMethodTypesFor,
+  PayMethod,
+  salesTaxRatePct,
+  serviceFeeLines,
+  ticketPricing,
+} from '../payments/platform-fee';
+import {
   CreatePromoterEventDto,
   UpdatePromoterEventDto,
   CreateTicketTierDto,
@@ -36,19 +52,27 @@ function haversineDistanceMiles(
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-const APP_FEE_RATE = 0.03; // 3% platform fee → goes to our account
-const STRIPE_PCT = 0.029; // Stripe's % fee
-const STRIPE_FIXED = 30; // Stripe's fixed fee in cents ($0.30)
+export const APP_FEE_RATE = 0.03; // 3% platform fee → goes to our account
+export const STRIPE_PCT = 0.029; // Stripe's % fee
+export const STRIPE_FIXED = 30; // Stripe's fixed fee in cents ($0.30)
+
+/** 1.5% for verified non-profits, otherwise the standard 3%. */
+export function platformFeeRate(
+  promoter: NonprofitFields | null | undefined,
+): number {
+  return isVerifiedNonprofit(promoter) ? NONPROFIT_APP_FEE_RATE : APP_FEE_RATE;
+}
 
 /**
  * Gross-up helper: calculates the total charge so that after Stripe's
  * processing fee AND the platform fee, the promoter nets the face value.
- *   totalCharge = ceil((ticketTotal + 0.30) / (1 - 0.029 - 0.03))
  */
-function grossUp(ticketTotalCents: number): number {
-  return Math.ceil(
-    (ticketTotalCents + STRIPE_FIXED) / (1 - STRIPE_PCT - APP_FEE_RATE),
-  );
+export function grossUp(
+  ticketTotalCents: number,
+  feeRate: number = APP_FEE_RATE,
+  method: PayMethod = 'card',
+): number {
+  return grossUpWithMethod(ticketTotalCents, feeRate, method);
 }
 
 @Injectable()
@@ -80,7 +104,7 @@ export class PromoterEventsService {
     const { data, error } = await admin
       .from('promoter_accounts')
       .select(
-        'id, stripe_account_id, stripe_connect_status, company_name, contact_name, email',
+        'id, stripe_account_id, stripe_connect_status, company_name, contact_name, email, is_nonprofit, nonprofit_status',
       )
       .eq('user_id', userId)
       .maybeSingle();
@@ -91,9 +115,19 @@ export class PromoterEventsService {
 
   // ── EVENTS CRUD ───────────────────────────────────────────────
 
+  private validTaxRate(value: unknown): number {
+    const n = Number(value);
+    if (!Number.isFinite(n) || n < 0 || n > MAX_SALES_TAX_RATE_PCT)
+      throw new BadRequestException(
+        `sales_tax_rate must be between 0 and ${MAX_SALES_TAX_RATE_PCT}`,
+      );
+    return n;
+  }
+
   async createEvent(userId: string, dto: CreatePromoterEventDto) {
     const admin = this.supabaseService.getAdminClient();
     const promoter = await this.getPromoterAccount(userId);
+    if (dto.status === 'published') assertNonprofitCanSell(promoter);
 
     const { data: event, error } = await admin
       .from('public_events')
@@ -112,6 +146,9 @@ export class PromoterEventsService {
         category: dto.category ?? null,
         image_url: dto.image_url ?? null,
         age_restriction: dto.age_restriction ?? null,
+        ...(dto.sales_tax_rate !== undefined
+          ? { sales_tax_rate: this.validTaxRate(dto.sales_tax_rate) }
+          : {}),
         status: dto.status ?? 'draft',
       })
       .select()
@@ -163,6 +200,7 @@ export class PromoterEventsService {
   ) {
     const admin = this.supabaseService.getAdminClient();
     const promoter = await this.getPromoterAccount(userId);
+    if (dto.status === 'published') assertNonprofitCanSell(promoter);
 
     const { data: existing } = await admin
       .from('public_events')
@@ -188,6 +226,8 @@ export class PromoterEventsService {
     if (dto.image_url !== undefined) updates.image_url = dto.image_url;
     if (dto.age_restriction !== undefined)
       updates.age_restriction = dto.age_restriction;
+    if (dto.sales_tax_rate !== undefined)
+      updates.sales_tax_rate = this.validTaxRate(dto.sales_tax_rate);
     if (dto.status !== undefined) updates.status = dto.status;
 
     const { data, error } = await admin
@@ -342,18 +382,42 @@ export class PromoterEventsService {
     zipCode?: string,
     category?: string,
     radiusMiles = 30,
+    dateFrom?: string,
+    dateTo?: string,
+    limit = 100,
+    offset = 0,
   ) {
     const admin = this.supabaseService.getAdminClient();
+    const today = new Date().toISOString().split('T')[0];
+    const from = dateFrom && dateFrom > today ? dateFrom : today;
     let query = admin
       .from('public_events')
       .select(
-        '*, ticket_tiers(id, name, price, quantity, quantity_sold), promoter_accounts(company_name, contact_name, profile_image_url)',
+        '*, ticket_tiers(id, name, price, quantity, quantity_sold), promoter_accounts(company_name, contact_name, profile_image_url, is_nonprofit, nonprofit_status, nonprofit_legal_name)',
       )
       .eq('status', 'published')
-      .gte('event_date', new Date().toISOString().split('T')[0])
-      .order('event_date', { ascending: true });
+      .gte('event_date', from)
+      .order('event_date', { ascending: true })
+      .order('id', { ascending: true });
 
+    if (dateTo) query = query.lte('event_date', dateTo);
     if (category) query = query.eq('category', category);
+
+    // Declared non-profits stay out of public lists until IRS-verified.
+    const { data: paused } = await admin
+      .from('promoter_accounts')
+      .select('id')
+      .eq('is_nonprofit', true)
+      .neq('nonprofit_status', 'verified');
+    const pausedIds = (paused ?? []).map((p: { id: string }) => p.id);
+    if (pausedIds.length) {
+      query = query.not(
+        'promoter_account_id',
+        'in',
+        `(${pausedIds.join(',')})`,
+      );
+    }
+    if (!zipCode) query = query.range(offset, offset + limit - 1);
 
     const { data, error } = await query;
     if (error) throw new BadRequestException(error.message);
@@ -379,7 +443,7 @@ export class PromoterEventsService {
       }
     }
 
-    return events;
+    return zipCode ? events.slice(offset, offset + limit) : events;
   }
 
   async getPublicEvent(eventId: string) {
@@ -387,14 +451,20 @@ export class PromoterEventsService {
     const { data, error } = await admin
       .from('public_events')
       .select(
-        '*, ticket_tiers(id, name, price, quantity, quantity_sold, description), promoter_accounts(company_name, contact_name, profile_image_url, location, instagram, website)',
+        '*, ticket_tiers(id, name, price, quantity, quantity_sold, description), promoter_accounts(company_name, contact_name, profile_image_url, location, instagram, website, is_nonprofit, nonprofit_status, nonprofit_legal_name, enable_bnpl)',
       )
       .eq('id', eventId)
       .neq('status', 'cancelled')
       .maybeSingle();
 
     if (error || !data) throw new NotFoundException('Event not found');
-    return data;
+    const { enable_bnpl, ...promoterPublic } = data.promoter_accounts ?? {};
+    return {
+      ...data,
+      promoter_accounts: data.promoter_accounts ? promoterPublic : null,
+      pay_later_available: !!enable_bnpl,
+      sales_paused: nonprofitSalesBlocked(data.promoter_accounts),
+    };
   }
 
   // ── STRIPE CHECKOUT for tickets ───────────────────────────────
@@ -407,13 +477,14 @@ export class PromoterEventsService {
     buyerEmail?: string,
     returnUrl?: string,
     buyerName?: string,
+    payMethod: PayMethod = 'card',
   ) {
     const admin = this.supabaseService.getAdminClient();
 
     const { data: event } = await admin
       .from('public_events')
       .select(
-        '*, promoter_accounts(stripe_account_id, stripe_connect_status, company_name, contact_name, enable_bnpl)',
+        '*, promoter_accounts(stripe_account_id, stripe_connect_status, company_name, contact_name, enable_bnpl, is_nonprofit, nonprofit_status)',
       )
       .eq('id', eventId)
       .eq('status', 'published')
@@ -435,6 +506,7 @@ export class PromoterEventsService {
       throw new BadRequestException(`Only ${available} tickets remaining`);
 
     const promoter = event.promoter_accounts;
+    assertNonprofitCanSell(promoter);
     if (
       !promoter?.stripe_account_id ||
       promoter.stripe_connect_status !== 'active'
@@ -444,9 +516,20 @@ export class PromoterEventsService {
 
     const unitAmount = Math.round(Number(tier.price) * 100);
     const ticketTotal = unitAmount * quantity;
-    const totalCharge = grossUp(ticketTotal);
-    const serviceFee = totalCharge - ticketTotal;
-    const appFeeAmount = Math.round(totalCharge * APP_FEE_RATE);
+    const feeRate = platformFeeRate(promoter);
+    const paymentMethodTypes = paymentMethodTypesFor(
+      promoter?.enable_bnpl,
+      payMethod,
+    );
+    const taxRate = salesTaxRatePct(event.sales_tax_rate);
+    const { serviceFee, tax: salesTax } = ticketPricing(
+      ticketTotal,
+      feeRate,
+      payMethod,
+      taxRate,
+    );
+    // The whole service fee is ours: it covers Stripe's bill and our platform fee, so the promoter nets the price.
+    const appFeeAmount = serviceFee;
 
     const successUrl = returnUrl
       ? `${returnUrl}${returnUrl.includes('?') ? '&' : '?'}session_id={CHECKOUT_SESSION_ID}`
@@ -456,15 +539,9 @@ export class PromoterEventsService {
       : `${this.frontendUrl}/events/${eventId}?canceled=true`;
 
     const session = await this.stripe.checkout.sessions.create({
-      payment_method_types: promoter?.enable_bnpl
-        ? ['card', 'afterpay_clearpay', 'klarna', 'affirm']
-        : ['card'],
+      payment_method_types: paymentMethodTypes,
       mode: 'payment',
       ...(buyerEmail ? { customer_email: buyerEmail } : {}),
-      // Collect billing address so Stripe Tax can determine the correct jurisdiction
-      billing_address_collection: 'required',
-      // Stripe Tax: EventEcos remits tax on ticket sales
-      automatic_tax: { enabled: true },
       line_items: [
         {
           price_data: {
@@ -474,31 +551,20 @@ export class PromoterEventsService {
               description: event.venue_name
                 ? `${event.event_date} at ${event.venue_name}`
                 : event.event_date,
-              // Tax code: general admission / live event ticket
-              tax_code: 'txcd_90000001',
             },
             unit_amount: unitAmount,
-            // Tax is calculated on top of this price (shown as separate line item)
-            tax_behavior: 'exclusive',
           },
           quantity,
         },
-        {
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              name: 'Service fee',
-              description: 'Covers payment processing and platform fee',
-              // Service fees are generally not taxable
-              tax_code: 'txcd_00000000',
-            },
-            unit_amount: serviceFee,
-            tax_behavior: 'exclusive',
-          },
-          quantity: 1,
-        },
+        ...serviceFeeLines(
+          serviceFee,
+          salesTax,
+          taxRate,
+          'Covers payment processing and platform fee',
+        ),
       ],
       payment_intent_data: {
+        // The seller owes sales tax: it passes to the promoter in full, only the service fee is ours.
         application_fee_amount: appFeeAmount,
         transfer_data: { destination: promoter.stripe_account_id },
       },
@@ -948,13 +1014,14 @@ export class PromoterEventsService {
     buyerEmail?: string,
     returnUrl?: string,
     buyerName?: string,
+    payMethod: PayMethod = 'card',
   ) {
     const admin = this.supabaseService.getAdminClient();
 
     const { data: event } = await admin
       .from('public_events')
       .select(
-        '*, promoter_accounts(stripe_account_id, stripe_connect_status, company_name, enable_bnpl)',
+        '*, promoter_accounts(stripe_account_id, stripe_connect_status, company_name, enable_bnpl, is_nonprofit, nonprofit_status)',
       )
       .eq('id', eventId)
       .eq('status', 'published')
@@ -962,6 +1029,7 @@ export class PromoterEventsService {
     if (!event) throw new NotFoundException('Event not found');
 
     const promoter = event.promoter_accounts;
+    assertNonprofitCanSell(promoter);
     if (
       !promoter?.stripe_account_id ||
       promoter.stripe_connect_status !== 'active'
@@ -999,34 +1067,36 @@ export class PromoterEventsService {
             description: event.venue_name
               ? `${event.event_date} at ${event.venue_name}`
               : event.event_date,
-            // Tax code: general admission / live event ticket
-            tax_code: 'txcd_90000001',
           },
           unit_amount: unitAmount,
-          // Tax is calculated on top of this price (shown as separate line item at checkout)
-          tax_behavior: 'exclusive',
         },
         quantity: item.quantity,
       });
     }
 
-    const totalCharge = grossUp(ticketTotal);
-    const serviceFee = totalCharge - ticketTotal;
-    const appFeeAmount = Math.round(totalCharge * APP_FEE_RATE);
+    const feeRate = platformFeeRate(promoter);
+    const paymentMethodTypes = paymentMethodTypesFor(
+      promoter?.enable_bnpl,
+      payMethod,
+    );
+    const taxRate = salesTaxRatePct(event.sales_tax_rate);
+    const { serviceFee, tax: salesTax } = ticketPricing(
+      ticketTotal,
+      feeRate,
+      payMethod,
+      taxRate,
+    );
+    // The whole service fee is ours: it covers Stripe's bill and our platform fee, so the promoter nets the price.
+    const appFeeAmount = serviceFee;
 
-    lineItems.push({
-      price_data: {
-        currency: 'usd',
-        product_data: {
-          name: 'Service fee',
-          description: 'Covers payment processing and platform fee',
-          tax_code: 'txcd_00000000',
-        },
-        unit_amount: serviceFee,
-        tax_behavior: 'exclusive',
-      },
-      quantity: 1,
-    });
+    lineItems.push(
+      ...serviceFeeLines(
+        serviceFee,
+        salesTax,
+        taxRate,
+        'Covers payment processing and platform fee',
+      ),
+    );
 
     const successUrl = returnUrl
       ? `${returnUrl}${returnUrl.includes('?') ? '&' : '?'}session_id={CHECKOUT_SESSION_ID}`
@@ -1036,15 +1106,9 @@ export class PromoterEventsService {
       : `${this.frontendUrl}/events/${eventId}?canceled=true`;
 
     const session = await this.stripe.checkout.sessions.create({
-      payment_method_types: promoter?.enable_bnpl
-        ? ['card', 'afterpay_clearpay', 'klarna', 'affirm']
-        : ['card'],
+      payment_method_types: paymentMethodTypes,
       mode: 'payment',
       ...(buyerEmail ? { customer_email: buyerEmail } : {}),
-      // Collect billing address so Stripe Tax can determine the correct jurisdiction
-      billing_address_collection: 'required',
-      // Stripe Tax: EventEcos remits tax on ticket sales
-      automatic_tax: { enabled: true },
       line_items: lineItems,
       payment_intent_data: {
         application_fee_amount: appFeeAmount,

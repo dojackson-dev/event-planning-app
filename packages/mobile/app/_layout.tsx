@@ -32,8 +32,8 @@ export default function RootLayout() {
           routerRef.current.replace(homeRoute as never);
         } catch {
           // Role/session resolution failed unexpectedly — don't leave the
-          // user stuck; land them on the default attendee home instead.
-          routerRef.current.replace('/(tabs)/' as never);
+          // user stuck; land them on the public guest landing instead.
+          routerRef.current.replace('/(guest)' as never);
         }
       }
     });
@@ -51,28 +51,6 @@ export default function RootLayout() {
       <Stack.Screen name="(vendor)" />
       <Stack.Screen name="(artist)" />
       <Stack.Screen name="(promoter)" />
-      <Stack.Screen
-        name="events/[eventId]"
-        options={{
-          headerShown: true,
-          headerTitle: 'Event Details',
-          headerBackButtonDisplayMode: 'minimal',
-          headerStyle: { backgroundColor: Colors.surface },
-          headerTintColor: Colors.textPrimary,
-          headerShadowVisible: false,
-        }}
-      />
-      <Stack.Screen
-        name="tickets/[ticketId]"
-        options={{
-          headerShown: true,
-          headerTitle: 'My Ticket',
-          headerBackButtonDisplayMode: 'minimal',
-          headerStyle: { backgroundColor: Colors.surface },
-          headerTintColor: Colors.textPrimary,
-          headerShadowVisible: false,
-        }}
-      />
     </Stack>
     </SafeAreaProvider>
   );

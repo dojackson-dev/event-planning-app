@@ -160,7 +160,7 @@ export default function PromoterBillingPage() {
         <h1 className="text-2xl font-bold text-gray-900">Plan & Billing</h1>
         <p className="text-gray-500 mt-1">
           Your plan determines the platform fee on direct payments (invoices).
-          Ticket sales fees are always 3% and are passed to the buyer.
+          Ticket and VIP sales fees are always 3% (1.5% for verified non-profits) and are passed to the buyer, along with payment processing (3.1% + $0.30 for cards).
         </p>
       </div>
 
@@ -252,7 +252,7 @@ export default function PromoterBillingPage() {
           </table>
         </div>
         <p className="text-xs text-gray-400 mt-3">
-          Stripe processing fee (2.9% + $0.30) is always passed through to the buyer on ticket purchases.
+          Payment processing is always passed through to the buyer on ticket purchases: 3.1% + $0.30 for cards (includes a small allowance for international cards), 6% + $0.30 for pay later.
         </p>
       </div>
 

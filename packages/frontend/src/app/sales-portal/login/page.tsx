@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAffiliateAuth } from '@/contexts/AffiliateAuthContext'
-import { createClient } from '@/lib/supabase/client'
+import api from '@/lib/api'
 import { Eye, EyeOff } from 'lucide-react'
 
 export default function SalesPortalLogin() {
@@ -27,11 +27,7 @@ export default function SalesPortalLogin() {
     e.preventDefault()
     setResetLoading(true); setError('')
     try {
-      const supabase = createClient()
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/reset-password`,
-      })
-      if (error) throw error
+      await api.post('/auth/flow/forgot-password', { email })
       setResetSent(true)
     } catch (err: any) {
       setError(err.message || 'Failed to send reset email')

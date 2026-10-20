@@ -6,7 +6,6 @@ import {
   UnauthorizedException,
   ParseIntPipe,
   DefaultValuePipe,
-  Optional,
 } from '@nestjs/common';
 import { AuditService } from './audit.service';
 import { SupabaseService } from '../supabase/supabase.service';

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { MailService } from '../mail/mail.service';
 import { TwilioService } from '../messaging/twilio.service';
@@ -123,6 +123,7 @@ export class IntakeFormsService {
       event_name,
       event_end_time,
       event_description,
+      contact_address,
       ...rest
     } = createDto;
 
@@ -142,6 +143,7 @@ export class IntakeFormsService {
       ...(event_name ? { event_name } : {}),
       ...(event_description ? { event_description } : {}),
       ...(event_end_time ? { event_end_time } : {}),
+      ...(contact_address ? { contact_address } : {}),
     };
 
     let insertResult = await supabaseAdmin
@@ -264,7 +266,66 @@ export class IntakeFormsService {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data;
+    return this.withDisplayStatus(data ?? [], userId);
+  }
+
+  /** Adds `display_status` (new/contacted/active/booked/completed/cancelled) derived from the linked event. */
+  private async withDisplayStatus(forms: any[], userId: string) {
+    const converted = forms.filter((f) => f.status === 'converted');
+    if (converted.length === 0) {
+      return forms.map((f) => ({ ...f, display_status: f.status }));
+    }
+
+    const admin = this.supabaseService.getAdminClient();
+    const eventCols =
+      'id, intake_form_id, status, client_status, deposit_amount, deposit_paid';
+    const eventIds = converted.map((f) => f.event_id).filter(Boolean);
+    const [byForm, byId] = await Promise.all([
+      admin
+        .from('event')
+        .select(eventCols)
+        .eq('owner_id', userId)
+        .in(
+          'intake_form_id',
+          converted.map((f) => f.id),
+        ),
+      eventIds.length
+        ? admin
+            .from('event')
+            .select(eventCols)
+            .eq('owner_id', userId)
+            .in('id', eventIds)
+        : Promise.resolve({ data: [] as any[] }),
+    ]);
+
+    const events = new Map<string, any>();
+    for (const e of [...(byForm.data ?? []), ...(byId.data ?? [])]) {
+      events.set(String(e.id), e);
+    }
+
+    return forms.map((f) => {
+      if (f.status !== 'converted') return { ...f, display_status: f.status };
+      const ev =
+        (f.event_id && events.get(String(f.event_id))) ||
+        [...events.values()].find(
+          (e) => String(e.intake_form_id) === String(f.id),
+        );
+      let display = 'active';
+      if (ev) {
+        if (ev.status === 'cancelled' || ev.client_status === 'cancelled') {
+          display = 'cancelled';
+        } else if (ev.client_status === 'completed') {
+          display = 'completed';
+        } else if (
+          ev.client_status === 'deposit_paid' ||
+          ev.deposit_paid ||
+          Number(ev.deposit_amount ?? 0) > 0
+        ) {
+          display = 'booked';
+        }
+      }
+      return { ...f, display_status: display };
+    });
   }
 
   async findOne(supabase: SupabaseClient, userId: string, id: string) {
@@ -750,9 +811,23 @@ export class IntakeFormsService {
       preferred_contact,
       venue_id,
       event_description,
+      contact_address,
       ...safeDto
     } = dto;
     const venueId: string | null = venue_id || null;
+
+    const missing = [
+      ['email', safeDto.contact_email],
+      ['phone number', safeDto.contact_phone],
+      ['address', contact_address],
+    ]
+      .filter(([, value]) => !String(value ?? '').trim())
+      .map(([label]) => label);
+    if (missing.length > 0) {
+      throw new BadRequestException(
+        `Please provide your ${missing.join(', ')}.`,
+      );
+    }
 
     if (safeDto.contact_phone) {
       safeDto.contact_phone = normalizePhone(safeDto.contact_phone);
@@ -765,6 +840,7 @@ export class IntakeFormsService {
       user_id: ownerId,
       ...(venueId ? { venue_id: venueId } : {}),
       ...(event_description ? { event_description } : {}),
+      contact_address: String(contact_address).trim(),
     };
     const { data: d1, error: e1 } = await supabaseAdmin
       .from('intake_forms')

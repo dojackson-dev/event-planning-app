@@ -1,24 +1,27 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useRouter } from 'next/navigation'
-import axios from 'axios'
+import { useRouter, usePathname } from 'next/navigation'
+import api from '@/lib/api'
 import {
   Users, Plus, Trash2, Send, CheckCircle2, XCircle, Clock,
   ChevronDown, ChevronUp, Loader2, Mail, Phone, Table2, Copy, Check,
-  ImageIcon, Upload, X,
+  ImageIcon, Upload, X, RefreshCw,
 } from 'lucide-react'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
-
-const rsvpApi = axios.create({ baseURL: `${API_URL}/rsvp` })
-rsvpApi.interceptors.request.use(cfg => {
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('client_token')
-    if (token) cfg.headers['x-client-token'] = token
+function requestOptions() {
+  if (typeof window !== 'undefined' && window.location.pathname.startsWith('/client-portal/')) {
+    return { headers: { 'x-client-token': localStorage.getItem('client_token') || '' }, _retry: true }
   }
-  return cfg
-})
+  return {}
+}
+
+const rsvpApi = {
+  get: (path: string) => api.get(`/rsvp${path}`, requestOptions()),
+  post: (path: string, data?: unknown) => api.post(`/rsvp${path}`, data, requestOptions()),
+  put: (path: string, data: unknown) => api.put(`/rsvp${path}`, data, requestOptions()),
+  delete: (path: string) => api.delete(`/rsvp${path}`, requestOptions()),
+}
 
 interface RsvpEvent {
   intake_form_id: string
@@ -41,6 +44,8 @@ interface RsvpGuest {
   responded_at: string | null
   sms_sent_at: string | null
   created_at: string
+  has_arrived?: boolean
+  arrived_at?: string | null
 }
 
 const MEAL_LABELS: Record<string, string> = {
@@ -56,11 +61,14 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function ClientRsvpPage() {
   const router = useRouter()
+  const pathname = usePathname()
+  const loginPath = pathname.startsWith('/dashboard/') ? '/login' : '/client-login'
   const [events, setEvents] = useState<RsvpEvent[]>([])
   const [selectedEvent, setSelectedEvent] = useState<RsvpEvent | null>(null)
   const [guests, setGuests] = useState<RsvpGuest[]>([])
   const [loading, setLoading] = useState(true)
   const [guestsLoading, setGuestsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // Add guest form
   const [showAdd, setShowAdd] = useState(false)
@@ -94,21 +102,37 @@ export default function ClientRsvpPage() {
   useEffect(() => {
     rsvpApi.get('/events')
       .then(res => setEvents(res.data || []))
-      .catch(err => { if (err.response?.status === 401) router.push('/client-login') })
+      .catch(err => {
+        setError('Unable to load RSVP events. Please try again.')
+        if (err.response?.status === 401) router.push(loginPath)
+      })
       .finally(() => setLoading(false))
-  }, [router])
+  }, [router, loginPath])
+
+  useEffect(() => {
+    if (selectedEvent || !events.length) return
+    const formId = new URLSearchParams(window.location.search).get('form')
+    const match = events.find(e => e.intake_form_id === formId)
+    if (match) selectEvent(match)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [events])
 
   const selectEvent = async (ev: RsvpEvent) => {
     setSelectedEvent(ev)
+    setGuests([])
+    setEditId(null)
+    setError(null)
     setInvitationImages([])
     setGuestsLoading(true)
     try {
       const [guestsRes, imagesRes] = await Promise.all([
         rsvpApi.get(`/guests/${ev.intake_form_id}`),
-        rsvpApi.get(`/images/${ev.intake_form_id}`).catch(() => ({ data: [] })),
+        rsvpApi.get(`/images/${ev.intake_form_id}`),
       ])
       setGuests(guestsRes.data || [])
       setInvitationImages(Array.isArray(imagesRes.data) ? imagesRes.data : [])
+    } catch {
+      setError('Unable to load this event’s RSVP details. Please try again.')
     } finally {
       setGuestsLoading(false)
     }
@@ -116,6 +140,7 @@ export default function ClientRsvpPage() {
 
   const refreshGuests = async () => {
     if (!selectedEvent) return
+    setError(null)
     const res = await rsvpApi.get(`/guests/${selectedEvent.intake_form_id}`)
     setGuests(res.data || [])
     // Also refresh summary
@@ -124,6 +149,17 @@ export default function ClientRsvpPage() {
     if (updated) {
       setSelectedEvent(updated)
       setEvents(evRes.data)
+    }
+  }
+
+  const handleRefresh = async () => {
+    setGuestsLoading(true)
+    try {
+      await refreshGuests()
+    } catch {
+      setError('Unable to refresh RSVP details. Please try again.')
+    } finally {
+      setGuestsLoading(false)
     }
   }
 
@@ -163,10 +199,14 @@ export default function ClientRsvpPage() {
           guest_email: parts[2] || undefined,
         }
       }).filter(g => g.guest_name)
-      await rsvpApi.post(`/guests/${selectedEvent.intake_form_id}/bulk`, { guests })
+      const res = await rsvpApi.post(`/guests/${selectedEvent.intake_form_id}/bulk`, { guests })
+      const skipped: Array<{ guest_name: string; reason: string }> = res.data?.skipped ?? []
       setBulkText('')
       setShowBulk(false)
       await refreshGuests()
+      if (skipped.length) {
+        alert(`Added ${res.data?.added?.length ?? 0} guest(s). Skipped ${skipped.length} duplicate${skipped.length === 1 ? '' : 's'}:\n${skipped.map(s => `- ${s.guest_name}: ${s.reason}`).join('\n')}`)
+      }
     } catch (err: any) {
       alert(err?.response?.data?.message || 'Failed to add guests')
     } finally {
@@ -189,9 +229,9 @@ export default function ClientRsvpPage() {
     setEditLoading(true)
     try {
       await rsvpApi.put(`/guests/${selectedEvent.intake_form_id}/${guestId}`, {
-        table_assignment: editTable.trim() || undefined,
-        guest_phone: editPhone.trim() || undefined,
-        guest_email: editEmail.trim() || undefined,
+        table_assignment: editTable.trim(),
+        guest_phone: editPhone.trim(),
+        guest_email: editEmail.trim(),
       })
       setEditId(null)
       await refreshGuests()
@@ -220,7 +260,7 @@ export default function ClientRsvpPage() {
     setSendingAll(true)
     try {
       const res = await rsvpApi.post(`/send-all/${selectedEvent.intake_form_id}`)
-      alert(`Sent ${res.data.sent} invite${res.data.sent !== 1 ? 's' : ''}${res.data.skipped ? `, skipped ${res.data.skipped} (no contact info)` : ''}.`)
+      alert(`Sent ${res.data.sent} invite${res.data.sent !== 1 ? 's' : ''}${res.data.skipped ? `, skipped ${res.data.skipped} (no contact info)` : ''}${res.data.duplicates ? `, ${res.data.duplicates} not sent (same phone or email already invited)` : ''}.`)
       await refreshGuests()
     } catch (err: any) {
       alert(err?.response?.data?.message || 'Failed to send invites')
@@ -235,12 +275,10 @@ export default function ClientRsvpPage() {
     try {
       const fd = new FormData()
       fd.append('file', file)
-      // Upload to backend storage
-      const uploadRes = await axios.post(`${API_URL}/upload/rsvp-invitation`, fd, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          'x-client-token': localStorage.getItem('client_token') || '',
-        },
+      const options = requestOptions()
+      const uploadRes = await api.post('/upload/rsvp-invitation', fd, {
+        ...options,
+        headers: { ...options.headers, 'Content-Type': 'multipart/form-data' },
       })
       const newImages = [...invitationImages, uploadRes.data.url]
       await rsvpApi.put(`/images/${selectedEvent!.intake_form_id}`, { images: newImages })
@@ -291,7 +329,12 @@ export default function ClientRsvpPage() {
           <p className="text-sm text-gray-500 mt-1">Send personalized RSVP links to your guests.</p>
         </div>
 
-        {events.length === 0 ? (
+        {error ? (
+          <div role="alert" className="text-sm text-red-700">
+            <p>{error}</p>
+            <button onClick={() => window.location.reload()} className="mt-2 inline-flex items-center gap-2 text-gray-700"><RefreshCw className="h-4 w-4" />Retry</button>
+          </div>
+        ) : events.length === 0 ? (
           <div className="bg-white rounded-xl border border-dashed border-gray-300 p-12 text-center">
             <Users className="h-10 w-10 text-gray-300 mx-auto mb-3" />
             <p className="text-gray-500 font-medium">No events found</p>
@@ -424,6 +467,9 @@ export default function ClientRsvpPage() {
 
       {/* Action bar */}
       <div className="flex flex-wrap gap-3">
+        <button onClick={handleRefresh} disabled={guestsLoading} title="Refresh RSVPs and arrivals" className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg disabled:opacity-60">
+          <RefreshCw className={`h-4 w-4 ${guestsLoading ? 'animate-spin' : ''}`} />Refresh
+        </button>
         <button
           onClick={() => { setShowAdd(v => !v); setShowBulk(false) }}
           className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700"
@@ -508,7 +554,9 @@ export default function ClientRsvpPage() {
       )}
 
       {/* Guest list */}
-      {guestsLoading ? (
+      {error ? (
+        <div role="alert" className="text-sm text-red-700">{error}</div>
+      ) : guestsLoading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-primary-500" />
         </div>
@@ -555,6 +603,11 @@ export default function ClientRsvpPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-semibold text-gray-900 text-sm">{g.guest_name}</p>
                       <StatusBadge status={g.status} />
+                      {g.status === 'attending' && g.has_arrived && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+                          <CheckCircle2 className="h-3 w-3"/>Arrived
+                        </span>
+                      )}
                       {g.sms_sent_at && <span className="text-xs text-gray-400">📨 Sent</span>}
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-gray-500">

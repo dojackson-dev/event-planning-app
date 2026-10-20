@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
+import InvoiceDepositFields from '@/components/InvoiceDepositFields'
 import { Plus, Trash2, Loader2, Send, Users, PenLine } from 'lucide-react'
 
 interface VendorBooking {
@@ -45,6 +46,8 @@ export default function NewVendorInvoicePage() {
   // Dates
   const [issueDate, setIssueDate] = useState(today)
   const [dueDate, setDueDate] = useState(in30)
+  const [deposit, setDeposit] = useState('')
+  const [balanceDueDate, setBalanceDueDate] = useState('')
 
   // Items
   const [items, setItems] = useState<LineItem[]>([newItem()])
@@ -114,6 +117,8 @@ export default function NewVendorInvoicePage() {
     client_phone: clientPhone || undefined,
     issue_date: issueDate,
     due_date: dueDate,
+    deposit_amount: deposit && parseFloat(deposit) > 0 ? parseFloat(deposit) : undefined,
+    balance_due_date: deposit && parseFloat(deposit) > 0 && balanceDueDate ? balanceDueDate : undefined,
     tax_rate: taxRate || 0,
     discount_amount: discountAmount || 0,
     notes: notes || undefined,
@@ -301,6 +306,11 @@ export default function NewVendorInvoicePage() {
               />
             </div>
           </div>
+          <InvoiceDepositFields
+            deposit={deposit} onDepositChange={setDeposit}
+            balanceDueDate={balanceDueDate} onBalanceDueDateChange={setBalanceDueDate}
+            total={total} dueDate={dueDate}
+          />
         </div>
 
         {/* Line items */}
@@ -438,7 +448,7 @@ export default function NewVendorInvoicePage() {
 
         {/* Fee notice */}
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
-          A 5% platform fee applies to all payments processed through EventEcos, in addition to Stripe&apos;s standard card processing fees.
+          A 3% platform fee (deducted from the vendor&apos;s payout) applies to payments processed through EventEcos; the payer also covers payment processing.
         </div>
 
         {/* Error */}

@@ -6,6 +6,7 @@ import api from '@/lib/api'
 import {
   Send, Copy, CheckCircle2, Loader2, Trash2, AlertCircle, ExternalLink
 } from 'lucide-react'
+import { siteOrigin } from '@/lib/url'
 
 interface VendorInvoice {
   id: string
@@ -20,9 +21,11 @@ interface VendorInvoice {
   tax_rate: number
   tax_amount: number
   discount_amount: number
-  status: 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue' | 'cancelled'
+  status: 'draft' | 'sent' | 'viewed' | 'processing' | 'paid' | 'overdue' | 'cancelled'
   issue_date: string
   due_date: string
+  deposit_amount?: number | null
+  balance_due_date?: string | null
   paid_at?: string
   notes?: string
   terms?: string
@@ -35,13 +38,13 @@ const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700',
   sent: 'bg-blue-100 text-blue-700',
   viewed: 'bg-purple-100 text-purple-700',
+  processing: 'bg-sky-100 text-sky-700',
   paid: 'bg-green-100 text-green-700',
   overdue: 'bg-red-100 text-red-700',
   cancelled: 'bg-gray-100 text-gray-500',
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
-const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000'
 
 export default function VendorInvoiceDetailPage() {
   const { id } = useParams() as { id: string }
@@ -71,7 +74,7 @@ export default function VendorInvoiceDetailPage() {
       })
   }, [id])
 
-  const payLink = invoice?.public_token ? `${FRONTEND_URL}/pay/${invoice.public_token}` : ''
+  const payLink = invoice?.public_token ? `${siteOrigin()}/pay/${invoice.public_token}` : ''
 
   const handleSend = async () => {
     setSending(true); setError('')
@@ -215,6 +218,12 @@ export default function VendorInvoiceDetailPage() {
               <span className="text-gray-500 text-sm">Due Date: </span>
               <span className="font-medium text-sm">{invoice.due_date}</span>
             </div>
+            {invoice.deposit_amount != null && (
+              <div className="text-xs text-gray-500 mt-1">
+                Deposit ${Number(invoice.deposit_amount).toFixed(2)} due {invoice.due_date}
+                {invoice.balance_due_date ? ` · Balance due ${invoice.balance_due_date}` : ''}
+              </div>
+            )}
           </div>
         </div>
 
@@ -285,7 +294,7 @@ export default function VendorInvoiceDetailPage() {
 
       {/* Fee disclaimer */}
       <p className="text-center text-xs text-gray-400 mt-4">
-        A 5% platform fee + Stripe&apos;s standard processing fees apply to all payments collected through EventEcos.
+        A 3% platform fee (deducted from the vendor&apos;s payout) applies to payments collected through EventEcos; the payer also covers payment processing.
       </p>
     </div>
   )

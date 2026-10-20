@@ -104,6 +104,51 @@ export class ClientPortalController {
     return this.clientPortalService.getEvents(session.clientId, session.phone);
   }
 
+  // ── Event Team Members ───────────────────────────────────────────────────
+
+  @Get('events/:eventId/team')
+  async getTeamMembers(
+    @Headers('x-client-token') token: string,
+    @Param('eventId') eventId: string,
+  ) {
+    const session = this.requireSession(token);
+    return this.clientPortalService.getTeamMembers(eventId, session.phone);
+  }
+
+  @Post('events/:eventId/team')
+  async addTeamMember(
+    @Headers('x-client-token') token: string,
+    @Param('eventId') eventId: string,
+    @Body() body: { phone: string; name?: string },
+  ) {
+    const session = this.requireSession(token);
+    if (!body?.phone) throw new BadRequestException('phone is required');
+    const addedByName = [session.firstName, session.lastName]
+      .filter(Boolean)
+      .join(' ');
+    return this.clientPortalService.addTeamMember(
+      eventId,
+      session.phone,
+      body.phone,
+      body.name,
+      addedByName,
+    );
+  }
+
+  @Delete('events/:eventId/team/:memberId')
+  async removeTeamMember(
+    @Headers('x-client-token') token: string,
+    @Param('eventId') eventId: string,
+    @Param('memberId') memberId: string,
+  ) {
+    const session = this.requireSession(token);
+    return this.clientPortalService.removeTeamMember(
+      eventId,
+      session.phone,
+      memberId,
+    );
+  }
+
   // ── Vendors ───────────────────────────────────────────────────────────────
 
   @Get('vendors/browse')
@@ -320,6 +365,7 @@ export class ClientPortalController {
   async createInvoiceCheckout(
     @Headers('x-client-token') token: string,
     @Param('id') id: string,
+    @Body() body?: { pay_method?: string; pay_amount?: string },
   ) {
     const session = this.requireSession(token);
     return this.clientPortalService.createInvoiceCheckout(
@@ -327,6 +373,8 @@ export class ClientPortalController {
       session.clientId,
       session.phone,
       `${session.firstName} ${session.lastName}`.trim() || 'Client',
+      body?.pay_method,
+      body?.pay_amount,
     );
   }
 

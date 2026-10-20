@@ -34,7 +34,11 @@ export class ArtistInvoicesController {
       throw new UnauthorizedException('No authorization header');
     const token = authorization.replace('Bearer ', '');
 
-    if (token.startsWith('local-')) return token.replace('local-', '');
+    if (
+      token.startsWith('local-') &&
+      process.env.ALLOW_LOCAL_DEV_AUTH === 'true'
+    )
+      return token.replace('local-', '');
 
     const supabase = this.supabaseService.setAuthContext(token);
     const {
@@ -55,8 +59,15 @@ export class ArtistInvoicesController {
 
   /** POST /artist-invoices/public/:token/checkout — External client initiates payment */
   @Post('public/:token/checkout')
-  async createPublicCheckout(@Param('token') token: string) {
-    return this.artistInvoicesService.createCheckoutSession(token);
+  async createPublicCheckout(
+    @Param('token') token: string,
+    @Body() body?: { pay_method?: string; pay_amount?: string },
+  ) {
+    return this.artistInvoicesService.createCheckoutSession(
+      token,
+      body?.pay_method,
+      body?.pay_amount,
+    );
   }
 
   /** POST /artist-invoices/public/:token/verify-payment — Verify Stripe session and mark paid */

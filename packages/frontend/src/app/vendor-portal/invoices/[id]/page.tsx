@@ -13,6 +13,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
   draft:     { label: 'Draft',     color: 'bg-gray-100 text-gray-600',      icon: <Clock className="w-4 h-4" /> },
   sent:      { label: 'Sent',      color: 'bg-blue-100 text-blue-700',       icon: <Send className="w-4 h-4" /> },
   viewed:    { label: 'Viewed',    color: 'bg-purple-100 text-purple-700',   icon: <Eye className="w-4 h-4" /> },
+  processing: { label: 'Payment processing', color: 'bg-sky-100 text-sky-700 border-sky-200', icon: <Clock className="w-3 h-3" /> },
   paid:      { label: 'Paid',      color: 'bg-green-100 text-green-700',     icon: <CheckCircle2 className="w-4 h-4" /> },
   overdue:   { label: 'Overdue',   color: 'bg-red-100 text-red-700',         icon: <AlertCircle className="w-4 h-4" /> },
   cancelled: { label: 'Cancelled', color: 'bg-gray-100 text-gray-500',       icon: <XCircle className="w-4 h-4" /> },
@@ -64,8 +65,8 @@ function VendorInvoiceDetailPageContent() {
       await api.post(`/vendor-invoices/${id}/send`)
       await fetchInvoice()
       showToast('Invoice sent successfully!')
-    } catch {
-      showToast('Failed to send invoice. Please check your email settings.')
+    } catch (err: any) {
+      showToast(err.response?.data?.message || 'Failed to send invoice. Please check your email settings.')
     } finally {
       setSending(false)
     }
@@ -106,7 +107,10 @@ function VendorInvoiceDetailPageContent() {
   const cfg = STATUS_CONFIG[invoice.status] ?? STATUS_CONFIG.draft
   const canSend = ['draft', 'sent', 'viewed', 'overdue'].includes(invoice.status)
   const isPaid = invoice.status === 'paid'
-  const canEdit = !['paid', 'cancelled'].includes(invoice.status)
+  const canEdit = !['paid', 'cancelled', 'processing'].includes(invoice.status)
+  const hasStripe =
+    invoice.vendor_accounts?.stripe_account_id &&
+    invoice.vendor_accounts?.stripe_connect_status === 'active'
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -154,11 +158,18 @@ function VendorInvoiceDetailPageContent() {
 
           {/* Actions */}
           {!isPaid && (
-            <div className="mt-5 pt-5 border-t border-gray-100 flex flex-wrap gap-3">
+            <div className="mt-5 pt-5 border-t border-gray-100">
+              {canSend && !hasStripe && (
+                <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 mb-3 text-sm">
+                  Connect Stripe before sending this invoice or accepting payment.{' '}
+                  <Link href="/vendors/dashboard/payouts" className="font-medium underline">Set up Stripe</Link>
+                </div>
+              )}
+              <div className="flex flex-wrap gap-3">
               {canSend && (
                 <button
                   onClick={handleSend}
-                  disabled={sending}
+                  disabled={sending || !hasStripe}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-60"
                 >
                   {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
@@ -192,6 +203,7 @@ function VendorInvoiceDetailPageContent() {
               >
                 <ExternalLink className="w-4 h-4" /> Preview
               </a>
+              </div>
             </div>
           )}
 
@@ -204,7 +216,7 @@ function VendorInvoiceDetailPageContent() {
                 </div>
                 <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm">
                   <div className="text-gray-600">
-                    <span className="font-medium">Platform fee (5%):</span> ${(Number(invoice.total_amount) * 0.05).toFixed(2)}
+                    <span className="font-medium">Platform fee (3%):</span> ${(Number(invoice.total_amount) * 0.03).toFixed(2)}
                   </div>
                   <div className="font-bold text-gray-900">
                     Your net payout: <span className="text-green-700">${(Number(invoice.total_amount) * 0.95).toFixed(2)}</span>
@@ -252,8 +264,8 @@ function VendorInvoiceDetailPageContent() {
             </div>
             {!isPaid && (
               <div className="flex justify-between text-sm text-orange-600 pt-1">
-                <span>Platform fee (5%)</span>
-                <span>-${(Number(invoice.total_amount) * 0.05).toFixed(2)}</span>
+                <span>Platform fee (3%)</span>
+                <span>-${(Number(invoice.total_amount) * 0.03).toFixed(2)}</span>
               </div>
             )}
             {!isPaid && (

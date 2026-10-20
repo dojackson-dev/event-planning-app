@@ -13,6 +13,7 @@ export interface OwnerMenuItem {
 
 export const OWNER_MENU_ITEMS: OwnerMenuItem[] = [
   { icon: 'grid-outline', label: 'Dashboard', route: '/(tabs)/dashboard' },
+  { icon: 'sparkles-outline', label: 'Events', route: '/(tabs)/events' },
   { icon: 'checkmark-circle-outline', label: 'Bookings', route: '/(tabs)/bookings' },
   { icon: 'people-outline', label: 'Clients', route: '/(tabs)/clients' },
   { icon: 'calendar-outline', label: 'Calendar', route: '/(tabs)/calendar' },

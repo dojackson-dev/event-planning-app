@@ -741,12 +741,22 @@ export class MailService {
     }
   }
 
-  /** Send a team associate invitation email */
+  private escapeHtml(value: string): string {
+    return value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  /** Send a team invitation email (venue associate by default; promoter roles pass roleLabel/roleDescription) */
   async sendTeamInvitation(params: {
     toEmail: string;
     inviteUrl: string;
     ownerName: string;
     businessName: string;
+    roleLabel?: string;
+    roleDescription?: string;
   }): Promise<void> {
     if (!process.env.RESEND_API_KEY) {
       console.warn(
@@ -757,16 +767,23 @@ export class MailService {
     }
     try {
       const resend = new Resend(process.env.RESEND_API_KEY);
+      const ownerName = this.escapeHtml(params.ownerName);
+      const businessName = this.escapeHtml(params.businessName);
+      const roleLabel = this.escapeHtml(params.roleLabel ?? 'an associate');
+      const roleDescription = this.escapeHtml(
+        params.roleDescription ??
+          "As an associate, you'll be able to view events, clients, calendars, and more — without access to billing or account settings.",
+      );
       const html = `
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f9fafb;padding:32px 16px;">
           <div style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
-            ${this.getEmailHeader("You're Invited!", `Join ${params.businessName} on EventEcos`)}
+            ${this.getEmailHeader("You're Invited!", `Join ${businessName} on EventEcos`)}
             <div style="padding:32px;">
               <p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 16px;">
-                <strong>${params.ownerName}</strong> has invited you to join <strong>${params.businessName}</strong> as an associate on EventEcos.
+                <strong>${ownerName}</strong> has invited you to join <strong>${businessName}</strong> as ${roleLabel} on EventEcos.
               </p>
               <p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 24px;">
-                As an associate, you'll be able to view events, clients, calendars, and more — without access to billing or account settings.
+                ${roleDescription}
               </p>
               <div style="text-align:center;margin:28px 0;">
                 <a href="${params.inviteUrl}"
@@ -795,6 +812,43 @@ export class MailService {
       console.error('[MailService] Team invite email failed:', error);
       throw error;
     }
+  }
+
+  /** Send a password reset link via Resend (Supabase's built-in mailer is heavily rate limited). */
+  async sendPasswordResetEmail(params: {
+    toEmail: string;
+    resetUrl: string;
+  }): Promise<void> {
+    if (!process.env.RESEND_API_KEY) {
+      throw new Error('RESEND_API_KEY not set — password reset email not sent');
+    }
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f9fafb;padding:32px 16px;">
+        <div style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+          ${this.getEmailHeader('Reset Your Password', 'EventEcos')}
+          <div style="padding:32px;">
+            <p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 24px;">
+              We received a request to reset your password. Click the button below to choose a new one.
+            </p>
+            <div style="text-align:center;margin:28px 0;">
+              <a href="${params.resetUrl}"
+                 style="display:inline-block;background:#2563eb;color:white;padding:14px 40px;text-decoration:none;border-radius:8px;font-size:16px;font-weight:600;">
+                Reset Password
+              </a>
+            </div>
+            <p style="color:#6b7280;font-size:13px;text-align:center;">This link expires in 1 hour. If you didn't request this, you can safely ignore this email.</p>
+          </div>
+        </div>
+      </div>
+    `;
+    const { error } = await resend.emails.send({
+      from: this.resendFrom,
+      to: params.toEmail,
+      subject: 'Reset your EventEcos password',
+      html,
+    });
+    if (error) throw new Error(error.message);
   }
 
   async sendReminderEmail(params: {
@@ -987,6 +1041,107 @@ export class MailService {
       );
     } catch (error) {
       console.error('[MailService] Ticket confirmation email failed:', error);
+      // Non-fatal — webhook must not throw
+    }
+  }
+
+  /** Sponsorship receipt with the IRS quid-pro-quo disclosure (value received vs. deductible). */
+  async sendSponsorshipReceipt(params: {
+    toEmail: string;
+    buyerName: string;
+    companyName?: string | null;
+    eventTitle: string;
+    eventDate?: string | null;
+    eventId?: string | null;
+    levelName: string;
+    orgName?: string | null;
+    orgEin?: string | null;
+    tablesIncluded: number;
+    seatsPerTable: number;
+    ticketsIncluded: number;
+    price: number;
+    fairMarketValue: number;
+    deductibleAmount: number;
+    serviceFee: number;
+    totalCharged: number;
+  }): Promise<void> {
+    const esc = (s: string) =>
+      s
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    const usd = (n: number) => `$${n.toFixed(2)}`;
+    try {
+      const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+      const org = params.orgName ? esc(params.orgName) : 'the organization';
+      const ein = params.orgEin
+        ? `${params.orgEin.slice(0, 2)}-${params.orgEin.slice(2)}`
+        : null;
+      const date = params.eventDate
+        ? new Date(`${params.eventDate}T12:00:00`).toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })
+        : null;
+      const includes = [
+        params.tablesIncluded > 0
+          ? `${params.tablesIncluded} table(s) of ${params.seatsPerTable}`
+          : null,
+        params.ticketsIncluded > 0
+          ? `${params.ticketsIncluded} ticket(s)`
+          : null,
+      ].filter(Boolean) as string[];
+      const row = (label: string, value: string, bold = false) =>
+        `<tr><td style="padding: 4px 0; color: #6b7280;">${label}</td><td style="padding: 4px 0; text-align: right; ${bold ? 'font-weight: 700;' : 'font-weight: 600;'}">${value}</td></tr>`;
+
+      const html = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb; padding: 32px 16px;">
+          <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08);">
+            ${this.getEmailHeader('Thank you for sponsoring!', 'Your sponsorship is confirmed')}
+            <div style="padding: 32px;">
+              <p style="color: #374151; font-size: 15px; margin: 0 0 16px;">Hi ${esc(params.buyerName)}${params.companyName ? ` (${esc(params.companyName)})` : ''},</p>
+              <p style="color: #374151; font-size: 15px; margin: 0 0 20px;">Thank you for sponsoring <strong>${esc(params.eventTitle)}</strong>${date ? ` on ${date}` : ''}. ${org} appreciates your support.</p>
+              <div style="background: #f5f3ff; border-left: 4px solid #7c3aed; border-radius: 8px; padding: 20px 24px; margin: 0 0 24px;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #374151;">
+                  ${row('Sponsorship level', esc(params.levelName))}
+                  ${includes.length ? row('Includes', includes.join(', ')) : ''}
+                  ${row('Sponsorship amount', usd(params.price))}
+                  ${row('Service fee', usd(params.serviceFee))}
+                  ${row('Total charged', usd(params.totalCharged), true)}
+                </table>
+              </div>
+              <h3 style="color: #1f2937; font-size: 16px; margin: 0 0 8px;">Tax receipt</h3>
+              <p style="color: #374151; font-size: 14px; line-height: 1.6; margin: 0 0 8px;">
+                ${org}${ein ? ` (EIN ${ein})` : ''} is a tax-exempt organization under section 501(c)(3) of the Internal Revenue Code.
+              </p>
+              <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #374151;">
+                ${row('Sponsorship amount', usd(params.price))}
+                ${row('Estimated value of goods or services you received', usd(params.fairMarketValue))}
+                ${row('Amount that may be tax-deductible', usd(params.deductibleAmount), true)}
+              </table>
+              <p style="color: #6b7280; font-size: 12px; line-height: 1.6; margin: 12px 0 0;">
+                The deductible amount is your sponsorship minus the good-faith estimate of the value of goods and services you received. The service fee is not included. This is not tax advice; please consult your tax advisor.
+              </p>
+              ${params.eventId ? `<div style="text-align: center; margin: 28px 0 0;"><a href="${frontendUrl}/events/${params.eventId}" style="display: inline-block; background: #7c3aed; color: white; padding: 14px 36px; text-decoration: none; border-radius: 8px; font-size: 15px; font-weight: 600;">View Event</a></div>` : ''}
+            </div>
+          </div>
+        </div>`;
+
+      const text = `Thank you for sponsoring ${params.eventTitle}!\n\nLevel: ${params.levelName}\nSponsorship amount: ${usd(params.price)}\nService fee: ${usd(params.serviceFee)}\nTotal charged: ${usd(params.totalCharged)}\n\nTax receipt: ${params.orgName ?? 'The organization'}${ein ? ` (EIN ${ein})` : ''} is a 501(c)(3) tax-exempt organization.\nEstimated value of goods or services received: ${usd(params.fairMarketValue)}\nAmount that may be tax-deductible: ${usd(params.deductibleAmount)}\n(The service fee is not included. This is not tax advice.)`;
+
+      await this.transporter.sendMail({
+        from: `"${(params.orgName ?? 'Eventecos').replace(/"/g, '')} via Eventecos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
+        to: params.toEmail,
+        subject: `Your sponsorship of ${params.eventTitle} is confirmed`,
+        html,
+        text,
+      });
+      console.log('[MailService] Sponsorship receipt sent to', params.toEmail);
+    } catch (error) {
+      console.error('[MailService] Sponsorship receipt email failed:', error);
       // Non-fatal — webhook must not throw
     }
   }
@@ -1470,7 +1625,6 @@ export class MailService {
     eventDate: string | null;
     rider: Record<string, any>;
   }): Promise<void> {
-    const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
     const mailOptions = {
       from: `"EventEcos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
       to: params.to,
@@ -1528,6 +1682,55 @@ export class MailService {
       console.log('[MailService] Enterprise inquiry sent from', params.email);
     } catch (error) {
       console.error('[MailService] sendEnterpriseInquiry failed:', error);
+    }
+  }
+
+  /** Emails a "Book a Demo" request to sales. Returns false when delivery fails so the caller can tell the visitor. */
+  async sendDemoRequest(params: {
+    name: string;
+    phone: string;
+    role: string;
+    description?: string;
+  }): Promise<boolean> {
+    const name = this.escapeHtml(params.name);
+    const phone = this.escapeHtml(params.phone);
+    const role = this.escapeHtml(params.role);
+    const description = params.description
+      ? this.escapeHtml(params.description)
+      : '';
+    const mailOptions = {
+      from: `"EventEcos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
+      to: 'sales@eventecos.com',
+      subject: `Demo Request — ${params.role} (${params.name.replace(/[\r\n]+/g, ' ')})`,
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f9fafb;padding:32px 16px;">
+          <div style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+            ${this.getEmailHeader('Demo Request', 'Someone wants a walkthrough of EventEcos')}
+            <div style="padding:32px;">
+              <table style="width:100%;border-collapse:collapse;font-size:14px;color:#374151;">
+                <tr><td style="padding:8px 0;color:#6b7280;width:120px;">Name</td><td style="padding:8px 0;font-weight:600;">${name}</td></tr>
+                <tr><td style="padding:8px 0;color:#6b7280;">Phone</td><td style="padding:8px 0;font-weight:600;"><a href="tel:${phone}" style="color:#7c3aed;">${phone}</a></td></tr>
+                <tr><td style="padding:8px 0;color:#6b7280;">Role</td><td style="padding:8px 0;font-weight:600;">${role}</td></tr>
+              </table>
+              ${
+                description
+                  ? `<div style="margin-top:24px;background:#f3f4f6;border-radius:8px;padding:20px;">
+                <p style="margin:0;color:#6b7280;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Notes</p>
+                <p style="margin:12px 0 0;color:#1f2937;white-space:pre-wrap;">${description}</p>
+              </div>`
+                  : ''
+              }
+            </div>
+          </div>
+        </div>
+      `,
+    };
+    try {
+      await this.transporter.sendMail(mailOptions);
+      return true;
+    } catch (error) {
+      console.error('[MailService] sendDemoRequest failed:', error);
+      return false;
     }
   }
 
@@ -1719,7 +1922,9 @@ export class MailService {
     role?: 'owner' | 'vendor' | 'promoter' | 'artist' | 'affiliate';
   }): Promise<void> {
     if (!process.env.RESEND_API_KEY) {
-      console.warn('[MailService] RESEND_API_KEY not set — skipping welcome email');
+      console.warn(
+        '[MailService] RESEND_API_KEY not set — skipping welcome email',
+      );
       return;
     }
     try {
@@ -1850,12 +2055,15 @@ export class MailService {
             <div style="margin: 0 32px 28px; background: #1E3A7F; border-radius: 10px; padding: 20px 24px;">
               <p style="color: #00BFA5; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; margin: 0 0 6px;">Get Paid</p>
               <p style="color: white; font-size: 16px; font-weight: 700; margin: 0 0 8px;">Connect Stripe to start accepting payments</p>
-              <p style="color: rgba(255,255,255,0.75); font-size: 13px; line-height: 1.6; margin: 0 0 16px;">
+              <p style="color: rgba(255,255,255,0.75); font-size: 13px; line-height: 1.6; margin: 0 0 12px;">
                 EventEcos uses Stripe to process payments securely. Once connected, clients can pay invoices, deposits, and VIP tickets directly — and funds land in your bank account.
               </p>
-              <a href="${dashboardUrl}/settings/payments"
+              <p style="color: rgba(255,255,255,0.75); font-size: 12px; line-height: 1.5; margin: 0 0 16px;">
+                Go to your Dashboard Settings, then scroll to the Payouts section and click Connect Bank Account.
+              </p>
+              <a href="${dashboardUrl}/settings"
                  style="display: inline-block; background: #00BFA5; color: white; padding: 10px 24px; text-decoration: none; border-radius: 6px; font-size: 14px; font-weight: 700;">
-                Connect Bank Account →
+                Open Settings →
               </a>
             </div>
 
@@ -1883,7 +2091,7 @@ export class MailService {
         to: params.toEmail,
         subject: `Welcome to EventEcos, ${params.firstName}! 🎉`,
         html,
-        text: `Welcome to EventEcos, ${params.firstName}!\n\n${subjectName} is live. ${role === 'owner' ? 'Your 30-day free trial has started.' : 'Your account is active.'}\n\nFeatures included:\n- Event Management\n- Contracts & E-Signatures\n- Invoicing & Quotes\n- Stripe Payments (connect your bank to get paid)\n- VIP Ticketing\n- Guest Lists & Door Management\n- Vendor Management\n- SMS Client Messaging\n\nGo to your dashboard: ${dashboardUrl}\nConnect Stripe: ${dashboardUrl}/settings/payments`,
+        text: `Welcome to EventEcos, ${params.firstName}!\n\n${subjectName} is live. ${role === 'owner' ? 'Your 30-day free trial has started.' : 'Your account is active.'}\n\nFeatures included:\n- Event Management\n- Contracts & E-Signatures\n- Invoicing & Quotes\n- Stripe Payments (connect your bank to get paid)\n- VIP Ticketing\n- Guest Lists & Door Management\n- Vendor Management\n- SMS Client Messaging\n\nGo to your dashboard: ${dashboardUrl}\nOpen Dashboard Settings: ${dashboardUrl}/settings\nThen scroll to Payouts and click Connect Bank Account.`,
       });
 
       console.log('[MailService] Welcome email sent to', params.toEmail);

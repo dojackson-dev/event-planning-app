@@ -1,7 +1,21 @@
-import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { SupabaseService } from '../supabase/supabase.service';
+import {
+  applicationFeeCents,
+  normalizePayMethod,
+  processingFeeLine,
+  PayMethod,
+  paymentMethodTypesFor,
+  processingFeeCents,
+} from '../payments/platform-fee';
 import { VendorInvoicesService } from '../vendor-invoices/vendor-invoices.service';
 import { ArtistInvoicesService } from '../artist-invoices/artist-invoices.service';
 import { PromoterInvoicesService } from '../promoter-invoices/promoter-invoices.service';
@@ -10,12 +24,17 @@ import { AffiliatesService } from '../affiliates/affiliates.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import { MailService } from '../mail/mail.service';
 import { VipService } from '../vip/vip.service';
+import { SponsorshipCheckoutService } from '../nonprofit/sponsorship-checkout.service';
+import { clientVisibleItems } from '../invoices/client-visible-items';
+import { analytics } from '../analytics/heycatch';
 
 @Injectable()
 export class StripeService {
   private readonly logger = new Logger(StripeService.name);
   private readonly stripe: Stripe;
   private readonly webhookSecret: string;
+  /** Stripe gives a connected-accounts destination its own signing secret. */
+  private readonly connectWebhookSecret: string;
   private readonly frontendUrl: string;
 
   constructor(
@@ -30,6 +49,7 @@ export class StripeService {
     private readonly smsNotifications: SmsNotificationsService,
     private readonly mailService: MailService,
     private readonly vipService: VipService,
+    private readonly sponsorshipCheckout: SponsorshipCheckoutService,
   ) {
     const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (!secretKey) {
@@ -38,6 +58,10 @@ export class StripeService {
     this.stripe = new Stripe(secretKey);
     this.webhookSecret = this.configService.get<string>(
       'STRIPE_WEBHOOK_SECRET',
+      '',
+    );
+    this.connectWebhookSecret = this.configService.get<string>(
+      'STRIPE_CONNECT_WEBHOOK_SECRET',
       '',
     );
     this.frontendUrl = this.configService.get<string>(
@@ -305,27 +329,45 @@ export class StripeService {
   async createInvoiceCheckoutSession(
     invoiceId: string,
     clientName: string,
+    payMethodInput: unknown = 'card',
+    payAmountInput?: unknown,
   ): Promise<string> {
+    const payMethod: PayMethod = normalizePayMethod(payMethodInput, true);
     const admin = this.supabaseService.getAdminClient();
 
     const { data: invoice } = await admin
       .from('invoices')
       .select(
-        'id, invoice_number, total_amount, amount_due, amount_paid, owner_id, client_name, client_email',
+        'id, invoice_number, total_amount, amount_due, amount_paid, status, owner_id, client_name, client_email, deposit_percentage',
       )
       .eq('id', invoiceId)
       .maybeSingle();
 
     if (!invoice) throw new Error('Invoice not found');
+    if (invoice.status === 'cancelled')
+      throw new BadRequestException('This invoice has been cancelled');
     if (invoice.amount_due <= 0)
       throw new Error('Invoice is already fully paid');
 
-    const amountCents = Math.round(Number(invoice.amount_due) * 100);
+    const fullCents = Math.round(Number(invoice.amount_due) * 100);
+    // The deposit is only offered before anything has been paid, matching the public pay page.
+    const depositCents =
+      payAmountInput === 'deposit' &&
+      Number(invoice.deposit_percentage) > 0 &&
+      Number(invoice.amount_paid ?? 0) === 0
+        ? Math.round(
+            ((Number(invoice.total_amount) *
+              Number(invoice.deposit_percentage)) /
+              100) *
+              100,
+          )
+        : fullCents;
+    const amountCents = Math.min(depositCents, fullCents);
+    const isDeposit = amountCents < fullCents;
     if (amountCents < 50) throw new Error('Amount too small to process');
 
-    // Gross up so the client absorbs Stripe's processing fee (2.9% + $0.30)
-    const grossCents = Math.round((amountCents + 30) / 0.971);
-    const stripeFeeCents = grossCents - amountCents;
+    // Gross up so the client absorbs Stripe's processing fee for the chosen method
+    const stripeFeeCents = processingFeeCents(amountCents, payMethod);
 
     const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
       {
@@ -333,7 +375,7 @@ export class StripeService {
           currency: 'usd',
           unit_amount: amountCents,
           product_data: {
-            name: `Invoice #${invoice.invoice_number}`,
+            name: `${isDeposit ? 'Deposit — ' : ''}Invoice #${invoice.invoice_number}`,
             description: `Payment from ${clientName || invoice.client_name || 'Client'}`,
           },
         },
@@ -343,10 +385,7 @@ export class StripeService {
         price_data: {
           currency: 'usd',
           unit_amount: stripeFeeCents,
-          product_data: {
-            name: 'Stripe Processing Fee',
-            description: 'Credit/debit card processing fee (2.9% + $0.30)',
-          },
+          product_data: processingFeeLine(payMethod),
         },
         quantity: 1,
       },
@@ -358,20 +397,10 @@ export class StripeService {
       | undefined;
     let ownerAccount: any = null;
     if (invoice.owner_id) {
-      ownerAccount = await this.getOwnerAccountByUserId(
+      ownerAccount = await this.getOwnerAccountForInvoice(
         invoice.owner_id,
         admin,
       );
-      if (!ownerAccount) {
-        const { data: ownerById } = await admin
-          .from('owner_accounts')
-          .select(
-            'stripe_connect_id, stripe_connect_status, subscription_status, plan_id',
-          )
-          .eq('id', invoice.owner_id)
-          .maybeSingle();
-        ownerAccount = ownerById;
-      }
 
       const connectId =
         ownerAccount?.stripe_connect_id ?? ownerAccount?.stripe_account_id;
@@ -382,25 +411,31 @@ export class StripeService {
         const feeRate = this.resolveOwnerPlatformFeeRate(ownerAccount);
         const platformFeeCents = Math.round(amountCents * feeRate);
         transferData = {
-          application_fee_amount: platformFeeCents,
+          application_fee_amount: applicationFeeCents(
+            platformFeeCents,
+            stripeFeeCents,
+          ),
           transfer_data: { destination: connectId },
         };
       }
     }
 
     const session = await this.stripe.checkout.sessions.create({
-      payment_method_types: ownerAccount?.enable_bnpl
-        ? ['card', 'afterpay_clearpay', 'klarna', 'affirm', 'us_bank_account']
-        : ['card'],
+      payment_method_types: paymentMethodTypesFor(
+        ownerAccount?.enable_bnpl,
+        payMethod,
+        { bankDebit: true },
+      ),
       line_items: lineItems,
       mode: 'payment',
       ...(invoice.client_email ? { customer_email: invoice.client_email } : {}),
       success_url: `${this.frontendUrl}/client-portal/invoices?paid=true&invoice=${invoice.invoice_number}&iid=${invoiceId}&sid={CHECKOUT_SESSION_ID}`,
       cancel_url: `${this.frontendUrl}/client-portal/invoices?canceled=true`,
-      metadata: { invoice_id: invoiceId },
+      // credit_cents is what the invoice is credited (the amount excluding the processing fee).
+      metadata: { invoice_id: invoiceId, credit_cents: String(amountCents) },
       payment_intent_data: {
         ...transferData,
-        metadata: { invoice_id: invoiceId },
+        metadata: { invoice_id: invoiceId, credit_cents: String(amountCents) },
       },
     });
 
@@ -419,19 +454,29 @@ export class StripeService {
     let event: Stripe.Event;
 
     if (this.webhookSecret) {
-      try {
-        event = this.stripe.webhooks.constructEvent(
-          rawBody,
-          signature,
-          this.webhookSecret,
-        );
-      } catch (err) {
+      let verified: Stripe.Event | undefined;
+      let lastError: Error | undefined;
+      for (const secret of [this.webhookSecret, this.connectWebhookSecret]) {
+        if (!secret) continue;
+        try {
+          verified = this.stripe.webhooks.constructEvent(
+            rawBody,
+            signature,
+            secret,
+          );
+          break;
+        } catch (err) {
+          lastError = err as Error;
+        }
+      }
+      if (!verified) {
         this.logger.error(
           'Webhook signature verification failed',
-          (err as Error).message,
+          lastError?.message,
         );
-        throw new Error(`Webhook error: ${(err as Error).message}`);
+        throw new BadRequestException(`Webhook error: ${lastError?.message}`);
       }
+      event = verified;
     } else {
       this.logger.warn(
         'STRIPE_WEBHOOK_SECRET not set — skipping signature verification (dev mode)',
@@ -455,8 +500,10 @@ export class StripeService {
         await this.handlePaymentIntentSucceeded(event.data.object);
         break;
       case 'customer.subscription.created':
+        await this.handleSubscriptionUpdate(event.data.object, true);
+        break;
       case 'customer.subscription.updated':
-        await this.handleSubscriptionUpdate(event.data.object);
+        await this.handleSubscriptionUpdate(event.data.object, false);
         break;
       case 'customer.subscription.deleted':
         await this.handleSubscriptionCanceled(event.data.object);
@@ -540,7 +587,11 @@ export class StripeService {
     // ── App invoice one-time payment ─────────────────────────────────────────
     if (invoiceId) {
       if (isPaid) {
-        await this.markInvoicePaid(invoiceId, session.amount_total ?? 0);
+        await this.markInvoicePaid(
+          invoiceId,
+          this.creditCents(session.metadata, session.amount_total ?? 0),
+          paymentIntentId,
+        );
         this.logger.log(
           `Invoice ${invoiceId} marked paid via checkout session ${session.id}`,
         );
@@ -554,7 +605,23 @@ export class StripeService {
             updated_at: new Date().toISOString(),
           })
           .eq('id', invoiceId);
-        this.logger.log(`Invoice ${invoiceId} set to processing (ACH) — session ${session.id}`);
+        this.logger.log(
+          `Invoice ${invoiceId} set to processing (ACH) — session ${session.id}`,
+        );
+      }
+      return;
+    }
+
+    // ── Non-profit sponsorship ───────────────────────────────────────────
+    if (session.metadata?.sponsorship_order_id) {
+      if (isPaid) {
+        await this.sponsorshipCheckout.markPaidBySession(
+          session.id,
+          paymentIntentId,
+        );
+        this.logger.log(
+          `Sponsorship checkout complete — session ${session.id}`,
+        );
       }
       return;
     }
@@ -565,11 +632,20 @@ export class StripeService {
         await this.vendorInvoicesService.markInvoicePaidBySession(
           session.id,
           paymentIntentId,
+          session.metadata.vendor_invoice_id,
         );
-        this.logger.log(`Vendor invoice checkout complete — session ${session.id}`);
+        this.logger.log(
+          `Vendor invoice checkout complete — session ${session.id}`,
+        );
       } else if (isProcessing) {
-        await this.vendorInvoicesService.markInvoiceProcessing(session.id, paymentIntentId);
-        this.logger.log(`Vendor invoice set to processing (ACH) — session ${session.id}`);
+        await this.vendorInvoicesService.markInvoiceProcessing(
+          session.id,
+          paymentIntentId,
+          session.metadata.vendor_invoice_id,
+        );
+        this.logger.log(
+          `Vendor invoice set to processing (ACH) — session ${session.id}`,
+        );
       }
       return;
     }
@@ -581,10 +657,17 @@ export class StripeService {
           session.id,
           paymentIntentId,
         );
-        this.logger.log(`Artist invoice checkout complete — session ${session.id}`);
+        this.logger.log(
+          `Artist invoice checkout complete — session ${session.id}`,
+        );
       } else if (isProcessing) {
-        await this.artistInvoicesService.markInvoiceProcessing(session.id, paymentIntentId);
-        this.logger.log(`Artist invoice set to processing (ACH) — session ${session.id}`);
+        await this.artistInvoicesService.markInvoiceProcessing(
+          session.id,
+          paymentIntentId,
+        );
+        this.logger.log(
+          `Artist invoice set to processing (ACH) — session ${session.id}`,
+        );
       }
       return;
     }
@@ -613,10 +696,17 @@ export class StripeService {
           session.id,
           paymentIntentId,
         );
-        this.logger.log(`Promoter invoice checkout complete — session ${session.id}`);
+        this.logger.log(
+          `Promoter invoice checkout complete — session ${session.id}`,
+        );
       } else if (isProcessing) {
-        await this.promoterInvoicesService.markInvoiceProcessing(session.id, paymentIntentId);
-        this.logger.log(`Promoter invoice set to processing (ACH) — session ${session.id}`);
+        await this.promoterInvoicesService.markInvoiceProcessing(
+          session.id,
+          paymentIntentId,
+        );
+        this.logger.log(
+          `Promoter invoice set to processing (ACH) — session ${session.id}`,
+        );
       }
       return;
     }
@@ -716,23 +806,45 @@ export class StripeService {
         : (session.payment_intent?.id ?? null);
 
     if (session.metadata?.invoice_id) {
-      await this.markInvoicePaid(session.metadata.invoice_id, session.amount_total ?? 0);
-      this.logger.log(`Invoice ${session.metadata.invoice_id} paid via async ACH — session ${session.id}`);
+      await this.markInvoicePaid(
+        session.metadata.invoice_id,
+        this.creditCents(session.metadata, session.amount_total ?? 0),
+        paymentIntentId,
+      );
+      this.logger.log(
+        `Invoice ${session.metadata.invoice_id} paid via async ACH — session ${session.id}`,
+      );
       return;
     }
     if (session.metadata?.vendor_invoice_id) {
-      await this.vendorInvoicesService.markInvoicePaidBySession(session.id, paymentIntentId);
-      this.logger.log(`Vendor invoice paid via async ACH — session ${session.id}`);
+      await this.vendorInvoicesService.markInvoicePaidBySession(
+        session.id,
+        paymentIntentId,
+        session.metadata.vendor_invoice_id,
+      );
+      this.logger.log(
+        `Vendor invoice paid via async ACH — session ${session.id}`,
+      );
       return;
     }
     if (session.metadata?.artist_invoice_id) {
-      await this.artistInvoicesService.markInvoicePaidBySession(session.id, paymentIntentId);
-      this.logger.log(`Artist invoice paid via async ACH — session ${session.id}`);
+      await this.artistInvoicesService.markInvoicePaidBySession(
+        session.id,
+        paymentIntentId,
+      );
+      this.logger.log(
+        `Artist invoice paid via async ACH — session ${session.id}`,
+      );
       return;
     }
     if (session.metadata?.promoter_invoice_id) {
-      await this.promoterInvoicesService.markInvoicePaidBySession(session.id, paymentIntentId);
-      this.logger.log(`Promoter invoice paid via async ACH — session ${session.id}`);
+      await this.promoterInvoicesService.markInvoicePaidBySession(
+        session.id,
+        paymentIntentId,
+      );
+      this.logger.log(
+        `Promoter invoice paid via async ACH — session ${session.id}`,
+      );
     }
   }
 
@@ -785,20 +897,32 @@ export class StripeService {
     const meta = paymentIntent.metadata ?? {};
 
     if (meta.invoice_id) {
-      await this.markInvoicePaid(meta.invoice_id, paymentIntent.amount);
-      this.logger.log(`Invoice ${meta.invoice_id} marked paid via PaymentIntent ${paymentIntent.id}`);
+      await this.markInvoicePaid(
+        meta.invoice_id,
+        this.creditCents(meta, paymentIntent.amount),
+        paymentIntent.id,
+      );
+      this.logger.log(
+        `Invoice ${meta.invoice_id} marked paid via PaymentIntent ${paymentIntent.id}`,
+      );
       return;
     }
     if (meta.vendor_invoice_id) {
-      await this.vendorInvoicesService.markInvoicePaidByPaymentIntent(paymentIntent.id);
+      await this.vendorInvoicesService.markInvoicePaidByPaymentIntent(
+        paymentIntent.id,
+      );
       return;
     }
     if (meta.artist_invoice_id) {
-      await this.artistInvoicesService.markInvoicePaidByPaymentIntent(paymentIntent.id);
+      await this.artistInvoicesService.markInvoicePaidByPaymentIntent(
+        paymentIntent.id,
+      );
       return;
     }
     if (meta.promoter_invoice_id) {
-      await this.promoterInvoicesService.markInvoicePaidByPaymentIntent(paymentIntent.id);
+      await this.promoterInvoicesService.markInvoicePaidByPaymentIntent(
+        paymentIntent.id,
+      );
       return;
     }
   }
@@ -809,7 +933,9 @@ export class StripeService {
   ): Promise<void> {
     const meta = paymentIntent.metadata ?? {};
     const piId = paymentIntent.id;
-    this.logger.warn(`PaymentIntent ${piId} failed: ${paymentIntent.last_payment_error?.message ?? 'unknown error'}`);
+    this.logger.warn(
+      `PaymentIntent ${piId} failed: ${paymentIntent.last_payment_error?.message ?? 'unknown error'}`,
+    );
 
     if (meta.invoice_id) {
       const admin = this.supabaseService.getAdminClient();
@@ -833,6 +959,58 @@ export class StripeService {
     }
   }
 
+  /** A paid invoice means the event is booked; /bookings counts events by client_status. */
+  private async syncEventAfterPayment(
+    admin: ReturnType<SupabaseService['getAdminClient']>,
+    eventId: string | null | undefined,
+    amountPaid: number,
+    isFullyPaid: boolean,
+  ): Promise<void> {
+    if (!eventId) return;
+    const { data: event } = await admin
+      .from('event')
+      .select('client_status, deposit_paid_at')
+      .eq('id', eventId)
+      .maybeSingle();
+    if (!event) return;
+
+    const keepStatus = ['completed', 'cancelled'].includes(event.client_status);
+    const { error } = await admin
+      .from('event')
+      .update({
+        ...(keepStatus ? {} : { client_status: 'deposit_paid' }),
+        deposit_paid: true,
+        deposit_paid_at: event.deposit_paid_at ?? new Date().toISOString(),
+        deposit_amount: amountPaid,
+      })
+      .eq('id', eventId);
+    if (error) {
+      this.logger.warn(
+        `Could not mark event ${eventId} booked after payment: ${error.message}`,
+      );
+      return;
+    }
+
+    const { error: paymentStatusError } = await admin
+      .from('event')
+      .update({ payment_status: isFullyPaid ? 'paid' : 'deposit_paid' })
+      .eq('id', eventId);
+    if (paymentStatusError) {
+      this.logger.warn(
+        `Could not update payment status for event ${eventId}: ${paymentStatusError.message}`,
+      );
+    }
+  }
+
+  /** Amount to credit an invoice: the checkout's credit_cents when recorded (excludes the processing fee), else the amount charged. */
+  private creditCents(
+    metadata: Record<string, string> | null | undefined,
+    chargedCents: number,
+  ): number {
+    const credit = Number(metadata?.credit_cents);
+    return Number.isFinite(credit) && credit > 0 ? credit : chargedCents;
+  }
+
   /**
    * Record a (possibly partial) payment against an invoice.
    * - Adds amountCents to amount_paid, recalculates amount_due.
@@ -841,6 +1019,7 @@ export class StripeService {
   private async markInvoicePaid(
     invoiceId: string,
     amountCents: number,
+    paymentIntentId?: string | null,
   ): Promise<void> {
     const admin = this.supabaseService.getAdminClient();
     const amountDollars = amountCents / 100;
@@ -848,10 +1027,23 @@ export class StripeService {
     const { data: invoice } = await admin
       .from('invoices')
       .select(
-        'total_amount, amount_paid, client_phone, client_name, invoice_number, owner_id, booking_id, intake_form_id',
+        'total_amount, amount_paid, status, stripe_payment_intent_id, client_phone, client_name, invoice_number, owner_id, booking_id, intake_form_id, event_id',
       )
       .eq('id', invoiceId)
       .maybeSingle();
+
+    // checkout.session.completed and payment_intent.succeeded both fire for one card payment;
+    // a payment already recorded for this PaymentIntent must not be credited twice.
+    if (
+      paymentIntentId &&
+      invoice?.stripe_payment_intent_id === paymentIntentId &&
+      invoice.status !== 'processing'
+    ) {
+      this.logger.log(
+        `Invoice ${invoiceId} already credited for PaymentIntent ${paymentIntentId}; skipping`,
+      );
+      return;
+    }
 
     const total = Number(invoice?.total_amount ?? amountDollars);
     const previouslyPaid = Number(invoice?.amount_paid ?? 0);
@@ -865,6 +1057,9 @@ export class StripeService {
         status: isFullyPaid ? 'paid' : 'partial',
         amount_paid: isFullyPaid ? total : newAmountPaid,
         amount_due: isFullyPaid ? 0 : newAmountDue,
+        ...(paymentIntentId
+          ? { stripe_payment_intent_id: paymentIntentId }
+          : {}),
         ...(isFullyPaid ? { paid_date: new Date().toISOString() } : {}),
         updated_at: new Date().toISOString(),
       })
@@ -878,6 +1073,13 @@ export class StripeService {
     }
 
     if (!invoice) return;
+
+    await this.syncEventAfterPayment(
+      admin,
+      (invoice as any).event_id,
+      isFullyPaid ? total : newAmountPaid,
+      isFullyPaid,
+    );
 
     // ── Notify client via SMS ──────────────────────────────────────────────
     let clientPhone = invoice.client_phone ?? null;
@@ -1041,6 +1243,7 @@ export class StripeService {
 
   private async handleSubscriptionUpdate(
     subscription: Stripe.Subscription,
+    isNew = false,
   ): Promise<void> {
     // Promoter subscription update
     const promoterAccountId = subscription.metadata?.promoter_account_id;
@@ -1056,6 +1259,24 @@ export class StripeService {
           `Promoter ${promoterAccountId} subscription updated to plan=${plan}`,
         );
       }
+      if (isNew) {
+        const admin = this.supabaseService.getAdminClient();
+        const { data: promoterAccount } = await admin
+          .from('promoter_accounts')
+          .select('user_id')
+          .eq('id', promoterAccountId)
+          .single();
+        if (promoterAccount?.user_id) {
+          await analytics.setIdentity(promoterAccount.user_id, {
+            plan: plan ?? 'pro',
+          });
+          await analytics.trackEvent(
+            'subscription_started',
+            { plan: plan ?? 'pro' },
+            { userId: promoterAccount.user_id },
+          );
+        }
+      }
       return;
     }
 
@@ -1070,6 +1291,27 @@ export class StripeService {
         subscription.status,
         priceId,
       );
+      if (isNew) {
+        const admin = this.supabaseService.getAdminClient();
+        const { data: ownerAccount } = await admin
+          .from('owner_accounts')
+          .select('primary_owner_id')
+          .eq('id', ownerAccountId)
+          .single();
+        if (ownerAccount?.primary_owner_id) {
+          const planName = priceId
+            ? this.priceIdToPlanMeta(priceId).planName
+            : null;
+          await analytics.setIdentity(ownerAccount.primary_owner_id, {
+            plan: planName ?? undefined,
+          });
+          await analytics.trackEvent(
+            'subscription_started',
+            { plan: planName },
+            { userId: ownerAccount.primary_owner_id },
+          );
+        }
+      }
     } else {
       const customerId =
         typeof subscription.customer === 'string'
@@ -1278,6 +1520,24 @@ export class StripeService {
   // Platform fee rate is resolved per-payment via resolveOwnerPlatformFeeRate() (3% / 1.5% / 1%)
 
   /**
+   * invoices.owner_id holds either the owner's auth user id or the owner_accounts id,
+   * so try the user-id lookup first and fall back to the account id.
+   */
+  private async getOwnerAccountForInvoice(
+    ownerRef: string,
+    admin: any,
+  ): Promise<any> {
+    const byUser = await this.getOwnerAccountByUserId(ownerRef, admin);
+    if (byUser) return byUser;
+    const { data } = await admin
+      .from('owner_accounts')
+      .select('*')
+      .eq('id', ownerRef)
+      .maybeSingle();
+    return data ?? null;
+  }
+
+  /**
    * Resolves the owner_accounts row for a given auth user ID.
    * Primary path: memberships table (user_id → owner_account_id).
    * Fallback: direct user_id column on owner_accounts.
@@ -1285,7 +1545,7 @@ export class StripeService {
   private async getOwnerAccountByUserId(
     userId: string,
     admin: any,
-  ): Promise<any | null> {
+  ): Promise<any> {
     // Primary: look up via memberships
     const { data: membership } = await admin
       .from('memberships')
@@ -1471,9 +1731,11 @@ export class StripeService {
    * Get the Connect account status for a vendor.
    * If status is pending, does a live Stripe check so we don't need webhooks in dev.
    */
-  async getVendorConnectStatus(
-    userId: string,
-  ): Promise<{ status: string; connectId: string | null; enableBnpl: boolean }> {
+  async getVendorConnectStatus(userId: string): Promise<{
+    status: string;
+    connectId: string | null;
+    enableBnpl: boolean;
+  }> {
     const admin = this.supabaseService.getAdminClient();
     const { data } = await admin
       .from('vendor_accounts')
@@ -1563,7 +1825,9 @@ export class StripeService {
 
     const { data: promoter } = await admin
       .from('promoter_accounts')
-      .select('id, stripe_account_id, stripe_connect_status')
+      .select(
+        'id, stripe_account_id, stripe_connect_status, is_nonprofit, nonprofit_status',
+      )
       .eq('user_id', userId)
       .maybeSingle();
 
@@ -1575,6 +1839,10 @@ export class StripeService {
       const account = await this.stripe.accounts.create({
         type: 'express',
         email,
+        ...(promoter.is_nonprofit &&
+          promoter.nonprofit_status === 'verified' && {
+            business_type: 'non_profit' as const,
+          }),
         capabilities: {
           card_payments: { requested: true },
           transfers: { requested: true },
@@ -1607,9 +1875,11 @@ export class StripeService {
    * Get the Connect account status for a promoter.
    * If status is pending, does a live Stripe check.
    */
-  async getPromoterConnectStatus(
-    userId: string,
-  ): Promise<{ status: string; connectId: string | null; enableBnpl: boolean }> {
+  async getPromoterConnectStatus(userId: string): Promise<{
+    status: string;
+    connectId: string | null;
+    enableBnpl: boolean;
+  }> {
     const admin = this.supabaseService.getAdminClient();
 
     const { data } = await admin
@@ -1727,9 +1997,11 @@ export class StripeService {
    * Get the Connect account status for an artist.
    * If status is pending, does a live Stripe check so we don't need webhooks in dev.
    */
-  async getArtistConnectStatus(
-    userId: string,
-  ): Promise<{ status: string; connectId: string | null; enableBnpl: boolean }> {
+  async getArtistConnectStatus(userId: string): Promise<{
+    status: string;
+    connectId: string | null;
+    enableBnpl: boolean;
+  }> {
     const admin = this.supabaseService.getAdminClient();
 
     const { data } = await admin
@@ -1800,16 +2072,30 @@ export class StripeService {
     if (role === 'owner') {
       const owner = await this.getOwnerAccountByUserId(userId, admin);
       if (!owner) throw new Error('Owner account not found');
-      await admin.from('owner_accounts').update({ enable_bnpl: enabled }).eq('id', owner.id);
+      await admin
+        .from('owner_accounts')
+        .update({ enable_bnpl: enabled })
+        .eq('id', owner.id);
     } else if (role === 'vendor') {
-      await admin.from('vendor_accounts').update({ enable_bnpl: enabled }).eq('user_id', userId);
+      await admin
+        .from('vendor_accounts')
+        .update({ enable_bnpl: enabled })
+        .eq('user_id', userId);
     } else if (role === 'artist') {
-      await admin.from('artist_accounts').update({ enable_bnpl: enabled }).eq('user_id', userId);
+      await admin
+        .from('artist_accounts')
+        .update({ enable_bnpl: enabled })
+        .eq('user_id', userId);
     } else if (role === 'promoter') {
-      await admin.from('promoter_accounts').update({ enable_bnpl: enabled }).eq('user_id', userId);
+      await admin
+        .from('promoter_accounts')
+        .update({ enable_bnpl: enabled })
+        .eq('user_id', userId);
     }
 
-    this.logger.log(`BNPL preference set to ${enabled} for ${role} user ${userId}`);
+    this.logger.log(
+      `BNPL preference set to ${enabled} for ${role} user ${userId}`,
+    );
     return { success: true };
   }
 
@@ -1830,6 +2116,7 @@ export class StripeService {
     clientSecret: string;
     paymentIntentId: string;
     feeCents: number;
+    totalCents: number;
   }> {
     const admin = this.supabaseService.getAdminClient();
 
@@ -1839,10 +2126,14 @@ export class StripeService {
     }
 
     const feeRate = this.resolveOwnerPlatformFeeRate(owner);
-    const feeCents = Math.round(amountCents * feeRate);
+    const platformFeeCents = Math.round(amountCents * feeRate);
+    // The payer covers Stripe's processing fee, which the platform is billed for.
+    const processingCents = processingFeeCents(amountCents);
+    const totalCents = amountCents + processingCents;
+    const feeCents = applicationFeeCents(platformFeeCents, processingCents);
 
     const paymentIntent = await this.stripe.paymentIntents.create({
-      amount: amountCents,
+      amount: totalCents,
       currency: 'usd',
       application_fee_amount: feeCents,
       transfer_data: { destination: owner.stripe_connect_id },
@@ -1856,9 +2147,9 @@ export class StripeService {
     // Record in stripe_payments ledger
     await admin.from('stripe_payments').insert({
       type: 'client_to_owner',
-      amount_cents: amountCents,
+      amount_cents: totalCents,
       fee_cents: feeCents,
-      net_cents: amountCents - feeCents,
+      net_cents: totalCents - feeCents,
       stripe_payment_intent_id: paymentIntent.id,
       owner_account_id: owner.id,
       description,
@@ -1869,6 +2160,7 @@ export class StripeService {
       clientSecret: paymentIntent.client_secret!,
       paymentIntentId: paymentIntent.id,
       feeCents,
+      totalCents,
     };
   }
 
@@ -1992,7 +2284,13 @@ export class StripeService {
     if ((session.metadata as any)?.invoice_id !== invoice.id)
       return { status: invoice.status, paid: false };
 
-    await this.markInvoicePaid(invoice.id, session.amount_total ?? 0);
+    await this.markInvoicePaid(
+      invoice.id,
+      this.creditCents(session.metadata, session.amount_total ?? 0),
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : (session.payment_intent?.id ?? null),
+    );
     this.logger.log(
       `Invoice ${invoice.id} verified and marked paid via session ${session.id} (webhook fallback)`,
     );
@@ -2028,7 +2326,13 @@ export class StripeService {
     if ((session.metadata as any)?.invoice_id !== invoiceId)
       return { status: invoice.status, paid: false };
 
-    await this.markInvoicePaid(invoiceId, session.amount_total ?? 0);
+    await this.markInvoicePaid(
+      invoiceId,
+      this.creditCents(session.metadata, session.amount_total ?? 0),
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : (session.payment_intent?.id ?? null),
+    );
     this.logger.log(
       `Client portal invoice ${invoiceId} verified and marked paid via session ${session.id} (webhook fallback)`,
     );
@@ -2046,19 +2350,30 @@ export class StripeService {
       .from('invoices')
       .select(
         `
-        id, invoice_number, client_name, client_email,
-        total_amount, amount_paid, amount_due, status,
+        id, invoice_number, client_name, client_email, owner_id,
+        total_amount, amount_paid, amount_due, discount_amount, status,
         issue_date, due_date, notes, terms,
         deposit_percentage, deposit_due_days_before, final_payment_due_days_before,
         event:event!event_id(id, name, date),
-        items:invoice_items(id, description, quantity, unit_price, amount, item_type)
+        items:invoice_items(id, description, quantity, unit_price, amount, item_type, discount_type, discount_value, discount_amount)
       `,
       )
       .eq('public_token', token)
       .maybeSingle();
 
     if (error || !data) throw new Error('Invoice not found');
-    return data;
+    const { owner_id: ownerId, ...publicData } = data as any;
+    let payLaterAvailable = false;
+    if (ownerId) {
+      const owner = await this.getOwnerAccountForInvoice(ownerId, admin);
+      payLaterAvailable = !!owner?.enable_bnpl;
+    }
+    return {
+      ...publicData,
+      items: clientVisibleItems(publicData.items),
+      pay_later_available: payLaterAvailable,
+      bank_available: payLaterAvailable,
+    };
   }
 
   /**
@@ -2068,18 +2383,22 @@ export class StripeService {
   async createPublicInvoiceCheckout(
     token: string,
     amountCents: number,
+    payMethodInput: unknown = 'card',
   ): Promise<string> {
+    const payMethod: PayMethod = normalizePayMethod(payMethodInput, true);
     const admin = this.supabaseService.getAdminClient();
 
     const { data: inv, error } = await admin
       .from('invoices')
       .select(
-        'id, invoice_number, amount_due, total_amount, owner_id, client_email',
+        'id, invoice_number, amount_due, total_amount, status, owner_id, client_email',
       )
       .eq('public_token', token)
       .maybeSingle();
 
     if (error || !inv) throw new Error('Invoice not found');
+    if (inv.status === 'cancelled')
+      throw new BadRequestException('This invoice has been cancelled');
 
     const maxCents = Math.round(Number(inv.amount_due) * 100);
     const safeCents = Math.min(amountCents, maxCents);
@@ -2088,29 +2407,28 @@ export class StripeService {
     // Look up owner Connect account + subscription plan for fee rate
     let owner: any = null;
     if (inv.owner_id) {
-      const { data } = await admin
-        .from('owner_accounts')
-        .select(
-          'stripe_connect_id, stripe_connect_status, subscription_status, plan_name, plan_id, enable_bnpl',
-        )
-        .eq('id', inv.owner_id)
-        .maybeSingle();
-      owner = data;
+      owner = await this.getOwnerAccountForInvoice(inv.owner_id, admin);
     }
     const hasConnect =
       owner?.stripe_connect_id && owner?.stripe_connect_status === 'active';
+    if (!hasConnect) {
+      this.logger.warn(
+        `Invoice ${inv.id} has no active owner Connect account; payment will not be routed to an owner`,
+      );
+    }
 
     const description = `Invoice ${inv.invoice_number} — $${(safeCents / 100).toFixed(2)}`;
 
-    // Gross up so payer absorbs Stripe's processing fee (2.9% + $0.30)
-    const grossCents = Math.round((safeCents + 30) / 0.971);
-    const stripeFeeCents = grossCents - safeCents;
+    // Gross up so the payer absorbs Stripe's processing fee for the chosen method
+    const stripeFeeCents = processingFeeCents(safeCents, payMethod);
 
     const sessionParams: any = {
       mode: 'payment',
-      payment_method_types: owner?.enable_bnpl
-        ? ['card', 'afterpay_clearpay', 'klarna', 'affirm', 'us_bank_account']
-        : ['card'],
+      payment_method_types: paymentMethodTypesFor(
+        owner?.enable_bnpl,
+        payMethod,
+        { bankDebit: true },
+      ),
       ...(inv.client_email ? { customer_email: inv.client_email } : {}),
       line_items: [
         {
@@ -2125,29 +2443,28 @@ export class StripeService {
           price_data: {
             currency: 'usd',
             unit_amount: stripeFeeCents,
-            product_data: {
-              name: 'Stripe Processing Fee',
-              description: 'Credit/debit card processing fee (2.9% + $0.30)',
-            },
+            product_data: processingFeeLine(payMethod),
           },
           quantity: 1,
         },
       ],
       success_url: `${this.frontendUrl}/pay/invoice/${token}?paid=true&sid={CHECKOUT_SESSION_ID}`,
       cancel_url: `${this.frontendUrl}/pay/invoice/${token}?canceled=true`,
-      metadata: { invoice_id: inv.id },
+      metadata: { invoice_id: inv.id, credit_cents: String(safeCents) },
     };
 
     if (hasConnect) {
       const feeRate = this.resolveOwnerPlatformFeeRate(owner);
       const feeCents = Math.round(safeCents * feeRate);
       sessionParams.payment_intent_data = {
-        application_fee_amount: feeCents,
+        application_fee_amount: applicationFeeCents(feeCents, stripeFeeCents),
         transfer_data: { destination: owner!.stripe_connect_id! },
-        metadata: { invoice_id: inv.id },
+        metadata: { invoice_id: inv.id, credit_cents: String(safeCents) },
       };
     } else {
-      sessionParams.payment_intent_data = { metadata: { invoice_id: inv.id } };
+      sessionParams.payment_intent_data = {
+        metadata: { invoice_id: inv.id, credit_cents: String(safeCents) },
+      };
     }
 
     const session = await this.stripe.checkout.sessions.create(sessionParams);

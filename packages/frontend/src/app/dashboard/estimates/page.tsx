@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
+import AttentionBanner from '@/components/AttentionBanner'
+import { useAttentionFilter, ESTIMATE_ATTENTION } from '@/lib/attentionFilter'
 import { Estimate, EstimateStatus } from '@/types'
 import { Search, Eye } from 'lucide-react'
 import { useVenue } from '@/contexts/VenueContext'
@@ -38,6 +40,7 @@ export default function EstimatesPage() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<EstimateStatus | 'all'>('all')
   const [searchTerm, setSearchTerm] = useState('')
+  const [attention, clearAttention] = useAttentionFilter()
   const router = useRouter()
   const { user } = useAuth()
   const { activeVenue } = useVenue()
@@ -51,7 +54,6 @@ export default function EstimatesPage() {
     setEstimates([])
     try {
       const params: any = user?.role === 'owner' ? { ownerId: user.id } : {}
-      if (activeVenue) params.venueId = activeVenue.id
       const res = await api.get<Estimate[]>('/estimates', { params })
       setEstimates(res.data)
     } catch (err) {
@@ -74,6 +76,7 @@ export default function EstimatesPage() {
 
   const filtered = estimates
     .filter(e => filter === 'all' || e.status === filter)
+    .filter(e => !attention || !ESTIMATE_ATTENTION[attention] || ESTIMATE_ATTENTION[attention].match(e))
     .filter(e => {
       if (!searchTerm) return true
       const q = searchTerm.toLowerCase()
@@ -102,6 +105,10 @@ export default function EstimatesPage() {
           Estimates are created through the <a href="/dashboard/events" className="text-primary-600 hover:underline font-medium">Events</a> tab.
         </p>
       </div>
+
+      {attention && ESTIMATE_ATTENTION[attention] && (
+        <AttentionBanner label={ESTIMATE_ATTENTION[attention].label} onClear={clearAttention} />
+      )}
 
       {/* Search + Filter */}
       <div className="mb-6 flex flex-col sm:flex-row gap-3">

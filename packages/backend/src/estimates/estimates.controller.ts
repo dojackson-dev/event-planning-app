@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  ForbiddenException,
   Headers,
   UnauthorizedException,
   Query,
@@ -28,7 +29,10 @@ export class EstimatesController {
 
   private async getUserId(authorization: string): Promise<string> {
     const token = this.extractToken(authorization);
-    if (token.startsWith('local-')) {
+    if (
+      token.startsWith('local-') &&
+      process.env.ALLOW_LOCAL_DEV_AUTH === 'true'
+    ) {
       const userId = token.replace('local-', '');
       if (userId) return userId;
       throw new UnauthorizedException('Invalid dev token format');
@@ -52,17 +56,29 @@ export class EstimatesController {
   ): Promise<Estimate[]> {
     const userId = await this.getUserId(authorization);
     const supabaseAdmin = this.supabaseService.getAdminClient();
+    // A team member sees their owner's estimates; any other owner id is refused.
+    const owners = await this.estimatesService.accessibleOwnerIds(
+      supabaseAdmin,
+      userId,
+    );
+    if (ownerId && !owners.includes(ownerId))
+      throw new ForbiddenException('You can only list your own estimates');
+    const scopeOwner =
+      ownerId ||
+      (await this.estimatesService.effectiveOwnerId(supabaseAdmin, userId));
     if (eventId)
-      return this.estimatesService.findByEvent(supabaseAdmin, eventId);
+      return this.estimatesService.findByEvent(supabaseAdmin, eventId, userId);
     if (intakeFormId)
       return this.estimatesService.findByIntakeForm(
         supabaseAdmin,
         intakeFormId,
-        userId,
+        scopeOwner,
       );
-    if (ownerId)
-      return this.estimatesService.findByOwner(supabaseAdmin, ownerId, venueId);
-    return this.estimatesService.findByOwner(supabaseAdmin, userId, venueId);
+    return this.estimatesService.findByOwner(
+      supabaseAdmin,
+      scopeOwner,
+      venueId,
+    );
   }
 
   @Get(':id')
@@ -70,8 +86,9 @@ export class EstimatesController {
     @Headers('authorization') authorization: string,
     @Param('id') id: string,
   ): Promise<Estimate> {
-    await this.getUserId(authorization);
+    const userId = await this.getUserId(authorization);
     const supabaseAdmin = this.supabaseService.getAdminClient();
+    await this.estimatesService.assertOwner(supabaseAdmin, id, userId);
     return this.estimatesService.findOne(supabaseAdmin, id);
   }
 
@@ -97,8 +114,9 @@ export class EstimatesController {
     @Param('id') id: string,
     @Body() estimateData: Partial<Estimate>,
   ): Promise<Estimate> {
-    await this.getUserId(authorization);
+    const userId = await this.getUserId(authorization);
     const supabaseAdmin = this.supabaseService.getAdminClient();
+    await this.estimatesService.assertEditable(supabaseAdmin, id, userId);
     return this.estimatesService.update(supabaseAdmin, id, estimateData);
   }
 
@@ -108,8 +126,14 @@ export class EstimatesController {
     @Param('id') id: string,
     @Body('status') status: string,
   ): Promise<Estimate> {
-    await this.getUserId(authorization);
+    const userId = await this.getUserId(authorization);
     const supabaseAdmin = this.supabaseService.getAdminClient();
+    await this.estimatesService.assertStatusChange(
+      supabaseAdmin,
+      id,
+      userId,
+      status,
+    );
     return this.estimatesService.updateStatus(supabaseAdmin, id, status);
   }
 
@@ -119,9 +143,10 @@ export class EstimatesController {
     @Param('id') id: string,
     @Body() items: Partial<EstimateItem>[],
   ): Promise<EstimateItem[]> {
-    await this.getUserId(authorization);
+    const userId = await this.getUserId(authorization);
     const supabaseAdmin = this.supabaseService.getAdminClient();
-    return this.estimatesService.createItems(supabaseAdmin, id, items);
+    await this.estimatesService.assertEditable(supabaseAdmin, id, userId);
+    return this.estimatesService.addItems(supabaseAdmin, id, items);
   }
 
   @Put('items/:itemId')
@@ -130,8 +155,13 @@ export class EstimatesController {
     @Param('itemId') itemId: string,
     @Body() itemData: Partial<EstimateItem>,
   ): Promise<EstimateItem> {
-    await this.getUserId(authorization);
+    const userId = await this.getUserId(authorization);
     const supabaseAdmin = this.supabaseService.getAdminClient();
+    await this.estimatesService.assertItemEditable(
+      supabaseAdmin,
+      itemId,
+      userId,
+    );
     return this.estimatesService.updateItem(supabaseAdmin, itemId, itemData);
   }
 
@@ -140,8 +170,13 @@ export class EstimatesController {
     @Headers('authorization') authorization: string,
     @Param('itemId') itemId: string,
   ): Promise<void> {
-    await this.getUserId(authorization);
+    const userId = await this.getUserId(authorization);
     const supabaseAdmin = this.supabaseService.getAdminClient();
+    await this.estimatesService.assertItemEditable(
+      supabaseAdmin,
+      itemId,
+      userId,
+    );
     return this.estimatesService.deleteItem(supabaseAdmin, itemId);
   }
 
@@ -171,8 +206,9 @@ export class EstimatesController {
     @Headers('authorization') authorization: string,
     @Param('id') id: string,
   ): Promise<void> {
-    await this.getUserId(authorization);
+    const userId = await this.getUserId(authorization);
     const supabaseAdmin = this.supabaseService.getAdminClient();
+    await this.estimatesService.assertOwner(supabaseAdmin, id, userId);
     return this.estimatesService.delete(supabaseAdmin, id);
   }
 }

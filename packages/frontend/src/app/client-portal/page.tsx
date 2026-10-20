@@ -258,18 +258,23 @@ export default function ClientPortalPage() {
                 {upcoming.map((e: any) => {
                   const status = resolveEventStatus(e)
                   return (
-                    <li key={e.id} className="px-6 py-4 flex items-center justify-between">
-                      <div>
-                        <p className="font-medium text-gray-900">{e.name ?? 'Event'}</p>
-                        <p className="text-sm text-gray-500 mt-0.5">
-                          {e.date ? new Date(e.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' }) : ''}
-                          {e.start_time ? ` · ${e.start_time}` : ''}
-                        </p>
-                        {e.venue && <p className="text-xs text-gray-400">{e.venue}</p>}
-                      </div>
-                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusColor[status] ?? 'bg-gray-100 text-gray-600'}`}>
-                        {statusLabel[status] ?? status}
-                      </span>
+                    <li key={e.id}>
+                      <Link
+                        href={`/client-portal/events?event=${encodeURIComponent(e.id)}`}
+                        className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                      >
+                        <div>
+                          <p className="font-medium text-gray-900">{e.name ?? 'Event'}</p>
+                          <p className="text-sm text-gray-500 mt-0.5">
+                            {e.date ? new Date(e.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' }) : ''}
+                            {e.start_time ? ` · ${e.start_time}` : ''}
+                          </p>
+                          {e.venue && <p className="text-xs text-gray-400">{e.venue}</p>}
+                        </div>
+                        <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusColor[status] ?? 'bg-gray-100 text-gray-600'}`}>
+                          {statusLabel[status] ?? status}
+                        </span>
+                      </Link>
                     </li>
                   )
                 })}

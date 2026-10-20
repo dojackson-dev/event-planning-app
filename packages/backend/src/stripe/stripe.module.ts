@@ -10,6 +10,7 @@ import { AffiliatesModule } from '../affiliates/affiliates.module';
 import { MessagingModule } from '../messaging/messaging.module';
 import { MailModule } from '../mail/mail.module';
 import { VipModule } from '../vip/vip.module';
+import { NonprofitModule } from '../nonprofit/nonprofit.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { VipModule } from '../vip/vip.module';
     MessagingModule,
     MailModule,
     VipModule,
+    NonprofitModule,
   ],
   controllers: [StripeController],
   providers: [StripeService],

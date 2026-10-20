@@ -35,6 +35,7 @@ import { PromoterBookingsModule } from './promoter-bookings/promoter-bookings.mo
 import { PromoterEventsModule } from './promoter-events/promoter-events.module';
 import { TeamModule } from './team/team.module';
 import { RemindersModule } from './reminders/reminders.module';
+import { AssistantModule } from './assistant/assistant.module';
 import { AuditModule } from './audit/audit.module';
 import { RsvpModule } from './rsvp/rsvp.module';
 import { ContactModule } from './contact/contact.module';
@@ -44,6 +45,9 @@ import { TicketmasterModule } from './ticketmaster/ticketmaster.module';
 import { SeatGeekModule } from './seatgeek/seatgeek.module';
 import { PredictHQModule } from './predicthq/predicthq.module';
 import { ExternalEventsModule } from './external-events/external-events.module';
+import { TicketEvolutionModule } from './ticket-evolution/ticket-evolution.module';
+import { NonprofitModule } from './nonprofit/nonprofit.module';
+import { PromoterTeamModule } from './promoter-team/promoter-team.module';
 
 @Module({
   imports: [
@@ -87,6 +91,7 @@ import { ExternalEventsModule } from './external-events/external-events.module';
     PromoterEventsModule,
     TeamModule,
     RemindersModule,
+    AssistantModule,
     AuditModule,
     RsvpModule,
     ContactModule,
@@ -96,6 +101,9 @@ import { ExternalEventsModule } from './external-events/external-events.module';
     SeatGeekModule,
     PredictHQModule,
     ExternalEventsModule,
+    TicketEvolutionModule,
+    NonprofitModule,
+    PromoterTeamModule,
   ],
   controllers: [AppController],
   providers: [AppService],

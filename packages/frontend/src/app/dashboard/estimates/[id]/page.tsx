@@ -106,6 +106,15 @@ export default function EstimateDetailPage() {
 
   const enterEditMode = () => {
     if (!estimate) return
+    if (estimate.status === EstimateStatus.CONVERTED) {
+      const message = 'This estimate has already been converted to an invoice and can no longer be edited. Please edit the invoice instead.'
+      if (estimate.converted_invoice_id && confirm(`${message}\n\nOpen the invoice now?`)) {
+        router.push(`/dashboard/invoices/${estimate.converted_invoice_id}`)
+      } else if (!estimate.converted_invoice_id) {
+        alert(message)
+      }
+      return
+    }
     setEditData({
       client_name: (estimate as any).client_name || '',
       client_phone: (estimate as any).client_phone || '',
@@ -183,8 +192,8 @@ export default function EstimateDetailPage() {
       }
       setEditMode(false)
       fetchEstimate()
-    } catch {
-      alert('Failed to save changes. Please try again.')
+    } catch (error: any) {
+      alert(error?.response?.data?.message || 'Failed to save changes. Please try again.')
     } finally {
       setSaving(false)
     }
@@ -228,11 +237,33 @@ export default function EstimateDetailPage() {
           </button>
         </div>
         <div className="flex flex-wrap gap-2">
-          {!editMode && estimate.status !== EstimateStatus.CONVERTED && (
+          {!editMode && canConvert && (
+            <button
+              onClick={convertToInvoice}
+              disabled={actionLoading}
+              className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 disabled:opacity-50 text-sm font-medium"
+            >
+              {actionLoading ? 'Creating Invoice…' : 'Create Invoice'}
+            </button>
+          )}
+          {estimate.status === EstimateStatus.CONVERTED && estimate.converted_invoice_id && (
+            <button
+              onClick={() => router.push(`/dashboard/invoices/${estimate.converted_invoice_id}`)}
+              className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 text-sm font-medium"
+            >
+              Open Invoice
+            </button>
+          )}
+          {!editMode && estimate.status === EstimateStatus.DRAFT && (
             <button onClick={enterEditMode}
               className="bg-amber-500 text-white px-4 py-2 rounded-md hover:bg-amber-600 text-sm font-medium">
               ✏ Edit Estimate
             </button>
+          )}
+          {!editMode && estimate.status !== EstimateStatus.DRAFT && (
+            <span className="text-xs text-gray-500 self-center max-w-xs">
+              Sent estimates can&apos;t be edited. To change anything, create a new estimate.
+            </span>
           )}
           {canSend && (
             <button onClick={() => updateStatus(EstimateStatus.SENT)} disabled={actionLoading}
@@ -474,12 +505,14 @@ export default function EstimateDetailPage() {
         </div>
 
         {/* Line Items */}
-        <table className="w-full mb-8">
+        <div className="overflow-x-auto mb-8">
+        <table className="w-full min-w-[560px]">
           <thead className="bg-gray-50">
             <tr>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Description</th>
               <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Qty</th>
               <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Unit Price</th>
+              <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Item Discount</th>
               <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Amount</th>
             </tr>
           </thead>
@@ -489,11 +522,19 @@ export default function EstimateDetailPage() {
                 <td className="px-4 py-3 text-sm text-gray-900">{item.description}</td>
                 <td className="px-4 py-3 text-sm text-gray-900 text-right">{item.quantity}</td>
                 <td className="px-4 py-3 text-sm text-gray-900 text-right">${Number(item.unit_price).toFixed(2)}</td>
+                <td className="px-4 py-3 text-sm text-right">
+                  {Number(item.discount_amount) > 0 ? (
+                    <span className="text-green-700">-${Number(item.discount_amount).toFixed(2)}</span>
+                  ) : (
+                    <span className="text-gray-400">—</span>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-sm text-gray-900 text-right">${Number(item.amount).toFixed(2)}</td>
               </tr>
             ))}
           </tbody>
         </table>
+        </div>
 
         {/* Totals */}
         <div className="flex justify-end mb-8">
@@ -510,7 +551,7 @@ export default function EstimateDetailPage() {
             )}
             {estimate.discount_amount > 0 && (
               <div className="flex justify-between py-2 text-sm text-red-600">
-                <span>Discount:</span>
+                <span>Additional discount:</span>
                 <span>-${Number(estimate.discount_amount).toFixed(2)}</span>
               </div>
             )}

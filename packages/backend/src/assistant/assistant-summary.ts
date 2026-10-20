@@ -85,6 +85,16 @@ export interface AssistantSummary {
   tasks: AssistantTask[];
 }
 
+/** An amount the owner owes a vendor: an unpaid vendor invoice, or a booking not invoiced yet. */
+export interface VendorBill {
+  id: string;
+  vendor: string;
+  amount: number;
+  /** Null until the booking has been invoiced. */
+  due: string | null;
+  href: string;
+}
+
 export interface SummaryInput {
   today: string;
   events: any[];
@@ -100,6 +110,8 @@ export interface SummaryInput {
   }[];
   /** Where invoice links point; owners use the default dashboard route. */
   invoiceHref?: (id: string) => string;
+  /** Vendor invoices and bookings the owner still has to pay. */
+  vendorBills?: VendorBill[];
 }
 
 export const UPCOMING_DAYS = 14;
@@ -110,6 +122,7 @@ export const URGENT_EVENT_DAYS = 3;
 const STALE_ESTIMATE_DAYS = 5;
 export const MAX_ACTIVITY = 5;
 const MAX_TARGETS = 3;
+const VENDOR_PAYMENTS_HREF = '/dashboard/vendors/payments';
 
 export const addDays = (date: string, days: number): string => {
   const d = new Date(`${date}T00:00:00Z`);
@@ -229,6 +242,49 @@ export function buildAssistantSummary(input: SummaryInput): AssistantSummary {
       ...invoiceItem(inv),
       detail: `${inv.client_name ?? 'Client'} · ${money(Number(inv.total_amount ?? 0))}`,
     }),
+  });
+
+  // ── Vendor bills the owner has to pay ───────────────────────────────────
+  const bills = input.vendorBills ?? [];
+  const soonLimit = addDays(today, DUE_SOON_DAYS);
+  const billsOverdue = bills.filter((b) => b.due && b.due < today);
+  const billsSoon = bills.filter(
+    (b) => b.due && b.due >= today && b.due <= soonLimit,
+  );
+  const billsOpen = bills.filter((b) => !b.due || b.due > soonLimit);
+  const billsTotal = (rows: typeof bills) =>
+    rows.reduce((n, b) => n + b.amount, 0);
+  const billItem = (b: any): AssistantItem => ({
+    label: `${b.vendor} \u2014 ${money(b.amount)}`,
+    detail: b.due ? `due ${longDate(b.due)}` : 'not invoiced yet',
+    href: b.href,
+  });
+  addTask({
+    key: 'vendor-bills-overdue',
+    label: 'Vendor invoices past due',
+    severity: 'urgent',
+    amount: billsTotal(billsOverdue),
+    href: VENDOR_PAYMENTS_HREF,
+    rows: billsOverdue,
+    item: billItem,
+  });
+  addTask({
+    key: 'vendor-bills-due-soon',
+    label: 'Vendor invoices due in the next 7 days',
+    severity: 'attention',
+    amount: billsTotal(billsSoon),
+    href: VENDOR_PAYMENTS_HREF,
+    rows: billsSoon,
+    item: billItem,
+  });
+  addTask({
+    key: 'vendor-bills-open',
+    label: 'Other vendor invoices to pay',
+    severity: 'info',
+    amount: billsTotal(billsOpen),
+    href: VENDOR_PAYMENTS_HREF,
+    rows: billsOpen,
+    item: billItem,
   });
 
   // ── Estimates ───────────────────────────────────────────────────────────
@@ -590,6 +646,56 @@ export function buildAssistantSummary(input: SummaryInput): AssistantSummary {
       },
     });
   }
+
+  const billLine = (
+    rows: typeof bills,
+    key: string,
+    severity: TaskSeverity,
+    rank: number,
+    reason: string,
+  ) => {
+    if (rows.length === 0) return;
+    ranked.push({
+      rank,
+      p: {
+        key,
+        severity,
+        title: `${plural(rows.length, 'vendor invoice')} to pay totaling ${money(billsTotal(rows))}`,
+        reasons: [{ actor: 'you', text: reason }],
+        href: VENDOR_PAYMENTS_HREF,
+        actionLabel: 'Pay vendors',
+      },
+    });
+  };
+  if (billsOverdue.length > 0) {
+    const oldest = Math.max(
+      ...billsOverdue.map((b) => daysBetween(b.due!, today)),
+    );
+    billLine(
+      billsOverdue,
+      'vendor-bills-overdue',
+      'urgent',
+      URGENT_EVENT_DAYS + 1,
+      `The oldest is ${plural(oldest, 'day')} past due.`,
+    );
+  }
+  if (billsSoon.length > 0) {
+    const earliest = billsSoon.map((b) => b.due!).sort()[0];
+    billLine(
+      billsSoon,
+      'vendor-bills-due-soon',
+      'attention',
+      URGENT_EVENT_DAYS + 2,
+      `The earliest is due ${longDate(earliest)}.`,
+    );
+  }
+  billLine(
+    billsOpen,
+    'vendor-bills-open',
+    'info',
+    105,
+    'Vendors are waiting to be paid for these bookings.',
+  );
 
   ranked.sort(
     (a, b) =>

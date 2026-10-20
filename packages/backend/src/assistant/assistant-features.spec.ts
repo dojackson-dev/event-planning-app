@@ -299,3 +299,92 @@ describe('daily digest email', () => {
     expect(mail.body).toContain('&lt;b&gt;Gala&lt;/b&gt;');
   });
 });
+
+describe('vendor bills the owner has to pay', () => {
+  const bills = [
+    {
+      id: 'b1',
+      vendor: 'DJ Vision',
+      amount: 800,
+      due: '2026-10-10',
+      href: '/dashboard/vendor-invoices/b1',
+    },
+    {
+      id: 'b2',
+      vendor: 'Catering Co',
+      amount: 450,
+      due: '2026-10-22',
+      href: '/dashboard/vendor-invoices/b2',
+    },
+    {
+      id: 'b3',
+      vendor: 'Florist',
+      amount: 300,
+      due: null,
+      href: '/dashboard/vendors/payments',
+    },
+    {
+      id: 'b4',
+      vendor: 'Rentals',
+      amount: 100,
+      due: '2026-12-01',
+      href: '/dashboard/vendor-invoices/b4',
+    },
+  ];
+
+  it('splits bills into past due, due soon and other, each as a task and a line for the owner', () => {
+    const s = buildAssistantSummary({ ...empty, vendorBills: bills });
+    const task = Object.fromEntries(s.tasks.map((t) => [t.key, t]));
+    expect(task['vendor-bills-overdue']).toMatchObject({
+      count: 1,
+      amount: 800,
+      severity: 'urgent',
+      href: '/dashboard/vendors/payments',
+    });
+    expect(task['vendor-bills-due-soon']).toMatchObject({
+      count: 1,
+      amount: 450,
+    });
+    expect(task['vendor-bills-open']).toMatchObject({ count: 2, amount: 400 });
+    expect(task['vendor-bills-overdue'].items[0]).toEqual({
+      label: 'DJ Vision \u2014 $800.00',
+      detail: 'due Oct 10',
+      href: '/dashboard/vendor-invoices/b1',
+    });
+
+    const lines = Object.fromEntries(s.priorities.map((p) => [p.key, p]));
+    expect(lines['vendor-bills-overdue'].title).toBe(
+      '1 vendor invoice to pay totaling $800.00',
+    );
+    expect(lines['vendor-bills-overdue'].reasons).toEqual([
+      { actor: 'you', text: 'The oldest is 9 days past due.' },
+    ]);
+    expect(lines['vendor-bills-overdue'].actionLabel).toBe('Pay vendors');
+    expect(lines['vendor-bills-open'].severity).toBe('info');
+    expect(s.headline).toMatch(/^4 items need your attention/);
+  });
+
+  it('answers "which vendors do I need to pay" with links, earliest due first and uninvoiced last', () => {
+    expect(matchIntent('Which vendors do I need to pay?')).toBe('vendor-bills');
+    const input = { ...empty, vendorBills: bills };
+    const a = answerIntent('vendor-bills', buildAssistantSummary(input), input);
+    expect(a.answer).toBe(
+      '4 vendor invoices to pay, $1,650.00 in total, earliest due date first.',
+    );
+    expect(a.items.map((i) => i.href)).toEqual([
+      '/dashboard/vendor-invoices/b1',
+      '/dashboard/vendor-invoices/b2',
+      '/dashboard/vendor-invoices/b4',
+      '/dashboard/vendors/payments',
+    ]);
+    expect(a.items[3].detail).toBe('Not invoiced yet');
+  });
+
+  it("includes vendor bills in my-tasks because the next move is the owner's", () => {
+    const input = { ...empty, vendorBills: bills };
+    const a = answerIntent('my-tasks', buildAssistantSummary(input), input);
+    expect(a.items.some((i) => i.href === '/dashboard/vendors/payments')).toBe(
+      true,
+    );
+  });
+});

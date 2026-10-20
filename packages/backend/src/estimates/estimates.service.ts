@@ -504,6 +504,17 @@ export class EstimatesService {
     return data || [];
   }
 
+  /** Adds lines to an existing estimate and refreshes its subtotal and total so the new lines are counted. */
+  async addItems(
+    supabase: SupabaseClient,
+    estimateId: string,
+    items: Partial<EstimateItem>[],
+  ): Promise<EstimateItem[]> {
+    const created = await this.createItems(supabase, estimateId, items);
+    await this.recalculate(supabase, estimateId);
+    return created;
+  }
+
   // ─── Update ──────────────────────────────────────────────────────────────────
 
   async update(
@@ -637,13 +648,34 @@ export class EstimatesService {
     itemId: string,
     itemData: Partial<EstimateItem>,
   ): Promise<EstimateItem> {
+    // Fields not being edited keep their stored values, so changing a quantity or price no longer wipes the line's discount.
+    const { data: current, error: currentError } = await supabase
+      .from('estimate_items')
+      .select('quantity, unit_price, discount_type, discount_value')
+      .eq('id', itemId)
+      .single();
+    if (currentError) throw currentError;
+
+    const changes: Partial<EstimateItem> = {};
+    for (const key of [
+      'description',
+      'quantity',
+      'unit_price',
+      'discount_type',
+      'discount_value',
+    ] as const) {
+      if (itemData[key] !== undefined)
+        (changes as Record<string, unknown>)[key] = itemData[key];
+    }
+
     const { subtotal, discountAmount, amount } = this.calculateItemAmounts({
-      ...itemData,
+      ...current,
+      ...changes,
     });
     const { data, error } = await supabase
       .from('estimate_items')
       .update({
-        ...itemData,
+        ...changes,
         subtotal,
         discount_amount: discountAmount,
         amount,

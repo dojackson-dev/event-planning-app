@@ -632,6 +632,7 @@ export class StripeService {
         await this.vendorInvoicesService.markInvoicePaidBySession(
           session.id,
           paymentIntentId,
+          session.metadata.vendor_invoice_id,
         );
         this.logger.log(
           `Vendor invoice checkout complete — session ${session.id}`,
@@ -640,6 +641,7 @@ export class StripeService {
         await this.vendorInvoicesService.markInvoiceProcessing(
           session.id,
           paymentIntentId,
+          session.metadata.vendor_invoice_id,
         );
         this.logger.log(
           `Vendor invoice set to processing (ACH) — session ${session.id}`,
@@ -818,6 +820,7 @@ export class StripeService {
       await this.vendorInvoicesService.markInvoicePaidBySession(
         session.id,
         paymentIntentId,
+        session.metadata.vendor_invoice_id,
       );
       this.logger.log(
         `Vendor invoice paid via async ACH — session ${session.id}`,

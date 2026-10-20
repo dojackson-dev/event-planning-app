@@ -1100,11 +1100,13 @@ export class VendorInvoicesService {
       stripe_payment_intent_id: paymentIntentId,
       updated_at: new Date().toISOString(),
     };
+    // Skipping rows already processing means only the first of the webhook and the page-return check notifies.
     const bySession = await admin
       .from('vendor_invoices')
       .update(patch)
       .eq('stripe_checkout_session_id', sessionId)
       .neq('status', 'paid')
+      .neq('status', 'processing')
       .select('id');
     if (bySession.error) {
       this.logger.error(
@@ -1112,20 +1114,115 @@ export class VendorInvoicesService {
       );
       return;
     }
-    if ((bySession.data ?? []).length === 0 && invoiceId) {
+    let changed: string[] = (bySession.data ?? []).map((r: any) => r.id);
+    if (changed.length === 0 && invoiceId) {
       const byId = await admin
         .from('vendor_invoices')
         .update({ ...patch, stripe_checkout_session_id: sessionId })
         .eq('id', invoiceId)
-        .neq('status', 'paid');
+        .neq('status', 'paid')
+        .neq('status', 'processing')
+        .select('id');
       if (byId.error)
         this.logger.error(
           `Could not mark vendor invoice ${invoiceId} processing: ${byId.error.message}`,
         );
+      changed = (byId.data ?? []).map((r: any) => r.id);
     }
     this.logger.log(
       `Vendor invoice set to processing via session ${sessionId}`,
     );
+    for (const id of changed) await this.notifyPaymentSubmitted(id);
+  }
+
+  /** Tells the vendor a bank payment is on its way; it is not paid until the bank clears. */
+  private async notifyPaymentSubmitted(invoiceId: string) {
+    try {
+      const { data: invoice } = await this.supabaseService
+        .getAdminClient()
+        .from('vendor_invoices')
+        .select(
+          'invoice_number, client_name, total_amount, amount_due, vendor_accounts(business_name, phone, email)',
+        )
+        .eq('id', invoiceId)
+        .maybeSingle();
+      const vendor = (
+        Array.isArray(invoice?.vendor_accounts)
+          ? invoice?.vendor_accounts[0]
+          : invoice?.vendor_accounts
+      ) as
+        | { business_name?: string; phone?: string; email?: string }
+        | undefined;
+      if (!invoice || !vendor) return;
+
+      const amount = Number(invoice.amount_due ?? invoice.total_amount ?? 0);
+      const vendorName = vendor.business_name ?? 'Vendor';
+      const clientName = invoice.client_name ?? 'Client';
+      await this.smsNotifications.vendorInvoicePaymentSubmitted(
+        vendor.phone,
+        vendorName,
+        clientName,
+        amount,
+      );
+      if (vendor.email)
+        await this.sendPaymentSubmittedEmail({
+          to: vendor.email,
+          vendorName,
+          clientName,
+          invoiceNumber: invoice.invoice_number,
+          amount,
+        });
+    } catch (err) {
+      // A failed notification must never undo or block recording the payment.
+      this.logger.warn(
+        `Payment-submitted notification failed: ${(err as Error).message}`,
+      );
+    }
+  }
+
+  private async sendPaymentSubmittedEmail(params: {
+    to: string;
+    vendorName: string;
+    clientName: string;
+    invoiceNumber: string;
+    amount: number;
+  }) {
+    const smtpHost = this.configService.get<string>('SMTP_HOST');
+    const smtpUser = this.configService.get<string>('SMTP_USER');
+    const smtpPass = this.configService.get<string>('SMTP_PASS');
+    if (!smtpHost || !smtpUser || !smtpPass) {
+      this.logger.warn(
+        'SMTP not configured — payment-submitted email not sent.',
+      );
+      return;
+    }
+    const escape = (v: string) =>
+      v
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: Number(this.configService.get<string>('SMTP_PORT', '587')),
+      secure: false,
+      auth: { user: smtpUser, pass: smtpPass },
+    });
+    const amount = `$${params.amount.toFixed(2)}`;
+    await transporter.sendMail({
+      from: `"EventEcos" <${this.configService.get<string>('SMTP_FROM', smtpUser)}>`,
+      to: params.to,
+      subject: `Payment submitted for invoice ${params.invoiceNumber}`,
+      html: `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;">
+        <h2 style="color:#4f46e5;">Payment on its way</h2>
+        <p>Hi ${escape(params.vendorName)},</p>
+        <p>${escape(params.clientName)} submitted a bank payment of <strong>${amount}</strong> for invoice <strong>${escape(params.invoiceNumber)}</strong>.</p>
+        <p>Bank payments usually take 4&ndash;5 business days to clear. Your invoice will show as paid, and we will let you know, once the funds arrive.</p>
+        <p style="color:#666;font-size:13px;">Powered by EventEcos</p>
+      </div>`,
+    });
+    this.logger.log(`Payment-submitted email sent to ${params.to}`);
   }
 
   async markInvoicePaidByPaymentIntent(paymentIntentId: string) {

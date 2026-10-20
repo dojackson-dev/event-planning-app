@@ -354,6 +354,19 @@ export class SmsNotificationsService {
     );
   }
 
+  async vendorInvoicePaymentSubmitted(
+    phone: string | null | undefined,
+    vendorName: string,
+    clientName: string,
+    amount: number,
+  ): Promise<void> {
+    const amt = `$${Number(amount).toFixed(2)}`;
+    await this.trySend(
+      phone,
+      `EventEcos Vendor Invoice Message\n${clientName} submitted a bank payment of ${amt}. It usually takes 4-5 business days to clear; we will text you when it arrives. View your invoices: ${this.url('/vendor-portal/invoices')} — ${vendorName}`,
+    );
+  }
+
   async vendorInvoicePaid(
     phone: string | null | undefined,
     vendorName: string,

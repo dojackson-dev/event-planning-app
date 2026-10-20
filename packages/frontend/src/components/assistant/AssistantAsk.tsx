@@ -31,14 +31,14 @@ export default function AssistantAsk({ suggestions, role }: { suggestions: strin
 
   return (
     <div>
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Ask your assistant</h3>
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Ask Ecco</h3>
       <form onSubmit={e => { e.preventDefault(); ask(question) }} className="flex gap-2">
         <input
           value={question}
           onChange={e => setQuestion(e.target.value)}
           maxLength={200}
-          placeholder="Ask about events, balances, estimates or contracts…"
-          aria-label="Ask your assistant"
+          placeholder="Ask Ecco about events, balances, estimates or contracts…"
+          aria-label="Ask Ecco"
           className="flex-1 min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
         />
         <button

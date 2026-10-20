@@ -149,8 +149,9 @@ export default function TrialsPage() {
     }
   }
 
-  const activeTrials = owners.filter(o => o.subscription_status === 'trialing' && o.trial_days_remaining > 0)
-  const expiredTrials = owners.filter(o => o.subscription_status === 'trialing' && o.trial_days_remaining === 0)
+  const isTrialStatus = (s: string) => s === 'trial' || s === 'trialing'
+  const activeTrials = owners.filter(o => isTrialStatus(o.subscription_status) && o.trial_days_remaining > 0)
+  const expiredTrials = owners.filter(o => isTrialStatus(o.subscription_status) && o.trial_days_remaining === 0)
 
   if (loading) {
     return (

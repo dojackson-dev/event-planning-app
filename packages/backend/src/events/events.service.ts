@@ -7,6 +7,20 @@ import { Event } from '../entities/event.entity';
 export class EventsService {
   constructor(private readonly supabaseService: SupabaseService) {}
 
+  /**
+   * A cleared form field arrives as '' and Postgres rejects that for time, date and uuid columns, which
+   * surfaced as a 500 on save. Optional columns are cleared; required ones keep their stored value.
+   */
+  private withoutBlankValues(row: Record<string, unknown>) {
+    const clearable = ['end_time', 'venue_id', 'client_id', 'guest_count'];
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(row)) {
+      if (value !== '') result[key] = value;
+      else if (clearable.includes(key)) result[key] = null;
+    }
+    return result;
+  }
+
   private camelToSnakeCase(obj: any): any {
     if (!obj || typeof obj !== 'object') return obj;
 
@@ -240,7 +254,9 @@ export class EventsService {
     event: Partial<Event>,
     userId: string,
   ): Promise<Event | null> {
-    const convertedEvent = this.camelToSnakeCase(event);
+    const convertedEvent = this.withoutBlankValues(
+      this.camelToSnakeCase(event),
+    );
     const { data, error } = await supabase
       .from('event')
       .update(convertedEvent)

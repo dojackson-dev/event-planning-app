@@ -1,3 +1,5 @@
+import { createHash } from 'crypto';
+
 export type TaskSeverity = 'urgent' | 'attention' | 'info';
 
 export interface AssistantItem {
@@ -34,6 +36,13 @@ export interface PriorityReason {
 }
 
 /** One line on the dashboard: an event with everything outstanding on it, or a standalone group of records. */
+/** A record the owner can draft a follow-up message for. */
+export interface DraftTarget {
+  type: 'invoice' | 'estimate' | 'contract';
+  id: string;
+  label: string;
+}
+
 export interface AssistantPriority {
   key: string;
   severity: TaskSeverity;
@@ -41,6 +50,22 @@ export interface AssistantPriority {
   reasons: PriorityReason[];
   href: string;
   actionLabel: string;
+  /** Changes when the contents of the line change, so "handled" only hides what the owner actually saw. */
+  fingerprint: string;
+  /** Up to three client-facing records the owner can send a follow-up about. */
+  targets: DraftTarget[];
+}
+
+/** Changes whenever a line's title or reasons change, so "handled" only hides what the owner actually saw. */
+export function fingerprintOf(p: {
+  key: string;
+  title: string;
+  reasons: { text: string }[];
+}): string {
+  return createHash('sha256')
+    .update([p.key, p.title, ...p.reasons.map((x) => x.text)].join('|'))
+    .digest('hex')
+    .slice(0, 16);
 }
 
 export interface AssistantActivity {
@@ -68,51 +93,59 @@ export interface SummaryInput {
   contracts: any[];
   leads: any[];
   recent?: { paidInvoices?: any[]; signedContracts?: any[] };
+  /** Every contract that exists for the owner's events, including signed ones. */
+  contractLinks?: {
+    event_id?: string | null;
+    intake_form_id?: string | null;
+  }[];
+  /** Where invoice links point; owners use the default dashboard route. */
+  invoiceHref?: (id: string) => string;
 }
 
 export const UPCOMING_DAYS = 14;
 export const RECENT_DAYS = 7;
-const DUE_SOON_DAYS = 7;
+export const DUE_SOON_DAYS = 7;
 const ITEMS_PER_TASK = 3;
-const URGENT_EVENT_DAYS = 3;
+export const URGENT_EVENT_DAYS = 3;
 const STALE_ESTIMATE_DAYS = 5;
-const MAX_ACTIVITY = 5;
+export const MAX_ACTIVITY = 5;
+const MAX_TARGETS = 3;
 
-const addDays = (date: string, days: number): string => {
+export const addDays = (date: string, days: number): string => {
   const d = new Date(`${date}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 };
 
-const day = (value: unknown): string | null =>
+export const day = (value: unknown): string | null =>
   typeof value === 'string' && value.length >= 10 ? value.slice(0, 10) : null;
 
-const money = (n: number) =>
+export const money = (n: number) =>
   `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-const longDate = (date: string) =>
+export const longDate = (date: string) =>
   new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
     timeZone: 'UTC',
   });
 
-const SEVERITY_ORDER: Record<TaskSeverity, number> = {
+export const SEVERITY_ORDER: Record<TaskSeverity, number> = {
   urgent: 0,
   attention: 1,
   info: 2,
 };
 
-const daysBetween = (from: string, to: string): number =>
+export const daysBetween = (from: string, to: string): number =>
   Math.round(
     (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) /
       86400000,
   );
 
-const when = (days: number): string =>
+export const when = (days: number): string =>
   days <= 0 ? 'today' : days === 1 ? 'tomorrow' : `in ${days} days`;
 
-const weekdayDate = (date: string) =>
+export const weekdayDate = (date: string) =>
   new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', {
     weekday: 'short',
     month: 'short',
@@ -120,7 +153,7 @@ const weekdayDate = (date: string) =>
     timeZone: 'UTC',
   });
 
-const plural = (n: number, word: string, many = `${word}s`) =>
+export const plural = (n: number, word: string, many = `${word}s`) =>
   `${n} ${n === 1 ? word : many}`;
 
 /** Same predicates are applied by the invoice/estimate/contract list pages for ?attention=. */
@@ -305,7 +338,26 @@ export function buildAssistantSummary(input: SummaryInput): AssistantSummary {
     }));
 
   // ── Priorities: one line per event, then standalone groups ──────────────
-  const ranked: { p: AssistantPriority; rank: number }[] = [];
+  const ranked: {
+    p: Omit<AssistantPriority, 'fingerprint' | 'targets'>;
+    rank: number;
+    targets?: DraftTarget[];
+  }[] = [];
+  const invoiceTarget = (i: any): DraftTarget => ({
+    type: 'invoice',
+    id: i.id,
+    label: `Invoice ${i.invoice_number ?? ''}`.trim(),
+  });
+  const contractTarget = (c: any): DraftTarget => ({
+    type: 'contract',
+    id: c.id,
+    label: c.title || `Contract ${c.contract_number ?? ''}`.trim(),
+  });
+  const estimateTarget = (e: any): DraftTarget => ({
+    type: 'estimate',
+    id: e.id,
+    label: `Estimate ${e.estimate_number ?? ''}`.trim(),
+  });
   const claimed = new Set<string>();
   const unsigned = input.contracts.filter(
     (c) => c.status === 'sent' || c.status === 'draft',
@@ -317,6 +369,7 @@ export function buildAssistantSummary(input: SummaryInput): AssistantSummary {
     if (e.status === 'cancelled') continue;
     const days = daysBetween(today, date);
     const reasons: PriorityReason[] = [];
+    const targets: DraftTarget[] = [];
     let hasOverdue = false;
 
     for (const c of unsigned) {
@@ -325,6 +378,7 @@ export function buildAssistantSummary(input: SummaryInput): AssistantSummary {
         (e.intake_form_id && c.intake_form_id === e.intake_form_id);
       if (!linked) continue;
       claimed.add(`c:${c.id}`);
+      if (c.status === 'sent') targets.push(contractTarget(c));
       reasons.push(
         c.status === 'sent'
           ? {
@@ -348,6 +402,8 @@ export function buildAssistantSummary(input: SummaryInput): AssistantSummary {
     const eventDrafts = linkedInvoices.filter((i) => i.status === 'draft');
     for (const i of [...eventOverdue, ...eventUnpaid, ...eventDrafts])
       claimed.add(`i:${i.id}`);
+    for (const i of [...eventOverdue, ...eventUnpaid])
+      targets.push(invoiceTarget(i));
     if (eventOverdue.length > 0) {
       hasOverdue = true;
       reasons.push({
@@ -377,6 +433,7 @@ export function buildAssistantSummary(input: SummaryInput): AssistantSummary {
 
     ranked.push({
       rank: days,
+      targets,
       p: {
         key: `event-${e.id}`,
         severity:
@@ -396,6 +453,7 @@ export function buildAssistantSummary(input: SummaryInput): AssistantSummary {
       .reduce((a, b) => Math.max(a, b), 0);
     ranked.push({
       rank: URGENT_EVENT_DAYS + 1,
+      targets: looseOverdue.map(invoiceTarget),
       p: {
         key: 'invoices-overdue',
         severity: 'urgent',
@@ -416,6 +474,7 @@ export function buildAssistantSummary(input: SummaryInput): AssistantSummary {
   if (looseDueSoon.length > 0) {
     ranked.push({
       rank: URGENT_EVENT_DAYS + 2,
+      targets: looseDueSoon.map(invoiceTarget),
       p: {
         key: 'invoices-due-soon',
         severity: 'attention',
@@ -438,6 +497,7 @@ export function buildAssistantSummary(input: SummaryInput): AssistantSummary {
   if (looseUnsigned.length > 0) {
     ranked.push({
       rank: 100,
+      targets: looseUnsigned.map(contractTarget),
       p: {
         key: 'contracts-unsigned',
         severity: 'attention',
@@ -481,6 +541,7 @@ export function buildAssistantSummary(input: SummaryInput): AssistantSummary {
     );
     ranked.push({
       rank: 102,
+      targets: stale.map(estimateTarget),
       p: {
         key: 'estimates-stale',
         severity: 'attention',
@@ -535,7 +596,11 @@ export function buildAssistantSummary(input: SummaryInput): AssistantSummary {
       SEVERITY_ORDER[a.p.severity] - SEVERITY_ORDER[b.p.severity] ||
       a.rank - b.rank,
   );
-  const priorities = ranked.map((r) => r.p);
+  const priorities: AssistantPriority[] = ranked.map((r) => ({
+    ...r.p,
+    targets: (r.targets ?? []).slice(0, MAX_TARGETS),
+    fingerprint: fingerprintOf(r.p),
+  }));
 
   // ── Recent activity ─────────────────────────────────────────────────────
   const since = addDays(today, -RECENT_DAYS);

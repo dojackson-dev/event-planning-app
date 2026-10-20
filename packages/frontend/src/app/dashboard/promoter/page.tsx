@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
+import DashboardAssistant from '@/components/DashboardAssistant'
 import {
   Calendar,
   Ticket,
@@ -290,6 +291,8 @@ function PromoterDashboardContent() {
           <p className="text-xs text-gray-500 mt-2">Payment processing</p>
         </div>
       </div>
+
+      <DashboardAssistant role="promoter" />
 
       {/* Quick Actions */}
       <div className="quick-actions">

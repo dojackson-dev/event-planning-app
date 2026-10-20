@@ -55,3 +55,52 @@ describe('EventsService invitation images', () => {
     });
   });
 });
+
+describe('EventsService update with blank form fields', () => {
+  function updateSetup() {
+    const query: Record<string, jest.Mock> = {};
+    for (const method of ['update', 'eq', 'select']) {
+      query[method] = jest.fn(() => query);
+    }
+    query.single = jest
+      .fn()
+      .mockResolvedValue({ data: { id: 'event-1' }, error: null });
+    const client = { from: jest.fn(() => query) };
+    const service = new EventsService({} as unknown as SupabaseService);
+    return { service, query, client };
+  }
+
+  it('clears an empty end time instead of sending an empty string Postgres rejects', async () => {
+    const { service, query, client } = updateSetup();
+    await service.update(
+      client as never,
+      'event-1',
+      {
+        name: 'Samuel Boyd, Jr',
+        startTime: '13:30:00',
+        endTime: '',
+        venueId: '',
+        maxGuests: 100,
+      } as never,
+      'owner-1',
+    );
+    expect(query.update).toHaveBeenCalledWith({
+      name: 'Samuel Boyd, Jr',
+      start_time: '13:30:00',
+      end_time: null,
+      venue_id: null,
+      guest_count: 100,
+    });
+  });
+
+  it('keeps the stored value when a required field is sent blank', async () => {
+    const { service, query, client } = updateSetup();
+    await service.update(
+      client as never,
+      'event-1',
+      { name: 'Party', startTime: '', date: '' } as never,
+      'owner-1',
+    );
+    expect(query.update).toHaveBeenCalledWith({ name: 'Party' });
+  });
+});

@@ -124,7 +124,7 @@ export class EstimatesController {
   ): Promise<EstimateItem[]> {
     await this.getUserId(authorization);
     const supabaseAdmin = this.supabaseService.getAdminClient();
-    return this.estimatesService.createItems(supabaseAdmin, id, items);
+    return this.estimatesService.addItems(supabaseAdmin, id, items);
   }
 
   @Put('items/:itemId')

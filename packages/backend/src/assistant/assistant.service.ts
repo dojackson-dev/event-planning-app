@@ -12,6 +12,7 @@ import {
   RECENT_DAYS,
   SummaryInput,
   UPCOMING_DAYS,
+  type VendorBill,
   buildAssistantSummary,
 } from './assistant-summary';
 import { buildProviderSummary, type ProviderRole } from './assistant-provider';
@@ -99,6 +100,109 @@ export class AssistantService {
     return new Date().toISOString().slice(0, 10);
   }
 
+  /** Vendor invoices the owner has not paid, plus agreed bookings that have no invoice yet. */
+  private async loadVendorBills(userId: string): Promise<VendorBill[]> {
+    const admin = this.supabaseService.getAdminClient();
+    try {
+      // Same account lookup the Vendor Payments page uses.
+      const { data: membership } = await admin
+        .from('memberships')
+        .select('owner_account_id')
+        .eq('user_id', userId)
+        .eq('role', 'owner')
+        .maybeSingle();
+      let accountId: string | null = membership?.owner_account_id ?? null;
+      if (!accountId) {
+        const { data: account } = await admin
+          .from('owner_accounts')
+          .select('id')
+          .eq('primary_owner_id', userId)
+          .maybeSingle();
+        accountId = account?.id ?? null;
+      }
+      if (!accountId) return [];
+
+      const [invoices, invoiced, bookings] = await Promise.all([
+        admin
+          .from('vendor_invoices')
+          .select(
+            'id, status, amount_due, total_amount, due_date, vendor_accounts(business_name)',
+          )
+          .eq('owner_account_id', accountId)
+          .eq('invoice_type', 'owner_booking')
+          .neq('status', 'draft')
+          .neq('status', 'paid')
+          .neq('status', 'cancelled')
+          .limit(200),
+        admin
+          .from('vendor_invoices')
+          .select('vendor_booking_id')
+          .eq('owner_account_id', accountId)
+          .eq('invoice_type', 'owner_booking')
+          .not('vendor_booking_id', 'is', null)
+          .limit(1000),
+        admin
+          .from('vendor_bookings')
+          .select(
+            'id, status, agreed_amount, total_paid, payment_status, vendor_accounts(business_name)',
+          )
+          .eq('owner_account_id', accountId)
+          .gt('agreed_amount', 0)
+          .limit(500),
+      ]);
+      for (const [name, r] of Object.entries({ invoices, invoiced, bookings }))
+        if (r.error)
+          this.logger.warn(
+            `Assistant vendor bills ${name} query failed: ${r.error.message}`,
+          );
+
+      const vendorName = (row: any): string => {
+        const v = Array.isArray(row.vendor_accounts)
+          ? row.vendor_accounts[0]
+          : row.vendor_accounts;
+        return v?.business_name || 'Vendor';
+      };
+
+      const bills: VendorBill[] = (invoices.data ?? [])
+        .map((i: any) => ({
+          id: i.id as string,
+          vendor: vendorName(i),
+          amount: Number(i.amount_due ?? i.total_amount ?? 0),
+          due: typeof i.due_date === 'string' ? i.due_date.slice(0, 10) : null,
+          href: `/dashboard/vendor-invoices/${i.id}`,
+        }))
+        .filter((b) => b.amount > 0);
+
+      const invoicedBookings = new Set(
+        (invoiced.data ?? []).map((r: any) => r.vendor_booking_id),
+      );
+      for (const b of bookings.data ?? []) {
+        if (
+          invoicedBookings.has(b.id) ||
+          b.status === 'cancelled' ||
+          b.status === 'paid' ||
+          b.payment_status === 'paid'
+        )
+          continue;
+        const amount = Number(b.agreed_amount) - Number(b.total_paid ?? 0);
+        if (amount > 0)
+          bills.push({
+            id: b.id,
+            vendor: vendorName(b),
+            amount,
+            due: null,
+            href: '/dashboard/vendors/payments',
+          });
+      }
+      return bills;
+    } catch (err) {
+      this.logger.warn(
+        `Assistant vendor bills failed: ${(err as Error).message}`,
+      );
+      return [];
+    }
+  }
+
   /** Everything the assistant reports comes from the signed-in owner's own records. */
   private async loadInput(userId: string): Promise<SummaryInput> {
     const admin = this.supabaseService.getAdminClient();
@@ -107,6 +211,7 @@ export class AssistantService {
       .toISOString()
       .slice(0, 10);
     const since = new Date(Date.now() - RECENT_DAYS * 86400000).toISOString();
+    const vendorBills = this.loadVendorBills(userId);
 
     const [
       events,
@@ -211,6 +316,7 @@ export class AssistantService {
         signedContracts: signedContracts.data ?? [],
       },
       contractLinks: contractLinks.data ?? [],
+      vendorBills: await vendorBills,
     };
   }
 

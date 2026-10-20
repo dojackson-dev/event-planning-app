@@ -150,25 +150,105 @@ export class EstimatesService {
     return { subtotal, discountAmount, amount };
   }
 
-  // ─── Ownership ──────────────────────────────────────────────────────────────
+  // ─── Access ─────────────────────────────────────────────────────────────────
 
-  /** The controller uses an admin client, so every estimate request must prove the estimate is the caller's. */
+  /**
+   * Owners whose estimates this user may work on: their own, plus the owner of every team they belong to as an
+   * active associate. The controller uses an admin client, so each request has to prove access itself.
+   */
+  async accessibleOwnerIds(
+    supabase: SupabaseClient,
+    userId: string,
+  ): Promise<string[]> {
+    const ids = [userId];
+    const { data } = await supabase
+      .from('memberships')
+      .select('owner_accounts(primary_owner_id)')
+      .eq('user_id', userId)
+      .eq('role', 'associate')
+      .eq('is_active', true);
+    for (const row of Array.isArray(data) ? data : []) {
+      const account = Array.isArray(row.owner_accounts)
+        ? row.owner_accounts[0]
+        : row.owner_accounts;
+      const ownerId = account?.primary_owner_id;
+      if (ownerId && !ids.includes(ownerId)) ids.push(ownerId);
+    }
+    return ids;
+  }
+
+  /** The owner a new or listed estimate belongs to: the team's owner for an associate, otherwise the user. */
+  async effectiveOwnerId(
+    supabase: SupabaseClient,
+    userId: string,
+  ): Promise<string> {
+    const { data: ownAccount } = await supabase
+      .from('owner_accounts')
+      .select('id')
+      .eq('primary_owner_id', userId)
+      .maybeSingle();
+    // Someone who runs their own account keeps their own estimates even if they also help on another team.
+    if (ownAccount) return userId;
+    const ids = await this.accessibleOwnerIds(supabase, userId);
+    return ids[1] ?? userId;
+  }
+
+  private async loadAccessible(
+    supabase: SupabaseClient,
+    estimateId: string,
+    userId: string,
+  ): Promise<{ owner_id: string; status: string }> {
+    const { data } = await supabase
+      .from('estimates')
+      .select('owner_id, status')
+      .eq('id', estimateId)
+      .maybeSingle();
+    // Not found and not yours look the same, so IDs can't be probed.
+    if (!data) throw new NotFoundException('Estimate not found');
+    if (data.owner_id !== userId) {
+      const ids = await this.accessibleOwnerIds(supabase, userId);
+      if (!ids.includes(data.owner_id))
+        throw new NotFoundException('Estimate not found');
+    }
+    return data;
+  }
+
   async assertOwner(
     supabase: SupabaseClient,
     estimateId: string,
     userId: string,
-  ): Promise<void> {
-    const { data } = await supabase
-      .from('estimates')
-      .select('owner_id')
-      .eq('id', estimateId)
-      .maybeSingle();
-    // Not found and not yours look the same, so IDs can't be probed.
-    if (!data || data.owner_id !== userId)
-      throw new NotFoundException('Estimate not found');
+  ): Promise<{ owner_id: string; status: string }> {
+    return this.loadAccessible(supabase, estimateId, userId);
   }
 
-  async assertItemOwner(
+  /** A sent estimate can move forward (approved, rejected, expired) but never back to draft, or the lock could be undone. */
+  async assertStatusChange(
+    supabase: SupabaseClient,
+    estimateId: string,
+    userId: string,
+    status: string,
+  ): Promise<void> {
+    const current = await this.loadAccessible(supabase, estimateId, userId);
+    if (status === 'draft' && current.status !== 'draft')
+      throw new BadRequestException(
+        'A sent estimate cannot go back to draft. Create a new estimate instead.',
+      );
+  }
+
+  /** Once an estimate has been sent the client has seen those numbers, so changes mean a new estimate. */
+  async assertEditable(
+    supabase: SupabaseClient,
+    estimateId: string,
+    userId: string,
+  ): Promise<void> {
+    const { status } = await this.loadAccessible(supabase, estimateId, userId);
+    if (status !== 'draft')
+      throw new BadRequestException(
+        'This estimate has already been sent and can no longer be edited. Create a new estimate instead.',
+      );
+  }
+
+  async assertItemEditable(
     supabase: SupabaseClient,
     itemId: string,
     userId: string,
@@ -179,7 +259,7 @@ export class EstimatesService {
       .eq('id', itemId)
       .maybeSingle();
     if (!data) throw new NotFoundException('Estimate item not found');
-    await this.assertOwner(supabase, data.estimate_id, userId);
+    await this.assertEditable(supabase, data.estimate_id, userId);
   }
 
   // ─── Finders ────────────────────────────────────────────────────────────────
@@ -190,6 +270,7 @@ export class EstimatesService {
     userId: string,
   ): Promise<Estimate[]> {
     try {
+      const ownerIds = await this.accessibleOwnerIds(supabase, userId);
       // Get event's intake_form_id, owner_id, and any booking IDs linked to this event
       const [eventResult, bookingsResult] = await Promise.all([
         supabase
@@ -200,7 +281,7 @@ export class EstimatesService {
         supabase.from('bookings').select('id').eq('event_id', eventId),
       ]);
 
-      if (eventResult.data?.owner_id !== userId) return [];
+      if (!ownerIds.includes(eventResult.data?.owner_id)) return [];
 
       const filters: string[] = [`event_id.eq.${eventId}`];
 
@@ -219,7 +300,7 @@ export class EstimatesService {
         .from('estimates')
         .select('*, items:estimate_items(*)')
         .or(filters.join(','))
-        .eq('owner_id', userId)
+        .in('owner_id', ownerIds)
         .order('created_at', { ascending: false });
       if (error) throw error;
 
@@ -328,16 +409,17 @@ export class EstimatesService {
   async findByIntakeForm(
     supabase: SupabaseClient,
     intakeFormId: string,
-    ownerId?: string,
+    ownerId: string,
   ): Promise<Estimate[]> {
     try {
       const { data, error } = await supabase
         .from('estimates')
         .select('*, items:estimate_items(*)')
         .eq('intake_form_id', intakeFormId)
+        .eq('owner_id', ownerId)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      if ((!data || data.length === 0) && ownerId) {
+      if (!data || data.length === 0) {
         const { data: ownerData } = await supabase
           .from('estimates')
           .select('*, items:estimate_items(*)')
@@ -417,9 +499,11 @@ export class EstimatesService {
     estimateData: Partial<Estimate>,
     items?: Partial<EstimateItem>[],
   ): Promise<Estimate> {
-    if (estimateData.owner_id && estimateData.owner_id !== userId)
+    const ownerIds = await this.accessibleOwnerIds(supabase, userId);
+    if (estimateData.owner_id && !ownerIds.includes(estimateData.owner_id))
       throw new ForbiddenException('You can only create your own estimates');
-    const ownerId = userId;
+    // A team member's estimates belong to the owner they work for; created_by keeps who made it.
+    const ownerId = await this.effectiveOwnerId(supabase, userId);
 
     // Generate estimate number
     const { data: latest } = await supabase
@@ -775,10 +859,8 @@ export class EstimatesService {
     userId: string,
     estimateId: string,
   ): Promise<any> {
+    await this.assertOwner(supabase, estimateId, userId);
     const estimate = await this.findOne(supabase, estimateId);
-    if (estimate.owner_id !== userId) {
-      throw new NotFoundException('Estimate not found');
-    }
 
     if (estimate.converted_invoice_id) {
       const { data: existingInvoice, error: existingInvoiceError } =

@@ -65,7 +65,7 @@ export default function AuctionsPage() {
                 {a.org_name && <p className="mt-1 text-sm text-purple-700">{a.org_name}</p>}
                 {a.cover_image_url && (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={a.cover_image_url} alt="" loading="lazy" className="mt-3 aspect-[16/7] w-full rounded-lg object-cover" />
+                  <img src={a.cover_image_url} alt="" loading="lazy" className="mt-3 aspect-[16/7] w-full rounded-lg bg-gray-50 object-contain" />
                 )}
                 {a.event_title && <p className="text-sm text-gray-500">{a.event_title}</p>}
                 <p className="mt-3 text-sm text-gray-600">

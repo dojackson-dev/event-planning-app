@@ -20,14 +20,14 @@ const SPECS: Record<UploadType, { label: string; size: string; dims: string; max
   'vendor-logo': {
     label: 'Business Logo',
     size: 'Max 2 MB',
-    dims: '400 × 400 px recommended',
+    dims: 'Any shape — fits inside a square, never cropped',
     maxMB: 2,
     accept: 'image/jpeg,image/png,image/webp',
   },
   'vendor-cover': {
     label: 'Cover Photo',
     size: 'Max 5 MB',
-    dims: '1200 × 400 px recommended (3:1 landscape)',
+    dims: 'Any shape — scaled to fit, never cropped',
     maxMB: 5,
     accept: 'image/jpeg,image/png,image/webp',
   },
@@ -48,35 +48,35 @@ const SPECS: Record<UploadType, { label: string; size: string; dims: string; max
   'owner-cover': {
     label: 'Banner / Cover Photo',
     size: 'Max 5 MB',
-    dims: '1200 × 400 px recommended (3:1 landscape)',
+    dims: 'Any shape — scaled to fit, never cropped',
     maxMB: 5,
     accept: 'image/jpeg,image/png,image/webp',
   },
   'artist-logo': {
     label: 'Profile Photo',
     size: 'Max 2 MB',
-    dims: '400 × 400 px recommended',
+    dims: 'Any shape — fits inside a square, never cropped',
     maxMB: 2,
     accept: 'image/jpeg,image/png,image/webp',
   },
   'artist-cover': {
     label: 'Cover / Banner',
     size: 'Max 5 MB',
-    dims: '1200 × 400 px recommended (3:1 landscape)',
+    dims: 'Any shape — scaled to fit, never cropped',
     maxMB: 5,
     accept: 'image/jpeg,image/png,image/webp',
   },
   'promoter-logo': {
     label: 'Profile Photo / Logo',
     size: 'Max 2 MB',
-    dims: '400 × 400 px recommended',
+    dims: 'Any shape — fits inside a square, never cropped',
     maxMB: 2,
     accept: 'image/jpeg,image/png,image/webp',
   },
   'promoter-cover': {
     label: 'Cover / Banner',
     size: 'Max 5 MB',
-    dims: '1200 × 400 px recommended (3:1 landscape)',
+    dims: 'Any shape — scaled to fit, never cropped',
     maxMB: 5,
     accept: 'image/jpeg,image/png,image/webp',
   },
@@ -164,7 +164,7 @@ export default function ImageUpload({
             <img
               src={preview}
               alt="Preview"
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain"
             />
             {/* Hover overlay */}
             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">

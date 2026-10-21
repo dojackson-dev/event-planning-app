@@ -93,7 +93,7 @@ export default function PublicPromoterPage() {
       {/* Cover */}
       <div className="relative h-44 md:h-60 bg-gradient-to-br from-purple-700 to-blue-700 overflow-hidden">
         {profile.cover_image_url && (
-          <img src={profile.cover_image_url} alt="" className="absolute inset-0 w-full h-full object-cover opacity-80" />
+          <img src={profile.cover_image_url} alt="" className="absolute inset-0 w-full h-full object-contain opacity-80" />
         )}
         <div className="absolute inset-0 bg-black/20" />
         <div className="absolute top-4 left-4">

@@ -28,6 +28,10 @@ const MAX_VENDOR_LOGO_BYTES = 2 * 1024 * 1024; // 2 MB
 const MAX_SERVICE_ITEM_BYTES = 5 * 1024 * 1024; // 5 MB
 const MAX_OWNER_LOGO_BYTES = 3 * 1024 * 1024; // 3 MB
 const MAX_COVER_BYTES = 5 * 1024 * 1024; // 5 MB
+// Logos fit whole inside a square (transparent padding) and covers keep their own shape,
+// scaled down to at most this size — nothing is cropped.
+const LOGO_BACKGROUND = { r: 255, g: 255, b: 255, alpha: 0 };
+const COVER_MAX_DIMENSION = 1600;
 
 @Controller('upload')
 export class UploadController {
@@ -95,7 +99,7 @@ export class UploadController {
 
     // Resize to 400×400, convert to WebP
     const processed = await sharp(file.buffer)
-      .resize(400, 400, { fit: 'cover', position: 'centre' })
+      .resize(400, 400, { fit: 'contain', background: LOGO_BACKGROUND })
       .webp({ quality: 85 })
       .toBuffer();
 
@@ -229,7 +233,7 @@ export class UploadController {
     await this.ensureBucket(admin, 'owner-images');
 
     const processed = await sharp(file.buffer)
-      .resize(1200, 400, { fit: 'cover', position: 'centre' })
+      .resize(COVER_MAX_DIMENSION, COVER_MAX_DIMENSION, { fit: 'inside', withoutEnlargement: true })
       .webp({ quality: 85 })
       .toBuffer();
 
@@ -268,7 +272,7 @@ export class UploadController {
     await this.ensureBucket(admin, 'vendor-images');
 
     const processed = await sharp(file.buffer)
-      .resize(1200, 400, { fit: 'cover', position: 'centre' })
+      .resize(COVER_MAX_DIMENSION, COVER_MAX_DIMENSION, { fit: 'inside', withoutEnlargement: true })
       .webp({ quality: 85 })
       .toBuffer();
 
@@ -306,7 +310,7 @@ export class UploadController {
     await this.ensureBucket(admin, 'artist-images');
 
     const processed = await sharp(file.buffer)
-      .resize(400, 400, { fit: 'cover', position: 'centre' })
+      .resize(400, 400, { fit: 'contain', background: LOGO_BACKGROUND })
       .webp({ quality: 85 })
       .toBuffer();
 
@@ -344,7 +348,7 @@ export class UploadController {
     await this.ensureBucket(admin, 'artist-images');
 
     const processed = await sharp(file.buffer)
-      .resize(1200, 400, { fit: 'cover', position: 'centre' })
+      .resize(COVER_MAX_DIMENSION, COVER_MAX_DIMENSION, { fit: 'inside', withoutEnlargement: true })
       .webp({ quality: 85 })
       .toBuffer();
 
@@ -382,7 +386,7 @@ export class UploadController {
     await this.ensureBucket(admin, 'promoter-images');
 
     const processed = await sharp(file.buffer)
-      .resize(400, 400, { fit: 'cover', position: 'centre' })
+      .resize(400, 400, { fit: 'contain', background: LOGO_BACKGROUND })
       .webp({ quality: 85 })
       .toBuffer();
 
@@ -420,7 +424,7 @@ export class UploadController {
     await this.ensureBucket(admin, 'promoter-images');
 
     const processed = await sharp(file.buffer)
-      .resize(1200, 400, { fit: 'cover', position: 'centre' })
+      .resize(COVER_MAX_DIMENSION, COVER_MAX_DIMENSION, { fit: 'inside', withoutEnlargement: true })
       .webp({ quality: 85 })
       .toBuffer();
 

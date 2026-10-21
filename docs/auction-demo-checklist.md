@@ -70,3 +70,19 @@ Residual risks (not changed here):
 - The bidder token lives in `localStorage` (readable by any XSS). Acceptable for a 7-day, single-auction, revocable token; revisit if an httpOnly cookie is preferred.
 - Stripe Tax needs a billing postal code; the Payment Element collects it for cards, but verify tax on a test order before enabling `STRIPE_TAX_ENABLED`.
 - Frontend has no automated tests (no test runner in `packages/frontend`); adding `vitest` + Testing Library would need approval as a new dev dependency.
+
+## 7. Organization pages and item donations
+
+One-time setup: run `packages/backend/migrations/create-auction-organizations.sql` in the Supabase SQL editor (idempotent; after the other auction migrations). Until it is applied the public auction pages keep working on their original columns, but the organization, slug and donation features are unavailable.
+
+Organizer (`/dashboard/promoter/auctions`):
+- [ ] Create the organization profile: pick a web address (slug), story, goal, gallery images and sponsors. A sponsor appears publicly only after "permission confirmed" is ticked.
+- [ ] Turn on "Published" for the organization, then open `/auctions/<org-slug>`; unpublished organizations 404.
+- [ ] On a draft auction set a slug, turn on "page published" and "accepts donations" (optionally a donations close time); the page shows "Accepting Item Donations" and a draft auction is still not biddable.
+- [ ] Review donations: edit, approve (starting bid + increment create the item) or decline. Approved items keep the donor name/business hidden unless the donor ticked recognition.
+
+Donor (incognito, `/auctions/<org-slug>/<auction-slug>/donate`):
+- [ ] SMS code, then submit with up to 6 photos; a second phone/IP is rate limited, and only 5 pending donations per phone per auction.
+- [ ] After the donation window closes (or bidding opens) the form answers "not accepting donations".
+
+Checks: bidding only works when the auction status is `live` (enforced in `place_auction_bid`, `claim_item_now`, `claim_fixed_item`; covered by `bidding-requires-live.spec.ts`). Public responses never contain donor email/phone; donor SMS on approve/decline is not sent yet (TODO).

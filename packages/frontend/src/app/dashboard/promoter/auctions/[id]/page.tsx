@@ -9,6 +9,8 @@ import AuctionForm, { AuctionFormValues } from '../_components/AuctionForm'
 import BiddersTab from '../_components/BiddersTab'
 import BidsTab from '../_components/BidsTab'
 import ConfirmDialog from '../_components/ConfirmDialog'
+import DonationsTab from '../_components/DonationsTab'
+import { useOrganization } from '../_components/useOrganization'
 import ItemsTab from '../_components/ItemsTab'
 import OrdersTab from '../_components/OrdersTab'
 import OverviewTab from '../_components/OverviewTab'
@@ -18,15 +20,18 @@ import {
   AuctionDetail,
   EDITABLE_AUCTION_STATUSES,
   errorMessage,
+  auctionPhase,
   formatDateTime,
   httpStatus,
+  publicAuctionPath,
 } from '../lib'
 
-type Tab = 'overview' | 'items' | 'bids' | 'bidders' | 'orders' | 'settings'
+type Tab = 'overview' | 'items' | 'donations' | 'bids' | 'bidders' | 'orders' | 'settings'
 
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'overview', label: 'Overview' },
   { id: 'items', label: 'Items' },
+  { id: 'donations', label: 'Donations' },
   { id: 'bids', label: 'Bids' },
   { id: 'bidders', label: 'Bidders' },
   { id: 'orders', label: 'Orders' },
@@ -53,12 +58,31 @@ export default function ManageAuctionPage() {
   const [issues, setIssues] = useState<string[]>([])
   const [saved, setSaved] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [pendingDonations, setPendingDonations] = useState(0)
+  const { org } = useOrganization()
+
+  const publicPath = auction ? publicAuctionPath(auction, org?.slug) : `/auctions/${id}`
 
   const copyPublicLink = async () => {
-    await navigator.clipboard.writeText(`${window.location.origin}/auctions/${id}`)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}${publicPath}`)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      setCopied(false)
+    }
   }
+
+  const loadPendingDonations = useCallback(async () => {
+    try {
+      const res = await api.get<unknown[] | { donations?: unknown[] }>(`/auctions/manage/${id}/donations`, { params: { status: 'pending' } })
+      const data = res.data
+      setPendingDonations(Array.isArray(data) ? data.length : data?.donations?.length ?? 0)
+    } catch {
+      // Older backends have no donations endpoint; the tab shows its own error.
+      setPendingDonations(0)
+    }
+  }, [id])
 
   const load = useCallback(async () => {
     try {
@@ -77,6 +101,10 @@ export default function ManageAuctionPage() {
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => {
+    loadPendingDonations()
+  }, [loadPendingDonations])
 
   useEffect(() => {
     // Staff see everything but cannot change anything; the API enforces this too.
@@ -130,6 +158,7 @@ export default function ManageAuctionPage() {
   }
 
   const editable = canWrite && EDITABLE_AUCTION_STATUSES.includes(auction.status)
+  const isPublic = auctionPhase(auction, auction.items.length) !== null
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -148,11 +177,11 @@ export default function ManageAuctionPage() {
             {auction.event_title ? ` | ${auction.event_title}` : ''}
           </p>
           {!canWrite && <p className="mt-1 text-xs text-gray-400">You have view-only access.</p>}
-          {auction.status === 'draft' ? (
-            <p className="mt-2 text-sm text-gray-500">Not public yet. Publish the auction to get a bidder link.</p>
-          ) : auction.status !== 'cancelled' ? (
+          {!isPublic && auction.status !== 'cancelled' ? (
+            <p className="mt-2 text-sm text-gray-500">Not public yet. Publish the auction (or its cause page) to get a shareable link.</p>
+          ) : isPublic ? (
             <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
-              <a href={`/auctions/${auction.id}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-purple-600 hover:underline">
+              <a href={publicPath} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-purple-600 hover:underline">
                 <ExternalLink className="h-4 w-4" /> View public page
               </a>
               <button onClick={copyPublicLink} className="inline-flex items-center gap-1 text-gray-600 hover:text-gray-900">
@@ -185,12 +214,26 @@ export default function ManageAuctionPage() {
             className={`whitespace-nowrap px-4 py-2.5 text-sm font-medium border-b-2 -mb-px ${tab === t.id ? 'border-purple-600 text-purple-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
           >
             {t.label}
+            {t.id === 'donations' && pendingDonations > 0 && (
+              <span className="ml-2 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-purple-600 px-1.5 text-xs font-semibold text-white" aria-label={`${pendingDonations} pending`}>
+                {pendingDonations}
+              </span>
+            )}
           </button>
         ))}
       </div>
 
-      {tab === 'overview' && <OverviewTab auctionId={auction.id} refreshKey={refreshKey} />}
+      {tab === 'overview' && <OverviewTab auctionId={auction.id} refreshKey={refreshKey} auction={auction} itemCount={auction.items.length} />}
       {tab === 'items' && <ItemsTab auction={auction} canWrite={canWrite} onChanged={load} />}
+      {tab === 'donations' && (
+        <DonationsTab
+          auctionId={auction.id}
+          canWrite={canWrite}
+          acceptsDonations={!!auction.accepts_donations}
+          onChanged={() => { load(); loadPendingDonations() }}
+          onViewItems={() => setTab('items')}
+        />
+      )}
       {tab === 'bids' && <BidsTab auctionId={auction.id} refreshKey={refreshKey} />}
       {tab === 'bidders' && <BiddersTab auctionId={auction.id} canWrite={canWrite} refreshKey={refreshKey} />}
       {tab === 'orders' && <OrdersTab auctionId={auction.id} canWrite={canWrite} refreshKey={refreshKey} />}

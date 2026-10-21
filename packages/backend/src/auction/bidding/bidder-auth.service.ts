@@ -19,7 +19,7 @@ export interface BidderTokenPayload {
   exp: number;
 }
 
-export type KeyPurpose = 'token' | 'otp' | 'ip';
+export type KeyPurpose = 'token' | 'otp' | 'ip' | 'donor';
 
 function b64url(input: Buffer | string): string {
   return Buffer.from(input).toString('base64url');
@@ -71,6 +71,43 @@ export class BidderAuthService {
     return this.hmacHex('ip', ip);
   }
 
+  /** `<base64url json>.<base64url HMAC>` under the purpose's key. */
+  signPayload(purpose: KeyPurpose, payload: object): string {
+    const body = b64url(JSON.stringify(payload));
+    const sig = createHmac('sha256', this.key(purpose)).update(body).digest();
+    return `${body}.${b64url(sig)}`;
+  }
+
+  /** Constant-time signature check; returns the decoded JSON object or null. Expiry is the caller's check. */
+  openPayload(
+    purpose: KeyPurpose,
+    token: string | undefined,
+  ): Record<string, unknown> | null {
+    if (!token || token.length > 1024) return null;
+    const parts = token.split('.');
+    if (parts.length !== 2) return null;
+    const [body, sig] = parts;
+    const expected = createHmac('sha256', this.key(purpose))
+      .update(body)
+      .digest();
+    const given = Buffer.from(sig, 'base64url');
+    if (given.length !== expected.length || !timingSafeEqual(given, expected)) {
+      return null;
+    }
+    try {
+      const payload: unknown = JSON.parse(
+        Buffer.from(body, 'base64url').toString('utf8'),
+      );
+      return payload !== null &&
+        typeof payload === 'object' &&
+        !Array.isArray(payload)
+        ? (payload as Record<string, unknown>)
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
   signToken(
     bidderId: string,
     auctionId: string,
@@ -84,9 +121,10 @@ export class BidderAuthService {
       token_version: tokenVersion,
       exp,
     };
-    const body = b64url(JSON.stringify(payload));
-    const sig = createHmac('sha256', this.key('token')).update(body).digest();
-    return { token: `${body}.${b64url(sig)}`, expiresAt: new Date(exp * 1000) };
+    return {
+      token: this.signPayload('token', payload),
+      expiresAt: new Date(exp * 1000),
+    };
   }
 
   /** Signature + expiry only; revocation is checked against the database in authenticate(). */
@@ -94,34 +132,21 @@ export class BidderAuthService {
     token: string | undefined,
     nowMs = Date.now(),
   ): BidderTokenPayload | null {
-    if (!token || token.length > 1024) return null;
-    const parts = token.split('.');
-    if (parts.length !== 2) return null;
-    const [body, sig] = parts;
-    const expected = createHmac('sha256', this.key('token'))
-      .update(body)
-      .digest();
-    const given = Buffer.from(sig, 'base64url');
-    if (given.length !== expected.length || !timingSafeEqual(given, expected)) {
+    const payload = this.openPayload(
+      'token',
+      token,
+    ) as Partial<BidderTokenPayload> | null;
+    if (
+      !payload ||
+      typeof payload.bidder_id !== 'string' ||
+      typeof payload.auction_id !== 'string' ||
+      !Number.isInteger(payload.token_version) ||
+      typeof payload.exp !== 'number' ||
+      payload.exp * 1000 <= nowMs
+    ) {
       return null;
     }
-    try {
-      const payload = JSON.parse(
-        Buffer.from(body, 'base64url').toString('utf8'),
-      ) as Partial<BidderTokenPayload>;
-      if (
-        typeof payload.bidder_id !== 'string' ||
-        typeof payload.auction_id !== 'string' ||
-        !Number.isInteger(payload.token_version) ||
-        typeof payload.exp !== 'number' ||
-        payload.exp * 1000 <= nowMs
-      ) {
-        return null;
-      }
-      return payload as BidderTokenPayload;
-    } catch {
-      return null;
-    }
+    return payload as BidderTokenPayload;
   }
 
   /** Valid signature, unexpired, bidder not blocked and token_version still current. */

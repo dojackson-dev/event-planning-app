@@ -26,8 +26,10 @@ import type {
 } from '../auction.types';
 import {
   asObject,
+  AuctionInput,
   HARD_CLOSE_MINUTES,
   ItemPatch,
+  MAX_IMAGES_PER_DONATION,
   normalizeItemPatch,
   optionalText,
   parseAuctionInput,
@@ -150,6 +152,58 @@ export class AuctionAdminService {
       .maybeSingle();
     if (!data) throw new NotFoundException('Auction not found');
     return data as unknown as AuctionRow;
+  }
+
+  /** The caller's organization profile, if they have set one up (and the migration is applied). */
+  private async getOrganizationId(promoterId: string): Promise<string | null> {
+    const { data } = await this.db
+      .from('auction_organizations')
+      .select('id')
+      .eq('promoter_account_id', promoterId)
+      .maybeSingle();
+    return (data as { id: string } | null)?.id ?? null;
+  }
+
+  /** Page fields need an organization; the slug is unique within it and required before the page goes public. */
+  private async checkPageFields(
+    organizationId: string | null,
+    current: Pick<AuctionRow, 'id' | 'slug'> | null,
+    input: AuctionInput,
+  ): Promise<void> {
+    if (input.slug) {
+      if (!organizationId) {
+        throw new BadRequestException(
+          'Set up your organization page before choosing a web address.',
+        );
+      }
+      const { data } = await this.db
+        .from('auctions')
+        .select('id')
+        .eq('organization_id', organizationId)
+        .eq('slug', input.slug)
+        .limit(2);
+      const taken = ((data ?? []) as Array<{ id: string }>).some(
+        (row) => row.id !== current?.id,
+      );
+      if (taken) {
+        throw new ConflictException(
+          'You already have an auction with that web address.',
+        );
+      }
+    }
+    if (input.page_published === true) {
+      if (!organizationId) {
+        throw new BadRequestException(
+          'Set up your organization page before publishing an auction page.',
+        );
+      }
+      const slug = input.slug !== undefined ? input.slug : current?.slug;
+      if (!slug) {
+        throw new BadRequestException(
+          'Choose a web address (slug) before publishing the auction page.',
+        );
+      }
+    }
   }
 
   private async getOwnedItem(promoterId: string, itemId: string) {
@@ -279,8 +333,16 @@ export class AuctionAdminService {
       promoter.id,
       input.public_event_id ?? null,
     );
+    const organizationId = await this.getOrganizationId(promoter.id);
+    await this.checkPageFields(organizationId, null, input);
 
     const row = {
+      slug: input.slug ?? undefined,
+      cover_image_url: input.cover_image_url ?? undefined,
+      accepts_donations: input.accepts_donations,
+      donations_close_at: input.donations_close_at ?? undefined,
+      page_published: input.page_published,
+      organization_id: organizationId ?? undefined,
       title: input.title,
       description: input.description ?? null,
       anti_snipe_window_seconds: input.anti_snipe_window_seconds,
@@ -331,6 +393,21 @@ export class AuctionAdminService {
     }
     const status = auction.status;
     const patch: Record<string, unknown> = { ...input };
+
+    const pageFieldsTouched =
+      input.slug !== undefined ||
+      input.cover_image_url !== undefined ||
+      input.accepts_donations !== undefined ||
+      input.donations_close_at !== undefined ||
+      input.page_published !== undefined;
+    if (pageFieldsTouched) {
+      const organizationId =
+        auction.organization_id ?? (await this.getOrganizationId(promoter.id));
+      await this.checkPageFields(organizationId, auction, input);
+      if (!auction.organization_id && organizationId) {
+        patch.organization_id = organizationId;
+      }
+    }
 
     if (status === 'live') {
       if (
@@ -630,12 +707,25 @@ export class AuctionAdminService {
 
   // ─── items ───────────────────────────────────────────────────
 
-  async createItem(userId: string, auctionId: string, dto: unknown) {
+  /** `source` is set only by the donation-approval flow (which also allows a donation's 6 photos), never from a request body. */
+  async createItem(
+    userId: string,
+    auctionId: string,
+    dto: unknown,
+    source: { source_donation_id?: string } = {},
+  ) {
     const promoter = await this.getPromoterAccount(userId);
     const auction = await this.getOwnedAuction(promoter.id, auctionId);
     this.assertAuctionOpenForItemChanges(auction);
 
-    const patch = normalizeItemPatch(null, parseItemInput(dto, true));
+    const patch = normalizeItemPatch(
+      null,
+      parseItemInput(
+        dto,
+        true,
+        source.source_donation_id ? MAX_IMAGES_PER_DONATION : undefined,
+      ),
+    );
     const { count } = await this.db
       .from('auction_items')
       .select('id', { count: 'exact', head: true })
@@ -648,7 +738,12 @@ export class AuctionAdminService {
 
     const { data, error } = await this.db
       .from('auction_items')
-      .insert({ ...patch, auction_id: auction.id, status: 'open' })
+      .insert({
+        ...patch,
+        ...source,
+        auction_id: auction.id,
+        status: 'open',
+      })
       .select('*')
       .single();
     if (error || !data) this.fail('createItem', error ?? {});

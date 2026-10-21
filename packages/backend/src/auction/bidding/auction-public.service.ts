@@ -6,9 +6,12 @@ import {
 } from '@nestjs/common';
 import { SupabaseService } from '../../supabase/supabase.service';
 import type { BidderContext } from './bidder.guard';
+import { isPubliclyVisible } from '../auction-phase';
 import {
   PUBLIC_AUCTION_COLUMNS,
+  PUBLIC_AUCTION_COLUMNS_BASE,
   PUBLIC_ITEM_COLUMNS,
+  PUBLIC_ITEM_COLUMNS_BASE,
   toBidFeedEntry,
   toPublicAuction,
   toPublicItemState,
@@ -22,14 +25,29 @@ import type {
   PublicItemState,
 } from './dto/public-views';
 
-const VISIBLE_STATUSES = ['scheduled', 'live', 'closed', 'settled'];
 const OPEN_STATUSES = ['scheduled', 'live'];
+/** PostgREST/Postgres codes for a missing column, relationship or table (migration not applied yet). */
+const SCHEMA_GAP_CODES = new Set([
+  '42703',
+  '42P01',
+  'PGRST200',
+  'PGRST204',
+  'PGRST205',
+]);
+
+type DbResult = {
+  data: unknown;
+  error: { code?: string; message: string } | null;
+};
 const STATE_CACHE_TTL_MS = 1000;
 const STATE_CACHE_MAX_ENTRIES = 500;
 const BID_FEED_LIMIT = 50;
 
 interface StateSnapshot {
-  auction: Pick<PublicAuction, 'id' | 'status' | 'starts_at' | 'ends_at'>;
+  auction: Pick<
+    PublicAuction,
+    'id' | 'status' | 'starts_at' | 'ends_at' | 'phase'
+  >;
   items: Array<{ view: PublicItemState; leaderId: string | null }>;
 }
 
@@ -52,24 +70,69 @@ export class AuctionPublicService {
     throw new ServiceUnavailableException('Please try again shortly.');
   }
 
-  /** The auction must belong to a verified non-profit promoter and be in a publicly visible state. */
+  /**
+   * Runs a query with the full column list and, if the organization-pages migration has not been applied
+   * yet, once more with the original columns so existing auctions keep working.
+   */
+  private async withColumns(
+    run: (columns: string) => PromiseLike<DbResult>,
+    columns: string,
+    legacyColumns: string,
+  ): Promise<{ result: DbResult; legacy: boolean }> {
+    const result = await run(columns);
+    if (result.error?.code && SCHEMA_GAP_CODES.has(result.error.code)) {
+      this.logger.warn(
+        'Auction organization-pages migration not applied; using legacy columns.',
+      );
+      return { result: await run(legacyColumns), legacy: true };
+    }
+    return { result, legacy: false };
+  }
+
+  /**
+   * The auction must belong to a verified non-profit promoter and be publicly visible: published
+   * (scheduled/live/closed/settled) or with its page switched on. Pass `statuses` to require specific statuses.
+   */
   async loadPublicAuction(
     auctionId: string,
-    statuses: string[] = VISIBLE_STATUSES,
+    statuses?: string[],
   ): Promise<PublicAuctionSource> {
-    const { data, error } = await this.db
-      .from('auctions')
-      .select(
-        `${PUBLIC_AUCTION_COLUMNS}, promoter_accounts!inner(is_nonprofit, nonprofit_status)`,
-      )
-      .eq('id', auctionId)
-      .in('status', statuses)
-      .eq('promoter_accounts.is_nonprofit', true)
-      .eq('promoter_accounts.nonprofit_status', 'verified')
-      .maybeSingle();
-    if (error) this.fail('Auction lookup failed', error.message);
-    if (!data) throw new NotFoundException('Auction not found.');
-    return data as PublicAuctionSource;
+    const { result } = await this.withColumns(
+      (columns) =>
+        this.db
+          .from('auctions')
+          .select(
+            `${columns}, promoter_accounts!inner(is_nonprofit, nonprofit_status)`,
+          )
+          .eq('id', auctionId)
+          .eq('promoter_accounts.is_nonprofit', true)
+          .eq('promoter_accounts.nonprofit_status', 'verified')
+          .maybeSingle() as unknown as PromiseLike<DbResult>,
+      PUBLIC_AUCTION_COLUMNS,
+      PUBLIC_AUCTION_COLUMNS_BASE,
+    );
+    if (result.error) this.fail('Auction lookup failed', result.error.message);
+    if (!result.data) throw new NotFoundException('Auction not found.');
+    const row = this.normalizeAuction(result.data);
+    const visible = statuses
+      ? statuses.includes(row.status)
+      : isPubliclyVisible(row);
+    if (!visible) throw new NotFoundException('Auction not found.');
+    return row;
+  }
+
+  /** The embedded organization arrives as an object (many-to-one); tolerate a one-element array too. */
+  private normalizeAuction(data: unknown): PublicAuctionSource {
+    const row = data as PublicAuctionSource & {
+      organization?: unknown;
+    };
+    const org = Array.isArray(row.organization)
+      ? row.organization[0]
+      : row.organization;
+    return {
+      ...row,
+      organization: (org as PublicAuctionSource['organization']) ?? null,
+    };
   }
 
   /** Registration is only open for scheduled/live auctions that have not ended. */
@@ -86,20 +149,27 @@ export class AuctionPublicService {
   async listAuctions(): Promise<{
     auctions: Array<PublicAuction & { item_count: number }>;
   }> {
-    // The schema has no per-auction visibility flag yet, so every verified non-profit's live/upcoming auction is listed.
-    const { data, error } = await this.db
-      .from('auctions')
-      .select(
-        `${PUBLIC_AUCTION_COLUMNS}, promoter_accounts!inner(is_nonprofit, nonprofit_status)`,
-      )
-      .in('status', OPEN_STATUSES)
-      .gt('ends_at', new Date().toISOString())
-      .eq('promoter_accounts.is_nonprofit', true)
-      .eq('promoter_accounts.nonprofit_status', 'verified')
-      .order('starts_at', { ascending: true })
-      .limit(100);
-    if (error) this.fail('Auction list failed', error.message);
-    const rows = (data ?? []) as PublicAuctionSource[];
+    // Every verified non-profit's scheduled/live auction is listed (draft pages are reached by their own link).
+    const { result } = await this.withColumns(
+      (columns) =>
+        this.db
+          .from('auctions')
+          .select(
+            `${columns}, promoter_accounts!inner(is_nonprofit, nonprofit_status)`,
+          )
+          .in('status', OPEN_STATUSES)
+          .gt('ends_at', new Date().toISOString())
+          .eq('promoter_accounts.is_nonprofit', true)
+          .eq('promoter_accounts.nonprofit_status', 'verified')
+          .order('starts_at', { ascending: true })
+          .limit(100) as unknown as PromiseLike<DbResult>,
+      PUBLIC_AUCTION_COLUMNS,
+      PUBLIC_AUCTION_COLUMNS_BASE,
+    );
+    if (result.error) this.fail('Auction list failed', result.error.message);
+    const rows = ((result.data ?? []) as unknown[]).map((r) =>
+      this.normalizeAuction(r),
+    );
     if (rows.length === 0) return { auctions: [] };
 
     const { data: itemRows, error: itemError } = await this.db
@@ -118,29 +188,46 @@ export class AuctionPublicService {
     }
     return {
       auctions: rows.map((row) => ({
-        ...toPublicAuction(row),
+        ...toPublicAuction(row, counts.get(row.id) ?? 0),
         item_count: counts.get(row.id) ?? 0,
       })),
     };
   }
 
-  private async loadItems(auctionId: string): Promise<PublicItemSource[]> {
-    const { data, error } = await this.db
-      .from('auction_items')
-      .select(PUBLIC_ITEM_COLUMNS)
-      .eq('auction_id', auctionId)
-      .neq('status', 'withdrawn')
-      .order('sort_order', { ascending: true })
-      .order('lot_number', { ascending: true });
-    if (error) this.fail('Item list failed', error.message);
-    return (data ?? []) as PublicItemSource[];
+  private async queryItems(
+    run: (columns: string) => PromiseLike<DbResult>,
+  ): Promise<PublicItemSource[]> {
+    const { result, legacy } = await this.withColumns(
+      run,
+      PUBLIC_ITEM_COLUMNS,
+      PUBLIC_ITEM_COLUMNS_BASE,
+    );
+    if (result.error) this.fail('Item list failed', result.error.message);
+    const rows = (result.data ?? []) as PublicItemSource[];
+    // Without the migration every item predates donor consent: attribution behaves as before.
+    return legacy ? rows.map((r) => ({ ...r, donor_recognition: true })) : rows;
+  }
+
+  async loadItems(auctionId: string): Promise<PublicItemSource[]> {
+    return this.queryItems(
+      (columns) =>
+        this.db
+          .from('auction_items')
+          .select(columns)
+          .eq('auction_id', auctionId)
+          .neq('status', 'withdrawn')
+          .order('sort_order', { ascending: true })
+          .order('lot_number', {
+            ascending: true,
+          }) as unknown as PromiseLike<DbResult>,
+    );
   }
 
   async getAuction(auctionId: string) {
     const auction = await this.loadPublicAuction(auctionId);
     const items = await this.loadItems(auctionId);
     return {
-      auction: toPublicAuction(auction),
+      auction: toPublicAuction(auction, items.length),
       items: items.map((item) => toPublicItemSummary(item, auction.ends_at)),
     };
   }
@@ -165,6 +252,7 @@ export class AuctionPublicService {
           status: auction.status,
           starts_at: auction.starts_at,
           ends_at: auction.ends_at,
+          phase: toPublicAuction(auction, items.length).phase,
         },
         items: items.map((item) => ({
           view: toPublicItemState(item, auction.ends_at),
@@ -198,15 +286,16 @@ export class AuctionPublicService {
   }
 
   async getItem(itemId: string) {
-    const { data, error } = await this.db
-      .from('auction_items')
-      .select(PUBLIC_ITEM_COLUMNS)
-      .eq('id', itemId)
-      .neq('status', 'withdrawn')
-      .maybeSingle();
-    if (error) this.fail('Item lookup failed', error.message);
-    if (!data) throw new NotFoundException('Item not found.');
-    const item = data as PublicItemSource;
+    const [item] = await this.queryItems(
+      (columns) =>
+        this.db
+          .from('auction_items')
+          .select(columns)
+          .eq('id', itemId)
+          .neq('status', 'withdrawn')
+          .limit(1) as unknown as PromiseLike<DbResult>,
+    );
+    if (!item) throw new NotFoundException('Item not found.');
     const auction = await this.loadPublicAuction(item.auction_id);
 
     const { data: bids, error: bidError } = await this.db
@@ -220,7 +309,7 @@ export class AuctionPublicService {
     if (bidError) this.fail('Bid feed failed', bidError.message);
 
     return {
-      auction: toPublicAuction(auction),
+      auction: toPublicAuction(auction, 1),
       item: toPublicItemSummary(item, auction.ends_at),
       bids: ((bids ?? []) as unknown as BidFeedSource[]).map(toBidFeedEntry),
     };

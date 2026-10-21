@@ -4,6 +4,8 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { MessagingModule } from '../../messaging/messaging.module';
 import { AuctionBiddingService } from './auction-bidding.service';
 import { AuctionOtpDelivery } from './auction-otp-delivery.service';
+import { AuctionDonationsService } from './auction-donations.service';
+import { AuctionOrgPublicService } from './auction-org-public.service';
 import { AuctionPublicController } from './auction-public.controller';
 import { AuctionPublicService } from './auction-public.service';
 import { AuctionsEnabledGuard } from './auctions-enabled.guard';
@@ -11,6 +13,8 @@ import { BidderAuthService } from './bidder-auth.service';
 import { BidderGuard } from './bidder.guard';
 import { BidderOtpService } from './bidder-otp.service';
 import { BidderRegistrationService } from './bidder-registration.service';
+import { DonorAuthService } from './donor-auth.service';
+import { DonorOtpService } from './donor-otp.service';
 import { clientIp } from './client-ip';
 
 /**
@@ -38,6 +42,10 @@ import { clientIp } from './client-ip';
     AuctionPublicService,
     BidderRegistrationService,
     AuctionBiddingService,
+    AuctionOrgPublicService,
+    DonorAuthService,
+    DonorOtpService,
+    AuctionDonationsService,
   ],
   exports: [BidderAuthService, BidderGuard],
 })

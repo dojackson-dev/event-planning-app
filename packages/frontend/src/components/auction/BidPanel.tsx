@@ -12,14 +12,20 @@ import {
   ItemState,
   parseApiError,
   PlaceBidResponse,
+  AuctionPhase,
   PublicItem,
 } from '@/lib/auctionApi'
 import { dollarsToCents, formatUsd } from './format'
+import { phaseMessage } from './phase'
 
 interface Props {
   auctionId: string
   auctionStatus: string
   startsAt: string | null
+  /** URL prefix of the auction page (legacy `/auctions/<id>` or slug scheme); defaults to the legacy URL. */
+  basePath?: string
+  /** Server-computed phase. When present and not bidding_open, bidding controls are replaced by a message. */
+  phase?: AuctionPhase
   item: PublicItem & Partial<ItemState>
   me: BidderMe | null
   /** Called after any successful action so the page refreshes state, profile and bid feed. */
@@ -51,7 +57,7 @@ function chargeMessage(charge: ChargeResult | null | undefined): { text: string;
   }
 }
 
-export default function BidPanel({ auctionId, auctionStatus, startsAt, item, me, onChanged }: Props) {
+export default function BidPanel({ auctionId, auctionStatus, startsAt, basePath = `/auctions/${auctionId}`, phase, item, me, onChanged }: Props) {
   const isAuction = item.sale_mode === 'auction'
   const open = item.status === 'open'
   const minNext = item.min_next_bid_cents
@@ -69,7 +75,21 @@ export default function BidPanel({ auctionId, auctionStatus, startsAt, item, me,
     if (!touched && minNext != null) setAmount((minNext / 100).toFixed(2))
   }, [minNext, touched])
 
-  const returnHref = (path: string) => `/auctions/${auctionId}/${path}?next=${encodeURIComponent(`/auctions/${auctionId}/items/${item.id}`)}`
+  const returnHref = (path: string) => `${basePath}/${path}?next=${encodeURIComponent(`${basePath}/items/${item.id}`)}`
+
+  if (phase && phase !== 'bidding_open' && phase !== 'closed') {
+    return (
+      <div role="status" className="rounded-xl border border-blue-200 bg-blue-50 p-5 text-sm text-blue-900">
+        <p className="font-medium">Bidding is not open</p>
+        <p className="mt-1">{phaseMessage(phase, startsAt)}</p>
+        {!me && phase !== 'accepting_donations' && (
+          <p className="mt-2">
+            <Link href={returnHref('register')} className="font-medium underline">Register now</Link> so you are ready to bid.
+          </p>
+        )}
+      </div>
+    )
+  }
 
   if (!open) {
     return (

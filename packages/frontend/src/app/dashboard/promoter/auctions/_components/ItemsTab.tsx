@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Pencil, Plus, Trash2, Ban, CheckCircle2, XCircle } from 'lucide-react'
 import api from '@/lib/api'
 import ConfirmDialog from './ConfirmDialog'
+import { ItemPhotoPlaceholder } from '@/components/auction/PhotoPlaceholder'
 import ItemFormModal from './ItemFormModal'
 import {
   AuctionDetail,
@@ -108,9 +109,11 @@ export default function ItemsTab({ auction, canWrite, onChanged }: Props) {
             return (
               <li key={item.id} className="flex gap-4 bg-white border border-gray-200 rounded-xl p-4">
                 <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg bg-gray-100">
-                  {item.image_urls?.[0] && (
+                  {item.image_urls?.[0] ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={item.image_urls[0]} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <ItemPhotoPlaceholder compact label="No photo" />
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -119,7 +122,15 @@ export default function ItemsTab({ auction, canWrite, onChanged }: Props) {
                     <h3 className="font-semibold text-gray-900 truncate">{item.title}</h3>
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLE[item.status] ?? 'bg-gray-100 text-gray-600'}`}>{ITEM_STATUS_LABEL[item.status] ?? item.status}</span>
                     <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">{item.sale_mode === 'fixed' ? 'Fixed price' : 'Auction'}</span>
+                    {item.is_experience && <span className="px-2 py-0.5 rounded-full text-xs bg-indigo-100 text-indigo-700">Experience</span>}
+                    {item.source_donation_id && <span className="px-2 py-0.5 rounded-full text-xs bg-teal-100 text-teal-700">From donation</span>}
                   </div>
+                  {(item.donor_name || item.donor_business) && (
+                    <p className="mt-0.5 text-xs text-gray-500">
+                      Donor: {[item.donor_name, item.donor_business].filter(Boolean).join(', ')}
+                      {item.donor_recognition === false && ' (not shown publicly)'}
+                    </p>
+                  )}
                   <p className="mt-1 text-sm text-gray-600">{priceText(item)}</p>
                   {item.sale_mode === 'auction' && (item.reserve_cents || item.buy_now_cents) && (
                     <p className="text-xs text-gray-400">

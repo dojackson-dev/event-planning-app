@@ -20,6 +20,16 @@ export type AuctionItemStatus = (typeof AUCTION_ITEM_STATUSES)[number];
 export const AUCTION_SALE_MODES = ['auction', 'fixed'] as const;
 export type AuctionSaleMode = (typeof AUCTION_SALE_MODES)[number];
 
+export const AUCTION_FULFILLMENT_METHODS = [
+  'pickup',
+  'delivery',
+  'shipping',
+  'digital',
+  'arranged_with_donor',
+] as const;
+export type AuctionFulfillmentMethod =
+  (typeof AUCTION_FULFILLMENT_METHODS)[number];
+
 export const AUCTION_CARD_STATUSES = [
   'none',
   'pending',
@@ -102,6 +112,12 @@ export interface AuctionRow {
   event_date: string | null;
   closed_at: string | null;
   settled_at: string | null;
+  organization_id?: string | null;
+  slug?: string | null;
+  cover_image_url?: string | null;
+  accepts_donations?: boolean;
+  donations_close_at?: string | null;
+  page_published?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -159,6 +175,19 @@ export interface AuctionItemRow {
   final_price_cents: number | null;
   sold_via: 'auction' | 'buy_now' | null;
   closed_at: string | null;
+  condition?: string | null;
+  specifications?: string | null;
+  whats_included?: string | null;
+  restrictions?: string | null;
+  expires_on?: string | null;
+  fulfillment_method?: AuctionFulfillmentMethod | null;
+  fulfillment_details?: string | null;
+  is_experience?: boolean;
+  scheduling_requirements?: string | null;
+  blackout_dates?: string | null;
+  donor_business?: string | null;
+  donor_recognition?: boolean;
+  source_donation_id?: string | null;
   created_at: string;
   updated_at: string;
 }

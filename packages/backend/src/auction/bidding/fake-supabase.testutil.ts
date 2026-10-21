@@ -152,7 +152,10 @@ class FakeQuery implements PromiseLike<any> {
     }
     if (this.op === 'delete') {
       this.db.tables[this.name] = rows.filter((r) => !matched.includes(r));
-      return { data: null, error: null };
+      return {
+        data: this.returning ? matched.map((r) => ({ ...r })) : null,
+        error: null,
+      };
     }
     const sorted = [...matched];
     for (const { col, asc } of [...this.orders].reverse()) {
@@ -272,6 +275,23 @@ export function makeBiddingDb(
       },
       defaults: {
         auction_otps: () => ({ attempts: 0, consumed_at: null }),
+        auction_donor_otps: () => ({ attempts: 0, consumed_at: null }),
+        auction_donations: () => ({
+          status: 'pending',
+          decline_reason: null,
+          item_id: null,
+          reviewed_at: null,
+          reviewed_by_user_id: null,
+        }),
+        auction_items: () => ({
+          status: 'open',
+          bid_count: 0,
+          current_price_cents: 0,
+          quantity: 1,
+          quantity_sold: 0,
+          donor_recognition: true,
+          source_donation_id: null,
+        }),
         auction_bidders: () => ({
           token_version: 0,
           card_status: 'none',

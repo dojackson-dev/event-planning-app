@@ -1,9 +1,18 @@
 import { BadRequestException } from '@nestjs/common';
-import { AUCTION_SALE_MODES } from '../../auction.types';
-import type { AuctionItemRow, AuctionSaleMode } from '../../auction.types';
+import {
+  AUCTION_FULFILLMENT_METHODS,
+  AUCTION_SALE_MODES,
+} from '../../auction.types';
+import type {
+  AuctionFulfillmentMethod,
+  AuctionItemRow,
+  AuctionSaleMode,
+} from '../../auction.types';
+import { checkSlug } from '../../auction-slug';
 
 export const MAX_CENTS = 100_000_000;
 export const MAX_IMAGES_PER_ITEM = 5;
+export const MAX_IMAGES_PER_DONATION = 6;
 export const HARD_CLOSE_MINUTES = 120;
 
 const UUID_RE =
@@ -37,7 +46,7 @@ export function intIn(
   return value;
 }
 
-function cents(value: unknown, label: string, min = 0): number {
+export function cents(value: unknown, label: string, min = 0): number {
   if (
     typeof value !== 'number' ||
     !Number.isFinite(value) ||
@@ -61,6 +70,9 @@ export function requiredText(
     throw new BadRequestException(`${label} is required.`);
   }
   const text = value.trim();
+  if (text.includes('\u0000')) {
+    throw new BadRequestException(`${label} contains invalid characters.`);
+  }
   if (!text || text.length > max) {
     throw new BadRequestException(
       `${label} is required (max ${max} characters).`,
@@ -79,6 +91,9 @@ export function optionalText(
     throw new BadRequestException(`${label} must be text.`);
   }
   const text = value.trim();
+  if (text.includes('\u0000')) {
+    throw new BadRequestException(`${label} contains invalid characters.`);
+  }
   if (text.length > max) {
     throw new BadRequestException(`${label} is too long (max ${max}).`);
   }
@@ -92,7 +107,7 @@ function uuid(value: unknown, label: string): string {
   return value;
 }
 
-function isoDate(value: unknown, label: string): string {
+export function isoDate(value: unknown, label: string): string {
   const d = typeof value === 'string' ? new Date(value) : new Date(NaN);
   if (Number.isNaN(d.getTime()) || d.getUTCFullYear() > 2200) {
     throw new BadRequestException(`${label} must be a valid date-time.`);
@@ -100,7 +115,7 @@ function isoDate(value: unknown, label: string): string {
   return d.toISOString();
 }
 
-function httpsUrl(value: unknown): string {
+export function httpsUrl(value: unknown): string {
   if (typeof value !== 'string' || value.length > 2000) {
     throw new BadRequestException('Each image must be an https URL.');
   }
@@ -116,6 +131,120 @@ function httpsUrl(value: unknown): string {
   return url.toString();
 }
 
+/** http(s) link for websites; credentials in the URL are rejected. */
+export function httpUrl(value: unknown, label: string): string {
+  const bad = () =>
+    new BadRequestException(`${label} must be an http(s) web address.`);
+  if (typeof value !== 'string' || value.length > 2000) throw bad();
+  let url: URL;
+  try {
+    url = new URL(value.trim());
+  } catch {
+    throw bad();
+  }
+  if (
+    (url.protocol !== 'https:' && url.protocol !== 'http:') ||
+    url.username ||
+    url.password
+  ) {
+    throw bad();
+  }
+  return url.toString();
+}
+
+export function optionalHttpUrl(value: unknown, label: string): string | null {
+  if (value === null) return null;
+  if (typeof value === 'string' && value.trim() === '') return null;
+  return httpUrl(value, label);
+}
+
+export function optionalHttpsImage(value: unknown): string | null {
+  if (value === null) return null;
+  if (typeof value === 'string' && value.trim() === '') return null;
+  return httpsUrl(value);
+}
+
+export function boolField(value: unknown, label: string): boolean {
+  if (typeof value !== 'boolean') {
+    throw new BadRequestException(`${label} must be true or false.`);
+  }
+  return value;
+}
+
+function dateOnly(value: unknown, label: string): string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw new BadRequestException(`${label} must be a date (YYYY-MM-DD).`);
+  }
+  const d = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== value) {
+    throw new BadRequestException(`${label} must be a valid date.`);
+  }
+  return value;
+}
+
+// ─── Shared item detail fields (items and donations) ────────────
+
+export interface ItemDetails {
+  condition: string | null;
+  specifications: string | null;
+  whats_included: string | null;
+  restrictions: string | null;
+  expires_on: string | null;
+  fulfillment_method: AuctionFulfillmentMethod | null;
+  fulfillment_details: string | null;
+  is_experience: boolean;
+  scheduling_requirements: string | null;
+  blackout_dates: string | null;
+}
+
+const ITEM_DETAIL_TEXT_FIELDS = [
+  ['condition', 'Condition', 200],
+  ['specifications', 'Specifications', 2000],
+  ['whats_included', "What's included", 2000],
+  ['restrictions', 'Restrictions', 2000],
+  ['fulfillment_details', 'Fulfillment details', 2000],
+  ['scheduling_requirements', 'Scheduling requirements', 1000],
+  ['blackout_dates', 'Blackout dates', 1000],
+] as const;
+
+export function parseFulfillmentMethod(
+  value: unknown,
+): AuctionFulfillmentMethod {
+  if (
+    typeof value !== 'string' ||
+    !(AUCTION_FULFILLMENT_METHODS as readonly string[]).includes(value)
+  ) {
+    throw new BadRequestException(
+      `Fulfillment method must be one of: ${AUCTION_FULFILLMENT_METHODS.join(', ')}.`,
+    );
+  }
+  return value as AuctionFulfillmentMethod;
+}
+
+/** Validates only the detail fields that are present (null clears a field). */
+export function parseItemDetails(
+  dto: Record<string, unknown>,
+): Partial<ItemDetails> {
+  const out: Partial<ItemDetails> = {};
+  for (const [key, label, max] of ITEM_DETAIL_TEXT_FIELDS) {
+    if (dto[key] !== undefined) out[key] = optionalText(dto[key], label, max);
+  }
+  if (dto.expires_on !== undefined) {
+    out.expires_on =
+      dto.expires_on === null ? null : dateOnly(dto.expires_on, 'Expiry date');
+  }
+  if (dto.fulfillment_method !== undefined) {
+    out.fulfillment_method =
+      dto.fulfillment_method === null
+        ? null
+        : parseFulfillmentMethod(dto.fulfillment_method);
+  }
+  if (dto.is_experience !== undefined) {
+    out.is_experience = boolField(dto.is_experience, 'Is experience');
+  }
+  return out;
+}
+
 // ─── Auction ────────────────────────────────────────────────────
 
 export interface AuctionInput {
@@ -128,6 +257,11 @@ export interface AuctionInput {
   anti_snipe_extension_seconds?: number;
   payment_grace_hours?: number;
   default_exposure_limit_cents?: number;
+  slug?: string | null;
+  cover_image_url?: string | null;
+  accepts_donations?: boolean;
+  donations_close_at?: string | null;
+  page_published?: boolean;
 }
 
 /** Validates only the fields present; `full` makes the title mandatory. */
@@ -183,6 +317,35 @@ export function parseAuctionInput(raw: unknown, full: boolean): AuctionInput {
       100,
     );
   }
+  if (dto.slug !== undefined) {
+    if (dto.slug === null || dto.slug === '') {
+      out.slug = null;
+    } else {
+      const checked = checkSlug(dto.slug);
+      if (!checked.ok) {
+        throw new BadRequestException(`Web address: ${checked.reason}`);
+      }
+      out.slug = checked.slug;
+    }
+  }
+  if (dto.cover_image_url !== undefined) {
+    out.cover_image_url = optionalHttpsImage(dto.cover_image_url);
+  }
+  if (dto.accepts_donations !== undefined) {
+    out.accepts_donations = boolField(
+      dto.accepts_donations,
+      'Accepts donations',
+    );
+  }
+  if (dto.donations_close_at !== undefined) {
+    out.donations_close_at =
+      dto.donations_close_at === null
+        ? null
+        : isoDate(dto.donations_close_at, 'Donations close time');
+  }
+  if (dto.page_published !== undefined) {
+    out.page_published = boolField(dto.page_published, 'Page published');
+  }
   return out;
 }
 
@@ -191,6 +354,9 @@ export function parseAuctionInput(raw: unknown, full: boolean): AuctionInput {
 export type ItemPatch = Partial<
   Pick<
     AuctionItemRow,
+    | 'donor_business'
+    | 'donor_recognition'
+    | keyof ItemDetails
     | 'sale_mode'
     | 'title'
     | 'description'
@@ -213,7 +379,11 @@ export type ItemPatch = Partial<
 >;
 
 /** Validates only the fields present; `full` requires title and an explicit fair market value. */
-export function parseItemInput(raw: unknown, full: boolean): ItemPatch {
+export function parseItemInput(
+  raw: unknown,
+  full: boolean,
+  maxImages = MAX_IMAGES_PER_ITEM,
+): ItemPatch {
   const dto = asObject(raw);
   const out: ItemPatch = {};
 
@@ -235,16 +405,27 @@ export function parseItemInput(raw: unknown, full: boolean): ItemPatch {
   if (dto.donor_name !== undefined) {
     out.donor_name = optionalText(dto.donor_name, 'Donor name', 200);
   }
+  if (dto.donor_business !== undefined) {
+    out.donor_business = optionalText(
+      dto.donor_business,
+      'Donor business',
+      200,
+    );
+  }
+  if (dto.donor_recognition !== undefined) {
+    out.donor_recognition = boolField(
+      dto.donor_recognition,
+      'Donor recognition',
+    );
+  }
+  Object.assign(out, parseItemDetails(dto));
   if (dto.tax_code !== undefined) {
     out.tax_code = optionalText(dto.tax_code, 'Tax code', 50);
   }
   if (dto.image_urls !== undefined) {
-    if (
-      !Array.isArray(dto.image_urls) ||
-      dto.image_urls.length > MAX_IMAGES_PER_ITEM
-    ) {
+    if (!Array.isArray(dto.image_urls) || dto.image_urls.length > maxImages) {
       throw new BadRequestException(
-        `Images must be a list of up to ${MAX_IMAGES_PER_ITEM} https URLs.`,
+        `Images must be a list of up to ${maxImages} https URLs.`,
       );
     }
     out.image_urls = (dto.image_urls as unknown[]).map(httpsUrl);

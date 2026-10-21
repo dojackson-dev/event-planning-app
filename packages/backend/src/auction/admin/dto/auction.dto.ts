@@ -13,6 +13,12 @@ export class CreateAuctionDto {
   anti_snipe_extension_seconds?: number;
   payment_grace_hours?: number;
   default_exposure_limit_cents?: number;
+  /** URL slug, unique within the organization. */
+  slug?: string | null;
+  cover_image_url?: string | null;
+  accepts_donations?: boolean;
+  donations_close_at?: string | null;
+  page_published?: boolean;
 }
 
 export class UpdateAuctionDto extends CreateAuctionDto {}
@@ -35,6 +41,24 @@ export class AuctionItemDto {
   per_bidder_limit?: number | null;
   lot_number?: number | null;
   sort_order?: number;
+  condition?: string | null;
+  specifications?: string | null;
+  whats_included?: string | null;
+  restrictions?: string | null;
+  expires_on?: string | null;
+  fulfillment_method?:
+    | 'pickup'
+    | 'delivery'
+    | 'shipping'
+    | 'digital'
+    | 'arranged_with_donor'
+    | null;
+  fulfillment_details?: string | null;
+  is_experience?: boolean;
+  scheduling_requirements?: string | null;
+  blackout_dates?: string | null;
+  donor_business?: string | null;
+  donor_recognition?: boolean;
 }
 
 export class ResolveReserveDto {

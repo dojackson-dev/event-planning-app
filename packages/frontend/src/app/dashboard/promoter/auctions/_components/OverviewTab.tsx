@@ -1,6 +1,7 @@
 'use client'
 
-import { AuctionSummary, formatUsd } from '../lib'
+import ShareBlock from './ShareBlock'
+import { Auction, AuctionSummary, formatUsd } from '../lib'
 import { ReportState, useReport } from './useReport'
 
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
@@ -13,14 +14,24 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
   )
 }
 
-export default function OverviewTab({ auctionId, refreshKey }: { auctionId: string; refreshKey: number }) {
+export default function OverviewTab({ auctionId, refreshKey, auction, itemCount }: { auctionId: string; refreshKey: number; auction?: Auction; itemCount?: number }) {
   const { data, loading, error, reload } = useReport<AuctionSummary | null>(`/auctions/manage/${auctionId}/summary?k=${refreshKey}`, null)
 
-  if (!data) return <ReportState loading={loading} error={error} onRetry={reload} empty={false} emptyText="" />
+  const share = auction ? <ShareBlock auction={auction} itemCount={itemCount} /> : null
+
+  if (!data) {
+    return (
+      <div className="space-y-6">
+        {share}
+        <ReportState loading={loading} error={error} onRetry={reload} empty={false} emptyText="" />
+      </div>
+    )
+  }
 
   const { items, bidders, revenue, orders } = data
   return (
     <div className="space-y-6">
+      {share}
       {data.reserve_pending.length > 0 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
           <p className="font-semibold">{data.reserve_pending.length} item{data.reserve_pending.length === 1 ? '' : 's'} waiting for your decision</p>

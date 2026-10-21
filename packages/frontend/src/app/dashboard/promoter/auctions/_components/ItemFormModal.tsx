@@ -3,7 +3,15 @@
 import { useRef, useState } from 'react'
 import { Loader2, X, ImagePlus } from 'lucide-react'
 import api from '@/lib/api'
-import { AuctionItem, SaleMode, centsToDollars, dollarsToCents, errorMessage } from '../lib'
+import {
+  AuctionItem,
+  FULFILLMENT_LABEL,
+  FulfillmentMethod,
+  SaleMode,
+  centsToDollars,
+  dollarsToCents,
+  errorMessage,
+} from '../lib'
 
 const MAX_IMAGES = 5
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024
@@ -41,6 +49,18 @@ export default function ItemFormModal({ auctionId, item, onClose, onSaved }: Pro
   const [fixedPrice, setFixedPrice] = useState(centsToDollars(item?.fixed_price_cents))
   const [quantity, setQuantity] = useState(String(item?.quantity ?? 1))
   const [perBidder, setPerBidder] = useState(item?.per_bidder_limit ? String(item.per_bidder_limit) : '')
+  const [condition, setCondition] = useState(item?.condition ?? '')
+  const [specifications, setSpecifications] = useState(item?.specifications ?? '')
+  const [whatsIncluded, setWhatsIncluded] = useState(item?.whats_included ?? '')
+  const [restrictions, setRestrictions] = useState(item?.restrictions ?? '')
+  const [expiresOn, setExpiresOn] = useState(item?.expires_on ? item.expires_on.slice(0, 10) : '')
+  const [fulfillment, setFulfillment] = useState<FulfillmentMethod | ''>(item?.fulfillment_method ?? '')
+  const [fulfillmentDetails, setFulfillmentDetails] = useState(item?.fulfillment_details ?? '')
+  const [isExperience, setIsExperience] = useState(item?.is_experience ?? false)
+  const [scheduling, setScheduling] = useState(item?.scheduling_requirements ?? '')
+  const [blackout, setBlackout] = useState(item?.blackout_dates ?? '')
+  const [donorBusiness, setDonorBusiness] = useState(item?.donor_business ?? '')
+  const [recognizeDonor, setRecognizeDonor] = useState(item?.donor_recognition ?? true)
 
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -85,6 +105,18 @@ export default function ItemFormModal({ auctionId, item, onClose, onSaved }: Pro
       image_urls: images,
       fair_market_value_cents: fmvCents,
       tax_code: taxCode.trim() || null,
+      condition: condition.trim() || null,
+      specifications: specifications.trim() || null,
+      whats_included: whatsIncluded.trim() || null,
+      restrictions: restrictions.trim() || null,
+      expires_on: expiresOn || null,
+      fulfillment_method: fulfillment || null,
+      fulfillment_details: fulfillmentDetails.trim() || null,
+      is_experience: isExperience,
+      scheduling_requirements: isExperience ? scheduling.trim() || null : null,
+      blackout_dates: isExperience ? blackout.trim() || null : null,
+      donor_business: donorBusiness.trim() || null,
+      donor_recognition: recognizeDonor,
     }
     if (lot.trim()) {
       const n = Number(lot)
@@ -209,6 +241,79 @@ export default function ItemFormModal({ auctionId, item, onClose, onSaved }: Pro
           </div>
           <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => e.target.files?.[0] && uploadImage(e.target.files[0])} />
         </div>
+
+        <fieldset className="space-y-4 rounded-xl border border-gray-200 p-4" disabled={busy}>
+          <legend className="px-1 text-sm font-semibold text-gray-800">Item details shown to bidders</legend>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="item-condition" className="block text-sm font-medium text-gray-700 mb-1">Condition</label>
+              <input id="item-condition" className={inputClass} value={condition} maxLength={200} placeholder="New, gently used, ..." onChange={(e) => setCondition(e.target.value)} />
+            </div>
+            <div>
+              <label htmlFor="item-expires" className="block text-sm font-medium text-gray-700 mb-1">Expires on</label>
+              <input id="item-expires" type="date" className={inputClass} value={expiresOn} onChange={(e) => setExpiresOn(e.target.value)} />
+              <p className="mt-1 text-xs text-gray-400">For gift certificates and vouchers.</p>
+            </div>
+          </div>
+          <div>
+            <label htmlFor="item-specs" className="block text-sm font-medium text-gray-700 mb-1">Specifications / size</label>
+            <textarea id="item-specs" rows={2} className={inputClass} value={specifications} maxLength={2000} onChange={(e) => setSpecifications(e.target.value)} />
+          </div>
+          <div>
+            <label htmlFor="item-included" className="block text-sm font-medium text-gray-700 mb-1">What is included</label>
+            <textarea id="item-included" rows={2} className={inputClass} value={whatsIncluded} maxLength={2000} onChange={(e) => setWhatsIncluded(e.target.value)} />
+          </div>
+          <div>
+            <label htmlFor="item-restrictions" className="block text-sm font-medium text-gray-700 mb-1">Restrictions</label>
+            <textarea id="item-restrictions" rows={2} className={inputClass} value={restrictions} maxLength={2000} onChange={(e) => setRestrictions(e.target.value)} />
+          </div>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="item-fulfillment" className="block text-sm font-medium text-gray-700 mb-1">How the winner receives it</label>
+              <select id="item-fulfillment" className={inputClass} value={fulfillment} onChange={(e) => setFulfillment(e.target.value as FulfillmentMethod | '')}>
+                <option value="">Not specified</option>
+                {(Object.keys(FULFILLMENT_LABEL) as FulfillmentMethod[]).map((m) => (
+                  <option key={m} value={m}>{FULFILLMENT_LABEL[m]}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="item-fulfillment-details" className="block text-sm font-medium text-gray-700 mb-1">Fulfillment details</label>
+              <input id="item-fulfillment-details" className={inputClass} value={fulfillmentDetails} maxLength={1000} placeholder="Pickup address, shipping cost, ..." onChange={(e) => setFulfillmentDetails(e.target.value)} />
+            </div>
+          </div>
+          <label className="flex cursor-pointer items-start gap-3">
+            <input type="checkbox" className="mt-1 h-4 w-4 rounded border-gray-300 text-purple-600" checked={isExperience} onChange={(e) => setIsExperience(e.target.checked)} />
+            <span className="text-sm text-gray-800">This is an experience (trip, class, event, service)</span>
+          </label>
+          {isExperience && (
+            <div className="grid sm:grid-cols-2 gap-4 pl-7">
+              <div>
+                <label htmlFor="item-scheduling" className="block text-sm font-medium text-gray-700 mb-1">Scheduling requirements</label>
+                <textarea id="item-scheduling" rows={2} className={inputClass} value={scheduling} maxLength={1000} placeholder="Book 2 weeks ahead, weekdays only, ..." onChange={(e) => setScheduling(e.target.value)} />
+              </div>
+              <div>
+                <label htmlFor="item-blackout" className="block text-sm font-medium text-gray-700 mb-1">Blackout dates</label>
+                <textarea id="item-blackout" rows={2} className={inputClass} value={blackout} maxLength={1000} onChange={(e) => setBlackout(e.target.value)} />
+              </div>
+            </div>
+          )}
+        </fieldset>
+
+        <fieldset className="space-y-3 rounded-xl border border-gray-200 p-4" disabled={busy}>
+          <legend className="px-1 text-sm font-semibold text-gray-800">Donor recognition</legend>
+          <div>
+            <label htmlFor="item-donor-business" className="block text-sm font-medium text-gray-700 mb-1">Donor business (optional)</label>
+            <input id="item-donor-business" className={inputClass} value={donorBusiness} maxLength={200} onChange={(e) => setDonorBusiness(e.target.value)} />
+          </div>
+          <label className="flex cursor-pointer items-start gap-3">
+            <input type="checkbox" className="mt-0.5 h-4 w-4 rounded border-gray-300 text-purple-600" checked={recognizeDonor} onChange={(e) => setRecognizeDonor(e.target.checked)} />
+            <span className="text-sm text-gray-800">
+              Recognize the donor publicly
+              <span className="block text-xs text-gray-500">When off, the donor name and business are not shown to the public. Only turn this on if the donor agreed.</span>
+            </span>
+          </label>
+        </fieldset>
 
         <div className="grid sm:grid-cols-2 gap-4">
           <div>

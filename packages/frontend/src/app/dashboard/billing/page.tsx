@@ -43,9 +43,9 @@ const PLANS = [
     features: [
       '1 venue',
       'No team members included',
-      'Additional team members at $15/mo each',
-      'Ticket sales: customer pays 3% EventEcos fee + Stripe processing',
-      'Direct payments: payer pays Stripe processing; recipient pays 3% EventEcos fee',
+      'Upgrade to Pro or Premium to add team members',
+      'Ticket sales: customer pays 3% platform fee + card processing',
+      'Direct payments: payer pays card processing; recipient pays 3% platform fee',
       'Invoices, estimates & contracts available with Stripe payments activated',
       'Basic listing only without Stripe payments',
     ],
@@ -64,8 +64,8 @@ const PLANS = [
     features: [
       'Up to 3 venues',
       'Up to 3 team members',
-      'Ticket sales: customer pays 3% EventEcos fee + Stripe processing',
-      'Direct payments: payer pays Stripe processing; recipient pays 1.5% EventEcos fee',
+      'Ticket sales: customer pays 3% platform fee + card processing',
+      'Direct payments: payer pays card processing; recipient pays 1.5% platform fee',
       'Invoices, estimates, contracts & payment tools',
       'Vendor management, door list & security',
       'SMS notifications',
@@ -86,8 +86,8 @@ const PLANS = [
     features: [
       'Up to 5 venues',
       'Up to 5 team members',
-      'Ticket sales: customer pays 3% EventEcos fee + Stripe processing',
-      'Direct payments: payer pays Stripe processing; recipient pays 1% EventEcos fee (lowest rate)',
+      'Ticket sales: customer pays 3% platform fee + card processing',
+      'Direct payments: payer pays card processing; recipient pays 1% platform fee (lowest rate)',
       'Invoices, estimates, contracts & advanced payment tools',
       'Multi-venue support & custom branding',
       'Ticket sales & promoter tools',
@@ -108,8 +108,8 @@ const PLANS = [
     features: [
       'Custom venue limits',
       'Custom team member limits',
-      'Ticket sales: customer pays 3% EventEcos fee + Stripe processing (customizable)',
-      'Direct payments: payer pays Stripe processing; recipient pays EventEcos fee (rates customizable)',
+      'Ticket sales: customer pays 3% platform fee + card processing (customizable)',
+      'Direct payments: payer pays card processing; recipient pays platform fee (rates customizable)',
       'Invoices, estimates, contracts, payment tools & advanced reporting',
       'Custom workflows, tailored pricing & premium support',
       'Dedicated onboarding support',
@@ -518,7 +518,7 @@ export default function BillingPage() {
           })}
         </div>
         <p className="text-xs text-gray-400 mt-3 text-center">
-          Cancel anytime. Platform fees shown are EventEcos fees on direct payments (invoices). Ticket sales carry a 3% fee paid by the buyer (1.5% for verified non-profits). The payer also covers payment processing: 3.1% + $0.30 for cards (includes a small allowance for international cards), or 6% + $0.30 for pay later (Afterpay, Klarna, Affirm) where the seller has turned it on.
+          Cancel anytime. Platform fees shown are EventEcos platform fees on direct payments (invoices). Ticket and VIP sales carry a 3% fee paid by the buyer (1.5% for verified non-profits). The payer also covers payment processing: 3.1% + $0.30 for cards (includes a small allowance for international cards), or 6% + $0.30 for pay later (Afterpay, Klarna, Affirm) where the seller has turned it on.
         </p>
       </div>
 
@@ -536,7 +536,7 @@ export default function BillingPage() {
               </div>
               <p className="text-sm text-gray-500">
                 Connect your Stripe account to accept payments from clients and pay vendors.
-                For direct payments, the payer covers Stripe processing and the recipient pays the EventEcos platform fee: <strong>3%</strong> Free · <strong>1.5%</strong> Pro · <strong>1%</strong> Premium &amp; Enterprise.
+                For direct payments, the payer covers card processing and the recipient pays the EventEcos platform fee: <strong>3%</strong> Free · <strong>1.5%</strong> Pro · <strong>1%</strong> Premium &amp; Enterprise.
               </p>
               {connectStatus?.connectId && (
                 <p className="text-xs text-gray-400 mt-1 font-mono">{connectStatus.connectId}</p>

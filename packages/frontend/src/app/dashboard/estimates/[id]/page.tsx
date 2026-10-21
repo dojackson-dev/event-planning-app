@@ -106,6 +106,15 @@ export default function EstimateDetailPage() {
 
   const enterEditMode = () => {
     if (!estimate) return
+    if (estimate.status === EstimateStatus.CONVERTED) {
+      const message = 'This estimate has already been converted to an invoice and can no longer be edited. Please edit the invoice instead.'
+      if (estimate.converted_invoice_id && confirm(`${message}\n\nOpen the invoice now?`)) {
+        router.push(`/dashboard/invoices/${estimate.converted_invoice_id}`)
+      } else if (!estimate.converted_invoice_id) {
+        alert(message)
+      }
+      return
+    }
     setEditData({
       client_name: (estimate as any).client_name || '',
       client_phone: (estimate as any).client_phone || '',
@@ -183,8 +192,8 @@ export default function EstimateDetailPage() {
       }
       setEditMode(false)
       fetchEstimate()
-    } catch {
-      alert('Failed to save changes. Please try again.')
+    } catch (error: any) {
+      alert(error?.response?.data?.message || 'Failed to save changes. Please try again.')
     } finally {
       setSaving(false)
     }
@@ -245,11 +254,16 @@ export default function EstimateDetailPage() {
               Open Invoice
             </button>
           )}
-          {!editMode && estimate.status !== EstimateStatus.CONVERTED && (
+          {!editMode && estimate.status === EstimateStatus.DRAFT && (
             <button onClick={enterEditMode}
               className="bg-amber-500 text-white px-4 py-2 rounded-md hover:bg-amber-600 text-sm font-medium">
               ✏ Edit Estimate
             </button>
+          )}
+          {!editMode && estimate.status !== EstimateStatus.DRAFT && (
+            <span className="text-xs text-gray-500 self-center max-w-xs">
+              Sent estimates can&apos;t be edited. To change anything, create a new estimate.
+            </span>
           )}
           {canSend && (
             <button onClick={() => updateStatus(EstimateStatus.SENT)} disabled={actionLoading}

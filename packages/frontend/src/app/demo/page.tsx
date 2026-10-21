@@ -36,6 +36,7 @@ import {
   ExternalLink,
 } from 'lucide-react'
 import DemoTour from '@/components/DemoTour'
+import BookDemoModal from '@/components/BookDemoModal'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -693,10 +694,11 @@ function FeatureCardItem({ feature }: { feature: FeatureCard }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function DemoPage() {
+  const [showBookDemo, setShowBookDemo] = useState(false)
   return (
     <div className="min-h-screen bg-white">
       <DemoTour />
-
+      <BookDemoModal isOpen={showBookDemo} onClose={() => setShowBookDemo(false)} />
       {/* ── Nav ── */}
       <nav className="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
@@ -715,6 +717,13 @@ export default function DemoPage() {
             >
               <Play className="h-3.5 w-3.5" />
               Start Tour
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowBookDemo(true)}
+              className="flex items-center gap-1.5 text-sm font-semibold bg-accent-500 text-white hover:bg-accent-600 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              Book a Demo
             </button>
             <Link
               href="https://www.eventecos.com/signup"
@@ -751,6 +760,13 @@ export default function DemoPage() {
             >
               <Play className="h-4 w-4" />
               Guided Tour (17 steps)
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowBookDemo(true)}
+              className="flex items-center gap-2 bg-accent-500 hover:bg-accent-600 text-white font-bold px-6 py-3 rounded-xl transition-colors shadow-lg hover:shadow-xl text-sm"
+            >
+              Book a Demo <ArrowRight className="h-4 w-4" />
             </button>
             <Link
               href="https://www.eventecos.com/signup"

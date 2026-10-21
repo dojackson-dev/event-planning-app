@@ -3,7 +3,10 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { CheckCircle2, Loader2, AlertCircle, CreditCard, Lock, Megaphone } from 'lucide-react'
-import PayMethodToggle, { CARD_RATE_LABEL, PAY_LATER_RATE_LABEL, type PayMethod } from '@/components/PayMethodToggle'
+import PaidDashboardLink from '@/components/PaidDashboardLink'
+import InvoiceDepositChoice from '@/components/InvoiceDepositChoice'
+import { chargeAmount, depositInfo, type PayAmount } from '@/lib/invoiceDeposit'
+import PayMethodToggle, { rateLabel, type PayMethod } from '@/components/PayMethodToggle'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
@@ -21,12 +24,17 @@ interface PublicPromoterInvoice {
   discount_amount: number
   total_amount: number
   amount_due: number
+  amount_paid?: number
+  deposit_amount?: number | null
+  balance_due_date?: string | null
   notes: string | null
   terms: string | null
   promoter_invoice_items: Array<{ id: string; description: string; quantity: number; unit_price: number; amount: number }>
   promoter_accounts: { company_name?: string; contact_name?: string; email: string; location?: string }
   pay_later_available?: boolean
-  processing_fee_cents?: { card: number; pay_later: number }
+  bank_available?: boolean
+  processing_fee_cents?: { card: number; pay_later: number; bank?: number }
+  deposit_processing_fee_cents?: { card: number; pay_later: number; bank?: number }
 }
 
 function PromoterPayContent() {
@@ -39,18 +47,20 @@ function PromoterPayContent() {
   const [paying, setPaying] = useState(false)
   const [error, setError] = useState('')
   const [payMethod, setPayMethod] = useState<PayMethod>('card')
+  const [payAmount, setPayAmount] = useState<PayAmount>('deposit')
 
   const justPaid = searchParams.get('paid') === 'true'
   const wasCanceled = searchParams.get('canceled') === 'true'
 
   useEffect(() => {
-    if (justPaid) {
-      fetch(`${API_URL}/promoter-invoices/public/${token}/verify-payment`, { method: 'POST' })
-        .then(r => r.json())
-        .then(d => d.paid && setInvoice(prev => prev ? { ...prev, status: 'paid' } : prev))
-        .catch(() => {})
+    // Record the payment first so the invoice reloads with the right balance.
+    const load = async () => {
+      if (justPaid) {
+        await fetch(`${API_URL}/promoter-invoices/public/${token}/verify-payment`, { method: 'POST' }).catch(() => {})
+      }
+      await fetchInvoice()
     }
-    fetchInvoice()
+    load()
   }, [token])
 
   const fetchInvoice = async () => {
@@ -71,7 +81,7 @@ function PromoterPayContent() {
       const res = await fetch(`${API_URL}/promoter-invoices/public/${token}/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pay_method: payMethod }),
+        body: JSON.stringify({ pay_method: payMethod, pay_amount: payAmount }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.message || 'Failed to initiate payment')
@@ -100,12 +110,16 @@ function PromoterPayContent() {
 
   if (!invoice) return null
 
-  const isPaid = invoice.status === 'paid' || justPaid
+  const info = depositInfo(invoice)
+  const effectiveAmount: PayAmount = info.remaining > 0 ? payAmount : 'full'
+  const chargeNow = chargeAmount(info, effectiveAmount)
+  const isDepositCharge = effectiveAmount === 'deposit' && info.remaining > 0
+  const isPaid = invoice.status === 'paid' || (justPaid && !info.partiallyPaid)
   const isCancelled = invoice.status === 'cancelled'
   const promoter = invoice.promoter_accounts
   const displayName = promoter?.company_name || promoter?.contact_name || 'Promoter'
   const activePayMethod: PayMethod = invoice.pay_later_available ? payMethod : 'card'
-  const feeCents = invoice.processing_fee_cents?.[activePayMethod]
+  const feeCents = (isDepositCharge ? invoice.deposit_processing_fee_cents : invoice.processing_fee_cents)?.[activePayMethod]
   const feeText = feeCents != null ? `$${(feeCents / 100).toFixed(2)}` : null
 
   return (
@@ -167,6 +181,11 @@ function PromoterPayContent() {
               <div className="flex justify-between font-bold text-gray-900 text-base pt-2 border-t border-gray-100">
                 <span>Total</span><span>${Number(invoice.total_amount).toFixed(2)}</span>
               </div>
+              {info.has && (
+                <div className="flex justify-between text-gray-600 pt-1">
+                  <span>{isDepositCharge ? 'Deposit due now' : info.paid > 0 ? 'Balance due' : 'Due now'}</span><span>${chargeNow.toFixed(2)}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -179,9 +198,12 @@ function PromoterPayContent() {
 
           <div className="px-6 py-5">
             {isPaid ? (
-              <div className="flex items-center gap-3 bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 text-sm font-medium">
-                <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
-                Payment received. Thank you!
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 text-sm font-medium">
+                  <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+                  Payment received. Thank you!
+                </div>
+                <PaidDashboardLink autoRedirect={justPaid} />
               </div>
             ) : isCancelled ? (
               <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 text-gray-500 rounded-xl px-4 py-3 text-sm">
@@ -198,18 +220,28 @@ function PromoterPayContent() {
                     <AlertCircle className="w-4 h-4" /> {error}
                   </p>
                 )}
+                {justPaid && info.partiallyPaid && (
+                  <div className="flex items-center gap-3 bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 text-sm font-medium mb-3">
+                    <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+                    Payment received. Thank you!
+                  </div>
+                )}
+                <InvoiceDepositChoice
+                  info={info} value={effectiveAmount} onChange={setPayAmount}
+                  dueDate={invoice.due_date} balanceDueDate={invoice.balance_due_date} disabled={paying}
+                />
                 {invoice.pay_later_available && (
                   <div className="mb-3">
-                    <PayMethodToggle value={activePayMethod} onChange={setPayMethod} disabled={paying} />
+                    <PayMethodToggle value={activePayMethod} onChange={setPayMethod} disabled={paying} showBank={invoice.bank_available} />
                   </div>
                 )}
                 <button onClick={handlePay} disabled={paying}
                   className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white font-semibold py-3 rounded-xl hover:bg-purple-700 transition-colors disabled:opacity-60 text-base">
                   {paying ? <Loader2 className="w-5 h-5 animate-spin" /> : <CreditCard className="w-5 h-5" />}
-                  {paying ? 'Redirecting…' : `Pay $${Number(invoice.total_amount).toFixed(2)}`}
+                  {paying ? 'Redirecting…' : `Pay $${chargeNow.toFixed(2)}`}
                 </button>
                 <div className="flex items-center justify-center gap-1.5 mt-3 text-xs text-gray-400">
-                  <Lock className="w-3 h-3" /> Secured by Stripe. A {activePayMethod === 'pay_later' ? `pay-later processing fee (${PAY_LATER_RATE_LABEL})` : `processing fee (${CARD_RATE_LABEL})`}{feeText ? ` of ${feeText}` : ''} is added at checkout.
+                  <Lock className="w-3 h-3" /> Secured by Stripe. A {`${activePayMethod === 'pay_later' ? 'pay-later ' : activePayMethod === 'bank' ? 'bank payment ' : ''}processing fee (${rateLabel(activePayMethod)})`}{feeText ? ` of ${feeText}` : ''} is added at checkout.
                 </div>
               </>
             )}

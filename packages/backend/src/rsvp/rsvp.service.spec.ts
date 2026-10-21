@@ -19,6 +19,7 @@ function setup(results: Array<{ data?: unknown; error?: unknown }>) {
         'limit',
         'not',
         'update',
+        'insert',
         'delete',
         'single',
         'maybeSingle',
@@ -89,13 +90,14 @@ describe('Shared event RSVP management', () => {
   it('synchronizes client edits and scopes the update to its intake form', async () => {
     const { service, queries, syncRsvpGuest } = setup([
       { data: form },
+      { data: [guest] },
       { data: guest },
       { data: event },
     ]);
     await service.updateGuest(guest.id, form.id, form.contact_phone, {
       guest_name: 'Test Guest',
     });
-    expect(queries[1].eq).toHaveBeenCalledWith('intake_form_id', form.id);
+    expect(queries[2].eq).toHaveBeenCalledWith('intake_form_id', form.id);
     expect(syncRsvpGuest).toHaveBeenCalledWith(event.id, guest);
   });
 
@@ -126,6 +128,7 @@ describe('Shared event RSVP management', () => {
   it('ignores forged ownership and RSVP status fields in edits', async () => {
     const { service, queries } = setup([
       { data: form },
+      { data: [guest] },
       { data: guest },
       { data: event },
     ]);
@@ -134,7 +137,7 @@ describe('Shared event RSVP management', () => {
       owner_id: 'other-owner',
       status: 'attending',
     } as { guest_name: string });
-    expect(queries[1].update).toHaveBeenCalledWith({
+    expect(queries[2].update).toHaveBeenCalledWith({
       guest_name: 'Test Guest',
       updated_at: expect.any(String),
     });
@@ -183,6 +186,144 @@ describe('Shared event RSVP management', () => {
       '5550001111',
       expect.stringContaining('POSM Christmas Party on December 5, 2026'),
     );
+  });
+
+  describe('duplicate exclusion', () => {
+    const ownerActor = { ownerId: 'owner-1' };
+    const ownerForm = { ...form, user_id: 'owner-1' };
+    const jane = {
+      id: 'g-jane',
+      guest_name: 'Jane Smith',
+      guest_phone: '404-555-0123',
+      guest_email: null,
+    };
+
+    it('rejects adding a guest with an existing phone number', async () => {
+      const { service, queries } = setup([
+        { data: ownerForm },
+        { data: event },
+        { data: [jane] },
+      ]);
+      await expect(
+        service.addGuest(form.id, ownerActor, {
+          guest_name: 'Janie S',
+          guest_phone: '(404) 555-0123',
+        }),
+      ).rejects.toThrow('Jane Smith is already on the guest list (same phone)');
+      expect(queries.every((q) => q.insert.mock.calls.length === 0)).toBe(true);
+    });
+
+    it('adds a guest that is not a duplicate', async () => {
+      const { service, queries } = setup([
+        { data: ownerForm },
+        { data: event },
+        { data: [jane] },
+        { data: { id: 'new' } },
+      ]);
+      await expect(
+        service.addGuest(form.id, ownerActor, {
+          guest_name: 'Bob Jones',
+          guest_phone: '404-555-9999',
+        }),
+      ).resolves.toEqual({ id: 'new' });
+      expect(queries).toHaveLength(4);
+    });
+
+    it('skips duplicates in a bulk add, against the list and within the upload', async () => {
+      const { service, queries } = setup([
+        { data: ownerForm },
+        { data: event },
+        { data: [jane] },
+        { data: [{ id: 'n1' }, { id: 'n2' }] },
+      ]);
+      const result = await service.bulkAddGuestsDetailed(form.id, ownerActor, [
+        { guest_name: 'Jane S', guest_phone: '4045550123' },
+        { guest_name: 'Amy Lee', guest_email: 'amy@x.com' },
+        { guest_name: 'Amy L.', guest_email: 'AMY@x.com' },
+        { guest_name: 'Ben Cole', guest_phone: '404-555-7777' },
+        { guest_name: '   ' },
+      ]);
+      expect(result.added).toHaveLength(2);
+      expect(result.skipped).toEqual([
+        {
+          guest_name: 'Jane S',
+          reason: 'Duplicate of Jane Smith (same phone)',
+        },
+        { guest_name: 'Amy L.', reason: 'Duplicate of Amy Lee (same email)' },
+      ]);
+      expect(queries[3].insert).toHaveBeenCalledWith([
+        expect.objectContaining({ guest_name: 'Amy Lee' }),
+        expect.objectContaining({ guest_name: 'Ben Cole' }),
+      ]);
+    });
+
+    it('does not insert anything when every bulk guest is a duplicate', async () => {
+      const { service, queries } = setup([
+        { data: ownerForm },
+        { data: event },
+        { data: [jane] },
+      ]);
+      const result = await service.bulkAddGuestsDetailed(form.id, ownerActor, [
+        { guest_name: 'Jane', guest_phone: '404 555 0123' },
+      ]);
+      expect(result.added).toEqual([]);
+      expect(result.skipped).toHaveLength(1);
+      expect(queries).toHaveLength(3);
+    });
+
+    it('rejects an edit that changes a guest into a duplicate', async () => {
+      const bob = {
+        id: 'g-bob',
+        guest_name: 'Bob',
+        guest_phone: '404-555-9999',
+      };
+      const { service } = setup([
+        { data: ownerForm },
+        { data: event },
+        { data: [jane, bob] },
+      ]);
+      await expect(
+        service.updateGuest('g-bob', form.id, ownerActor, {
+          guest_phone: '(404) 555-0123',
+        }),
+      ).rejects.toThrow('Jane Smith is already on the guest list (same phone)');
+    });
+
+    it('does not text the same phone twice when sending all invites', async () => {
+      const invitedJane = { ...jane, sms_sent_at: '2026-10-01T00:00:00Z' };
+      const dupe = {
+        id: 'g-dupe',
+        guest_name: 'Jane (cell)',
+        guest_phone: '+14045550123',
+        sms_sent_at: null,
+        rsvp_token: 't1',
+      };
+      const bob = {
+        id: 'g-bob',
+        guest_name: 'Bob',
+        guest_phone: '404-555-9999',
+        sms_sent_at: null,
+        rsvp_token: 't2',
+      };
+      const bobTwin = {
+        id: 'g-bob2',
+        guest_name: 'Bobby',
+        guest_phone: '(404) 555-9999',
+        sms_sent_at: null,
+        rsvp_token: 't3',
+      };
+      const { service, trySend } = setup([
+        { data: ownerForm },
+        { data: event },
+        { data: [invitedJane, dupe, bob, bobTwin] },
+        { data: event },
+        { data: null },
+      ]);
+      const result = await service.sendAllInvites(form.id, ownerActor);
+      expect(result).toEqual({ sent: 1, skipped: 0, duplicates: 2 });
+      expect(trySend).toHaveBeenCalledTimes(1);
+      expect(trySend).toHaveBeenCalledWith('404-555-9999', expect.any(String));
+    });
   });
 
   describe('clients added as team members', () => {

@@ -81,7 +81,7 @@ export default function RevenuePage() {
 
       // Calculate subscription stats
       const activeSubscriptions = (owners || []).filter(
-        o => o.subscription_status === 'active' || o.subscription_status === 'trialing'
+        o => o.subscription_status === 'active' || o.subscription_status === 'trialing' || o.subscription_status === 'trial'
       ).length
       const cancelledSubscriptions = (owners || []).filter(
         o => o.subscription_status === 'cancelled'

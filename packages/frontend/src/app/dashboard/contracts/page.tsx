@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
+import AttentionBanner from '@/components/AttentionBanner'
+import { useAttentionFilter, CONTRACT_ATTENTION } from '@/lib/attentionFilter'
 import { Contract, ContractStatus } from '@/types'
 import { FileText, Search, ChevronDown, Eye } from 'lucide-react'
 import { useVenue } from '@/contexts/VenueContext'
@@ -14,6 +16,7 @@ export default function ContractsPage() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<ContractStatus | 'all'>('all')
   const [searchTerm, setSearchTerm] = useState('')
+  const [attention, clearAttention] = useAttentionFilter()
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [recentlyChanged, setRecentlyChanged] = useState<Set<string>>(new Set())
   const router = useRouter()
@@ -89,6 +92,7 @@ export default function ContractsPage() {
       }
       return filter === 'all' || contract.status === filter
     })
+    .filter(contract => !attention || !CONTRACT_ATTENTION[attention] || CONTRACT_ATTENTION[attention].match(contract))
     .filter(contract =>
       searchTerm === '' ||
       contract.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -155,6 +159,10 @@ export default function ContractsPage() {
           </p>
         )}
       </div>
+
+      {attention && CONTRACT_ATTENTION[attention] && (
+        <AttentionBanner label={CONTRACT_ATTENTION[attention].label} onClear={clearAttention} />
+      )}
 
       {/* Search and Filters */}
       <div className="mb-6 flex flex-col sm:flex-row gap-3">

@@ -61,11 +61,12 @@ export class ArtistInvoicesController {
   @Post('public/:token/checkout')
   async createPublicCheckout(
     @Param('token') token: string,
-    @Body() body?: { pay_method?: string },
+    @Body() body?: { pay_method?: string; pay_amount?: string },
   ) {
     return this.artistInvoicesService.createCheckoutSession(
       token,
       body?.pay_method,
+      body?.pay_amount,
     );
   }
 

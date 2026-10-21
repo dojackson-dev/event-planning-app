@@ -55,8 +55,7 @@ export default function VsPerfectVenuePage() {
         </div>
 
         <p className="text-gray-500 text-sm">
-          Figures for Perfect Venue are drawn from its own public marketing pages at the time of
-          writing and may have changed — confirm current details directly with Perfect Venue.
+          Figures for Perfect Venue are drawn from its own public marketing pages as of October 2026 and may have changed — confirm current details directly with Perfect Venue.
         </p>
 
         <Link

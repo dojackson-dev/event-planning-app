@@ -7,12 +7,13 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import EnterpriseContactModal from '@/components/EnterpriseContactModal'
+import BookDemoModal from '@/components/BookDemoModal'
 
 export default function Home() {
   const { isAuthenticated, loading, user } = useAuth()
   const router = useRouter()
   const [showEnterpriseModal, setShowEnterpriseModal] = useState(false)
-  const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly')
+  const [showDemoModal, setShowDemoModal] = useState(false)
 
   const taglines = [
     '"Events, vendors, venues — all in one ecosystem."',
@@ -99,6 +100,13 @@ export default function Home() {
                 <Sparkles className="h-3.5 w-3.5" />
                 Live Demo
               </Link>
+              <button
+                type="button"
+                onClick={() => setShowDemoModal(true)}
+                className="text-sm font-bold bg-white text-primary-700 hover:bg-primary-50 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                Book a Demo
+              </button>
             </div>
 
             {/* Right CTA */}
@@ -247,6 +255,13 @@ export default function Home() {
             >
               See Live Demo
             </a>
+            <button
+              type="button"
+              onClick={() => setShowDemoModal(true)}
+              className="border-2 border-gray-300 text-gray-700 hover:bg-gray-50 font-bold px-10 py-4 rounded-lg transition-colors text-lg"
+            >
+              Book a Demo
+            </button>
           </div>
           <p className="text-center text-sm text-gray-500 mt-4">30-day free trial. No credit card required.</p>
         </div>
@@ -389,6 +404,13 @@ export default function Home() {
           >
             Launch Live Demo <ArrowRight className="h-5 w-5" />
           </a>
+          <button
+            type="button"
+            onClick={() => setShowDemoModal(true)}
+            className="ml-0 sm:ml-4 mt-4 sm:mt-0 inline-flex items-center gap-2 border-2 border-white text-white hover:bg-white/10 font-bold px-10 py-4 rounded-lg transition-colors text-lg"
+          >
+            Book a Demo
+          </button>
         </div>
       </section>
 
@@ -499,21 +521,6 @@ export default function Home() {
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
               Start free. Upgrade as you grow. No hidden fees.
             </p>
-
-            <div className="inline-flex items-center gap-3 mt-8 bg-gray-100 rounded-full p-1.5">
-              <button
-                onClick={() => setBillingPeriod('monthly')}
-                className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${billingPeriod === 'monthly' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}
-              >
-                Monthly
-              </button>
-              <button
-                onClick={() => setBillingPeriod('annual')}
-                className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${billingPeriod === 'annual' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}
-              >
-                Annual <span className="text-accent-600">Save 2 months with annual</span>
-              </button>
-            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-start">
@@ -526,7 +533,7 @@ export default function Home() {
               </div>
               <p className="text-gray-500 text-sm mb-6">Get started at no cost</p>
               <ul className="space-y-2.5 text-sm text-gray-600 mb-8 flex-1">
-                {['1 venue', 'No team members', '3% platform fee on direct payments', 'Ticket sales (customer pays 3% + Stripe)', 'Basic listing', 'Invoices, estimates & contracts (Stripe required)'].map(f => (
+                {['1 venue', 'No team members', '3% platform fee on direct payments', 'Ticket sales (customer pays 3% + card processing)', 'Basic listing', 'Invoices, estimates & contracts (Stripe required)'].map(f => (
                   <li key={f} className="flex items-start gap-2"><span className="text-accent-500 mt-0.5">✓</span>{f}</li>
                 ))}
               </ul>
@@ -540,13 +547,13 @@ export default function Home() {
               <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-accent-500 text-white text-xs font-bold px-3 py-1 rounded-full">Most Popular</span>
               <p className="text-sm font-semibold text-accent-600 uppercase tracking-wide mb-2">Pro</p>
               <div className="flex items-end gap-1 mb-1">
-                <span className="text-4xl font-bold text-gray-900">${billingPeriod === 'annual' ? Math.round(149 * 10 / 12) : 149}</span>
+                <span className="text-4xl font-bold text-gray-900">$149</span>
                 <span className="text-gray-500 mb-1">/mo</span>
               </div>
               <p className="text-gray-500 text-xs mb-1">$149/mo — less than one booked event&apos;s worth of admin time.</p>
               <p className="text-gray-500 text-sm mb-6">For growing event businesses</p>
               <ul className="space-y-2.5 text-sm text-gray-600 mb-8 flex-1">
-                {['3 venues', '3 team members', '1.5% platform fee on direct payments', 'Ticket sales (customer pays 3% + Stripe)', 'Invoices, estimates & contracts + payment tools', 'Vendor management, door list & SMS', 'Priority support'].map(f => (
+                {['3 venues', '3 team members', '1.5% platform fee on direct payments', 'Ticket sales (customer pays 3% + card processing)', 'Invoices, estimates & contracts + payment tools', 'Vendor management, door list & SMS', 'Priority support'].map(f => (
                   <li key={f} className="flex items-start gap-2"><span className="text-accent-500 mt-0.5">✓</span>{f}</li>
                 ))}
               </ul>
@@ -559,12 +566,12 @@ export default function Home() {
             <div className="rounded-2xl border border-gray-200 p-7 flex flex-col">
               <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">Premium</p>
               <div className="flex items-end gap-1 mb-1">
-                <span className="text-4xl font-bold text-gray-900">${billingPeriod === 'annual' ? Math.round(299 * 10 / 12) : 299}</span>
+                <span className="text-4xl font-bold text-gray-900">$299</span>
                 <span className="text-gray-500 mb-1">/mo</span>
               </div>
               <p className="text-gray-500 text-sm mb-6">For high-volume operators</p>
               <ul className="space-y-2.5 text-sm text-gray-600 mb-8 flex-1">
-                {['5 venues', '5 team members', '1% platform fee on direct payments', 'Ticket sales (customer pays 3% + Stripe)', 'All Pro features', 'Multi-venue management', 'Custom branding', 'Dedicated account manager'].map(f => (
+                {['5 venues', '5 team members', '1% platform fee on direct payments', 'Ticket sales (customer pays 3% + card processing)', 'All Pro features', 'Multi-venue management', 'Custom branding', 'Dedicated account manager'].map(f => (
                   <li key={f} className="flex items-start gap-2"><span className="text-accent-500 mt-0.5">✓</span>{f}</li>
                 ))}
               </ul>
@@ -591,7 +598,10 @@ export default function Home() {
             </div>
           </div>
 
-          <p className="text-center text-gray-500 text-sm mt-8">
+          <p className="text-center text-gray-500 text-sm mt-8 max-w-3xl mx-auto">
+            Card processing is 3.1% + $0.30, paid by the payer. Verified non-profits pay a 1.5% platform fee instead of 3% on ticket and VIP sales.
+          </p>
+          <p className="text-center text-gray-500 text-sm mt-3">
             All plans include a 30-day free trial. No credit card required to start.
           </p>
         </div>
@@ -696,6 +706,13 @@ export default function Home() {
             >
               See Live Demo
             </a>
+            <button
+              type="button"
+              onClick={() => setShowDemoModal(true)}
+              className="bg-white/20 hover:bg-white/30 text-white font-bold px-8 py-4 rounded-lg transition-colors text-lg"
+            >
+              Book a Demo
+            </button>
           </div>
         </div>
       </section>
@@ -766,6 +783,7 @@ export default function Home() {
       </footer>
 
       <EnterpriseContactModal isOpen={showEnterpriseModal} onClose={() => setShowEnterpriseModal(false)} />
+      <BookDemoModal isOpen={showDemoModal} onClose={() => setShowDemoModal(false)} />
     </div>
   )
 }

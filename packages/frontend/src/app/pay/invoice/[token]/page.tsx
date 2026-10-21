@@ -5,7 +5,8 @@ import { useParams, useSearchParams } from 'next/navigation'
 import {
   FileText, CheckCircle2, Loader2, AlertCircle, CreditCard, Lock, Calendar,
 } from 'lucide-react'
-import PayMethodToggle, { CARD_RATE_LABEL, PAY_LATER_RATE_LABEL, type PayMethod } from '@/components/PayMethodToggle'
+import PaidDashboardLink from '@/components/PaidDashboardLink'
+import PayMethodToggle, { rateLabel, type PayMethod } from '@/components/PayMethodToggle'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
@@ -27,6 +28,7 @@ interface PublicOwnerInvoice {
   deposit_due_days_before: number | null
   final_payment_due_days_before: number | null
   pay_later_available?: boolean
+  bank_available?: boolean
   booking?: { event?: { id: string; name: string; date: string } }
   items: Array<{
     id: string
@@ -258,12 +260,34 @@ function OwnerInvoicePayPageContent() {
 
             {/* Total */}
             <div className="mt-4 pt-4 border-t border-gray-100">
-              {Number(invoice.discount_amount) > 0 && (
-                <div className="flex justify-between text-sm text-green-700 mb-2">
-                  <span>Additional discount</span>
-                  <span>−${Number(invoice.discount_amount).toFixed(2)}</span>
-                </div>
-              )}
+              {(() => {
+                const itemDiscounts = (invoice.items ?? [])
+                  .filter(item => item.item_type !== 'internal_note')
+                  .reduce((sum, item) => sum + (Number(item.discount_amount) || 0), 0)
+                const extra = Number(invoice.discount_amount) || 0
+                const total = itemDiscounts + extra
+                if (total <= 0) return null
+                return (
+                  <div className="mb-2 space-y-1 text-sm text-green-700">
+                    {itemDiscounts > 0 && (
+                      <div className="flex justify-between">
+                        <span>Item discounts</span>
+                        <span>−${itemDiscounts.toFixed(2)}</span>
+                      </div>
+                    )}
+                    {extra > 0 && (
+                      <div className="flex justify-between">
+                        <span>Additional discount</span>
+                        <span>−${extra.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-semibold">
+                      <span>Total discounts</span>
+                      <span>−${total.toFixed(2)}</span>
+                    </div>
+                  </div>
+                )
+              })()}
               <div className="flex justify-between font-bold text-gray-900 text-base">
                 <span>Total</span>
                 <span>${Number(invoice.total_amount).toFixed(2)}</span>
@@ -282,9 +306,12 @@ function OwnerInvoicePayPageContent() {
           {/* Payment selection / CTA */}
           <div className="px-6 py-5">
             {isPaid ? (
-              <div className="flex items-center gap-3 bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 text-sm font-medium">
-                <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
-                Payment received. Thank you!
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 text-sm font-medium">
+                  <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+                  Payment received. Thank you!
+                </div>
+                <PaidDashboardLink autoRedirect={justPaid} />
               </div>
             ) : isCancelled ? (
               <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 text-gray-500 rounded-xl px-4 py-3 text-sm">
@@ -371,7 +398,7 @@ function OwnerInvoicePayPageContent() {
 
                 {invoice.pay_later_available && (
                   <div className="mb-3">
-                    <PayMethodToggle value={payMethod} onChange={setPayMethod} disabled={paying} />
+                    <PayMethodToggle value={payMethod} onChange={setPayMethod} disabled={paying} showBank={invoice.bank_available} />
                   </div>
                 )}
                 <button
@@ -390,7 +417,7 @@ function OwnerInvoicePayPageContent() {
                 </button>
 
                 <div className="flex items-center justify-center gap-1.5 mt-3 text-xs text-gray-400">
-                  <Lock className="w-3 h-3" /> Secure payment powered by Stripe. A processing fee ({invoice.pay_later_available && payMethod === 'pay_later' ? PAY_LATER_RATE_LABEL : CARD_RATE_LABEL}) is added at checkout.
+                  <Lock className="w-3 h-3" /> Secure payment powered by Stripe. A processing fee ({rateLabel(invoice.pay_later_available ? payMethod : 'card')}) is added at checkout.
                 </div>
               </>
             )}

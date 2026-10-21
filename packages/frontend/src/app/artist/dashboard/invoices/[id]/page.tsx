@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
 import { Send, Copy, CheckCircle2, Loader2, Trash2, ExternalLink } from 'lucide-react'
+import { siteOrigin } from '@/lib/url'
 
 interface ArtistInvoice {
   id: string
@@ -22,6 +23,8 @@ interface ArtistInvoice {
   status: 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue' | 'cancelled'
   issue_date: string
   due_date: string
+  deposit_amount?: number | null
+  balance_due_date?: string | null
   paid_at?: string
   notes?: string
   terms?: string
@@ -39,7 +42,6 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: 'bg-gray-100 text-gray-500',
 }
 
-const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000'
 
 export default function ArtistInvoiceDetailPage() {
   return (
@@ -74,7 +76,7 @@ function ArtistInvoiceDetail() {
       .finally(() => setLoading(false))
   }, [id])
 
-  const payLink = invoice?.public_token ? `${FRONTEND_URL}/artist-pay/${invoice.public_token}` : ''
+  const payLink = invoice?.public_token ? `${siteOrigin()}/artist-pay/${invoice.public_token}` : ''
 
   const handleSend = async () => {
     setSending(true); setError(''); setSent(false)
@@ -183,6 +185,9 @@ function ArtistInvoiceDetail() {
             <div className="text-right text-sm text-gray-500">
               <p>Issued: {invoice.issue_date}</p>
               <p>Due: {invoice.due_date}</p>
+              {invoice.deposit_amount != null && (
+                <p>Deposit ${Number(invoice.deposit_amount).toFixed(2)} due {invoice.due_date}{invoice.balance_due_date ? ` · Balance due ${invoice.balance_due_date}` : ''}</p>
+              )}
               {invoice.paid_at && <p className="text-green-600">Paid: {invoice.paid_at.split('T')[0]}</p>}
             </div>
           </div>

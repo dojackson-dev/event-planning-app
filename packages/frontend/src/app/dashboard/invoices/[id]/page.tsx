@@ -12,9 +12,13 @@ interface EditItem {
   quantity: number
   unit_price: number
   item_type: 'revenue' | 'expense'
+  discount_type: 'none' | 'percentage' | 'fixed'
+  discount_value: number
   _originalDescription: string
   _originalQty: number
   _originalUnitPrice: number
+  _originalDiscountType: 'none' | 'percentage' | 'fixed'
+  _originalDiscountValue: number
   _deleted: boolean
   _isNew: boolean
 }
@@ -90,6 +94,9 @@ export default function InvoiceDetailPage() {
       // Use the /status endpoint so the backend also sends SMS/email notification
       await api.put(`/invoices/${invoice.id}/status`, { status })
       fetchInvoice()
+      if (status === InvoiceStatus.SENT || status === InvoiceStatus.OVERDUE) {
+        alert('Invoice sent to the client.')
+      }
     } catch (error) {
       console.error('Failed to update status:', error)
       alert('Failed to update status')
@@ -178,7 +185,7 @@ export default function InvoiceDetailPage() {
       booking?.contact_phone ||
       ''
     )
-    setEditClientAddress(invoice.client_address || '')
+    setEditClientAddress(invoice.client_address || intakeForm?.contact_address || '')
     setEditDueDate(invoice.due_date || '')
     setEditTaxRate(Number(invoice.tax_rate) || 0)
     setEditDiscountAmount(Number(invoice.discount_amount) || 0)
@@ -193,9 +200,13 @@ export default function InvoiceDetailPage() {
           quantity: Number(item.quantity),
           unit_price: Number(item.unit_price),
           item_type: (item.item_type || 'revenue') as 'revenue' | 'expense',
+          discount_type: (item.discount_type || 'none') as 'none' | 'percentage' | 'fixed',
+          discount_value: Number(item.discount_value) || 0,
           _originalDescription: item.description,
           _originalQty: Number(item.quantity),
           _originalUnitPrice: Number(item.unit_price),
+          _originalDiscountType: (item.discount_type || 'none') as 'none' | 'percentage' | 'fixed',
+          _originalDiscountValue: Number(item.discount_value) || 0,
           _deleted: false,
           _isNew: false,
         }))
@@ -205,9 +216,26 @@ export default function InvoiceDetailPage() {
 
   const handleSaveEdit = async () => {
     if (!invoice) return
+    const alreadyPaid = Number(invoice.amount_paid) || 0
+    if (alreadyPaid > 0) {
+      const lineTotal = (item: EditItem) => {
+        const gross = item.quantity * item.unit_price
+        const discount =
+          item.discount_type === 'percentage' ? gross * (item.discount_value / 100)
+          : item.discount_type === 'fixed' ? item.discount_value
+          : 0
+        return Math.max(0, gross - discount)
+      }
+      const subtotal = editItems.filter(i => !i._deleted).reduce((sum, i) => sum + lineTotal(i), 0)
+      const newTotal = subtotal + subtotal * (editTaxRate / 100) - editDiscountAmount
+      if (newTotal < alreadyPaid) {
+        alert(`The new total ($${newTotal.toFixed(2)}) is less than the $${alreadyPaid.toFixed(2)} already paid. Raise the total or refund the difference first.`)
+        return
+      }
+    }
     setSaving(true)
     try {
-      const newItems: Array<{ description: string; quantity: number; unit_price: number; item_type: string }> = []
+      const newItems: Array<{ description: string; quantity: number; unit_price: number; item_type: string; discount_type: string; discount_value: number }> = []
 
       for (const item of editItems) {
         if (item._isNew && !item._deleted) {
@@ -216,6 +244,8 @@ export default function InvoiceDetailPage() {
             quantity: item.quantity,
             unit_price: item.unit_price,
             item_type: item.item_type,
+            discount_type: item.discount_type,
+            discount_value: item.discount_type === 'none' ? 0 : item.discount_value,
           })
         } else if (!item._isNew && item._deleted && item.id) {
           await api.delete(`/invoices/items/${item.id}`)
@@ -223,7 +253,10 @@ export default function InvoiceDetailPage() {
           const descChanged = item.description !== item._originalDescription
           const qtyChanged = item.quantity !== item._originalQty
           const priceChanged = item.unit_price !== item._originalUnitPrice
-          if (descChanged || qtyChanged || priceChanged) {
+          const discountChanged =
+            item.discount_type !== item._originalDiscountType ||
+            item.discount_value !== item._originalDiscountValue
+          if (descChanged || qtyChanged || priceChanged || discountChanged) {
             let desc = item.description
             if (descChanged && !desc.startsWith('Updated: ')) {
               desc = `Updated: ${desc}`
@@ -232,6 +265,8 @@ export default function InvoiceDetailPage() {
               description: desc,
               quantity: item.quantity,
               unit_price: item.unit_price,
+              discount_type: item.discount_type,
+              discount_value: item.discount_type === 'none' ? 0 : item.discount_value,
             })
           }
         }
@@ -245,7 +280,10 @@ export default function InvoiceDetailPage() {
         client_name: editClientName || null,
         client_email: editClientEmail || null,
         client_phone: editClientPhone || null,
-        client_address: editClientAddress || null,
+        // Only sent when changed: older databases lack the client_address column and reject the whole update.
+        ...(editClientAddress !== (invoice.client_address || '')
+          ? { client_address: editClientAddress || null }
+          : {}),
         due_date: editDueDate,
         tax_rate: editTaxRate,
         discount_amount: editDiscountAmount,
@@ -279,9 +317,19 @@ export default function InvoiceDetailPage() {
     )
   }
 
-  const canEditInvoice =
-    [InvoiceStatus.DRAFT, InvoiceStatus.SENT, InvoiceStatus.OVERDUE].includes(invoice.status) &&
-    Number(invoice.amount_paid || 0) === 0
+  // Services are often added after a deposit, so a partly paid invoice stays editable; the balance follows the new total.
+  const canEditInvoice = [
+    InvoiceStatus.DRAFT,
+    InvoiceStatus.SENT,
+    InvoiceStatus.OVERDUE,
+    InvoiceStatus.PARTIAL,
+  ].includes(invoice.status)
+  // Item discounts are already netted out of the subtotal, so the client sees one number for everything saved.
+  const itemDiscountTotal = (invoice.items || [])
+    .filter(i => !i.item_type || i.item_type === 'revenue')
+    .reduce((sum, i) => sum + (Number(i.discount_amount) || 0), 0)
+  const extraDiscount = Number(invoice.discount_amount) || 0
+  const totalDiscounts = itemDiscountTotal + extraDiscount
   const canCancelInvoice =
     [InvoiceStatus.SENT, InvoiceStatus.OVERDUE].includes(invoice.status) &&
     Number(invoice.amount_paid || 0) === 0
@@ -539,10 +587,22 @@ export default function InvoiceDetailPage() {
                 <span className="font-semibold">${Number(invoice.tax_amount).toFixed(2)}</span>
               </div>
             )}
-            {invoice.discount_amount > 0 && (
+            {itemDiscountTotal > 0 && (
+              <div className="flex justify-between py-2 text-red-600">
+                <span>Item discounts:</span>
+                <span>-${itemDiscountTotal.toFixed(2)}</span>
+              </div>
+            )}
+            {extraDiscount > 0 && (
               <div className="flex justify-between py-2 text-red-600">
                 <span>Additional discount:</span>
-                <span>-${Number(invoice.discount_amount).toFixed(2)}</span>
+                <span>-${extraDiscount.toFixed(2)}</span>
+              </div>
+            )}
+            {totalDiscounts > 0 && (
+              <div className="flex justify-between py-2 text-red-600 font-semibold border-t border-gray-100">
+                <span>Total discounts:</span>
+                <span>-${totalDiscounts.toFixed(2)}</span>
               </div>
             )}
             <div className="flex justify-between py-2 border-t border-gray-300 text-lg font-bold">
@@ -726,6 +786,11 @@ export default function InvoiceDetailPage() {
           <div className="bg-white rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <h3 className="text-lg font-semibold mb-6">Edit Invoice</h3>
+              {Number(invoice.amount_paid) > 0 && (
+                <p className="mb-4 rounded-md bg-blue-50 border border-blue-200 px-3 py-2 text-sm text-blue-800">
+                  ${Number(invoice.amount_paid).toFixed(2)} has already been paid. Changes update the total, and the balance due becomes the new total minus what has been paid.
+                </p>
+              )}
 
               {/* Client Info */}
               <div className="mb-6">
@@ -819,9 +884,13 @@ export default function InvoiceDetailPage() {
                       quantity: 1,
                       unit_price: 0,
                       item_type: 'revenue',
+                      discount_type: 'none',
+                      discount_value: 0,
                       _originalDescription: '',
                       _originalQty: 1,
                       _originalUnitPrice: 0,
+                      _originalDiscountType: 'none',
+                      _originalDiscountValue: 0,
                       _deleted: false,
                       _isNew: true,
                     }])}
@@ -838,7 +907,7 @@ export default function InvoiceDetailPage() {
                     <div className="col-span-1" />
                   </div>
                   {editItems.map((item, idx) => item._deleted ? null : (
-                    <div key={idx} className="grid grid-cols-12 gap-2 items-center">
+                    <div key={idx} className="grid grid-cols-12 gap-2 items-center border-b border-gray-100 pb-2">
                       <div className="col-span-6">
                         <input
                           type="text"
@@ -895,6 +964,38 @@ export default function InvoiceDetailPage() {
                         >
                           ×
                         </button>
+                      </div>
+                      <div className="col-span-12 flex flex-wrap items-center gap-2 text-xs text-gray-600">
+                        <span>Discount</span>
+                        <select
+                          value={item.discount_type}
+                          onChange={e => {
+                            const updated = [...editItems]
+                            const discount_type = e.target.value as 'none' | 'percentage' | 'fixed'
+                            updated[idx] = { ...updated[idx], discount_type, discount_value: discount_type === 'none' ? 0 : updated[idx].discount_value }
+                            setEditItems(updated)
+                          }}
+                          className="px-2 py-1 border border-gray-300 rounded-md text-xs"
+                        >
+                          <option value="none">None</option>
+                          <option value="percentage">Percent (%)</option>
+                          <option value="fixed">Fixed ($)</option>
+                        </select>
+                        {item.discount_type !== 'none' && (
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={item.discount_value}
+                            onChange={e => {
+                              const updated = [...editItems]
+                              updated[idx] = { ...updated[idx], discount_value: Number(e.target.value) }
+                              setEditItems(updated)
+                            }}
+                            className="w-24 px-2 py-1 border border-gray-300 rounded-md text-xs"
+                            aria-label="Discount amount"
+                          />
+                        )}
                       </div>
                     </div>
                   ))}

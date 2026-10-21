@@ -3,6 +3,9 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { CheckCircle2, Loader2, AlertCircle, CreditCard, Lock, Music } from 'lucide-react'
+import PaidDashboardLink from '@/components/PaidDashboardLink'
+import InvoiceDepositChoice from '@/components/InvoiceDepositChoice'
+import { chargeAmount, depositInfo, type PayAmount } from '@/lib/invoiceDeposit'
 import PayMethodToggle, { type PayMethod } from '@/components/PayMethodToggle'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
@@ -21,12 +24,19 @@ interface PublicArtistInvoice {
   discount_amount: number
   total_amount: number
   amount_due: number
+  amount_paid?: number
+  deposit_amount?: number | null
+  balance_due_date?: string | null
   notes: string | null
   terms: string | null
   artist_invoice_items: Array<{ id: string; description: string; quantity: number; unit_price: number; amount: number }>
   artist_accounts: { artist_name: string; stage_name?: string; email: string; city?: string; state?: string; profile_image_url?: string | null }
   pay_later_available?: boolean
+  bank_available?: boolean
   pay_later_surcharge_cents?: number
+  bank_total_cents?: number
+  deposit_pay_later_surcharge_cents?: number
+  deposit_bank_total_cents?: number
 }
 
 function ArtistPayContent() {
@@ -39,18 +49,20 @@ function ArtistPayContent() {
   const [paying, setPaying] = useState(false)
   const [error, setError] = useState('')
   const [payMethod, setPayMethod] = useState<PayMethod>('card')
+  const [payAmount, setPayAmount] = useState<PayAmount>('deposit')
 
   const justPaid = searchParams.get('paid') === 'true'
   const wasCanceled = searchParams.get('canceled') === 'true'
 
   useEffect(() => {
-    if (justPaid) {
-      fetch(`${API_URL}/artist-invoices/public/${token}/verify-payment`, { method: 'POST' })
-        .then(r => r.json())
-        .then(d => d.paid && setInvoice(prev => prev ? { ...prev, status: 'paid' } : prev))
-        .catch(() => {})
+    // Record the payment first so the invoice reloads with the right balance.
+    const load = async () => {
+      if (justPaid) {
+        await fetch(`${API_URL}/artist-invoices/public/${token}/verify-payment`, { method: 'POST' }).catch(() => {})
+      }
+      await fetchInvoice()
     }
-    fetchInvoice()
+    load()
   }, [token])
 
   const fetchInvoice = async () => {
@@ -71,7 +83,7 @@ function ArtistPayContent() {
       const res = await fetch(`${API_URL}/artist-invoices/public/${token}/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pay_method: payMethod }),
+        body: JSON.stringify({ pay_method: payMethod, pay_amount: payAmount }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.message || 'Failed to initiate payment')
@@ -100,7 +112,11 @@ function ArtistPayContent() {
 
   if (!invoice) return null
 
-  const isPaid = invoice.status === 'paid' || justPaid
+  const info = depositInfo(invoice)
+  const effectiveAmount: PayAmount = info.remaining > 0 ? payAmount : 'full'
+  const chargeNow = chargeAmount(info, effectiveAmount)
+  const isDepositCharge = effectiveAmount === 'deposit' && info.remaining > 0
+  const isPaid = invoice.status === 'paid' || (justPaid && !info.partiallyPaid)
   const isCancelled = invoice.status === 'cancelled'
   const artist = invoice.artist_accounts
   const displayName = artist?.stage_name || artist?.artist_name
@@ -110,8 +126,12 @@ function ArtistPayContent() {
   const invoiceBase = Number(invoice.subtotal) + Number(invoice.tax_amount) - Number(invoice.discount_amount)
   const processingFee = Math.round((Number(invoice.total_amount) - invoiceBase) * 100) / 100
   const activePayMethod: PayMethod = invoice.pay_later_available ? payMethod : 'card'
-  const payLaterSurcharge = activePayMethod === 'pay_later' ? (invoice.pay_later_surcharge_cents ?? 0) / 100 : 0
-  const payTotal = Number(invoice.total_amount) + payLaterSurcharge
+  const surchargeCents = isDepositCharge ? invoice.deposit_pay_later_surcharge_cents : invoice.pay_later_surcharge_cents
+  const bankCents = isDepositCharge ? invoice.deposit_bank_total_cents : invoice.bank_total_cents
+  const payLaterSurcharge = activePayMethod === 'pay_later' ? (surchargeCents ?? 0) / 100 : 0
+  const bankTotal = activePayMethod === 'bank' && bankCents != null ? Math.min(bankCents / 100, chargeNow) : null
+  const bankAdjustment = bankTotal != null ? bankTotal - chargeNow : 0
+  const payTotal = bankTotal ?? chargeNow + payLaterSurcharge
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
@@ -177,14 +197,17 @@ function ArtistPayContent() {
               {Number(invoice.discount_amount) > 0 && (
                 <div className="flex justify-between text-green-600"><span>Discount</span><span>-${Number(invoice.discount_amount).toFixed(2)}</span></div>
               )}
-              {invoiceBase > 0 && processingFee > 0 && (
+              {!isDepositCharge && invoiceBase > 0 && processingFee > 0 && (
                 <div className="flex justify-between text-orange-500 text-xs"><span>Processing fee</span><span>+${processingFee.toFixed(2)}</span></div>
+              )}
+              {bankAdjustment < 0 && (
+                <div className="flex justify-between text-green-600 text-xs"><span>Bank payment: lower processing fee</span><span>-${Math.abs(bankAdjustment).toFixed(2)}</span></div>
               )}
               {payLaterSurcharge > 0 && (
                 <div className="flex justify-between text-orange-500 text-xs"><span>Pay-later fee (Afterpay, Klarna, Affirm)</span><span>+${payLaterSurcharge.toFixed(2)}</span></div>
               )}
               <div className="flex justify-between font-bold text-gray-900 text-base pt-2 border-t border-gray-100">
-                <span>Total</span><span>${payTotal.toFixed(2)}</span>
+                <span>{isDepositCharge ? 'Deposit due now' : info.paid > 0 ? 'Balance due' : 'Total'}</span><span>${payTotal.toFixed(2)}</span>
               </div>
             </div>
           </div>
@@ -199,9 +222,12 @@ function ArtistPayContent() {
           {/* CTA */}
           <div className="px-6 py-5">
             {isPaid ? (
-              <div className="flex items-center gap-3 bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 text-sm font-medium">
-                <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
-                Payment received. Thank you!
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 text-sm font-medium">
+                  <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+                  Payment received. Thank you!
+                </div>
+                <PaidDashboardLink autoRedirect={justPaid} />
               </div>
             ) : isCancelled ? (
               <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 text-gray-500 rounded-xl px-4 py-3 text-sm">
@@ -218,9 +244,19 @@ function ArtistPayContent() {
                     <AlertCircle className="w-4 h-4" /> {error}
                   </p>
                 )}
+                {justPaid && info.partiallyPaid && (
+                  <div className="flex items-center gap-3 bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 text-sm font-medium mb-3">
+                    <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+                    Payment received. Thank you!
+                  </div>
+                )}
+                <InvoiceDepositChoice
+                  info={info} value={effectiveAmount} onChange={setPayAmount}
+                  dueDate={invoice.due_date} balanceDueDate={invoice.balance_due_date} disabled={paying}
+                />
                 {invoice.pay_later_available && (
                   <div className="mb-3">
-                    <PayMethodToggle value={activePayMethod} onChange={setPayMethod} disabled={paying} />
+                    <PayMethodToggle value={activePayMethod} onChange={setPayMethod} disabled={paying} showBank={invoice.bank_available} />
                   </div>
                 )}
                 <button onClick={handlePay} disabled={paying}

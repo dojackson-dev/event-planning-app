@@ -1,6 +1,7 @@
 import { grossUp } from '../promoter-events/promoter-events.service';
 import {
   applicationFeeCents,
+  bankTotalForCardTotalCents,
   chargeTotalWithProcessing,
   normalizePayMethod,
   PAY_LATER_FIXED_CENTS,
@@ -9,6 +10,7 @@ import {
   payLaterSurchargeCents,
   paymentMethodTypesFor,
   processingFeeCents,
+  processingFeeLine,
   processingRateLabel,
   salesTaxRatePct,
   serviceFeeLines,
@@ -120,14 +122,104 @@ describe('platform fee is always kept in full', () => {
     expect(paymentMethodTypesFor(true, 'card')).toEqual(['card']);
     expect(paymentMethodTypesFor(true, 'card', { bankDebit: true })).toEqual([
       'card',
+    ]);
+    expect(paymentMethodTypesFor(true, 'bank', { bankDebit: true })).toEqual([
       'us_bank_account',
     ]);
+    expect(() =>
+      paymentMethodTypesFor(false, 'bank', { bankDebit: true }),
+    ).toThrow();
+    expect(() => paymentMethodTypesFor(true, 'bank')).toThrow();
+    expect(
+      paymentMethodTypesFor(false, 'bank', {
+        bankDebit: true,
+        bankAlways: true,
+      }),
+    ).toEqual(['us_bank_account']);
     expect(paymentMethodTypesFor(true, 'pay_later')).toEqual([
       ...PAY_LATER_METHODS,
     ]);
     expect(() => paymentMethodTypesFor(false, 'pay_later')).toThrow();
     expect(processingRateLabel('card')).toBe('3.1% + $0.30');
     expect(processingRateLabel('pay_later')).toBe('6% + $0.30');
+    expect(processingRateLabel('bank')).toBe('0.8% (max $5)');
+  });
+
+  it('only accepts the bank method where the caller allows it', () => {
+    expect(normalizePayMethod('bank')).toBe('card');
+    expect(normalizePayMethod('bank', true)).toBe('bank');
+    expect(normalizePayMethod('pay_later', true)).toBe('pay_later');
+    expect(normalizePayMethod(undefined, true)).toBe('card');
+  });
+});
+
+/** What Stripe bills the platform for ACH Direct Debit: 0.8%, capped at $5. */
+const bankBill = (chargedCents: number) =>
+  Math.min(Math.round(chargedCents * 0.008), 500);
+
+describe('bank (ACH) processing', () => {
+  it('charges 0.8% below the $5 cap', () => {
+    expect(chargeTotalWithProcessing(50000, 'bank')).toBe(
+      Math.round(50000 / (1 - 0.008)),
+    );
+    expect(processingFeeCents(50000, 'bank')).toBe(403);
+  });
+
+  it('stops at $5 from about $625 up', () => {
+    expect(processingFeeCents(60000, 'bank')).toBe(484);
+    expect(processingFeeCents(63000, 'bank')).toBe(500);
+    expect(processingFeeCents(200000, 'bank')).toBe(500);
+  });
+
+  it('never charges more than $5 of processing, however large the amount', () => {
+    expect(processingFeeCents(1_000_000, 'bank')).toBe(500);
+    expect(processingFeeCents(100_000_000, 'bank')).toBe(500);
+  });
+
+  it('costs the payer far less than a card on a large invoice', () => {
+    expect(processingFeeCents(500000, 'bank')).toBeLessThan(
+      processingFeeCents(500000, 'card') / 3,
+    );
+  });
+
+  it('leaves the platform at least its fee after Stripe bills the ACH fee', () => {
+    for (const net of [1000, 5000, 20000, 200000, 6_000_000, 50_000_000]) {
+      const total = chargeTotalWithProcessing(net, 'bank');
+      const platformFee = Math.round(net * 0.03);
+      const applicationFee = applicationFeeCents(
+        platformFee,
+        processingFeeCents(net, 'bank'),
+      );
+      const platformNet = applicationFee - bankBill(total);
+      expect(platformNet).toBeGreaterThanOrEqual(platformFee - 1);
+      expect(platformNet).toBeLessThanOrEqual(platformFee + 1);
+    }
+  });
+
+  it('prices a bank payment against an invoice that already bakes in the card fee', () => {
+    const cardTotal = chargeTotalWithProcessing(200000, 'card');
+    const bankTotal = bankTotalForCardTotalCents(cardTotal);
+    expect(bankTotal).toBeLessThan(cardTotal);
+    // After Stripe's ACH fee the bank total leaves what the card total's 3.1% + $0.30 rate was meant to leave.
+    const target = cardTotal * (1 - 0.031) - 30;
+    expect(bankTotal - bankBill(bankTotal)).toBeGreaterThanOrEqual(target - 2);
+    expect(bankTotal - bankBill(bankTotal)).toBeLessThanOrEqual(target + 2);
+  });
+
+  it('never raises the price of a card-priced total', () => {
+    expect(bankTotalForCardTotalCents(100)).toBeLessThanOrEqual(100);
+    expect(bankTotalForCardTotalCents(0)).toBe(0);
+  });
+
+  it('describes the bank fee line', () => {
+    expect(processingFeeLine('bank')).toEqual({
+      name: 'Bank Payment Processing Fee',
+      description: 'Bank account (ACH) processing fee (0.8% (max $5))',
+    });
+    expect(processingFeeLine('card').name).toBe('Payment Processing Fee');
+    expect(processingFeeLine('pay_later').name).toBe(
+      'Pay-later Processing Fee',
+    );
   });
 });
 

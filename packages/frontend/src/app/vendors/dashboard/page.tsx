@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
+import DashboardAssistant from '@/components/DashboardAssistant'
 import {
   Calendar,
   FileText,
@@ -208,6 +209,8 @@ export default function VendorDashboard() {
             </Link>
           ))}
         </div>
+
+        <DashboardAssistant role="vendor" />
 
         {/* Navigation links grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-6">

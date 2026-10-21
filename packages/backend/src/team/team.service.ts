@@ -89,7 +89,7 @@ export class TeamService {
         const planName = (ownerAccount?.plan_name ?? 'free') as string;
         if (planName === 'free') {
           throw new BadRequestException(
-            `Your Free plan includes 0 team members. Add team members for $15/mo each, or upgrade to Pro (3 members) or Premium (5 members).`,
+            `Your Free plan includes 0 team members. Upgrade to Pro (3 members) or Premium (5 members), or contact us about Enterprise for custom limits.`,
           );
         }
         throw new BadRequestException(

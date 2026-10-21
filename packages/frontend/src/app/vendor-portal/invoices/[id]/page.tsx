@@ -13,6 +13,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
   draft:     { label: 'Draft',     color: 'bg-gray-100 text-gray-600',      icon: <Clock className="w-4 h-4" /> },
   sent:      { label: 'Sent',      color: 'bg-blue-100 text-blue-700',       icon: <Send className="w-4 h-4" /> },
   viewed:    { label: 'Viewed',    color: 'bg-purple-100 text-purple-700',   icon: <Eye className="w-4 h-4" /> },
+  processing: { label: 'Payment processing', color: 'bg-sky-100 text-sky-700 border-sky-200', icon: <Clock className="w-3 h-3" /> },
   paid:      { label: 'Paid',      color: 'bg-green-100 text-green-700',     icon: <CheckCircle2 className="w-4 h-4" /> },
   overdue:   { label: 'Overdue',   color: 'bg-red-100 text-red-700',         icon: <AlertCircle className="w-4 h-4" /> },
   cancelled: { label: 'Cancelled', color: 'bg-gray-100 text-gray-500',       icon: <XCircle className="w-4 h-4" /> },
@@ -106,7 +107,7 @@ function VendorInvoiceDetailPageContent() {
   const cfg = STATUS_CONFIG[invoice.status] ?? STATUS_CONFIG.draft
   const canSend = ['draft', 'sent', 'viewed', 'overdue'].includes(invoice.status)
   const isPaid = invoice.status === 'paid'
-  const canEdit = !['paid', 'cancelled'].includes(invoice.status)
+  const canEdit = !['paid', 'cancelled', 'processing'].includes(invoice.status)
   const hasStripe =
     invoice.vendor_accounts?.stripe_account_id &&
     invoice.vendor_accounts?.stripe_connect_status === 'active'

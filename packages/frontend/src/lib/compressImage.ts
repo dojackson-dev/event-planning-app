@@ -30,6 +30,18 @@ function toBlob(canvas: HTMLCanvasElement, type: string, quality: number): Promi
   return new Promise((resolve) => canvas.toBlob(resolve, type, quality))
 }
 
+let outputType: Promise<'image/webp' | 'image/jpeg'> | null = null
+
+// Safari can't encode WebP via canvas and silently returns PNG, so fall back to JPEG there.
+function pickOutputType(): Promise<'image/webp' | 'image/jpeg'> {
+  if (!outputType) {
+    const probe = document.createElement('canvas')
+    probe.width = probe.height = 1
+    outputType = toBlob(probe, 'image/webp', 0.8).then((b) => (b?.type === 'image/webp' ? 'image/webp' : 'image/jpeg'))
+  }
+  return outputType
+}
+
 /**
  * Shrinks an oversized photo in the browser (resize + re-encode) so it fits under `maxBytes`.
  * Returns the original file when it is already small enough or can't be processed.
@@ -50,6 +62,8 @@ export async function compressImage(file: File, { maxBytes, maxDimension = 2000 
     const needsResize = Math.max(width, height) > maxDimension
     if (file.size <= maxBytes && !needsResize) return file
 
+    const type = await pickOutputType()
+    const ext = type === 'image/webp' ? '.webp' : '.jpg'
     let scale = Math.min(1, maxDimension / Math.max(width, height))
     for (let attempt = 0; attempt < 6; attempt++) {
       const canvas = document.createElement('canvas')
@@ -57,12 +71,16 @@ export async function compressImage(file: File, { maxBytes, maxDimension = 2000 
       canvas.height = Math.max(1, Math.round(height * scale))
       const ctx = canvas.getContext('2d')
       if (!ctx) return file
+      if (type === 'image/jpeg') {
+        ctx.fillStyle = '#ffffff'
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+      }
       ctx.drawImage(source, 0, 0, canvas.width, canvas.height)
 
       for (const quality of [0.85, 0.75, 0.65, 0.5]) {
-        const blob = await toBlob(canvas, 'image/webp', quality)
-        if (blob && blob.type === 'image/webp' && blob.size <= maxBytes) {
-          return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.webp', { type: 'image/webp', lastModified: Date.now() })
+        const blob = await toBlob(canvas, type, quality)
+        if (blob && blob.type === type && blob.size <= maxBytes) {
+          return new File([blob], file.name.replace(/\.[^.]+$/, '') + ext, { type, lastModified: Date.now() })
         }
       }
       scale *= 0.75

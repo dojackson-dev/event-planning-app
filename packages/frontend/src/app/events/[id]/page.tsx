@@ -79,6 +79,7 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
   const [payMethod, setPayMethod] = useState<PayMethod>('card')
   const [vipPackages, setVipPackages] = useState<VipPackage[]>([])
   const [sponsorLevels, setSponsorLevels] = useState<Array<{ id: string; name: string; price: number }>>([])
+  const [auctions, setAuctions] = useState<Array<{ id: string; title: string; status: string; starts_at: string | null; ends_at: string | null; item_count: number }>>([])
 
   const successSession = searchParams?.get('session_id')
   const paidParam = searchParams?.get('paid') === 'true'
@@ -97,6 +98,10 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
       .catch(() => {})
     api.get(`/nonprofit/public/events/${id}/sponsorship-levels`)
       .then(r => setSponsorLevels(r.data || []))
+      .catch(() => {})
+    // Auctions API 404s when the feature is off; the card simply stays hidden.
+    api.get('/auctions/public')
+      .then(r => setAuctions((r.data?.auctions || []).filter((a: { public_event_id: string | null }) => a.public_event_id === id)))
       .catch(() => {})
   }, [id])
 
@@ -325,6 +330,28 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
             <div className="bg-white border border-gray-200 rounded-2xl p-5">
               <h2 className="font-bold text-gray-900 mb-3">About this event</h2>
               <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{event.description}</p>
+            </div>
+          )}
+
+          {/* Charity auctions linked to this event */}
+          {auctions.length > 0 && (
+            <div className="bg-white border border-gray-200 rounded-2xl p-5">
+              <h2 className="font-bold text-gray-900 mb-3">Online Auction</h2>
+              <div className="space-y-3">
+                {auctions.map(a => (
+                  <Link key={a.id} href={`/auctions/${a.id}`}
+                    className="flex items-center justify-between gap-3 p-4 bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-xl hover:shadow-md transition-shadow">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-purple-900 truncate">{a.title}</p>
+                      <p className="text-xs text-purple-700 mt-0.5">
+                        {a.item_count} item{a.item_count === 1 ? '' : 's'} ·{' '}
+                        {a.status === 'scheduled' ? `opens ${new Date(a.starts_at ?? '').toLocaleDateString()}` : `ends ${new Date(a.ends_at ?? '').toLocaleDateString()}`}
+                      </p>
+                    </div>
+                    <span className="text-sm text-purple-700 font-medium whitespace-nowrap">{a.status === 'scheduled' ? 'View auction' : 'Bid now'} →</span>
+                  </Link>
+                ))}
+              </div>
             </div>
           )}
 

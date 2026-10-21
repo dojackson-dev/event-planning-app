@@ -3,6 +3,7 @@ import {
   Injectable,
   Logger,
   Inject,
+  Optional,
   forwardRef,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -25,6 +26,7 @@ import { SmsNotificationsService } from '../messaging/sms-notifications.service'
 import { MailService } from '../mail/mail.service';
 import { VipService } from '../vip/vip.service';
 import { SponsorshipCheckoutService } from '../nonprofit/sponsorship-checkout.service';
+import { AuctionPaymentsService } from '../auction/payments/auction-payments.service';
 import { clientVisibleItems } from '../invoices/client-visible-items';
 import { analytics } from '../analytics/heycatch';
 
@@ -50,6 +52,7 @@ export class StripeService {
     private readonly mailService: MailService,
     private readonly vipService: VipService,
     private readonly sponsorshipCheckout: SponsorshipCheckoutService,
+    @Optional() private readonly auctionPayments?: AuctionPaymentsService,
   ) {
     const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (!secretKey) {
@@ -486,6 +489,8 @@ export class StripeService {
 
     this.logger.log(`Stripe webhook: ${event.type}`);
 
+    if (await this.handleAuctionEvent(event)) return;
+
     switch (event.type) {
       case 'checkout.session.completed':
         await this.handleCheckoutComplete(event.data.object);
@@ -519,6 +524,57 @@ export class StripeService {
         break;
       default:
         this.logger.debug(`Unhandled event type: ${event.type}`);
+    }
+  }
+
+  /**
+   * Auction Center events, keyed on auction metadata so every other flow is untouched.
+   * Returns true when the event was consumed. Events from connected accounts are ignored:
+   * their metadata is not ours to trust.
+   */
+  private async handleAuctionEvent(event: Stripe.Event): Promise<boolean> {
+    const auction = this.auctionPayments;
+    if (!auction || event.account) return false;
+
+    switch (event.type) {
+      case 'setup_intent.succeeded': {
+        if (!event.data.object.metadata?.auction_bidder_id) return false;
+        await auction.handleSetupIntentSucceeded(event.data.object);
+        return true;
+      }
+      case 'payment_intent.succeeded': {
+        if (!event.data.object.metadata?.auction_order_id) return false;
+        await auction.handlePaymentIntentSucceeded(event.data.object);
+        return true;
+      }
+      case 'payment_intent.payment_failed': {
+        if (!event.data.object.metadata?.auction_order_id) return false;
+        await auction.handlePaymentIntentFailed(event.data.object);
+        return true;
+      }
+      case 'checkout.session.completed': {
+        if (!event.data.object.metadata?.auction_order_id) return false;
+        await auction.handleCheckoutSessionCompleted(event.data.object);
+        return true;
+      }
+      case 'charge.refunded':
+      case 'charge.dispute.created': {
+        // Audit-only; a failure here must not make Stripe retry unrelated events.
+        try {
+          const isAuction =
+            event.type === 'charge.refunded'
+              ? await auction.handleChargeRefunded(event.data.object)
+              : await auction.handleDisputeCreated(event.data.object);
+          return isAuction;
+        } catch (err) {
+          this.logger.error(
+            `Auction ${event.type} handling failed: ${(err as Error).message}`,
+          );
+          return false;
+        }
+      }
+      default:
+        return false;
     }
   }
 

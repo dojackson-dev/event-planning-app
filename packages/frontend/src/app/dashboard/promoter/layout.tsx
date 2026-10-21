@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Megaphone, Home, Calendar, CalendarDays, FileText, Users, UserCog, Settings, Menu, X, LogOut, Mic2, Store, ScrollText, Link2 } from 'lucide-react'
+import { Megaphone, Home, Calendar, CalendarDays, FileText, Users, UserCog, Settings, Menu, X, LogOut, Mic2, Store, ScrollText, Link2, Gavel, Building2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import RoleSwitcher from '@/components/RoleSwitcher'
@@ -21,6 +21,7 @@ export default function PromoterLayout({ children }: { children: React.ReactNode
   const { user, loading, logout } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [teamRole, setTeamRole] = useState<'owner' | 'admin' | 'staff' | null>(null)
+  const [verifiedNonprofit, setVerifiedNonprofit] = useState(false)
 
   useEffect(() => {
     if (!loading && !user) {
@@ -33,6 +34,9 @@ export default function PromoterLayout({ children }: { children: React.ReactNode
     api.get('/promoter-team/me')
       .then(res => setTeamRole(res.data?.role ?? null))
       .catch(() => setTeamRole(null))
+    api.get('/nonprofit/status')
+      .then(res => setVerifiedNonprofit(res.data?.status === 'verified'))
+      .catch(() => setVerifiedNonprofit(false))
   }, [user])
 
   const navItems: NavItem[] = [
@@ -44,6 +48,12 @@ export default function PromoterLayout({ children }: { children: React.ReactNode
     { href: '/dashboard/promoter/invoices',       label: 'Invoices',     icon: <FileText className="h-5 w-5" /> },
     { href: '/dashboard/promoter/bookings',       label: 'Bookings',     icon: <Users className="h-5 w-5" /> },
     { href: '/dashboard/promoter/calendar',       label: 'Calendar',     icon: <CalendarDays className="h-5 w-5" /> },
+    ...(verifiedNonprofit
+      ? [
+          { href: '/dashboard/promoter/auctions', label: 'Auctions', icon: <Gavel className="h-5 w-5" /> },
+          { href: '/dashboard/promoter/auctions/organization', label: 'Org Page', icon: <Building2 className="h-5 w-5" /> },
+        ]
+      : []),
     { href: '/dashboard/promoter/booking-link',   label: 'Booking Link', icon: <Link2 className="h-5 w-5" /> },
     { href: '/dashboard/promoter/profile',        label: 'Profile',      icon: <Settings className="h-5 w-5" /> },
     ...(teamRole === 'owner'
@@ -75,7 +85,7 @@ export default function PromoterLayout({ children }: { children: React.ReactNode
         <RoleSwitcher variant="sidebar" />
         <nav className="flex-1 px-4 py-6 space-y-1">
           {navItems.map((item) => {
-            const isActive = pathname === item.href
+            const isActive = pathname === item.href || (item.href.endsWith('/auctions') && pathname.startsWith(item.href) && !pathname.startsWith('/dashboard/promoter/auctions/organization'))
             return (
               <Link
                 key={item.href}

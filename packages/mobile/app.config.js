@@ -1,6 +1,6 @@
 module.exports = {
   expo: {
-    name: "Event Planning",
+    name: "EventEcos",
     slug: "event-planning-app",
     version: "1.0.0",
     orientation: "portrait",

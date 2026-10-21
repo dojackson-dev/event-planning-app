@@ -132,7 +132,7 @@ export default function VendorDetailForPromoterPage() {
         {/* Hero card */}
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           {vendor.cover_image_url && (
-            <img src={vendor.cover_image_url} alt="" className="w-full h-40 object-cover" />
+            <img src={vendor.cover_image_url} alt="" className="w-full h-40 object-contain bg-gray-100" />
           )}
           <div className="p-6 flex items-start gap-5">
             <div className="w-20 h-20 rounded-full bg-purple-50 flex items-center justify-center flex-shrink-0 -mt-2 border-2 border-white shadow">

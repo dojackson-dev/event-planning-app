@@ -75,15 +75,18 @@ export function OrgHero({
   const cover = coverImage || org?.cover_image_url
   return (
     <header className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-200">
-      <div className="relative h-44 bg-gradient-to-br from-purple-600 to-indigo-700 sm:h-64">
-        {cover && (
+      <div className={`relative ${cover ? 'bg-gray-50' : 'bg-gradient-to-br from-purple-600 to-indigo-700'}`}>
+        {cover ? (
+          // Scaled to the page width and never cropped; the height cap keeps tall images inside the viewport.
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={cover} alt={`${org?.name ?? title} cover`} className="h-full w-full object-cover" />
+          <img src={cover} alt={`${org?.name ?? title} cover`} className="mx-auto block h-auto max-h-[50vh] w-full object-contain" />
+        ) : (
+          <div aria-hidden="true" className="h-44 sm:h-64" />
         )}
       </div>
       <div className="relative px-5 pb-6 sm:px-8">
         <div className="flex flex-wrap items-end justify-between gap-4">
-          <div className="-mt-12 flex items-end gap-4 sm:-mt-14">
+          <div className={`flex items-end gap-4 ${cover ? 'mt-4' : '-mt-12 sm:-mt-14'}`}>
             {org?.logo_url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={org.logo_url} alt={`${org.name} logo`} className="h-24 w-24 shrink-0 rounded-xl border-4 border-white bg-white object-contain shadow sm:h-28 sm:w-28" />

@@ -1313,7 +1313,7 @@ function BrandingTab() {
         {!coverSaved && coverImageUrl && <div className="text-xs text-green-600 mb-2">✓ Banner saved</div>}
         {coverImageUrl && (
           <div className="mb-3">
-            <img src={coverImageUrl} alt="Cover" className="w-full h-28 object-cover rounded-xl border border-gray-200" />
+            <img src={coverImageUrl} alt="Cover" className="w-full h-28 object-contain bg-gray-50 rounded-xl border border-gray-200" />
           </div>
         )}
         <ImageUpload

@@ -19,7 +19,7 @@ export default function AuctionCard({ auction, orgSlug }: { auction: PublicAucti
       <div className="aspect-[16/9] bg-gradient-to-br from-purple-100 to-indigo-100">
         {auction.cover_image_url ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={auction.cover_image_url} alt="" loading="lazy" className="h-full w-full object-cover" />
+          <img src={auction.cover_image_url} alt="" loading="lazy" className="h-full w-full object-contain" />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-purple-300"><Gavel className="h-10 w-10" aria-hidden="true" /></div>
         )}

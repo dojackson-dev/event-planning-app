@@ -7,7 +7,7 @@ import {
   Auction,
   PHASE_LABEL,
   PHASE_STYLE,
-  PUBLIC_SITE_ORIGIN,
+  usePublicOrigin,
   auctionPhase,
   donationPath,
   publicAuctionPath,
@@ -15,7 +15,8 @@ import {
 
 function CopyRow({ label, path, icon }: { label: string; path: string; icon?: React.ReactNode }) {
   const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle')
-  const url = `${PUBLIC_SITE_ORIGIN}${path}`
+  const origin = usePublicOrigin()
+  const url = `${origin}${path}`
 
   const copy = async () => {
     try {

@@ -1,6 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 
+// Bookings are events whose client has paid a deposit (same rule as the owner
+// bookings service); there is no standalone `booking` table.
+const BOOKED_STATUSES = ['deposit_paid', 'completed'];
+// Signup/trial services write 'trial'; Stripe-style 'trialing' is also tolerated.
+const TRIAL_STATUSES = ['trial', 'trialing'];
+
 @Injectable()
 export class AdminService {
   constructor(private readonly supabaseService: SupabaseService) {}
@@ -35,16 +41,17 @@ export class AdminService {
         .eq('role', 'owner')
         .gte('created_at', startOfMonth),
       supabase
-        .from('users')
-        .select('*', { count: 'exact', head: true })
-        .eq('role', 'customer'),
+        .from('intake_forms')
+        .select('*', { count: 'exact', head: true }),
       supabase
-        .from('users')
+        .from('intake_forms')
         .select('*', { count: 'exact', head: true })
-        .eq('role', 'customer')
         .gte('created_at', startOfMonth),
       supabase.from('event').select('*', { count: 'exact', head: true }),
-      supabase.from('booking').select('*', { count: 'exact', head: true }),
+      supabase
+        .from('event')
+        .select('*', { count: 'exact', head: true })
+        .in('client_status', BOOKED_STATUSES),
       supabase
         .from('users')
         .select('id, email, first_name, last_name, created_at')
@@ -55,7 +62,7 @@ export class AdminService {
       supabase
         .from('owner_accounts')
         .select('*', { count: 'exact', head: true })
-        .eq('subscription_status', 'trialing'),
+        .in('subscription_status', TRIAL_STATUSES),
     ]);
 
     const totalRevenue =
@@ -183,38 +190,36 @@ export class AdminService {
     const offset = (page - 1) * limit;
 
     let query = supabase
-      .from('booking')
+      .from('event')
       .select(
-        'id, event_id, user_id, owner_id, contact_name, contact_email, contact_phone, status, payment_status, total_amount, deposit_amount, booking_date, notes, created_at',
+        'id, name, date, owner_id, intake_form_id, client_status, payment_status, total_amount, deposit_amount, deposit_paid, notes, created_at, intake_form:intake_forms!intake_form_id(contact_name, contact_email, contact_phone)',
         { count: 'exact' },
       )
-      .order('created_at', { ascending: false })
+      .in('client_status', BOOKED_STATUSES)
+      .order('date', { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (search) {
+      const { data: matches } = await supabase
+        .from('intake_forms')
+        .select('id')
+        .or(`contact_name.ilike.%${search}%,contact_email.ilike.%${search}%`);
+      const ids = (matches || []).map((m: any) => m.id);
       query = query.or(
-        `contact_name.ilike.%${search}%,contact_email.ilike.%${search}%`,
+        ids.length
+          ? `name.ilike.%${search}%,intake_form_id.in.(${ids.join(',')})`
+          : `name.ilike.%${search}%`,
       );
     }
     if (ownerId) {
-      query = query.eq('user_id', ownerId);
+      query = query.eq('owner_id', ownerId);
     }
 
     const { data, count, error } = await query;
     if (error) throw error;
 
-    // Enrich with event name
-    const eventIds = [
-      ...new Set((data || []).map((b: any) => b.event_id).filter(Boolean)),
-    ];
-    const { data: events } = eventIds.length
-      ? await supabase.from('event').select('id, name, date').in('id', eventIds)
-      : { data: [] };
-    const eventMap = new Map((events || []).map((e: any) => [e.id, e]));
-
-    // Enrich with owner info (user_id is the owner)
     const ownerIds = [
-      ...new Set((data || []).map((b: any) => b.user_id).filter(Boolean)),
+      ...new Set((data || []).map((b: any) => b.owner_id).filter(Boolean)),
     ];
     const { data: owners } = ownerIds.length
       ? await supabase
@@ -224,38 +229,72 @@ export class AdminService {
       : { data: [] };
     const ownerMap = new Map((owners || []).map((o: any) => [o.id, o]));
 
-    const enriched = (data || []).map((b: any) => ({
-      ...b,
-      event: eventMap.get(b.event_id) || null,
-      owner: ownerMap.get(b.user_id) || null,
-    }));
+    // Shaped like the old `booking` rows the admin UI already renders.
+    const enriched = (data || []).map((b: any) => {
+      const intake = Array.isArray(b.intake_form)
+        ? b.intake_form[0]
+        : b.intake_form;
+      return {
+        id: b.id,
+        event_id: b.id,
+        user_id: b.owner_id,
+        owner_id: b.owner_id,
+        contact_name: intake?.contact_name ?? null,
+        contact_email: intake?.contact_email ?? null,
+        contact_phone: intake?.contact_phone ?? null,
+        status: b.client_status === 'completed' ? 'completed' : 'confirmed',
+        payment_status:
+          b.payment_status ??
+          (b.client_status === 'completed' ? 'paid' : 'partial'),
+        total_amount: b.total_amount ?? null,
+        deposit_amount: b.deposit_amount ?? null,
+        booking_date: b.date,
+        notes: b.notes ?? null,
+        created_at: b.created_at,
+        event: { id: b.id, name: b.name, date: b.date },
+        owner: ownerMap.get(b.owner_id) || null,
+      };
+    });
 
     return { bookings: enriched, total: count || 0, page, limit };
   }
 
+  // Clients are the intake-form contacts owners collect; there is no `customer` user role.
   async getClients(page = 1, limit = 20, search = '') {
     const supabase = this.supabaseService.getAdminClient();
     const offset = (page - 1) * limit;
 
     let query = supabase
-      .from('users')
+      .from('intake_forms')
       .select(
-        'id, email, first_name, last_name, phone_number, created_at, status',
+        'id, contact_name, contact_email, contact_phone, created_at, status',
         { count: 'exact' },
       )
-      .eq('role', 'customer')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (search) {
       query = query.or(
-        `email.ilike.%${search}%,first_name.ilike.%${search}%,last_name.ilike.%${search}%`,
+        `contact_email.ilike.%${search}%,contact_name.ilike.%${search}%`,
       );
     }
 
     const { data, count, error } = await query;
     if (error) throw error;
-    return { clients: data || [], total: count || 0, page, limit };
+
+    const clients = (data || []).map((c: any) => {
+      const [first = '', ...rest] = String(c.contact_name || '').split(' ');
+      return {
+        id: c.id,
+        email: c.contact_email,
+        first_name: first,
+        last_name: rest.join(' '),
+        phone_number: c.contact_phone ?? null,
+        created_at: c.created_at,
+        status: c.status ?? null,
+      };
+    });
+    return { clients, total: count || 0, page, limit };
   }
 
   async getRevenue() {
@@ -274,7 +313,7 @@ export class AdminService {
     ]);
 
     const activeSubscriptions = (accounts || []).filter((a: any) =>
-      ['active', 'trialing'].includes(a.subscription_status),
+      ['active', ...TRIAL_STATUSES].includes(a.subscription_status),
     ).length;
     const cancelledSubscriptions = (accounts || []).filter(
       (a: any) => a.subscription_status === 'cancelled',
@@ -363,20 +402,21 @@ export class AdminService {
         .select('*', { count: 'exact', head: true })
         .eq('role', 'owner'),
       supabase
-        .from('users')
-        .select('*', { count: 'exact', head: true })
-        .eq('role', 'customer'),
+        .from('intake_forms')
+        .select('*', { count: 'exact', head: true }),
       supabase.from('event').select('*', { count: 'exact', head: true }),
-      supabase.from('booking').select('*', { count: 'exact', head: true }),
+      supabase
+        .from('event')
+        .select('*', { count: 'exact', head: true })
+        .in('client_status', BOOKED_STATUSES),
       supabase
         .from('users')
         .select('id, created_at')
         .eq('role', 'owner')
         .gte('created_at', sixMonthsAgo),
       supabase
-        .from('users')
+        .from('intake_forms')
         .select('id, created_at')
-        .eq('role', 'customer')
         .gte('created_at', sixMonthsAgo),
       supabase
         .from('event')
@@ -505,7 +545,7 @@ export class AdminService {
         'id, primary_owner_id, subscription_status, trial_ends_at, trial_days_used, created_at',
         { count: 'exact' },
       )
-      .eq('subscription_status', 'trialing')
+      .in('subscription_status', TRIAL_STATUSES)
       .order('trial_ends_at', { ascending: true })
       .range(offset, offset + limit - 1);
 

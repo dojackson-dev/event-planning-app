@@ -24,10 +24,9 @@ const sharp = require('sharp') as typeof import('sharp');
 import { SupabaseService } from '../supabase/supabase.service';
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-const MAX_VENDOR_LOGO_BYTES = 2 * 1024 * 1024; // 2 MB
+// Photos are re-encoded with sharp, so oversized originals are accepted and shrunk.
+const MAX_PHOTO_INPUT_BYTES = 20 * 1024 * 1024; // 20 MB
 const MAX_SERVICE_ITEM_BYTES = 5 * 1024 * 1024; // 5 MB
-const MAX_OWNER_LOGO_BYTES = 3 * 1024 * 1024; // 3 MB
-const MAX_COVER_BYTES = 5 * 1024 * 1024; // 5 MB
 // Logos fit whole inside a square (transparent padding) and covers keep their own shape,
 // scaled down to at most this size — nothing is cropped.
 const LOGO_BACKGROUND = { r: 255, g: 255, b: 255, alpha: 0 };
@@ -76,7 +75,7 @@ export class UploadController {
   // ─────────────────────────────────────────────
   // POST /upload/vendor-logo
   // Vendor profile / business logo
-  // Recommended: 400×400 px, max 2 MB, JPEG/PNG/WebP
+  // Recommended: 400×400 px, originals up to 20 MB are auto-shrunk, JPEG/PNG/WebP
   // ─────────────────────────────────────────────
   @Post('vendor-logo')
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
@@ -90,8 +89,8 @@ export class UploadController {
     if (!ALLOWED_TYPES.includes(file.mimetype)) {
       throw new BadRequestException('File must be JPEG, PNG, or WebP');
     }
-    if (file.size > MAX_VENDOR_LOGO_BYTES) {
-      throw new BadRequestException('Logo must be under 2 MB');
+    if (file.size > MAX_PHOTO_INPUT_BYTES) {
+      throw new BadRequestException('Logo must be under 20 MB');
     }
 
     const admin = this.supabaseService.getAdminClient();
@@ -122,7 +121,7 @@ export class UploadController {
   // ─────────────────────────────────────────────
   // POST /upload/service-item
   // Owner service item / package image
-  // Recommended: 800×600 px (4:3), max 5 MB, JPEG/PNG/WebP
+  // Recommended: 800×600 px (4:3), originals up to 20 MB are auto-shrunk, JPEG/PNG/WebP
   // ─────────────────────────────────────────────
   @Post('service-item')
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
@@ -136,8 +135,8 @@ export class UploadController {
     if (!ALLOWED_TYPES.includes(file.mimetype)) {
       throw new BadRequestException('File must be JPEG, PNG, or WebP');
     }
-    if (file.size > MAX_SERVICE_ITEM_BYTES) {
-      throw new BadRequestException('Image must be under 5 MB');
+    if (file.size > MAX_PHOTO_INPUT_BYTES) {
+      throw new BadRequestException('Image must be under 20 MB');
     }
 
     const admin = this.supabaseService.getAdminClient();
@@ -168,7 +167,7 @@ export class UploadController {
   // ─────────────────────────────────────────────
   // POST /upload/owner-logo
   // Owner venue/business logo for sidebar branding
-  // Recommended: wide/landscape, max 3 MB, JPEG/PNG/WebP
+  // Recommended: wide/landscape, originals up to 20 MB are auto-shrunk, JPEG/PNG/WebP
   // ─────────────────────────────────────────────
   @Post('owner-logo')
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
@@ -182,8 +181,8 @@ export class UploadController {
     if (!ALLOWED_TYPES.includes(file.mimetype)) {
       throw new BadRequestException('File must be JPEG, PNG, or WebP');
     }
-    if (file.size > MAX_OWNER_LOGO_BYTES) {
-      throw new BadRequestException('Logo must be under 3 MB');
+    if (file.size > MAX_PHOTO_INPUT_BYTES) {
+      throw new BadRequestException('Logo must be under 20 MB');
     }
 
     const admin = this.supabaseService.getAdminClient();
@@ -214,7 +213,7 @@ export class UploadController {
   // ─────────────────────────────────────────────
   // POST /upload/owner-cover
   // Owner venue banner / cover image
-  // Recommended: 1200×400 px (3:1), max 5 MB
+  // Recommended: 1200×400 px (3:1), originals up to 20 MB are auto-shrunk
   // ─────────────────────────────────────────────
   @Post('owner-cover')
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
@@ -226,14 +225,17 @@ export class UploadController {
     if (!file) throw new BadRequestException('No file provided');
     if (!ALLOWED_TYPES.includes(file.mimetype))
       throw new BadRequestException('File must be JPEG, PNG, or WebP');
-    if (file.size > MAX_COVER_BYTES)
-      throw new BadRequestException('Cover image must be under 5 MB');
+    if (file.size > MAX_PHOTO_INPUT_BYTES)
+      throw new BadRequestException('Cover image must be under 20 MB');
 
     const admin = this.supabaseService.getAdminClient();
     await this.ensureBucket(admin, 'owner-images');
 
     const processed = await sharp(file.buffer)
-      .resize(COVER_MAX_DIMENSION, COVER_MAX_DIMENSION, { fit: 'inside', withoutEnlargement: true })
+      .resize(COVER_MAX_DIMENSION, COVER_MAX_DIMENSION, {
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
       .webp({ quality: 85 })
       .toBuffer();
 
@@ -253,7 +255,7 @@ export class UploadController {
   // ─────────────────────────────────────────────
   // POST /upload/vendor-cover
   // Vendor cover / banner photo
-  // Recommended: 1200×400 px (3:1), max 5 MB
+  // Recommended: 1200×400 px (3:1), originals up to 20 MB are auto-shrunk
   // ─────────────────────────────────────────────
   @Post('vendor-cover')
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
@@ -265,14 +267,17 @@ export class UploadController {
     if (!file) throw new BadRequestException('No file provided');
     if (!ALLOWED_TYPES.includes(file.mimetype))
       throw new BadRequestException('File must be JPEG, PNG, or WebP');
-    if (file.size > MAX_COVER_BYTES)
-      throw new BadRequestException('Cover image must be under 5 MB');
+    if (file.size > MAX_PHOTO_INPUT_BYTES)
+      throw new BadRequestException('Cover image must be under 20 MB');
 
     const admin = this.supabaseService.getAdminClient();
     await this.ensureBucket(admin, 'vendor-images');
 
     const processed = await sharp(file.buffer)
-      .resize(COVER_MAX_DIMENSION, COVER_MAX_DIMENSION, { fit: 'inside', withoutEnlargement: true })
+      .resize(COVER_MAX_DIMENSION, COVER_MAX_DIMENSION, {
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
       .webp({ quality: 85 })
       .toBuffer();
 
@@ -303,8 +308,8 @@ export class UploadController {
     if (!file) throw new BadRequestException('No file provided');
     if (!ALLOWED_TYPES.includes(file.mimetype))
       throw new BadRequestException('File must be JPEG, PNG, or WebP');
-    if (file.size > MAX_VENDOR_LOGO_BYTES)
-      throw new BadRequestException('Image must be under 2 MB');
+    if (file.size > MAX_PHOTO_INPUT_BYTES)
+      throw new BadRequestException('Image must be under 20 MB');
 
     const admin = this.supabaseService.getAdminClient();
     await this.ensureBucket(admin, 'artist-images');
@@ -341,14 +346,17 @@ export class UploadController {
     if (!file) throw new BadRequestException('No file provided');
     if (!ALLOWED_TYPES.includes(file.mimetype))
       throw new BadRequestException('File must be JPEG, PNG, or WebP');
-    if (file.size > MAX_COVER_BYTES)
-      throw new BadRequestException('Cover image must be under 5 MB');
+    if (file.size > MAX_PHOTO_INPUT_BYTES)
+      throw new BadRequestException('Cover image must be under 20 MB');
 
     const admin = this.supabaseService.getAdminClient();
     await this.ensureBucket(admin, 'artist-images');
 
     const processed = await sharp(file.buffer)
-      .resize(COVER_MAX_DIMENSION, COVER_MAX_DIMENSION, { fit: 'inside', withoutEnlargement: true })
+      .resize(COVER_MAX_DIMENSION, COVER_MAX_DIMENSION, {
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
       .webp({ quality: 85 })
       .toBuffer();
 
@@ -379,8 +387,8 @@ export class UploadController {
     if (!file) throw new BadRequestException('No file provided');
     if (!ALLOWED_TYPES.includes(file.mimetype))
       throw new BadRequestException('File must be JPEG, PNG, or WebP');
-    if (file.size > MAX_VENDOR_LOGO_BYTES)
-      throw new BadRequestException('Image must be under 2 MB');
+    if (file.size > MAX_PHOTO_INPUT_BYTES)
+      throw new BadRequestException('Image must be under 20 MB');
 
     const admin = this.supabaseService.getAdminClient();
     await this.ensureBucket(admin, 'promoter-images');
@@ -417,14 +425,17 @@ export class UploadController {
     if (!file) throw new BadRequestException('No file provided');
     if (!ALLOWED_TYPES.includes(file.mimetype))
       throw new BadRequestException('File must be JPEG, PNG, or WebP');
-    if (file.size > MAX_COVER_BYTES)
-      throw new BadRequestException('Cover image must be under 5 MB');
+    if (file.size > MAX_PHOTO_INPUT_BYTES)
+      throw new BadRequestException('Cover image must be under 20 MB');
 
     const admin = this.supabaseService.getAdminClient();
     await this.ensureBucket(admin, 'promoter-images');
 
     const processed = await sharp(file.buffer)
-      .resize(COVER_MAX_DIMENSION, COVER_MAX_DIMENSION, { fit: 'inside', withoutEnlargement: true })
+      .resize(COVER_MAX_DIMENSION, COVER_MAX_DIMENSION, {
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
       .webp({ quality: 85 })
       .toBuffer();
 
@@ -444,7 +455,7 @@ export class UploadController {
   // ─────────────────────────────────────────────
   // POST /upload/event-banner
   // Public event banner / hero image (1920×1080)
-  // Recommended: 1920×1080 px (16:9), max 5 MB
+  // Recommended: 1920×1080 px (16:9), originals up to 20 MB are auto-shrunk
   // ─────────────────────────────────────────────
   @Post('event-banner')
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
@@ -456,8 +467,8 @@ export class UploadController {
     if (!file) throw new BadRequestException('No file provided');
     if (!ALLOWED_TYPES.includes(file.mimetype))
       throw new BadRequestException('File must be JPEG, PNG, or WebP');
-    if (file.size > MAX_COVER_BYTES)
-      throw new BadRequestException('Banner must be under 5 MB');
+    if (file.size > MAX_PHOTO_INPUT_BYTES)
+      throw new BadRequestException('Banner must be under 20 MB');
 
     const admin = this.supabaseService.getAdminClient();
     await this.ensureBucket(admin, 'event-banners');
@@ -552,7 +563,7 @@ export class UploadController {
   // Produces two sizes stored side-by-side:
   //   banner   — 1200 × 630 px (16:9 OG share)
   //   thumb    — 600  × 400 px (4:3 card thumbnail)
-  // Max 8 MB, JPEG/PNG/WebP → converted to WebP
+  // Originals up to 20 MB, JPEG/PNG/WebP → converted to WebP
   // Returns: { url, thumbUrl }
   // ─────────────────────────────────────────────
   @Post('event-image')
@@ -565,8 +576,8 @@ export class UploadController {
     if (!file) throw new BadRequestException('No file provided');
     if (!ALLOWED_TYPES.includes(file.mimetype))
       throw new BadRequestException('File must be JPEG, PNG, or WebP');
-    if (file.size > 8 * 1024 * 1024)
-      throw new BadRequestException('Image must be under 8 MB');
+    if (file.size > MAX_PHOTO_INPUT_BYTES)
+      throw new BadRequestException('Image must be under 20 MB');
 
     const admin = this.supabaseService.getAdminClient();
     await this.ensureBucket(admin, 'event-images');
@@ -620,7 +631,7 @@ export class UploadController {
   // ─────────────────────────────────────────────
   // POST /upload/rsvp-invitation
   // RSVP invitation image (displayed on public RSVP page)
-  // Max 2 images per event, max 5 MB each, JPEG/PNG/WebP
+  // Max 2 images per event, originals up to 20 MB are auto-shrunk, JPEG/PNG/WebP
   // Recommended: 1200×800 px — landscape works best on mobile
   // Returns: { url }
   // Accepts: Bearer JWT (owner) OR x-client-token (client portal)
@@ -645,8 +656,8 @@ export class UploadController {
     if (!ALLOWED_TYPES.includes(file.mimetype)) {
       throw new BadRequestException('File must be JPEG, PNG, or WebP');
     }
-    if (file.size > MAX_SERVICE_ITEM_BYTES) {
-      throw new BadRequestException('Image must be under 5 MB');
+    if (file.size > MAX_PHOTO_INPUT_BYTES) {
+      throw new BadRequestException('Image must be under 20 MB');
     }
 
     const admin = this.supabaseService.getAdminClient();

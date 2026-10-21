@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react'
 import api from '@/lib/api'
+import { compressImage } from '@/lib/compressImage'
 
 type UploadType = 'vendor-logo' | 'vendor-cover' | 'service-item' | 'owner-logo' | 'owner-cover' | 'artist-logo' | 'artist-cover' | 'promoter-logo' | 'promoter-cover' | 'event-image'
 
@@ -106,19 +107,24 @@ export default function ImageUpload({
   const aspectClass = shape === 'landscape' ? 'aspect-[4/3]' : 'aspect-square'
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const picked = e.target.files?.[0]
+    if (!picked) return
 
     setError('')
 
     // Client-side validation
     const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
-    if (!allowed.includes(file.type)) {
+    if (!allowed.includes(picked.type)) {
       setError('Please use JPEG, PNG, or WebP format.')
       return
     }
-    if (file.size > spec.maxMB * 1024 * 1024) {
-      setError(`File must be under ${spec.maxMB} MB.`)
+
+    let file: File
+    try {
+      file = await compressImage(picked, { maxBytes: spec.maxMB * 1024 * 1024 })
+    } catch (err: any) {
+      setError(err.message || 'Could not process that photo.')
+      if (inputRef.current) inputRef.current.value = ''
       return
     }
 
@@ -197,7 +203,7 @@ export default function ImageUpload({
       <div className="text-xs text-gray-400 leading-relaxed">
         <span className="font-medium text-gray-500">Format:</span> JPEG, PNG, WebP
         <br />
-        <span className="font-medium text-gray-500">Size:</span> {spec.size}
+        <span className="font-medium text-gray-500">Size:</span> {spec.size} (larger photos shrink automatically)
         <br />
         <span className="font-medium text-gray-500">Dimensions:</span> {spec.dims}
       </div>

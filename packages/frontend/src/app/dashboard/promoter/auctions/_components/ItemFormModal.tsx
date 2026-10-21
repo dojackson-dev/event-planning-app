@@ -11,10 +11,10 @@ import {
   centsToDollars,
   dollarsToCents,
   errorMessage,
+  uploadAuctionImage,
 } from '../lib'
 
 const MAX_IMAGES = 5
-const MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 
 interface Props {
   auctionId: string
@@ -70,18 +70,13 @@ export default function ItemFormModal({ auctionId, item, onClose, onSaved }: Pro
   const uploadImage = async (file: File) => {
     if (images.length >= MAX_IMAGES) return setError(`You can add up to ${MAX_IMAGES} photos.`)
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return setError('Photos must be JPEG, PNG or WebP.')
-    if (file.size > MAX_UPLOAD_BYTES) return setError('Each photo must be under 5 MB.')
     setError(null)
     setUploading(true)
     try {
-      const form = new FormData()
-      form.append('file', file)
-      const res = await api.post<{ url: string }>('/auctions/manage/upload/item-image', form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
-      setImages((prev) => [...prev, res.data.url])
+      const url = await uploadAuctionImage(file)
+      setImages((prev) => [...prev, url])
     } catch (err) {
-      setError(errorMessage(err, 'Photo upload failed.'))
+      setError(err instanceof Error && !('response' in err) ? err.message : errorMessage(err, 'Photo upload failed.'))
     } finally {
       setUploading(false)
       if (fileRef.current) fileRef.current.value = ''

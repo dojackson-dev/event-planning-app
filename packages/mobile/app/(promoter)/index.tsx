@@ -8,6 +8,7 @@ import AppButton from '@/components/AppButton';
 import EmptyState from '@/components/EmptyState';
 import LoadingState from '@/components/LoadingState';
 import SectionHeader from '@/components/SectionHeader';
+import EccoAssistant from '@/components/EccoAssistant';
 import NetNavRow from '@/components/NetNavRow';
 import NetPayoutsCard from '@/components/NetPayoutsCard';
 import NetSignOutButton from '@/components/NetSignOutButton';
@@ -27,6 +28,7 @@ export default function PromoterDashboardScreen() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [eccoKey, setEccoKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -68,7 +70,7 @@ export default function PromoterDashboardScreen() {
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.purple} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); setEccoKey((k) => k + 1); load(); }} tintColor={Colors.purple} />}
     >
       {!profile ? (
         <>
@@ -116,6 +118,8 @@ export default function PromoterDashboardScreen() {
             onPress={() => router.push('/(promoter)/events/new' as any)}
             style={styles.createBtn}
           />
+
+          <EccoAssistant role="promoter" refreshKey={eccoKey} />
 
           <SectionHeader title="Events & Sales" />
           <NetNavRow tint={Colors.purple} tintBg={Colors.purpleLight} icon="ticket-outline" title="My Events" subtitle="Tickets, VIP, attendees & check-in" onPress={() => router.push('/(promoter)/events' as any)} />

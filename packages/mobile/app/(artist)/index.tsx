@@ -7,6 +7,7 @@ import { Colors, Radius, Shadow } from '@/lib/theme';
 import LoadingState from '@/components/LoadingState';
 import EmptyState from '@/components/EmptyState';
 import SectionHeader from '@/components/SectionHeader';
+import EccoAssistant from '@/components/EccoAssistant';
 import NetNavRow from '@/components/NetNavRow';
 import NetPayoutsCard from '@/components/NetPayoutsCard';
 import NetSignOutButton from '@/components/NetSignOutButton';
@@ -27,6 +28,7 @@ export default function ArtistDashboardScreen() {
   const [gigs, setGigs] = useState<{ status: string; event_date?: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [eccoKey, setEccoKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -52,7 +54,7 @@ export default function ArtistDashboardScreen() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  const onRefresh = () => { setRefreshing(true); load(); };
+  const onRefresh = () => { setRefreshing(true); setEccoKey((k) => k + 1); load(); };
 
   if (loading) return <LoadingState message="Loading your dashboard..." />;
 
@@ -119,6 +121,8 @@ export default function ArtistDashboardScreen() {
           <Text style={styles.statLabel}>Total</Text>
         </View>
       </View>
+
+      <EccoAssistant role="artist" refreshKey={eccoKey} />
 
       <SectionHeader title="Manage" />
       <NetNavRow icon="calendar-outline" title="Bookings" subtitle="Your bookings & promoter gig requests" onPress={() => router.push('/(artist)/bookings' as any)} />

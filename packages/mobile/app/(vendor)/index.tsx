@@ -8,6 +8,7 @@ import LoadingState from '@/components/LoadingState';
 import EmptyState from '@/components/EmptyState';
 import AppButton from '@/components/AppButton';
 import SectionHeader from '@/components/SectionHeader';
+import EccoAssistant from '@/components/EccoAssistant';
 import NetNavRow from '@/components/NetNavRow';
 import NetPayoutsCard from '@/components/NetPayoutsCard';
 import NetSignOutButton from '@/components/NetSignOutButton';
@@ -34,6 +35,7 @@ export default function VendorDashboardScreen() {
   const [bookings, setBookings] = useState<VendorBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [eccoKey, setEccoKey] = useState(0);
   const [error, setError] = useState('');
   const [profileMissing, setProfileMissing] = useState(false);
 
@@ -78,6 +80,7 @@ export default function VendorDashboardScreen() {
 
   const onRefresh = () => {
     setRefreshing(true);
+    setEccoKey((k) => k + 1);
     loadData();
   };
 
@@ -133,6 +136,8 @@ export default function VendorDashboardScreen() {
           <Text style={styles.heroCategory}>{profile.category.replace(/_/g, ' ')}</Text>
         )}
       </View>
+
+      <EccoAssistant role="vendor" refreshKey={eccoKey} />
 
       <SectionHeader title="Overview" />
       <View style={styles.statsRow}>

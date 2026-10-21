@@ -11,6 +11,7 @@ import LoadingState from '@/components/LoadingState';
 import EmptyState from '@/components/EmptyState';
 import AppButton from '@/components/AppButton';
 import SectionHeader from '@/components/SectionHeader';
+import EccoAssistant from '@/components/EccoAssistant';
 import {
   IntakeForm, CrmInvoice, CrmBooking, num, money, formatDate, titleCase, formatEventType,
   leadStatus, leadTone, CLIENT_STATUS_LABELS, CLIENT_STATUS_TONES, bookingClientStatus,
@@ -33,6 +34,7 @@ export default function DashboardScreen() {
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [eccoKey, setEccoKey] = useState(0);
   const [error, setError] = useState('');
   const [partial, setPartial] = useState(false);
 
@@ -81,7 +83,7 @@ export default function DashboardScreen() {
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
-  const onRefresh = () => { setRefreshing(true); loadData(); };
+  const onRefresh = () => { setRefreshing(true); setEccoKey((k) => k + 1); loadData(); };
 
   // Same calculations as the web dashboard.
   const stats = useMemo(() => {
@@ -206,6 +208,8 @@ export default function DashboardScreen() {
           <Text style={styles.pendingText}>{money(stats.pendingPayments)} pending collection</Text>
         </View>
       )}
+
+      <EccoAssistant role="owner" refreshKey={eccoKey} />
 
       <SectionHeader title="Upcoming This Week" action={{ label: 'View All', onPress: () => router.push('/(tabs)/bookings' as any) }} />
       <View style={styles.listCard}>

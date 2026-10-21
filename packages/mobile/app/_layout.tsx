@@ -51,6 +51,7 @@ export default function RootLayout() {
       <Stack.Screen name="(vendor)" />
       <Stack.Screen name="(artist)" />
       <Stack.Screen name="(promoter)" />
+      <Stack.Screen name="(client)" />
     </Stack>
     </SafeAreaProvider>
   );

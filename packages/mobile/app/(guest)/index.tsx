@@ -31,6 +31,20 @@ export default function GuestHomeScreen() {
           <Text style={styles.loginBtnText}>Log In</Text>
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={styles.clientBtn}
+          onPress={() => router.push('/(auth)/client-login' as any)}
+          accessibilityRole="button"
+          accessibilityLabel="Client portal. Sign in with your phone number"
+        >
+          <Ionicons name="phone-portrait-outline" size={22} color={Colors.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.clientBtnTitle}>Client Portal</Text>
+            <Text style={styles.clientBtnSub}>Booked an event? Sign in with your phone</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={Colors.primary} />
+        </TouchableOpacity>
+
         <View style={styles.browseSection}>
           <Text style={styles.browseLabel}>Or browse as a guest</Text>
           {BROWSE_ITEMS.map((item) => (
@@ -66,6 +80,13 @@ const styles = StyleSheet.create({
     alignItems: 'center', ...Shadow.sm,
   },
   loginBtnText: { color: Colors.textWhite, fontSize: 16, fontWeight: '700' },
+  clientBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Colors.primaryLight,
+    borderRadius: Radius.lg, paddingVertical: 14, paddingHorizontal: 16,
+    borderWidth: 1.5, borderColor: Colors.primary,
+  },
+  clientBtnTitle: { fontSize: 16, fontWeight: '700', color: Colors.primary },
+  clientBtnSub: { fontSize: 12, color: Colors.textSecondary, marginTop: 1 },
   browseSection: { gap: 10, marginTop: 4 },
   browseLabel: {
     fontSize: 12, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase',

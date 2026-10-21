@@ -3,6 +3,7 @@ import { View, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { getSessionHomeRoute } from '@/lib/roleRouting';
+import { hasClientSession } from '@/lib/clientApi';
 
 export default function Index() {
   const router = useRouter();
@@ -26,7 +27,8 @@ export default function Index() {
           const homeRoute = await getSessionHomeRoute(session.user);
           finish(homeRoute);
         } else {
-          finish('/(guest)');
+          // No staff session — a client may still be signed in via phone/SMS.
+          finish((await hasClientSession()) ? '/(client)' : '/(guest)');
         }
       })
       .catch(() => finish('/(guest)'))

@@ -6,7 +6,8 @@ import HeyCatchInit from '@/components/HeyCatchInit'
 
 const poppins = Poppins({ subsets: ['latin'], weight: ['400', '500', '600', '700'] })
 
-const SITE_URL = 'https://eventecos.com'
+// Override per environment (e.g. https://demo.eventecos.com) so canonical/share links stay on that site.
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://eventecos.com').replace(/\/$/, '')
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

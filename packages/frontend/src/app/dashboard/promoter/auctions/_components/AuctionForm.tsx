@@ -8,7 +8,7 @@ import ImageUploadField from './ImageUploadField'
 import { useOrganization } from './useOrganization'
 import {
   Auction,
-  PUBLIC_SITE_ORIGIN,
+  usePublicOrigin,
   centsToDollars,
   dollarsToCents,
   errorMessage,
@@ -56,6 +56,7 @@ const inputClass =
   'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:bg-gray-100 disabled:text-gray-500'
 
 export default function AuctionForm({ initial, submitLabel, startLocked, disabled, onSubmit }: Props) {
+  const origin = usePublicOrigin()
   const [title, setTitle] = useState(initial?.title ?? '')
   const [description, setDescription] = useState(initial?.description ?? '')
   const [eventId, setEventId] = useState(initial?.public_event_id ?? '')
@@ -222,7 +223,7 @@ export default function AuctionForm({ initial, submitLabel, startLocked, disable
                   disabled={locked}
                 />
                 <p id="auction-slug-help" className="mt-1 break-all text-xs text-gray-500">
-                  {PUBLIC_SITE_ORIGIN}/auctions/{orgSlug}/{slug.trim() || 'your-auction'}
+                  {origin}/auctions/{orgSlug}/{slug.trim() || 'your-auction'}
                 </p>
                 {slug.trim() && slugProblem(slug.trim()) && <p role="alert" className="mt-1 text-xs text-red-600">{slugProblem(slug.trim())}</p>}
                 <p className="mt-1 text-xs text-gray-400">Unique within your organization. If it is taken, saving will tell you.</p>

@@ -7,7 +7,7 @@ import ImageUploadField from '../ImageUploadField'
 import {
   AuctionOrganization,
   ImpactExample,
-  PUBLIC_SITE_ORIGIN,
+  usePublicOrigin,
   centsToDollars,
   dollarsToCents,
   errorMessage,
@@ -213,7 +213,8 @@ export default function OrgProfileForm({ initial, onSaved, onDirtyChange }: Prop
   }
 
   const locked = saving
-  const publicUrl = `${PUBLIC_SITE_ORIGIN}/auctions/${form.slug.trim() || 'your-organization'}`
+  const origin = usePublicOrigin()
+  const publicUrl = `${origin}/auctions/${form.slug.trim() || 'your-organization'}`
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6" noValidate>

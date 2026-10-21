@@ -20,6 +20,7 @@ import {
   uploadDonationImage,
   verifyDonorCode,
 } from '@/lib/auctionApi'
+import { compressImage } from '@/lib/compressImage'
 import { dollarsToCents } from './format'
 import { FULFILLMENT_LABELS, FULFILLMENT_METHODS } from './itemFields'
 import OtpInput from './OtpInput'
@@ -224,15 +225,20 @@ export default function DonateView({ auctionId: id, basePath }: { auctionId: str
     for (const file of chosen) {
       const key = `${file.name}-${file.size}-${Date.now()}-${Math.random()}`
       const preview = URL.createObjectURL(file)
-      if (!PHOTO_TYPES.includes(file.type) || file.size > MAX_PHOTO_BYTES) {
-        setPhotos((p) => [...p, { key, preview, url: null, status: 'error', error: 'Photos must be JPEG, PNG or WebP, under 5 MB.' }])
+      if (!PHOTO_TYPES.includes(file.type)) {
+        setPhotos((p) => [...p, { key, preview, url: null, status: 'error', error: 'Photos must be JPEG, PNG or WebP.' }])
         continue
       }
       setPhotos((p) => [...p, { key, preview, url: null, status: 'uploading' }])
       try {
-        const url = await uploadDonationImage(id, token, file)
+        const small = await compressImage(file, { maxBytes: MAX_PHOTO_BYTES })
+        const url = await uploadDonationImage(id, token, small)
         setPhotos((p) => p.map((x) => (x.key === key ? { ...x, url, status: 'done' } : x)))
       } catch (err) {
+        if (err instanceof Error && !('response' in err)) {
+          setPhotos((p) => p.map((x) => (x.key === key ? { ...x, status: 'error', error: err.message } : x)))
+          continue
+        }
         const f = friendlyError(err, 'upload')
         if (f.status === 401) {
           expireSession()
@@ -487,7 +493,7 @@ export default function DonateView({ auctionId: id, basePath }: { auctionId: str
                     />
                   </label>
                 )}
-                <p className="mt-1 text-xs text-gray-500">JPEG, PNG or WebP, up to 5 MB each. Good photos help items sell.</p>
+                <p className="mt-1 text-xs text-gray-500">JPEG, PNG or WebP. Large photos are shrunk automatically. Good photos help items sell.</p>
                 {fieldErrors.photos && <p id="donate-photos-error" role="alert" className="mt-1 text-sm text-red-600">{fieldErrors.photos}</p>}
               </div>
             </fieldset>

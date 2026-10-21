@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
+import { compressImage } from '@/lib/compressImage'
 import { Plus, Trash2, Loader2, Tag, DollarSign, Users, Upload, X, AlertTriangle, CreditCard } from 'lucide-react'
 
 interface TierForm {
@@ -114,11 +115,14 @@ export default function NewPromoterEventPage() {
     setTiers(prev => prev.map((t, idx) => idx === i ? { ...t, [field]: value } : t))
   }
 
-  function handleBannerChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Banner image must be under 5 MB')
+  async function handleBannerChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = e.target.files?.[0]
+    if (!picked) return
+    let file: File
+    try {
+      file = await compressImage(picked, { maxBytes: 5 * 1024 * 1024 })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not process that image.')
       return
     }
     setBannerFile(file)

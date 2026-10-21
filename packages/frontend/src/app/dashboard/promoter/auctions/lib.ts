@@ -1,4 +1,5 @@
 import api from '@/lib/api'
+import { compressImage } from '@/lib/compressImage'
 
 // Shared types and helpers for the promoter auction screens. Money is integer cents on the wire.
 
@@ -414,9 +415,9 @@ export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 export const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
 /** Validates and uploads an image through the existing organizer upload endpoint; returns its URL. */
-export async function uploadAuctionImage(file: File): Promise<string> {
-  if (!IMAGE_TYPES.includes(file.type)) throw new Error('Photos must be JPEG, PNG or WebP.')
-  if (file.size > MAX_UPLOAD_BYTES) throw new Error('Each photo must be under 5 MB.')
+export async function uploadAuctionImage(original: File): Promise<string> {
+  if (!IMAGE_TYPES.includes(original.type)) throw new Error('Photos must be JPEG, PNG or WebP.')
+  const file = await compressImage(original, { maxBytes: MAX_UPLOAD_BYTES })
   const form = new FormData()
   form.append('file', file)
   const res = await api.post<{ url: string }>('/auctions/manage/upload/item-image', form, {

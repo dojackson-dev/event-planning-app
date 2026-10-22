@@ -162,7 +162,14 @@ describe('AuctionDonationsService', () => {
         draftAuction({ donations_close_at: '2000-01-01T00:00:00Z' }),
         409,
       ],
-      ['bidding live', draftAuction({ status: 'live' }), 409],
+      [
+        'bidding live and window closed',
+        draftAuction({
+          status: 'live',
+          donations_close_at: '2000-01-01T00:00:00Z',
+        }),
+        409,
+      ],
       ['page not published', draftAuction({ page_published: false }), 404],
       ['cancelled', draftAuction({ status: 'cancelled' }), 404],
     ])('refuses when %s', async (_label, auction, expected) => {
@@ -229,6 +236,17 @@ describe('AuctionDonationsService', () => {
       request: object = s.token(),
       ip = '203.0.113.5',
     ) => s.service.submit(AUCTION_ID, body, request, ip);
+
+    it('keeps accepting donations while bidding is live until the close date', async () => {
+      const s = setup(
+        draftAuction({
+          status: 'live',
+          donations_close_at: '2999-01-01T00:00:00Z',
+        }),
+      );
+      const out = await submit(s);
+      expect(out).toEqual({ id: expect.any(String), status: 'pending' });
+    });
 
     it('stores a pending donation tied to the verified phone', async () => {
       const s = setup();
@@ -335,7 +353,14 @@ describe('AuctionDonationsService', () => {
         draftAuction({ donations_close_at: '2000-01-01T00:00:00Z' }),
         409,
       ],
-      ['auction live', draftAuction({ status: 'live' }), 409],
+      [
+        'auction live and window closed',
+        draftAuction({
+          status: 'live',
+          donations_close_at: '2000-01-01T00:00:00Z',
+        }),
+        409,
+      ],
       ['auction closed', draftAuction({ status: 'closed' }), 409],
       ['page unpublished', draftAuction({ page_published: false }), 404],
     ])(
@@ -505,7 +530,12 @@ describe('AuctionDonationsService', () => {
           ),
         ),
       ).toBe(401);
-      const closed = setup(draftAuction({ status: 'live' }));
+      const closed = setup(
+        draftAuction({
+          status: 'live',
+          donations_close_at: '2000-01-01T00:00:00Z',
+        }),
+      );
       expect(
         await status(
           closed.service.uploadImage(AUCTION_ID, file, closed.token()),

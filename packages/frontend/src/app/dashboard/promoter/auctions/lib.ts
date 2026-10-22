@@ -313,6 +313,12 @@ export const PHASE_STYLE: Record<AuctionPhase, string> = {
   upcoming: 'bg-gray-100 text-gray-700',
 }
 
+/** Item donations stay open through live bidding until the organizer's close date. */
+export function donationsOpen(a: Auction, now: Date = new Date()): boolean {
+  if (!a.accepts_donations || !['draft', 'scheduled', 'live'].includes(a.status)) return false
+  return !a.donations_close_at || now < new Date(a.donations_close_at)
+}
+
 /** Same rules as the server's public phase; null when the page is not public at all. */
 export function auctionPhase(a: Auction, itemCount?: number, now: Date = new Date()): AuctionPhase | null {
   const isPublic = (['scheduled', 'live', 'closed', 'settled'] as AuctionStatus[]).includes(a.status) || (a.page_published === true && a.status !== 'cancelled')

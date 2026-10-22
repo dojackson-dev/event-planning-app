@@ -10,6 +10,7 @@ import {
   usePublicOrigin,
   auctionPhase,
   donationPath,
+  donationsOpen,
   publicAuctionPath,
 } from '../lib'
 
@@ -56,7 +57,7 @@ export default function ShareBlock({ auction, itemCount }: { auction: Auction; i
   const phase = auctionPhase(auction, itemCount)
   const canonical = !!(auction.slug && (auction.org_slug || org?.slug))
   const mainPath = publicAuctionPath(auction, org?.slug)
-  const showDonate = !!auction.accepts_donations && canonical && phase === 'accepting_donations'
+  const showDonate = canonical && donationsOpen(auction)
 
   return (
     <section aria-labelledby="share-heading" className="rounded-xl border border-purple-200 bg-purple-50/60 p-4 sm:p-5">

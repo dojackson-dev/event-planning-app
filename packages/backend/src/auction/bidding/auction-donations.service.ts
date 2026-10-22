@@ -9,7 +9,7 @@ import { randomUUID } from 'crypto';
 import { storeAuctionImage } from '../admin/auction-image';
 import type { MulterFile } from '../admin/auction-image';
 import { SupabaseService } from '../../supabase/supabase.service';
-import { computeAuctionPhase } from '../auction-phase';
+import { areDonationsOpen } from '../auction-phase';
 import { AuctionPublicService } from './auction-public.service';
 import { BidderAuthService } from './bidder-auth.service';
 import { codedError } from './bidding-errors';
@@ -92,13 +92,12 @@ export class AuctionDonationsService {
   /** 404 unless the auction page is public; 409 unless it is currently accepting item donations. */
   private async requireAcceptingDonations(auctionId: string) {
     const auction = await this.publicAuctions.loadPublicAuction(auctionId);
-    const phase = computeAuctionPhase({
+    const open = areDonationsOpen({
       status: auction.status,
       accepts_donations: auction.accepts_donations,
       donations_close_at: auction.donations_close_at,
-      hasVisibleItems: false,
     });
-    if (phase !== 'accepting_donations') {
+    if (!open) {
       throw codedError(
         409,
         'donations_closed',
@@ -139,7 +138,10 @@ export class AuctionDonationsService {
       });
     }
     // dev_code is only ever present when the local-testing bypass is on (never in production).
-    return { sent: true, ...(result.devCode ? { dev_code: result.devCode } : {}) };
+    return {
+      sent: true,
+      ...(result.devCode ? { dev_code: result.devCode } : {}),
+    };
   }
 
   async verifyOtp(auctionId: string, body: unknown) {

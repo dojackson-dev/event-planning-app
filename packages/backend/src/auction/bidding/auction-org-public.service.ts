@@ -324,6 +324,7 @@ export class AuctionOrgPublicService {
         ends_at: view.ends_at,
         accepts_donations: view.accepts_donations,
         donations_close_at: view.donations_close_at,
+        donations_open: view.donations_open,
         org_slug: organization?.slug ?? null,
       },
       goal_cents: organization?.goal_cents ?? null,

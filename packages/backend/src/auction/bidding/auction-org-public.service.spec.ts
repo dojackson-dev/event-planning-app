@@ -422,9 +422,28 @@ describe('AuctionOrgPublicService / public visibility', () => {
         phase: 'accepting_donations',
         status: 'draft',
         accepts_donations: true,
+        donations_open: true,
         org_slug: 'helping-hands',
       });
       expect(story).not.toHaveProperty('raised_cents');
+    });
+
+    it('keeps donations open in the story while bidding is live', async () => {
+      const { pages } = setup({
+        auctions: [
+          auctionRow({
+            status: 'live',
+            page_published: true,
+            accepts_donations: true,
+            donations_close_at: '2999-01-01T00:00:00Z',
+          }),
+        ],
+      });
+      const story = await pages.getStory(AUCTION_ID);
+      expect(story.auction).toMatchObject({
+        phase: 'bidding_open',
+        donations_open: true,
+      });
     });
 
     it('works for a legacy auction with no organization', async () => {

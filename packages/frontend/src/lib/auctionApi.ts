@@ -97,6 +97,7 @@ export interface PublicAuction {
   phase?: AuctionPhase | null
   accepts_donations?: boolean
   donations_close_at?: string | null
+  donations_open?: boolean
 }
 
 export interface PublicItem {
@@ -311,6 +312,7 @@ export interface AuctionStoryData {
     ends_at: string | null
     accepts_donations: boolean
     donations_close_at: string | null
+    donations_open?: boolean
     org_slug: string | null
   }
   goal_cents: number | null
@@ -369,6 +371,7 @@ export function normalizeStory(raw: Partial<AuctionStoryData> | null | undefined
       cover_image_url: raw.auction.cover_image_url ?? null,
       accepts_donations: !!raw.auction.accepts_donations,
       donations_close_at: raw.auction.donations_close_at ?? null,
+      donations_open: raw.auction.donations_open,
       org_slug: raw.auction.org_slug ?? null,
     },
     goal_cents: typeof raw.goal_cents === 'number' ? raw.goal_cents : raw.organization?.goal_cents ?? null,

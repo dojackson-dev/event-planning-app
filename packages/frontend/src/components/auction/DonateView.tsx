@@ -25,7 +25,6 @@ import { dollarsToCents } from './format'
 import { FULFILLMENT_LABELS, FULFILLMENT_METHODS } from './itemFields'
 import OtpInput from './OtpInput'
 import { ItemPhotoPlaceholder } from './PhotoPlaceholder'
-import { resolvePhase } from './phase'
 
 const MAX_PHOTOS = 6
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024
@@ -346,8 +345,9 @@ export default function DonateView({ auctionId: id, basePath }: { auctionId: str
     )
   }
 
-  const phase = story?.auction.phase ?? resolvePhase({ phase: auction?.phase, status: auction?.status })
-  const accepting = story ? story.auction.phase === 'accepting_donations' : auction?.phase === 'accepting_donations'
+  const accepting = story
+    ? (story.auction.donations_open ?? story.auction.phase === 'accepting_donations')
+    : (auction?.donations_open ?? auction?.phase === 'accepting_donations')
   const auctionTitle = story?.auction.title ?? auction?.title ?? 'this auction'
 
   if (!accepting && step !== 'done') {
@@ -355,7 +355,7 @@ export default function DonateView({ auctionId: id, basePath }: { auctionId: str
       <div className="mx-auto max-w-lg py-12 text-center">
         <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-bold text-gray-900 focus:outline-none">Item donations are closed</h1>
         <p className="mt-2 text-gray-600">
-          {auctionTitle} is not accepting item donations right now{phase === 'bidding_open' ? ' because bidding is open' : ''}. Thank you for your generosity.
+          {auctionTitle} is not accepting item donations right now. Thank you for your generosity.
         </p>
         <Link href={basePath} className="mt-5 inline-block rounded-lg bg-purple-600 px-6 py-2.5 font-medium text-white hover:bg-purple-700">Back to the auction</Link>
       </div>

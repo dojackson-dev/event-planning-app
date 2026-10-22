@@ -48,6 +48,21 @@ export function computeAuctionPhase(
   return 'upcoming';
 }
 
+/**
+ * Item donations stay open until the organizer's close date, including while bidding is live,
+ * so the donation link keeps working after the auction goes live.
+ */
+export function areDonationsOpen(
+  input: Pick<
+    PhaseInput,
+    'status' | 'accepts_donations' | 'donations_close_at'
+  >,
+  now: Date = new Date(),
+): boolean {
+  if (!['draft', 'scheduled', 'live'].includes(input.status)) return false;
+  return isDonationWindowOpen(input, now);
+}
+
 function isDonationWindowOpen(
   input: Pick<PhaseInput, 'accepts_donations' | 'donations_close_at'>,
   now: Date,

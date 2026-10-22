@@ -99,6 +99,7 @@ export default function AuctionView({ auctionId: id, basePath }: Props) {
       ? resolvePhase({ status })
       : resolvePhase({ phase: story?.auction.phase ?? auction.phase, status, hasItems: data.items.length > 0 })
   const ended = phase === 'closed'
+  const donationsOpen = !ended && (story?.auction.donations_open ?? auction.donations_open ?? phase === 'accepting_donations')
   const biddingStarted = phase === 'bidding_open' || ended
   const orgSlug = story?.auction.org_slug ?? auction.org_slug ?? org?.slug ?? null
   const auctionSlug = story?.auction.slug ?? auction.slug ?? null
@@ -169,7 +170,7 @@ export default function AuctionView({ auctionId: id, basePath }: Props) {
               auction.starts_at && <p className="text-gray-700">Bidding opens {formatDateTime(auction.starts_at)}</p>
             )}
             {endsAt && <p className="text-gray-500">{ended ? 'Ended' : 'Ends'} {formatDateTime(endsAt)}</p>}
-            {phase === 'accepting_donations' && story?.auction.donations_close_at && (
+            {donationsOpen && story?.auction.donations_close_at && (
               <p className="text-gray-500">Donations accepted until {formatDateTime(story.auction.donations_close_at)}</p>
             )}
           </div>
@@ -180,7 +181,7 @@ export default function AuctionView({ auctionId: id, basePath }: Props) {
           <button type="button" onClick={scrollToItems} className="rounded-lg bg-purple-600 px-5 py-2.5 font-medium text-white hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2">
             Browse Items
           </button>
-          {phase === 'accepting_donations' && (
+          {donationsOpen && (
             <Link href={`${basePath}/donate`} className="inline-flex items-center gap-2 rounded-lg border border-purple-300 bg-white px-5 py-2.5 font-medium text-purple-700 hover:bg-purple-50 focus:outline-none focus:ring-2 focus:ring-purple-500">
               <Gift className="h-4 w-4" aria-hidden="true" /> Donate an Item
             </Link>

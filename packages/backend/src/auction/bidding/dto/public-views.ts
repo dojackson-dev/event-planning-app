@@ -1,4 +1,4 @@
-import { computeAuctionPhase } from '../../auction-phase';
+import { areDonationsOpen, computeAuctionPhase } from '../../auction-phase';
 import type { AuctionPhase } from '../../auction-phase';
 import type { AuctionFulfillmentMethod } from '../../auction.types';
 import { minNextBidCents } from '../../auction-money';
@@ -135,6 +135,7 @@ export interface PublicAuction {
   phase: AuctionPhase;
   accepts_donations: boolean;
   donations_close_at: string | null;
+  donations_open: boolean;
   /** Null when the auction has no published organization page. */
   org_slug: string | null;
 }
@@ -243,6 +244,14 @@ export function toPublicAuction(
     ),
     accepts_donations: row.accepts_donations === true,
     donations_close_at: row.donations_close_at ?? null,
+    donations_open: areDonationsOpen(
+      {
+        status: row.status,
+        accepts_donations: row.accepts_donations,
+        donations_close_at: row.donations_close_at,
+      },
+      now,
+    ),
     org_slug: row.organization?.is_published ? row.organization.slug : null,
   };
 }

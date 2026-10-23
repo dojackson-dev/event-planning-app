@@ -35,6 +35,12 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
       return
     }
 
+    // Redirect sales/affiliate users (incl. the sales manager) to the Sales Portal
+    if (user?.role === 'affiliate' && pathname?.startsWith('/dashboard')) {
+      router.push('/sales-portal/dashboard')
+      return
+    }
+
     // Skip auth check when bypassed
     if (BYPASS_AUTH) return
     
@@ -60,6 +66,10 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
     }
     // Still redirect promoter even when bypassed
     if (user?.role === 'promoter' && typeof window !== 'undefined' && window.location.pathname === '/dashboard') {
+      return null
+    }
+    // Still redirect affiliate even when bypassed
+    if (user?.role === 'affiliate' && typeof window !== 'undefined' && window.location.pathname?.startsWith('/dashboard')) {
       return null
     }
     // Still redirect artist even when bypassed

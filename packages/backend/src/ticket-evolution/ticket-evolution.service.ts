@@ -438,10 +438,9 @@ export class TicketEvolutionService {
     return results;
   }
 
-  // Events shown first on the unfiltered first page (e.g. Victory Live's "Test
-  // Purchases Only" events while they finish testing). Set
-  // TICKET_EVOLUTION_PINNED_EVENT_IDS to a comma-separated list to change them,
-  // or to an empty value to turn pinning off.
+  // Events shown first on the unfiltered first page, off by default. To show
+  // Victory Live's "Test Purchases Only" events while they test, set
+  // TICKET_EVOLUTION_PINNED_EVENT_IDS=982605,982604 (comma-separated IDs).
   private async getPinnedEvents(params: {
     name?: string;
     page?: number;
@@ -459,8 +458,7 @@ export class TicketEvolutionService {
       return [];
     }
     const configured =
-      this.configService.get<string>('TICKET_EVOLUTION_PINNED_EVENT_IDS') ??
-      '982605,982604';
+      this.configService.get<string>('TICKET_EVOLUTION_PINNED_EVENT_IDS') ?? '';
     const ids = configured
       .split(',')
       .map((id) => parseInt(id.trim(), 10))

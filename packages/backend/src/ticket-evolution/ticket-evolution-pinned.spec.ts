@@ -40,13 +40,17 @@ function setup(pinned?: string) {
 const ids = (events: Array<{ id: string }>) => events.map((e) => e.id);
 
 describe('Ticket Evolution pinned test events', () => {
-  it('puts Victory Live test events first on the unfiltered first page', async () => {
-    const events = await setup().getPublicEvents();
+  it('pins nothing by default', async () => {
+    expect(ids(await setup().getPublicEvents())).toEqual(['111', '982605']);
+  });
+
+  it('puts the configured events first on the unfiltered first page', async () => {
+    const events = await setup('982605,982604').getPublicEvents();
     expect(ids(events)).toEqual(['982605', '982604', '111']);
   });
 
   it('does not pin on later pages or filtered searches', async () => {
-    const service = setup();
+    const service = setup('982605,982604');
     expect(ids(await service.getPublicEvents({ page: 2 }))).toEqual([
       '111',
       '982605',

@@ -774,15 +774,14 @@ export default function PublicEventsPage() {
         <div className="max-w-6xl mx-auto px-4 pb-10">
           <div className="flex items-center justify-between mb-5">
             <div>
-              <h2 className="text-xl font-bold text-gray-900">More Tickets</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Powered by Ticket Evolution.</p>
+              <h2 className="text-xl font-bold text-gray-900">Big Events, Great Seats</h2>
             </div>
           </div>
 
           {tevoLoading ? (
             <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-purple-400" /></div>
           ) : filteredTevoEvents.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-8">No Ticket Evolution events found for {monthLabel}.</p>
+            <p className="text-gray-400 text-sm text-center py-8">No events found for {monthLabel}.</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredTevoEvents
@@ -864,7 +863,7 @@ export default function PublicEventsPage() {
               </button>
             </div>
           )}
-          {tevoMoreError && <p role="alert" className="text-center text-sm text-red-600 mt-2">Could not load more Ticket Evolution events. Try again.</p>}
+          {tevoMoreError && <p role="alert" className="text-center text-sm text-red-600 mt-2">Could not load more events. Try again.</p>}
         </div>
       )}
 

@@ -397,7 +397,12 @@ export class TicketEvolutionService {
       },
     });
 
-    const events = (res.events as TicketEvolutionRawEvent[]) ?? [];
+    const listed = (res.events as TicketEvolutionRawEvent[]) ?? [];
+    const pinned = await this.getPinnedEvents(params);
+    const events = [
+      ...pinned,
+      ...listed.filter((ev) => !pinned.some((p) => p.id === ev.id)),
+    ];
     // TEvo itself has no event/performer photos (confirmed against production
     // — see lookupWikipediaImage); look them up in small batches to stay under
     // Wikimedia's rate limit.
@@ -431,6 +436,43 @@ export class TicketEvolutionService {
       );
     }
     return results;
+  }
+
+  // Events shown first on the unfiltered first page (e.g. Victory Live's "Test
+  // Purchases Only" events while they finish testing). Set
+  // TICKET_EVOLUTION_PINNED_EVENT_IDS to a comma-separated list to change them,
+  // or to an empty value to turn pinning off.
+  private async getPinnedEvents(params: {
+    name?: string;
+    page?: number;
+    dateFrom?: string;
+    dateTo?: string;
+    zipCode?: string;
+  }): Promise<TicketEvolutionRawEvent[]> {
+    if (
+      (params.page ?? 1) !== 1 ||
+      params.name ||
+      params.dateFrom ||
+      params.dateTo ||
+      params.zipCode
+    ) {
+      return [];
+    }
+    const configured =
+      this.configService.get<string>('TICKET_EVOLUTION_PINNED_EVENT_IDS') ??
+      '982605,982604';
+    const ids = configured
+      .split(',')
+      .map((id) => parseInt(id.trim(), 10))
+      .filter((id) => Number.isInteger(id) && id > 0);
+    const found = await Promise.all(
+      ids.map((id) =>
+        this.request<TicketEvolutionRawEvent>('GET', `/v9/events/${id}`).catch(
+          () => null,
+        ),
+      ),
+    );
+    return found.filter((ev): ev is TicketEvolutionRawEvent => Boolean(ev?.id));
   }
 
   // Combined event + listings payload for our in-app TEvo event detail page

@@ -341,7 +341,7 @@ export default function PublicEventsPage() {
             : []
         setTevoEvents(tevoRows)
         setTevoPage(2)
-        setTevoHasMore(tevoRows.length === TEVO_PAGE_SIZE)
+        setTevoHasMore(tevoRows.length >= TEVO_PAGE_SIZE)
       })
       .finally(() => { setLoading(false); setExtLoading(false); setTevoLoading(false) })
   }

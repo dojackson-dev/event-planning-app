@@ -63,6 +63,7 @@ const VENDOR_CATEGORIES = [
   { value: 'dj', label: '🎧 DJ' },
   { value: 'decorator', label: '🎨 Decorator' },
   { value: 'planner_coordinator', label: '📋 Planner/Coordinator' },
+  { value: 'security', label: '🛡️ Security' },
   { value: 'furniture', label: '🪑 Furniture' },
   { value: 'photographer', label: '📷 Photographer' },
   { value: 'musicians', label: '🎵 Musicians' },

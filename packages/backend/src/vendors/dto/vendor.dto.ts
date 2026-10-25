@@ -7,6 +7,7 @@ export type VendorCategory =
   | 'musicians'
   | 'mc_host'
   | 'graphic_designer'
+  | 'security'
   | 'other';
 
 export const VENDOR_CATEGORIES: { value: VendorCategory; label: string }[] = [
@@ -18,6 +19,7 @@ export const VENDOR_CATEGORIES: { value: VendorCategory; label: string }[] = [
   { value: 'musicians', label: 'Musicians' },
   { value: 'mc_host', label: 'MC / Host' },
   { value: 'graphic_designer', label: 'Graphic Designer' },
+  { value: 'security', label: 'Security' },
   { value: 'other', label: 'Other' },
 ];
 

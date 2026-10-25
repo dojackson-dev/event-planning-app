@@ -12,6 +12,7 @@ const CATEGORIES = [
   { value: 'dj', label: 'DJ', icon: '🎧', desc: 'Disc jockeys for events & parties' },
   { value: 'decorator', label: 'Decorator', icon: '🎨', desc: 'Event decoration & styling' },
   { value: 'planner_coordinator', label: 'Planner / Coordinator', icon: '📋', desc: 'Full-service event planning' },
+  { value: 'security', label: 'Security', icon: '🛡️', desc: 'Event security & door staff' },
   { value: 'furniture', label: 'Furniture', icon: '🪑', desc: 'Rentals, tables, chairs, and more' },
   { value: 'photographer', label: 'Photographer', icon: '📷', desc: 'Photo & video services' },
   { value: 'musicians', label: 'Musicians', icon: '🎵', desc: 'Live music bands & performers' },

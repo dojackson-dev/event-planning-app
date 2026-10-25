@@ -994,6 +994,7 @@ export class VendorsService {
       { value: 'musicians', label: 'Musicians' },
       { value: 'mc_host', label: 'MC / Host' },
       { value: 'graphic_designer', label: 'Graphic Designer' },
+      { value: 'security', label: 'Security' },
       { value: 'other', label: 'Other' },
     ];
   }

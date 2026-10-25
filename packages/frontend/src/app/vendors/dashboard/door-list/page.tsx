@@ -27,6 +27,10 @@ interface DoorListGuest {
   arrived_at: string | null
 }
 
+// The database returns arrival times as UTC without a timezone marker; add it so they show in local time.
+const arrivalTime = (iso: string) =>
+  new Date(/[zZ]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : `${iso}Z`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+
 const errText = (err: any, fallback: string) => err?.response?.data?.message || fallback
 
 export default function VendorDoorListPage() {
@@ -186,7 +190,7 @@ export default function VendorDoorListPage() {
                     </p>
                     <p className="text-xs text-gray-500">
                       {g.plus_one_count ? `+${g.plus_one_count} guest${g.plus_one_count > 1 ? 's' : ''}` : 'Just them'}
-                      {g.has_arrived && g.arrived_at ? ` · in at ${new Date(g.arrived_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : ''}
+                      {g.has_arrived && g.arrived_at ? ` · in at ${arrivalTime(g.arrived_at)}` : ''}
                     </p>
                   </div>
                   <button

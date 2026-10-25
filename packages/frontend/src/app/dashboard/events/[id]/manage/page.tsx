@@ -41,6 +41,7 @@ import {
 import api from '@/lib/api';
 import { Event, EventType, ClientStatus, ContractStatus, InsuranceStatus, Security } from '@/types';
 import EventNotes from '@/components/events/EventNotes';
+import CancelEventControl from '@/components/events/CancelEventControl';
 import { useVenue } from '@/contexts/VenueContext';
 
 const formatTime = (timeString: string | undefined): string => {
@@ -256,6 +257,8 @@ export default function EventManagementPage() {
   const [voidingContractId, setVoidingContractId] = useState<string | null>(null);
   const [intakeFormActivated, setIntakeFormActivated] = useState(false);
   const [intakeFormId, setIntakeFormId] = useState<string | null>(null);
+  const [eventStatus, setEventStatus] = useState<string | undefined>(undefined);
+  const [notesRefresh, setNotesRefresh] = useState(0);
   const [guestListId, setGuestListId] = useState<number | null>(null);
   const [uploadingRsvpImage, setUploadingRsvpImage] = useState(false);
   const [formData, setFormData] = useState<EventManagementData>({
@@ -367,6 +370,7 @@ export default function EventManagementPage() {
         invitationImages: mgmt.invitationImages || [],
       }));
       setIntakeFormId(event.intakeFormId || null);
+      setEventStatus(event.status);
       // Activate step is done when the intake form has been converted (lead activated),
       // or if this event has no linked intake form (created directly)
       setIntakeFormActivated(!event.intakeFormId || ['converted', 'confirmed', 'accepted'].includes(event.intakeFormStatus));
@@ -877,6 +881,12 @@ export default function EventManagementPage() {
               </p>
             ) : null
           })()}
+          <CancelEventControl
+            eventId={eventId}
+            status={eventStatus}
+            onChanged={(st) => { setEventStatus(st); setNotesRefresh(n => n + 1) }}
+            className="mt-4 flex flex-col items-center"
+          />
           {saveError && (
             <div className="mt-4 max-w-md mx-auto bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-sm text-red-700 text-center">
               {saveError}
@@ -1397,7 +1407,7 @@ export default function EventManagementPage() {
               </div>
             </div>
 
-            <EventNotes eventId={eventId} eventDate={formData.eventDate} />
+            <EventNotes key={notesRefresh} eventId={eventId} eventDate={formData.eventDate} />
 
             {/* Contract & Payment */}
             <div id="contract-section" className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">

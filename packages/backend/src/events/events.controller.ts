@@ -12,6 +12,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { EventsService } from './events.service';
+import { EventCancellationService } from './event-cancellation.service';
 import { Event } from '../entities/event.entity';
 import { SupabaseService } from '../supabase/supabase.service';
 
@@ -20,6 +21,7 @@ export class EventsController {
   constructor(
     private readonly eventsService: EventsService,
     private readonly supabaseService: SupabaseService,
+    private readonly eventCancellation: EventCancellationService,
   ) {}
 
   private extractToken(authorization?: string): string {
@@ -111,6 +113,26 @@ export class EventsController {
       updateEventDto,
       userId,
     );
+  }
+
+  @Post(':id/cancel')
+  async cancel(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+    @Body() body: { reason?: string },
+  ) {
+    const userId = await this.getUserId(authorization);
+    return this.eventCancellation.cancel(userId, id, body?.reason);
+  }
+
+  @Post(':id/reinstate')
+  async reinstate(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+    @Body() body: { reason?: string },
+  ) {
+    const userId = await this.getUserId(authorization);
+    return this.eventCancellation.reinstate(userId, id, body?.reason);
   }
 
   @Delete(':id')

@@ -282,6 +282,7 @@ export default function EventsPage() {
               >
                 {/* Status stripe */}
                 <div className={`h-1.5 w-full ${
+                  event.status === 'cancelled' ? 'bg-red-400' :
                   isComplete ? 'bg-green-400' :
                   event.status === 'completed' ? 'bg-gray-400' :
                   'bg-primary-400'
@@ -302,13 +303,15 @@ export default function EventsPage() {
                     </div>
                     {/* Progress badge */}
                     <span className={`ml-2 flex-shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ${
-                      isComplete
+                      event.status === 'cancelled'
+                        ? 'bg-red-100 text-red-700'
+                        : isComplete
                         ? 'bg-green-100 text-green-700'
                         : currentIdx === 0
                         ? 'bg-gray-100 text-gray-500'
                         : 'bg-primary-50 text-primary-700'
                     }`}>
-                      {isComplete ? '✓ Booked' : currentIdx === 0 ? 'New' : `Step ${currentIdx + 1}/5`}
+                      {event.status === 'cancelled' ? 'Cancelled' : isComplete ? '✓ Booked' : currentIdx === 0 ? 'New' : `Step ${currentIdx + 1}/5`}
                     </span>
                   </div>
 

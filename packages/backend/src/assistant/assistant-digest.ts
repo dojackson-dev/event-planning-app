@@ -30,7 +30,7 @@ export function buildDigestEmail(
       );
       for (const r of p.reasons)
         parts.push(
-          `&nbsp;&nbsp;${r.actor === 'you' ? 'Your action' : 'Awaiting client'}: ${escapeHtml(r.text)}`,
+          `&nbsp;&nbsp;${r.actor === 'you' ? 'Your action' : r.actor === 'vendor' ? 'Awaiting vendor' : 'Awaiting client'}: ${escapeHtml(r.text)}`,
         );
     }
     const more = summary.priorities.length - MAX_LINES;

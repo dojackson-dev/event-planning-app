@@ -12,6 +12,7 @@ export type Intent =
   | 'missing-contracts'
   | 'what-changed'
   | 'vendor-bills'
+  | 'vendor-invoices-missing'
   | 'my-tasks';
 
 export const SUGGESTED_QUESTIONS: { intent: Intent; question: string }[] = [
@@ -27,6 +28,10 @@ export const SUGGESTED_QUESTIONS: { intent: Intent; question: string }[] = [
   {
     intent: 'missing-contracts',
     question: 'Are any upcoming events missing contracts?',
+  },
+  {
+    intent: 'vendor-invoices-missing',
+    question: "Which confirmed vendors haven't sent an invoice?",
   },
   {
     intent: 'vendor-bills',
@@ -61,6 +66,14 @@ export function matchIntent(question: string): Intent | null {
   if (/contract|signature|signed|sign\b/.test(q)) return 'missing-contracts';
   if (/changed|since my last|what.?s new|new activity|recent/.test(q))
     return 'what-changed';
+  if (
+    /vendor/.test(q) &&
+    /(haven.?t|hasn.?t|not|yet|missing|without|no)\b.*\b(sent|send|submit\w*|invoice\w*)|\b(sent|submit\w*)\b.*\binvoice/.test(
+      q,
+    ) &&
+    !/\b(pay|owe|due)\b/.test(q)
+  )
+    return 'vendor-invoices-missing';
   if (/vendor|\bbills?\b/.test(q)) return 'vendor-bills';
   if (/final payment|owe|balance|unpaid|payment|overdue|invoice/.test(q))
     return 'final-payments';
@@ -124,7 +137,10 @@ export function answerIntent(
     const items = rows.map<AssistantItem>((p) => ({
       label: p.title,
       detail: p.reasons
-        .map((r) => `${r.actor === 'you' ? 'You' : 'Client'}: ${r.text}`)
+        .map(
+          (r) =>
+            `${r.actor === 'you' ? 'You' : r.actor === 'vendor' ? 'Vendor' : 'Client'}: ${r.text}`,
+        )
         .join(' '),
       href: p.href,
     }));
@@ -268,6 +284,30 @@ export function answerIntent(
             href: b.href,
           };
         }),
+      ),
+    };
+  }
+
+  if (intent === 'vendor-invoices-missing') {
+    const rows = [...(input.vendorsAwaitingInvoice ?? [])].sort((a, b) =>
+      (a.eventDate ?? '9999').localeCompare(b.eventDate ?? '9999'),
+    );
+    return {
+      intent,
+      answer:
+        rows.length === 0
+          ? 'Every confirmed vendor has sent an invoice.'
+          : `${plural(rows.length, 'confirmed vendor')} ${rows.length === 1 ? "hasn't" : "haven't"} sent an invoice, earliest event first.${more(rows.length)}`,
+      items: capped(
+        rows.map((a) => ({
+          label: `${a.vendor} \u2014 ${a.eventName}`,
+          detail: a.eventDate
+            ? a.eventDate < today
+              ? `Event was ${plural(daysBetween(a.eventDate, today), 'day')} ago`
+              : `Event ${shortDate(a.eventDate)}`
+            : 'No event date',
+          href: a.href,
+        })),
       ),
     };
   }

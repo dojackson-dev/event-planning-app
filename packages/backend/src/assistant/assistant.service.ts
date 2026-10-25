@@ -13,6 +13,7 @@ import {
   SummaryInput,
   UPCOMING_DAYS,
   type VendorBill,
+  type AwaitingVendorInvoice,
   buildAssistantSummary,
 } from './assistant-summary';
 import { buildProviderSummary, type ProviderRole } from './assistant-provider';
@@ -41,6 +42,8 @@ import { Draft, DraftType, buildDraft } from './assistant-draft';
 const NARRATIVE_TTL_MS = 30 * 60 * 1000;
 const MAX_CACHE_ENTRIES = 500;
 const MAX_SNOOZE_DAYS = 90;
+// Older confirmed bookings with no invoice are treated as settled elsewhere.
+const AWAITING_LOOKBACK_DAYS = 90;
 const MAX_QUESTION_LENGTH = 200;
 
 const DRAFT_TABLES: Record<DraftType, string> = {
@@ -100,8 +103,18 @@ export class AssistantService {
     return new Date().toISOString().slice(0, 10);
   }
 
-  /** Vendor invoices the owner has not paid, plus agreed bookings that have no invoice yet. */
-  private async loadVendorBills(userId: string): Promise<VendorBill[]> {
+  private daysAgo(n: number): string {
+    return new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+  }
+
+  /**
+   * Vendor invoices the owner has not paid, plus confirmed bookings whose vendor
+   * has not sent an invoice yet (kept apart so they are not counted as bills).
+   */
+  private async loadVendorBills(userId: string): Promise<{
+    bills: VendorBill[];
+    awaiting: AwaitingVendorInvoice[];
+  }> {
     const admin = this.supabaseService.getAdminClient();
     try {
       // Same account lookup the Vendor Payments page uses.
@@ -120,7 +133,7 @@ export class AssistantService {
           .maybeSingle();
         accountId = account?.id ?? null;
       }
-      if (!accountId) return [];
+      if (!accountId) return { bills: [], awaiting: [] };
 
       const [invoices, invoiced, bookings] = await Promise.all([
         admin
@@ -136,7 +149,7 @@ export class AssistantService {
           .limit(200),
         admin
           .from('vendor_invoices')
-          .select('vendor_booking_id')
+          .select('vendor_booking_id, status')
           .eq('owner_account_id', accountId)
           .eq('invoice_type', 'owner_booking')
           .not('vendor_booking_id', 'is', null)
@@ -144,10 +157,9 @@ export class AssistantService {
         admin
           .from('vendor_bookings')
           .select(
-            'id, status, agreed_amount, total_paid, payment_status, vendor_accounts(business_name)',
+            'id, status, agreed_amount, total_paid, payment_status, event_id, event_name, event_date, vendor_accounts(business_name)',
           )
           .eq('owner_account_id', accountId)
-          .gt('agreed_amount', 0)
           .limit(500),
       ]);
       for (const [name, r] of Object.entries({ invoices, invoiced, bookings }))
@@ -173,12 +185,51 @@ export class AssistantService {
         }))
         .filter((b) => b.amount > 0);
 
+      // A draft is still private to the vendor, so only sent invoices count.
       const invoicedBookings = new Set(
-        (invoiced.data ?? []).map((r: any) => r.vendor_booking_id),
+        (invoiced.data ?? [])
+          .filter((r: any) => r.status !== 'draft' && r.status !== 'cancelled')
+          .map((r: any) => r.vendor_booking_id),
       );
+      const awaitingBookings = (bookings.data ?? []).filter(
+        (b: any) =>
+          (b.status === 'confirmed' || b.status === 'completed') &&
+          b.payment_status !== 'paid' &&
+          !invoicedBookings.has(b.id) &&
+          (!b.event_date ||
+            String(b.event_date).slice(0, 10) >=
+              this.daysAgo(AWAITING_LOOKBACK_DAYS)),
+      );
+      const eventIds = [
+        ...new Set(
+          awaitingBookings.map((b: any) => b.event_id).filter(Boolean),
+        ),
+      ];
+      const cancelledEvents = new Set<string>();
+      if (eventIds.length > 0) {
+        const { data: evs } = await admin
+          .from('event')
+          .select('id, status')
+          .in('id', eventIds as string[]);
+        for (const e of evs ?? [])
+          if (e.status === 'cancelled') cancelledEvents.add(e.id);
+      }
+      const awaiting: AwaitingVendorInvoice[] = awaitingBookings
+        .filter((b: any) => !(b.event_id && cancelledEvents.has(b.event_id)))
+        .map((b: any) => ({
+          id: b.id as string,
+          vendor: vendorName(b),
+          eventName: (b.event_name as string) || 'the event',
+          eventDate: b.event_date ? String(b.event_date).slice(0, 10) : null,
+          amount: Number(b.agreed_amount) > 0 ? Number(b.agreed_amount) : null,
+          href: '/dashboard/vendors/payments',
+        }));
+      const awaitingIds = new Set(awaiting.map((a) => a.id));
+
       for (const b of bookings.data ?? []) {
         if (
           invoicedBookings.has(b.id) ||
+          awaitingIds.has(b.id) ||
           b.status === 'cancelled' ||
           b.status === 'paid' ||
           b.payment_status === 'paid'
@@ -194,12 +245,12 @@ export class AssistantService {
             href: '/dashboard/vendors/payments',
           });
       }
-      return bills;
+      return { bills, awaiting };
     } catch (err) {
       this.logger.warn(
         `Assistant vendor bills failed: ${(err as Error).message}`,
       );
-      return [];
+      return { bills: [], awaiting: [] };
     }
   }
 
@@ -316,7 +367,8 @@ export class AssistantService {
         signedContracts: signedContracts.data ?? [],
       },
       contractLinks: contractLinks.data ?? [],
-      vendorBills: await vendorBills,
+      vendorBills: (await vendorBills).bills,
+      vendorsAwaitingInvoice: (await vendorBills).awaiting,
     };
   }
 

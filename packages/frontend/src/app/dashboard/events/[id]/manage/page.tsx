@@ -2082,7 +2082,7 @@ export default function EventManagementPage() {
               ) : (
                 <div className="space-y-2">
                   {eventVendors.map(vb => (
-                    <EventVendorRow key={vb.id} booking={vb} eventId={eventId} />
+                    <EventVendorRow key={vb.id} booking={vb} eventId={eventId} onChanged={() => { fetchEventVendors(formData.eventDate, eventId); setNotesRefresh(n => n + 1) }} />
                   ))}
                 </div>
               )}

@@ -1273,6 +1273,99 @@ export class VendorInvoicesService {
       .eq('status', 'processing');
   }
 
+  /**
+   * Stripe refunded the payment behind an invoice. A full refund of a one-shot payment cancels the
+   * invoice and reopens its booking (unless another invoice for the booking is paid). Partial refunds
+   * and invoices with a deposit schedule are only noted, because the right outcome needs a person.
+   * Returns false when no invoice belongs to the payment.
+   */
+  async markInvoiceRefundedByPaymentIntent(
+    paymentIntentId: string,
+    refundedCents: number,
+    fullyRefunded: boolean,
+  ): Promise<boolean> {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: invoice } = await admin
+      .from('vendor_invoices')
+      .select('id, status, notes, deposit_amount, vendor_booking_id')
+      .eq('stripe_payment_intent_id', paymentIntentId)
+      .maybeSingle();
+    if (!invoice) return false;
+
+    const amount = `$${(refundedCents / 100).toFixed(2)}`;
+    const day = new Date().toISOString().slice(0, 10);
+    const append = (line: string) =>
+      [invoice.notes, line].filter(Boolean).join('\n');
+    const noteOnly = async (line: string) => {
+      if (invoice.notes?.includes(line)) return;
+      await admin
+        .from('vendor_invoices')
+        .update({ notes: append(line), updated_at: new Date().toISOString() })
+        .eq('id', invoice.id);
+    };
+
+    const oneShot = invoice.deposit_amount == null;
+    if (!fullyRefunded || !oneShot) {
+      await noteOnly(
+        `Stripe refunded ${amount} on ${day}. Review this invoice.`,
+      );
+      this.logger.warn(
+        `Refund of ${amount} on vendor invoice ${invoice.id} needs manual review`,
+      );
+      return true;
+    }
+    if (invoice.status !== 'paid') {
+      this.logger.log(
+        `Refund on vendor invoice ${invoice.id} ignored: status is ${invoice.status}`,
+      );
+      return true;
+    }
+
+    const { data: updated, error } = await admin
+      .from('vendor_invoices')
+      .update({
+        status: 'cancelled',
+        amount_paid: 0,
+        amount_due: 0,
+        paid_at: null,
+        notes: append(
+          `Refunded ${amount} via Stripe on ${day}; invoice cancelled.`,
+        ),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', invoice.id)
+      .eq('status', 'paid')
+      .select('id');
+    if (error) {
+      this.logger.error(
+        `Could not cancel refunded vendor invoice ${invoice.id}: ${error.message}`,
+      );
+      throw new Error(error.message);
+    }
+    if (!updated?.length) return true;
+
+    if (invoice.vendor_booking_id) {
+      const { data: stillPaid } = await admin
+        .from('vendor_invoices')
+        .select('id')
+        .eq('vendor_booking_id', invoice.vendor_booking_id)
+        .eq('status', 'paid')
+        .neq('id', invoice.id)
+        .limit(1);
+      if (!stillPaid?.length) {
+        await admin
+          .from('vendor_bookings')
+          .update({ status: 'confirmed', updated_at: new Date().toISOString() })
+          .eq('id', invoice.vendor_booking_id)
+          .eq('status', 'paid');
+      }
+    }
+    this.logger.log(
+      `Vendor invoice ${invoice.id} cancelled after a full refund of ${amount}`,
+    );
+    return true;
+  }
+
   // ─── Verify payment via Stripe (webhook fallback) ───────────────────────────
 
   async verifyPayment(

@@ -1,12 +1,21 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
 import { User, Event, Guest } from '@/types'
 import { Send, ArrowLeft, Users as UsersIcon } from 'lucide-react'
 import { parseLocalDate } from '@/lib/dateUtils'
+import RecipientPicker, { RecipientOption } from '@/components/messages/RecipientPicker'
+
+// A "client" in the app is an intake-form record; events point at it through clientId.
+interface IntakeClient {
+  id: string
+  contact_name: string
+  contact_email: string | null
+  contact_phone: string | null
+}
 
 export default function SendMessagePage() {
   const router = useRouter()
@@ -28,13 +37,41 @@ export default function SendMessagePage() {
     sendToAll: false,
   })
   // Separate state for the raw 10-digit phone (custom/security fields use prefix + this)
+  const [intakeClients, setIntakeClients] = useState<IntakeClient[]>([])
+  const [clientsLoaded, setClientsLoaded] = useState(false)
+  const [eventsLoaded, setEventsLoaded] = useState(false)
+  const [selectedClientKey, setSelectedClientKey] = useState('')
+  const [autoFilledFrom, setAutoFilledFrom] = useState('')
+  const prefillDone = useRef(false)
   const [rawPhone, setRawPhone] = useState('')
   const [phonePrefix, setPhonePrefix] = useState('+1')
 
   useEffect(() => {
     fetchClients()
     fetchEvents()
+    fetchIntakeClients()
   }, [])
+
+  // Opened from a client's event page: ?eventId=…&clientId=… pre-selects both.
+  useEffect(() => {
+    if (prefillDone.current || !eventsLoaded || !clientsLoaded) return
+    prefillDone.current = true
+    const params = new URLSearchParams(window.location.search)
+    const eventId = params.get('eventId') || ''
+    const clientId = params.get('clientId') || ''
+    if (!eventId && !clientId) return
+    const ev = events.find(e => String(e.id) === eventId)
+    const client = intakeClients.find(c => c.id === (clientId || String((ev as any)?.intakeFormId ?? (ev as any)?.clientId ?? '')))
+    setFormData(prev => ({
+      ...prev,
+      recipientType: 'client',
+      eventId: ev ? String(ev.id) : prev.eventId,
+      ...(client ? clientFields(client) : {}),
+      content: prev.content || (client ? `Hi ${firstName(client.contact_name)}, ` : ''),
+    }))
+    if (client) { setSelectedClientKey(`intake:${client.id}`); setAutoFilledFrom(ev ? 'the event you came from' : '') }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventsLoaded, clientsLoaded])
 
   useEffect(() => {
     if (formData.eventId) {
@@ -57,6 +94,19 @@ export default function SendMessagePage() {
       setEvents(response.data)
     } catch (error) {
       console.error('Failed to fetch events:', error)
+    } finally {
+      setEventsLoaded(true)
+    }
+  }
+
+  const fetchIntakeClients = async () => {
+    try {
+      const response = await api.get<IntakeClient[]>('/intake-forms')
+      setIntakeClients(response.data || [])
+    } catch (error) {
+      console.error('Failed to fetch clients:', error)
+    } finally {
+      setClientsLoaded(true)
     }
   }
 
@@ -167,6 +217,50 @@ export default function SendMessagePage() {
     return phone  // return as-is if we can't determine format
   }
 
+  // Intake-form clients first; user accounts are added only when not already listed (same email or phone).
+  const clientOptions: RecipientOption[] = (() => {
+    const intake = intakeClients.map<RecipientOption>(c => ({ id: `intake:${c.id}`, name: c.contact_name, phone: c.contact_phone, email: c.contact_email }))
+    const seenEmail = new Set(intake.map(o => (o.email || '').toLowerCase()).filter(Boolean))
+    const seenPhone = new Set(intake.map(o => (o.phone || '').replace(/\D/g, '').slice(-10)).filter(Boolean))
+    const users = clients
+      .filter(c => !seenEmail.has((c.email || '').toLowerCase()) && !seenPhone.has((c.phone || '').replace(/\D/g, '').slice(-10)))
+      .map<RecipientOption>(c => ({ id: `user:${c.id}`, name: `${c.firstName} ${c.lastName}`.trim(), phone: c.phone, email: c.email }))
+    return [...intake, ...users]
+  })()
+
+  const firstName = (full: string) => (full || '').trim().split(/\s+/)[0] || ''
+
+  const clientFields = (c: IntakeClient) => ({
+    userId: '',
+    recipientName: c.contact_name,
+    recipientPhone: c.contact_phone ? toE164(c.contact_phone) : '',
+    recipientEmail: c.contact_email || '',
+    preferredContact: 'phone' as const,
+  })
+
+  const pickIntakeClient = (c: IntakeClient | null) => {
+    setAutoFilledFrom('')
+    if (!c) {
+      setSelectedClientKey('')
+      setFormData(prev => ({ ...prev, userId: '', recipientPhone: '', recipientName: '', recipientEmail: '' }))
+      return
+    }
+    setSelectedClientKey(`intake:${c.id}`)
+    setFormData(prev => ({ ...prev, ...clientFields(c), content: prev.content || `Hi ${firstName(c.contact_name)}, ` }))
+  }
+
+  // Choosing an event fills in that event's client (when sending to a client).
+  const handleEventChange = (eventId: string) => {
+    setFormData(prev => ({ ...prev, eventId }))
+    if (!eventId || formData.recipientType !== 'client' || formData.sendToAll) return
+    const ev = events.find(e => String(e.id) === eventId)
+    const client = intakeClients.find(c => c.id === String((ev as any)?.intakeFormId ?? (ev as any)?.clientId ?? ''))
+    if (client) {
+      pickIntakeClient(client)
+      setAutoFilledFrom(ev?.name || 'the selected event')
+    }
+  }
+
   const handleUserChange = (userId: string) => {
     const client = clients.find(c => c.id.toString() === userId)
     if (client) {
@@ -265,7 +359,7 @@ export default function SendMessagePage() {
           </label>
           <select
             value={formData.recipientType}
-            onChange={(e) => setFormData({ ...formData, recipientType: e.target.value as any, userId: '', recipientPhone: '', recipientName: '' })}
+            onChange={(e) => { setSelectedClientKey(''); setAutoFilledFrom(''); setFormData({ ...formData, recipientType: e.target.value as any, userId: '', recipientPhone: '', recipientName: '' }) }}
             className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             required
           >
@@ -283,7 +377,7 @@ export default function SendMessagePage() {
           </label>
           <select
             value={formData.eventId}
-            onChange={(e) => setFormData({ ...formData, eventId: e.target.value })}
+            onChange={(e) => handleEventChange(e.target.value)}
             className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
             <option value="">Select an event...</option>
@@ -316,24 +410,27 @@ export default function SendMessagePage() {
             {/* Client Selection */}
             {formData.recipientType === 'client' && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Client *
-                </label>
-                <select
-                  value={formData.userId}
-                  onChange={(e) => handleUserChange(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                <RecipientPicker
+                  label="Client"
                   required
-                >
-                  <option value="">Select a client...</option>
-                  {clients.map((client) => (
-                    <option key={client.id} value={client.id}>
-                      {client.firstName} {client.lastName}
-                      {client.phone ? ` — ${client.phone}` : ' (no phone)'}
-                      {client.email ? ` | ${client.email}` : ''}
-                    </option>
-                  ))}
-                </select>
+                  options={clientOptions}
+                  selectedId={selectedClientKey}
+                  onSelect={(o) => {
+                    if (!o) return pickIntakeClient(null)
+                    if (o.id.startsWith('user:')) {
+                      setSelectedClientKey(o.id)
+                      setAutoFilledFrom('')
+                      handleUserChange(o.id.slice(5))
+                    } else {
+                      pickIntakeClient(intakeClients.find(c => `intake:${c.id}` === o.id) ?? null)
+                    }
+                  }}
+                  emptyHint="No clients yet. Clients appear here after they submit your intake form."
+                />
+                {autoFilledFrom && <p className="mt-1 text-xs text-primary-700">Filled in from {autoFilledFrom}. Pick someone else to change it.</p>}
+                {selectedClientKey.startsWith('intake:') && !formData.recipientPhone && (
+                  <p className="mt-2 text-sm text-red-600">⚠ No phone number on file — SMS cannot be sent.</p>
+                )}
 
                 {/* Show selected client contact details */}
                 {formData.userId && (() => {
@@ -361,25 +458,16 @@ export default function SendMessagePage() {
 
             {/* Guest Selection */}
             {formData.recipientType === 'guest' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Guest *
-                </label>
-                <select
-                  value={guests.find(g => g.name === formData.recipientName && toE164(g.phone) === formData.recipientPhone)?.id.toString() || ''}
-                  onChange={(e) => handleGuestChange(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  required
-                  disabled={!formData.eventId}
-                >
-                  <option value="">{formData.eventId ? 'Select a guest...' : 'Select an event first'}</option>
-                  {guests.map((guest) => (
-                    <option key={guest.id} value={guest.id}>
-                      {guest.name}{guest.phone ? ` — ${guest.phone}` : ' (no phone)'}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <RecipientPicker
+                label="Guest"
+                required
+                disabled={!formData.eventId}
+                placeholder={formData.eventId ? 'Type a guest name or phone…' : 'Select an event first'}
+                options={guests.map<RecipientOption>(g => ({ id: String(g.id), name: g.name, phone: g.phone }))}
+                selectedId={guests.find(g => g.name === formData.recipientName && toE164(g.phone) === formData.recipientPhone)?.id.toString() || ''}
+                onSelect={(o) => handleGuestChange(o ? o.id : '')}
+                emptyHint="This event has no guests yet."
+              />
             )}
 
             {/* Custom Recipient */}

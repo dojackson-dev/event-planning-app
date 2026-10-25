@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
 import { Event } from '@/types'
-import { Calendar, Clock, MapPin, Users, ArrowLeft, Edit, Trash2 } from 'lucide-react'
+import { Calendar, Clock, MapPin, Users, ArrowLeft, Edit, Trash2, MessageSquare } from 'lucide-react'
 import { format } from 'date-fns'
 import { parseLocalDate } from '@/lib/dateUtils'
 import EventNotes from '@/components/events/EventNotes'
@@ -105,6 +105,15 @@ export default function EventDetailsPage() {
             <Edit className="h-4 w-4 mr-2" />
             Manage
           </Link>
+          {(event as any).intakeFormId && (
+            <Link
+              href={`/dashboard/messages/send?eventId=${eventId}&clientId=${(event as any).intakeFormId}`}
+              className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
+            >
+              <MessageSquare className="h-4 w-4 mr-2" />
+              Send SMS
+            </Link>
+          )}
           <button
             onClick={handleDelete}
             disabled={deleting}

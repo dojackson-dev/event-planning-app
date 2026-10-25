@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   ArrowLeft,
   Calendar,
@@ -34,7 +35,8 @@ import {
   Upload,
   ImageIcon,
   X,
-  ChevronRight
+  ChevronRight,
+  MessageSquare
 } from 'lucide-react';
 import api from '@/lib/api';
 import { Event, EventType, ClientStatus, ContractStatus, InsuranceStatus, Security } from '@/types';
@@ -1335,10 +1337,21 @@ export default function EventManagementPage() {
 
             {/* Client Information */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
-                <User className="h-5 w-5 mr-2 text-primary-600" />
-                Client Information
-              </h2>
+              <div className="mb-4 flex items-center justify-between gap-2">
+                <h2 className="text-lg font-bold text-gray-900 flex items-center">
+                  <User className="h-5 w-5 mr-2 text-primary-600" />
+                  Client Information
+                </h2>
+                {intakeFormId && (
+                  <Link
+                    href={`/dashboard/messages/send?eventId=${eventId}&clientId=${intakeFormId}`}
+                    className="inline-flex items-center rounded-md bg-primary-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-700"
+                  >
+                    <MessageSquare className="h-4 w-4 mr-1.5" />
+                    Send SMS
+                  </Link>
+                )}
+              </div>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>

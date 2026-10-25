@@ -576,6 +576,8 @@ export default function CalendarPage() {
                             ? 'bg-purple-100 text-purple-800 border border-purple-300'
                             : entry.isBooking
                             ? 'bg-orange-100 text-orange-800'
+                            : entry.status === 'cancelled'
+                            ? 'bg-red-100 text-red-700 line-through'
                             : entry.status === 'scheduled'
                             ? 'bg-green-100 text-green-800'
                             : entry.status === 'draft'

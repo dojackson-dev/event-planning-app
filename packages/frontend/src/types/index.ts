@@ -15,6 +15,7 @@ export enum EventStatus {
   DRAFT = 'draft',
   SCHEDULED = 'scheduled',
   COMPLETED = 'completed',
+  CANCELLED = 'cancelled',
 }
 
 export enum BookingStatus {

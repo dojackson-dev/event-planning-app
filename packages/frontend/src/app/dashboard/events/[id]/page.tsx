@@ -9,6 +9,7 @@ import { Calendar, Clock, MapPin, Users, ArrowLeft, Edit, Trash2, MessageSquare 
 import { format } from 'date-fns'
 import { parseLocalDate } from '@/lib/dateUtils'
 import EventNotes from '@/components/events/EventNotes'
+import CancelEventControl from '@/components/events/CancelEventControl'
 
 const formatTime = (timeString: string | undefined): string => {
   if (!timeString) return 'Not set'
@@ -28,6 +29,7 @@ export default function EventDetailsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [notesRefresh, setNotesRefresh] = useState(0)
 
   useEffect(() => {
     fetchEvent()
@@ -135,12 +137,18 @@ export default function EventDetailsPage() {
           )}
           <p className="text-xs font-medium text-gray-400 uppercase tracking-widest mb-0.5">Event</p>
           <h1 className="text-4xl font-bold text-gray-900 mb-2">{(event as any).intakeEventName || event.name}</h1>
-          <span className="inline-block px-3 py-1 bg-gray-100 text-gray-800 text-sm font-semibold rounded-full">
+          <span className={`inline-block px-3 py-1 text-sm font-semibold rounded-full ${event.status === 'cancelled' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}`}>
             {event.status || 'Draft'}
           </span>
+          <CancelEventControl
+            eventId={eventId}
+            status={event.status}
+            onChanged={(st) => { setEvent(prev => (prev ? { ...prev, status: st as any } : prev)); setNotesRefresh(n => n + 1) }}
+            className="mt-4"
+          />
         </div>
 
-        <EventNotes eventId={eventId} eventDate={event.date} />
+        <EventNotes key={notesRefresh} eventId={eventId} eventDate={event.date} />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Date & Time */}

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
+import { formatTime } from '@/lib/dateUtils'
 import { AlertCircle, CheckCircle2, XCircle, DollarSign, Pencil, X, Send } from 'lucide-react'
 import type { VendorProfile, Booking, VendorInvoiceSummary } from '@/lib/vendorTypes'
 
@@ -390,8 +391,8 @@ export default function BookingsPage() {
             <div className="px-6 py-4 space-y-2 border-b bg-gray-50">
               <p className="text-sm text-gray-600">
                 📅 {new Date(selectedBooking.event_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-                {selectedBooking.start_time && ` · ${selectedBooking.start_time}`}
-                {selectedBooking.end_time && ` – ${selectedBooking.end_time}`}
+                {selectedBooking.start_time && ` · ${formatTime(selectedBooking.start_time)}`}
+                {selectedBooking.end_time && ` – ${formatTime(selectedBooking.end_time)}`}
               </p>
               {selectedBooking.venue_name && <p className="text-sm text-gray-600">📍 {selectedBooking.venue_name}</p>}
               {selectedBooking.client_name && <p className="text-sm text-gray-600">👤 {selectedBooking.client_name}</p>}
@@ -591,8 +592,8 @@ export default function BookingsPage() {
                         </div>
                         <p className="text-sm text-gray-500">
                           📅 {new Date(booking.event_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
-                          {booking.start_time && ` · ${booking.start_time}`}
-                          {booking.end_time && ` – ${booking.end_time}`}
+                          {booking.start_time && ` · ${formatTime(booking.start_time)}`}
+                          {booking.end_time && ` – ${formatTime(booking.end_time)}`}
                         </p>
                         {booking.venue_name && (
                           <p className="text-sm text-gray-500">📍 {booking.venue_name}</p>

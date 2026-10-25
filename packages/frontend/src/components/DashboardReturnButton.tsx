@@ -13,6 +13,9 @@ export default function DashboardReturnButton() {
   let href = '/dashboard'
   if (activeRole === UserRole.ADMIN) href = '/admin'
   else if (activeRole === UserRole.VENDOR) href = '/vendor-portal'
+  else if (activeRole === UserRole.AFFILIATE) href = '/sales-portal/dashboard'
+  else if (activeRole === UserRole.PROMOTER) href = '/dashboard/promoter'
+  else if (activeRole === UserRole.ARTIST) href = '/artist/dashboard'
 
   return (
     <Link

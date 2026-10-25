@@ -5,10 +5,11 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   Store, Home, Calendar, CalendarDays, FileText, Star,
-  DollarSign, Settings, Menu, X, LogOut, Receipt, ClipboardList,
+  DollarSign, Settings, Menu, X, LogOut, Receipt, ClipboardList, ShieldCheck,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import RoleSwitcher from '@/components/RoleSwitcher'
+import api from '@/lib/api'
 
 interface NavItem {
   href: string
@@ -21,6 +22,18 @@ export default function VendorDashboardLayout({ children }: { children: React.Re
   const router = useRouter()
   const { user, loading, logout } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [isSecurity, setIsSecurity] = useState(false)
+
+  // Door lists are only offered to security vendors.
+  useEffect(() => {
+    if (!user) return
+    api.get('/vendors/account/me')
+      .then(res => {
+        const cats: string[] = [res.data?.category, ...(res.data?.categories || [])]
+        setIsSecurity(cats.includes('security'))
+      })
+      .catch(() => setIsSecurity(false))
+  }, [user])
 
   useEffect(() => {
     if (!loading && !user) {
@@ -31,6 +44,7 @@ export default function VendorDashboardLayout({ children }: { children: React.Re
   const navItems: NavItem[] = [
     { href: '/vendors/dashboard',           label: 'Dashboard',  icon: <Home className="h-5 w-5" /> },
     { href: '/vendors/dashboard/bookings',  label: 'Bookings',   icon: <Calendar className="h-5 w-5" /> },
+    ...(isSecurity ? [{ href: '/vendors/dashboard/door-list', label: 'Door List', icon: <ShieldCheck className="h-5 w-5" /> }] : []),
     { href: '/vendors/dashboard/invoices',  label: 'Invoices',   icon: <Receipt className="h-5 w-5" /> },
     { href: '/vendors/dashboard/contracts', label: 'Contracts',  icon: <ClipboardList className="h-5 w-5" /> },
     { href: '/vendors/dashboard/calendar',  label: 'Calendar',   icon: <CalendarDays className="h-5 w-5" /> },

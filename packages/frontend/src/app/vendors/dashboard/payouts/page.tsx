@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import ConnectBankButton from '@/components/ConnectBankButton'
+import InstantPayoutCard from '@/components/InstantPayoutCard'
 import type { VendorProfile } from '@/lib/vendorTypes'
 
 export default function PayoutsPage() {
@@ -69,6 +70,8 @@ export default function PayoutsPage() {
           {profile && (
             <ConnectBankButton role="vendor" email={profile.email || ''} />
           )}
+
+          {profile && <InstantPayoutCard />}
         </div>
       </div>
     </div>

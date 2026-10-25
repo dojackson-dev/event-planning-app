@@ -69,9 +69,11 @@ describe('Ticket Evolution Hosted Checkout links', () => {
     expect(detail.listings[0].retail_price).toBe(27.5);
   });
 
-  it('offers no checkout link when the checkout domain is not configured', async () => {
+  it('falls back to the EventEcos checkout domain when none is configured', async () => {
     const detail = await setup(undefined).getPublicEventDetail(982605);
-    expect(detail.listings[0].checkout_url).toBeNull();
+    expect(detail.listings[0].checkout_url).toBe(
+      'https://checkout.eventecos.com/checkout/payment/982605/4749803604',
+    );
   });
 
   it('no longer emits an event-level checkout URL on the event list', async () => {

@@ -9,6 +9,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   dj: '🎧 DJ',
   decorator: '🌸 Decorator',
   planner_coordinator: '📋 Planner / Coordinator',
+  security: '🛡️ Security',
   furniture: '🪑 Furniture',
   photographer: '📸 Photographer',
   musicians: '🎵 Musicians',

@@ -26,21 +26,6 @@ interface RawPublicEvent {
   ticket_tiers?: RawTicketTier[];
 }
 
-// Raw shape returned by GET /ticketmaster/events.
-interface RawTicketmasterEvent {
-  id: string;
-  title: string;
-  event_date: string;
-  start_time: string | null;
-  venue_name: string | null;
-  city: string | null;
-  state: string | null;
-  image_url: string | null;
-  category: string | null;
-  min_price: number | null;
-  ticketmaster_url: string;
-}
-
 // Raw shape returned by GET /external-events/events (aggregated RSS/ICS/XML/CSV/REST sources).
 interface RawExternalEvent {
   id: string;
@@ -74,23 +59,6 @@ function mapEvent(e: RawPublicEvent): Event {
   };
 }
 
-function mapTicketmasterEvent(e: RawTicketmasterEvent): Event {
-  return {
-    id: e.id,
-    title: e.title,
-    category: e.category || 'Event',
-    imageUrl: e.image_url || undefined,
-    startDate: e.start_time ? `${e.event_date}T${e.start_time}` : e.event_date,
-    venueName: e.venue_name || undefined,
-    city: e.city || undefined,
-    state: e.state || undefined,
-    priceMin: e.min_price ?? undefined,
-    isFree: e.min_price === 0,
-    source: 'ticketmaster',
-    externalUrl: e.ticketmaster_url,
-  };
-}
-
 function mapExternalEvent(e: RawExternalEvent): Event {
   return {
     id: e.id,
@@ -121,18 +89,16 @@ export default function GuestEventsScreen() {
     setError('');
     const trimmedZip = zip?.trim();
     const qs = trimmedZip ? `?zip_code=${encodeURIComponent(trimmedZip)}&radius_miles=30` : '';
-    const [platformResult, tmResult, extResult] = await Promise.allSettled([
+    const [platformResult, extResult] = await Promise.allSettled([
       apiRequest<RawPublicEvent[]>(`/promoter-events/public${qs}`),
-      apiRequest<RawTicketmasterEvent[]>(`/ticketmaster/events${qs}`),
       apiRequest<RawExternalEvent[]>(`/external-events/events${qs}`),
     ]);
 
     const platformEvents = platformResult.status === 'fulfilled' ? (platformResult.value || []).map(mapEvent) : [];
-    const tmEvents = tmResult.status === 'fulfilled' ? (tmResult.value || []).map(mapTicketmasterEvent) : [];
     const extEvents = extResult.status === 'fulfilled' ? (extResult.value || []).map(mapExternalEvent) : [];
 
-    setEvents([...platformEvents, ...extEvents, ...tmEvents]);
-    if (platformResult.status === 'rejected' && tmResult.status === 'rejected' && extResult.status === 'rejected') {
+    setEvents([...platformEvents, ...extEvents]);
+    if (platformResult.status === 'rejected' && extResult.status === 'rejected') {
       setError('Failed to load events');
     }
     setLoading(false);
@@ -156,7 +122,7 @@ export default function GuestEventsScreen() {
   };
 
   const handlePress = (item: Event) => {
-    if ((item.source === 'ticketmaster' || item.source === 'external') && item.externalUrl) {
+    if (item.source === 'external' && item.externalUrl) {
       Linking.openURL(item.externalUrl);
     } else {
       promptLogin();

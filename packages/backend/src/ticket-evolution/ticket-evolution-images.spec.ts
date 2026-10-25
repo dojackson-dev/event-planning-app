@@ -1,5 +1,4 @@
 import { ConfigService } from '@nestjs/config';
-import { TicketmasterService } from '../ticketmaster/ticketmaster.service';
 import { TicketEvolutionService } from './ticket-evolution.service';
 
 type ImageLookup = (query: string) => Promise<string | null>;
@@ -67,75 +66,5 @@ describe('TicketEvolutionService Wikipedia image lookup', () => {
     expect(await lookup('Nobody Known')).toBeNull();
     expect(await lookup('Nobody Known')).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('TicketEvolutionService Ticketmaster image fallback', () => {
-  type TmLookup = (
-    names: string[],
-    date: string | null,
-  ) => Promise<string | null>;
-
-  function setupTm(events: Array<Record<string, unknown>>) {
-    const searchEvents = jest.fn().mockResolvedValue(events);
-    const service = new TicketEvolutionService(
-      { get: () => undefined } as unknown as ConfigService,
-      { searchEvents } as unknown as TicketmasterService,
-    );
-    const lookup = (
-      service as unknown as { findTicketmasterImage: TmLookup }
-    ).findTicketmasterImage.bind(service);
-    return { lookup, searchEvents };
-  }
-
-  it('uses the image of a same-date Ticketmaster event with a matching name', async () => {
-    const { lookup, searchEvents } = setupTm([
-      { title: 'Other Show', event_date: '2026-10-31', image_url: 'x' },
-      {
-        title: "It's A 2000's Halloween Party: Jackson",
-        event_date: '2026-10-31',
-        image_url: 'https://tm/img.jpg',
-      },
-    ]);
-    const image = await lookup(['Its a 2000s (Halloween) Party'], '2026-10-31');
-    expect(image).toBe('https://tm/img.jpg');
-    expect(searchEvents).toHaveBeenCalledWith(
-      expect.objectContaining({
-        date_from: '2026-10-30',
-        date_to: '2026-11-01',
-      }),
-    );
-  });
-
-  it('ignores a name match more than a day away', async () => {
-    const { lookup } = setupTm([
-      {
-        title: 'Wax Monkey',
-        event_date: '2026-11-03',
-        image_url: 'https://tm/w.jpg',
-      },
-    ]);
-    expect(await lookup(['Wax Monkey'], '2026-10-31')).toBeNull();
-  });
-
-  it('accepts a match one day off', async () => {
-    const { lookup } = setupTm([
-      {
-        title: 'Pothole Paradise, Wax Monkey',
-        event_date: '2026-11-20',
-        image_url: 'https://tm/w.jpg',
-      },
-    ]);
-    expect(await lookup(['Wax Monkey'], '2026-11-21')).toBe('https://tm/w.jpg');
-  });
-
-  it('returns null without Ticketmaster configured', async () => {
-    const service = new TicketEvolutionService({
-      get: () => undefined,
-    } as unknown as ConfigService);
-    const lookup = (
-      service as unknown as { findTicketmasterImage: TmLookup }
-    ).findTicketmasterImage.bind(service);
-    expect(await lookup(['Anything'], '2026-10-31')).toBeNull();
   });
 });

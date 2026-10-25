@@ -4,6 +4,7 @@ export const VENDOR_CATEGORIES = [
   { value: 'dj', label: 'DJ', icon: '🎧' },
   { value: 'decorator', label: 'Decorator', icon: '🎨' },
   { value: 'planner_coordinator', label: 'Planner / Coordinator', icon: '📋' },
+  { value: 'security', label: 'Security', icon: '🛡️' },
   { value: 'furniture', label: 'Furniture', icon: '🪑' },
   { value: 'photographer', label: 'Photographer', icon: '📷' },
   { value: 'musicians', label: 'Musicians', icon: '🎵' },

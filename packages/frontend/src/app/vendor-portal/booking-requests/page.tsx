@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
+import { formatTime } from '@/lib/dateUtils'
 import {
   Calendar, User, Mail, Phone, MapPin, Clock,
   CheckCircle2, XCircle, AlertCircle, Loader2, ChevronDown, DollarSign, FileText, MessageSquare, Search,
@@ -206,8 +207,8 @@ export default function BookingRequestsPage() {
                             <Calendar className="w-4 h-4 text-gray-400" /> {req.event_date}
                             {(req.start_time || req.end_time) && (
                               <span className="text-gray-400">
-                                {req.start_time && `· ${req.start_time}`}
-                                {req.end_time && ` – ${req.end_time}`}
+                                {req.start_time && `· ${formatTime(req.start_time)}`}
+                                {req.end_time && ` – ${formatTime(req.end_time)}`}
                               </span>
                             )}
                           </div>

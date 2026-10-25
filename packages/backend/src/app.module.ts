@@ -25,6 +25,8 @@ import { AppointmentsModule } from './appointments/appointments.module';
 import { MessagingModule } from './messaging/messaging.module.js';
 import { ClientPortalModule } from './client-portal/client-portal.module';
 import { VendorInvoicesModule } from './vendor-invoices/vendor-invoices.module';
+import { VendorDoorListsModule } from './vendor-door-lists/vendor-door-lists.module';
+import { VendorPayoutsModule } from './vendor-payouts/vendor-payouts.module';
 import { AffiliatesModule } from './affiliates/affiliates.module';
 import { PromoterModule } from './promoter/promoter.module';
 import { ArtistsModule } from './artists/artists.module';
@@ -41,7 +43,6 @@ import { RsvpModule } from './rsvp/rsvp.module';
 import { ContactModule } from './contact/contact.module';
 import { VipModule } from './vip/vip.module';
 import { EventNotesModule } from './event-notes/event-notes.module';
-import { TicketmasterModule } from './ticketmaster/ticketmaster.module';
 import { SeatGeekModule } from './seatgeek/seatgeek.module';
 import { PredictHQModule } from './predicthq/predicthq.module';
 import { ExternalEventsModule } from './external-events/external-events.module';
@@ -78,6 +79,8 @@ import { PromoterTeamModule } from './promoter-team/promoter-team.module';
     MessagingModule,
     ClientPortalModule,
     VendorInvoicesModule,
+    VendorDoorListsModule,
+    VendorPayoutsModule,
     AffiliatesModule,
     PromoterModule,
     ArtistsModule,
@@ -94,7 +97,6 @@ import { PromoterTeamModule } from './promoter-team/promoter-team.module';
     ContactModule,
     VipModule,
     EventNotesModule,
-    TicketmasterModule,
     SeatGeekModule,
     PredictHQModule,
     ExternalEventsModule,

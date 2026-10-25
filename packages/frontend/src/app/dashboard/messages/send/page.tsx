@@ -8,6 +8,17 @@ import { User, Event, Guest } from '@/types'
 import { Send, ArrowLeft, Users as UsersIcon } from 'lucide-react'
 import { parseLocalDate } from '@/lib/dateUtils'
 import RecipientPicker, { RecipientOption } from '@/components/messages/RecipientPicker'
+import { groupEventsForPicker, eventPickerSuffix } from '@/lib/eventPicker'
+
+// A vendor booked by this owner; the vendor's contact details come from their account.
+interface VendorBookingRow {
+  id: string
+  event_id?: string | null
+  event_name?: string | null
+  event_date?: string | null
+  status: string
+  vendor_accounts?: { business_name: string; category?: string; phone?: string | null; email?: string | null } | null
+}
 
 // A "client" in the app is an intake-form record; events point at it through clientId.
 interface IntakeClient {
@@ -17,6 +28,8 @@ interface IntakeClient {
   contact_phone: string | null
 }
 
+const STOP_FOOTER = ' Reply STOP to unsubscribe.'
+
 export default function SendMessagePage() {
   const router = useRouter()
   const { user } = useAuth()
@@ -25,7 +38,7 @@ export default function SendMessagePage() {
   const [guests, setGuests] = useState<Guest[]>([])
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
-    recipientType: 'client' as 'client' | 'guest' | 'security' | 'custom',
+    recipientType: 'client' as 'client' | 'guest' | 'vendor' | 'security' | 'custom',
     messageType: 'confirmation' as 'reminder' | 'invoice' | 'confirmation' | 'update' | 'support' | 'announcement' | 'custom',
     userId: '',
     eventId: '',
@@ -41,6 +54,9 @@ export default function SendMessagePage() {
   const [clientsLoaded, setClientsLoaded] = useState(false)
   const [eventsLoaded, setEventsLoaded] = useState(false)
   const [selectedClientKey, setSelectedClientKey] = useState('')
+  const [vendorBookings, setVendorBookings] = useState<VendorBookingRow[]>([])
+  const [vendorsLoaded, setVendorsLoaded] = useState(false)
+  const [selectedVendorId, setSelectedVendorId] = useState('')
   const [autoFilledFrom, setAutoFilledFrom] = useState('')
   const prefillDone = useRef(false)
   const [rawPhone, setRawPhone] = useState('')
@@ -50,15 +66,38 @@ export default function SendMessagePage() {
     fetchClients()
     fetchEvents()
     fetchIntakeClients()
+    fetchVendorBookings()
   }, [])
 
   // Opened from a client's event page: ?eventId=…&clientId=… pre-selects both.
   useEffect(() => {
-    if (prefillDone.current || !eventsLoaded || !clientsLoaded) return
+    if (prefillDone.current || !eventsLoaded || !clientsLoaded || !vendorsLoaded) return
     prefillDone.current = true
     const params = new URLSearchParams(window.location.search)
     const eventId = params.get('eventId') || ''
     const clientId = params.get('clientId') || ''
+    const vendorBookingId = params.get('vendorBookingId') || ''
+    if (vendorBookingId) {
+      const booking = vendorBookings.find(b => b.id === vendorBookingId)
+      if (booking) {
+        const bookingEvent = events.find(e => String(e.id) === (eventId || booking.event_id || ''))
+        const vendorName = booking.vendor_accounts?.business_name || 'there'
+        const when = bookingEvent ? parseLocalDate(bookingEvent.date).toLocaleDateString() : ''
+        const askForInvoice = params.get('intent') === 'invoice-request'
+        setSelectedVendorId(booking.id)
+        setFormData(prev => ({
+          ...prev,
+          recipientType: 'vendor',
+          eventId: bookingEvent ? String(bookingEvent.id) : prev.eventId,
+          ...vendorFields(booking),
+          messageType: askForInvoice ? 'invoice' : 'custom',
+          content: askForInvoice
+            ? `Hi ${vendorName}, could you please send your invoice for ${bookingEvent?.name ?? booking.event_name ?? 'our event'}${when ? ` on ${when}` : ''}? Thank you!${STOP_FOOTER}`
+            : `Hi ${vendorName}, `,
+        }))
+        return
+      }
+    }
     if (!eventId && !clientId) return
     const ev = events.find(e => String(e.id) === eventId)
     const client = intakeClients.find(c => c.id === (clientId || String((ev as any)?.intakeFormId ?? (ev as any)?.clientId ?? '')))
@@ -71,7 +110,7 @@ export default function SendMessagePage() {
     }))
     if (client) { setSelectedClientKey(`intake:${client.id}`); setAutoFilledFrom(ev ? 'the event you came from' : '') }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventsLoaded, clientsLoaded])
+  }, [eventsLoaded, clientsLoaded, vendorsLoaded])
 
   useEffect(() => {
     if (formData.eventId) {
@@ -96,6 +135,17 @@ export default function SendMessagePage() {
       console.error('Failed to fetch events:', error)
     } finally {
       setEventsLoaded(true)
+    }
+  }
+
+  const fetchVendorBookings = async () => {
+    try {
+      const response = await api.get<VendorBookingRow[]>('/vendors/bookings/owner')
+      setVendorBookings(response.data || [])
+    } catch (error) {
+      console.error('Failed to fetch vendors:', error)
+    } finally {
+      setVendorsLoaded(true)
     }
   }
 
@@ -162,6 +212,19 @@ export default function SendMessagePage() {
           })))
         }
 
+        if (formData.recipientType === 'vendor') {
+          messages.push(...eventVendors
+            .filter(b => b.vendor_accounts?.phone)
+            .map(b => ({
+              recipientPhone: toE164(b.vendor_accounts!.phone!),
+              recipientName: b.vendor_accounts!.business_name,
+              recipientType: 'custom' as const,
+              eventId: formData.eventId || undefined,
+              messageType: formData.messageType,
+              content: formData.content,
+            })))
+        }
+
         if (messages.length === 0) {
           alert('No recipients found with phone numbers')
           setLoading(false)
@@ -186,7 +249,7 @@ export default function SendMessagePage() {
         await api.post('/messages/send', {
           recipientPhone: finalPhone,
           recipientName: formData.recipientName,
-          recipientType: formData.recipientType,
+          recipientType: formData.recipientType === 'vendor' ? 'custom' : formData.recipientType,
           userId: formData.userId || undefined,
           eventId: formData.eventId || undefined,
           messageType: formData.messageType,
@@ -251,6 +314,11 @@ export default function SendMessagePage() {
 
   // Choosing an event fills in that event's client (when sending to a client).
   const handleEventChange = (eventId: string) => {
+    if (formData.recipientType === 'vendor') {
+      setSelectedVendorId('')
+      setFormData(prev => ({ ...prev, eventId, recipientPhone: '', recipientName: '', recipientEmail: '' }))
+      return
+    }
     setFormData(prev => ({ ...prev, eventId }))
     if (!eventId || formData.recipientType !== 'client' || formData.sendToAll) return
     const ev = events.find(e => String(e.id) === eventId)
@@ -259,6 +327,35 @@ export default function SendMessagePage() {
       pickIntakeClient(client)
       setAutoFilledFrom(ev?.name || 'the selected event')
     }
+  }
+
+  const vendorFields = (b: VendorBookingRow) => ({
+    userId: '',
+    recipientName: b.vendor_accounts?.business_name || 'Vendor',
+    recipientPhone: b.vendor_accounts?.phone ? toE164(b.vendor_accounts.phone) : '',
+    recipientEmail: b.vendor_accounts?.email || '',
+  })
+
+  // Vendors booked on the selected event (by event id, or by date for bookings made before the event id was saved).
+  const vendorsForEvent = (eventId: string): VendorBookingRow[] => {
+    const ev = events.find(e => String(e.id) === eventId)
+    if (!ev) return []
+    const date = String(ev.date).slice(0, 10)
+    return vendorBookings.filter(b =>
+      b.status !== 'cancelled' &&
+      (b.event_id === eventId || (!b.event_id && String(b.event_date || '').slice(0, 10) === date))
+    )
+  }
+  const eventVendors = vendorsForEvent(formData.eventId)
+
+  const handleVendorChange = (bookingId: string) => {
+    const booking = eventVendors.find(b => b.id === bookingId)
+    setSelectedVendorId(booking ? booking.id : '')
+    if (!booking) {
+      setFormData(prev => ({ ...prev, userId: '', recipientPhone: '', recipientName: '', recipientEmail: '' }))
+      return
+    }
+    setFormData(prev => ({ ...prev, ...vendorFields(booking), content: prev.content || `Hi ${booking.vendor_accounts?.business_name || 'there'}, ` }))
   }
 
   const handleUserChange = (userId: string) => {
@@ -289,8 +386,6 @@ export default function SendMessagePage() {
       setFormData(prev => ({ ...prev, recipientPhone: '', recipientName: '' }))
     }
   }
-
-  const STOP_FOOTER = ' Reply STOP to unsubscribe.'
 
   const getMessageTemplate = () => {
     const selectedEvent = events.find(e => e.id.toString() === formData.eventId)
@@ -359,12 +454,13 @@ export default function SendMessagePage() {
           </label>
           <select
             value={formData.recipientType}
-            onChange={(e) => { setSelectedClientKey(''); setAutoFilledFrom(''); setFormData({ ...formData, recipientType: e.target.value as any, userId: '', recipientPhone: '', recipientName: '' }) }}
+            onChange={(e) => { setSelectedClientKey(''); setSelectedVendorId(''); setAutoFilledFrom(''); setFormData({ ...formData, recipientType: e.target.value as any, userId: '', recipientPhone: '', recipientName: '' }) }}
             className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             required
           >
             <option value="client">Client</option>
             <option value="guest">Guest (from event)</option>
+            <option value="vendor">Vendor (from event)</option>
             <option value="security">Security</option>
             <option value="custom">Custom</option>
           </select>
@@ -381,16 +477,25 @@ export default function SendMessagePage() {
             className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
             <option value="">Select an event...</option>
-            {events.map((event) => (
-              <option key={event.id} value={event.id}>
-                {event.name} - {parseLocalDate(event.date).toLocaleDateString()}
-              </option>
-            ))}
+            {(() => {
+              const { upcoming, past } = groupEventsForPicker(events)
+              const opt = (event: Event) => (
+                <option key={event.id} value={event.id}>
+                  {event.name} - {parseLocalDate(event.date).toLocaleDateString()}{eventPickerSuffix(event)}
+                </option>
+              )
+              return (
+                <>
+                  {upcoming.length > 0 && <optgroup label="Upcoming events">{upcoming.map(opt)}</optgroup>}
+                  {past.length > 0 && <optgroup label="Past & cancelled">{past.map(opt)}</optgroup>}
+                </>
+              )
+            })()}
           </select>
         </div>
 
         {/* Send to All Checkbox */}
-        {(formData.recipientType === 'client' || (formData.recipientType === 'guest' && formData.eventId)) && (
+        {(formData.recipientType === 'client' || ((formData.recipientType === 'guest' || formData.recipientType === 'vendor') && formData.eventId)) && (
           <div className="flex items-center gap-2">
             <input
               type="checkbox"
@@ -400,7 +505,7 @@ export default function SendMessagePage() {
               className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
             />
             <label htmlFor="sendToAll" className="text-sm text-gray-700">
-              Send to all {formData.recipientType === 'client' ? 'clients' : `guests in selected event (${guests.length} guest${guests.length !== 1 ? 's' : ''})`}
+              Send to all {formData.recipientType === 'client' ? 'clients' : formData.recipientType === 'vendor' ? `vendors on this event (${eventVendors.length} vendor${eventVendors.length !== 1 ? 's' : ''})` : `guests in selected event (${guests.length} guest${guests.length !== 1 ? 's' : ''})`}
             </label>
           </div>
         )}
@@ -468,6 +573,31 @@ export default function SendMessagePage() {
                 onSelect={(o) => handleGuestChange(o ? o.id : '')}
                 emptyHint="This event has no guests yet."
               />
+            )}
+
+            {/* Vendor Selection */}
+            {formData.recipientType === 'vendor' && (
+              <div>
+                <RecipientPicker
+                  label="Vendor"
+                  required
+                  disabled={!formData.eventId}
+                  placeholder={formData.eventId ? 'Type a vendor name…' : 'Select an event first'}
+                  options={eventVendors.map<RecipientOption>(b => ({
+                    id: b.id,
+                    name: b.vendor_accounts?.business_name || 'Vendor',
+                    tag: [b.vendor_accounts?.category?.replace(/_/g, ' '), b.status].filter(Boolean).join(' · '),
+                    phone: b.vendor_accounts?.phone,
+                    email: b.vendor_accounts?.email,
+                  }))}
+                  selectedId={selectedVendorId}
+                  onSelect={(o) => handleVendorChange(o ? o.id : '')}
+                  emptyHint="No vendors are booked on this event yet."
+                />
+                {selectedVendorId && !formData.recipientPhone && (
+                  <p className="mt-2 text-sm text-red-600">⚠ This vendor has no phone number on file — SMS cannot be sent.</p>
+                )}
+              </div>
             )}
 
             {/* Custom Recipient */}

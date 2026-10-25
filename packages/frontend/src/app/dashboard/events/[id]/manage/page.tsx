@@ -42,6 +42,7 @@ import api from '@/lib/api';
 import { Event, EventType, ClientStatus, ContractStatus, InsuranceStatus, Security } from '@/types';
 import EventNotes from '@/components/events/EventNotes';
 import CancelEventControl from '@/components/events/CancelEventControl';
+import EventVendorRow, { EventVendorBooking } from '@/components/events/EventVendorRow';
 import { useVenue } from '@/contexts/VenueContext';
 
 const formatTime = (timeString: string | undefined): string => {
@@ -84,18 +85,6 @@ interface VendorForSearch {
   hourly_rate?: number
   flat_rate?: number
   profile_image_url?: string
-}
-
-interface EventVendorBooking {
-  id: string
-  vendor_account_id: string
-  event_id?: string | null
-  event_name: string
-  event_date: string
-  agreed_amount: number
-  deposit_amount: number
-  status: string
-  vendor_accounts?: { business_name: string; category: string; profile_image_url?: string }
 }
 
 interface VendorContact {
@@ -2092,36 +2081,9 @@ export default function EventManagementPage() {
                 <p className="text-sm text-gray-500 italic">No vendors booked yet.</p>
               ) : (
                 <div className="space-y-2">
-                  {eventVendors.map(vb => {
-                    const vendor = vb.vendor_accounts;
-                    return (
-                      <div key={vb.id} className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                        <div>
-                          <p className="font-medium text-gray-900 text-sm">{vendor?.business_name || 'Vendor'}</p>
-                          <p className="text-xs text-gray-500 capitalize">{vendor?.category?.replace('_', ' ')}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {vb.agreed_amount > 0 && (
-                            <span className="text-sm font-semibold text-gray-900">${Number(vb.agreed_amount).toLocaleString()}</span>
-                          )}
-                          <span className={`text-xs px-2 py-0.5 rounded-full capitalize font-medium ${
-                            vb.status === 'confirmed' ? 'bg-green-100 text-green-700' :
-                            vb.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
-                            vb.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-                            'bg-gray-100 text-gray-600'
-                          }`}>{vb.status}</span>
-                          {(vb.status === 'confirmed' || vb.status === 'completed') && (
-                            <a
-                              href={`/dashboard/invoices/new?vendorBookingId=${vb.id}`}
-                              className="text-xs text-indigo-600 hover:underline flex items-center gap-0.5"
-                            >
-                              + Invoice <ChevronRight className="h-3 w-3" />
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {eventVendors.map(vb => (
+                    <EventVendorRow key={vb.id} booking={vb} eventId={eventId} />
+                  ))}
                 </div>
               )}
             </div>

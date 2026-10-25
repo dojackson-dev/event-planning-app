@@ -8,6 +8,8 @@ export interface RecipientOption {
   name: string
   phone?: string | null
   email?: string | null
+  /** Small label shown beside the name, e.g. a vendor's category. */
+  tag?: string
 }
 
 interface Props {
@@ -75,7 +77,7 @@ export default function RecipientPicker({ label, options, selectedId, onSelect, 
       {selected && !open ? (
         <div className="flex items-center justify-between rounded-md border border-gray-300 bg-white px-4 py-2">
           <div className="min-w-0">
-            <p className="truncate font-medium text-gray-900">{selected.name}</p>
+            <p className="truncate font-medium text-gray-900">{selected.name}{selected.tag && <span className="ml-2 text-xs font-normal text-gray-500">{selected.tag}</span>}</p>
             <p className="truncate text-xs text-gray-500">{[selected.phone || 'no phone', selected.email].filter(Boolean).join(' · ')}</p>
           </div>
           {!disabled && (
@@ -114,7 +116,7 @@ export default function RecipientPicker({ label, options, selectedId, onSelect, 
                   onMouseEnter={() => setActive(i)}
                   className={`cursor-pointer px-4 py-2 ${i === active ? 'bg-primary-50' : ''}`}
                 >
-                  <p className="text-sm font-medium text-gray-900">{o.name}</p>
+                  <p className="text-sm font-medium text-gray-900">{o.name}{o.tag && <span className="ml-2 text-xs font-normal text-gray-500">{o.tag}</span>}</p>
                   <p className="text-xs text-gray-500">{[o.phone || 'no phone', o.email].filter(Boolean).join(' · ')}</p>
                 </li>
               ))}

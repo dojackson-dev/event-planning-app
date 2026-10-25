@@ -13,7 +13,7 @@ export interface AssistantTask {
   items: AssistantItem[]
 }
 export interface AssistantEvent { id: string; name: string; date: string; startTime: string | null; href: string; notes: string[] }
-export interface PriorityReason { text: string; actor: 'you' | 'client' }
+export interface PriorityReason { text: string; actor: 'you' | 'client' | 'vendor' }
 export interface DraftTarget { type: 'invoice' | 'estimate' | 'contract'; id: string; label: string }
 export interface AssistantPriority {
   key: string

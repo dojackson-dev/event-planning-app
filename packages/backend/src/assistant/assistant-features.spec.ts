@@ -388,3 +388,83 @@ describe('vendor bills the owner has to pay', () => {
     );
   });
 });
+
+describe('confirmed vendors who have not sent an invoice', () => {
+  const awaiting = [
+    {
+      id: 'k2',
+      vendor: 'Florist',
+      eventName: 'Nguyen Wedding',
+      eventDate: '2026-11-07',
+      amount: null,
+      href: '/dashboard/vendors/payments',
+    },
+    {
+      id: 'k1',
+      vendor: 'DJ Vision',
+      eventName: 'Okafor Reception',
+      eventDate: '2026-10-17',
+      amount: 800,
+      href: '/dashboard/vendors/payments',
+    },
+  ];
+
+  it('adds a task and a line, earliest event first, flagged for attention when an event is past or near', () => {
+    const s = buildAssistantSummary({ ...empty, vendorsAwaitingInvoice: awaiting });
+    const task = s.tasks.find((t) => t.key === 'vendor-invoices-missing')!;
+    expect(task).toMatchObject({ count: 2, severity: 'attention' });
+    expect(task.items[0]).toEqual({
+      label: 'DJ Vision \u2014 Okafor Reception',
+      detail: 'event was 2 days ago \u00b7 agreed $800.00',
+      href: '/dashboard/vendors/payments',
+    });
+    const line = s.priorities.find((p) => p.key === 'vendor-invoices-missing')!;
+    expect(line.title).toBe("2 confirmed vendors haven't sent an invoice");
+    expect(line.reasons[0]).toEqual({
+      actor: 'vendor',
+      text: "DJ Vision hasn't sent an invoice for Okafor Reception (event was 2 days ago).",
+    });
+  });
+
+  it('stays informational when every event is more than a week out, and is silent when none are missing', () => {
+    const far = awaiting.map((a) => ({ ...a, eventDate: '2026-12-20' }));
+    const s = buildAssistantSummary({ ...empty, vendorsAwaitingInvoice: far });
+    expect(s.priorities[0].severity).toBe('info');
+    const none = buildAssistantSummary({ ...empty, vendorsAwaitingInvoice: [] });
+    expect(none.tasks.find((t) => t.key === 'vendor-invoices-missing')).toBeUndefined();
+  });
+
+  it('does not count vendors who owe nothing yet as bills', () => {
+    const s = buildAssistantSummary({ ...empty, vendorsAwaitingInvoice: awaiting });
+    expect(s.tasks.some((t) => t.key.startsWith('vendor-bills'))).toBe(false);
+  });
+
+  it('answers the question and keeps it apart from "who do I pay"', () => {
+    expect(matchIntent("Which confirmed vendors haven't sent an invoice?")).toBe(
+      'vendor-invoices-missing',
+    );
+    expect(matchIntent('Which vendors do I need to pay?')).toBe('vendor-bills');
+    const input = { ...empty, vendorsAwaitingInvoice: awaiting };
+    const a = answerIntent(
+      'vendor-invoices-missing',
+      buildAssistantSummary(input),
+      input,
+    );
+    expect(a.answer).toBe(
+      "2 confirmed vendors haven't sent an invoice, earliest event first.",
+    );
+    expect(a.items[0].label).toBe('DJ Vision \u2014 Okafor Reception');
+    const none = answerIntent(
+      'vendor-invoices-missing',
+      buildAssistantSummary(empty),
+      empty,
+    );
+    expect(none.answer).toBe('Every confirmed vendor has sent an invoice.');
+  });
+
+  it('labels the digest line as awaiting the vendor', () => {
+    const input = { ...empty, vendorsAwaitingInvoice: awaiting };
+    const email = buildDigestEmail(buildAssistantSummary(input), 'https://x.test');
+    expect(JSON.stringify(email)).toContain('Awaiting vendor');
+  });
+});

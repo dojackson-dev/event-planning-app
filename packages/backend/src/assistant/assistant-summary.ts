@@ -31,8 +31,8 @@ export interface AssistantEvent {
 
 export interface PriorityReason {
   text: string;
-  /** Who has to move next: the owner, or the client. */
-  actor: 'you' | 'client';
+  /** Who has to move next: the owner, the client, or a vendor. */
+  actor: 'you' | 'client' | 'vendor';
 }
 
 /** One line on the dashboard: an event with everything outstanding on it, or a standalone group of records. */
@@ -95,6 +95,18 @@ export interface VendorBill {
   href: string;
 }
 
+/** A confirmed vendor booking the vendor has not sent an invoice for. */
+export interface AwaitingVendorInvoice {
+  id: string;
+  vendor: string;
+  eventName: string;
+  /** Null when the booking has no date. */
+  eventDate: string | null;
+  /** Agreed price, when one was set. */
+  amount: number | null;
+  href: string;
+}
+
 export interface SummaryInput {
   today: string;
   events: any[];
@@ -112,6 +124,8 @@ export interface SummaryInput {
   invoiceHref?: (id: string) => string;
   /** Vendor invoices and bookings the owner still has to pay. */
   vendorBills?: VendorBill[];
+  /** Confirmed vendors who have not sent an invoice yet. */
+  vendorsAwaitingInvoice?: AwaitingVendorInvoice[];
 }
 
 export const UPCOMING_DAYS = 14;
@@ -285,6 +299,34 @@ export function buildAssistantSummary(input: SummaryInput): AssistantSummary {
     href: VENDOR_PAYMENTS_HREF,
     rows: billsOpen,
     item: billItem,
+  });
+
+  // ── Confirmed vendors who haven't invoiced ──────────────────────────────
+  const awaiting = [...(input.vendorsAwaitingInvoice ?? [])].sort((a, b) =>
+    (a.eventDate ?? '9999').localeCompare(b.eventDate ?? '9999'),
+  );
+  // Past or imminent events matter most: the vendor should have invoiced by now.
+  const awaitingSeverity: TaskSeverity = awaiting.some(
+    (a) => a.eventDate && a.eventDate <= addDays(today, DUE_SOON_DAYS),
+  )
+    ? 'attention'
+    : 'info';
+  const awaitingWhen = (a: AwaitingVendorInvoice): string => {
+    if (!a.eventDate) return 'no event date';
+    const d = daysBetween(today, a.eventDate);
+    return d < 0 ? `event was ${plural(-d, 'day')} ago` : `event ${when(d)}`;
+  };
+  addTask({
+    key: 'vendor-invoices-missing',
+    label: "Confirmed vendors who haven't sent an invoice",
+    severity: awaitingSeverity,
+    href: VENDOR_PAYMENTS_HREF,
+    rows: awaiting,
+    item: (a: AwaitingVendorInvoice): AssistantItem => ({
+      label: `${a.vendor} \u2014 ${a.eventName}`,
+      detail: `${awaitingWhen(a)}${a.amount ? ` \u00b7 agreed ${money(a.amount)}` : ''}`,
+      href: a.href,
+    }),
   });
 
   // ── Estimates ───────────────────────────────────────────────────────────
@@ -696,6 +738,30 @@ export function buildAssistantSummary(input: SummaryInput): AssistantSummary {
     105,
     'Vendors are waiting to be paid for these bookings.',
   );
+
+  if (awaiting.length > 0) {
+    const shown = awaiting.slice(0, MAX_TARGETS);
+    const reasons: PriorityReason[] = shown.map((a) => ({
+      actor: 'vendor',
+      text: `${a.vendor} hasn't sent an invoice for ${a.eventName} (${awaitingWhen(a)}).`,
+    }));
+    if (awaiting.length > shown.length)
+      reasons.push({
+        actor: 'vendor',
+        text: `And ${awaiting.length - shown.length} more.`,
+      });
+    ranked.push({
+      rank: 99,
+      p: {
+        key: 'vendor-invoices-missing',
+        severity: awaitingSeverity,
+        title: `${plural(awaiting.length, 'confirmed vendor')} ${awaiting.length === 1 ? "hasn't" : "haven't"} sent an invoice`,
+        reasons,
+        href: VENDOR_PAYMENTS_HREF,
+        actionLabel: 'Review vendors',
+      },
+    });
+  }
 
   ranked.sort(
     (a, b) =>

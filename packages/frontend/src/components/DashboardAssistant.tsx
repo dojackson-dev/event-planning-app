@@ -26,6 +26,7 @@ const SEVERITY_DOT: Record<Severity, string> = {
 const ACTOR_LABEL: Record<PriorityReason['actor'], { text: string; classes: string }> = {
   you: { text: 'Your action', classes: 'bg-indigo-50 text-indigo-700' },
   client: { text: 'Awaiting client', classes: 'bg-gray-100 text-gray-600' },
+  vendor: { text: 'Awaiting vendor', classes: 'bg-amber-50 text-amber-700' },
 }
 
 const SNOOZE_OPTIONS = [

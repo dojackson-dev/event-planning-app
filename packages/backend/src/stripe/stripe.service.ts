@@ -504,6 +504,9 @@ export class StripeService {
       case 'payment_intent.succeeded':
         await this.handlePaymentIntentSucceeded(event.data.object);
         break;
+      case 'charge.refunded':
+        await this.handleChargeRefunded(event.data.object);
+        break;
       case 'customer.subscription.created':
         await this.handleSubscriptionUpdate(event.data.object, true);
         break;
@@ -980,6 +983,34 @@ export class StripeService {
         paymentIntent.id,
       );
       return;
+    }
+  }
+
+  /** Handle charge.refunded — keeps vendor invoices and bookings in step with refunds made in Stripe. */
+  private async handleChargeRefunded(charge: Stripe.Charge): Promise<void> {
+    const paymentIntentId =
+      typeof charge.payment_intent === 'string'
+        ? charge.payment_intent
+        : (charge.payment_intent?.id ?? null);
+    if (!paymentIntentId) return;
+
+    const meta = charge.metadata ?? {};
+    if (meta.invoice_id || meta.artist_invoice_id || meta.promoter_invoice_id) {
+      this.logger.warn(
+        `Refund on ${paymentIntentId} (${charge.amount_refunded} cents) has no automatic handling for this invoice type`,
+      );
+      return;
+    }
+    const handled =
+      await this.vendorInvoicesService.markInvoiceRefundedByPaymentIntent(
+        paymentIntentId,
+        charge.amount_refunded,
+        charge.refunded,
+      );
+    if (!handled) {
+      this.logger.debug(
+        `Refund on ${paymentIntentId} matches no vendor invoice`,
+      );
     }
   }
 

@@ -16,6 +16,7 @@ import {
   subMonths,
 } from 'date-fns'
 import type { Booking } from '@/lib/vendorTypes'
+import { formatTime } from '@/lib/dateUtils'
 
 const STATUS_COLORS: Record<string, string> = {
   pending:   'bg-yellow-100 text-yellow-700',
@@ -119,7 +120,7 @@ export default function VendorCalendarTab({ bookings }: { bookings: Booking[] })
                     }`}
                   >
                     <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${BOOKING_STATUS_DOT[b.status] || 'bg-gray-400'}`} />
-                    <span className="truncate">{b.event_name}</span>
+                    <span className="truncate">{b.start_time ? `${formatTime(b.start_time)} ` : ''}{b.event_name}</span>
                   </button>
                 ))}
                 {dayBookings.length > 3 && (
@@ -168,7 +169,7 @@ export default function VendorCalendarTab({ bookings }: { bookings: Booking[] })
               {(selected.start_time || selected.end_time) && (
                 <p>
                   <span className="font-medium text-gray-700">🕐 Time: </span>
-                  {[selected.start_time, selected.end_time].filter(Boolean).join(' – ')}
+                  {[selected.start_time, selected.end_time].filter(Boolean).map(t => formatTime(t)).join(' – ')}
                 </p>
               )}
               {selected.venue_name && (

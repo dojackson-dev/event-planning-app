@@ -691,8 +691,49 @@ export class VendorsService {
     });
 
     // Apply paid filter after derivation
-    if (status === 'paid') return rows.filter((r: any) => r.status === 'paid');
-    return rows;
+    const withTimes = await this.fillEventTimes(rows);
+    if (status === 'paid')
+      return withTimes.filter((r: any) => r.status === 'paid');
+    return withTimes;
+  }
+
+  /**
+   * Bookings made from an owner's event keep no start/end time of their own, so
+   * vendors saw no time. Fill any missing times from the linked event.
+   */
+  private async fillEventTimes<
+    T extends {
+      event_id?: string | null;
+      start_time?: string | null;
+      end_time?: string | null;
+    },
+  >(rows: T[]): Promise<T[]> {
+    const eventIds = [
+      ...new Set(
+        rows
+          .filter((r) => r.event_id && (!r.start_time || !r.end_time))
+          .map((r) => r.event_id as string),
+      ),
+    ];
+    if (eventIds.length === 0) return rows;
+    const { data } = await this.supabaseService
+      .getAdminClient()
+      .from('event')
+      .select('id, start_time, end_time')
+      .in('id', eventIds);
+    const times = new Map<
+      string,
+      { start_time: string | null; end_time: string | null }
+    >((data ?? []).map((e: any) => [e.id as string, e]));
+    return rows.map((r) => {
+      const ev = r.event_id ? times.get(r.event_id) : undefined;
+      if (!ev) return r;
+      return {
+        ...r,
+        start_time: r.start_time || ev.start_time || null,
+        end_time: r.end_time || ev.end_time || null,
+      };
+    });
   }
 
   async getVendorBookingsByBooker(bookedByUserId: string) {
@@ -772,7 +813,8 @@ export class VendorsService {
       .single();
 
     if (error || !data) throw new NotFoundException('Vendor booking not found');
-    return data;
+    const [withTimes] = await this.fillEventTimes([data]);
+    return withTimes;
   }
 
   async getOwnerVendorBookingsByEvent(eventId: string, ownerAccountId: string) {

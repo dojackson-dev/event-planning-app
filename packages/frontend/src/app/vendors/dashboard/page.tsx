@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import DashboardAssistant from '@/components/DashboardAssistant'
+import { formatTime } from '@/lib/dateUtils'
 import {
   Calendar,
   FileText,
@@ -23,6 +24,8 @@ interface Booking {
   id: string
   event_name: string
   event_date: string
+  start_time?: string | null
+  end_time?: string | null
   venue_name?: string
   status: string
   agreed_amount: number
@@ -248,6 +251,11 @@ export default function VendorDashboard() {
                     <p className="text-sm text-gray-700 font-medium">
                       {new Date(b.event_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </p>
+                    {b.start_time && (
+                      <p className="text-xs text-gray-500">
+                        {formatTime(b.start_time ?? undefined)}{b.end_time ? ` – ${formatTime(b.end_time)}` : ''}
+                      </p>
+                    )}
                     {b.agreed_amount > 0 && <p className="text-xs text-gray-500">${b.agreed_amount.toLocaleString()}</p>}
                   </div>
                 </Link>

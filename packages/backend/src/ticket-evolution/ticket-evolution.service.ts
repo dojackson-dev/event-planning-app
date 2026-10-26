@@ -121,6 +121,14 @@ export class TicketEvolutionService {
     ).replace(/\/$/, '');
   }
 
+  // The feed is for a US audience; TICKET_EVOLUTION_COUNTRY_CODE=XX switches country and an empty value lifts the filter.
+  private get countryCode(): string | undefined {
+    const configured = this.configService.get<string>(
+      'TICKET_EVOLUTION_COUNTRY_CODE',
+    );
+    return (configured ?? 'US').trim().toUpperCase() || undefined;
+  }
+
   isConfigured(): boolean {
     return Boolean(this.apiToken && this.apiSecret);
   }
@@ -387,6 +395,7 @@ export class TicketEvolutionService {
     >('GET', '/v9/events', {
       query: {
         name: params.name,
+        country_code: this.countryCode,
         'occurs_at.gte': gte,
         'occurs_at.lt': lt,
         lat: geo?.latitude,

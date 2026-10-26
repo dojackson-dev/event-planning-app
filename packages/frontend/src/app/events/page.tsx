@@ -116,6 +116,22 @@ const EXT_PAGE_SIZE = 100
 const TEVO_PAGE_SIZE = 24
 const PLATFORM_PAGE_SIZE = 100
 
+// Street-map look for the "Use My Location" button, drawn inline so it needs no map service or image file.
+const MAP_BUTTON_BG = `url("data:image/svg+xml,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 64" preserveAspectRatio="xMidYMid slice">
+    <rect width="160" height="64" fill="#2fae6a"/>
+    <rect x="96" y="5" width="42" height="24" rx="5" fill="#49c585"/>
+    <rect x="8" y="26" width="26" height="14" rx="3" fill="#41bd7d"/>
+    <path d="M-5 54 C28 40 58 64 100 49 S150 44 170 52" fill="none" stroke="#7fd0ee" stroke-width="6" opacity=".55"/>
+    <g stroke="#fff" fill="none" stroke-linecap="round">
+      <path d="M0 21H160M0 45H160" stroke-width="3" opacity=".28"/>
+      <path d="M41 0V64M89 0V64M131 0V64" stroke-width="3" opacity=".28"/>
+      <path d="M-4 6L70 70" stroke-width="2.5" opacity=".22"/>
+      <path d="M0 33H160M65 0V64M110 0V64" stroke-width="1.4" opacity=".14"/>
+    </g>
+  </svg>`
+)}")`
+
 // Turn on with NEXT_PUBLIC_ENABLE_TICKET_EVOLUTION_EVENTS=true once Hosted Checkout is verified.
 const ENABLE_TICKET_EVOLUTION_PUBLIC_EVENTS =
   process.env.NEXT_PUBLIC_ENABLE_TICKET_EVOLUTION_EVENTS === 'true'
@@ -599,7 +615,8 @@ export default function PublicEventsPage() {
               type="button"
               onClick={useMyLocation}
               disabled={locating}
-              className="px-4 py-2 border border-blue-300 rounded-lg text-blue-100 hover:bg-blue-600 disabled:opacity-50 transition-colors text-sm font-medium"
+              style={{ backgroundColor: '#2fae6a', backgroundImage: MAP_BUTTON_BG, backgroundSize: 'cover', backgroundPosition: 'center' }}
+              className="px-5 py-2.5 rounded-lg text-white shadow-md ring-1 ring-white/30 hover:brightness-95 disabled:opacity-50 transition text-sm font-semibold [text-shadow:0_1px_2px_rgba(0,0,0,0.35)]"
             >
               {locating ? 'Locating...' : '📍 Use My Location'}
             </button>

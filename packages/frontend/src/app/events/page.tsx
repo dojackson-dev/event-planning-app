@@ -527,12 +527,12 @@ export default function PublicEventsPage() {
               {locating ? 'Locating...' : '📍 Use My Location'}
             </button>
           </div>
-          <form onSubmit={handleSearch} className="mt-2 bg-white rounded-2xl p-2 flex flex-col lg:flex-row lg:items-center gap-2 max-w-2xl lg:max-w-4xl mx-auto">
+          <form onSubmit={handleSearch} className="mt-2 bg-white rounded-2xl p-2 flex flex-col lg:flex-row lg:items-center gap-2 max-w-2xl lg:max-w-5xl mx-auto">
             <div className="flex items-center gap-2 flex-1 lg:min-w-[12rem] px-3 lg:border-r border-gray-200">
               <Search className="w-4 h-4 text-gray-400 shrink-0" />
               <input value={search} onChange={e => setSearch(e.target.value)}
                 placeholder="Search events..."
-                className="w-full text-sm text-gray-800 placeholder-gray-400 focus:outline-none" />
+                className="w-full text-base lg:text-sm text-gray-800 placeholder-gray-400 focus:outline-none" />
             </div>
             <div ref={cityBoxRef} className="relative flex items-center gap-2 px-3 shrink-0 lg:border-r border-gray-200">
               <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
@@ -540,7 +540,8 @@ export default function PublicEventsPage() {
                 onFocus={() => citySuggestions.length > 0 && setShowCitySuggestions(true)}
                 placeholder="City"
                 autoComplete="off"
-                className="w-28 text-sm text-gray-800 placeholder-gray-400 focus:outline-none" />
+                title={cityQuery}
+                className="flex-1 min-w-0 lg:flex-none lg:w-56 text-base lg:text-sm text-ellipsis text-gray-800 placeholder-gray-400 focus:outline-none" />
               {cityLoading && <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin shrink-0" />}
               {showCitySuggestions && citySuggestions.length > 0 && (
                 <ul className="absolute left-0 top-full mt-1 w-64 max-h-60 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg z-50 text-left">
@@ -558,7 +559,7 @@ export default function PublicEventsPage() {
             </div>
             <div className="flex items-center gap-2 px-3 shrink-0 lg:border-r border-gray-200">
               <select value={radiusMiles} onChange={e => setRadiusMiles(e.target.value)}
-                className="text-sm text-gray-800 focus:outline-none bg-transparent">
+                className="text-base lg:text-sm text-gray-800 focus:outline-none bg-transparent">
                 <option value="10">10 miles</option>
                 <option value="25">25 miles</option>
                 <option value="30">30 miles</option>
@@ -570,7 +571,7 @@ export default function PublicEventsPage() {
             <div className="flex items-center gap-2 px-3 shrink-0">
               <Filter className="w-4 h-4 text-gray-400 shrink-0" />
               <select value={category} onChange={e => setCategory(e.target.value)}
-                className="text-sm text-gray-800 focus:outline-none bg-transparent">
+                className="text-base lg:text-sm text-gray-800 focus:outline-none bg-transparent">
                 <option value="">All categories</option>
                 {EVENT_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>

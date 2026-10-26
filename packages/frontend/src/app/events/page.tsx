@@ -154,6 +154,9 @@ export default function PublicEventsPage() {
   const [locating, setLocating] = useState(false)
   const [locationError, setLocationError] = useState('')
   const [dateFilter, setDateFilter] = useState<'' | 'weekend' | 'week' | 'month'>('')
+  // National: Ticketmaster events across the US instead of only around the typed city.
+  const [nationalOnly, setNationalOnly] = useState(false)
+  const nationalRef = useRef(false)
   const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7))
   const [showMonthPicker, setShowMonthPicker] = useState(false)
   const [cityQuery, setCityQuery] = useState('')
@@ -322,6 +325,13 @@ export default function PublicEventsPage() {
     fetchEvents(resolvedZip, category, radiusMiles, computeDateRange(dateFilter, selectedMonth))
   }
 
+  const toggleNational = () => {
+    const next = !nationalOnly
+    nationalRef.current = next
+    setNationalOnly(next)
+    fetchEvents(zipCode, category, radiusMiles, computeDateRange(dateFilter, selectedMonth), search)
+  }
+
   const fetchEvents = (zip?: string, cat?: string, radius?: string, dateRange?: { from?: string; to?: string }, searchTerm?: string) => {
     setLoading(true)
     setTmLoading(true)
@@ -335,6 +345,10 @@ export default function PublicEventsPage() {
     if (dateRange?.to) params.date_to = dateRange.to
     const tmParams: Record<string, string> = { ...params }
     if (zip && radius) tmParams.radius_miles = radius
+    if (nationalRef.current) {
+      delete tmParams.zip_code
+      delete tmParams.radius_miles
+    }
     if (searchTerm) tmParams.keyword = searchTerm
     const tevoParams: Record<string, string> = {}
     if (dateRange?.from) tevoParams.date_from = dateRange.from
@@ -387,9 +401,9 @@ export default function PublicEventsPage() {
     setTmMoreError(false)
     try {
       const tmParams: Record<string, string> = { page: String(tmPage) }
-      if (zipCode) tmParams.zip_code = zipCode
+      if (zipCode && !nationalOnly) tmParams.zip_code = zipCode
       if (category) tmParams.category = category
-      if (zipCode && radiusMiles) tmParams.radius_miles = radiusMiles
+      if (zipCode && radiusMiles && !nationalOnly) tmParams.radius_miles = radiusMiles
       if (search) tmParams.keyword = search
       const range = computeDateRange(dateFilter, selectedMonth)
       if (range.from) tmParams.date_from = range.from
@@ -686,6 +700,18 @@ export default function PublicEventsPage() {
                 {dateFilter === 'month'
                   ? new Date(selectedMonth + '-01T00:00:00').toLocaleString('default', { month: 'long', year: 'numeric' })
                   : 'Select Month'}
+              </button>
+              <button
+                type="button"
+                onClick={toggleNational}
+                aria-pressed={nationalOnly}
+                className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
+                  nationalOnly
+                    ? 'bg-white text-blue-700 border-white'
+                    : 'bg-blue-600/40 text-white border-blue-300 hover:bg-blue-600/60'
+                }`}
+              >
+                National
               </button>
               {dateFilter && (
                 <button
@@ -1052,7 +1078,7 @@ export default function PublicEventsPage() {
       <div className="max-w-6xl mx-auto px-4 pb-10">
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">Discover More Events</h2>
+            <h2 className="text-xl font-bold text-gray-900">{nationalOnly ? 'National Events' : 'Discover More Events'}</h2>
             <p className="text-xs text-gray-400 mt-0.5">
               Powered by{' '}
               <a href="https://www.ticketmaster.com" target="_blank" rel="noopener noreferrer"
@@ -1069,7 +1095,9 @@ export default function PublicEventsPage() {
           // sources (native + external aggregated) also have nothing to show —
           // otherwise let those results speak for themselves without an odd
           // "no results" message sitting between two sections that do have events.
-          zipCode && filtered.length === 0 && !extLoading && extEvents.length === 0 ? (
+          nationalOnly ? (
+            <p className="text-gray-400 text-sm text-center py-8">No national events found{dateFilter ? ` for ${monthLabel || 'this date range'}` : ''}.</p>
+          ) : zipCode && filtered.length === 0 && !extLoading && extEvents.length === 0 ? (
             <p className="text-gray-400 text-sm text-center py-8">No Ticketmaster events found in this area.</p>
           ) : !zipCode ? (
             <p className="text-gray-400 text-sm text-center py-8">Enter a city to discover events near you.</p>

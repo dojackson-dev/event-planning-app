@@ -24,6 +24,22 @@ interface PromoterAccount {
   nonprofit_legal_name?: string | null
 }
 
+interface TicketmasterEvent {
+  id: string
+  title: string
+  event_date: string
+  start_time: string | null
+  venue_name: string | null
+  city: string | null
+  state: string | null
+  image_url: string | null
+  category: string | null
+  min_price: number | null
+  max_price: number | null
+  ticketmaster_url: string
+  source: 'ticketmaster'
+}
+
 interface PredictHQEvent {
   id: string
   title: string
@@ -95,23 +111,46 @@ const EVENT_CATEGORIES = [
 
 // Page sizes must match each backend endpoint's default page/limit size so
 // "did this page come back full" is a reliable signal for "there's more".
+const TM_PAGE_SIZE = 20
 const EXT_PAGE_SIZE = 100
 const TEVO_PAGE_SIZE = 24
 const PLATFORM_PAGE_SIZE = 100
 
-// Live by default; set NEXT_PUBLIC_ENABLE_TICKET_EVOLUTION_EVENTS=false to hide the section.
+// Street-map look for the "Use My Location" button, drawn inline so it needs no map service or image file.
+const MAP_BUTTON_BG = `url("data:image/svg+xml,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 64" preserveAspectRatio="xMidYMid slice">
+    <rect width="160" height="64" fill="#2fae6a"/>
+    <rect x="96" y="5" width="42" height="24" rx="5" fill="#49c585"/>
+    <rect x="8" y="26" width="26" height="14" rx="3" fill="#41bd7d"/>
+    <path d="M-5 54 C28 40 58 64 100 49 S150 44 170 52" fill="none" stroke="#7fd0ee" stroke-width="6" opacity=".55"/>
+    <g stroke="#fff" fill="none" stroke-linecap="round">
+      <path d="M0 21H160M0 45H160" stroke-width="3" opacity=".28"/>
+      <path d="M41 0V64M89 0V64M131 0V64" stroke-width="3" opacity=".28"/>
+      <path d="M-4 6L70 70" stroke-width="2.5" opacity=".22"/>
+      <path d="M0 33H160M65 0V64M110 0V64" stroke-width="1.4" opacity=".14"/>
+    </g>
+  </svg>`
+)}")`
+
+// Turn on with NEXT_PUBLIC_ENABLE_TICKET_EVOLUTION_EVENTS=true once Hosted Checkout is verified.
 const ENABLE_TICKET_EVOLUTION_PUBLIC_EVENTS =
-  process.env.NEXT_PUBLIC_ENABLE_TICKET_EVOLUTION_EVENTS !== 'false'
+  process.env.NEXT_PUBLIC_ENABLE_TICKET_EVOLUTION_EVENTS === 'true'
 
 export default function PublicEventsPage() {
   const [events, setEvents] = useState<PublicEvent[]>([])
+  const [tmEvents, setTmEvents] = useState<TicketmasterEvent[]>([])
   const [extEvents, setExtEvents] = useState<ExternalEvent[]>([])
   const [tevoEvents, setTevoEvents] = useState<TevoEvent[]>([])
   const [loading, setLoading] = useState(true)
+  const [tmLoading, setTmLoading] = useState(false)
   const [extLoading, setExtLoading] = useState(false)
   const [tevoLoading, setTevoLoading] = useState(false)
   // "Load More" pagination — one page cursor + hasMore/loadingMore flag per
   // provider, reset whenever a fresh search/filter triggers fetchEvents().
+  const [tmPage, setTmPage] = useState(1)
+  const [tmHasMore, setTmHasMore] = useState(false)
+  const [tmLoadingMore, setTmLoadingMore] = useState(false)
+  const [tmMoreError, setTmMoreError] = useState(false)
   const [extOffset, setExtOffset] = useState(EXT_PAGE_SIZE)
   const [extHasMore, setExtHasMore] = useState(false)
   const [extLoadingMore, setExtLoadingMore] = useState(false)
@@ -131,6 +170,9 @@ export default function PublicEventsPage() {
   const [locating, setLocating] = useState(false)
   const [locationError, setLocationError] = useState('')
   const [dateFilter, setDateFilter] = useState<'' | 'weekend' | 'week' | 'month'>('')
+  // National: Ticketmaster events across the US instead of only around the typed city.
+  const [nationalOnly, setNationalOnly] = useState(false)
+  const nationalRef = useRef(false)
   const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7))
   const [showMonthPicker, setShowMonthPicker] = useState(false)
   const [cityQuery, setCityQuery] = useState('')
@@ -299,8 +341,16 @@ export default function PublicEventsPage() {
     fetchEvents(resolvedZip, category, radiusMiles, computeDateRange(dateFilter, selectedMonth))
   }
 
+  const toggleNational = () => {
+    const next = !nationalOnly
+    nationalRef.current = next
+    setNationalOnly(next)
+    fetchEvents(zipCode, category, radiusMiles, computeDateRange(dateFilter, selectedMonth), search)
+  }
+
   const fetchEvents = (zip?: string, cat?: string, radius?: string, dateRange?: { from?: string; to?: string }, searchTerm?: string) => {
     setLoading(true)
+    setTmLoading(true)
     setExtLoading(true)
     setTevoLoading(ENABLE_TICKET_EVOLUTION_PUBLIC_EVENTS)
     const params: Record<string, string> = {}
@@ -309,6 +359,13 @@ export default function PublicEventsPage() {
     if (zip && radius) params.radius_miles = radius
     if (dateRange?.from) params.date_from = dateRange.from
     if (dateRange?.to) params.date_to = dateRange.to
+    const tmParams: Record<string, string> = { ...params }
+    if (zip && radius) tmParams.radius_miles = radius
+    if (nationalRef.current) {
+      delete tmParams.zip_code
+      delete tmParams.radius_miles
+    }
+    if (searchTerm) tmParams.keyword = searchTerm
     const tevoParams: Record<string, string> = {}
     if (dateRange?.from) tevoParams.date_from = dateRange.from
     if (dateRange?.to) tevoParams.date_to = dateRange.to
@@ -318,18 +375,24 @@ export default function PublicEventsPage() {
     const platformParams = { ...params, limit: String(PLATFORM_PAGE_SIZE) }
     const requests: Array<Promise<{ data: any[] }>> = [
       api.get('/promoter-events/public', { params: platformParams }),
+      api.get('/ticketmaster/events', { params: tmParams }),
       api.get('/external-events/events', { params }),
     ]
     if (ENABLE_TICKET_EVOLUTION_PUBLIC_EVENTS) {
       requests.push(api.get('/ticket-evolution/public-events', { params: tevoParams }))
     }
     Promise.allSettled(requests)
-      .then(([platformRes, extRes, tevoRes]) => {
+      .then(([platformRes, tmRes, extRes, tevoRes]) => {
         const platformRows: PublicEvent[] = platformRes.status === 'fulfilled' ? platformRes.value.data || [] : []
         setEvents(platformRows)
         setPlatformOffset(PLATFORM_PAGE_SIZE)
         setPlatformHasMore(platformRows.length === PLATFORM_PAGE_SIZE)
         setPlatformMoreError(false)
+
+        const tmRows: TicketmasterEvent[] = tmRes.status === 'fulfilled' ? tmRes.value.data || [] : []
+        setTmEvents(tmRows)
+        setTmPage(1)
+        setTmHasMore(tmRows.length === TM_PAGE_SIZE)
 
         const extRows: ExternalEvent[] = extRes.status === 'fulfilled' ? extRes.value.data || [] : []
         setExtEvents(extRows)
@@ -344,11 +407,37 @@ export default function PublicEventsPage() {
         setTevoPage(2)
         setTevoHasMore(tevoRows.length >= TEVO_PAGE_SIZE)
       })
-      .finally(() => { setLoading(false); setExtLoading(false); setTevoLoading(false) })
+      .finally(() => { setLoading(false); setTmLoading(false); setExtLoading(false); setTevoLoading(false) })
   }
 
   // Each provider only returns one capped page per request — these fetch the
   // next page and append, using the same filters as the last full fetch.
+  const loadMoreTicketmaster = async () => {
+    setTmLoadingMore(true)
+    setTmMoreError(false)
+    try {
+      const tmParams: Record<string, string> = { page: String(tmPage) }
+      if (zipCode && !nationalOnly) tmParams.zip_code = zipCode
+      if (category) tmParams.category = category
+      if (zipCode && radiusMiles && !nationalOnly) tmParams.radius_miles = radiusMiles
+      if (search) tmParams.keyword = search
+      const range = computeDateRange(dateFilter, selectedMonth)
+      if (range.from) tmParams.date_from = range.from
+      if (range.to) tmParams.date_to = range.to
+      const res = await api.get('/ticketmaster/events', { params: tmParams })
+      const rows: TicketmasterEvent[] = res.data || []
+      const existingIds = new Set(tmEvents.map(event => event.id))
+      const newRows = rows.filter(event => !existingIds.has(event.id))
+      setTmEvents(prev => [...prev, ...newRows])
+      setTmHasMore(rows.length === TM_PAGE_SIZE && newRows.length > 0)
+      setTmPage(prev => prev + 1)
+    } catch {
+      setTmMoreError(true)
+    } finally {
+      setTmLoadingMore(false)
+    }
+  }
+
   const loadMorePlatformEvents = async () => {
     setPlatformLoadingMore(true)
     setPlatformMoreError(false)
@@ -472,6 +561,10 @@ export default function PublicEventsPage() {
     () => extEvents.filter(ev => matchesDateFilter(ev.event_date) && matchesSearch(ev)),
     [extEvents, matchesDateFilter, matchesSearch],
   )
+  const filteredTmEvents = useMemo(
+    () => tmEvents.filter(ev => matchesDateFilter(ev.event_date) && matchesSearch(ev)),
+    [tmEvents, matchesDateFilter, matchesSearch],
+  )
   // A source's raw fetch had events, but the active date/search filter excluded all of them —
   // used to show a helpful message instead of an orphaned section header over a blank grid.
   const monthLabel = dateFilter === 'month'
@@ -522,7 +615,8 @@ export default function PublicEventsPage() {
               type="button"
               onClick={useMyLocation}
               disabled={locating}
-              className="px-4 py-2 border border-blue-300 rounded-lg text-blue-100 hover:bg-blue-600 disabled:opacity-50 transition-colors text-sm font-medium"
+              style={{ backgroundColor: '#2fae6a', backgroundImage: MAP_BUTTON_BG, backgroundSize: 'cover', backgroundPosition: 'center' }}
+              className="px-5 py-2.5 rounded-lg text-white shadow-md ring-1 ring-white/30 hover:brightness-95 disabled:opacity-50 transition text-sm font-semibold [text-shadow:0_1px_2px_rgba(0,0,0,0.35)]"
             >
               {locating ? 'Locating...' : '📍 Use My Location'}
             </button>
@@ -624,6 +718,18 @@ export default function PublicEventsPage() {
                   ? new Date(selectedMonth + '-01T00:00:00').toLocaleString('default', { month: 'long', year: 'numeric' })
                   : 'Select Month'}
               </button>
+              <button
+                type="button"
+                onClick={toggleNational}
+                aria-pressed={nationalOnly}
+                className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
+                  nationalOnly
+                    ? 'bg-white text-blue-700 border-white'
+                    : 'bg-blue-600/40 text-white border-blue-300 hover:bg-blue-600/60'
+                }`}
+              >
+                National
+              </button>
               {dateFilter && (
                 <button
                   type="button"
@@ -657,13 +763,13 @@ export default function PublicEventsPage() {
         {loading ? (
           <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-purple-500" /></div>
         ) : filtered.length === 0 ? (
-          // Only show the empty state once external/TEvo events
+          // Only show the empty state once Ticketmaster/external/TEvo events
           // have also finished loading and turned up nothing — if any of
           // those sources has events, skip straight to their sections below
           // instead of telling the user "No events found".
-          !extLoading &&
+          !tmLoading && !extLoading &&
           (!ENABLE_TICKET_EVOLUTION_PUBLIC_EVENTS || !tevoLoading) &&
-          extEvents.length === 0 &&
+          tmEvents.length === 0 && extEvents.length === 0 &&
           (!ENABLE_TICKET_EVOLUTION_PUBLIC_EVENTS || tevoEvents.length === 0) ? (
             <div className="text-center py-20">
               <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
@@ -984,6 +1090,131 @@ export default function PublicEventsPage() {
           {extMoreError && <p role="alert" className="text-center text-sm text-red-600 mt-2">Could not load more local events. Try again.</p>}
         </div>
       )}
+
+      {/* ── Ticketmaster Events ────────────────────────────────── */}
+      <div className="max-w-6xl mx-auto px-4 pb-10">
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">{nationalOnly ? 'National Events' : 'Discover More Events'}</h2>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Powered by{' '}
+              <a href="https://www.ticketmaster.com" target="_blank" rel="noopener noreferrer"
+                className="underline hover:text-blue-600">Ticketmaster</a>
+              . Tickets sold by Ticketmaster.
+            </p>
+          </div>
+        </div>
+
+        {tmLoading ? (
+          <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-blue-400" /></div>
+        ) : tmEvents.length === 0 ? (
+          // Only show a "no results" message for Ticketmaster if the other
+          // sources (native + external aggregated) also have nothing to show —
+          // otherwise let those results speak for themselves without an odd
+          // "no results" message sitting between two sections that do have events.
+          nationalOnly ? (
+            <p className="text-gray-400 text-sm text-center py-8">No national events found{dateFilter ? ` for ${monthLabel || 'this date range'}` : ''}.</p>
+          ) : zipCode && filtered.length === 0 && !extLoading && extEvents.length === 0 ? (
+            <p className="text-gray-400 text-sm text-center py-8">No Ticketmaster events found in this area.</p>
+          ) : !zipCode ? (
+            <p className="text-gray-400 text-sm text-center py-8">Enter a city to discover events near you.</p>
+          ) : null
+        ) : filteredTmEvents.length === 0 ? (
+          <p className="text-gray-400 text-sm text-center py-8">No Ticketmaster events found for {monthLabel}.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredTmEvents
+              .map(ev => {
+                const dateObj = ev.event_date ? new Date(ev.event_date + 'T00:00:00') : null
+                return (
+                  <a
+                    key={ev.id}
+                    href={ev.ticketmaster_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-md hover:border-blue-200 transition-all group block"
+                  >
+                    {/* Cover image */}
+                    <div className="h-44 bg-gradient-to-br from-blue-100 to-indigo-100 relative overflow-hidden">
+                      {ev.image_url ? (
+                        <img src={ev.image_url} alt={ev.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                      ) : (
+                        <div className="flex items-center justify-center h-full">
+                          <Calendar className="w-12 h-12 text-blue-300" />
+                        </div>
+                      )}
+                      {/* Ticketmaster badge */}
+                      <span className="absolute top-2 left-2 bg-blue-600 text-white text-xs font-bold px-2 py-0.5 rounded">
+                        Ticketmaster
+                      </span>
+                    </div>
+
+                    <div className="p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        {dateObj && (
+                          <div className="text-center bg-blue-50 border border-blue-100 rounded-lg px-2.5 py-1.5 min-w-[44px] shrink-0">
+                            <p className="text-xs font-medium text-blue-500 uppercase leading-none">
+                              {dateObj.toLocaleString('default', { month: 'short' })}
+                            </p>
+                            <p className="text-lg font-bold text-blue-700 leading-none mt-0.5">{dateObj.getDate()}</p>
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-bold text-gray-900 truncate">{ev.title}</h3>
+                          {(ev.venue_name || ev.city) && (
+                            <p className="flex items-center gap-1 text-xs text-gray-500 mt-0.5 truncate">
+                              <MapPin className="w-3 h-3 shrink-0" />
+                              {ev.venue_name ? `${ev.venue_name}${ev.city ? ', ' + ev.city : ''}` : ev.city}
+                              {ev.state ? `, ${ev.state}` : ''}
+                            </p>
+                          )}
+                          {ev.start_time && (
+                            <p className="text-xs text-gray-400 mt-0.5">{ev.start_time}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+                        <div>
+                          {ev.category && (
+                            <span className="flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                              <Tag className="w-2.5 h-2.5" />{ev.category}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 text-right">
+                          {ev.min_price !== null ? (
+                            <span className="text-sm font-bold text-gray-900">
+                              {ev.min_price === 0 ? 'Free' : `From $${ev.min_price.toFixed(0)}`}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-400">See prices</span>
+                          )}
+                          <ExternalLink className="w-3 h-3 text-gray-400 ml-1" />
+                        </div>
+                      </div>
+                    </div>
+                  </a>
+                )
+              })}
+          </div>
+        )}
+        {!tmLoading && tmHasMore && (
+          <div className="flex justify-center mt-6">
+            <button
+              type="button"
+              onClick={loadMoreTicketmaster}
+              disabled={tmLoadingMore}
+              className="px-5 py-2 rounded-full text-sm font-medium border border-blue-300 text-blue-700 hover:bg-blue-50 disabled:opacity-50 transition-colors inline-flex items-center gap-2"
+            >
+              {tmLoadingMore && <Loader2 className="w-4 h-4 animate-spin" />}
+              Load More Events
+            </button>
+          </div>
+        )}
+        {tmMoreError && <p role="alert" className="text-center text-sm text-red-600 mt-2">Could not load more Ticketmaster events. Try again.</p>}
+      </div>
 
       {/* Footer */}
       <footer className="bg-gray-900 border-t border-gray-800 py-12 px-4 sm:px-6 lg:px-8">

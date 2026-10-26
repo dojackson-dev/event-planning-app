@@ -27,23 +27,20 @@ describe('TicketEvolutionController public feed gate', () => {
     ).toEqual([{ id: '1' }]);
   });
 
-  it('serves production origins by default (live)', async () => {
+  it('hides the feed from production origins by default', async () => {
     const ctrl = setup();
-    expect(
-      await ctrl.getPublicEvents(req('https://www.eventecos.com')),
-    ).toEqual([{ id: '1' }]);
-  });
-
-  it('hides the feed from production origins when TICKET_EVOLUTION_PUBLIC_FEED=false', async () => {
-    const ctrl = setup({ feed: 'false' });
     expect(
       await ctrl.getPublicEvents(req('https://www.eventecos.com')),
     ).toEqual([]);
     expect(
       await ctrl.getPublicEventDetail(req('https://www.eventecos.com'), 1),
     ).toBeNull();
+  });
+
+  it('serves every origin once TICKET_EVOLUTION_PUBLIC_FEED=true', async () => {
+    const ctrl = setup({ feed: 'true' });
     expect(
-      await ctrl.getPublicEvents(req('https://dev.eventecos.com')),
+      await ctrl.getPublicEvents(req('https://www.eventecos.com')),
     ).toEqual([{ id: '1' }]);
   });
 

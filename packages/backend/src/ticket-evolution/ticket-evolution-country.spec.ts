@@ -43,4 +43,11 @@ describe('Ticket Evolution public feed country', () => {
     await service.getPublicEvents();
     expect(queryOf().country_code).toBeUndefined();
   });
+
+  it('sends the search text as the keyword query, not an exact-name match', async () => {
+    const { service, queryOf } = setup();
+    await service.getPublicEvents({ name: 'taylor swift' });
+    expect(queryOf().q).toBe('taylor swift');
+    expect(queryOf().name).toBeUndefined();
+  });
 });

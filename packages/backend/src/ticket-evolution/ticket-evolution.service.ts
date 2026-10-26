@@ -394,7 +394,8 @@ export class TicketEvolutionService {
       TicketEvolutionListResponse<TicketEvolutionRawEvent>
     >('GET', '/v9/events', {
       query: {
-        name: params.name,
+        // Keyword search is `q`; `name` only matches an event's exact name, so it finds almost nothing.
+        q: params.name,
         country_code: this.countryCode,
         'occurs_at.gte': gte,
         'occurs_at.lt': lt,

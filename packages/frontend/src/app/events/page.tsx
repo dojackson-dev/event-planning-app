@@ -6,6 +6,7 @@ import api from '@/lib/api'
 import { MapPin, Calendar, Tag, Search, Filter, Loader2, Ticket, ExternalLink } from 'lucide-react'
 import DashboardReturnButton from '@/components/DashboardReturnButton'
 import NonprofitBadge from '@/components/NonprofitBadge'
+import MonthPicker from '@/components/events/MonthPicker'
 
 interface TicketTier {
   id: string
@@ -609,6 +610,9 @@ export default function PublicEventsPage() {
               <button
                 type="button"
                 onClick={() => toggleDateFilter('month')}
+                data-month-picker-toggle
+                aria-haspopup="dialog"
+                aria-expanded={showMonthPicker}
                 className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
                   dateFilter === 'month'
                     ? 'bg-white text-blue-700 border-white'
@@ -631,16 +635,15 @@ export default function PublicEventsPage() {
             </div>
             {showMonthPicker && (
               <div className="mt-2 flex justify-center">
-                <input
-                  type="month"
+                <MonthPicker
                   value={selectedMonth}
-                  onChange={e => {
-                    const month = e.target.value
+                  onClose={() => setShowMonthPicker(false)}
+                  onChange={month => {
                     setSelectedMonth(month)
                     setDateFilter('month')
+                    setShowMonthPicker(false)
                     fetchEvents(zipCode, category, radiusMiles, computeDateRange('month', month))
                   }}
-                  className="text-sm text-gray-800 bg-white rounded-lg px-3 py-2 focus:outline-none"
                 />
               </div>
             )}

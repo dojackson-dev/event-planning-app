@@ -527,14 +527,14 @@ export default function PublicEventsPage() {
               {locating ? 'Locating...' : '📍 Use My Location'}
             </button>
           </div>
-          <form onSubmit={handleSearch} className="mt-2 bg-white rounded-2xl p-2 flex flex-col md:flex-row gap-2 max-w-2xl mx-auto">
-            <div className="flex items-center gap-2 flex-1 px-3 border-r border-gray-200">
+          <form onSubmit={handleSearch} className="mt-2 bg-white rounded-2xl p-2 flex flex-col lg:flex-row lg:items-center gap-2 max-w-2xl lg:max-w-4xl mx-auto">
+            <div className="flex items-center gap-2 flex-1 lg:min-w-[12rem] px-3 lg:border-r border-gray-200">
               <Search className="w-4 h-4 text-gray-400 shrink-0" />
               <input value={search} onChange={e => setSearch(e.target.value)}
                 placeholder="Search events..."
                 className="w-full text-sm text-gray-800 placeholder-gray-400 focus:outline-none" />
             </div>
-            <div ref={cityBoxRef} className="relative flex items-center gap-2 px-3 border-r border-gray-200">
+            <div ref={cityBoxRef} className="relative flex items-center gap-2 px-3 shrink-0 lg:border-r border-gray-200">
               <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
               <input value={cityQuery} onChange={e => handleCityInputChange(e.target.value)}
                 onFocus={() => citySuggestions.length > 0 && setShowCitySuggestions(true)}
@@ -556,7 +556,7 @@ export default function PublicEventsPage() {
                 </ul>
               )}
             </div>
-            <div className="flex items-center gap-2 px-3 border-r border-gray-200">
+            <div className="flex items-center gap-2 px-3 shrink-0 lg:border-r border-gray-200">
               <select value={radiusMiles} onChange={e => setRadiusMiles(e.target.value)}
                 className="text-sm text-gray-800 focus:outline-none bg-transparent">
                 <option value="10">10 miles</option>
@@ -567,7 +567,7 @@ export default function PublicEventsPage() {
                 <option value="100">100 miles</option>
               </select>
             </div>
-            <div className="flex items-center gap-2 px-3">
+            <div className="flex items-center gap-2 px-3 shrink-0">
               <Filter className="w-4 h-4 text-gray-400 shrink-0" />
               <select value={category} onChange={e => setCategory(e.target.value)}
                 className="text-sm text-gray-800 focus:outline-none bg-transparent">
@@ -576,7 +576,7 @@ export default function PublicEventsPage() {
               </select>
             </div>
             <button type="submit"
-              className="bg-purple-800 text-white text-sm font-medium px-5 py-2.5 rounded-xl hover:bg-purple-900">
+              className="shrink-0 bg-purple-800 text-white text-sm font-medium px-5 py-2.5 rounded-xl hover:bg-purple-900">
               Search
             </button>
           </form>

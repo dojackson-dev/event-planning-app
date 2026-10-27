@@ -61,8 +61,10 @@ export class ExternalEventsController {
     @Query('date_from') dateFrom?: string,
     @Query('date_to') dateTo?: string,
     @Query('offset') offset?: string,
+    @Query('q') q?: string,
   ) {
     return this.externalEventsService.getPublicEvents({
+      q,
       zip_code: zipCode,
       city,
       category,

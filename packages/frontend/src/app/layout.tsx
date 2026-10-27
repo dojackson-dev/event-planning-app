@@ -3,6 +3,7 @@ import { Poppins } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '@/contexts/AuthContext'
 import HeyCatchInit from '@/components/HeyCatchInit'
+import SplashScreen from '@/components/SplashScreen'
 
 const poppins = Poppins({ subsets: ['latin'], weight: ['400', '500', '600', '700'] })
 
@@ -81,13 +82,21 @@ export default function RootLayout({
   }
 
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={`${poppins.className} overflow-x-hidden`} suppressHydrationWarning>
         <script
           type="application/ld+json"
           // eslint-disable-next-line react/no-danger
           dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
         />
+        {/* Runs before first paint so a returning visitor never sees the splash flash up. */}
+        <script
+          // eslint-disable-next-line react/no-danger
+          dangerouslySetInnerHTML={{
+            __html: "try{if(sessionStorage.getItem('eventecos:splash-seen')==='1')document.documentElement.classList.add('ee-splash-seen')}catch(e){}",
+          }}
+        />
+        <SplashScreen />
         <HeyCatchInit />
         <AuthProvider>
           {children}

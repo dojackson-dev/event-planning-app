@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { Users, Store, Calendar, Zap, BarChart3, Shield, ArrowRight, MapPin, Ticket, Sparkles, Facebook, Linkedin, Lock, Heart } from 'lucide-react'
+import { Users, Store, Calendar, Zap, BarChart3, Shield, ArrowRight, MapPin, Ticket, Sparkles, Facebook, Linkedin, Lock, Heart, Menu, X, ChevronRight, ChevronDown, User } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -14,6 +14,9 @@ export default function Home() {
   const router = useRouter()
   const [showEnterpriseModal, setShowEnterpriseModal] = useState(false)
   const [showDemoModal, setShowDemoModal] = useState(false)
+  // Phone layout: the hamburger menu, and the "Get started for your business" panel.
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [businessOpen, setBusinessOpen] = useState(false)
 
   const taglines = [
     '"Events, vendors, venues — all in one ecosystem."',
@@ -72,23 +75,23 @@ export default function Home() {
       {/* Navigation */}
       <nav className="sticky top-0 z-50 bg-white md:bg-primary-600 border-b border-gray-200 md:border-primary-700 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16 gap-2">
+          <div className="flex items-center justify-between h-20 gap-2">
 
             {/* Logo */}
             <Link href="/" className="flex items-center shrink-0">
-              <img src="/lib/EventEcos-Logo.jpg" alt="EventEcos" className="h-10 w-auto object-contain rounded" />
+              <img src="/lib/EventEcos-Logo.jpg" alt="EventEcos" className="h-16 md:h-[70px] w-auto object-contain rounded" />
             </Link>
 
             {/* Center Nav Links - desktop only */}
             <div className="hidden md:flex items-center gap-2">
-              <Link href="/vendors" className="text-white hover:text-primary-100 font-medium text-sm border border-white/40 hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors">
-                Find Vendors
+              <Link href="/events" className="text-white hover:text-primary-100 font-medium text-sm border border-white/40 hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors">
+                Discover Events
               </Link>
               <Link href="/venues" className="text-white hover:text-primary-100 font-medium text-sm border border-white/40 hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors">
                 Find Venues
               </Link>
-              <Link href="/events" className="text-white hover:text-primary-100 font-medium text-sm border border-white/40 hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors">
-                Discover Events
+              <Link href="/vendors" className="text-white hover:text-primary-100 font-medium text-sm border border-white/40 hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors">
+                Find Vendors
               </Link>
               <Link href="#features" className="text-white hover:text-primary-100 font-medium text-sm border border-white/40 hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors">
                 Features
@@ -109,8 +112,8 @@ export default function Home() {
               </button>
             </div>
 
-            {/* Right CTA */}
-            <div className="flex items-center gap-2">
+            {/* Right CTA - desktop; phones use the Client Portal / Log in row and the menu */}
+            <div className="hidden md:flex items-center gap-2">
               <Link
                 href="/client-login"
                 className="text-gray-700 md:text-white font-medium text-sm border border-gray-300 md:border-white/40 hover:border-gray-400 md:hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors"
@@ -136,42 +139,142 @@ export default function Home() {
                 Get Started
               </Link>
             </div>
+
+            {/* Phone menu button */}
+            <button
+              type="button"
+              onClick={() => setMenuOpen(open => !open)}
+              aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={menuOpen}
+              aria-controls="mobile-menu"
+              className="md:hidden rounded-lg p-2 text-gray-800 hover:bg-gray-100"
+            >
+              {menuOpen ? <X className="h-7 w-7" /> : <Menu className="h-7 w-7" />}
+            </button>
           </div>
         </div>
+
+        {menuOpen && (
+          <div id="mobile-menu" className="md:hidden border-t border-gray-200 bg-white px-4 pb-4 pt-2 shadow-lg">
+            <ul className="divide-y divide-gray-100 text-base font-medium text-gray-800">
+              {[
+                { href: '/events', label: 'Events' },
+                { href: '/venues', label: 'Venues' },
+                { href: '/vendors', label: 'Vendors' },
+                { href: '#features', label: 'Everything you need to succeed' },
+                { href: '#pricing', label: 'Pricing' },
+                { href: '/demo', label: 'Live demo' },
+              ].map(item => (
+                <li key={item.href}>
+                  <Link href={item.href} onClick={() => setMenuOpen(false)} className="flex items-center justify-between py-3.5">
+                    {item.label}
+                    <ChevronRight className="h-5 w-5 text-gray-400" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </nav>
 
-      {/* Browse Bar - mobile only */}
-      <div className="md:hidden bg-white border-b border-gray-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-center gap-1 py-2 overflow-x-auto scrollbar-hide">
-            <span className="text-gray-500 font-medium text-sm mr-2 shrink-0">Browse:</span>
+      {/* Phone home: sign-in row, headline, browse cards and the business panel */}
+      <section className="md:hidden bg-white px-4 pb-8 pt-4">
+        <div className="mx-auto max-w-md">
+          <div className="grid grid-cols-2 gap-3">
             <Link
-              href="/vendors"
-              className="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-accent-600 hover:bg-accent-50 px-4 py-2 rounded-full border border-gray-200 hover:border-accent-300 transition-colors shrink-0"
+              href="/client-login"
+              className="flex h-12 items-center justify-center gap-2 rounded-xl bg-accent-700 text-base font-semibold text-white transition-colors hover:bg-accent-800"
             >
-              <Store className="h-4 w-4" />
-              Vendors
+              <User className="h-5 w-5" />
+              Client Portal
             </Link>
             <Link
-              href="/venues"
-              className="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-accent-600 hover:bg-accent-50 px-4 py-2 rounded-full border border-gray-200 hover:border-accent-300 transition-colors shrink-0"
+              href="/login"
+              className="flex h-12 items-center justify-center rounded-xl border border-accent-600 bg-white text-base font-semibold text-accent-700 transition-colors hover:bg-accent-50"
             >
-              <MapPin className="h-4 w-4" />
-              Venues
-            </Link>
-            <Link
-              href="/events"
-              className="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-accent-600 hover:bg-accent-50 px-4 py-2 rounded-full border border-gray-200 hover:border-accent-300 transition-colors shrink-0"
-            >
-              <Ticket className="h-4 w-4" />
-              Events
+              Log in
             </Link>
           </div>
+
+          <p className="mt-6 text-xs font-semibold uppercase tracking-widest text-accent-700">Go out. Get together.</p>
+          <h1 className="mt-2 text-4xl font-bold leading-tight tracking-tight text-gray-900">Great experiences start here.</h1>
+          <p className="mt-3 text-lg text-gray-600">Discover events, find your perfect space, and bring your plans to life—all in one connected event ecosystem.</p>
+
+          <ul className="mt-6 space-y-3">
+            {[
+              { href: '/events', title: 'Events', sub: 'Find your next outing', Icon: Ticket },
+              { href: '/venues', title: 'Venues', sub: 'Find your perfect setting', Icon: MapPin },
+              { href: '/vendors', title: 'Vendors', sub: 'Find your event dream team', Icon: Store },
+            ].map(({ href, title, sub, Icon }) => (
+              <li key={href}>
+                <Link
+                  href={href}
+                  className="flex items-center gap-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-colors hover:border-accent-300 hover:bg-accent-50/40"
+                >
+                  <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-accent-100">
+                    <Icon className="h-7 w-7 text-accent-700" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-lg font-bold text-gray-900">{title}</span>
+                    <span className="block text-gray-500">{sub}</span>
+                  </span>
+                  <ChevronRight className="h-6 w-6 shrink-0 text-gray-700" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+
+          <div className="mt-6 rounded-3xl bg-accent-50 p-5">
+            <h2 className="text-2xl font-bold leading-tight text-gray-900">
+              Your business.<br />More possibilities.
+            </h2>
+            <p className="mt-2 text-gray-600">Manage bookings, clients, and payments with EventEcos.</p>
+
+            <button
+              type="button"
+              onClick={() => setBusinessOpen(open => !open)}
+              aria-expanded={businessOpen}
+              aria-controls="business-panel"
+              className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-accent-700 text-base font-semibold text-white transition-colors hover:bg-accent-800"
+            >
+              Get started for your business
+              {businessOpen ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
+            </button>
+
+            {businessOpen && (
+              <div id="business-panel" className="mt-3 space-y-3">
+                <Link
+                  href="https://eventecos.com/signup"
+                  className="flex h-12 w-full items-center justify-center rounded-xl bg-accent-500 text-base font-bold text-white transition-colors hover:bg-accent-600"
+                >
+                  Sign up
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setShowDemoModal(true)}
+                  className="flex h-12 w-full items-center justify-center rounded-xl border border-accent-600 bg-white text-base font-semibold text-accent-700 transition-colors hover:bg-accent-50"
+                >
+                  Schedule a demo
+                </button>
+                <p className="text-center text-sm text-gray-500">30-day free trial. No credit card required.</p>
+                <div className="grid grid-cols-1 gap-2 border-t border-accent-100 pt-3">
+                  <a href="#features" className="flex items-center justify-between rounded-lg px-1 py-2 text-base font-medium text-gray-800">
+                    Everything you need to succeed
+                    <ChevronRight className="h-5 w-5 text-gray-400" />
+                  </a>
+                </div>
+              </div>
+            )}
+
+            <div className="mt-3 text-center">
+              <a href="#pricing" className="text-base font-medium text-accent-700 underline underline-offset-4">View pricing</a>
+            </div>
+          </div>
         </div>
-      </div>
+      </section>
 
       {/* Tagline row */}
-      <div className="bg-accent-50 border-b border-accent-100 py-3 text-center">
+      <div className="hidden md:block bg-accent-50 border-b border-accent-100 py-3 text-center">
         <div
           className="inline-flex items-center gap-2 text-accent-700 font-semibold text-sm transition-opacity duration-400"
           style={{ opacity: taglineFade ? 1 : 0 }}
@@ -181,7 +284,7 @@ export default function Home() {
       </div>
 
       {/* Hero Section */}
-      <section className="bg-gradient-to-br from-accent-50 via-white to-primary-50 pt-20 pb-32 px-4 sm:px-6 lg:px-8">
+      <section className="hidden md:block bg-gradient-to-br from-accent-50 via-white to-primary-50 pt-20 pb-32 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             {/* Left Content */}
@@ -457,6 +560,23 @@ export default function Home() {
             <p className="text-gray-400 text-lg">Discover venues, vendors, and events all in one place.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* Events */}
+            <div className="bg-gray-800 rounded-2xl p-8 flex flex-col items-start hover:bg-gray-700 transition-colors">
+              <div className="h-12 w-12 bg-accent-500/20 rounded-xl flex items-center justify-center mb-5">
+                <Calendar className="h-6 w-6 text-accent-400" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-3">Explore Events</h3>
+              <p className="text-gray-400 mb-6 flex-1">
+                Discover concerts, festivals, workshops, and experiences happening near you.
+              </p>
+              <Link
+                href="/events"
+                className="inline-flex items-center gap-2 bg-accent-500 hover:bg-accent-600 text-white font-bold px-5 py-2.5 rounded-lg transition-colors"
+              >
+                Explore Events <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+
             {/* Venues */}
             <div className="bg-gray-800 rounded-2xl p-8 flex flex-col items-start hover:bg-gray-700 transition-colors">
               <div className="h-12 w-12 bg-accent-500/20 rounded-xl flex items-center justify-center mb-5">
@@ -488,23 +608,6 @@ export default function Home() {
                 className="inline-flex items-center gap-2 bg-accent-500 hover:bg-accent-600 text-white font-bold px-5 py-2.5 rounded-lg transition-colors"
               >
                 Discover Vendors <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
-
-            {/* Events */}
-            <div className="bg-gray-800 rounded-2xl p-8 flex flex-col items-start hover:bg-gray-700 transition-colors">
-              <div className="h-12 w-12 bg-accent-500/20 rounded-xl flex items-center justify-center mb-5">
-                <Calendar className="h-6 w-6 text-accent-400" />
-              </div>
-              <h3 className="text-xl font-bold text-white mb-3">Explore Events</h3>
-              <p className="text-gray-400 mb-6 flex-1">
-                Discover concerts, festivals, workshops, and experiences happening near you.
-              </p>
-              <Link
-                href="/events"
-                className="inline-flex items-center gap-2 bg-accent-500 hover:bg-accent-600 text-white font-bold px-5 py-2.5 rounded-lg transition-colors"
-              >
-                Explore Events <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
           </div>

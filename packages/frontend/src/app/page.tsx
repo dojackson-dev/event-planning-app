@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import EnterpriseContactModal from '@/components/EnterpriseContactModal'
 import BookDemoModal from '@/components/BookDemoModal'
+import HomePhoto from '@/components/HomePhoto'
 
 export default function Home() {
   const { isAuthenticated, loading, user } = useAuth()
@@ -18,28 +19,7 @@ export default function Home() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [businessOpen, setBusinessOpen] = useState(false)
 
-  const taglines = [
-    '"Events, vendors, venues — all in one ecosystem."',
-    '"Where venues, vendors, and vibes connect."',
-    '"Build the vibe. Power the ecosystem."',
-    '"EventEcos: Where Every Event Comes Alive."',
-    '"Let your event take root."',
-    '"Rooted in planning. Flourishing in celebration."',
-    '"EventEcos: From Seed to Soirée."',
-  ]
-  const [taglineIndex, setTaglineIndex] = useState(0)
-  const [taglineFade, setTaglineFade] = useState(true)
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTaglineFade(false)
-      setTimeout(() => {
-        setTaglineIndex(i => (i + 1) % taglines.length)
-        setTaglineFade(true)
-      }, 400)
-    }, 4000)
-    return () => clearInterval(interval)
-  }, [])
+  const [businessMenu, setBusinessMenu] = useState(false)
 
   useEffect(() => {
     if (!loading && isAuthenticated && user) {
@@ -73,68 +53,63 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-white">
       {/* Navigation */}
-      <nav className="sticky top-0 z-50 bg-white md:bg-primary-600 border-b border-gray-200 md:border-primary-700 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-20 gap-2">
+      <nav className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
+        <div className="max-w-7xl 2xl:max-w-[1700px] mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-28 md:h-[7.5rem] gap-2">
 
             {/* Logo */}
             <Link href="/" className="flex items-center shrink-0">
-              <img src="/lib/EventEcos-Logo.jpg" alt="EventEcos" className="h-16 md:h-[70px] w-auto object-contain rounded" />
+              <img src="/lib/EventEcos-Logo.jpg" alt="EventEcos" className="h-24 md:h-[70px] lg:h-[105px] w-auto object-contain rounded" />
             </Link>
 
-            {/* Center Nav Links - desktop only */}
-            <div className="hidden md:flex items-center gap-2">
-              <Link href="/events" className="text-white hover:text-primary-100 font-medium text-sm border border-white/40 hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors">
-                Discover Events
-              </Link>
-              <Link href="/venues" className="text-white hover:text-primary-100 font-medium text-sm border border-white/40 hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors">
-                Find Venues
-              </Link>
-              <Link href="/vendors" className="text-white hover:text-primary-100 font-medium text-sm border border-white/40 hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors">
-                Find Vendors
-              </Link>
-              <Link href="#features" className="text-white hover:text-primary-100 font-medium text-sm border border-white/40 hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors">
-                Features
-              </Link>
-              <Link
-                href="/demo"
-                className="flex items-center gap-1.5 text-sm font-bold bg-white/20 hover:bg-white/30 text-white border border-white/50 hover:border-white/80 px-3 py-1.5 rounded-lg transition-colors"
+            {/* Center links - desktop */}
+            <div className="hidden md:flex items-center gap-1 lg:gap-3 text-[15px] font-medium text-gray-800">
+              <Link href="/events" className="rounded-lg px-3 py-2 hover:bg-gray-100">Events</Link>
+              <Link href="/venues" className="rounded-lg px-3 py-2 hover:bg-gray-100">Venues</Link>
+              <Link href="/vendors" className="rounded-lg px-3 py-2 hover:bg-gray-100">Vendors</Link>
+              <div
+                className="relative"
+                onMouseEnter={() => setBusinessMenu(true)}
+                onMouseLeave={() => setBusinessMenu(false)}
+                onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setBusinessMenu(false) }}
               >
-                <Sparkles className="h-3.5 w-3.5" />
-                Live Demo
-              </Link>
-              <button
-                type="button"
-                onClick={() => setShowDemoModal(true)}
-                className="text-sm font-bold bg-white text-primary-700 hover:bg-primary-50 px-3 py-1.5 rounded-lg transition-colors"
-              >
-                Book a Demo
-              </button>
+                <button
+                  type="button"
+                  aria-haspopup="menu"
+                  aria-expanded={businessMenu}
+                  onClick={() => setBusinessMenu(open => !open)}
+                  className="flex items-center gap-1 rounded-lg px-3 py-2 hover:bg-gray-100"
+                >
+                  For Business <ChevronDown className="h-4 w-4 text-gray-500" />
+                </button>
+                {businessMenu && (
+                  <div role="menu" className="absolute left-0 top-full z-50 w-64 pt-1">
+                    <div className="rounded-xl border border-gray-200 bg-white p-2 shadow-xl">
+                      <a role="menuitem" href="#features" onClick={() => setBusinessMenu(false)} className="block rounded-lg px-3 py-2.5 text-sm hover:bg-gray-50">Everything you need to succeed</a>
+                      <Link role="menuitem" href="/demo" className="block rounded-lg px-3 py-2.5 text-sm hover:bg-gray-50">Live demo</Link>
+                      <button role="menuitem" type="button" onClick={() => { setBusinessMenu(false); setShowDemoModal(true) }} className="block w-full rounded-lg px-3 py-2.5 text-left text-sm hover:bg-gray-50">Book a demo</button>
+                      <Link role="menuitem" href="https://eventecos.com/signup" className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-accent-700 hover:bg-accent-50">Start your free trial</Link>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <Link href="#pricing" className="rounded-lg px-3 py-2 hover:bg-gray-100">Pricing</Link>
             </div>
 
-            {/* Right CTA - desktop; phones use the Client Portal / Log in row and the menu */}
-            <div className="hidden md:flex items-center gap-2">
+            {/* Right actions - desktop; phones use the Client Portal / Log in row and the menu */}
+            <div className="hidden md:flex items-center gap-2 lg:gap-3">
               <Link
                 href="/client-login"
-                className="text-gray-700 md:text-white font-medium text-sm border border-gray-300 md:border-white/40 hover:border-gray-400 md:hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors"
+                className="rounded-lg border border-primary-500 px-4 py-2 text-sm font-semibold text-primary-600 transition-colors hover:bg-primary-50"
               >
                 Client Portal
               </Link>
-              <Link
-                href="#pricing"
-                className="text-gray-700 md:text-white font-medium text-sm border border-gray-300 md:border-white/40 hover:border-gray-400 md:hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors"
-              >
-                Pricing
-              </Link>
-              <Link
-                href="/login"
-                className="text-gray-700 md:text-white font-medium text-sm border border-gray-300 md:border-white/40 hover:border-gray-400 md:hover:border-white/70 px-3 py-1.5 rounded-lg transition-colors"
-              >
-                Login
+              <Link href="/login" className="rounded-lg px-3 py-2 text-sm font-semibold text-primary-600 hover:bg-primary-50">
+                Log in
               </Link>
               <Link
                 href="https://eventecos.com/signup"
-                className="bg-accent-500 hover:bg-accent-600 text-white font-semibold px-5 py-1.5 rounded-lg transition-colors text-sm whitespace-nowrap"
+                className="rounded-lg bg-accent-500 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-accent-600 whitespace-nowrap"
               >
                 Get Started
               </Link>
@@ -273,102 +248,109 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Tagline row */}
-      <div className="hidden md:block bg-accent-50 border-b border-accent-100 py-3 text-center">
-        <div
-          className="inline-flex items-center gap-2 text-accent-700 font-semibold text-sm transition-opacity duration-400"
-          style={{ opacity: taglineFade ? 1 : 0 }}
-        >
-          {taglines[taglineIndex]}
-        </div>
-      </div>
-
-      {/* Hero Section */}
-      <section className="hidden md:block bg-gradient-to-br from-accent-50 via-white to-primary-50 pt-20 pb-32 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            {/* Left Content */}
-            <div className="flex flex-col justify-center">
-              
-              <h1 className="text-5xl lg:text-6xl font-bold text-gray-900 mb-6 leading-tight">
-                Book more events. <span className="text-accent-500">Never double-book.</span> Stop chasing deposits.
+      {/* Desktop home: hero with photos, browse cards, business strip */}
+      <div className="hidden md:block">
+        <section className="bg-accent-50/70">
+          <div className="mx-auto grid max-w-7xl items-center gap-10 px-6 py-14 lg:grid-cols-[1.05fr_1fr] lg:px-8 lg:py-16">
+            <div>
+              <p className="text-sm font-bold uppercase tracking-[0.2em] text-primary-600">Go out. Get together.</p>
+              <h1 className="mt-5 text-5xl font-bold leading-[1.05] tracking-tight text-gray-900 lg:text-6xl xl:text-7xl">
+                Great experiences <span className="text-accent-500">start here.</span>
               </h1>
-              
-              <p className="text-xl text-gray-600 mb-4 max-w-lg">
-                EventEcos is the venue booking and event management platform for venue owners, event planners, and promoters. Streamline bookings, manage clients, and grow your business — all in one place.
-              </p>
-
-              <p className="text-base text-gray-500 mb-8 max-w-lg">
-                Plus a marketplace that sends you venue and vendor leads.
+              <p className="mt-6 max-w-xl text-xl leading-relaxed text-gray-600">
+                Discover events, find your perfect space, and bring your plans to life—all in one connected event ecosystem.
               </p>
             </div>
 
-            {/* Right - Logo + Visual */}
-            <div className="flex justify-center lg:justify-end">
-              <div className="relative w-full max-w-sm">
-                
-                {/* Feature Pills */}
-                <div className="space-y-3">
-                  <div className="bg-white rounded-2xl p-4 shadow-lg border border-gray-100 flex items-start gap-3">
-                    <Calendar className="h-5 w-5 text-accent-500 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-semibold text-gray-900 text-sm">Smart Scheduling</p>
-                      <p className="text-gray-600 text-xs">Never double-book again</p>
-                    </div>
+            {/* Photo collage */}
+            <div className="relative mx-auto h-[380px] w-full max-w-[640px] lg:h-[400px]">
+              <HomePhoto
+                file="hero-main.jpg"
+                alt="Friends laughing together at an evening event"
+                Icon={Ticket}
+                className="absolute left-0 top-2 h-[92%] w-[62%] -rotate-3 rounded-[2rem] shadow-2xl"
+              />
+              <HomePhoto
+                file="hero-venue.jpg"
+                alt="A decorated event venue with string lights"
+                Icon={MapPin}
+                className="absolute right-0 top-0 h-[52%] w-[40%] rotate-2 rounded-3xl shadow-xl ring-4 ring-white"
+              />
+              <HomePhoto
+                file="hero-chef.jpg"
+                alt="A chef plating food at an event"
+                Icon={Store}
+                className="absolute bottom-0 right-2 h-[44%] w-[40%] rounded-3xl shadow-xl ring-4 ring-white"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+          <ul className="grid grid-cols-3 gap-6">
+            {[
+              { href: '/events', title: 'Events', sub: 'Find your next outing', Icon: Ticket, file: 'card-events.jpg', tint: 'bg-primary-100 text-primary-600' },
+              { href: '/venues', title: 'Venues', sub: 'Find your perfect setting', Icon: MapPin, file: 'card-venues.jpg', tint: 'bg-accent-100 text-accent-700' },
+              { href: '/vendors', title: 'Vendors', sub: 'Find your event dream team', Icon: Users, file: 'card-vendors.jpg', tint: 'bg-purple-100 text-purple-600' },
+            ].map(({ href, title, sub, Icon, file, tint }) => (
+              <li key={href}>
+                <Link href={href} className="group block overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-md transition-shadow hover:shadow-xl">
+                  <HomePhoto file={file} alt="" Icon={Icon} className="h-36 lg:h-44" imgClassName="transition-transform duration-500 group-hover:scale-105" />
+                  <div className="flex items-center gap-4 p-4 lg:p-5">
+                    <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${tint}`}>
+                      <Icon className="h-6 w-6" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-lg font-bold text-gray-900">{title}</span>
+                      <span className="block text-sm text-gray-500">{sub}</span>
+                    </span>
+                    <ArrowRight className="h-5 w-5 shrink-0 text-gray-700 transition-transform group-hover:translate-x-1" />
                   </div>
-                  <div className="bg-white rounded-2xl p-4 shadow-lg border border-gray-100 flex items-start gap-3">
-                    <Users className="h-5 w-5 text-accent-500 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-semibold text-gray-900 text-sm">Client Management</p>
-                      <p className="text-gray-600 text-xs">Keep everyone in sync</p>
-                    </div>
-                  </div>
-                  <div className="bg-white rounded-2xl p-4 shadow-lg border border-gray-100 flex items-start gap-3">
-                    <Zap className="h-5 w-5 text-accent-500 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-semibold text-gray-900 text-sm">Promoter / Ticket Sales</p>
-                      <p className="text-gray-600 text-xs">Sell tickets & manage events</p>
-                    </div>
-                  </div>
-                  <div className="bg-white rounded-2xl p-4 shadow-lg border border-gray-100 flex items-start gap-3">
-                    <BarChart3 className="h-5 w-5 text-accent-500 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-semibold text-gray-900 text-sm">Real-time Analytics</p>
-                      <p className="text-gray-600 text-xs">Track revenue & bookings</p>
-                    </div>
-                  </div>
-                </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section className="mx-auto max-w-7xl px-6 pb-12 lg:px-8">
+          <div className="flex flex-col items-center gap-6 rounded-3xl bg-accent-50 px-8 py-7 lg:flex-row lg:justify-between">
+            <div className="flex items-center gap-5">
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-accent-100">
+                <BarChart3 className="h-7 w-7 text-accent-600" />
+              </span>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-gray-500">For event professionals</p>
+                <h2 className="mt-1 text-2xl font-bold text-gray-900 lg:text-3xl">Book more. Manage less. Grow together.</h2>
+                <p className="mt-1 text-gray-600">Bookings, clients, contracts, and payments—all in one place.</p>
               </div>
             </div>
+            <div className="flex shrink-0 flex-wrap items-center justify-center gap-3">
+              <Link
+                href="https://eventecos.com/signup"
+                className="inline-flex items-center gap-2 rounded-xl bg-accent-600 px-6 py-3.5 text-base font-bold text-white shadow-sm transition-colors hover:bg-accent-700"
+              >
+                Get Started for Your Business <ArrowRight className="h-5 w-5" />
+              </Link>
+              <a
+                href="https://demo.eventecos.com/demo"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-xl border-2 border-accent-600 bg-white px-6 py-3 text-base font-bold text-accent-700 transition-colors hover:bg-accent-50"
+              >
+                See Live Demo
+              </a>
+              <button
+                type="button"
+                onClick={() => setShowDemoModal(true)}
+                className="px-3 py-3 text-base font-semibold text-primary-600 underline underline-offset-4 hover:text-primary-700"
+              >
+                Book a Demo
+              </button>
+            </div>
           </div>
-
-          {/* CTA centered below both columns */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center mt-12">
-            <Link
-              href="https://eventecos.com/signup"
-              className="bg-accent-500 hover:bg-accent-600 text-white font-bold px-10 py-4 rounded-lg transition-colors flex items-center gap-2 text-lg shadow-lg hover:shadow-xl"
-            >
-              Get Started <ArrowRight className="h-5 w-5" />
-            </Link>
-            <a
-              href="https://demo.eventecos.com/demo"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="border-2 border-accent-500 text-accent-600 hover:bg-accent-50 font-bold px-10 py-4 rounded-lg transition-colors flex items-center gap-2 text-lg"
-            >
-              See Live Demo
-            </a>
-            <button
-              type="button"
-              onClick={() => setShowDemoModal(true)}
-              className="border-2 border-gray-300 text-gray-700 hover:bg-gray-50 font-bold px-10 py-4 rounded-lg transition-colors text-lg"
-            >
-              Book a Demo
-            </button>
-          </div>
-          <p className="text-center text-sm text-gray-500 mt-4">30-day free trial. No credit card required.</p>
-        </div>
-      </section>
+          <p className="mt-3 text-center text-sm text-gray-500">30-day free trial. No credit card required.</p>
+        </section>
+      </div>
 
       {/* Trust Signals */}
       <section className="py-10 px-4 sm:px-6 lg:px-8 bg-gray-50 border-y border-gray-100">

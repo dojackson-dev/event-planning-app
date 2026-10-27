@@ -62,3 +62,22 @@ body {
   }
 }
 
+/* Opening splash screen (components/SplashScreen.tsx) */
+@keyframes ee-splash-logo {
+  0%   { opacity: 0; transform: scale(0.94); }
+  25%  { opacity: 1; transform: scale(1); }
+  42%  { opacity: 1; transform: scale(1); }
+  76%, 100% { opacity: 0; transform: scale(0.3); }
+}
+@keyframes ee-splash-words {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.ee-splash-logo  { opacity: 0; animation: ee-splash-logo 2.6s ease-in-out forwards; }
+.ee-splash-words { opacity: 0; font-size: clamp(1rem, 4.6vw, 3.5rem); animation: ee-splash-words 0.9s ease-out 1.6s forwards; }
+
+/* Already seen this session, or the device asks for less motion: never paint it. */
+html.ee-splash-seen #ee-splash { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  #ee-splash { display: none; }
+}

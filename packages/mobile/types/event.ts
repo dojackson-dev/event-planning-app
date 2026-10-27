@@ -26,7 +26,7 @@ export type Event = {
   isFree?: boolean;
   hasVip?: boolean;
   /** Where this event came from. Defaults to the platform's own listings. */
-  source?: 'platform' | 'ticketmaster' | 'external';
+  source?: 'platform' | 'external';
   /** External ticketing/details URL, used when source is not 'platform'. */
   externalUrl?: string;
 };

@@ -13,6 +13,7 @@ import NonprofitBadge from '@/components/NonprofitBadge'
 import MonthPicker from '@/components/events/MonthPicker'
 import BottomSheet from '@/components/events/BottomSheet'
 import EventListingCard from '@/components/events/EventListingCard'
+import { searchPlaces } from '@/lib/places'
 
 interface TicketTier {
   id: string
@@ -329,31 +330,27 @@ export default function PublicEventsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [API_URL, category, radiusMiles, dateFilter, selectedMonth, search])
 
-  // City or ZIP typed into the location sheet.
+  // City or ZIP typed into the location sheet: suggestions appear from the second letter.
+  const sheetAbortRef = useRef<AbortController | null>(null)
   const onSheetQuery = (value: string) => {
     setSheetQuery(value)
     if (sheetDebounceRef.current) clearTimeout(sheetDebounceRef.current)
+    sheetAbortRef.current?.abort()
     const q = value.trim()
-    if (q.length < 3) { setSheetResults([]); setSheetLoading(false); return }
+    if (q.length < 2) { setSheetResults([]); setSheetLoading(false); return }
     setSheetLoading(true)
+    const controller = new AbortController()
+    sheetAbortRef.current = controller
     sheetDebounceRef.current = setTimeout(async () => {
       try {
-        const url = /^\d{5}$/.test(q)
-          ? `${API_URL}/vendors/geocode/zip?zip=${q}`
-          : `${API_URL}/vendors/geocode/autocomplete?q=${encodeURIComponent(q)}`
-        const res = await fetch(url)
-        if (res.ok) {
-          const data = await res.json()
-          setSheetResults(Array.isArray(data) ? data : [data])
-        } else {
-          setSheetResults([])
-        }
+        const found = await searchPlaces(q, controller.signal, 8)
+        if (!controller.signal.aborted) setSheetResults(found)
       } catch {
-        setSheetResults([])
+        // aborted by a newer keystroke, or offline
       } finally {
-        setSheetLoading(false)
+        if (!controller.signal.aborted) setSheetLoading(false)
       }
-    }, 300)
+    }, 150)
   }
 
   const closeLocationSheet = useCallback(() => {
@@ -962,15 +959,17 @@ export default function PublicEventsPage() {
             placeholder="City or ZIP code"
             aria-label="City or ZIP code"
             autoComplete="off"
+            autoCapitalize="words"
+            onKeyDown={e => { if (e.key === 'Enter' && sheetResults[0]) { e.preventDefault(); chooseLocation(sheetResults[0]) } }}
             className="w-full bg-transparent text-base text-gray-900 placeholder-gray-400 focus:outline-none"
           />
           {sheetLoading && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-gray-400" />}
         </label>
 
-        {sheetQuery.trim().length >= 3 ? (
+        {sheetQuery.trim().length >= 2 ? (
           <ul className="mt-3 space-y-2">
             {sheetResults.length === 0 && !sheetLoading && (
-              <li className="px-1 py-2 text-sm text-gray-500">No places found. Check the spelling or try a ZIP code.</li>
+              <li className="px-1 py-2 text-sm text-gray-500">No cities found. Check the spelling or try a ZIP code.</li>
             )}
             {sheetResults.map((p, i) => (
               <LocationRow key={`${p.zip}-${i}`} place={p} onPick={chooseLocation} />

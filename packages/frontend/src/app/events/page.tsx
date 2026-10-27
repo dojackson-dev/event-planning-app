@@ -3,10 +3,16 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
-import { MapPin, Calendar, Tag, Search, Filter, Loader2, Ticket, ExternalLink } from 'lucide-react'
+import {
+  MapPin, Search, Loader2, Tag, ChevronDown, ChevronRight, Crosshair, CalendarDays, Calendar,
+  LayoutGrid, Music, Laugh, Trophy, Palette, UtensilsCrossed, Users, Briefcase, PartyPopper, Wine, MoreHorizontal,
+  type LucideIcon,
+} from 'lucide-react'
 import DashboardReturnButton from '@/components/DashboardReturnButton'
 import NonprofitBadge from '@/components/NonprofitBadge'
 import MonthPicker from '@/components/events/MonthPicker'
+import BottomSheet from '@/components/events/BottomSheet'
+import EventListingCard from '@/components/events/EventListingCard'
 
 interface TicketTier {
   id: string
@@ -22,20 +28,6 @@ interface PromoterAccount {
   is_nonprofit?: boolean | null
   nonprofit_status?: string | null
   nonprofit_legal_name?: string | null
-}
-
-interface PredictHQEvent {
-  id: string
-  title: string
-  event_date: string
-  start_time: string | null
-  venue_name: string | null
-  city: string | null
-  state: string | null
-  category: string | null
-  phq_rank: number | null
-  predicthq_url: string
-  source: 'predicthq'
 }
 
 interface ExternalEvent {
@@ -88,10 +80,32 @@ interface PublicEvent {
   promoter_accounts: PromoterAccount | null
 }
 
-const EVENT_CATEGORIES = [
-  'Music', 'Comedy', 'Sports', 'Arts & Theater', 'Food & Drink',
-  'Networking', 'Conference', 'Festival', 'Club Night', 'Other',
+interface Place {
+  city: string
+  state: string
+  zip: string
+  lat?: number
+  lng?: number
+}
+
+type DateFilter = '' | 'today' | 'weekend' | 'week' | 'month'
+
+// The values are what the backend filters on; the icons are only for the picker.
+const EVENT_CATEGORIES: Array<{ value: string; icon: LucideIcon }> = [
+  { value: 'Music', icon: Music },
+  { value: 'Comedy', icon: Laugh },
+  { value: 'Sports', icon: Trophy },
+  { value: 'Arts & Theater', icon: Palette },
+  { value: 'Food & Drink', icon: UtensilsCrossed },
+  { value: 'Networking', icon: Users },
+  { value: 'Conference', icon: Briefcase },
+  { value: 'Festival', icon: PartyPopper },
+  { value: 'Club Night', icon: Wine },
+  { value: 'Other', icon: MoreHorizontal },
 ]
+
+const DISTANCES = ['5', '15', '30', '50', '100']
+const DEFAULT_RADIUS = '30'
 
 // Page sizes must match each backend endpoint's default page/limit size so
 // "did this page come back full" is a reliable signal for "there's more".
@@ -99,25 +113,32 @@ const EXT_PAGE_SIZE = 100
 const TEVO_PAGE_SIZE = 24
 const PLATFORM_PAGE_SIZE = 100
 
-// Street-map look for the "Use My Location" button, drawn inline so it needs no map service or image file.
-const MAP_BUTTON_BG = `url("data:image/svg+xml,${encodeURIComponent(
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 64" preserveAspectRatio="xMidYMid slice">
-    <rect width="160" height="64" fill="#2fae6a"/>
-    <rect x="96" y="5" width="42" height="24" rx="5" fill="#49c585"/>
-    <rect x="8" y="26" width="26" height="14" rx="3" fill="#41bd7d"/>
-    <path d="M-5 54 C28 40 58 64 100 49 S150 44 170 52" fill="none" stroke="#7fd0ee" stroke-width="6" opacity=".55"/>
-    <g stroke="#fff" fill="none" stroke-linecap="round">
-      <path d="M0 21H160M0 45H160" stroke-width="3" opacity=".28"/>
-      <path d="M41 0V64M89 0V64M131 0V64" stroke-width="3" opacity=".28"/>
-      <path d="M-4 6L70 70" stroke-width="2.5" opacity=".22"/>
-      <path d="M0 33H160M65 0V64M110 0V64" stroke-width="1.4" opacity=".14"/>
-    </g>
-  </svg>`
-)}")`
+const RECENTS_KEY = 'eventecos:recent-locations'
+const FAVORITES_KEY = 'eventecos:favorite-events'
+const MAX_RECENTS = 4
 
 // Live by default; set NEXT_PUBLIC_ENABLE_TICKET_EVOLUTION_EVENTS=false to hide the section.
 const ENABLE_TICKET_EVOLUTION_PUBLIC_EVENTS =
   process.env.NEXT_PUBLIC_ENABLE_TICKET_EVOLUTION_EVENTS !== 'false'
+
+const readStored = <T,>(key: string, fallback: T): T => {
+  try {
+    const raw = window.localStorage.getItem(key)
+    return raw ? (JSON.parse(raw) as T) : fallback
+  } catch {
+    return fallback
+  }
+}
+const writeStored = (key: string, value: unknown) => {
+  try { window.localStorage.setItem(key, JSON.stringify(value)) } catch { /* private mode: not saved */ }
+}
+
+const placeLabel = (p: { city: string; state: string }) => [p.city, p.state].filter(Boolean).join(', ')
+
+// ── Chips ──────────────────────────────────────────────────────────────────
+const chipBase = 'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-4 py-2 text-sm font-medium transition-colors'
+const chipIdle = 'border-gray-200 bg-white text-gray-800 hover:bg-gray-50'
+const chipActive = 'border-indigo-600 bg-indigo-600 text-white'
 
 export default function PublicEventsPage() {
   const [events, setEvents] = useState<PublicEvent[]>([])
@@ -140,34 +161,34 @@ export default function PublicEventsPage() {
   const [platformHasMore, setPlatformHasMore] = useState(false)
   const [platformLoadingMore, setPlatformLoadingMore] = useState(false)
   const [platformMoreError, setPlatformMoreError] = useState(false)
+
   const [zipCode, setZipCode] = useState('')
-  const [radiusMiles, setRadiusMiles] = useState('30')
+  const [locationName, setLocationName] = useState('')
+  const [radiusMiles, setRadiusMiles] = useState(DEFAULT_RADIUS)
   const [category, setCategory] = useState('')
   const [search, setSearch] = useState('')
   const [locating, setLocating] = useState(false)
   const [locationError, setLocationError] = useState('')
-  const [dateFilter, setDateFilter] = useState<'' | 'weekend' | 'week' | 'month'>('')
+  const [dateFilter, setDateFilter] = useState<DateFilter>('')
   const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7))
   const [showMonthPicker, setShowMonthPicker] = useState(false)
-  const [cityQuery, setCityQuery] = useState('')
-  const [citySuggestions, setCitySuggestions] = useState<Array<{ displayName: string; city: string; state: string; zip: string; lat: number; lng: number }>>([])
-  const [showCitySuggestions, setShowCitySuggestions] = useState(false)
-  const [cityLoading, setCityLoading] = useState(false)
-  const cityDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const cityBoxRef = useRef<HTMLDivElement>(null)
+
+  // Sheets
+  const [locationSheet, setLocationSheet] = useState(false)
+  const [filterSheet, setFilterSheet] = useState(false)
+  const [pendingRadius, setPendingRadius] = useState(DEFAULT_RADIUS)
+  const [pendingCategory, setPendingCategory] = useState('')
+  const [sheetQuery, setSheetQuery] = useState('')
+  const [sheetResults, setSheetResults] = useState<Place[]>([])
+  const [sheetLoading, setSheetLoading] = useState(false)
+  const [recents, setRecents] = useState<Place[]>([])
+  const [nearby, setNearby] = useState<Place[]>([])
+  const [favorites, setFavorites] = useState<string[]>([])
+  const sheetDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastSearchRef = useRef('')
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
-
-  // Close the city suggestions dropdown on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (cityBoxRef.current && !cityBoxRef.current.contains(e.target as Node)) {
-        setShowCitySuggestions(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
+  const cityOnly = locationName.split(',')[0]
 
   const matchesDateFilter = useCallback((eventDate: string) => {
     if (!dateFilter) return true
@@ -178,6 +199,7 @@ export default function PublicEventsPage() {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     if (d < today) return false
+    if (dateFilter === 'today') return d.getTime() === today.getTime()
     if (dateFilter === 'week') {
       const endOfWeek = new Date(today)
       endOfWeek.setDate(today.getDate() + (7 - today.getDay()))
@@ -197,7 +219,7 @@ export default function PublicEventsPage() {
   // The backend can only scope its "soonest upcoming" queries by an explicit
   // date range — filtering the already-fetched (capped) batch client-side
   // isn't enough once a busy near-term date crowds out a later month/week.
-  const computeDateRange = (filter: '' | 'weekend' | 'week' | 'month', month: string): { from?: string; to?: string } => {
+  const computeDateRange = (filter: DateFilter, month: string): { from?: string; to?: string } => {
     if (!filter) return {}
     const pad = (n: number) => String(n).padStart(2, '0')
     const fmtLocal = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
@@ -207,6 +229,7 @@ export default function PublicEventsPage() {
     }
     const today = new Date()
     today.setHours(0, 0, 0, 0)
+    if (filter === 'today') return { from: fmtLocal(today), to: fmtLocal(today) }
     if (filter === 'week') {
       const endOfWeek = new Date(today)
       endOfWeek.setDate(today.getDate() + (7 - today.getDay()))
@@ -221,49 +244,16 @@ export default function PublicEventsPage() {
     return { from: fmtLocal(saturday), to: fmtLocal(sunday) }
   }
 
-  const toggleDateFilter = (value: 'weekend' | 'week' | 'month') => {
-    if (value === 'month') {
-      const opening = dateFilter !== 'month'
-      setShowMonthPicker(prev => dateFilter === 'month' ? !prev : true)
-      setDateFilter('month')
-      if (opening) fetchEvents(zipCode, category, radiusMiles, computeDateRange('month', selectedMonth))
-      return
-    }
+  const pickDate = (value: DateFilter) => {
     setShowMonthPicker(false)
     const next = dateFilter === value ? '' : value
     setDateFilter(next)
-    fetchEvents(zipCode, category, radiusMiles, computeDateRange(next, selectedMonth))
+    fetchEvents(zipCode, category, radiusMiles, computeDateRange(next, selectedMonth), search)
   }
 
+  const toggleMonthPicker = () => setShowMonthPicker(open => !open)
 
-  const useMyLocation = useCallback(() => {
-    if (!navigator.geolocation) { setLocationError('Geolocation not supported.'); return }
-    setLocating(true)
-    setLocationError('')
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          const { latitude, longitude } = pos.coords
-          const res = await fetch(`${API_URL}/vendors/geocode/reverse?lat=${latitude}&lng=${longitude}`)
-          if (res.ok) {
-            const data = await res.json()
-            if (data?.zip) {
-              setZipCode(data.zip)
-              setCityQuery([data.city, data.state].filter(Boolean).join(', '))
-              fetchEvents(data.zip, category, radiusMiles, computeDateRange(dateFilter, selectedMonth))
-            }
-          }
-        } catch {
-          setLocationError('Could not determine your location.')
-        } finally {
-          setLocating(false)
-        }
-      },
-      () => { setLocating(false); setLocationError('Location access denied. Enter a city instead.') },
-      { timeout: 10000 },
-    )
-  }, [API_URL, category, radiusMiles, dateFilter, selectedMonth])
-
+  // ── Location ─────────────────────────────────────────────────────────────
   // Resolve a zip code for a suggestion that has coordinates but no postcode
   // (common for large-city Nominatim results) via reverse geocoding.
   const resolveZipFromCoords = async (lat: number, lng: number) => {
@@ -279,42 +269,123 @@ export default function PublicEventsPage() {
     return ''
   }
 
-  const fetchCitySuggestions = useCallback(async (query: string) => {
-    if (query.trim().length < 3) {
-      setCitySuggestions([])
-      setShowCitySuggestions(false)
-      return
-    }
-    setCityLoading(true)
-    try {
-      const res = await fetch(`${API_URL}/vendors/geocode/autocomplete?q=${encodeURIComponent(query)}`)
-      if (res.ok) {
-        const data = await res.json()
-        setCitySuggestions(data)
-        setShowCitySuggestions(data.length > 0)
+  const saveRecent = (place: Place) => {
+    setRecents(prev => {
+      const next = [place, ...prev.filter(p => p.zip !== place.zip)].slice(0, MAX_RECENTS)
+      writeStored(RECENTS_KEY, next)
+      return next
+    })
+  }
+
+  const chooseLocation = async (picked: Place) => {
+    let place = picked
+    const zip = picked.zip || (picked.lat !== undefined && picked.lng !== undefined
+      ? await resolveZipFromCoords(picked.lat, picked.lng)
+      : '')
+    if (zip) {
+      // Canonical "City, ST" naming (autocomplete returns the full state name).
+      try {
+        const res = await fetch(`${API_URL}/vendors/geocode/zip?zip=${zip}`)
+        if (res.ok) {
+          const z = await res.json()
+          place = { city: z.city, state: z.state, zip, lat: z.lat, lng: z.lng }
+        } else {
+          place = { ...picked, zip }
+        }
+      } catch {
+        place = { ...picked, zip }
       }
-    } catch {
-      // silently fail — user can still press Search without picking a suggestion
-    } finally {
-      setCityLoading(false)
+      saveRecent(place)
     }
-  }, [API_URL])
-
-  const handleCityInputChange = (val: string) => {
-    setCityQuery(val)
-    if (cityDebounceRef.current) clearTimeout(cityDebounceRef.current)
-    cityDebounceRef.current = setTimeout(() => fetchCitySuggestions(val), 350)
+    setZipCode(zip)
+    setLocationName(placeLabel(place))
+    setLocationError('')
+    setLocationSheet(false)
+    fetchEvents(zip, category, radiusMiles, computeDateRange(dateFilter, selectedMonth), search)
   }
 
-  const handleCitySelect = async (s: { city: string; state: string; zip: string; lat: number; lng: number }) => {
-    setShowCitySuggestions(false)
-    setCitySuggestions([])
-    setCityQuery([s.city, s.state].filter(Boolean).join(', '))
-    const resolvedZip = s.zip || await resolveZipFromCoords(s.lat, s.lng)
-    setZipCode(resolvedZip)
-    fetchEvents(resolvedZip, category, radiusMiles, computeDateRange(dateFilter, selectedMonth))
+  const useMyLocation = useCallback(() => {
+    if (!navigator.geolocation) { setLocationError('Geolocation not supported.'); return }
+    setLocating(true)
+    setLocationError('')
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords
+          const res = await fetch(`${API_URL}/vendors/geocode/reverse?lat=${latitude}&lng=${longitude}`)
+          if (res.ok) {
+            const data = await res.json()
+            if (data?.zip) await chooseLocation({ city: data.city, state: data.state, zip: data.zip })
+          }
+        } catch {
+          setLocationError('Could not determine your location.')
+        } finally {
+          setLocating(false)
+        }
+      },
+      () => { setLocating(false); setLocationError('Location access denied. Choose a city instead.') },
+      { timeout: 10000 },
+    )
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [API_URL, category, radiusMiles, dateFilter, selectedMonth, search])
+
+  // City or ZIP typed into the location sheet.
+  const onSheetQuery = (value: string) => {
+    setSheetQuery(value)
+    if (sheetDebounceRef.current) clearTimeout(sheetDebounceRef.current)
+    const q = value.trim()
+    if (q.length < 3) { setSheetResults([]); setSheetLoading(false); return }
+    setSheetLoading(true)
+    sheetDebounceRef.current = setTimeout(async () => {
+      try {
+        const url = /^\d{5}$/.test(q)
+          ? `${API_URL}/vendors/geocode/zip?zip=${q}`
+          : `${API_URL}/vendors/geocode/autocomplete?q=${encodeURIComponent(q)}`
+        const res = await fetch(url)
+        if (res.ok) {
+          const data = await res.json()
+          setSheetResults(Array.isArray(data) ? data : [data])
+        } else {
+          setSheetResults([])
+        }
+      } catch {
+        setSheetResults([])
+      } finally {
+        setSheetLoading(false)
+      }
+    }, 300)
   }
 
+  const closeLocationSheet = useCallback(() => {
+    setLocationSheet(false)
+    setSheetQuery('')
+    setSheetResults([])
+  }, [])
+
+  // ── Filters sheet ────────────────────────────────────────────────────────
+  const openFilterSheet = () => {
+    setPendingRadius(radiusMiles)
+    setPendingCategory(category)
+    setFilterSheet(true)
+  }
+  const applyFilters = () => {
+    setRadiusMiles(pendingRadius)
+    setCategory(pendingCategory)
+    setFilterSheet(false)
+    fetchEvents(zipCode, pendingCategory, pendingRadius, computeDateRange(dateFilter, selectedMonth), search)
+  }
+  const closeFilterSheet = useCallback(() => setFilterSheet(false), [])
+
+  // ── Favorites (kept on this device) ──────────────────────────────────────
+  const toggleFavorite = (id: string) => {
+    setFavorites(prev => {
+      const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+      writeStored(FAVORITES_KEY, next)
+      return next
+    })
+  }
+
+  // ── Data ─────────────────────────────────────────────────────────────────
   const fetchEvents = (zip?: string, cat?: string, radius?: string, dateRange?: { from?: string; to?: string }, searchTerm?: string) => {
     setLoading(true)
     setExtLoading(true)
@@ -444,34 +515,47 @@ export default function PublicEventsPage() {
     }
   }
 
-  useEffect(() => { fetchEvents() }, [])
-
-
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault()
-    let zip = zipCode
-    // If the user typed a city but hit Search without picking a dropdown
-    // suggestion, resolve the typed text to a zip before searching.
-    if (cityQuery.trim()) {
-      const match = citySuggestions[0] || (await (async () => {
-        try {
-          const res = await fetch(`${API_URL}/vendors/geocode/autocomplete?q=${encodeURIComponent(cityQuery.trim())}`)
-          if (res.ok) {
-            const data = await res.json()
-            return data[0]
-          }
-        } catch {
-          // ignore — fall back to whatever zip is already set
-        }
-        return undefined
-      })())
-      if (match) {
-        zip = match.zip || await resolveZipFromCoords(match.lat, match.lng)
-        setZipCode(zip)
-      }
+  // First load: bring back the last place this device searched, if any.
+  useEffect(() => {
+    const saved = readStored<Place[]>(RECENTS_KEY, [])
+    setRecents(saved)
+    setFavorites(readStored<string[]>(FAVORITES_KEY, []))
+    if (saved[0]?.zip) {
+      setZipCode(saved[0].zip)
+      setLocationName(placeLabel(saved[0]))
+      fetchEvents(saved[0].zip)
+    } else {
+      fetchEvents()
     }
-    setShowCitySuggestions(false)
-    fetchEvents(zip, category, radiusMiles, computeDateRange(dateFilter, selectedMonth), search)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // "Near <city>" suggestions for the location sheet.
+  useEffect(() => {
+    if (!zipCode) { setNearby([]); return }
+    let cancelled = false
+    fetch(`${API_URL}/vendors/geocode/nearby?zip=${zipCode}&miles=25&limit=6`)
+      .then(res => (res.ok ? res.json() : []))
+      .then(data => { if (!cancelled) setNearby(Array.isArray(data) ? data : []) })
+      .catch(() => { if (!cancelled) setNearby([]) })
+    return () => { cancelled = true }
+  }, [API_URL, zipCode])
+
+  // Search as you type.
+  useEffect(() => {
+    if (search === lastSearchRef.current) return
+    const timer = setTimeout(() => {
+      lastSearchRef.current = search
+      fetchEvents(zipCode, category, radiusMiles, computeDateRange(dateFilter, selectedMonth), search)
+    }, 450)
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search])
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    lastSearchRef.current = search
+    fetchEvents(zipCode, category, radiusMiles, computeDateRange(dateFilter, selectedMonth), search)
   }
 
   const matchesSearch = useCallback((ev: { title: string; city: string | null; venue_name: string | null }) =>
@@ -479,23 +563,59 @@ export default function PublicEventsPage() {
     ev.city?.toLowerCase().includes(search.toLowerCase()) ||
     ev.venue_name?.toLowerCase().includes(search.toLowerCase()), [search])
 
-  const filtered = events.filter(e => matchesDateFilter(e.event_date) && matchesSearch(e))
-  const filteredTevoEvents = useMemo(
-    () => tevoEvents.filter(ev => matchesDateFilter(ev.event_date) && matchesSearch(ev)),
-    [tevoEvents, matchesDateFilter, matchesSearch],
-  )
-  const filteredExtEvents = useMemo(
-    () => extEvents.filter(ev => matchesDateFilter(ev.event_date) && matchesSearch(ev)),
-    [extEvents, matchesDateFilter, matchesSearch],
-  )
-  // A source's raw fetch had events, but the active date/search filter excluded all of them —
-  // used to show a helpful message instead of an orphaned section header over a blank grid.
   const monthLabel = dateFilter === 'month'
     ? new Date(selectedMonth + '-01T00:00:00').toLocaleString('default', { month: 'long', year: 'numeric' })
     : 'this range'
 
+  // "Events near you": listings created on EventEcos, soonest first.
+  const feed = useMemo(() => {
+    const own = events
+      .filter(e => matchesDateFilter(e.event_date) && matchesSearch(e))
+      .map(ev => {
+        const minPrice = ev.ticket_tiers.length > 0 ? Math.min(...ev.ticket_tiers.map(t => Number(t.price))) : null
+        const soldOut = ev.ticket_tiers.length > 0 && ev.ticket_tiers.every(t => t.quantity_sold >= t.quantity)
+        return {
+          id: `own:${ev.id}`,
+          date: ev.event_date,
+          time: ev.start_time,
+          title: ev.title,
+          venue: ev.venue_name,
+          city: ev.city,
+          state: ev.state,
+          imageUrl: ev.image_url,
+          price: soldOut ? 'Sold out' : minPrice === null ? null : minPrice === 0 ? 'Free' : `$${minPrice.toFixed(0)}`,
+          priceTone: soldOut ? ('danger' as const) : ('normal' as const),
+          href: `/events/${ev.id}`,
+          external: false,
+          badges: (
+            <>
+              {ev.age_restriction && (
+                <span className="rounded bg-black/70 px-2 py-0.5 text-xs font-bold text-white">{ev.age_restriction}</span>
+              )}
+              <NonprofitBadge promoter={ev.promoter_accounts} className="bg-white/90" />
+            </>
+          ),
+        }
+      })
+    return own.sort((a, b) =>
+      `${a.date ?? ''}${a.time ?? ''}`.localeCompare(`${b.date ?? ''}${b.time ?? ''}`))
+  }, [events, matchesDateFilter, matchesSearch])
+
+  const filteredTevoEvents = useMemo(
+    () => tevoEvents.filter(ev => matchesDateFilter(ev.event_date) && matchesSearch(ev)),
+    [tevoEvents, matchesDateFilter, matchesSearch],
+  )
+
+  const filteredExtEvents = useMemo(
+    () => extEvents.filter(ev => matchesDateFilter(ev.event_date) && matchesSearch(ev)),
+    [extEvents, matchesDateFilter, matchesSearch],
+  )
+
+  // Nothing of ours to show, but local listings or Big Events will fill the page.
+  const otherSectionsHaveEvents = extEvents.length > 0 || tevoEvents.length > 0 || extLoading || tevoLoading
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white">
       {/* Nav */}
       <nav className="sticky top-0 z-50 bg-white border-b-4 border-primary-600 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -522,137 +642,91 @@ export default function PublicEventsPage() {
         </div>
       </nav>
 
-      {/* Banner */}
-      <div className="relative w-full h-56 md:h-72 overflow-hidden">
-        <img src="/lib/Events-Banner.jpg" alt="Explore Events" className="w-full h-full object-cover" />
-      </div>
+      <main className="mx-auto max-w-5xl px-4 pb-16 pt-8">
+        {/* 1. Discover */}
+        <section className="mx-auto max-w-2xl">
+          <h1 className="text-center text-3xl font-bold tracking-tight text-gray-900">Find your next outing</h1>
 
-      {/* Search Header */}
-      <div className="bg-blue-500 text-white">
-        <div className="max-w-6xl mx-auto px-4 py-8 text-center">
-          <p className="text-blue-200 text-lg">Find and buy tickets to events near you</p>
-
-          {/* Search / Filter */}
-          <div className="flex justify-center mt-4 mb-2">
+          <div className="mt-3 flex items-center justify-center gap-3">
+            <p className="flex min-w-0 items-center gap-2 text-gray-800">
+              <MapPin className="h-5 w-5 shrink-0 text-gray-500" />
+              <span className="truncate font-medium">{locationName || 'Choose a location'}</span>
+            </p>
             <button
               type="button"
-              onClick={useMyLocation}
-              disabled={locating}
-              style={{ backgroundColor: '#2fae6a', backgroundImage: MAP_BUTTON_BG, backgroundSize: 'cover', backgroundPosition: 'center' }}
-              className="px-5 py-2.5 rounded-lg text-white shadow-md ring-1 ring-white/30 hover:brightness-95 disabled:opacity-50 transition text-sm font-semibold [text-shadow:0_1px_2px_rgba(0,0,0,0.35)]"
+              onClick={() => setLocationSheet(true)}
+              className="shrink-0 text-sm font-medium text-blue-600 underline underline-offset-2 hover:text-blue-700"
             >
-              {locating ? 'Locating...' : '📍 Use My Location'}
+              Change
             </button>
           </div>
-          <form onSubmit={handleSearch} className="mt-2 bg-white rounded-2xl p-2 flex flex-col lg:flex-row lg:items-center gap-2 max-w-2xl lg:max-w-5xl mx-auto">
-            <div className="flex items-center gap-2 flex-1 lg:min-w-[12rem] px-3 lg:border-r border-gray-200">
-              <Search className="w-4 h-4 text-gray-400 shrink-0" />
-              <input value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Search events..."
-                className="w-full text-base lg:text-sm text-gray-800 placeholder-gray-400 focus:outline-none" />
-            </div>
-            <div ref={cityBoxRef} className="relative flex items-center gap-2 px-3 shrink-0 lg:border-r border-gray-200">
-              <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
-              <input value={cityQuery} onChange={e => handleCityInputChange(e.target.value)}
-                onFocus={() => citySuggestions.length > 0 && setShowCitySuggestions(true)}
-                placeholder="City"
-                autoComplete="off"
-                title={cityQuery}
-                className="flex-1 min-w-0 lg:flex-none lg:w-56 text-base lg:text-sm text-ellipsis text-gray-800 placeholder-gray-400 focus:outline-none" />
-              {cityLoading && <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin shrink-0" />}
-              {showCitySuggestions && citySuggestions.length > 0 && (
-                <ul className="absolute left-0 top-full mt-1 w-64 max-h-60 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg z-50 text-left">
-                  {citySuggestions.map((s, i) => (
-                    <li key={i}>
-                      <button type="button" onMouseDown={() => handleCitySelect(s)}
-                        className="w-full flex items-start gap-2 px-3 py-2 text-left hover:bg-purple-50 transition-colors">
-                        <MapPin className="w-3.5 h-3.5 text-purple-500 mt-0.5 shrink-0" />
-                        <span className="text-sm text-gray-800">{[s.city, s.state].filter(Boolean).join(', ')}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-            <div className="flex items-center gap-2 px-3 shrink-0 lg:border-r border-gray-200">
-              <select value={radiusMiles} onChange={e => setRadiusMiles(e.target.value)}
-                className="text-base lg:text-sm text-gray-800 focus:outline-none bg-transparent">
-                <option value="10">10 miles</option>
-                <option value="25">25 miles</option>
-                <option value="30">30 miles</option>
-                <option value="50">50 miles</option>
-                <option value="75">75 miles</option>
-                <option value="100">100 miles</option>
-              </select>
-            </div>
-            <div className="flex items-center gap-2 px-3 shrink-0">
-              <Filter className="w-4 h-4 text-gray-400 shrink-0" />
-              <select value={category} onChange={e => setCategory(e.target.value)}
-                className="text-base lg:text-sm text-gray-800 focus:outline-none bg-transparent">
-                <option value="">All categories</option>
-                {EVENT_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            <button type="submit"
-              className="shrink-0 bg-purple-800 text-white text-sm font-medium px-5 py-2.5 rounded-xl hover:bg-purple-900">
-              Search
-            </button>
-          </form>
-          {locationError && <p className="text-red-300 text-sm mt-2">{locationError}</p>}
 
-          {/* Quick date navigation — designed for phone-screen use */}
-          <div className="mt-4 max-w-2xl mx-auto">
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:justify-center sm:overflow-visible">
-              <button
-                type="button"
-                onClick={() => toggleDateFilter('weekend')}
-                className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
-                  dateFilter === 'weekend'
-                    ? 'bg-white text-blue-700 border-white'
-                    : 'bg-blue-600/40 text-white border-blue-300 hover:bg-blue-600/60'
-                }`}
-              >
-                This Weekend
+          <button
+            type="button"
+            onClick={useMyLocation}
+            disabled={locating}
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-blue-500 bg-white px-4 py-3 text-base font-medium text-blue-700 transition-colors hover:bg-blue-50 disabled:opacity-60"
+          >
+            {locating ? <Loader2 className="h-5 w-5 animate-spin" /> : <Crosshair className="h-5 w-5" />}
+            {locating ? 'Locating…' : 'Use my location'}
+          </button>
+          {locationError && <p role="alert" className="mt-2 text-sm text-red-600">{locationError}</p>}
+
+          <form role="search" onSubmit={handleSearchSubmit} className="mt-4">
+            <label className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus-within:border-indigo-400 focus-within:bg-white">
+              <Search className="h-5 w-5 shrink-0 text-gray-400" />
+              <input
+                type="search"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search events or artists"
+                aria-label="Search events or artists"
+                className="w-full bg-transparent text-base text-gray-900 placeholder-gray-400 focus:outline-none"
+              />
+            </label>
+          </form>
+
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+            <button type="button" onClick={openFilterSheet} className={`${chipBase} ${chipIdle}`}>
+              <MapPin className="h-4 w-4 text-gray-600" />
+              {radiusMiles} miles
+              <ChevronDown className="h-4 w-4 text-gray-500" />
+            </button>
+            <button type="button" onClick={openFilterSheet} className={`${chipBase} ${category ? 'border-indigo-300 bg-indigo-50 text-indigo-800' : chipIdle}`}>
+              <Tag className="h-4 w-4" />
+              {category || 'Category'}
+              <ChevronDown className="h-4 w-4 opacity-60" />
+            </button>
+          </div>
+
+          <div className="relative mt-3">
+            <div role="group" aria-label="When" className="flex items-center justify-center gap-2 overflow-x-auto pb-1">
+              <button type="button" aria-pressed={dateFilter === ''} onClick={() => pickDate('')} className={`${chipBase} ${dateFilter === '' ? chipActive : chipIdle}`}>
+                Anytime
+              </button>
+              <button type="button" aria-pressed={dateFilter === 'today'} onClick={() => pickDate('today')} className={`${chipBase} ${dateFilter === 'today' ? chipActive : chipIdle}`}>
+                Today
+              </button>
+              <button type="button" aria-pressed={dateFilter === 'weekend'} onClick={() => pickDate('weekend')} className={`${chipBase} ${dateFilter === 'weekend' ? chipActive : chipIdle}`}>
+                Weekend
               </button>
               <button
                 type="button"
-                onClick={() => toggleDateFilter('week')}
-                className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
-                  dateFilter === 'week'
-                    ? 'bg-white text-blue-700 border-white'
-                    : 'bg-blue-600/40 text-white border-blue-300 hover:bg-blue-600/60'
-                }`}
-              >
-                This Week
-              </button>
-              <button
-                type="button"
-                onClick={() => toggleDateFilter('month')}
                 data-month-picker-toggle
                 aria-haspopup="dialog"
                 aria-expanded={showMonthPicker}
-                className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
-                  dateFilter === 'month'
-                    ? 'bg-white text-blue-700 border-white'
-                    : 'bg-blue-600/40 text-white border-blue-300 hover:bg-blue-600/60'
-                }`}
+                aria-label={dateFilter === 'month' ? `Month: ${monthLabel}. Change month` : 'Pick a month'}
+                onClick={toggleMonthPicker}
+                className={`${chipBase} ${dateFilter === 'month' ? chipActive : chipIdle}`}
               >
-                {dateFilter === 'month'
-                  ? new Date(selectedMonth + '-01T00:00:00').toLocaleString('default', { month: 'long', year: 'numeric' })
-                  : 'Select Month'}
+                <CalendarDays className="h-4 w-4" />
+                {dateFilter === 'month' && (
+                  <span>{new Date(selectedMonth + '-01T00:00:00').toLocaleString('default', { month: 'short', year: 'numeric' })}</span>
+                )}
               </button>
-              {dateFilter && (
-                <button
-                  type="button"
-                  onClick={() => { setDateFilter(''); setShowMonthPicker(false); fetchEvents(zipCode, category, radiusMiles, {}) }}
-                  className="shrink-0 px-3 py-2 rounded-full text-sm font-medium text-blue-100 hover:text-white underline underline-offset-2"
-                >
-                  Clear
-                </button>
-              )}
             </div>
             {showMonthPicker && (
-              <div className="mt-2 flex justify-center">
+              <div className="absolute left-1/2 top-full z-30 mt-2 -translate-x-1/2">
                 <MonthPicker
                   value={selectedMonth}
                   onClose={() => setShowMonthPicker(false)}
@@ -660,347 +734,172 @@ export default function PublicEventsPage() {
                     setSelectedMonth(month)
                     setDateFilter('month')
                     setShowMonthPicker(false)
-                    fetchEvents(zipCode, category, radiusMiles, computeDateRange('month', month))
+                    fetchEvents(zipCode, category, radiusMiles, computeDateRange('month', month), search)
                   }}
                 />
               </div>
             )}
           </div>
-        </div>
-      </div>
+        </section>
 
-      {/* Events grid */}
-      <div className="max-w-6xl mx-auto px-4 py-10">
-        {loading ? (
-          <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-purple-500" /></div>
-        ) : filtered.length === 0 ? (
-          // Only show the empty state once external/TEvo events
-          // have also finished loading and turned up nothing — if any of
-          // those sources has events, skip straight to their sections below
-          // instead of telling the user "No events found".
-          !extLoading &&
-          (!ENABLE_TICKET_EVOLUTION_PUBLIC_EVENTS || !tevoLoading) &&
-          extEvents.length === 0 &&
-          (!ENABLE_TICKET_EVOLUTION_PUBLIC_EVENTS || tevoEvents.length === 0) ? (
-            <div className="text-center py-20">
-              <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+        {/* Events near you */}
+        <section className="mt-8" aria-labelledby="near-you">
+          <h2 id="near-you" className="text-center text-2xl font-bold text-gray-900">{zipCode ? 'Events near you' : 'Upcoming events'}</h2>
+          {zipCode && <p className="mt-0.5 text-center text-sm text-gray-500">Within {radiusMiles} miles of {cityOnly}</p>}
+
+          {loading ? (
+            <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-indigo-400" /></div>
+          ) : feed.length === 0 ? (
+            otherSectionsHaveEvents ? (
+              <p className="py-6 text-center text-sm text-gray-500">No events listed on EventEcos for this search yet. More are below.</p>
+            ) : (
+            <div className="py-14 text-center">
+              <Calendar className="mx-auto mb-3 h-12 w-12 text-gray-300" />
               <p className="text-xl font-semibold text-gray-600">No events found</p>
-              <p className="text-gray-400 mt-1">Try adjusting the search or check back later</p>
+              <p className="mt-1 text-gray-400">
+                {dateFilter ? `Nothing for ${dateFilter === 'month' ? monthLabel : dateFilter === 'today' ? 'today' : 'this range'}. ` : ''}
+                Try a bigger distance, another date, or a different place.
+              </p>
             </div>
-          ) : null
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filtered.map(ev => {
-              const dateObj = new Date(ev.event_date + 'T00:00:00')
-              const minPrice = ev.ticket_tiers.length > 0
-                ? Math.min(...ev.ticket_tiers.map(t => Number(t.price)))
-                : null
-              const isSoldOut = ev.ticket_tiers.length > 0 &&
-                ev.ticket_tiers.every(t => t.quantity_sold >= t.quantity)
-              const promoterName = ev.promoter_accounts?.company_name || ev.promoter_accounts?.contact_name
-
-              return (
-                <Link key={ev.id} href={`/events/${ev.id}`}
-                  className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-md hover:border-purple-200 transition-all group">
-                  {/* Cover image */}
-                  <div className="h-44 bg-gradient-to-br from-purple-100 to-pink-100 relative overflow-hidden">
-                    {ev.image_url ? (
-                      <img src={ev.image_url} alt={ev.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                    ) : (
-                      <div className="flex items-center justify-center h-full">
-                        <Calendar className="w-12 h-12 text-purple-300" />
-                      </div>
-                    )}
-                    {ev.age_restriction && (
-                      <span className="absolute top-2 right-2 bg-black/70 text-white text-xs font-bold px-2 py-0.5 rounded">
-                        {ev.age_restriction}
-                      </span>
-                    )}
-                    <NonprofitBadge promoter={ev.promoter_accounts} className="absolute top-2 left-2 max-w-[70%] bg-white/90" />
-                  </div>
-
-                  <div className="p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      {/* Date badge */}
-                      <div className="text-center bg-purple-50 border border-purple-100 rounded-lg px-2.5 py-1.5 min-w-[44px] shrink-0">
-                        <p className="text-xs font-medium text-purple-500 uppercase leading-none">
-                          {dateObj.toLocaleString('default', { month: 'short' })}
-                        </p>
-                        <p className="text-lg font-bold text-purple-700 leading-none mt-0.5">{dateObj.getDate()}</p>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-gray-900 truncate">{ev.title}</h3>
-                        {(ev.venue_name || ev.city) && (
-                          <p className="flex items-center gap-1 text-xs text-gray-500 mt-0.5 truncate">
-                            <MapPin className="w-3 h-3 shrink-0" />
-                            {ev.venue_name ? `${ev.venue_name}${ev.city ? ', ' + ev.city : ''}` : ev.city}
-                            {ev.state ? `, ${ev.state}` : ''}
-                          </p>
-                        )}
-                        {ev.start_time && (
-                          <p className="text-xs text-gray-400 mt-0.5">{ev.start_time}</p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-                      <div className="flex items-center gap-2">
-                        {ev.category && (
-                          <span className="flex items-center gap-1 text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">
-                            <Tag className="w-2.5 h-2.5" />{ev.category}
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-right">
-                        {isSoldOut ? (
-                          <span className="text-xs font-bold text-red-500">Sold Out</span>
-                        ) : minPrice !== null ? (
-                          <span className="text-sm font-bold text-gray-900">
-                            {minPrice === 0 ? 'Free' : `From $${minPrice.toFixed(2)}`}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-gray-400"><Ticket className="inline w-3 h-3 mr-0.5" />No tickets</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {promoterName && (
-                      <p className="text-xs text-gray-400 mt-2">By {promoterName}</p>
-                    )}
-                  </div>
-                </Link>
-              )
-            })}
-          </div>
-        )}
-        {!loading && platformHasMore && (
-          <div className="flex justify-center mt-6">
-            <button
-              type="button"
-              onClick={loadMorePlatformEvents}
-              disabled={platformLoadingMore}
-              className="px-5 py-2 rounded-full text-sm font-medium border border-purple-300 text-purple-700 hover:bg-purple-50 disabled:opacity-50 transition-colors inline-flex items-center gap-2"
-            >
-              {platformLoadingMore && <Loader2 className="w-4 h-4 animate-spin" />}
-              Load More Events
-            </button>
-          </div>
-        )}
-        {platformMoreError && <p role="alert" className="text-center text-sm text-red-600 mt-2">Could not load more platform events. Try again.</p>}
-      </div>
-
-      {/* ── Ticket Evolution Events ──────────────────────────────── */}
-      {ENABLE_TICKET_EVOLUTION_PUBLIC_EVENTS && (tevoLoading || tevoEvents.length > 0) && (
-        <div className="max-w-6xl mx-auto px-4 pb-10">
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">Big Events, Great Seats</h2>
-            </div>
-          </div>
-
-          {tevoLoading ? (
-            <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-purple-400" /></div>
-          ) : filteredTevoEvents.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-8">No events found for {monthLabel}.</p>
+            )
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredTevoEvents
-                .map(ev => {
-                  const dateObj = ev.event_date ? new Date(ev.event_date + 'T00:00:00') : null
-                  const card = (
-                    <>
-                      <div className="h-44 bg-gradient-to-br from-purple-100 to-fuchsia-100 relative overflow-hidden flex items-center justify-center">
-                        {ev.image_url ? (
-                          <img src={ev.image_url} alt={ev.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                        ) : (
-                          <Ticket className="w-12 h-12 text-purple-300" />
-                        )}
-                      </div>
-
-                      <div className="p-4">
-                        <div className="flex items-start justify-between gap-2">
-                          {dateObj && (
-                            <div className="text-center bg-purple-50 border border-purple-100 rounded-lg px-2.5 py-1.5 min-w-[44px] shrink-0">
-                              <p className="text-xs font-medium text-purple-500 uppercase leading-none">
-                                {dateObj.toLocaleString('default', { month: 'short' })}
-                              </p>
-                              <p className="text-lg font-bold text-purple-700 leading-none mt-0.5">{dateObj.getDate()}</p>
-                            </div>
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-bold text-gray-900 truncate">{ev.title}</h3>
-                            {(ev.venue_name || ev.city) && (
-                              <p className="flex items-center gap-1 text-xs text-gray-500 mt-0.5 truncate">
-                                <MapPin className="w-3 h-3 shrink-0" />
-                                {ev.venue_name ? `${ev.venue_name}${ev.city ? ', ' + ev.city : ''}` : ev.city}
-                                {ev.state ? `, ${ev.state}` : ''}
-                              </p>
-                            )}
-                            {ev.start_time && (
-                              <p className="text-xs text-gray-400 mt-0.5">{ev.start_time}</p>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-                          <div>
-                            {ev.category && (
-                              <span className="flex items-center gap-1 text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">
-                                <Tag className="w-2.5 h-2.5" />{ev.category}
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-xs text-gray-400 flex items-center gap-1">
-                            See seats &amp; tickets →
-                          </span>
-                        </div>
-                      </div>
-                    </>
-                  )
-                  return (
-                    <Link
-                      key={ev.id}
-                      href={`/events/tickets/${ev.id}`}
-                      className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-md hover:border-purple-200 transition-all group block"
-                    >
-                      {card}
-                    </Link>
-                  )
-                })}
+            <div className="mt-4 flex flex-wrap justify-center gap-5 [&>*]:w-full md:[&>*]:w-[calc(50%-0.625rem)] lg:[&>*]:w-[calc(33.333%-0.84rem)]">
+              {feed.map(ev => (
+                <EventListingCard
+                  key={ev.id}
+                  title={ev.title}
+                  date={ev.date}
+                  time={ev.time}
+                  venue={ev.venue}
+                  city={ev.city}
+                  state={ev.state}
+                  imageUrl={ev.imageUrl}
+                  price={ev.price}
+                  priceTone={ev.priceTone}
+                  href={ev.href}
+                  external={ev.external}
+                  badges={ev.badges}
+                  favorited={favorites.includes(ev.id)}
+                  onToggleFavorite={() => toggleFavorite(ev.id)}
+                />
+              ))}
             </div>
           )}
-          {!tevoLoading && tevoHasMore && (
-            <div className="flex justify-center mt-6">
+
+          {!loading && platformHasMore && (
+            <div className="mt-6 flex justify-center">
               <button
                 type="button"
-                onClick={loadMoreTevoEvents}
-                disabled={tevoLoadingMore}
-                className="px-5 py-2 rounded-full text-sm font-medium border border-purple-300 text-purple-700 hover:bg-purple-50 disabled:opacity-50 transition-colors inline-flex items-center gap-2"
+                onClick={loadMorePlatformEvents}
+                disabled={platformLoadingMore}
+                className="inline-flex items-center gap-2 rounded-full border border-indigo-300 px-5 py-2 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-50 disabled:opacity-50"
               >
-                {tevoLoadingMore && <Loader2 className="w-4 h-4 animate-spin" />}
-                Load More Events
+                {platformLoadingMore && <Loader2 className="h-4 w-4 animate-spin" />}
+                Load more events
               </button>
             </div>
           )}
-          {tevoMoreError && <p role="alert" className="text-center text-sm text-red-600 mt-2">Could not load more events. Try again.</p>}
-        </div>
-      )}
-
-      {/* ── Aggregated External Events (Internal-API) ───────────── */}
-      {(extLoading || extEvents.length > 0) && (
-        <div className="max-w-6xl mx-auto px-4 pb-10">
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">Events Around Town</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Aggregated from local event listings.</p>
-            </div>
-          </div>
-
-          {extLoading ? (
-            <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-purple-400" /></div>
-          ) : filteredExtEvents.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-8">No local events found for {monthLabel}.</p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredExtEvents
-                .map(ev => {
-                  const dateObj = ev.event_date ? new Date(ev.event_date + 'T00:00:00') : null
-                  const card = (
-                    <>
-                      <div className="h-44 bg-gradient-to-br from-purple-100 to-fuchsia-100 relative overflow-hidden">
-                        {ev.image_url ? (
-                          <img src={ev.image_url} alt={ev.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                        ) : (
-                          <div className="flex items-center justify-center h-full">
-                            <Calendar className="w-12 h-12 text-purple-300" />
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="p-4">
-                        <div className="flex items-start justify-between gap-2">
-                          {dateObj && (
-                            <div className="text-center bg-purple-50 border border-purple-100 rounded-lg px-2.5 py-1.5 min-w-[44px] shrink-0">
-                              <p className="text-xs font-medium text-purple-500 uppercase leading-none">
-                                {dateObj.toLocaleString('default', { month: 'short' })}
-                              </p>
-                              <p className="text-lg font-bold text-purple-700 leading-none mt-0.5">{dateObj.getDate()}</p>
-                            </div>
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-bold text-gray-900 truncate">{ev.title}</h3>
-                            {(ev.venue_name || ev.city) && (
-                              <p className="flex items-center gap-1 text-xs text-gray-500 mt-0.5 truncate">
-                                <MapPin className="w-3 h-3 shrink-0" />
-                                {ev.venue_name ? `${ev.venue_name}${ev.city ? ', ' + ev.city : ''}` : ev.city}
-                                {ev.state ? `, ${ev.state}` : ''}
-                              </p>
-                            )}
-                            {ev.start_time && (
-                              <p className="text-xs text-gray-400 mt-0.5">{ev.start_time}</p>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-                          <div>
-                            {ev.category && (
-                              <span className="flex items-center gap-1 text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">
-                                <Tag className="w-2.5 h-2.5" />{ev.category}
-                              </span>
-                            )}
-                          </div>
-                          {ev.price_min !== null ? (
-                            <span className="text-sm font-bold text-gray-900">
-                              {ev.price_min === 0 ? 'Free' : `From $${ev.price_min.toFixed(0)}`}
-                            </span>
-                          ) : ev.event_url ? (
-                            <span className="text-xs text-gray-400">See details</span>
-                          ) : null}
-                        </div>
-                      </div>
-                    </>
-                  )
-                  return ev.event_url ? (
-                    <a
-                      key={ev.id}
-                      href={ev.event_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-md hover:border-purple-200 transition-all group block"
-                    >
-                      {card}
-                    </a>
-                  ) : (
-                    <div
-                      key={ev.id}
-                      className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 group block"
-                    >
-                      {card}
-                    </div>
-                  )
-                })}
-            </div>
+          {platformMoreError && (
+            <p role="alert" className="mt-2 text-center text-sm text-red-600">Could not load more events. Try again.</p>
           )}
-          {!extLoading && extHasMore && (
-            <div className="flex justify-center mt-6">
-              <button
-                type="button"
-                onClick={loadMoreExternalEvents}
-                disabled={extLoadingMore}
-                className="px-5 py-2 rounded-full text-sm font-medium border border-purple-300 text-purple-700 hover:bg-purple-50 disabled:opacity-50 transition-colors inline-flex items-center gap-2"
-              >
-                {extLoadingMore && <Loader2 className="w-4 h-4 animate-spin" />}
-                Load More Events
-              </button>
-            </div>
-          )}
-          {extMoreError && <p role="alert" className="text-center text-sm text-red-600 mt-2">Could not load more local events. Try again.</p>}
-        </div>
-      )}
+        </section>
+
+        {/* Big Events — Ticket Evolution */}
+        {ENABLE_TICKET_EVOLUTION_PUBLIC_EVENTS && (tevoLoading || tevoEvents.length > 0) && (
+          <section className="mt-12" aria-labelledby="big-events">
+            <h2 id="big-events" className="text-center text-2xl font-bold text-gray-900">Big Events, Great Seats</h2>
+
+            {tevoLoading ? (
+              <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-indigo-400" /></div>
+            ) : filteredTevoEvents.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-400">No events found for {monthLabel}.</p>
+            ) : (
+              <div className="mt-4 flex flex-wrap justify-center gap-5 [&>*]:w-full md:[&>*]:w-[calc(50%-0.625rem)] lg:[&>*]:w-[calc(33.333%-0.84rem)]">
+                {filteredTevoEvents.map(ev => (
+                  <EventListingCard
+                    key={ev.id}
+                    title={ev.title}
+                    date={ev.event_date}
+                    time={ev.start_time}
+                    venue={ev.venue_name}
+                    city={ev.city}
+                    state={ev.state}
+                    imageUrl={ev.image_url}
+                    note="See seats & tickets →"
+                    href={`/events/tickets/${ev.id}`}
+                    placeholder="ticket"
+                    favorited={favorites.includes(`tevo:${ev.id}`)}
+                    onToggleFavorite={() => toggleFavorite(`tevo:${ev.id}`)}
+                  />
+                ))}
+              </div>
+            )}
+            {!tevoLoading && tevoHasMore && (
+              <div className="mt-6 flex justify-center">
+                <button
+                  type="button"
+                  onClick={loadMoreTevoEvents}
+                  disabled={tevoLoadingMore}
+                  className="inline-flex items-center gap-2 rounded-full border border-indigo-300 px-5 py-2 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-50 disabled:opacity-50"
+                >
+                  {tevoLoadingMore && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Load more events
+                </button>
+              </div>
+            )}
+            {tevoMoreError && <p role="alert" className="mt-2 text-center text-sm text-red-600">Could not load more events. Try again.</p>}
+          </section>
+        )}
+
+        {/* Events Around Town — aggregated local listings */}
+        {(extLoading || extEvents.length > 0) && (
+          <section className="mt-12" aria-labelledby="around-town">
+            <h2 id="around-town" className="text-center text-2xl font-bold text-gray-900">Events Around Town</h2>
+            <p className="mt-0.5 text-center text-sm text-gray-500">Aggregated from local event listings.</p>
+
+            {extLoading ? (
+              <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-indigo-400" /></div>
+            ) : filteredExtEvents.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-400">No local events found for {monthLabel}.</p>
+            ) : (
+              <div className="mt-4 flex flex-wrap justify-center gap-5 [&>*]:w-full md:[&>*]:w-[calc(50%-0.625rem)] lg:[&>*]:w-[calc(33.333%-0.84rem)]">
+                {filteredExtEvents.map(ev => (
+                  <EventListingCard
+                    key={ev.id}
+                    title={ev.title}
+                    date={ev.event_date}
+                    time={ev.start_time}
+                    venue={ev.venue_name}
+                    city={ev.city}
+                    state={ev.state}
+                    imageUrl={ev.image_url}
+                    price={ev.price_min === null ? null : ev.price_min === 0 ? 'Free' : `$${ev.price_min.toFixed(0)}`}
+                    note={ev.price_min === null && ev.event_url ? 'See details' : undefined}
+                    href={ev.event_url}
+                    external
+                    favorited={favorites.includes(`ext:${ev.id}`)}
+                    onToggleFavorite={() => toggleFavorite(`ext:${ev.id}`)}
+                  />
+                ))}
+              </div>
+            )}
+            {!extLoading && extHasMore && (
+              <div className="mt-6 flex justify-center">
+                <button
+                  type="button"
+                  onClick={loadMoreExternalEvents}
+                  disabled={extLoadingMore}
+                  className="inline-flex items-center gap-2 rounded-full border border-indigo-300 px-5 py-2 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-50 disabled:opacity-50"
+                >
+                  {extLoadingMore && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Load more events
+                </button>
+              </div>
+            )}
+            {extMoreError && <p role="alert" className="mt-2 text-center text-sm text-red-600">Could not load more local events. Try again.</p>}
+          </section>
+        )}
+      </main>
 
       {/* Footer */}
       <footer className="bg-gray-900 border-t border-gray-800 py-12 px-4 sm:px-6 lg:px-8">
@@ -1035,6 +934,152 @@ export default function PublicEventsPage() {
           </div>
         </div>
       </footer>
+
+      {/* 2. Change location */}
+      <BottomSheet open={locationSheet} title="Choose your location" onClose={closeLocationSheet}>
+        <button
+          type="button"
+          onClick={useMyLocation}
+          disabled={locating}
+          className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-500 px-4 py-3.5 text-base font-semibold text-white transition-colors hover:bg-blue-600 disabled:opacity-60"
+        >
+          {locating ? <Loader2 className="h-5 w-5 animate-spin" /> : <Crosshair className="h-5 w-5" />}
+          {locating ? 'Locating…' : 'Use my current location'}
+        </button>
+        {locationError && <p role="alert" className="mt-2 text-sm text-red-600">{locationError}</p>}
+
+        <div className="my-4 flex items-center gap-3 text-xs text-gray-400">
+          <span className="h-px flex-1 bg-gray-200" />
+          Or choose a city
+          <span className="h-px flex-1 bg-gray-200" />
+        </div>
+
+        <label className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus-within:border-blue-400 focus-within:bg-white">
+          <Search className="h-5 w-5 shrink-0 text-gray-400" />
+          <input
+            value={sheetQuery}
+            onChange={e => onSheetQuery(e.target.value)}
+            placeholder="City or ZIP code"
+            aria-label="City or ZIP code"
+            autoComplete="off"
+            className="w-full bg-transparent text-base text-gray-900 placeholder-gray-400 focus:outline-none"
+          />
+          {sheetLoading && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-gray-400" />}
+        </label>
+
+        {sheetQuery.trim().length >= 3 ? (
+          <ul className="mt-3 space-y-2">
+            {sheetResults.length === 0 && !sheetLoading && (
+              <li className="px-1 py-2 text-sm text-gray-500">No places found. Check the spelling or try a ZIP code.</li>
+            )}
+            {sheetResults.map((p, i) => (
+              <LocationRow key={`${p.zip}-${i}`} place={p} onPick={chooseLocation} />
+            ))}
+          </ul>
+        ) : (
+          <>
+            {recents.length > 0 && (
+              <>
+                <p className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-gray-500">Recent locations</p>
+                <ul className="space-y-2">
+                  {recents.map(p => <LocationRow key={p.zip} place={p} onPick={chooseLocation} />)}
+                </ul>
+              </>
+            )}
+            {nearby.length > 0 && (
+              <>
+                <p className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-gray-500">Near {cityOnly}</p>
+                <ul className="space-y-2">
+                  {nearby.map(p => <LocationRow key={p.zip} place={p} onPick={chooseLocation} />)}
+                </ul>
+              </>
+            )}
+          </>
+        )}
+      </BottomSheet>
+
+      {/* 3. Refine nearby */}
+      <BottomSheet
+        open={filterSheet}
+        title="Distance & category"
+        onClose={closeFilterSheet}
+        footer={
+          <div className="flex items-center justify-between gap-4">
+            <button
+              type="button"
+              onClick={() => { setPendingRadius(DEFAULT_RADIUS); setPendingCategory('') }}
+              className="px-2 py-2 text-base font-semibold text-indigo-700 hover:text-indigo-900"
+            >
+              Reset
+            </button>
+            <button
+              type="button"
+              onClick={applyFilters}
+              className="flex-1 rounded-xl bg-indigo-600 px-4 py-3.5 text-base font-semibold text-white transition-colors hover:bg-indigo-700"
+            >
+              Show events
+            </button>
+          </div>
+        }
+      >
+        <p className="mt-2 text-sm font-semibold text-gray-900">
+          {locationName ? `Distance from ${locationName}` : 'Distance'}
+        </p>
+        <div role="group" aria-label="Distance" className="mt-2 grid grid-cols-5 gap-2">
+          {DISTANCES.map(d => (
+            <button
+              key={d}
+              type="button"
+              aria-pressed={pendingRadius === d}
+              onClick={() => setPendingRadius(d)}
+              className={`rounded-xl border px-1 py-2.5 text-sm font-medium transition-colors ${
+                pendingRadius === d ? 'border-blue-500 bg-blue-500 text-white' : 'border-gray-200 bg-gray-50 text-gray-800 hover:bg-gray-100'
+              }`}
+            >
+              {d} mi
+            </button>
+          ))}
+        </div>
+        {!zipCode && <p className="mt-2 text-xs text-gray-500">Choose a location first so distance can be used.</p>}
+
+        <p className="mt-6 text-sm font-semibold text-gray-900">Category</p>
+        <div role="group" aria-label="Category" className="mt-2 grid grid-cols-2 gap-2">
+          {[{ value: '', icon: LayoutGrid, label: 'All events' }, ...EVENT_CATEGORIES.map(c => ({ ...c, label: c.value }))].map(c => {
+            const Icon = c.icon
+            const selected = pendingCategory === c.value
+            return (
+              <button
+                key={c.value || 'all'}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => setPendingCategory(c.value)}
+                className={`flex items-center gap-3 rounded-xl border px-3 py-3 text-left text-sm font-medium transition-colors ${
+                  selected ? 'border-blue-500 bg-blue-50 text-blue-800' : 'border-gray-200 bg-gray-50 text-gray-800 hover:bg-gray-100'
+                }`}
+              >
+                <Icon className={`h-5 w-5 shrink-0 ${selected ? 'text-blue-600' : 'text-gray-600'}`} />
+                {c.label}
+              </button>
+            )
+          })}
+        </div>
+      </BottomSheet>
     </div>
+  )
+}
+
+function LocationRow({ place, onPick }: { place: Place; onPick: (p: Place) => void }) {
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => onPick(place)}
+        className="flex w-full items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-left hover:bg-gray-100"
+      >
+        <MapPin className="h-5 w-5 shrink-0 text-gray-600" />
+        <span className="flex-1 truncate text-base text-gray-900">{placeLabel(place)}</span>
+        <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" />
+      </button>
+    </li>
   )
 }

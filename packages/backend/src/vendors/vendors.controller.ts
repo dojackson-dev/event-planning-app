@@ -23,6 +23,7 @@ import {
   SubmitBookingRequestDto,
   UpdateBookingRequestDto,
 } from './dto/vendor.dto';
+import { nearbyCities, placeForZip } from './nearby-cities';
 
 @Controller('vendors')
 export class VendorsController {
@@ -181,6 +182,28 @@ export class VendorsController {
   async geocodeAutocomplete(@Query('q') query: string) {
     if (!query || query.length < 3) return [];
     return this.vendorsService.geocodeAutocomplete(query);
+  }
+
+  /** GET /vendors/geocode/nearby?zip=&miles=&limit= — Other cities near a zip, nearest first */
+  @Get('geocode/nearby')
+  nearbyCities(
+    @Query('zip') zip: string,
+    @Query('miles') miles?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return nearbyCities(
+      zip ?? '',
+      miles ? parseInt(miles, 10) : undefined,
+      limit ? parseInt(limit, 10) : undefined,
+    );
+  }
+
+  /** GET /vendors/geocode/zip?zip= — The city a zip code belongs to */
+  @Get('geocode/zip')
+  zipLookup(@Query('zip') zip: string) {
+    const place = placeForZip(zip ?? '');
+    if (!place) throw new BadRequestException('Unknown zip code');
+    return place;
   }
 
   /** GET /vendors/venue/:id - public venue profile */

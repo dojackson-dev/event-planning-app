@@ -122,18 +122,14 @@ export default function VenuesPage() {
         </div>
       </nav>
 
-      {/* Banner */}
-      <div className="relative w-full h-56 md:h-72 overflow-hidden">
-        <img src="/lib/Venues-Banner.jpg" alt="Browse Venues" className="w-full h-full object-cover" />
-      </div>
-
       {/* Search */}
-      <div className="bg-blue-700 text-white py-8">
+      <div className="bg-white pt-10 pb-8">
         <div className="max-w-4xl mx-auto px-4 text-center">
-          <p className="text-blue-200 text-lg mb-6">
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Find your perfect setting</h1>
+          <p className="mt-2 mb-6 text-lg text-gray-500">
             Discover ballrooms, event spaces, and unique venues near you.
           </p>
-          <form onSubmit={searchVenues} className="bg-white rounded-xl p-4 shadow-xl">
+          <form onSubmit={searchVenues} className="bg-white rounded-xl border border-gray-200 p-4 shadow-lg">
             <div className="flex justify-center mb-3">
               <button
                 type="button"
@@ -145,13 +141,13 @@ export default function VenuesPage() {
               </button>
             </div>
             <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex flex-1 gap-2">
+              <div className="flex flex-1 min-w-0 gap-2">
                 <input
                   type="text"
                   placeholder="Zip Code"
                   value={zipCode}
                   onChange={e => setZipCode(e.target.value)}
-                  className="flex-1 border border-gray-300 rounded-lg px-4 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 min-w-0 border border-gray-300 rounded-lg px-4 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <select

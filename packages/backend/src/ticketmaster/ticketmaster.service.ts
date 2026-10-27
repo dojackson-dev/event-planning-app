@@ -88,14 +88,6 @@ export class TicketmasterService {
     if (cached && cached.expiresAt > Date.now()) return cached.data;
 
     const query = new URLSearchParams({ apikey: apiKey, sort: 'date,asc' });
-    // US events by default so a nationwide search doesn't fill up with other countries;
-    // TICKETMASTER_COUNTRY_CODE=XX switches country and an empty value lifts the filter.
-    const country = (
-      this.configService.get<string>('TICKETMASTER_COUNTRY_CODE') ?? 'US'
-    )
-      .trim()
-      .toUpperCase();
-    if (country) query.set('countryCode', country);
     if (params.zip_code) {
       const coords = await this.zipToLatLng(params.zip_code);
       if (coords) {

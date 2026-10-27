@@ -10,8 +10,8 @@ import type { Request } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { TicketEvolutionService } from './ticket-evolution.service';
 
-// The public feed is dev/local-only until TICKET_EVOLUTION_PUBLIC_FEED=true is
-// set, so production never surfaces TEvo inventory before go-live.
+// The public feed is live for every origin. Set TICKET_EVOLUTION_PUBLIC_FEED=false
+// to pull it back to dev/local origins only (kill switch).
 const DEV_ORIGIN_HOSTS = [
   'dev.eventecos.com',
   'dev.dovenuesuite.com',
@@ -34,7 +34,7 @@ export class TicketEvolutionController {
   private canServePublicFeed(req: Request): boolean {
     if (!this.service.isConfigured()) return false;
     return (
-      this.config.get<string>('TICKET_EVOLUTION_PUBLIC_FEED') === 'true' ||
+      this.config.get<string>('TICKET_EVOLUTION_PUBLIC_FEED') !== 'false' ||
       isDevOrigin(req)
     );
   }

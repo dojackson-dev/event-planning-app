@@ -1,5 +1,7 @@
 'use client'
 
+import CityAutocomplete from '@/components/CityAutocomplete'
+import { placeLabel, resolvePlace } from '@/lib/places'
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
@@ -27,7 +29,9 @@ interface Venue {
 export default function VenuesPage() {
   const [venues, setVenues] = useState<Venue[]>([])
   const [loading, setLoading] = useState(false)
+  // zipCode is the resolved zip that gets searched; locationText is whatever is in the box.
   const [zipCode, setZipCode] = useState('')
+  const [locationText, setLocationText] = useState('')
   const [radiusMiles, setRadiusMiles] = useState('30')
   const [error, setError] = useState('')
   const [locating, setLocating] = useState(false)
@@ -47,8 +51,21 @@ export default function VenuesPage() {
     setLoading(true)
     setError('')
     try {
+      // A city typed but not picked from the list: use the best match.
+      let zip = zipCode
+      if (!zip && locationText.trim()) {
+        const place = await resolvePlace(locationText)
+        if (!place) {
+          setError('We could not find that place. Try a nearby city or a ZIP code.')
+          setLoading(false)
+          return
+        }
+        zip = place.zip
+        setZipCode(place.zip)
+        setLocationText(placeLabel(place))
+      }
       const params = new URLSearchParams()
-      if (zipCode) params.set('zipCode', zipCode)
+      if (zip) params.set('zipCode', zip)
       if (radiusMiles) params.set('radiusMiles', radiusMiles)
       const res = await api.get(`/vendors/search?${params.toString()}`)
       setVenues(res.data.venues || [])
@@ -58,7 +75,7 @@ export default function VenuesPage() {
     } finally {
       setLoading(false)
     }
-  }, [zipCode, radiusMiles])
+  }, [zipCode, locationText, radiusMiles])
 
   const useMyLocation = useCallback(async () => {
     if (!navigator.geolocation) { setError('Geolocation not supported.'); return }
@@ -71,7 +88,10 @@ export default function VenuesPage() {
           const rev = await fetch(`${API_URL}/vendors/geocode/reverse?lat=${latitude}&lng=${longitude}`)
           if (rev.ok) {
             const d = await rev.json()
-            if (d?.zip) setZipCode(d.zip)
+            if (d?.zip) {
+              setZipCode(d.zip)
+              setLocationText(d.city && d.state ? `${d.city}, ${d.state}` : d.zip)
+            }
           }
           setLoading(true)
           const params = new URLSearchParams()
@@ -89,7 +109,7 @@ export default function VenuesPage() {
           setLoading(false)
         }
       },
-      () => { setLocating(false); setError('Location access denied. Enter a zip code instead.') },
+      () => { setLocating(false); setError('Location access denied. Enter a city or zip code instead.') },
       { timeout: 10000 },
     )
   }, [radiusMiles])
@@ -142,12 +162,15 @@ export default function VenuesPage() {
             </div>
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex flex-1 min-w-0 gap-2">
-                <input
-                  type="text"
-                  placeholder="Zip Code"
-                  value={zipCode}
-                  onChange={e => setZipCode(e.target.value)}
-                  className="flex-1 min-w-0 border border-gray-300 rounded-lg px-4 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                <CityAutocomplete
+                  value={locationText}
+                  onChange={text => {
+                    setLocationText(text)
+                    setZipCode(/^\d{5}$/.test(text.trim()) ? text.trim() : '')
+                  }}
+                  onSelect={place => { setLocationText(placeLabel(place)); setZipCode(place.zip) }}
+                  placeholder="City or zip code"
+                  inputClassName="border border-gray-300 rounded-lg px-4 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <select

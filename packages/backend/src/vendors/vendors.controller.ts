@@ -23,7 +23,7 @@ import {
   SubmitBookingRequestDto,
   UpdateBookingRequestDto,
 } from './dto/vendor.dto';
-import { nearbyCities, placeForZip } from './nearby-cities';
+import { nearbyCities, placeForZip, searchPlaces } from './nearby-cities';
 
 @Controller('vendors')
 export class VendorsController {
@@ -196,6 +196,12 @@ export class VendorsController {
       miles ? parseInt(miles, 10) : undefined,
       limit ? parseInt(limit, 10) : undefined,
     );
+  }
+
+  /** GET /vendors/geocode/places?q=&limit= — Type-ahead for cities (and exact zip codes) */
+  @Get('geocode/places')
+  places(@Query('q') q: string, @Query('limit') limit?: string) {
+    return searchPlaces(q ?? '', limit ? parseInt(limit, 10) : undefined);
   }
 
   /** GET /vendors/geocode/zip?zip= — The city a zip code belongs to */

@@ -1,5 +1,7 @@
 'use client'
 
+import CityAutocomplete from '@/components/CityAutocomplete'
+import { placeLabel, resolvePlace } from '@/lib/places'
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -92,7 +94,9 @@ export default function VendorsPage() {
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
 
+  // zipCode is the resolved zip that gets searched; locationText is whatever is in the box.
   const [zipCode, setZipCode] = useState('')
+  const [locationText, setLocationText] = useState('')
   const [radiusMiles, setRadiusMiles] = useState('30')
   const [category, setCategory] = useState('')
   const [activeTab, setActiveTab] = useState<'vendors' | 'venues'>('vendors')
@@ -116,6 +120,7 @@ export default function VendorsPage() {
             const data = await res.json()
             if (data?.zip) {
               setZipCode(data.zip)
+              setLocationText(data.city && data.state ? `${data.city}, ${data.state}` : data.zip)
               // Trigger search with the resolved lat/lng directly
               setLoading(true)
               const params = new URLSearchParams()
@@ -139,7 +144,7 @@ export default function VendorsPage() {
       },
       () => {
         setLocating(false)
-        setError('Location access denied. Please enter a zip code instead.')
+        setError('Location access denied. Please enter a city or zip code instead.')
       },
       { timeout: 10000 }
     )
@@ -151,8 +156,21 @@ export default function VendorsPage() {
     setError('')
 
     try {
+      // A city typed but not picked from the list: use the best match.
+      let zip = zipCode
+      if (!zip && locationText.trim()) {
+        const place = await resolvePlace(locationText)
+        if (!place) {
+          setError('We could not find that place. Try a nearby city or a ZIP code.')
+          setLoading(false)
+          return
+        }
+        zip = place.zip
+        setZipCode(place.zip)
+        setLocationText(placeLabel(place))
+      }
       const params = new URLSearchParams()
-      if (zipCode) params.set('zipCode', zipCode)
+      if (zip) params.set('zipCode', zip)
       if (radiusMiles) params.set('radiusMiles', radiusMiles)
       if (category) params.set('category', category)
 
@@ -174,7 +192,7 @@ export default function VendorsPage() {
     } finally {
       setLoading(false)
     }
-  }, [zipCode, radiusMiles, category])
+  }, [zipCode, locationText, radiusMiles, category])
 
   // Load all vendors + venues on mount
   useEffect(() => {
@@ -257,12 +275,15 @@ export default function VendorsPage() {
             </div>
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex flex-1 min-w-0 gap-2">
-                <input
-                  type="text"
-                  placeholder="Zip Code"
-                  value={zipCode}
-                  onChange={e => setZipCode(e.target.value)}
-                  className="flex-1 min-w-0 border border-gray-300 rounded-lg px-4 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                <CityAutocomplete
+                  value={locationText}
+                  onChange={text => {
+                    setLocationText(text)
+                    setZipCode(/^\d{5}$/.test(text.trim()) ? text.trim() : '')
+                  }}
+                  onSelect={place => { setLocationText(placeLabel(place)); setZipCode(place.zip) }}
+                  placeholder="City or zip code"
+                  inputClassName="border border-gray-300 rounded-lg px-4 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
               </div>
               <select

@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
 import { MailService } from '../mail/mail.service';
+import { sanitizeSearchTerm } from '../common/search-term';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import Stripe from 'stripe';
 import {
@@ -386,6 +387,7 @@ export class PromoterEventsService {
     dateTo?: string,
     limit = 100,
     offset = 0,
+    q?: string,
   ) {
     const admin = this.supabaseService.getAdminClient();
     const today = new Date().toISOString().split('T')[0];
@@ -402,6 +404,12 @@ export class PromoterEventsService {
 
     if (dateTo) query = query.lte('event_date', dateTo);
     if (category) query = query.eq('category', category);
+    const term = sanitizeSearchTerm(q);
+    if (term) {
+      query = query.or(
+        `title.ilike.%${term}%,venue_name.ilike.%${term}%,city.ilike.%${term}%`,
+      );
+    }
 
     // Declared non-profits stay out of public lists until IRS-verified.
     const { data: paused } = await admin

@@ -64,6 +64,7 @@ export class PromoterEventsController {
     @Query('date_to') dateTo?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
+    @Query('q') q?: string,
   ) {
     return this.service.listPublicEvents(
       zipCode,
@@ -73,6 +74,7 @@ export class PromoterEventsController {
       dateTo,
       limit ? parseInt(limit, 10) : undefined,
       offset ? parseInt(offset, 10) : undefined,
+      q,
     );
   }
 

@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as zipcodes from 'zipcodes';
 import { SupabaseService } from '../supabase/supabase.service';
 
+import { sanitizeSearchTerm } from '../common/search-term';
+
 function haversineDistanceMiles(
   lat1: number,
   lon1: number,
@@ -84,6 +86,7 @@ export class ExternalEventsService {
     offset?: number;
     date_from?: string;
     date_to?: string;
+    q?: string;
   }): Promise<PublicExternalEvent[]> {
     const admin = this.supabaseService.getAdminClient();
     const today = new Date().toISOString().slice(0, 10);
@@ -109,6 +112,12 @@ export class ExternalEventsService {
       if (params.date_to) query = query.lte('event_date', params.date_to);
       if (params.city) query = query.ilike('city', params.city);
       if (params.category) query = query.eq('category', params.category);
+      const term = sanitizeSearchTerm(params.q);
+      if (term) {
+        query = query.or(
+          `title.ilike.%${term}%,organizer.ilike.%${term}%,venue_name.ilike.%${term}%,city.ilike.%${term}%`,
+        );
+      }
       return query;
     };
 

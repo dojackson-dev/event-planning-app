@@ -387,18 +387,24 @@ export default function PublicEventsPage() {
     setLoading(true)
     setExtLoading(true)
     setTevoLoading(ENABLE_TICKET_EVOLUTION_PUBLIC_EVENTS)
+    // Searching by name looks everywhere — the show you're after is often
+    // outside the saved location.
+    const term = searchTerm?.trim() ?? ''
+    lastSearchRef.current = searchTerm ?? ''
+    const locationZip = term ? undefined : zip
     const params: Record<string, string> = {}
-    if (zip) params.zip_code = zip
+    if (locationZip) params.zip_code = locationZip
     if (cat) params.category = cat
-    if (zip && radius) params.radius_miles = radius
+    if (locationZip && radius) params.radius_miles = radius
     if (dateRange?.from) params.date_from = dateRange.from
     if (dateRange?.to) params.date_to = dateRange.to
+    if (term) params.q = term
     const tevoParams: Record<string, string> = {}
     if (dateRange?.from) tevoParams.date_from = dateRange.from
     if (dateRange?.to) tevoParams.date_to = dateRange.to
-    if (zip) tevoParams.zip_code = zip
-    if (zip && radius) tevoParams.radius_miles = radius
-    if (searchTerm) tevoParams.name = searchTerm
+    if (locationZip) tevoParams.zip_code = locationZip
+    if (locationZip && radius) tevoParams.radius_miles = radius
+    if (term) tevoParams.name = term
     const platformParams = { ...params, limit: String(PLATFORM_PAGE_SIZE) }
     const requests: Array<Promise<{ data: any[] }>> = [
       api.get('/promoter-events/public', { params: platformParams }),
@@ -431,6 +437,22 @@ export default function PublicEventsPage() {
       .finally(() => { setLoading(false); setExtLoading(false); setTevoLoading(false) })
   }
 
+  // Filters for "Load more" — must match what the last full fetch used.
+  const loadMoreFilters = () => {
+    const term = lastSearchRef.current.trim()
+    const filters: Record<string, string> = {}
+    if (!term && zipCode) {
+      filters.zip_code = zipCode
+      if (radiusMiles) filters.radius_miles = radiusMiles
+    }
+    if (category) filters.category = category
+    const range = computeDateRange(dateFilter, selectedMonth)
+    if (range.from) filters.date_from = range.from
+    if (range.to) filters.date_to = range.to
+    if (term) filters.q = term
+    return filters
+  }
+
   // Each provider only returns one capped page per request — these fetch the
   // next page and append, using the same filters as the last full fetch.
   const loadMorePlatformEvents = async () => {
@@ -441,12 +463,7 @@ export default function PublicEventsPage() {
         offset: String(platformOffset),
         limit: String(PLATFORM_PAGE_SIZE),
       }
-      if (zipCode) params.zip_code = zipCode
-      if (category) params.category = category
-      if (zipCode && radiusMiles) params.radius_miles = radiusMiles
-      const range = computeDateRange(dateFilter, selectedMonth)
-      if (range.from) params.date_from = range.from
-      if (range.to) params.date_to = range.to
+      Object.assign(params, loadMoreFilters())
       const res = await api.get('/promoter-events/public', { params })
       const rows: PublicEvent[] = res.data || []
       setEvents(prev => {
@@ -466,13 +483,7 @@ export default function PublicEventsPage() {
     setExtLoadingMore(true)
     setExtMoreError(false)
     try {
-      const params: Record<string, string> = { offset: String(extOffset) }
-      if (zipCode) params.zip_code = zipCode
-      if (category) params.category = category
-      if (zipCode && radiusMiles) params.radius_miles = radiusMiles
-      const range = computeDateRange(dateFilter, selectedMonth)
-      if (range.from) params.date_from = range.from
-      if (range.to) params.date_to = range.to
+      const params: Record<string, string> = { offset: String(extOffset), ...loadMoreFilters() }
       const res = await api.get('/external-events/events', { params })
       const rows: ExternalEvent[] = res.data || []
       const existingIds = new Set(extEvents.map(event => event.id))
@@ -491,13 +502,10 @@ export default function PublicEventsPage() {
     setTevoLoadingMore(true)
     setTevoMoreError(false)
     try {
-      const params: Record<string, string> = { page: String(tevoPage) }
-      const range = computeDateRange(dateFilter, selectedMonth)
-      if (range.from) params.date_from = range.from
-      if (range.to) params.date_to = range.to
-      if (zipCode) params.zip_code = zipCode
-      if (zipCode && radiusMiles) params.radius_miles = radiusMiles
-      if (search) params.name = search
+      const { q, ...filters } = loadMoreFilters()
+      const params: Record<string, string> = { page: String(tevoPage), ...filters }
+      delete params.category
+      if (q) params.name = q
       const res = await api.get('/ticket-evolution/public-events', { params })
       const rows: TevoEvent[] = res.data || []
       const existingIds = new Set(tevoEvents.map(event => event.id))
@@ -555,16 +563,19 @@ export default function PublicEventsPage() {
     fetchEvents(zipCode, category, radiusMiles, computeDateRange(dateFilter, selectedMonth), search)
   }
 
-  const matchesSearch = useCallback((ev: { title: string; city: string | null; venue_name: string | null }) =>
-    !search || ev.title.toLowerCase().includes(search.toLowerCase()) ||
-    ev.city?.toLowerCase().includes(search.toLowerCase()) ||
-    ev.venue_name?.toLowerCase().includes(search.toLowerCase()), [search])
+  const matchesSearch = useCallback((ev: { title: string; city: string | null; venue_name: string | null; organizer?: string | null }) => {
+    const term = search.trim().toLowerCase()
+    return !term || ev.title.toLowerCase().includes(term) ||
+      !!ev.city?.toLowerCase().includes(term) ||
+      !!ev.venue_name?.toLowerCase().includes(term) ||
+      !!ev.organizer?.toLowerCase().includes(term)
+  }, [search])
 
   const monthLabel = dateFilter === 'month'
     ? new Date(selectedMonth + '-01T00:00:00').toLocaleString('default', { month: 'long', year: 'numeric' })
     : 'this range'
 
-  // "Events near you": listings created on EventEcos, soonest first.
+  // "EventEcos Hosted": listings created on EventEcos, soonest first.
   const feed = useMemo(() => {
     const own = events
       .filter(e => matchesDateFilter(e.event_date) && matchesSearch(e))
@@ -608,8 +619,10 @@ export default function PublicEventsPage() {
     [extEvents, matchesDateFilter, matchesSearch],
   )
 
-  // Nothing of ours to show, but local listings or Big Events will fill the page.
-  const otherSectionsHaveEvents = extEvents.length > 0 || tevoEvents.length > 0 || extLoading || tevoLoading
+  const anyLoading = loading || extLoading || tevoLoading
+  const nothingListed = feed.length === 0 && filteredExtEvents.length === 0 && filteredTevoEvents.length === 0
+  const stillLoading = anyLoading && nothingListed
+  const noEvents = !anyLoading && nothingListed
 
   return (
     <div className="min-h-screen bg-white">
@@ -640,6 +653,11 @@ export default function PublicEventsPage() {
       </nav>
 
       <main className="mx-auto max-w-5xl px-4 pb-16 pt-8">
+        {search.trim() && (
+          <p className="mb-4 text-center text-sm text-gray-500">
+            Showing results for &ldquo;{search.trim()}&rdquo; in all locations.
+          </p>
+        )}
         {/* 1. Discover */}
         <section className="mx-auto max-w-2xl">
           <h1 className="text-center text-3xl font-bold tracking-tight text-gray-900">Find your next outing</h1>
@@ -739,27 +757,12 @@ export default function PublicEventsPage() {
           </div>
         </section>
 
-        {/* Events near you */}
-        <section className="mt-8" aria-labelledby="near-you">
-          <h2 id="near-you" className="text-center text-2xl font-bold text-gray-900">{zipCode ? 'Events near you' : 'Upcoming events'}</h2>
-          {zipCode && <p className="mt-0.5 text-center text-sm text-gray-500">Within {radiusMiles} miles of {cityOnly}</p>}
+        {/* EventEcos Hosted: events listed on EventEcos. Not shown at all when there are none. */}
+        {feed.length > 0 && (
+          <section className="mt-8" aria-labelledby="hosted">
+            <h2 id="hosted" className="text-center text-2xl font-bold text-gray-900">EventEcos Hosted</h2>
+            {zipCode && <p className="mt-0.5 text-center text-sm text-gray-500">Within {radiusMiles} miles of {cityOnly}</p>}
 
-          {loading ? (
-            <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-indigo-400" /></div>
-          ) : feed.length === 0 ? (
-            otherSectionsHaveEvents ? (
-              <p className="py-6 text-center text-sm text-gray-500">No events listed on EventEcos for this search yet. More are below.</p>
-            ) : (
-            <div className="py-14 text-center">
-              <Calendar className="mx-auto mb-3 h-12 w-12 text-gray-300" />
-              <p className="text-xl font-semibold text-gray-600">No events found</p>
-              <p className="mt-1 text-gray-400">
-                {dateFilter ? `Nothing for ${dateFilter === 'month' ? monthLabel : dateFilter === 'today' ? 'today' : 'this range'}. ` : ''}
-                Try a bigger distance, another date, or a different place.
-              </p>
-            </div>
-            )
-          ) : (
             <div className="mt-4 flex flex-wrap justify-center gap-5 [&>*]:w-full md:[&>*]:w-[calc(50%-0.625rem)] lg:[&>*]:w-[calc(33.333%-0.84rem)]">
               {feed.map(ev => (
                 <EventListingCard
@@ -781,25 +784,40 @@ export default function PublicEventsPage() {
                 />
               ))}
             </div>
-          )}
 
-          {!loading && platformHasMore && (
-            <div className="mt-6 flex justify-center">
-              <button
-                type="button"
-                onClick={loadMorePlatformEvents}
-                disabled={platformLoadingMore}
-                className="inline-flex items-center gap-2 rounded-full border border-indigo-300 px-5 py-2 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-50 disabled:opacity-50"
-              >
-                {platformLoadingMore && <Loader2 className="h-4 w-4 animate-spin" />}
-                Load more events
-              </button>
-            </div>
-          )}
-          {platformMoreError && (
-            <p role="alert" className="mt-2 text-center text-sm text-red-600">Could not load more events. Try again.</p>
-          )}
-        </section>
+            {!loading && platformHasMore && (
+              <div className="mt-6 flex justify-center">
+                <button
+                  type="button"
+                  onClick={loadMorePlatformEvents}
+                  disabled={platformLoadingMore}
+                  className="inline-flex items-center gap-2 rounded-full border border-indigo-300 px-5 py-2 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-50 disabled:opacity-50"
+                >
+                  {platformLoadingMore && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Load more events
+                </button>
+              </div>
+            )}
+            {platformMoreError && (
+              <p role="alert" className="mt-2 text-center text-sm text-red-600">Could not load more events. Try again.</p>
+            )}
+          </section>
+        )}
+
+        {/* One message when no source has anything, a spinner while the first results load. */}
+        {noEvents && (
+          <div className="py-14 text-center">
+            <Calendar className="mx-auto mb-3 h-12 w-12 text-gray-300" />
+            <p className="text-xl font-semibold text-gray-600">No events found</p>
+            <p className="mt-1 text-gray-400">
+              {dateFilter ? `Nothing for ${dateFilter === 'month' ? monthLabel : dateFilter === 'today' ? 'today' : 'this range'}. ` : ''}
+              {search.trim() ? 'Try a different spelling or fewer words.' : 'Try a bigger distance, another date, or a different place.'}
+            </p>
+          </div>
+        )}
+        {stillLoading && (
+          <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-indigo-400" /></div>
+        )}
 
         {/* Big Events — Ticket Evolution */}
         {ENABLE_TICKET_EVOLUTION_PUBLIC_EVENTS && (tevoLoading || tevoEvents.length > 0) && (

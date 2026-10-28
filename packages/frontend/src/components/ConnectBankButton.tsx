@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import api from '@/lib/api'
+import InstantPayoutReadiness from '@/components/InstantPayoutReadiness'
 import { ExternalLink, CheckCircle, AlertCircle, Loader2, Building2, Info, ToggleLeft, ToggleRight } from 'lucide-react'
 
 interface ConnectBankButtonProps {
@@ -139,6 +140,8 @@ export default function ConnectBankButton({ role, email }: ConnectBankButtonProp
               </p>
             </div>
           </div>
+
+          <InstantPayoutReadiness role={role} />
 
           {/* BNPL toggle */}
           <div className="border border-gray-200 rounded-lg p-4 space-y-3">

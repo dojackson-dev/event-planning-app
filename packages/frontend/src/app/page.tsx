@@ -2,13 +2,14 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { Users, Store, Calendar, Zap, BarChart3, Shield, ArrowRight, MapPin, Ticket, Sparkles, Facebook, Linkedin, Lock, Heart, Menu, X, ChevronRight, ChevronDown, User } from 'lucide-react'
+import { Users, Store, Calendar, Zap, BarChart3, Shield, ArrowRight, MapPin, Ticket, Sparkles, Lock, Heart, Menu, X, ChevronRight, ChevronDown, User } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import EnterpriseContactModal from '@/components/EnterpriseContactModal'
 import BookDemoModal from '@/components/BookDemoModal'
 import HomePhoto from '@/components/HomePhoto'
+import FollowUs from '@/components/SocialLinks'
 
 export default function Home() {
   const { isAuthenticated, loading, user } = useAuth()
@@ -824,30 +825,7 @@ export default function Home() {
                 <li><Link href="/sales-portal/login" className="hover:text-white">Sales Portal</Link></li>
               </ul>
             </div>
-            <div>
-              <h4 className="text-white font-bold mb-4">Follow Us</h4>
-              <div className="flex items-center gap-3 mb-3">
-                <a
-                  href="https://www.facebook.com/people/EventEcos/61580708045237/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label="EventEcos on Facebook"
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#1877F2] text-white shadow-lg shadow-[#1877F2]/30 transition-transform duration-200 hover:-translate-y-0.5 hover:brightness-110"
-                >
-                  <Facebook className="h-5 w-5" />
-                </a>
-                <a
-                  href="https://www.linkedin.com/company/eventecos/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label="EventEcos on LinkedIn"
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#0A66C2] text-white shadow-lg shadow-[#0A66C2]/30 transition-transform duration-200 hover:-translate-y-0.5 hover:brightness-110"
-                >
-                  <Linkedin className="h-5 w-5" />
-                </a>
-              </div>
-              <p className="text-gray-400 text-sm">Stay connected with company news, event updates, and more.</p>
-            </div>
+            <FollowUs />
             <div>
               <h4 className="text-white font-bold mb-4">Legal</h4>
               <ul className="space-y-2 text-gray-400 text-sm">

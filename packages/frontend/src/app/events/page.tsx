@@ -14,6 +14,7 @@ import MonthPicker from '@/components/events/MonthPicker'
 import BottomSheet from '@/components/events/BottomSheet'
 import EventListingCard from '@/components/events/EventListingCard'
 import { searchPlaces } from '@/lib/places'
+import FollowUs from '@/components/SocialLinks'
 
 interface TicketTier {
   id: string
@@ -919,7 +920,7 @@ export default function PublicEventsPage() {
       {/* Footer */}
       <footer className="bg-gray-900 border-t border-gray-800 py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
             <div>
               <Link href="/">
                 <div className="inline-block bg-white rounded-xl p-2">
@@ -936,6 +937,7 @@ export default function PublicEventsPage() {
                 <li><Link href="/events" className="hover:text-white">Events</Link></li>
               </ul>
             </div>
+            <FollowUs />
             <div>
               <h4 className="text-white font-bold mb-4">Legal</h4>
               <ul className="space-y-2 text-gray-400 text-sm">

@@ -23,6 +23,7 @@ import {
 } from '../payments/invoice-deposit';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import Stripe from 'stripe';
+import { settlePreviousCheckout } from '../common/previous-checkout';
 import * as nodemailer from 'nodemailer';
 import {
   CreatePromoterInvoiceDto,
@@ -571,6 +572,16 @@ export class PromoterInvoicesService {
       throw new ForbiddenException('Invoice is already paid');
     if (invoice.status === 'cancelled')
       throw new ForbiddenException('Invoice has been cancelled');
+    if (invoice.status === 'processing')
+      throw new ForbiddenException(
+        'A bank payment for this invoice is already processing',
+      );
+    await settlePreviousCheckout(
+      this.stripe,
+      invoice.stripe_checkout_session_id,
+      (sessionId, paymentIntentId) =>
+        this.markInvoiceProcessing(sessionId, paymentIntentId),
+    );
 
     // Invoices without a deposit always charge the full amount due.
     const amountCents = creditCentsFor(invoice, payAmount);
@@ -806,7 +817,13 @@ export class PromoterInvoicesService {
       .eq('stripe_payment_intent_id', paymentIntentId)
       .maybeSingle();
 
-    if (!invoice) return;
+    if (!invoice) {
+      // Typically an extra payment from a second checkout that the invoice no longer points to.
+      this.logger.warn(
+        `Promoter payment ${paymentIntentId} succeeded but no invoice stores it; check Stripe for a duplicate payment`,
+      );
+      return;
+    }
 
     let paidAmount: number = invoice.total_amount;
     let isDeposit = false;

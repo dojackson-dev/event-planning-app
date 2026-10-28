@@ -125,6 +125,27 @@ describe('Vendor invoice checkout and Stripe readiness', () => {
     expect(create).not.toHaveBeenCalled();
   });
 
+  it('refuses a second checkout while the first bank payment is still clearing, and records it as processing', async () => {
+    const { service, create, updates } = setup(
+      'active',
+      undefined,
+      false,
+      {},
+      { status: 'complete', payment_status: 'unpaid', payment_intent: 'pi_1' },
+    );
+    await expect(service.createCheckoutSession('tok')).rejects.toThrow(
+      'already processing',
+    );
+    expect(create).not.toHaveBeenCalled();
+    expect(updates).toContainEqual({
+      table: 'vendor_invoices',
+      values: expect.objectContaining({
+        status: 'processing',
+        stripe_payment_intent_id: 'pi_1',
+      }),
+    });
+  });
+
   it('card checkout never offers pay-later methods and uses the card processing fee', async () => {
     const { service, create } = setup('active', undefined, true);
     await service.createCheckoutSession('tok');

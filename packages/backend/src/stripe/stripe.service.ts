@@ -6,6 +6,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Cron } from '@nestjs/schedule';
 import Stripe from 'stripe';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
@@ -928,6 +929,75 @@ export class StripeService {
       );
       return;
     }
+  }
+
+  /**
+   * Safety net for bank (ACH) payments: an invoice left "processing" for days is checked against Stripe,
+   * so a missed or unmatched webhook cannot leave a cleared payment looking unpaid (or a failed one looking pending).
+   */
+  @Cron('30 12 * * *')
+  async reconcileStuckBankPayments(): Promise<{
+    checked: number;
+    paid: number;
+    reverted: number;
+  }> {
+    const admin = this.supabaseService.getAdminClient();
+    const cutoff = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+    const sources = [
+      { table: 'vendor_invoices', service: this.vendorInvoicesService },
+      { table: 'artist_invoices', service: this.artistInvoicesService },
+      { table: 'promoter_invoices', service: this.promoterInvoicesService },
+    ];
+    const result = { checked: 0, paid: 0, reverted: 0 };
+
+    for (const { table, service } of sources) {
+      const { data: stuck, error } = await admin
+        .from(table)
+        .select('id, invoice_number, stripe_payment_intent_id')
+        .eq('status', 'processing')
+        .lt('updated_at', cutoff);
+      if (error) {
+        this.logger.error(
+          `Bank payment check failed for ${table}: ${error.message}`,
+        );
+        continue;
+      }
+      for (const invoice of stuck ?? []) {
+        result.checked++;
+        const paymentIntentId = invoice.stripe_payment_intent_id;
+        if (!paymentIntentId) {
+          this.logger.warn(
+            `${table} ${invoice.invoice_number} is processing with no payment on file`,
+          );
+          continue;
+        }
+        try {
+          const intent =
+            await this.stripe.paymentIntents.retrieve(paymentIntentId);
+          if (intent.status === 'succeeded') {
+            await service.markInvoicePaidByPaymentIntent(paymentIntentId);
+            result.paid++;
+            this.logger.warn(
+              `Recovered ${table} ${invoice.invoice_number}: Stripe shows ${paymentIntentId} succeeded`,
+            );
+          } else if (
+            intent.status === 'requires_payment_method' ||
+            intent.status === 'canceled'
+          ) {
+            await service.revertProcessingStatus(paymentIntentId);
+            result.reverted++;
+            this.logger.warn(
+              `Reopened ${table} ${invoice.invoice_number}: Stripe shows ${paymentIntentId} ${intent.status}`,
+            );
+          }
+        } catch (err) {
+          this.logger.error(
+            `Could not check ${paymentIntentId} for ${table} ${invoice.invoice_number}: ${(err as Error).message}`,
+          );
+        }
+      }
+    }
+    return result;
   }
 
   /** Handle charge.refunded — keeps vendor invoices and bookings in step with refunds made in Stripe. */

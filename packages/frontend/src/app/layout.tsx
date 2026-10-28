@@ -61,6 +61,7 @@ export default function RootLayout({
         logo: `${SITE_URL}/lib/EventEcos-Logo.jpg`,
         sameAs: [
           'https://www.facebook.com/people/EventEcos/61580708045237/',
+          'https://www.instagram.com/eventecos100/',
           'https://www.linkedin.com/company/eventecos/',
         ],
       },

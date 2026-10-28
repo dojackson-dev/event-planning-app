@@ -4,9 +4,14 @@ import {
   Logger,
   Inject,
   forwardRef,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
+import {
+  describeInstantPayouts,
+  type InstantPayoutReadiness,
+} from './instant-payout-readiness';
 import Stripe from 'stripe';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
@@ -28,6 +33,8 @@ import { VipService } from '../vip/vip.service';
 import { SponsorshipCheckoutService } from '../nonprofit/sponsorship-checkout.service';
 import { clientVisibleItems } from '../invoices/client-visible-items';
 import { analytics } from '../analytics/heycatch';
+
+export type ConnectRole = 'owner' | 'vendor' | 'artist' | 'promoter';
 
 @Injectable()
 export class StripeService {
@@ -1872,6 +1879,80 @@ export class StripeService {
     }
 
     return { status, connectId, enableBnpl: data?.enable_bnpl ?? false };
+  }
+
+  /** The signed-in user's own Stripe Connect account id for a role; null when none is connected. */
+  private async connectIdForRole(
+    userId: string,
+    role: ConnectRole,
+  ): Promise<string | null> {
+    const admin = this.supabaseService.getAdminClient();
+    if (role === 'owner') {
+      const owner = await this.getOwnerAccountByUserId(userId, admin);
+      return owner?.stripe_connect_id ?? null;
+    }
+    const table = {
+      vendor: 'vendor_accounts',
+      artist: 'artist_accounts',
+      promoter: 'promoter_accounts',
+    }[role];
+    const { data } = await admin
+      .from(table)
+      .select('stripe_account_id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    return data?.stripe_account_id ?? null;
+  }
+
+  /**
+   * Whether the user's connected Stripe account can take Instant Payouts
+   * (payouts enabled and an instant-eligible debit card on file).
+   */
+  async getInstantPayoutReadiness(
+    userId: string,
+    role: ConnectRole,
+  ): Promise<InstantPayoutReadiness> {
+    const connectId = await this.connectIdForRole(userId, role);
+    if (!connectId) return describeInstantPayouts(null);
+    try {
+      const [account, destinations] = await Promise.all([
+        this.stripe.accounts.retrieve(connectId),
+        this.stripe.accounts.listExternalAccounts(connectId, { limit: 20 }),
+      ]);
+      return describeInstantPayouts({
+        ...account,
+        external_accounts: destinations,
+      } as unknown as Stripe.Account);
+    } catch (err) {
+      this.logger.warn(
+        `Instant payout check failed for ${role} ${connectId}: ${(err as Error).message}`,
+      );
+      throw new ServiceUnavailableException(
+        'Could not check your instant payout setup. Please try again shortly.',
+      );
+    }
+  }
+
+  /** One-time link into the user's own Stripe Express dashboard, where they add a debit card. */
+  async createPayoutSettingsLink(
+    userId: string,
+    role: ConnectRole,
+  ): Promise<{ url: string }> {
+    const connectId = await this.connectIdForRole(userId, role);
+    if (!connectId) {
+      throw new BadRequestException('Connect your Stripe account first.');
+    }
+    try {
+      const link = await this.stripe.accounts.createLoginLink(connectId);
+      return { url: link.url };
+    } catch (err) {
+      this.logger.warn(
+        `Stripe dashboard link failed for ${role} ${connectId}: ${(err as Error).message}`,
+      );
+      throw new BadRequestException(
+        'Finish your Stripe setup first, then you can add a debit card.',
+      );
+    }
   }
 
   /**

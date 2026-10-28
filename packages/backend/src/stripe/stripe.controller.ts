@@ -15,7 +15,7 @@ import {
   UnauthorizedException,
   Logger,
 } from '@nestjs/common';
-import { StripeService } from './stripe.service';
+import { StripeService, type ConnectRole } from './stripe.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
   PromoterAccessPolicy,
@@ -283,6 +283,41 @@ export class StripeController {
   ): Promise<{ status: string; connectId: string | null }> {
     const userId = await this.getUserIdFromAuth(authorization);
     return this.stripeService.getVendorConnectStatus(userId);
+  }
+
+  private connectRole(role: string): ConnectRole {
+    if (!['owner', 'vendor', 'artist', 'promoter'].includes(role)) {
+      throw new BadRequestException('Unknown account type');
+    }
+    return role as ConnectRole;
+  }
+
+  /**
+   * GET /stripe/connect/:role/instant-payouts
+   * Whether the signed-in user's Stripe account is set up for Instant Payouts.
+   */
+  @Get('connect/:role/instant-payouts')
+  async instantPayoutReadiness(
+    @Headers('authorization') authorization: string,
+    @Param('role') role: string,
+  ) {
+    const connectRole = this.connectRole(role);
+    const userId = await this.getUserIdFromAuth(authorization);
+    return this.stripeService.getInstantPayoutReadiness(userId, connectRole);
+  }
+
+  /**
+   * POST /stripe/connect/:role/payout-settings-link
+   * One-time link to the user's Stripe dashboard to add a debit card.
+   */
+  @Post('connect/:role/payout-settings-link')
+  async payoutSettingsLink(
+    @Headers('authorization') authorization: string,
+    @Param('role') role: string,
+  ): Promise<{ url: string }> {
+    const connectRole = this.connectRole(role);
+    const userId = await this.getUserIdFromAuth(authorization, 'write');
+    return this.stripeService.createPayoutSettingsLink(userId, connectRole);
   }
 
   /**

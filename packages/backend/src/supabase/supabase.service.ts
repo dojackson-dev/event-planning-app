@@ -1,9 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { checkServiceRoleKey, describeServiceKey } from './service-key-check';
 
 @Injectable()
 export class SupabaseService {
+  private readonly logger = new Logger(SupabaseService.name);
   private supabase!: SupabaseClient;
   private supabaseAdmin!: SupabaseClient;
 
@@ -17,6 +19,23 @@ export class SupabaseService {
     if (!supabaseUrl || !supabaseAnonKey) {
       throw new Error(
         'Missing Supabase configuration. Please check SUPABASE_URL and SUPABASE_ANON_KEY in .env',
+      );
+    }
+
+    // Refuse to start on a wrong admin key so a bad deploy fails instead of silently returning empty data.
+    const keyProblem = checkServiceRoleKey({
+      url: supabaseUrl,
+      anonKey: supabaseAnonKey,
+      serviceKey: supabaseServiceKey,
+      production: process.env.NODE_ENV === 'production' || !!process.env.RENDER,
+    });
+    if (keyProblem) {
+      throw new Error(`Invalid Supabase admin configuration: ${keyProblem}`);
+    }
+    if (supabaseServiceKey) {
+      const { role, projectRef } = describeServiceKey(supabaseServiceKey);
+      this.logger.log(
+        `Supabase admin key verified${role ? ` (${role}` : ''}${projectRef ? `, project ${projectRef}` : ''}${role ? ')' : ''}`,
       );
     }
 

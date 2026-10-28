@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { AlertCircle, CheckCircle, CreditCard, ExternalLink, Loader2, Zap } from 'lucide-react'
+import { AlertCircle, CheckCircle, CreditCard, ExternalLink, Info, Loader2, Zap } from 'lucide-react'
 import api from '@/lib/api'
 
 type Role = 'owner' | 'vendor' | 'artist' | 'promoter'
@@ -78,6 +78,7 @@ export default function InstantPayoutReadiness({ role }: { role: Role }) {
   const ready = readiness.state === 'ready'
 
   return (
+    <div className="space-y-2">
     <div
       className={`rounded-lg border p-4 ${ready ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'}`}
       data-testid="instant-payout-status"
@@ -108,5 +109,60 @@ export default function InstantPayoutReadiness({ role }: { role: Role }) {
         </div>
       </div>
     </div>
+    <InstantPayoutHelp role={role} onOpenStripe={openStripe} opening={opening} />
+    </div>
+  )
+}
+
+const PAYOUT_STEPS: Record<Role, string> = {
+  vendor: 'open Payouts in your dashboard, enter an amount, and choose Instant payout.',
+  owner: 'open your Stripe dashboard, go to Balance, and choose Instant payout.',
+  artist: 'open your Stripe dashboard, go to Balance, and choose Instant payout.',
+  promoter: 'open your Stripe dashboard, go to Balance, and choose Instant payout.',
+}
+
+function InstantPayoutHelp({ role, onOpenStripe, opening }: { role: Role; onOpenStripe: () => void; opening: boolean }) {
+  return (
+    <details className="group rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700">
+      <summary className="flex cursor-pointer list-none items-center gap-2 font-medium text-gray-900">
+        <Info className="h-4 w-4 text-indigo-500" />
+        How instant payouts work
+        <span className="ml-auto text-xs font-normal text-indigo-600 group-open:hidden">Show</span>
+        <span className="ml-auto hidden text-xs font-normal text-indigo-600 group-open:inline">Hide</span>
+      </summary>
+      <div className="mt-3 space-y-3">
+        <p>
+          Normally, money you earn reaches your bank on Stripe&apos;s payout schedule. With an <strong>instant payout</strong>,
+          you can move your available balance to your debit card or eligible bank account in about 30 minutes, any day or time,
+          including weekends and holidays.
+        </p>
+        <div>
+          <p className="font-medium text-gray-900">To get set up</p>
+          <ol className="mt-1 list-decimal space-y-1 pl-5">
+            <li>Connect your account with Stripe. This is done once your payouts show as active.</li>
+            <li>Add a Visa or Mastercard <strong>debit card</strong> in your Stripe payout settings. Prepaid cards and credit cards don&apos;t qualify.</li>
+            <li>When you want your money, {PAYOUT_STEPS[role]}</li>
+          </ol>
+        </div>
+        <div>
+          <p className="font-medium text-gray-900">Good to know</p>
+          <ul className="mt-1 list-disc space-y-1 pl-5">
+            <li>Card payments are available for an instant payout right away.</li>
+            <li>Bank (ACH) payments are only available after they clear, usually about 4 business days.</li>
+            <li>Stripe charges a fee for each instant payout, about 1.5% (minimum $0.50). Standard payouts stay free.</li>
+            <li>Instant payouts are subject to daily limits set by Stripe, so a large amount may need to wait or be split.</li>
+          </ul>
+        </div>
+        <button
+          type="button"
+          onClick={onOpenStripe}
+          disabled={opening}
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-700 disabled:opacity-60"
+        >
+          {opening ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
+          Open my Stripe payout settings
+        </button>
+      </div>
+    </details>
   )
 }

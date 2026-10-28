@@ -14,7 +14,7 @@ import MonthPicker from '@/components/events/MonthPicker'
 import BottomSheet from '@/components/events/BottomSheet'
 import EventListingCard from '@/components/events/EventListingCard'
 import { searchPlaces } from '@/lib/places'
-import FollowUs from '@/components/SocialLinks'
+import FollowUs, { FollowStrip } from '@/components/SocialLinks'
 
 interface TicketTier {
   id: string
@@ -652,6 +652,8 @@ export default function PublicEventsPage() {
           </div>
         </div>
       </nav>
+
+      <FollowStrip />
 
       <main className="mx-auto max-w-5xl px-4 pb-16 pt-8">
         {search.trim() && (

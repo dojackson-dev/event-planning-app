@@ -49,6 +49,7 @@ export default function ClientsPage() {
   const [messageContent, setMessageContent] = useState('')
   const [appointmentData, setAppointmentData] = useState({ date: '', time: '', duration: '60', notes: '' })
   const [activatingId, setActivatingId] = useState<string | null>(null)
+  const [guideSendingId, setGuideSendingId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchClients()
@@ -124,6 +125,19 @@ export default function ClientsPage() {
       alert(error.response?.data?.message || 'Failed to activate lead')
     } finally {
       setActivatingId(null)
+    }
+  }
+
+  const handleSendPortalGuide = async (client: IntakeForm) => {
+    if (!confirm(`Email the client portal guide to ${client.contact_name} (${client.contact_email})?`)) return
+    setGuideSendingId(client.id)
+    try {
+      await api.post(`/intake-forms/${client.id}/send-portal-guide`, {})
+      alert(`Portal guide sent to ${client.contact_email}.`)
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Could not send the portal guide. Please try again.')
+    } finally {
+      setGuideSendingId(null)
     }
   }
 
@@ -426,6 +440,16 @@ export default function ClientsPage() {
                       <MessageSquare className="h-4 w-4" />
                       Message
                     </button>
+                    {client.contact_email && (
+                      <button
+                        onClick={() => handleSendPortalGuide(client)}
+                        disabled={guideSendingId === client.id}
+                        className="flex items-center justify-center gap-2 h-11 px-3 bg-gray-100 hover:bg-teal-50 active:bg-teal-100 text-gray-700 hover:text-teal-700 text-sm font-medium rounded-xl col-span-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Mail className="h-4 w-4" />
+                        {guideSendingId === client.id ? 'Sending guide...' : 'Send portal guide'}
+                      </button>
+                    )}
                     {client.status === 'converted' && client.event_id && (
                       <button
                         onClick={() => router.push(`/dashboard/events/${client.event_id}/manage`)}

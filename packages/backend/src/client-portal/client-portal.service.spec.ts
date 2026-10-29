@@ -3,6 +3,7 @@ import { ClientPortalService } from './client-portal.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { StripeService } from '../stripe/stripe.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
+import { MailService } from '../mail/mail.service';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 
 /** Builds a chainable Supabase mock for common .from().select()... patterns. */
@@ -29,9 +30,11 @@ describe('ClientPortalService – confirmInvite', () => {
   let service: ClientPortalService;
   let supabaseService: jest.Mocked<SupabaseService>;
   let adminClient: ReturnType<typeof makeChain>;
+  let mailService: { sendClientPortalGuide: jest.Mock };
 
   beforeEach(async () => {
     adminClient = makeChain();
+    mailService = { sendClientPortalGuide: jest.fn().mockResolvedValue(true) };
 
     supabaseService = {
       getAdminClient: jest.fn().mockReturnValue(adminClient),
@@ -45,6 +48,7 @@ describe('ClientPortalService – confirmInvite', () => {
         { provide: SupabaseService, useValue: supabaseService },
         { provide: StripeService, useValue: {} },
         { provide: SmsNotificationsService, useValue: { sendSms: jest.fn() } },
+        { provide: MailService, useValue: mailService },
       ],
     }).compile();
 
@@ -121,6 +125,14 @@ describe('ClientPortalService – confirmInvite', () => {
         sub.single = jest.fn().mockResolvedValue({ data: null, error: null });
       }
 
+      // owner_accounts → the venue name used in the guide email
+      if (table === 'owner_accounts') {
+        sub.maybeSingle = jest.fn().mockResolvedValue({
+          data: { business_name: 'The Rookery MS' },
+          error: null,
+        });
+      }
+
       // notifications → success
       if (table === 'notifications') {
         sub.insert = jest.fn().mockReturnValue({
@@ -140,6 +152,38 @@ describe('ClientPortalService – confirmInvite', () => {
 
     return { form, capturedInserts };
   }
+
+  // ── portal guide email ────────────────────────────────────────────────────
+
+  it('sends the portal guide to the client when they confirm, with the venue name', async () => {
+    setupConfirmInviteScenario({ contact_email: 'alice@example.test' });
+
+    await service.confirmInvite('tok-abc', '+15550001111', 'client-1');
+
+    expect(mailService.sendClientPortalGuide).toHaveBeenCalledTimes(1);
+    expect(mailService.sendClientPortalGuide).toHaveBeenCalledWith({
+      clientName: 'Alice',
+      clientEmail: 'alice@example.test',
+      venueName: 'The Rookery MS',
+    });
+  });
+
+  it('skips the guide when the client has no email on file', async () => {
+    setupConfirmInviteScenario({ contact_email: null });
+
+    await service.confirmInvite('tok-abc', '+15550001111', 'client-1');
+
+    expect(mailService.sendClientPortalGuide).not.toHaveBeenCalled();
+  });
+
+  it('still confirms the event when the guide email cannot be sent', async () => {
+    setupConfirmInviteScenario({ contact_email: 'alice@example.test' });
+    mailService.sendClientPortalGuide.mockRejectedValue(new Error('smtp down'));
+
+    await expect(
+      service.confirmInvite('tok-abc', '+15550001111', 'client-1'),
+    ).resolves.toMatchObject({ success: true });
+  });
 
   // ── event_end_time ────────────────────────────────────────────────────────
 

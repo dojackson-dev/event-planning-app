@@ -231,6 +231,21 @@ export class IntakeFormsController {
     }
   }
 
+  @Post(':id/send-portal-guide')
+  async sendPortalGuide(
+    @Headers('authorization') authorization: string,
+    @Param('id') id: string,
+  ) {
+    const token = this.extractToken(authorization);
+    const userId = await this.getUserId(authorization);
+    const supabaseWithAuth = this.supabaseService.setAuthContext(token);
+    return this.intakeFormsService.sendPortalGuide(
+      supabaseWithAuth,
+      userId,
+      id,
+    );
+  }
+
   @Post(':id/resend-invitation')
   async resendInvitation(
     @Headers('authorization') authorization: string,

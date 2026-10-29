@@ -10,13 +10,21 @@ describe('sizeWikimediaImage', () => {
   it('shrinks an oversized thumbnail to the card width and drops tracking parameters', () => {
     const big = `https://thumb.wikimedia.org/wikipedia/commons/thumb/0/02/Switchfoot_The_National.jpg/3840px-Switchfoot_The_National.jpg?utm_source=en.wikipedia.org&utm_campaign=api`;
     expect(sizeWikimediaImage(big, 5000)).toBe(
-      `https://thumb.wikimedia.org/wikipedia/commons/thumb/0/02/Switchfoot_The_National.jpg/${CARD_IMAGE_WIDTH}px-Switchfoot_The_National.jpg`,
+      `${base}/thumb/0/02/Switchfoot_The_National.jpg/${CARD_IMAGE_WIDTH}px-Switchfoot_The_National.jpg`,
     );
   });
 
   it('leaves a thumbnail that is already small enough alone', () => {
     const small = `${base}/thumb/a/a5/Venue.jpg/330px-Venue.jpg`;
     expect(sizeWikimediaImage(small, 4000)).toBe(small);
+  });
+
+  it('always serves from upload.wikimedia.org, which every network can resolve', () => {
+    const onThumbHost =
+      'https://thumb.wikimedia.org/wikipedia/commons/thumb/a/af/Brooklyn_Paramount.jpg/330px-Brooklyn_Paramount.jpg?utm_source=en.wikipedia.org';
+    expect(sizeWikimediaImage(onThumbHost, 3000)).toBe(
+      `${base}/thumb/a/af/Brooklyn_Paramount.jpg/330px-Brooklyn_Paramount.jpg`,
+    );
   });
 
   it('turns a large original into a thumbnail URL', () => {
@@ -39,7 +47,7 @@ describe('sizeWikimediaImage', () => {
 
   it('does not touch originals that are already small or whose width is unknown', () => {
     const small = `${base}/a/a5/Small.jpg`;
-    expect(sizeWikimediaImage(small, 800)).toBe(small);
+    expect(sizeWikimediaImage(`${small}?utm_source=x`, 800)).toBe(small);
     expect(sizeWikimediaImage(small, undefined)).toBe(small);
   });
 

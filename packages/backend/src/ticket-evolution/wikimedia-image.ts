@@ -19,9 +19,12 @@ const WIKIMEDIA_HOSTS = new Set([
   'upload.wikimedia.org',
   'thumb.wikimedia.org',
 ]);
+// Both hosts serve the same files at the same paths, but thumb.wikimedia.org does not resolve for some
+// visitors' networks (the photo then shows as a placeholder), so every URL is served from upload.wikimedia.org.
+const IMAGE_ORIGIN = 'https://upload.wikimedia.org';
 const RESIZABLE = /\.(jpe?g|png)$/i;
 
-/** A copy of the image at `width` pixels, or the same URL when it is already small enough or cannot be resized safely. */
+/** A copy of the image at `width` pixels on upload.wikimedia.org, or the same file when it is already small enough or cannot be resized safely. */
 export function sizeWikimediaImage(
   source: string,
   knownWidth: number | undefined,
@@ -35,12 +38,15 @@ export function sizeWikimediaImage(
   }
   if (!WIKIMEDIA_HOSTS.has(url.hostname)) return source;
 
+  // The same file on the reliable host, without the tracking parameters Wikipedia appends.
+  const sameFile = `${IMAGE_ORIGIN}${url.pathname}`;
+
   // Already a thumbnail such as .../3840px-Name.jpg: shrink it when it is wider than needed.
   const thumb = url.pathname.match(/^(.*\/thumb\/.+\/)(\d+)px-([^/]+)$/);
   if (thumb) {
     return Number(thumb[2]) <= width
-      ? source
-      : `${url.origin}${thumb[1]}${width}px-${thumb[3]}`;
+      ? sameFile
+      : `${IMAGE_ORIGIN}${thumb[1]}${width}px-${thumb[3]}`;
   }
 
   // A full-size original: build the thumbnail URL, but only when we know it is wider than the target
@@ -49,11 +55,11 @@ export function sizeWikimediaImage(
     /^\/wikipedia\/(commons|en)\/([0-9a-f])\/([0-9a-f]{2})\/([^/]+)$/,
   );
   if (!original || knownWidth === undefined || knownWidth <= width) {
-    return source;
+    return sameFile;
   }
   const [, project, dirA, dirAb, file] = original;
-  if (!RESIZABLE.test(file)) return source;
-  return `${url.origin}/wikipedia/${project}/thumb/${dirA}/${dirAb}/${file}/${width}px-${file}`;
+  if (!RESIZABLE.test(file)) return sameFile;
+  return `${IMAGE_ORIGIN}/wikipedia/${project}/thumb/${dirA}/${dirAb}/${file}/${width}px-${file}`;
 }
 
 /** The best card-sized image from a Wikipedia summary, or null when the page has none. */

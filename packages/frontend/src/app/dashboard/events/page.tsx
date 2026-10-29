@@ -167,11 +167,13 @@ export default function EventsPage() {
     return () => { cancelled = true }
   }, [activeVenue, venuesLoaded])
 
-  const now = new Date()
+  // An event is expired once its day has passed; events happening today are still upcoming.
+  const startOfToday = new Date()
+  startOfToday.setHours(0, 0, 0, 0)
+  const isExpired = (event: Event) => parseLocalDate(event.date) < startOfToday
   const filteredEvents = events.filter(event => {
-    const eventDate = parseLocalDate(event.date)
-    if (filter === 'upcoming' && eventDate < now) return false
-    if (filter === 'past' && eventDate >= now) return false
+    if (filter === 'upcoming' && isExpired(event)) return false
+    if (filter === 'past' && !isExpired(event)) return false
     if (searchTerm) {
       const q = searchTerm.toLowerCase()
       return (
@@ -186,9 +188,8 @@ export default function EventsPage() {
   }).sort((a, b) => {
     const dateA = parseLocalDate(a.date).getTime()
     const dateB = parseLocalDate(b.date).getTime()
-    const nowTime = now.getTime()
-    const aUpcoming = dateA >= nowTime
-    const bUpcoming = dateB >= nowTime
+    const aUpcoming = !isExpired(a)
+    const bUpcoming = !isExpired(b)
     if (aUpcoming && bUpcoming) return dateA - dateB
     if (!aUpcoming && !bUpcoming) return dateB - dateA
     return aUpcoming ? -1 : 1
@@ -196,8 +197,104 @@ export default function EventsPage() {
 
   const CARDS_PER_PAGE = 12
   const paginatedEvents = filteredEvents.slice((currentPage - 1) * CARDS_PER_PAGE, currentPage * CARDS_PER_PAGE)
+  const pageUpcoming = paginatedEvents.filter(event => !isExpired(event))
+  const pageExpired = paginatedEvents.filter(isExpired)
+  const expiredCount = filteredEvents.filter(isExpired).length
 
   useEffect(() => { setCurrentPage(1) }, [searchTerm, filter])
+
+  const renderEventCard = (event: Event) => {
+  const steps = computeProgress(event, allEstimates, allInvoices, allContracts)
+  const isComplete = steps.every(s => s.done || s.skipped)
+  const currentIdx = steps.findIndex(s => !s.done && !s.skipped)
+  const expired = isExpired(event)
+
+  return (
+    <div key={event.id} className={`relative group ${expired ? 'opacity-80 hover:opacity-100 transition-opacity' : ''}`}>
+      {/* Pulsing ring for incomplete events */}
+      {!isComplete && !expired && (
+        <div className="absolute -inset-0.5 rounded-xl bg-primary-400 opacity-30 animate-pulse pointer-events-none" />
+      )}
+      <Link
+        href={`/dashboard/events/${event.id}/manage`}
+        className={`relative bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow cursor-pointer block overflow-hidden border ${
+          isComplete ? 'border-gray-200' : 'border-primary-200'
+        }`}
+      >
+        {/* Status stripe */}
+        <div className={`h-1.5 w-full ${
+          event.status === 'cancelled' ? 'bg-red-400' :
+          isComplete ? 'bg-green-400' :
+          event.status === 'completed' ? 'bg-gray-400' :
+          'bg-primary-400'
+        }`} />
+
+        <div className="p-5">
+          {/* Header */}
+          <div className="flex justify-between items-start mb-3">
+            <div className="flex-1 min-w-0">
+              {(event as any).clientName && (
+                <p className="text-xs font-semibold text-primary-600 truncate mb-0.5">
+                  {(event as any).clientName}
+                </p>
+              )}
+              <h3 className="text-base font-semibold text-gray-900 leading-snug">
+                {(event as any).intakeEventName || event.name}
+              </h3>
+            </div>
+            {/* Progress badge */}
+            <span className={`ml-2 flex-shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ${
+              event.status === 'cancelled'
+                ? 'bg-red-100 text-red-700'
+                : isComplete
+                ? 'bg-green-100 text-green-700'
+                : currentIdx === 0
+                ? 'bg-gray-100 text-gray-500'
+                : 'bg-primary-50 text-primary-700'
+            }`}>
+              {event.status === 'cancelled' ? 'Cancelled' : isComplete ? '✓ Booked' : currentIdx === 0 ? 'New' : `Step ${currentIdx + 1}/5`}
+            </span>
+          </div>
+
+          {/* Event details */}
+          <div className="space-y-1.5 text-sm text-gray-500">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
+              <span>{format(parseLocalDate(event.date), 'PPP')}</span>
+            </div>
+            {(() => {
+              const linkedVenue = venues.find((v: any) => v.id === (event as any).venueId)
+              const addrParts = linkedVenue
+                ? [linkedVenue.address, linkedVenue.city, linkedVenue.state].filter(Boolean)
+                : []
+              const displayAddr = addrParts.length > 0 ? addrParts.join(', ') : null
+              return displayAddr ? (
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
+                  <span className="truncate">{displayAddr}</span>
+                </div>
+              ) : null
+            })()}
+            {event.maxGuests && (
+              <div className="flex items-center gap-2">
+                <Users className="h-3.5 w-3.5 flex-shrink-0" />
+                <span>Up to {event.maxGuests} guests</span>
+              </div>
+            )}
+            {(event.startTime || event.endTime) && (
+              <p className="text-xs text-gray-400 pt-0.5">
+                {formatTime(event.startTime)} – {formatTime(event.endTime)}
+              </p>
+            )}
+          </div>
+
+          {/* Progress bar */}
+          <EventProgressBar steps={steps} />
+        </div>
+      </Link>
+    </div>
+  )
+  }
 
   if (loading) {
     return <div className="flex items-center justify-center h-40 text-gray-400">Loading eventsâ€¦</div>
@@ -257,114 +354,40 @@ export default function EventsPage() {
         >
           <option value="all">All Events</option>
           <option value="upcoming">Upcoming</option>
-          <option value="past">Past Events</option>
+          <option value="past">Expired Events</option>
         </select>
       </div>
 
       {/* Events Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {paginatedEvents.map((event) => {
-          const steps = computeProgress(event, allEstimates, allInvoices, allContracts)
-          const isComplete = steps.every(s => s.done || s.skipped)
-          const currentIdx = steps.findIndex(s => !s.done && !s.skipped)
+      {(pageUpcoming.length > 0 || filteredEvents.length === 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {pageUpcoming.map(renderEventCard)}
 
-          return (
-            <div key={event.id} className="relative group">
-              {/* Pulsing ring for incomplete events */}
-              {!isComplete && (
-                <div className="absolute -inset-0.5 rounded-xl bg-primary-400 opacity-30 animate-pulse pointer-events-none" />
-              )}
-              <Link
-                href={`/dashboard/events/${event.id}/manage`}
-                className={`relative bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow cursor-pointer block overflow-hidden border ${
-                  isComplete ? 'border-gray-200' : 'border-primary-200'
-                }`}
-              >
-                {/* Status stripe */}
-                <div className={`h-1.5 w-full ${
-                  event.status === 'cancelled' ? 'bg-red-400' :
-                  isComplete ? 'bg-green-400' :
-                  event.status === 'completed' ? 'bg-gray-400' :
-                  'bg-primary-400'
-                }`} />
-
-                <div className="p-5">
-                  {/* Header */}
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex-1 min-w-0">
-                      {(event as any).clientName && (
-                        <p className="text-xs font-semibold text-primary-600 truncate mb-0.5">
-                          {(event as any).clientName}
-                        </p>
-                      )}
-                      <h3 className="text-base font-semibold text-gray-900 leading-snug">
-                        {(event as any).intakeEventName || event.name}
-                      </h3>
-                    </div>
-                    {/* Progress badge */}
-                    <span className={`ml-2 flex-shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ${
-                      event.status === 'cancelled'
-                        ? 'bg-red-100 text-red-700'
-                        : isComplete
-                        ? 'bg-green-100 text-green-700'
-                        : currentIdx === 0
-                        ? 'bg-gray-100 text-gray-500'
-                        : 'bg-primary-50 text-primary-700'
-                    }`}>
-                      {event.status === 'cancelled' ? 'Cancelled' : isComplete ? '✓ Booked' : currentIdx === 0 ? 'New' : `Step ${currentIdx + 1}/5`}
-                    </span>
-                  </div>
-
-                  {/* Event details */}
-                  <div className="space-y-1.5 text-sm text-gray-500">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
-                      <span>{format(parseLocalDate(event.date), 'PPP')}</span>
-                    </div>
-                    {(() => {
-                      const linkedVenue = venues.find((v: any) => v.id === (event as any).venueId)
-                      const addrParts = linkedVenue
-                        ? [linkedVenue.address, linkedVenue.city, linkedVenue.state].filter(Boolean)
-                        : []
-                      const displayAddr = addrParts.length > 0 ? addrParts.join(', ') : null
-                      return displayAddr ? (
-                        <div className="flex items-center gap-2">
-                          <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
-                          <span className="truncate">{displayAddr}</span>
-                        </div>
-                      ) : null
-                    })()}
-                    {event.maxGuests && (
-                      <div className="flex items-center gap-2">
-                        <Users className="h-3.5 w-3.5 flex-shrink-0" />
-                        <span>Up to {event.maxGuests} guests</span>
-                      </div>
-                    )}
-                    {(event.startTime || event.endTime) && (
-                      <p className="text-xs text-gray-400 pt-0.5">
-                        {formatTime(event.startTime)} – {formatTime(event.endTime)}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Progress bar */}
-                  <EventProgressBar steps={steps} />
-                </div>
-              </Link>
+          {filteredEvents.length === 0 && (
+            <div className="col-span-full text-center py-16 text-gray-400">
+              <Calendar className="h-10 w-10 mx-auto mb-3 text-gray-300" />
+              <p className="font-medium">No events found.</p>
+              <p className="text-sm mt-1">
+                <Link href="/dashboard/intake" className="text-primary-600 hover:underline">Submit a client intake form</Link> to get started.
+              </p>
             </div>
-          )
-        })}
+          )}
+        </div>
+      )}
 
-        {filteredEvents.length === 0 && (
-          <div className="col-span-full text-center py-16 text-gray-400">
-            <Calendar className="h-10 w-10 mx-auto mb-3 text-gray-300" />
-            <p className="font-medium">No events found.</p>
-            <p className="text-sm mt-1">
-              <Link href="/dashboard/intake" className="text-primary-600 hover:underline">Submit a client intake form</Link> to get started.
-            </p>
+      {/* Events whose date has passed, set apart from the rest */}
+      {pageExpired.length > 0 && (
+        <section aria-labelledby="expired-events" className={pageUpcoming.length > 0 ? 'mt-12' : ''}>
+          <div className="mb-5 flex items-center gap-3">
+            <h2 id="expired-events" className="text-lg font-semibold text-gray-700">Expired Events</h2>
+            <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-500">{expiredCount}</span>
+            <div className="flex-1 border-t border-gray-200" />
           </div>
-        )}
-      </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {pageExpired.map(renderEventCard)}
+          </div>
+        </section>
+      )}
 
       <Pagination
         currentPage={currentPage}

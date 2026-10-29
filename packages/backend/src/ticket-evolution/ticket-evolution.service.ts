@@ -1,4 +1,8 @@
 import {
+  pickWikipediaImage,
+  type WikipediaSummaryImages,
+} from './wikimedia-image';
+import {
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -267,12 +271,8 @@ export class TicketEvolutionService {
         });
         return null;
       }
-      const data = (await res.json()) as {
-        thumbnail?: { source?: string };
-        originalimage?: { source?: string };
-      };
-      const value =
-        data.originalimage?.source ?? data.thumbnail?.source ?? null;
+      const data = (await res.json()) as WikipediaSummaryImages;
+      const value = pickWikipediaImage(data);
       this.imageCache.set(key, { value, expires: Date.now() + 24 * 3600_000 });
       return value;
     } catch (err) {

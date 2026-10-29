@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { Calendar, CalendarDays, Heart, MapPin, Ticket } from 'lucide-react'
 
@@ -44,6 +45,8 @@ export const formatTime = (value: string | null): string | null => {
 export default function EventListingCard(p: EventListingCardProps) {
   const when = [p.date ? formatDate(p.date) : null, formatTime(p.time)].filter(Boolean).join(' · ')
   const where = [p.venue, [p.city, p.state].filter(Boolean).join(', ')].filter(Boolean).join(' · ')
+  // A photo that fails to load falls back to the placeholder instead of leaving a broken-image box.
+  const [imageFailed, setImageFailed] = useState(false)
   const linkClass = 'after:absolute after:inset-0 after:content-[""] focus-visible:outline-none'
 
   const title = p.href ? (
@@ -59,9 +62,17 @@ export default function EventListingCard(p: EventListingCardProps) {
   return (
     <article className="group relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition-shadow focus-within:ring-2 focus-within:ring-indigo-400 hover:shadow-md">
       <div className="relative h-44 overflow-hidden bg-gradient-to-br from-indigo-50 to-purple-100">
-        {p.imageUrl ? (
+        {p.imageUrl && !imageFailed ? (
+          // Cropped toward the top so faces in tall portrait photos stay in frame.
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={p.imageUrl} alt="" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
+          <img
+            src={p.imageUrl}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            onError={() => setImageFailed(true)}
+            className="h-full w-full object-cover object-[center_20%] transition-transform duration-300 group-hover:scale-105"
+          />
         ) : (
           <div className="flex h-full items-center justify-center">
             {p.placeholder === 'ticket'

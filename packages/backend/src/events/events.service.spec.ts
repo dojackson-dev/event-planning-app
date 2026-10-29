@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { SupabaseService } from '../supabase/supabase.service';
 import { EventsService } from './events.service';
 
 describe('EventsService', () => {
@@ -6,7 +7,7 @@ describe('EventsService', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [EventsService],
+      providers: [EventsService, { provide: SupabaseService, useValue: {} }],
     }).compile();
 
     service = module.get<EventsService>(EventsService);

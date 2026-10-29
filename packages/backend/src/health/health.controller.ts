@@ -4,6 +4,7 @@ import {
   Logger,
   OnApplicationBootstrap,
   OnModuleDestroy,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { AdminDbProbe, probeAdminDb } from './admin-db-probe';
@@ -25,7 +26,7 @@ export class HealthController
 
   /** Logs the admin connection check at startup so a bad key shows up in the deploy logs. */
   async onApplicationBootstrap(): Promise<void> {
-    const result = await this.db();
+    const result = await this.check();
     if (result.status === 'ok') {
       this.logger.log(
         `Admin database check OK (admin sees ${result.protectedRows.admin} protected rows)`,
@@ -75,9 +76,18 @@ export class HealthController
     }
   }
 
-  /** GET /health/db: whether the backend's admin database connection works. Safe to expose: no keys or data. */
+  /**
+   * GET /health/db: whether the backend's admin database connection works. Safe to expose: no keys or data.
+   * Answers 503 when degraded so uptime monitors alert without any keyword setup.
+   */
   @Get('db')
   async db(): Promise<AdminDbProbe> {
+    const result = await this.check();
+    if (result.status !== 'ok') throw new ServiceUnavailableException(result);
+    return result;
+  }
+
+  private async check(): Promise<AdminDbProbe> {
     if (this.cached && Date.now() - this.cached.at < CACHE_MS) {
       return this.cached.result;
     }

@@ -271,6 +271,163 @@ export class MailService {
     }
   }
 
+  /**
+   * "How to use your client portal": the 5 booking steps, then vendors and RSVPs.
+   * Sent once when a client activates their portal, and again on request. Never throws.
+   * Returns true when the message was handed to the mail server.
+   */
+  async sendClientPortalGuide(params: {
+    clientName: string;
+    clientEmail: string;
+    venueName?: string;
+  }): Promise<boolean> {
+    try {
+      const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+      const portalUrl = `${frontendUrl}/client-login`;
+      const esc = (value: string) =>
+        value
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      const displayName = params.venueName || 'Your event coordinator';
+      const name = esc(params.clientName || 'there');
+
+      const steps: Array<[string, string, string]> = [
+        [
+          'Activate',
+          'Confirm your event details',
+          "You've done this part. Your event request is in and your coordinator is working on it.",
+        ],
+        [
+          'Estimate',
+          'Review and approve your estimate',
+          'Open <strong>Estimates</strong> to see your personalized pricing. Approve it, or send a message if you want changes.',
+        ],
+        [
+          'Contract',
+          'Sign your contract online',
+          'Open <strong>Contracts</strong>, read it, and sign electronically. No printing or scanning.',
+        ],
+        [
+          'Invoice',
+          'Pay your invoice',
+          'Open <strong>Invoices</strong> to pay by card or bank transfer. Payments made by cash, check or Zelle are recorded by your coordinator and show up here too.',
+        ],
+        [
+          'Booked',
+          'Your event is officially booked',
+          'Once your invoice is paid, the date is yours. We will confirm it by email.',
+        ],
+      ];
+      const stepRows = steps
+        .map(
+          ([label, title, body], i) => `
+            <tr>
+              <td style="vertical-align: top; padding: 10px 14px 10px 0; width: 36px;">
+                <div style="width: 30px; height: 30px; line-height: 30px; text-align: center; border-radius: 50%; background: #1E3A7F; color: #fff; font-weight: 700; font-size: 14px;">${i + 1}</div>
+              </td>
+              <td style="padding: 10px 0; border-bottom: 1px solid #eef2f7;">
+                <div style="font-size: 12px; letter-spacing: 0.6px; text-transform: uppercase; color: #6b7280;">${label}</div>
+                <div style="font-size: 15px; font-weight: 700; color: #111827; margin: 2px 0 4px;">${title}</div>
+                <div style="font-size: 14px; color: #374151; line-height: 1.6;">${body}</div>
+              </td>
+            </tr>`,
+        )
+        .join('');
+
+      const html = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb; padding: 32px 16px;">
+          <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08);">
+            ${this.getEmailHeader('Your Client Portal', 'A quick guide to planning your event')}
+            <div style="padding: 32px;">
+              <p style="color: #374151; font-size: 16px; margin: 0 0 12px;">Hello <strong>${name}</strong>,</p>
+              <p style="color: #374151; font-size: 15px; line-height: 1.7; margin: 0 0 24px;">
+                Welcome! <strong>${esc(displayName)}</strong> uses your client portal to keep everything for your event in one place.
+                Here is how it works, from first request to a booked date.
+              </p>
+
+              <h3 style="margin: 0 0 6px; color: #1e3a5f; font-size: 16px;">Your 5 steps to a booked event</h3>
+              <table style="width: 100%; border-collapse: collapse; margin: 0 0 28px;">${stepRows}</table>
+
+              <h3 style="margin: 0 0 8px; color: #1e3a5f; font-size: 16px;">Explore vendors</h3>
+              <p style="color: #374151; font-size: 14px; line-height: 1.7; margin: 0 0 24px;">
+                Need a DJ, caterer, decorator or photographer? Open <strong>Vendors</strong> and choose <strong>Browse</strong>.
+                Search by category, read each vendor's profile and rates, and send a booking request in a few taps.
+                The vendor confirms with you, and the booking is tracked right in your portal.
+              </p>
+
+              <h3 style="margin: 0 0 8px; color: #1e3a5f; font-size: 16px;">Collect RSVPs from your guests</h3>
+              <p style="color: #374151; font-size: 14px; line-height: 1.7; margin: 0 0 24px;">
+                Once your event is booked, open <strong>RSVP</strong> to add your guests, one at a time or in bulk.
+                Choose <strong>Send All</strong> to text each guest a personal RSVP link, then watch the replies come in.
+                You can also assign tables and see who has arrived on the day.
+              </p>
+
+              <div style="background: #f0f4ff; border-left: 4px solid #2563eb; border-radius: 8px; padding: 16px 20px; margin: 0 0 28px;">
+                <p style="margin: 0; color: #1e3a5f; font-size: 14px; line-height: 1.7;">
+                  <strong>Questions?</strong> Use <strong>Messages</strong> in your portal to reach your coordinator any time.
+                  You will also get alerts under <strong>Notifications</strong> whenever something needs your attention.
+                </p>
+              </div>
+
+              <div style="text-align: center; margin: 0 0 20px;">
+                <a href="${portalUrl}"
+                   style="display: inline-block; background: linear-gradient(135deg, #00BFA5, #1E3A7F); color: white; padding: 16px 44px; text-decoration: none; border-radius: 8px; font-size: 16px; font-weight: 700;">
+                  Open My Client Portal
+                </a>
+              </div>
+              <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 0;">
+                You will sign in with a quick text message to the phone number you gave us.
+              </p>
+            </div>
+          </div>
+        </div>
+      `;
+
+      const text = [
+        `Hello ${params.clientName || 'there'},`,
+        '',
+        `${displayName} uses your client portal to keep everything for your event in one place. Here is how it works.`,
+        '',
+        'YOUR 5 STEPS TO A BOOKED EVENT',
+        '1. Activate - confirm your event details (you have done this).',
+        '2. Estimate - review and approve your estimate under Estimates.',
+        '3. Contract - sign your contract online under Contracts.',
+        '4. Invoice - pay your invoice under Invoices (card or bank transfer).',
+        '5. Booked - once your invoice is paid, your date is officially booked.',
+        '',
+        'EXPLORE VENDORS',
+        'Open Vendors, then Browse. Search by category, read profiles and rates, and send a booking request.',
+        '',
+        'COLLECT RSVPS',
+        'Once your event is booked, open RSVP to add guests, choose Send All to text each a personal RSVP link, and watch replies come in.',
+        '',
+        'Questions? Use Messages in your portal to reach your coordinator.',
+        '',
+        `Open your client portal: ${portalUrl}`,
+        '',
+        'EventEcos',
+      ].join('\n');
+
+      await this.transporter.sendMail({
+        from: `"EventEcos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
+        to: params.clientEmail,
+        subject: params.venueName
+          ? `How to use your ${params.venueName} client portal`
+          : 'How to use your client portal',
+        html,
+        text,
+      });
+      return true;
+    } catch (error) {
+      this.logger.warn(
+        `Client portal guide email failed: ${(error as Error).message}`,
+      );
+      return false;
+    }
+  }
+
   /** Send an email to the client when their estimate is ready to review. */
   async sendEstimateReady(params: {
     clientName: string;

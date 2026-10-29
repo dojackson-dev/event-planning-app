@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { MailService } from '../mail/mail.service';
 import { TwilioService } from '../messaging/twilio.service';
@@ -377,6 +381,42 @@ export class IntakeFormsService {
    * Resend the invitation email to the client for a given intake form.
    * Resets invite_status to 'sent' regardless of current state.
    */
+  /** Owner action: email the client the "how to use your client portal" guide again. */
+  async sendPortalGuide(supabase: SupabaseClient, userId: string, id: string) {
+    const { data: form } = await supabase
+      .from('intake_forms')
+      .select('contact_name, contact_email')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!form) throw new NotFoundException('Client not found');
+    if (!form.contact_email) {
+      throw new BadRequestException(
+        'This client has no email address on file.',
+      );
+    }
+
+    const { data: owner } = await this.supabaseService
+      .getAdminClient()
+      .from('owner_accounts')
+      .select('business_name')
+      .eq('primary_owner_id', userId)
+      .maybeSingle();
+
+    const sent = await this.mailService.sendClientPortalGuide({
+      clientName: form.contact_name || 'there',
+      clientEmail: form.contact_email,
+      venueName: owner?.business_name ?? undefined,
+    });
+    if (!sent) {
+      throw new BadRequestException(
+        'The email could not be sent right now. Please try again in a few minutes.',
+      );
+    }
+    return { sent: true, to: form.contact_email };
+  }
+
   async resendInvitation(supabase: SupabaseClient, userId: string, id: string) {
     const supabaseAdmin = this.supabaseService.getAdminClient();
 

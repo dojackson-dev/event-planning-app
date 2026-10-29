@@ -8,6 +8,7 @@ import {
 import { SupabaseService } from '../supabase/supabase.service';
 import { StripeService } from '../stripe/stripe.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
+import { MailService } from '../mail/mail.service';
 import { clientVisibleItems } from '../invoices/client-visible-items';
 
 /** Returns all likely phone formats for a given phone string so we can query any format stored in the DB. */
@@ -31,6 +32,7 @@ export class ClientPortalService {
     private readonly supabaseService: SupabaseService,
     private readonly stripeService: StripeService,
     private readonly smsNotifications: SmsNotificationsService,
+    private readonly mailService: MailService,
   ) {}
 
   /** Helper: returns intake form IDs linked to any of the client's phone variants */
@@ -2064,6 +2066,32 @@ export class ClientPortalService {
       });
     } catch (notifErr) {
       this.logger.warn('[confirmInvite] notification insert failed:', notifErr);
+    }
+
+    // Activation is the moment to show the client how the portal works. Never blocks the confirmation.
+    if (form.contact_email) {
+      try {
+        const { data: owner } = await supabase
+          .from('owner_accounts')
+          .select('business_name')
+          .eq('primary_owner_id', form.user_id)
+          .maybeSingle();
+        void this.mailService
+          .sendClientPortalGuide({
+            clientName: form.contact_name,
+            clientEmail: form.contact_email,
+            venueName: owner?.business_name ?? undefined,
+          })
+          .catch((err: Error) =>
+            this.logger.warn(
+              `[confirmInvite] portal guide not sent: ${err.message}`,
+            ),
+          );
+      } catch (guideErr) {
+        this.logger.warn(
+          `[confirmInvite] portal guide not sent: ${(guideErr as Error).message}`,
+        );
+      }
     }
 
     this.logger.log(

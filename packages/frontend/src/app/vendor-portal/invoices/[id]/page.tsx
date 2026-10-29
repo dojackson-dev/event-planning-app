@@ -8,6 +8,7 @@ import {
   FileText, Send, Trash2, Loader2, CheckCircle2, Clock, Eye,
   AlertCircle, XCircle, Copy, ExternalLink, DollarSign, Pencil,
 } from 'lucide-react'
+import InvoiceManualPayments from '@/components/InvoiceManualPayments'
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   draft:     { label: 'Draft',     color: 'bg-gray-100 text-gray-600',      icon: <Clock className="w-4 h-4" /> },
@@ -275,6 +276,16 @@ function VendorInvoiceDetailPageContent() {
               </div>
             )}
           </div>
+        </div>
+
+        <div className="mb-5">
+          <InvoiceManualPayments
+            kind="vendor"
+            invoiceId={invoice.id}
+            status={String(invoice.status)}
+            amountDue={Number(invoice.total_amount) - Number(invoice.amount_paid || 0)}
+            onChanged={fetchInvoice}
+          />
         </div>
 
         {/* Notes / Terms */}

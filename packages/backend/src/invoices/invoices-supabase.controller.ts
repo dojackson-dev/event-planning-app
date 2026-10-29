@@ -225,23 +225,6 @@ export class InvoicesSupabaseController {
     );
   }
 
-  @Post(':id/payment')
-  async recordPayment(
-    @Headers('authorization') authorization: string,
-    @Param('id') id: string,
-    @Body('amount') amount: number,
-  ): Promise<Invoice> {
-    const userId = await this.getUserId(authorization);
-    const token = this.extractToken(authorization);
-    const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.invoicesService.recordPayment(
-      supabaseWithAuth,
-      userId,
-      id,
-      amount,
-    );
-  }
-
   @Delete(':id')
   async delete(
     @Headers('authorization') authorization: string,

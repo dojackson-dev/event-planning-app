@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
+import { syncEventAfterPayment } from '../payments/event-payment-sync';
 import {
   describeInstantPayouts,
   type InstantPayoutReadiness,
@@ -1074,40 +1075,13 @@ export class StripeService {
     amountPaid: number,
     isFullyPaid: boolean,
   ): Promise<void> {
-    if (!eventId) return;
-    const { data: event } = await admin
-      .from('event')
-      .select('client_status, deposit_paid_at')
-      .eq('id', eventId)
-      .maybeSingle();
-    if (!event) return;
-
-    const keepStatus = ['completed', 'cancelled'].includes(event.client_status);
-    const { error } = await admin
-      .from('event')
-      .update({
-        ...(keepStatus ? {} : { client_status: 'deposit_paid' }),
-        deposit_paid: true,
-        deposit_paid_at: event.deposit_paid_at ?? new Date().toISOString(),
-        deposit_amount: amountPaid,
-      })
-      .eq('id', eventId);
-    if (error) {
-      this.logger.warn(
-        `Could not mark event ${eventId} booked after payment: ${error.message}`,
-      );
-      return;
-    }
-
-    const { error: paymentStatusError } = await admin
-      .from('event')
-      .update({ payment_status: isFullyPaid ? 'paid' : 'deposit_paid' })
-      .eq('id', eventId);
-    if (paymentStatusError) {
-      this.logger.warn(
-        `Could not update payment status for event ${eventId}: ${paymentStatusError.message}`,
-      );
-    }
+    await syncEventAfterPayment(
+      admin,
+      this.logger,
+      eventId,
+      amountPaid,
+      isFullyPaid,
+    );
   }
 
   /** Amount to credit an invoice: the checkout's credit_cents when recorded (excludes the processing fee), else the amount charged. */

@@ -6,6 +6,7 @@ import Link from 'next/link'
 import api from '@/lib/api'
 import { Send, Copy, CheckCircle2, Loader2, Trash2, ExternalLink } from 'lucide-react'
 import { siteOrigin } from '@/lib/url'
+import InvoiceManualPayments from '@/components/InvoiceManualPayments'
 
 interface ArtistInvoice {
   id: string
@@ -267,6 +268,16 @@ function ArtistInvoiceDetail() {
               )}
             </div>
           )}
+        </div>
+
+        <div className="mt-5">
+          <InvoiceManualPayments
+            kind="artist"
+            invoiceId={invoice.id}
+            status={String(invoice.status)}
+            amountDue={Number(invoice.total_amount) - Number(invoice.amount_paid || 0)}
+            onChanged={() => { api.get(`/artist-invoices/${id}`).then(r => setInvoice(r.data)).catch(() => {}) }}
+          />
         </div>
       </div>
     </div>

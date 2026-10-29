@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
 import { Resend } from 'resend';
 import * as QRCode from 'qrcode';
@@ -8,6 +8,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 
 @Injectable()
 export class MailService {
+  private readonly logger = new Logger(MailService.name);
   private transporter: nodemailer.Transporter;
 
   constructor(private readonly supabaseService: SupabaseService) {
@@ -849,6 +850,61 @@ export class MailService {
       html,
     });
     if (error) throw new Error(error.message);
+  }
+
+  /** Receipt for a payment recorded by hand (cash, check, Zelle, ...). Never throws, since the payment is already saved. */
+  async sendManualPaymentReceipt(params: {
+    toEmail: string;
+    clientName: string;
+    invoiceNumber: string;
+    amount: number;
+    methodLabel: string;
+    paidOn: string;
+    balanceDue: number;
+    reference?: string | null;
+  }): Promise<void> {
+    if (!process.env.RESEND_API_KEY) return;
+    const esc = (value: string) =>
+      value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    const money = (n: number) =>
+      `$${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f9fafb;padding:32px 16px;">
+        <div style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+          ${this.getEmailHeader('Payment Received', `Invoice ${esc(params.invoiceNumber)}`)}
+          <div style="padding:32px;color:#374151;font-size:15px;line-height:1.6;">
+            <p style="margin:0 0 16px;">Hi ${esc(params.clientName)}, we recorded your payment. Thank you!</p>
+            <table style="width:100%;border-collapse:collapse;font-size:15px;">
+              <tr><td style="padding:8px 0;color:#6b7280;">Amount</td><td style="padding:8px 0;text-align:right;font-weight:600;">${money(params.amount)}</td></tr>
+              <tr><td style="padding:8px 0;color:#6b7280;">Method</td><td style="padding:8px 0;text-align:right;">${esc(params.methodLabel)}</td></tr>
+              <tr><td style="padding:8px 0;color:#6b7280;">Date</td><td style="padding:8px 0;text-align:right;">${esc(params.paidOn)}</td></tr>
+              ${params.reference ? `<tr><td style="padding:8px 0;color:#6b7280;">Reference</td><td style="padding:8px 0;text-align:right;">${esc(params.reference)}</td></tr>` : ''}
+              <tr><td style="padding:8px 0;color:#6b7280;border-top:1px solid #e5e7eb;">Balance remaining</td><td style="padding:8px 0;text-align:right;font-weight:600;border-top:1px solid #e5e7eb;">${money(params.balanceDue)}</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+    try {
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      const { error } = await resend.emails.send({
+        from: this.resendFrom,
+        to: params.toEmail,
+        subject: `Payment received – ${params.invoiceNumber}`,
+        html,
+      });
+      if (error) {
+        this.logger.warn(`Payment receipt email failed: ${error.message}`);
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Payment receipt email failed: ${(err as Error).message}`,
+      );
+    }
   }
 
   async sendReminderEmail(params: {

@@ -10,6 +10,7 @@ import { IntakeFormsModule } from './intake-forms/intake-forms.module';
 import { EventsModule } from './events/events.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { InvoicesModule } from './invoices/invoices.module';
+import { InvoicePaymentsModule } from './invoice-payments/invoice-payments.module';
 import { SecurityModule } from './security/security.module';
 import { UsersModule } from './users/users.module.js';
 import { GuestListsModule } from './guest-lists/guest-lists.module';
@@ -63,6 +64,7 @@ import { PromoterTeamModule } from './promoter-team/promoter-team.module';
     EventsModule,
     BookingsModule,
     InvoicesModule,
+    InvoicePaymentsModule,
     GuestListsModule,
     ContractsModule,
     EstimatesModule,

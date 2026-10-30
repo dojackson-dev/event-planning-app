@@ -39,6 +39,7 @@ function NewInvoicePageContent() {
   const [clientEventType, setClientEventType] = useState<string | null>(null)
   const [lockedEvent, setLockedEvent] = useState<{ id: string; name: string; date: string } | null>(null)
   const [eventName, setEventName] = useState<string>('')
+  const [pickedFromDropdown, setPickedFromDropdown] = useState(false)
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([])
   const [expenseItems, setExpenseItems] = useState<InvoiceLineItem[]>([])
   const [vendorBookingBanner, setVendorBookingBanner] = useState<string>('')
@@ -70,11 +71,8 @@ function NewInvoicePageContent() {
     }).catch(() => {})
   }, [])
 
-  // Pre-fill from event manage page workflow (eventId param)
-  useEffect(() => {
-    const eventId = searchParams?.get('eventId')
-    const clientIdParam = searchParams?.get('clientId')
-    if (!eventId) return
+  // Loads an event and its client into the form. Used by the eventId link param and by the event dropdown.
+  const loadEvent = (eventId: string, clientIdParam?: string | null) => {
     setSelectedBooking(eventId)
     api.get(`/events/${eventId}`).then(res => {
       const ev = res.data
@@ -120,6 +118,30 @@ function NewInvoicePageContent() {
         }
       }).catch(() => {})
     }).catch(() => {})
+  }
+
+  const handleEventPicked = (eventId: string) => {
+    if (!eventId) return
+    setPickedFromDropdown(true)
+    loadEvent(eventId)
+  }
+
+  const clearPickedEvent = () => {
+    setPickedFromDropdown(false)
+    setSelectedBooking('')
+    setLockedEvent(null)
+    setEventName('')
+    setClientName('')
+    setClientPhone('')
+    setIntakeFormId(null)
+    setVendorBookingBanner('')
+  }
+
+  // Pre-fill from event manage page workflow (eventId param)
+  useEffect(() => {
+    const eventId = searchParams?.get('eventId')
+    if (!eventId) return
+    loadEvent(eventId, searchParams?.get('clientId'))
   }, [searchParams])
 
   // Pre-fill from client detail page workflow (clientId + type=estimate)
@@ -523,7 +545,7 @@ function NewInvoicePageContent() {
 
       <form onSubmit={handleSubmit} className="bg-white shadow-md rounded-lg p-6">
         {/* Event Selection */}
-        {!intakeFormId && (
+        {(!intakeFormId || pickedFromDropdown) && (
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Link to Event (Optional)
@@ -536,7 +558,17 @@ function NewInvoicePageContent() {
                   {new Date(lockedEvent.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 </span>
               )}
-              <span className="ml-auto text-xs text-teal-400">Linked from event</span>
+              {pickedFromDropdown ? (
+                <button
+                  type="button"
+                  onClick={clearPickedEvent}
+                  className="ml-auto text-xs text-teal-700 underline hover:text-teal-900"
+                >
+                  Change
+                </button>
+              ) : (
+                <span className="ml-auto text-xs text-teal-400">Linked from event</span>
+              )}
             </div>
           ) : (
             <>
@@ -547,7 +579,7 @@ function NewInvoicePageContent() {
               ) : null}
               <select
                 value={selectedBooking}
-                onChange={(e) => setSelectedBooking(e.target.value)}
+                onChange={(e) => handleEventPicked(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value="">-- Select an event (optional) --</option>
@@ -577,7 +609,7 @@ function NewInvoicePageContent() {
         </div>
 
         {/* Event Name — shown when pre-filled from event */}
-        {eventName && (
+        {eventName && !pickedFromDropdown && (
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Event Name

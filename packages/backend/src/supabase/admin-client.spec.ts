@@ -11,7 +11,9 @@ function mockFetch() {
     const url =
       typeof input === 'string'
         ? input
-        : ((input as Request).url ?? String(input));
+        : input instanceof globalThis.URL
+          ? input.href
+          : input.url;
     seen.push({ url, auth: new Headers(init?.headers).get('Authorization') });
     if (url.includes('/auth/v1/signup')) {
       return Promise.resolve(

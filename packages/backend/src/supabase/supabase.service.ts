@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createAdminClient } from './admin-client';
 import { checkServiceRoleKey, describeServiceKey } from './service-key-check';
 
 @Injectable()
@@ -50,17 +51,10 @@ export class SupabaseService {
       },
     });
 
-    // Admin client for bypassing RLS (use carefully!)
+    // Admin client for bypassing RLS (use carefully!). Pinned to the service key so a signUp/signIn on it
+    // can never turn later admin reads into user reads.
     if (supabaseServiceKey) {
-      this.supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-        db: {
-          schema: 'public',
-        },
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      });
+      this.supabaseAdmin = createAdminClient(supabaseUrl, supabaseServiceKey);
     }
   }
 

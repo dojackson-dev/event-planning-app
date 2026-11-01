@@ -20,6 +20,7 @@ export class HealthController
   private readonly logger = new Logger(HealthController.name);
   private cached: { at: number; result: AdminDbProbe } | null = null;
   private readonly selfHeal = new SelfHealTracker();
+  private sawAdminRows = false;
   private watchdog: NodeJS.Timeout | null = null;
 
   constructor(private readonly supabaseService: SupabaseService) {}
@@ -98,10 +99,13 @@ export class HealthController
 
   private async runProbe(): Promise<AdminDbProbe> {
     try {
-      return await probeAdminDb(
+      const result = await probeAdminDb(
         this.supabaseService.getAdminClient(),
         this.supabaseService.getClient(),
+        this.sawAdminRows,
       );
+      if ((result.protectedRows.admin ?? 0) > 0) this.sawAdminRows = true;
+      return result;
     } catch (err) {
       return {
         status: 'degraded',

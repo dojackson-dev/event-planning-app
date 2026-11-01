@@ -27,6 +27,12 @@ async function countRows(client: SupabaseClient): Promise<number | null> {
 export async function probeAdminDb(
   admin: SupabaseClient,
   anon: SupabaseClient,
+  /**
+   * True once this process has seen the admin connection read rows. A database that is legitimately empty
+   * (the demo project has no external events) must not count as broken, but a connection that read rows
+   * earlier and now reads none has lost its admin rights.
+   */
+  expectRows = true,
 ): Promise<AdminDbProbe> {
   const { error: adminApiError } = await admin.auth.admin.listUsers({
     page: 1,
@@ -45,7 +51,7 @@ export async function probeAdminDb(
       'Supabase rejects the admin key for admin-only requests. The key in SUPABASE_SERVICE_ROLE_KEY is not a working service_role key for this project.';
   } else if (adminRows === null) {
     problem = `The admin connection could not read ${PROTECTED_TABLE}.`;
-  } else if (adminRows === 0 && anonRows === 0) {
+  } else if (adminRows === 0 && anonRows === 0 && expectRows) {
     problem = `The admin connection sees no rows in ${PROTECTED_TABLE} (the table may be empty, or the connection is not acting as admin).`;
   }
 

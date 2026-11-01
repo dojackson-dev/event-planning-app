@@ -50,6 +50,25 @@ describe('probeAdminDb', () => {
     expect(result.problem).toContain('sees no rows');
   });
 
+  it('does not flag an empty database that never had rows (e.g. the demo project)', async () => {
+    const result = await probeAdminDb(
+      client({ rows: 0 }),
+      client({ rows: 0 }),
+      false,
+    );
+    expect(result.status).toBe('ok');
+    expect(result.problem).toBeNull();
+  });
+
+  it('still flags a rejected admin key even on an empty database', async () => {
+    const result = await probeAdminDb(
+      client({ adminApiError: true, rows: 0 }),
+      client({ rows: 0 }),
+      false,
+    );
+    expect(result.status).toBe('degraded');
+  });
+
   it('flags an admin connection that cannot read the table at all', async () => {
     const result = await probeAdminDb(
       client({ rows: null }),

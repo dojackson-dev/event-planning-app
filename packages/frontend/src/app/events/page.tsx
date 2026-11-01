@@ -148,6 +148,7 @@ export default function PublicEventsPage() {
   const [tevoEvents, setTevoEvents] = useState<TevoEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [extLoading, setExtLoading] = useState(false)
+  const [extLoaded, setExtLoaded] = useState(false)
   const [tevoLoading, setTevoLoading] = useState(false)
   // "Load More" pagination — one page cursor + hasMore/loadingMore flag per
   // provider, reset whenever a fresh search/filter triggers fetchEvents().
@@ -424,6 +425,7 @@ export default function PublicEventsPage() {
 
         const extRows: ExternalEvent[] = extRes.status === 'fulfilled' ? extRes.value.data || [] : []
         setExtEvents(extRows)
+        setExtLoaded(true)
         setExtOffset(EXT_PAGE_SIZE)
         setExtHasMore(extRows.length === EXT_PAGE_SIZE)
 
@@ -870,7 +872,7 @@ export default function PublicEventsPage() {
         )}
 
         {/* Events Around Town — aggregated local listings */}
-        {(extLoading || extEvents.length > 0) && (
+        {(extLoading || extLoaded || extEvents.length > 0) && (
           <section className="mt-12" aria-labelledby="around-town">
             <h2 id="around-town" className="text-center text-2xl font-bold text-gray-900">Events Around Town</h2>
             <p className="mt-0.5 text-center text-sm text-gray-500">Aggregated from local event listings.</p>
@@ -878,7 +880,14 @@ export default function PublicEventsPage() {
             {extLoading ? (
               <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-indigo-400" /></div>
             ) : filteredExtEvents.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">No local events found for {monthLabel}.</p>
+              <div className="py-8 text-center text-sm text-gray-500">
+                <p>{extEvents.length === 0 ? 'No local listings right now. They refresh daily.' : `No local events found for ${monthLabel}.`}</p>
+                {extEvents.length === 0 && zipCode && (
+                  <button type="button" onClick={openFilterSheet} className="mt-2 font-medium text-indigo-600 underline hover:text-indigo-800">
+                    Try a wider distance
+                  </button>
+                )}
+              </div>
             ) : (
               <div className="mt-4 flex flex-wrap justify-center gap-5 [&>*]:w-full md:[&>*]:w-[calc(50%-0.625rem)] lg:[&>*]:w-[calc(33.333%-0.84rem)]">
                 {filteredExtEvents.map(ev => (

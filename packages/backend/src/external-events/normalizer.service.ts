@@ -39,6 +39,8 @@ export class NormalizerService {
     const externalId = raw.externalId?.trim();
     const title = raw.title?.trim();
     if (!externalId || !title) return null; // can't dedupe or display without these
+    // Undated records (e.g. providers that only say "Today") can never match an upcoming-events query.
+    if (!raw.eventDate) return null;
 
     let priceMin = raw.priceMin ?? null;
     let priceMax = raw.priceMax ?? null;

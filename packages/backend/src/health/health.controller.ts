@@ -47,7 +47,7 @@ export class HealthController
    */
   private startWatchdog(): void {
     if (
-      process.env.NODE_ENV !== 'production' ||
+      !(process.env.NODE_ENV === 'production' || process.env.RENDER) ||
       process.env.SELF_HEAL_DISABLED === 'true'
     ) {
       return;

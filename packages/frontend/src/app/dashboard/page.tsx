@@ -38,6 +38,7 @@ export default function DashboardPage() {
     totalClients: 0,
     newClients: 0,
   })
+  const [vendorBills, setVendorBills] = useState({ count: 0, amount: 0 })
   const [recentBookings, setRecentBookings] = useState<Booking[]>([])
   const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([])
   const [recentClients, setRecentClients] = useState<IntakeForm[]>([])
@@ -80,6 +81,18 @@ export default function DashboardPage() {
         Number(inv.amount_due ?? 0) > 0
       )
       const unpaidAmount = unpaidInvoices.reduce((sum, inv) => sum + Number(inv.amount_due ?? 0), 0)
+
+      // Vendor invoices the venue owes for its own bookings (same set Ecco reports)
+      const vendorInvoicesRes = await api
+        .get<{ status: string; amount_due?: number | string | null }[]>('/vendor-invoices/owner-bookings')
+        .catch(() => ({ data: [] as { status: string; amount_due?: number | string | null }[] }))
+      const vendorOwed = (vendorInvoicesRes.data || []).filter(
+        inv => !['draft', 'paid', 'cancelled'].includes(inv.status) && Number(inv.amount_due ?? 0) > 0
+      )
+      setVendorBills({
+        count: vendorOwed.length,
+        amount: vendorOwed.reduce((sum, inv) => sum + Number(inv.amount_due ?? 0), 0),
+      })
 
       // Fetch bookings (gracefully handle missing table)
       const bookingsRes = await api.get<Booking[]>('/bookings').catch(() => ({ data: [] as Booking[] }))
@@ -193,18 +206,28 @@ export default function DashboardPage() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
-        <Link href="/dashboard/invoices" className="bg-white rounded-xl shadow-sm p-5 sm:p-6 border border-gray-100 hover:shadow-md hover:border-red-200 transition-all cursor-pointer">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">Unpaid Invoices</p>
-              <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.unpaidInvoices}</p>
-              <p className="text-xs text-gray-500 mt-1">${stats.unpaidAmount.toFixed(2)} outstanding</p>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md hover:border-red-200 transition-all">
+          <Link href="/dashboard/invoices" className="block p-5 sm:p-6 cursor-pointer">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">Unpaid Invoices</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.unpaidInvoices}</p>
+                <p className="text-xs text-gray-500 mt-1">${stats.unpaidAmount.toFixed(2)} outstanding</p>
+              </div>
+              <div className="bg-red-50 p-3 rounded-lg">
+                <AlertCircle className="h-8 w-8 sm:h-10 sm:w-10 text-red-500" />
+              </div>
             </div>
-            <div className="bg-red-50 p-3 rounded-lg">
-              <AlertCircle className="h-8 w-8 sm:h-10 sm:w-10 text-red-500" />
-            </div>
-          </div>
-        </Link>
+          </Link>
+          {vendorBills.count > 0 && (
+            <Link
+              href="/dashboard/vendors/payments"
+              className="block border-t border-gray-100 px-5 sm:px-6 py-2.5 text-xs font-medium text-red-600 hover:bg-red-50 rounded-b-xl"
+            >
+              {vendorBills.count} vendor invoice{vendorBills.count === 1 ? '' : 's'} to pay · ${vendorBills.amount.toFixed(2)}
+            </Link>
+          )}
+        </div>
 
         <Link href="/dashboard/bookings" className="bg-white rounded-xl shadow-sm p-5 sm:p-6 border border-gray-100 hover:shadow-md hover:border-green-200 transition-all cursor-pointer">
           <div className="flex items-center justify-between">

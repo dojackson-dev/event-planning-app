@@ -42,6 +42,47 @@ export interface PublicExternalEvent {
 
 const MIN_CONFIDENCE = 0.3;
 
+const normalizeKeyText = (value: string | null | undefined): string =>
+  (value ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+const detailScore = (e: {
+  image_url: string | null;
+  event_url: string | null;
+  description: string | null;
+}): number =>
+  (e.image_url ? 1 : 0) + (e.event_url ? 1 : 0) + (e.description ? 1 : 0);
+
+/**
+ * The same show often arrives through several city feeds. Keeps one row per title + date + start time + venue
+ * (the one with the most details), in the order each event first appeared. Rows are flagged duplicate at sync
+ * time, but that flag is recomputed on every sync and can mark every copy, so it cannot be used to hide them.
+ */
+export function collapseDuplicateEvents<
+  T extends {
+    title: string;
+    event_date: string;
+    start_time: string | null;
+    venue_name: string | null;
+    city: string | null;
+    image_url: string | null;
+    event_url: string | null;
+    description: string | null;
+  },
+>(events: T[]): T[] {
+  const best = new Map<string, T>();
+  for (const e of events) {
+    const key = [
+      normalizeKeyText(e.title),
+      e.event_date,
+      e.start_time ?? '',
+      normalizeKeyText(e.venue_name ?? e.city),
+    ].join('|');
+    const current = best.get(key);
+    if (!current || detailScore(e) > detailScore(current)) best.set(key, e);
+  }
+  return [...best.values()];
+}
+
 // external_events has no per-row timezone/offset column, so we can't know an
 // event's exact local UTC offset. To avoid ever hiding an event that's still
 // upcoming somewhere in the US, only treat a "today"-dated event as already
@@ -135,7 +176,7 @@ export class ExternalEventsService {
       // actually runs out; any raw rows re-fetched by the client's next
       // "load more" call are harmless since it dedupes by id.
       let rawOffset = offset;
-      const collected: Omit<PublicExternalEvent, 'source'>[] = [];
+      let collected: Omit<PublicExternalEvent, 'source'>[] = [];
       for (let i = 0; i < 20; i++) {
         const { data: rows, error } = await buildQuery().range(
           rawOffset,
@@ -148,6 +189,7 @@ export class ExternalEventsService {
             (row) => !isDefinitelyPast(row.event_date, row.start_time, nowMs),
           ),
         );
+        collected = collapseDuplicateEvents(collected);
         rawOffset += resultLimit;
         if (page.length < resultLimit || collected.length >= resultLimit) break;
       }
@@ -171,12 +213,16 @@ export class ExternalEventsService {
       }
     }
 
-    let events = data
-      .filter((row) => !isDefinitelyPast(row.event_date, row.start_time, nowMs))
-      .map((row) => ({
-        ...row,
-        source: 'external' as const,
-      }));
+    let events = collapseDuplicateEvents(
+      data
+        .filter(
+          (row) => !isDefinitelyPast(row.event_date, row.start_time, nowMs),
+        )
+        .map((row) => ({
+          ...row,
+          source: 'external' as const,
+        })),
+    );
 
     if (params.zip_code) {
       const radiusMiles = params.radius_miles ?? 30;

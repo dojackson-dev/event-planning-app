@@ -12,6 +12,25 @@ import {
   splitDateTime,
 } from './path-utils';
 
+const MONTH_END_WINDOW_DAYS = 14;
+
+/**
+ * Providers like RapidAPI "Real-Time Events Search" take `date=month`, meaning only the rest of the current
+ * calendar month. Near month-end that is a day or two, so the next month's events are missing until the new
+ * month starts. In the last two weeks this returns the same query for `date=next_month`; otherwise null.
+ */
+export function nextMonthEndpoint(
+  endpointUrl: string,
+  now: Date = new Date(),
+): string | null {
+  if (!/([?&])date=month(&|$)/.test(endpointUrl)) return null;
+  const daysInMonth = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+  if (daysInMonth - now.getUTCDate() >= MONTH_END_WINDOW_DAYS) return null;
+  return endpointUrl.replace(/([?&])date=month(&|$)/, '$1date=next_month$2');
+}
+
 /**
  * Generic REST/JSON API connector. Fetches `endpoint_url`, resolves the
  * array of event records via `connector_config.recordsPath` (e.g. "events"
@@ -24,14 +43,36 @@ export class RestJsonConnector implements EventConnector {
 
   async fetch(source: EventSourceRecord): Promise<RawExternalEvent[]> {
     const config = source.connector_config || {};
-    const res = await fetch(source.endpoint_url, {
-      headers: { Accept: 'application/json', ...(config.headers || {}) },
-    });
-    if (!res.ok) {
-      throw new Error(`REST source responded ${res.status} ${res.statusText}`);
+    const records = await this.fetchRecords(
+      source.endpoint_url,
+      config.headers,
+      config.recordsPath,
+    );
+
+    const nextMonthUrl = nextMonthEndpoint(source.endpoint_url);
+    if (nextMonthUrl) {
+      try {
+        const more = await this.fetchRecords(
+          nextMonthUrl,
+          config.headers,
+          config.recordsPath,
+        );
+        const seen = new Set(
+          records.map((r) =>
+            toStringOrNull(getByPath(r, config.fieldMap?.externalId)),
+          ),
+        );
+        for (const r of more) {
+          const id = toStringOrNull(getByPath(r, config.fieldMap?.externalId));
+          if (!id || !seen.has(id)) records.push(r);
+        }
+      } catch (err) {
+        // The current month already succeeded; a failed extra window must not fail the whole sync.
+        this.logger.warn(
+          `Next-month window failed for ${source.name}: ${err instanceof Error ? err.message : err}`,
+        );
+      }
     }
-    const body = await res.json();
-    const records = resolveRecordsArray(body, config.recordsPath);
 
     const fieldMap = config.fieldMap || {};
     return records.map((record) => {
@@ -66,5 +107,19 @@ export class RestJsonConnector implements EventConnector {
         raw: record,
       };
     });
+  }
+
+  private async fetchRecords(
+    url: string,
+    headers: Record<string, string> | undefined,
+    recordsPath: string | undefined,
+  ): Promise<any[]> {
+    const res = await fetch(url, {
+      headers: { Accept: 'application/json', ...(headers || {}) },
+    });
+    if (!res.ok) {
+      throw new Error(`REST source responded ${res.status} ${res.statusText}`);
+    }
+    return resolveRecordsArray(await res.json(), recordsPath);
   }
 }

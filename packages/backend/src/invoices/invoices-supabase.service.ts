@@ -9,6 +9,10 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import { MailService } from '../mail/mail.service';
+import {
+  isStripeReady,
+  stripeRegistrationRequired,
+} from '../common/stripe-connect-guard';
 import { randomUUID } from 'crypto';
 
 export interface Invoice {
@@ -332,38 +336,44 @@ event!event_id(id, name, date),
     return data || [];
   }
 
-  /** Check whether the owner (by userId) has an active Stripe Connect account */
-  private async isStripeConnected(ownerId: string): Promise<boolean> {
+  /**
+   * Owner account Stripe state for a user: the primary owner, or a team member of that owner account.
+   * Returns the Connect account id (if any) and whether registration is finished.
+   */
+  private async ownerStripeState(
+    userId: string,
+  ): Promise<{ accountId: string | null; ready: boolean }> {
     const adminClient = this.supabaseService.getAdminClient();
     const { data: directOwner } = await adminClient
       .from('owner_accounts')
       .select('stripe_connect_id, stripe_connect_status')
-      .eq('primary_owner_id', ownerId)
+      .eq('primary_owner_id', userId)
       .maybeSingle();
-    if (directOwner) {
-      return !!(
-        directOwner.stripe_connect_id &&
-        directOwner.stripe_connect_status === 'active'
-      );
+    let owner = directOwner;
+    if (!owner) {
+      const { data: memberships } = await adminClient
+        .from('memberships')
+        .select('owner_account_id')
+        .eq('user_id', userId)
+        .not('owner_account_id', 'is', null)
+        .limit(1);
+      const ownerAccountId = memberships?.[0]?.owner_account_id;
+      if (ownerAccountId) {
+        const { data: ownerById } = await adminClient
+          .from('owner_accounts')
+          .select('stripe_connect_id, stripe_connect_status')
+          .eq('id', ownerAccountId)
+          .maybeSingle();
+        owner = ownerById;
+      }
     }
-    const { data: membership } = await adminClient
-      .from('memberships')
-      .select('owner_account_id')
-      .eq('user_id', ownerId)
-      .eq('role', 'owner')
-      .maybeSingle();
-    if (membership?.owner_account_id) {
-      const { data: ownerById } = await adminClient
-        .from('owner_accounts')
-        .select('stripe_connect_id, stripe_connect_status')
-        .eq('id', membership.owner_account_id)
-        .maybeSingle();
-      return !!(
-        ownerById?.stripe_connect_id &&
-        ownerById.stripe_connect_status === 'active'
-      );
-    }
-    return false;
+    return {
+      accountId: owner?.stripe_connect_id ?? null,
+      ready: isStripeReady(
+        owner?.stripe_connect_id,
+        owner?.stripe_connect_status,
+      ),
+    };
   }
 
   async create(
@@ -927,6 +937,13 @@ event!event_id(id, name, date),
     status: string,
   ): Promise<Invoice> {
     const updateData: any = { status };
+
+    // Clients pay through the owner's Stripe account, so an invoice cannot go out before registration is done.
+    if (status === 'sent') {
+      const stripe = await this.ownerStripeState(userId);
+      if (!stripe.ready)
+        throw stripeRegistrationRequired('owner', stripe.accountId);
+    }
 
     if (status === 'sent' && !updateData.issue_date) {
       updateData.issue_date = new Date().toISOString().split('T')[0];

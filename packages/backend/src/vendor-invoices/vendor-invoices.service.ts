@@ -24,6 +24,10 @@ import {
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import Stripe from 'stripe';
 import { settlePreviousCheckout } from '../common/previous-checkout';
+import {
+  isStripeReady,
+  stripeRegistrationRequired,
+} from '../common/stripe-connect-guard';
 import * as nodemailer from 'nodemailer';
 import {
   CreateVendorInvoiceDto,
@@ -606,12 +610,15 @@ export class VendorInvoicesService {
       .eq('id', vendorAccountId)
       .single();
 
-    const hasStripe =
-      vendorAccount?.stripe_account_id &&
-      vendorAccount.stripe_connect_status === 'active';
-    if (!hasStripe) {
-      throw new BadRequestException(
-        'You must connect a Stripe account before sending invoices. Go to Payouts in your dashboard to set up Stripe.',
+    if (
+      !isStripeReady(
+        vendorAccount?.stripe_account_id,
+        vendorAccount?.stripe_connect_status,
+      )
+    ) {
+      throw stripeRegistrationRequired(
+        'vendor',
+        vendorAccount?.stripe_account_id,
       );
     }
 

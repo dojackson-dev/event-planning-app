@@ -24,6 +24,10 @@ import {
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import Stripe from 'stripe';
 import { settlePreviousCheckout } from '../common/previous-checkout';
+import {
+  isStripeReady,
+  stripeRegistrationRequired,
+} from '../common/stripe-connect-guard';
 import * as nodemailer from 'nodemailer';
 import {
   CreatePromoterInvoiceDto,
@@ -382,11 +386,14 @@ export class PromoterInvoicesService {
       .eq('id', promoterAccountId)
       .single();
     if (
-      !promoterAccount?.stripe_account_id ||
-      promoterAccount.stripe_connect_status !== 'active'
+      !isStripeReady(
+        promoterAccount?.stripe_account_id,
+        promoterAccount?.stripe_connect_status,
+      )
     ) {
-      throw new BadRequestException(
-        'You must connect a Stripe account before sending invoices. Go to your dashboard to set up payouts.',
+      throw stripeRegistrationRequired(
+        'promoter',
+        promoterAccount?.stripe_account_id,
       );
     }
 

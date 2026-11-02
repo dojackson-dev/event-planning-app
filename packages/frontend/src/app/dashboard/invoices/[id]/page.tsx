@@ -6,6 +6,8 @@ import api from '@/lib/api'
 import { Invoice, InvoiceStatus } from '@/types'
 import { Send, Trash2, Pencil, Printer, Link2, DollarSign, Loader2 } from 'lucide-react'
 import InvoiceManualPayments from '@/components/InvoiceManualPayments'
+import StripeRequiredNotice from '@/components/StripeRequiredNotice'
+import { stripeRequiredFrom, type StripeRequired } from '@/lib/stripeRequired'
 
 interface EditItem {
   id?: string
@@ -28,6 +30,7 @@ export default function InvoiceDetailPage() {
   const params = useParams()
   const router = useRouter()
   const [invoice, setInvoice] = useState<Invoice | null>(null)
+  const [stripeNotice, setStripeNotice] = useState<StripeRequired | null>(null)
   const [loading, setLoading] = useState(true)
   const [paymentLink, setPaymentLink] = useState('')
   const [showLinkModal, setShowLinkModal] = useState(false)
@@ -75,6 +78,7 @@ export default function InvoiceDetailPage() {
   const handleStatusUpdate = async (status: InvoiceStatus) => {
     if (!invoice) return
 
+    setStripeNotice(null)
     try {
       // Use the /status endpoint so the backend also sends SMS/email notification
       await api.put(`/invoices/${invoice.id}/status`, { status })
@@ -82,9 +86,15 @@ export default function InvoiceDetailPage() {
       if (status === InvoiceStatus.SENT || status === InvoiceStatus.OVERDUE) {
         alert('Invoice sent to the client.')
       }
-    } catch (error) {
+    } catch (error: any) {
+      const notice = stripeRequiredFrom(error)
+      if (notice) {
+        setStripeNotice(notice)
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+        return
+      }
       console.error('Failed to update status:', error)
-      alert('Failed to update status')
+      alert(error?.response?.data?.message || 'Failed to update status')
     }
   }
 
@@ -321,6 +331,8 @@ export default function InvoiceDetailPage() {
 
   return (
     <div className="p-4 sm:p-6 max-w-4xl mx-auto">
+      {stripeNotice && <div className="print:hidden"><StripeRequiredNotice notice={stripeNotice} /></div>}
+
       {/* Back link */}
       <div className="mb-3 print:hidden">
         <div className="flex flex-col gap-1">

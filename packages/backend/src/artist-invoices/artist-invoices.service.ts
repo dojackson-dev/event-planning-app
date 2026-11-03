@@ -28,6 +28,10 @@ import {
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import Stripe from 'stripe';
 import { settlePreviousCheckout } from '../common/previous-checkout';
+import {
+  isStripeReady,
+  stripeRegistrationRequired,
+} from '../common/stripe-connect-guard';
 import { isBilledTo } from './invoice-recipient';
 import * as nodemailer from 'nodemailer';
 import {
@@ -467,11 +471,14 @@ export class ArtistInvoicesService {
       .eq('id', artistAccountId)
       .single();
     if (
-      !artistAccount?.stripe_account_id ||
-      artistAccount.stripe_connect_status !== 'active'
+      !isStripeReady(
+        artistAccount?.stripe_account_id,
+        artistAccount?.stripe_connect_status,
+      )
     ) {
-      throw new BadRequestException(
-        'You must connect a Stripe account before sending invoices. Go to your dashboard to set up payouts.',
+      throw stripeRegistrationRequired(
+        'artist',
+        artistAccount?.stripe_account_id,
       );
     }
 

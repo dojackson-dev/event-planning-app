@@ -7,6 +7,8 @@ import {
   Send, Copy, CheckCircle2, Loader2, Trash2, AlertCircle, ExternalLink
 } from 'lucide-react'
 import { siteOrigin } from '@/lib/url'
+import StripeRequiredNotice from '@/components/StripeRequiredNotice'
+import { stripeRequiredFrom, type StripeRequired } from '@/lib/stripeRequired'
 
 interface VendorInvoice {
   id: string
@@ -56,6 +58,7 @@ export default function VendorInvoiceDetailPage() {
   const [deleting, setDeleting] = useState(false)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
+  const [stripeNotice, setStripeNotice] = useState<StripeRequired | null>(null)
 
   useEffect(() => {
     api.get(`/vendor-invoices/${id}`)
@@ -77,13 +80,15 @@ export default function VendorInvoiceDetailPage() {
   const payLink = invoice?.public_token ? `${siteOrigin()}/pay/${invoice.public_token}` : ''
 
   const handleSend = async () => {
-    setSending(true); setError('')
+    setSending(true); setError(''); setStripeNotice(null)
     try {
       await api.post(`/vendor-invoices/${id}/send`)
       const r = await api.get(`/vendor-invoices/${id}`)
       setInvoice(r.data)
     } catch (e: any) {
-      setError(e.response?.data?.message || 'Failed to send invoice')
+      const notice = stripeRequiredFrom(e)
+      if (notice) setStripeNotice(notice)
+      else setError(e.response?.data?.message || 'Failed to send invoice')
     } finally {
       setSending(false)
     }
@@ -153,6 +158,7 @@ export default function VendorInvoiceDetailPage() {
           <CheckCircle2 className="w-5 h-5" /> Paid on {invoice.paid_at ? new Date(invoice.paid_at).toLocaleDateString() : '—'}
         </div>
       )}
+      {stripeNotice && <StripeRequiredNotice notice={stripeNotice} />}
       {error && (
         <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-600 rounded-xl px-4 py-3 mb-6 text-sm">
           <AlertCircle className="w-4 h-4" /> {error}

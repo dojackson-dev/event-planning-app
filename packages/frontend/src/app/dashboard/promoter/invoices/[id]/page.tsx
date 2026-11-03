@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import StripeRequiredNotice from '@/components/StripeRequiredNotice'
+import { stripeRequiredFrom, type StripeRequired } from '@/lib/stripeRequired'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
@@ -51,6 +53,7 @@ export default function PromoterInvoiceDetailPage() {
   const [invoice, setInvoice] = useState<PromoterInvoice | null>(null)
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
+  const [stripeNotice, setStripeNotice] = useState<StripeRequired | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
@@ -65,13 +68,15 @@ export default function PromoterInvoiceDetailPage() {
   const payLink = invoice?.public_token ? `${siteOrigin()}/promoter-pay/${invoice.public_token}` : ''
 
   const handleSend = async () => {
-    setSending(true); setError('')
+    setSending(true); setError(''); setStripeNotice(null)
     try {
       await api.post(`/promoter-invoices/${id}/send`)
       const r = await api.get(`/promoter-invoices/${id}`)
       setInvoice(r.data)
     } catch (e: any) {
-      setError(e.response?.data?.message || 'Failed to send invoice. Make sure your Stripe account is connected.')
+      const notice = stripeRequiredFrom(e)
+      if (notice) setStripeNotice(notice)
+      else setError(e.response?.data?.message || 'Failed to send invoice.')
     } finally {
       setSending(false)
     }
@@ -124,6 +129,7 @@ export default function PromoterInvoiceDetailPage() {
         </div>
       </div>
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-5">
+        {stripeNotice && <StripeRequiredNotice notice={stripeNotice} />}
         {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">{error}</div>}
 
         <div className="flex gap-2 flex-wrap">

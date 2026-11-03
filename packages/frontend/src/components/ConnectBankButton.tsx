@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import api from '@/lib/api'
 import InstantPayoutReadiness from '@/components/InstantPayoutReadiness'
-import { ExternalLink, CheckCircle, AlertCircle, Loader2, Building2, Info, ToggleLeft, ToggleRight } from 'lucide-react'
+import { ExternalLink, CheckCircle, AlertCircle, Loader2, Building2, Info, Clock, ToggleLeft, ToggleRight } from 'lucide-react'
 
 interface ConnectBankButtonProps {
   role: 'owner' | 'vendor' | 'artist' | 'promoter'
@@ -187,6 +187,12 @@ export default function ConnectBankButton({ role, email }: ConnectBankButtonProp
             Your Stripe account was created but setup is not complete. Please finish
             connecting your bank account to receive payments.
           </p>
+          <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-md p-3">
+            <Clock className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-800">
+              <strong>Best to complete this during banking hours</strong> (Monday to Friday, business hours). Banks handle new payout accounts differently, and some only verify while they are open, so registering then helps you avoid delays.
+            </p>
+          </div>
           <button
             onClick={handleConnect}
             disabled={connecting}
@@ -220,6 +226,12 @@ export default function ConnectBankButton({ role, email }: ConnectBankButtonProp
             <Info className="h-4 w-4 text-indigo-600 flex-shrink-0 mt-0.5" />
             <p className="text-xs text-indigo-800">
               Once connected, you can optionally offer <strong>Afterpay, Klarna, Affirm, and ACH Direct Debit</strong> to your clients. BNPL methods carry a <strong>~6% processing fee</strong>; a bank account (ACH) is 0.8% (max $5). The buyer pays the processing fee for the method they choose.
+            </p>
+          </div>
+          <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-md p-3">
+            <Clock className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-800">
+              <strong>Best to complete this during banking hours</strong> (Monday to Friday, business hours). Banks handle new payout accounts differently, and some only verify while they are open, so registering then helps you avoid delays.
             </p>
           </div>
           <button

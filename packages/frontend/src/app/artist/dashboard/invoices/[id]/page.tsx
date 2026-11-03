@@ -6,6 +6,8 @@ import Link from 'next/link'
 import api from '@/lib/api'
 import { Send, Copy, CheckCircle2, Loader2, Trash2, ExternalLink } from 'lucide-react'
 import { siteOrigin } from '@/lib/url'
+import StripeRequiredNotice from '@/components/StripeRequiredNotice'
+import { stripeRequiredFrom, type StripeRequired } from '@/lib/stripeRequired'
 import InvoiceManualPayments from '@/components/InvoiceManualPayments'
 
 interface ArtistInvoice {
@@ -62,6 +64,7 @@ function ArtistInvoiceDetail() {
   const [deleting, setDeleting] = useState(false)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
+  const [stripeNotice, setStripeNotice] = useState<StripeRequired | null>(null)
   const [sent, setSent] = useState(false)
 
   useEffect(() => {
@@ -80,7 +83,7 @@ function ArtistInvoiceDetail() {
   const payLink = invoice?.public_token ? `${siteOrigin()}/artist-pay/${invoice.public_token}` : ''
 
   const handleSend = async () => {
-    setSending(true); setError(''); setSent(false)
+    setSending(true); setError(''); setSent(false); setStripeNotice(null)
     try {
       await api.post(`/artist-invoices/${id}/send`)
       setSent(true)
@@ -88,7 +91,9 @@ function ArtistInvoiceDetail() {
       // Refresh invoice state in background — don't block the success message
       api.get(`/artist-invoices/${id}`).then(r => setInvoice(r.data)).catch(() => {})
     } catch (e: any) {
-      setError(e.response?.data?.message || 'Failed to send invoice. Make sure your Stripe account is connected.')
+      const notice = stripeRequiredFrom(e)
+      if (notice) setStripeNotice(notice)
+      else setError(e.response?.data?.message || 'Failed to send invoice.')
     } finally {
       setSending(false)
     }
@@ -136,6 +141,7 @@ function ArtistInvoiceDetail() {
   return (
     <div className="bg-gray-50">
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-5">
+        {stripeNotice && <StripeRequiredNotice notice={stripeNotice} />}
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">{error}</div>
         )}

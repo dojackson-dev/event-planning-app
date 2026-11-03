@@ -31,15 +31,18 @@ export function stripeConnectState(
   return accountId ? 'pending' : 'not_connected';
 }
 
+export const BANKING_HOURS_TIP =
+  'Tip: complete Stripe registration during banking hours (Monday to Friday, business hours). Banks handle new payout accounts differently: some verify instantly, others only when they are open, so registering while your bank is open helps you avoid delays.';
+
 export function stripeRegistrationMessage(
   role: StripeConnectRole,
   state: StripeConnectState,
 ): string {
   const where = WHERE[role].label;
   if (state === 'pending') {
-    return `Your Stripe registration is not finished yet. Open ${where} and click "Connect Bank Account" to continue registering with Stripe, then send this invoice again. Clients cannot pay you until Stripe confirms your account.`;
+    return `Your Stripe registration is not finished yet. Open ${where} and click "Connect Bank Account" to continue registering with Stripe, then send this invoice again. Clients cannot pay you until Stripe confirms your account. ${BANKING_HOURS_TIP}`;
   }
-  return `You need to register with Stripe before you can send invoices. Stripe is how clients pay you and how the money reaches your bank account. Open ${where}, click "Connect Bank Account" and complete the Stripe sign-up (about 5 minutes), then send this invoice again.`;
+  return `You need to register with Stripe before you can send invoices. Stripe is how clients pay you and how the money reaches your bank account. Open ${where}, click "Connect Bank Account" and complete the Stripe sign-up (about 5 minutes), then send this invoice again. ${BANKING_HOURS_TIP}`;
 }
 
 /**

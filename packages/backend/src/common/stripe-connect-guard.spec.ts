@@ -1,4 +1,5 @@
 import {
+  BANKING_HOURS_TIP,
   isStripeReady,
   stripeConnectState,
   stripeRegistrationMessage,
@@ -31,6 +32,14 @@ describe('stripe connect guard', () => {
     expect(stripeRegistrationMessage('promoter', 'pending')).toContain(
       'not finished',
     );
+  });
+
+  it('advises registering during banking hours in both states', () => {
+    for (const state of ['not_connected', 'pending'] as const) {
+      const message = stripeRegistrationMessage('vendor', state);
+      expect(message).toContain('banking hours');
+      expect(message).toContain(BANKING_HOURS_TIP);
+    }
   });
 
   it('carries a code and connect path for the screens', () => {

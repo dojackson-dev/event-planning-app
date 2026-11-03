@@ -29,6 +29,7 @@ import { useOwnerBrand } from '@/contexts/OwnerBrandContext'
 import ImageUpload from '@/components/ImageUpload'
 import ConnectBankButton from '@/components/ConnectBankButton'
 import AddRoleCard from '@/components/AddRoleCard'
+import PhotoManager from '@/components/PhotoManager'
 import Link from 'next/link'
 
 function VenueFormFields({ form, onChange }: { form: any; onChange: (field: string, value: string) => void }) {
@@ -626,6 +627,11 @@ function SettingsPageContent() {
                             <button type="button" onClick={cancelVenueEdit} className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
                           </div>
                           <VenueFormFields form={venueForm} onChange={handleVenueFormChange} />
+                          <div className="border-t pt-4">
+                            <h4 className="text-sm font-semibold text-gray-800 mb-1">Venue photos</h4>
+                            <p className="text-xs text-gray-500 mb-3">Photos save as soon as you add them. They show as a slideshow on the Find Venues page.</p>
+                            <PhotoManager endpoint={`/listing-photos/venue/${v.id}`} uploadType="venue-photo" />
+                          </div>
                           <div className="flex gap-3 pt-2 border-t">
                             <button type="submit" disabled={venueSaving} className="inline-flex items-center gap-1.5 px-5 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 disabled:opacity-50">
                               <Save className="h-4 w-4" />{venueSaving ? 'Saving…' : 'Save'}
@@ -669,6 +675,7 @@ function SettingsPageContent() {
                     <button type="button" onClick={cancelVenueEdit} className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
                   </div>
                   <VenueFormFields form={venueForm} onChange={handleVenueFormChange} />
+                  <p className="text-xs text-gray-500">After you add the venue, edit it to upload up to 5 photos for the Find Venues page.</p>
                   <div className="flex gap-3 pt-2 border-t">
                     <button type="submit" disabled={venueSaving} className="inline-flex items-center gap-1.5 px-5 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 disabled:opacity-50">
                       <Plus className="h-4 w-4" />{venueSaving ? 'Saving…' : 'Add Venue'}

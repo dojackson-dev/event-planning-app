@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { MapPin, Phone, Globe, Users, Star, ArrowLeft, Building2 } from 'lucide-react'
 import DashboardReturnButton from '@/components/DashboardReturnButton'
+import PhotoCarousel from '@/components/PhotoCarousel'
 
 interface VenueProfile {
   id: string
@@ -18,6 +19,7 @@ interface VenueProfile {
   description: string
   profile_image_url: string
   cover_image_url?: string
+  photos?: string[]
   website: string
   phone: string
   latitude: number
@@ -73,8 +75,12 @@ export default function VenueProfilePage({ params }: { params: { id: string } })
       </nav>
 
       <div className="max-w-5xl mx-auto px-4 py-8">
-        {/* Cover banner */}
-        {venue.cover_image_url && (
+        {/* Photo slideshow (up to 5); a logo on its own is not a photo, so it falls through to the banner */}
+        {venue.photos && venue.photos.length > 0 && !(venue.photos.length === 1 && venue.photos[0] === venue.profile_image_url) ? (
+          <div className="mb-6 overflow-hidden rounded-2xl border border-gray-100">
+            <PhotoCarousel photos={venue.photos} alt={venue.name} placeholder="🏛️" aspectClass="aspect-[16/10] sm:aspect-[21/9]" />
+          </div>
+        ) : venue.cover_image_url && (
           <div className="w-full h-40 sm:h-56 rounded-2xl overflow-hidden mb-6 border border-gray-100">
             <img src={venue.cover_image_url} alt={`${venue.name} banner`} className="w-full h-full object-cover" />
           </div>

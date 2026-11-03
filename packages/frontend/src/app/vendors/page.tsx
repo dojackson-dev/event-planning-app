@@ -5,6 +5,7 @@ import { placeLabel, resolvePlace } from '@/lib/places'
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
+import PhotoCarousel from '@/components/PhotoCarousel'
 import api from '@/lib/api'
 import DashboardReturnButton from '@/components/DashboardReturnButton'
 import FollowUs from '@/components/SocialLinks'
@@ -61,6 +62,7 @@ interface Vendor {
   flat_rate: number
   rate_description: string
   profile_image_url: string
+  photos?: string[]
   website: string
   instagram: string
   phone: string
@@ -80,6 +82,7 @@ interface Venue {
   zip_code: string
   capacity: number
   profile_image_url: string
+  photos?: string[]
   description: string
   website: string
   phone: string
@@ -454,34 +457,22 @@ function VendorCard({ vendor, renderStars }: { vendor: Vendor; renderStars: (r?:
   const catColor = CATEGORY_COLORS[vendor.category] || 'bg-gray-100 text-gray-700'
   const catLabel = CATEGORIES.find(c => c.value === vendor.category)?.label || vendor.category
   const catIcon = CATEGORY_ICONS[vendor.category] || '⭐'
-  const initials = vendor.business_name
-    .split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
+  const logoOnly = vendor.photos?.length === 1 && vendor.photos[0] === vendor.profile_image_url
 
   return (
     <div className="h-full flex flex-col bg-white rounded-2xl border border-gray-200 hover:border-primary-300 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 overflow-hidden">
+      <PhotoCarousel photos={vendor.photos} alt={vendor.business_name} placeholder={catIcon} contain={logoOnly} />
       <div className="p-5 flex flex-col flex-1">
-        {/* Top row: logo + name + category */}
-        <div className="flex items-start gap-4 mb-4">
-          {/* Logo square */}
-          <div className="w-16 h-16 rounded-xl border border-gray-100 overflow-hidden flex-shrink-0 bg-gray-100 flex items-center justify-center">
-            {vendor.profile_image_url ? (
-              <img src={vendor.profile_image_url} alt={vendor.business_name} className="w-full h-full object-contain" />
-            ) : (
-              <span className="text-xl font-bold text-gray-400 select-none">{initials || catIcon}</span>
+        <div className="mb-4">
+          <div className="flex items-start justify-between gap-2 mb-1.5">
+            <h3 className="font-bold text-gray-900 text-base leading-snug line-clamp-2">{vendor.business_name}</h3>
+            {vendor.is_verified && (
+              <span className="flex-shrink-0 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-semibold">✓ Verified</span>
             )}
           </div>
-
-          <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-2 mb-1.5">
-              <h3 className="font-bold text-gray-900 text-base leading-snug line-clamp-2">{vendor.business_name}</h3>
-              {vendor.is_verified && (
-                <span className="flex-shrink-0 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-semibold">✓ Verified</span>
-              )}
-            </div>
-            <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${catColor}`}>
-              {catIcon} {catLabel}
-            </span>
-          </div>
+          <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${catColor}`}>
+            {catIcon} {catLabel}
+          </span>
         </div>
 
         {/* Stars */}
@@ -535,49 +526,37 @@ function VendorCard({ vendor, renderStars }: { vendor: Vendor; renderStars: (r?:
 }
 
 function VenueCard({ venue }: { venue: Venue }) {
-  const initials = venue.name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
+  const logoOnly = venue.photos?.length === 1 && venue.photos[0] === venue.profile_image_url
   return (
-    <Link href={`/venues/${venue.id}`} className="h-full block group">
-      <div className="h-full flex flex-col bg-white rounded-2xl border border-gray-200 group-hover:border-primary-300 group-hover:shadow-lg group-hover:-translate-y-0.5 transition-all duration-200 overflow-hidden">
-        <div className="p-5 flex flex-col flex-1">
-          <div className="flex items-start gap-4 mb-4">
-            <div className="w-16 h-16 rounded-xl border border-gray-100 overflow-hidden flex-shrink-0 bg-gray-100 flex items-center justify-center">
-              {venue.profile_image_url ? (
-                <img src={venue.profile_image_url} alt={venue.name} className="w-full h-full object-contain" />
-              ) : (
-                <span className="text-xl font-bold text-gray-400 select-none">{initials || '🏛️'}</span>
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="font-bold text-gray-900 text-base leading-snug line-clamp-2 mb-1.5">{venue.name}</h3>
-              <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
-                🏛️ Venue
-              </span>
-            </div>
-          </div>
+    <div className="group h-full flex flex-col bg-white rounded-2xl border border-gray-200 hover:border-primary-300 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 overflow-hidden">
+      <PhotoCarousel photos={venue.photos} alt={venue.name} placeholder="🏛️" contain={logoOnly} />
+      <Link href={`/venues/${venue.id}`} className="p-5 flex flex-col flex-1">
+        <h3 className="font-bold text-gray-900 text-base leading-snug line-clamp-2 mb-1.5">{venue.name}</h3>
+        <span className="self-start inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+          🏛️ Venue
+        </span>
 
-          {(venue.city || venue.state) && (
-            <p className="text-xs text-gray-500 mt-1">
-              📍 {[venue.address, venue.city, venue.state].filter(Boolean).join(', ')}
-              {venue.distance_miles != null && (
-                <span className="ml-1 text-primary-600 font-medium">({venue.distance_miles} mi)</span>
-              )}
-            </p>
-          )}
-          {venue.capacity && (
-            <p className="text-xs text-gray-500 mt-0.5">👥 Up to {venue.capacity.toLocaleString()} guests</p>
-          )}
-          {venue.description && (
-            <p className="text-sm text-gray-500 mt-2 line-clamp-2 leading-relaxed">{venue.description}</p>
-          )}
+        {(venue.city || venue.state) && (
+          <p className="text-xs text-gray-500 mt-3">
+            📍 {[venue.address, venue.city, venue.state].filter(Boolean).join(', ')}
+            {venue.distance_miles != null && (
+              <span className="ml-1 text-primary-600 font-medium">({venue.distance_miles} mi)</span>
+            )}
+          </p>
+        )}
+        {venue.capacity && (
+          <p className="text-xs text-gray-500 mt-0.5">👥 Up to {venue.capacity.toLocaleString()} guests</p>
+        )}
+        {venue.description && (
+          <p className="text-sm text-gray-500 mt-2 line-clamp-2 leading-relaxed">{venue.description}</p>
+        )}
 
-          <div className="mt-auto pt-4">
-            <span className="block w-full text-center bg-primary-600 text-white text-sm py-2 rounded-xl font-semibold group-hover:bg-primary-700 transition-colors">
-              View Venue →
-            </span>
-          </div>
+        <div className="mt-auto pt-4">
+          <span className="block w-full text-center bg-primary-600 text-white text-sm py-2 rounded-xl font-semibold group-hover:bg-primary-700 transition-colors">
+            View Venue →
+          </span>
         </div>
-      </div>
-    </Link>
+      </Link>
+    </div>
   )
 }

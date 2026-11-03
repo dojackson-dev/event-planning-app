@@ -7,6 +7,7 @@ import Link from 'next/link'
 import api from '@/lib/api'
 import DashboardReturnButton from '@/components/DashboardReturnButton'
 import FollowUs from '@/components/SocialLinks'
+import PhotoCarousel from '@/components/PhotoCarousel'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
@@ -20,6 +21,7 @@ interface Venue {
   capacity: number
   profile_image_url: string
   cover_image_url?: string
+  photos?: string[]
   description: string
   website: string
   phone: string
@@ -275,49 +277,37 @@ export default function VenuesPage() {
 }
 
 function VenueCard({ venue }: { venue: Venue }) {
-  const initials = venue.name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
+  const logoOnly = venue.photos?.length === 1 && venue.photos[0] === venue.profile_image_url
   return (
-    <Link href={`/venues/${venue.id}`} className="h-full block group">
-      <div className="h-full flex flex-col bg-white rounded-2xl border border-gray-200 group-hover:border-blue-300 group-hover:shadow-lg group-hover:-translate-y-0.5 transition-all duration-200 overflow-hidden">
-        <div className="p-5 flex flex-col flex-1">
-          <div className="flex items-start gap-4 mb-4">
-            <div className="w-16 h-16 rounded-xl border border-gray-100 overflow-hidden flex-shrink-0 bg-blue-50 flex items-center justify-center">
-              {venue.profile_image_url ? (
-                <img src={venue.profile_image_url} alt={venue.name} className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-xl font-bold text-blue-400 select-none">{initials || '🏛️'}</span>
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="font-bold text-gray-900 text-base leading-snug line-clamp-2 mb-1.5">{venue.name}</h3>
-              <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
-                🏛️ Venue
-              </span>
-            </div>
-          </div>
+    <div className="group h-full flex flex-col bg-white rounded-2xl border border-gray-200 hover:border-blue-300 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 overflow-hidden">
+      <PhotoCarousel photos={venue.photos} alt={venue.name} placeholder="🏛️" contain={logoOnly} />
+      <Link href={`/venues/${venue.id}`} className="p-5 flex flex-col flex-1">
+        <h3 className="font-bold text-gray-900 text-base leading-snug line-clamp-2 mb-1.5">{venue.name}</h3>
+        <span className="self-start inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+          🏛️ Venue
+        </span>
 
-          {(venue.city || venue.state) && (
-            <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-              📍 {[venue.address, venue.city, venue.state].filter(Boolean).join(', ')}
-              {venue.distance_miles != null && (
-                <span className="ml-1 text-blue-600 font-medium">({venue.distance_miles} mi)</span>
-              )}
-            </p>
-          )}
-          {venue.capacity && (
-            <p className="text-xs text-gray-500 mt-0.5">👥 Up to {venue.capacity.toLocaleString()} guests</p>
-          )}
-          {venue.description && (
-            <p className="text-sm text-gray-500 mt-2 line-clamp-2 leading-relaxed">{venue.description}</p>
-          )}
+        {(venue.city || venue.state) && (
+          <p className="text-xs text-gray-500 mt-3 flex items-center gap-1">
+            📍 {[venue.address, venue.city, venue.state].filter(Boolean).join(', ')}
+            {venue.distance_miles != null && (
+              <span className="ml-1 text-blue-600 font-medium">({venue.distance_miles} mi)</span>
+            )}
+          </p>
+        )}
+        {venue.capacity && (
+          <p className="text-xs text-gray-500 mt-0.5">👥 Up to {venue.capacity.toLocaleString()} guests</p>
+        )}
+        {venue.description && (
+          <p className="text-sm text-gray-500 mt-2 line-clamp-2 leading-relaxed">{venue.description}</p>
+        )}
 
-          <div className="mt-auto pt-4">
-            <span className="block w-full text-center bg-blue-600 text-white text-sm py-2 rounded-xl font-semibold group-hover:bg-blue-700 transition-colors">
-              View Venue →
-            </span>
-          </div>
+        <div className="mt-auto pt-4">
+          <span className="block w-full text-center bg-blue-600 text-white text-sm py-2 rounded-xl font-semibold group-hover:bg-blue-700 transition-colors">
+            View Venue →
+          </span>
         </div>
-      </div>
-    </Link>
+      </Link>
+    </div>
   )
 }

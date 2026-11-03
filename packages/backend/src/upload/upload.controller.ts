@@ -31,6 +31,7 @@ const MAX_SERVICE_ITEM_BYTES = 5 * 1024 * 1024; // 5 MB
 // scaled down to at most this size — nothing is cropped.
 const LOGO_BACKGROUND = { r: 255, g: 255, b: 255, alpha: 0 };
 const COVER_MAX_DIMENSION = 1600;
+const MAX_LISTING_PHOTO_BYTES = 8 * 1024 * 1024; // 8 MB
 
 @Controller('upload')
 export class UploadController {
@@ -288,6 +289,62 @@ export class UploadController {
 
     if (uploadError)
       throw new BadRequestException('Upload failed: ' + uploadError.message);
+    const {
+      data: { publicUrl },
+    } = admin.storage.from('vendor-images').getPublicUrl(path);
+    return { url: publicUrl };
+  }
+
+  // ─────────────────────────────────────────────
+  // POST /upload/vendor-photo and /upload/venue-photo
+  // One of up to 5 photos on a vendor/venue card on the Find pages.
+  // Resized to 1600×1067 (3:2), max 8 MB input. The photo is attached with POST /listing-photos/...
+  // ─────────────────────────────────────────────
+  @Post('vendor-photo')
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
+  uploadVendorPhoto(
+    @UploadedFile() file: MulterFile,
+    @Headers('authorization') authorization: string,
+  ) {
+    return this.uploadListingPhoto(file, authorization);
+  }
+
+  @Post('venue-photo')
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
+  uploadVenuePhoto(
+    @UploadedFile() file: MulterFile,
+    @Headers('authorization') authorization: string,
+  ) {
+    return this.uploadListingPhoto(file, authorization);
+  }
+
+  private async uploadListingPhoto(
+    file: MulterFile,
+    authorization: string,
+  ): Promise<{ url: string }> {
+    const userId = await this.getUserId(authorization);
+    if (!file) throw new BadRequestException('No file provided');
+    if (!ALLOWED_TYPES.includes(file.mimetype))
+      throw new BadRequestException('File must be JPEG, PNG, or WebP');
+    if (file.size > MAX_LISTING_PHOTO_BYTES)
+      throw new BadRequestException('Photo must be under 8 MB');
+
+    const admin = this.supabaseService.getAdminClient();
+    await this.ensureBucket(admin, 'vendor-images');
+
+    const processed = await sharp(file.buffer)
+      .rotate()
+      .resize(1600, 1067, { fit: 'cover', position: 'attention' })
+      .webp({ quality: 82 })
+      .toBuffer();
+
+    const path = `gallery/${userId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
+    const { error: uploadError } = await admin.storage
+      .from('vendor-images')
+      .upload(path, processed, { contentType: 'image/webp', upsert: false });
+    if (uploadError)
+      throw new BadRequestException('Upload failed: ' + uploadError.message);
+
     const {
       data: { publicUrl },
     } = admin.storage.from('vendor-images').getPublicUrl(path);

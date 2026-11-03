@@ -130,7 +130,13 @@ export class VendorsService {
       .single();
 
     if (error || !data) throw new NotFoundException('Vendor not found');
-    return this.enrichWithRating(data);
+    const gallery = [...((data.vendor_gallery as any[]) ?? [])].sort(
+      (a, b) => (a.display_order ?? 0) - (b.display_order ?? 0),
+    );
+    return {
+      ...this.enrichWithRating(data),
+      gallery_images: gallery.map((g) => g.image_url as string),
+    };
   }
 
   async updateVendorAccount(userId: string, dto: UpdateVendorDto) {
@@ -268,7 +274,7 @@ export class VendorsService {
     let query = client
       .from('vendor_accounts')
       .select(
-        'id, business_name, category, bio, city, state, zip_code, profile_image_url, hourly_rate, flat_rate, rate_description, phone, email, website, instagram, facebook, is_verified, vendor_reviews(rating)',
+        'id, business_name, category, bio, city, state, zip_code, profile_image_url, cover_image_url, hourly_rate, flat_rate, rate_description, phone, email, website, instagram, facebook, is_verified, vendor_reviews(rating)',
       )
       .or('is_active.is.null,is_active.eq.true')
       .eq('zip_code', zipCode)
@@ -289,7 +295,7 @@ export class VendorsService {
     let query = client
       .from('vendor_accounts')
       .select(
-        'id, business_name, category, bio, city, state, zip_code, profile_image_url, hourly_rate, flat_rate, rate_description, phone, email, website, instagram, facebook, is_verified, vendor_reviews(rating)',
+        'id, business_name, category, bio, city, state, zip_code, profile_image_url, cover_image_url, hourly_rate, flat_rate, rate_description, phone, email, website, instagram, facebook, is_verified, vendor_reviews(rating)',
       )
       .or('is_active.is.null,is_active.eq.true')
       .order('business_name');

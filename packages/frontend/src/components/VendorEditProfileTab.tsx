@@ -4,6 +4,7 @@ import { useState } from 'react'
 import api from '@/lib/api'
 import { normalizeWebsite } from '@/lib/url'
 import ImageUpload from '@/components/ImageUpload'
+import PhotoManager from '@/components/PhotoManager'
 import AddressAutocomplete from '@/components/AddressAutocomplete'
 import { VENDOR_CATEGORIES } from '@/lib/vendorTypes'
 import type { VendorProfile } from '@/lib/vendorTypes'
@@ -88,6 +89,13 @@ export default function VendorEditProfileTab({ profile, onUpdate }: Props) {
               onUpload={(url) => setCoverUrl(url)}
             />
           </div>
+        </div>
+
+        {/* Photos shown as a slideshow on the Find Vendors page */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Photos (up to 5)</label>
+          <p className="text-xs text-gray-500 mb-3">Photos save as soon as you add them; you do not need to press Save.</p>
+          <PhotoManager endpoint="/listing-photos/vendor" uploadType="vendor-photo" />
         </div>
 
         {/* Business Name */}

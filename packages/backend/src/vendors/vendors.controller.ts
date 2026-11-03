@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { VendorsService } from './vendors.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import { ListingPhotosService } from '../listing-photos/listing-photos.service';
 import {
   CreateVendorDto,
   UpdateVendorDto,
@@ -32,6 +33,7 @@ export class VendorsController {
   constructor(
     private readonly vendorsService: VendorsService,
     private readonly supabaseService: SupabaseService,
+    private readonly listingPhotos: ListingPhotosService,
   ) {}
 
   // ─────────────────────────────────────────────
@@ -104,6 +106,18 @@ export class VendorsController {
     @Query('category') category: string,
     @Query('zipCode') zipCode: string,
   ) {
+    return this.listingPhotos.attachPhotos(
+      await this.searchWithoutPhotos(lat, lng, radiusMiles, category, zipCode),
+    );
+  }
+
+  private async searchWithoutPhotos(
+    lat: string,
+    lng: string,
+    radiusMiles: string,
+    category: string,
+    zipCode: string,
+  ) {
     let searchLat = lat ? parseFloat(lat) : null;
     let searchLng = lng ? parseFloat(lng) : null;
 
@@ -159,7 +173,7 @@ export class VendorsController {
       this.vendorsService.getAllVendors(category),
       this.vendorsService.getAllVenues(),
     ]);
-    return { vendors, venues };
+    return this.listingPhotos.attachPhotos({ vendors, venues });
   }
 
   /** GET /vendors/geocode/reverse?lat=&lng= — Reverse geocode coords to city/state/zip */
@@ -215,7 +229,12 @@ export class VendorsController {
   /** GET /vendors/venue/:id - public venue profile */
   @Get('venue/:id')
   async getVenue(@Param('id') venueId: string) {
-    return this.vendorsService.getVenueById(venueId);
+    const venue = await this.vendorsService.getVenueById(venueId);
+    const { venues } = await this.listingPhotos.attachPhotos({
+      vendors: [],
+      venues: [venue],
+    });
+    return venues[0];
   }
 
   /** GET /vendors/:id - public vendor profile */

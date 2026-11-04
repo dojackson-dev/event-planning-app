@@ -58,7 +58,7 @@ export class ArtistInvoicesService {
     this.stripe = new Stripe(secretKey);
     this.frontendUrl = this.configService.get<string>(
       'FRONTEND_URL',
-      'https://eventecos.com',
+      'https://www.eventecos.com',
     );
   }
 

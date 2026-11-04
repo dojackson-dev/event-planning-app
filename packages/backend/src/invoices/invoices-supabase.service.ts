@@ -612,7 +612,7 @@ event!event_id(id, name, date),
     supabase: SupabaseClient,
     invoice: Invoice,
   ): Promise<void> {
-    const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://www.eventecos.com';
     // Link to the invoices list — no individual invoice detail page exists in the client portal
     const invoiceUrl = `${frontendUrl}/client-portal/invoices`;
 
@@ -980,7 +980,7 @@ event!event_id(id, name, date),
           const clientEmail = await this.lookupClientEmail(supabase, updated);
           if (clientEmail) {
             const frontendUrl =
-              process.env.FRONTEND_URL || 'https://eventecos.com';
+              process.env.FRONTEND_URL || 'https://www.eventecos.com';
             let eventType: string | null = null;
             let eventDate: string | null = null;
             let venueName: string | undefined;

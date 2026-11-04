@@ -36,7 +36,7 @@ export class MailService {
    * Generate a consistent email header with EventEcos logo and branding
    */
   private getEmailHeader(title: string, subtitle: string = ''): string {
-    const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://www.eventecos.com';
     const logoUrl = `${frontendUrl}/lib/EventEcos-Logo-Only.jpg`;
 
     return `
@@ -54,7 +54,7 @@ export class MailService {
     owner: User,
   ): Promise<void> {
     try {
-      const contractUrl = `${process.env.FRONTEND_URL || 'https://eventecos.com'}/dashboard/contracts/${contract.id}`;
+      const contractUrl = `${process.env.FRONTEND_URL || 'https://www.eventecos.com'}/dashboard/contracts/${contract.id}`;
 
       const mailOptions = {
         from: `"EventEcos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
@@ -177,7 +177,7 @@ export class MailService {
     venueName?: string;
   }): Promise<void> {
     try {
-      const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+      const frontendUrl = process.env.FRONTEND_URL || 'https://www.eventecos.com';
       const inviteUrl = `${frontendUrl}/invite?token=${params.inviteToken}`;
       const displayName =
         params.venueName || params.ownerName || 'Your event coordinator';
@@ -282,7 +282,7 @@ export class MailService {
     venueName?: string;
   }): Promise<boolean> {
     try {
-      const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+      const frontendUrl = process.env.FRONTEND_URL || 'https://www.eventecos.com';
       const portalUrl = `${frontendUrl}/client-login`;
       const esc = (value: string) =>
         value
@@ -748,7 +748,7 @@ export class MailService {
     owner: User,
   ): Promise<void> {
     try {
-      const contractUrl = `${process.env.FRONTEND_URL || 'https://eventecos.com'}/dashboard/contracts/${contract.id}`;
+      const contractUrl = `${process.env.FRONTEND_URL || 'https://www.eventecos.com'}/dashboard/contracts/${contract.id}`;
 
       const mailOptions = {
         from: `"EventEcos" <${process.env.SMTP_FROM || 'noreply@eventecos.com'}>`,
@@ -1116,7 +1116,7 @@ export class MailService {
     sessionId?: string;
   }): Promise<void> {
     try {
-      const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+      const frontendUrl = process.env.FRONTEND_URL || 'https://www.eventecos.com';
       const eventUrl = `${frontendUrl}/events/${params.eventId}`;
       const formattedDate = params.eventDate
         ? new Date(
@@ -1286,7 +1286,7 @@ export class MailService {
         .replace(/"/g, '&quot;');
     const usd = (n: number) => `$${n.toFixed(2)}`;
     try {
-      const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+      const frontendUrl = process.env.FRONTEND_URL || 'https://www.eventecos.com';
       const org = params.orgName ? esc(params.orgName) : 'the organization';
       const ein = params.orgEin
         ? `${params.orgEin.slice(0, 2)}-${params.orgEin.slice(2)}`
@@ -1374,7 +1374,7 @@ export class MailService {
     qrCode: string;
   }): Promise<void> {
     try {
-      const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+      const frontendUrl = process.env.FRONTEND_URL || 'https://www.eventecos.com';
       const eventUrl = `${frontendUrl}/events/${params.eventId}`;
       const formattedDate = params.eventDate
         ? new Date(
@@ -1624,7 +1624,7 @@ export class MailService {
     sessionId?: string;
   }): Promise<void> {
     try {
-      const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+      const frontendUrl = process.env.FRONTEND_URL || 'https://www.eventecos.com';
       const eventUrl = `${frontendUrl}/events/${params.eventId}`;
       const formattedDate = params.eventDate
         ? new Date(
@@ -1971,7 +1971,7 @@ export class MailService {
       return;
     }
     try {
-      const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+      const frontendUrl = process.env.FRONTEND_URL || 'https://www.eventecos.com';
       const eventUrl = `${frontendUrl}/events/${params.eventId}`;
       const formattedDate = params.eventDate
         ? new Date(
@@ -2070,7 +2070,7 @@ export class MailService {
   }): Promise<void> {
     try {
       const salesPortalUrl =
-        process.env.FRONTEND_URL || 'https://eventecos.com';
+        process.env.FRONTEND_URL || 'https://www.eventecos.com';
       const registerUrl = `${salesPortalUrl}/sales-portal/register?token=${params.inviteToken}`;
 
       const mailOptions = {
@@ -2174,7 +2174,7 @@ export class MailService {
           </div>`;
 
       const resend = new Resend(process.env.RESEND_API_KEY);
-      const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+      const frontendUrl = process.env.FRONTEND_URL || 'https://www.eventecos.com';
       const dashboardUrl = `${frontendUrl}/dashboard`;
 
       const features = [

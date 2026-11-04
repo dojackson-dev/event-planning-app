@@ -267,7 +267,7 @@ export default function TicketConfirmationPage({ params }: { params: { sessionId
                     </p>
                     <p className="text-sm text-purple-700 font-mono break-all">/tickets/forward/{forwardedCode}</p>
                   </div>
-                  <p className="text-xs text-gray-400">Or they can enter the code <strong className="font-mono text-purple-700">{forwardedCode}</strong> at eventecos.com/tickets/claim</p>
+                  <p className="text-xs text-gray-400">Or they can enter the code <strong className="font-mono text-purple-700">{forwardedCode}</strong> at www.eventecos.com/tickets/claim</p>
                   <div className="flex gap-2">
                     <a
                       href={`/tickets/forward/${forwardedCode}`}

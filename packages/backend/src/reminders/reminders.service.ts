@@ -574,7 +574,7 @@ export class RemindersService {
       `Invoice due reminders (${source.table}): ${due.length} to send`,
     );
 
-    const baseUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+    const baseUrl = process.env.FRONTEND_URL || 'https://www.eventecos.com';
     for (const { invoice, next, daysOut } of due) {
       try {
         const payee =

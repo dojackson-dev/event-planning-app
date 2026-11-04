@@ -28,7 +28,7 @@ export class AssistantDigestService {
       return;
     }
 
-    const baseUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+    const baseUrl = process.env.FRONTEND_URL || 'https://www.eventecos.com';
     let sent = 0;
     for (const { user_id } of prefs ?? []) {
       try {

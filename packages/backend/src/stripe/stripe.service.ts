@@ -78,7 +78,7 @@ export class StripeService {
     );
     this.frontendUrl = this.configService.get<string>(
       'FRONTEND_URL',
-      'https://eventecos.com',
+      'https://www.eventecos.com',
     );
   }
 
@@ -88,7 +88,7 @@ export class StripeService {
       this.frontendUrl.startsWith('http://localhost') ||
       this.frontendUrl.startsWith('http://127.') ||
       /^https?:\/\/\d+\.\d+\.\d+\.\d+/.test(this.frontendUrl);
-    return isLocal ? 'https://eventecos.com' : this.frontendUrl;
+    return isLocal ? 'https://www.eventecos.com' : this.frontendUrl;
   }
 
   // ─── Customer ─────────────────────────────────────────────────────────────
@@ -1273,7 +1273,7 @@ export class StripeService {
 
         if (clientEmail) {
           const frontendUrl =
-            process.env.FRONTEND_URL || 'https://eventecos.com';
+            process.env.FRONTEND_URL || 'https://www.eventecos.com';
           let eventType: string | null = null;
           let eventDate: string | null = null;
           let venueName: string | undefined;

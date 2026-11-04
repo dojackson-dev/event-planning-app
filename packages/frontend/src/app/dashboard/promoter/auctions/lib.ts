@@ -332,7 +332,7 @@ export function auctionPhase(a: Auction, itemCount?: number, now: Date = new Dat
 }
 
 /** Canonical public origin used only for display and copy; the real route is relative. */
-export const PUBLIC_SITE_ORIGIN = 'https://eventecos.com'
+export const PUBLIC_SITE_ORIGIN = 'https://www.eventecos.com'
 
 /** Origin of the site the organizer is on (demo vs production), so copied links point at the same environment. */
 export function usePublicOrigin(): string {

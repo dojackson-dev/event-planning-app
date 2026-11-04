@@ -571,7 +571,7 @@ export class AssistantService {
       .eq('primary_owner_id', userId)
       .maybeSingle();
 
-    const base = process.env.FRONTEND_URL || 'https://eventecos.com';
+    const base = process.env.FRONTEND_URL || 'https://www.eventecos.com';
     return buildDraft(type as DraftType, record, {
       today: this.today(),
       businessName: account?.business_name ?? null,

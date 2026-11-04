@@ -443,7 +443,7 @@ export class AuthFlowService {
     return {
       inviteId: invite.id,
       inviteToken,
-      inviteLink: `${process.env.FRONTEND_URL || 'https://eventecos.com'}/invite/${inviteToken}`,
+      inviteLink: `${process.env.FRONTEND_URL || 'https://www.eventecos.com'}/invite/${inviteToken}`,
       expiresAt: invite.expires_at,
     };
   }
@@ -854,7 +854,7 @@ export class AuthFlowService {
     if (!normalized) return generic;
 
     try {
-      const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+      const frontendUrl = process.env.FRONTEND_URL || 'https://www.eventecos.com';
       const { data, error } = await this.supabaseService
         .getAdminClient()
         .auth.admin.generateLink({

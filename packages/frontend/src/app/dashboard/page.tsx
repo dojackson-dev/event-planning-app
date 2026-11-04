@@ -12,6 +12,7 @@ import TrialBanner from '@/components/TrialBanner'
 import DemoTour from '@/components/DemoTour'
 import DashboardAssistant from '@/components/DashboardAssistant'
 import { useVenue } from '@/contexts/VenueContext'
+import { siteOrigin } from '@/lib/url'
 
 interface IntakeForm {
   id: string
@@ -356,8 +357,8 @@ export default function DashboardPage() {
       </div>
       {/* Share Client Intake Form */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl shadow-sm p-5 mb-6 sm:mb-8 text-white">
-        <h2 className="text-base font-bold mb-1">Share Your Client Intake Form</h2>
-        <p className="text-blue-100 text-sm mb-3">Send this link to clients to collect event details automatically.</p>
+        <h2 className="text-base font-bold mb-1">Your Public Link</h2>
+        <p className="text-blue-100 text-sm mb-3">This is the one link to share publicly. Clients use it to send you their event details automatically.</p>
         {venues.length > 0 ? (
           <div className="space-y-2">
             {venues.map(venue => {
@@ -365,8 +366,8 @@ export default function DashboardPage() {
               // With a single venue the backend already falls back to it automatically,
               // so we can keep the link short.
               const venueQuery = venues.length > 1 ? `?venueId=${venue.id}` : ''
-              const link = `https://eventecos.com/intake/${intakeSlug ?? user?.id}${venueQuery}`
-              const display = `eventecos.com/intake/${intakeSlug ?? user?.id}${venueQuery}`
+              const link = `${siteOrigin()}/intake/${intakeSlug ?? user?.id}${venueQuery}`
+              const display = link.replace(/^https?:\/\//, '')
               return (
                 <div key={venue.id}>
                   {venues.length > 1 && (
@@ -392,11 +393,11 @@ export default function DashboardPage() {
         ) : (
           <div className="flex items-center gap-2 bg-white/10 border border-white/30 rounded-lg px-3 py-2">
             <span className="flex-1 text-sm font-mono truncate select-all">
-              eventecos.com/intake/{intakeSlug ?? user?.id}
+              {`${siteOrigin()}/intake/${intakeSlug ?? user?.id}`.replace(/^https?:\/\//, '')}
             </span>
             <button
               onClick={() => {
-                navigator.clipboard.writeText(`https://eventecos.com/intake/${intakeSlug ?? user?.id}`)
+                navigator.clipboard.writeText(`${siteOrigin()}/intake/${intakeSlug ?? user?.id}`)
                 setCopied('default')
                 setTimeout(() => setCopied(null), 2000)
               }}

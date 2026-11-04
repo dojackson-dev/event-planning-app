@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { IntakeFormsService } from './intake-forms.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import { resolveOwnerIdentifier } from './resolve-owner';
 
 @Controller('intake-forms')
 export class IntakeFormsController {
@@ -54,31 +55,11 @@ export class IntakeFormsController {
 
   /** Resolves an identifier that is either a UUID (primary_owner_id) or an intake_slug.
    *  Returns the primary_owner_id (UUID) in both cases. */
-  private async resolveOwnerIdentifier(identifier: string): Promise<string> {
-    const admin = this.supabaseService.getAdminClient();
-    const isUuid =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        identifier,
-      );
-
-    if (isUuid) {
-      const { data, error } = await admin
-        .from('owner_accounts')
-        .select('primary_owner_id')
-        .eq('primary_owner_id', identifier)
-        .single();
-      if (error || !data) throw new NotFoundException('Owner not found');
-      return data.primary_owner_id;
-    }
-
-    // Treat as a slug
-    const { data, error } = await admin
-      .from('owner_accounts')
-      .select('primary_owner_id')
-      .eq('intake_slug', identifier)
-      .single();
-    if (error || !data) throw new NotFoundException('Owner not found');
-    return data.primary_owner_id;
+  private resolveOwnerIdentifier(identifier: string): Promise<string> {
+    return resolveOwnerIdentifier(
+      this.supabaseService.getAdminClient(),
+      identifier,
+    );
   }
 
   /** Public: returns the owner's business name so the form page can display a branded header.
@@ -274,30 +255,11 @@ export class IntakeFormsPublicController {
     private readonly supabaseService: SupabaseService,
   ) {}
 
-  private async resolveOwnerIdentifier(identifier: string): Promise<string> {
-    const admin = this.supabaseService.getAdminClient();
-    const isUuid =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        identifier,
-      );
-
-    if (isUuid) {
-      const { data, error } = await admin
-        .from('owner_accounts')
-        .select('primary_owner_id')
-        .eq('primary_owner_id', identifier)
-        .single();
-      if (error || !data) throw new NotFoundException('Owner not found');
-      return data.primary_owner_id;
-    }
-
-    const { data, error } = await admin
-      .from('owner_accounts')
-      .select('primary_owner_id')
-      .eq('intake_slug', identifier)
-      .single();
-    if (error || !data) throw new NotFoundException('Owner not found');
-    return data.primary_owner_id;
+  private resolveOwnerIdentifier(identifier: string): Promise<string> {
+    return resolveOwnerIdentifier(
+      this.supabaseService.getAdminClient(),
+      identifier,
+    );
   }
 
   @Post(':ownerId')

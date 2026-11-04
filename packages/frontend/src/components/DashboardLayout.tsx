@@ -34,7 +34,6 @@ import {
   Megaphone,
   Music,
   ExternalLink,
-  Link2,
   Plus,
 } from 'lucide-react'
 
@@ -228,7 +227,6 @@ const ALL_NAV = [
   { name: 'Messages',       href: '/dashboard/messages',     icon: MessageSquare,   ownerOnly: false },
   { name: 'Vendors',        href: '/dashboard/vendors',      icon: Store,           ownerOnly: false },
   { name: 'Vendor Invoices', href: '/dashboard/vendor-invoices', icon: Receipt,     ownerOnly: false },
-  { name: 'Booking Link',   href: '/dashboard/booking-link', icon: Link2,           ownerOnly: false },
   { name: 'Team',           href: '/dashboard/team',         icon: Users,           ownerOnly: true  },
 ]
 

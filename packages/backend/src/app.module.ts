@@ -20,7 +20,6 @@ import { EstimatesModule } from './estimates/estimates.module';
 import { StripeModule } from './stripe/stripe.module';
 import { TrialModule } from './trial/trial.module';
 import { VendorsModule } from './vendors/vendors.module';
-import { ShortLinksModule } from './short-links/short-links.module';
 import { UploadModule } from './upload/upload.module';
 import { OwnerModule } from './owner/owner.module';
 import { AdminModule } from './admin/admin.module';
@@ -74,7 +73,6 @@ import { PromoterTeamModule } from './promoter-team/promoter-team.module';
     StripeModule,
     TrialModule,
     VendorsModule,
-    ShortLinksModule,
     UploadModule,
     OwnerModule,
     AdminModule,

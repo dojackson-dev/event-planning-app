@@ -143,10 +143,25 @@ export default function ClientsPage() {
 
   const handleDeleteClient = async (client: IntakeForm) => {
     if (!confirm(`Delete "${client.contact_name}"? This cannot be undone.`)) return
-    try {
-      await api.delete(`/intake-forms/${client.id}`)
+    const remove = async (force: boolean) => {
+      await api.delete(`/intake-forms/${client.id}${force ? '?force=true' : ''}`)
       setClients(prev => prev.filter(c => c.id !== client.id))
-    } catch (error) {
+    }
+    try {
+      await remove(false)
+    } catch (error: any) {
+      const data = error?.response?.data
+      if (error?.response?.status === 409 && data?.code === 'CLIENT_HAS_LINKED_DATA') {
+        // The client still has a guest list or events: say what would be lost before going further.
+        if (!confirm(`${data.message}\n\nDelete "${client.contact_name}" anyway?`)) return
+        try {
+          await remove(true)
+        } catch (err) {
+          console.error('Error deleting client:', err)
+          alert('Failed to delete client')
+        }
+        return
+      }
       console.error('Error deleting client:', error)
       alert('Failed to delete client')
     }

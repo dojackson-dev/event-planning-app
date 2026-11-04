@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -366,7 +367,49 @@ export class IntakeFormsService {
     return data;
   }
 
-  async remove(supabase: SupabaseClient, userId: string, id: string) {
+  /**
+   * Deleting a client also deletes their RSVP guest list and leaves their events without a client, so it is
+   * refused with a 409 describing what would be lost until the caller confirms with force = true.
+   */
+  async remove(
+    supabase: SupabaseClient,
+    userId: string,
+    id: string,
+    force = false,
+  ) {
+    if (!force) {
+      const admin = this.supabaseService.getAdminClient();
+      const { data: form } = await admin
+        .from('intake_forms')
+        .select('id')
+        .eq('id', id)
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (!form) throw new NotFoundException('Client not found');
+      const [guestsRes, eventsRes] = await Promise.all([
+        admin
+          .from('rsvp_guests')
+          .select('id', { count: 'exact', head: true })
+          .eq('intake_form_id', id),
+        admin
+          .from('event')
+          .select('id', { count: 'exact', head: true })
+          .eq('owner_id', userId)
+          .or(`intake_form_id.eq.${id},client_id.eq.${id}`),
+      ]);
+      const guests = guestsRes.count ?? 0;
+      const events = eventsRes.count ?? 0;
+      if (guests > 0 || events > 0) {
+        throw new ConflictException({
+          statusCode: 409,
+          code: 'CLIENT_HAS_LINKED_DATA',
+          guests,
+          events,
+          message: `This client has ${guests} RSVP guest${guests === 1 ? '' : 's'} and ${events} event${events === 1 ? '' : 's'}. Deleting the client permanently deletes the guest list, and the events lose their client.`,
+        });
+      }
+    }
+
     const { error } = await supabase
       .from('intake_forms')
       .delete()

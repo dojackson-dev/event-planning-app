@@ -29,7 +29,7 @@ import { useOwnerBrand } from '@/contexts/OwnerBrandContext'
 import ImageUpload from '@/components/ImageUpload'
 import ConnectBankButton from '@/components/ConnectBankButton'
 import AddRoleCard from '@/components/AddRoleCard'
-import PhotoManager from '@/components/PhotoManager'
+import VenuePhotosSection from '@/components/VenuePhotosSection'
 import Link from 'next/link'
 
 function VenueFormFields({ form, onChange }: { form: any; onChange: (field: string, value: string) => void }) {
@@ -627,11 +627,6 @@ function SettingsPageContent() {
                             <button type="button" onClick={cancelVenueEdit} className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
                           </div>
                           <VenueFormFields form={venueForm} onChange={handleVenueFormChange} />
-                          <div className="border-t pt-4">
-                            <h4 className="text-sm font-semibold text-gray-800 mb-1">Venue photos</h4>
-                            <p className="text-xs text-gray-500 mb-3">Photos save as soon as you add them. They show as a slideshow on the Find Venues page.</p>
-                            <PhotoManager endpoint={`/listing-photos/venue/${v.id}`} uploadType="venue-photo" />
-                          </div>
                           <div className="flex gap-3 pt-2 border-t">
                             <button type="submit" disabled={venueSaving} className="inline-flex items-center gap-1.5 px-5 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 disabled:opacity-50">
                               <Save className="h-4 w-4" />{venueSaving ? 'Saving…' : 'Save'}
@@ -675,7 +670,7 @@ function SettingsPageContent() {
                     <button type="button" onClick={cancelVenueEdit} className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
                   </div>
                   <VenueFormFields form={venueForm} onChange={handleVenueFormChange} />
-                  <p className="text-xs text-gray-500">After you add the venue, edit it to upload up to 5 photos for the Find Venues page.</p>
+                  <p className="text-xs text-gray-500">After you add the venue, add its photos in the Branding tab.</p>
                   <div className="flex gap-3 pt-2 border-t">
                     <button type="submit" disabled={venueSaving} className="inline-flex items-center gap-1.5 px-5 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 disabled:opacity-50">
                       <Plus className="h-4 w-4" />{venueSaving ? 'Saving…' : 'Add Venue'}
@@ -980,7 +975,7 @@ function SettingsPageContent() {
           )}
 
           {/* Branding Tab */}
-          {activeTab === 'branding' && <BrandingTab />}
+          {activeTab === 'branding' && <BrandingTab onOpenVenueDetails={() => setActiveTab('venue')} />}
 
           {/* Promoter Mode Tab */}
           {activeTab === 'promoter' && <PromoterModeTab />}
@@ -1103,7 +1098,7 @@ function PromoterModeTab() {
   )
 }
 
-function BrandingTab() {
+function BrandingTab({ onOpenVenueDetails }: { onOpenVenueDetails?: () => void }) {
   const { logoUrl, coverImageUrl, businessName, updateLogo, updateCover, updateBusinessName, loading } = useOwnerBrand()
   const [saving, setSaving] = useState(false)
   const [logoSaved, setLogoSaved] = useState(false)
@@ -1345,6 +1340,20 @@ function BrandingTab() {
             Remove cover image
           </button>
         )}
+      </div>
+
+      {/* Photos for the Find Venues slideshow */}
+      <div className="border-t pt-6">
+        <div className="mb-3">
+          <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+            <ImageIcon className="h-5 w-5 text-primary-600" />
+            Venue Photos
+          </h3>
+          <p className="text-sm text-gray-500 mt-1">
+            Up to 5 photos for each venue. They play as a slideshow on your card on the Find Venues page and at the top of your venue page. Photos save as soon as you add them.
+          </p>
+        </div>
+        <VenuePhotosSection onOpenVenueDetails={onOpenVenueDetails} />
       </div>
     </div>
   )

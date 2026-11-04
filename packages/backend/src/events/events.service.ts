@@ -105,6 +105,42 @@ export class EventsService {
     );
   }
 
+  /**
+   * Events can point at their client through client_id (an intake form id) instead of intake_form_id.
+   * Looks those clients up in one query so the event still carries the client's name, email and phone.
+   * Only the owner's own intake forms are considered.
+   */
+  private async clientFormsByClientId(
+    userId: string,
+    rows: Array<{ intake_form?: unknown; client_id?: unknown }>,
+  ): Promise<Map<string, any>> {
+    const uuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const ids = [
+      ...new Set(
+        rows
+          .filter(
+            (r) =>
+              !r.intake_form &&
+              typeof r.client_id === 'string' &&
+              uuid.test(r.client_id),
+          )
+          .map((r) => (r.client_id as string).toLowerCase()),
+      ),
+    ];
+    const byId = new Map<string, any>();
+    if (ids.length === 0) return byId;
+    const { data } = await this.supabaseService
+      .getAdminClient()
+      .from('intake_forms')
+      .select('id, contact_name, contact_email, contact_phone')
+      .in('id', ids)
+      .eq('user_id', userId);
+    for (const form of data ?? [])
+      byId.set(String(form.id).toLowerCase(), form);
+    return byId;
+  }
+
   async findAll(
     supabase: SupabaseClient,
     userId: string,
@@ -145,8 +181,17 @@ export class EventsService {
       return (basicData || []).map((event) => this.snakeToCamelCase(event));
     }
 
+    const clientForms = await this.clientFormsByClientId(userId, data || []);
     return (data || []).map((event) => {
       const converted = this.snakeToCamelCase(event);
+      const clientForm = clientForms.get(
+        String(event.client_id ?? '').toLowerCase(),
+      );
+      if (!event.intake_form && clientForm) {
+        converted.clientName = clientForm.contact_name || null;
+        converted.clientEmail = clientForm.contact_email || null;
+        converted.clientPhone = clientForm.contact_phone || null;
+      }
       // Flatten intake form fields onto the event
       if (event.intake_form) {
         converted.clientName = event.intake_form.contact_name || null;
@@ -202,6 +247,16 @@ export class EventsService {
     if (!data) return null;
 
     const converted = this.snakeToCamelCase(data);
+    if (!data.intake_form) {
+      const clientForm = (await this.clientFormsByClientId(userId, [data])).get(
+        String(data.client_id ?? '').toLowerCase(),
+      );
+      if (clientForm) {
+        converted.clientName = clientForm.contact_name || null;
+        converted.clientEmail = clientForm.contact_email || null;
+        converted.clientPhone = clientForm.contact_phone || null;
+      }
+    }
     if (data.intake_form) {
       converted.clientName = data.intake_form.contact_name || null;
       converted.clientEmail = data.intake_form.contact_email || null;

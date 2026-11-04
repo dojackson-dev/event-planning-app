@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
@@ -75,6 +75,10 @@ interface OwnerEvent {
   venue?: string
   venueId?: string
   location?: string
+  /** Flattened from the event's intake form by the events API. */
+  clientName?: string | null
+  clientEmail?: string | null
+  clientPhone?: string | null
 }
 
 interface BookingForm {
@@ -171,11 +175,21 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
         // Merge: real events first, then intake-form entries
         setEvents([...realEvents, ...intakeForms])
 
-        // Build event_id → client info map from bookings
+        // Build event id → client info map. The event's own client (from its intake form) comes first;
+        // bookings fill in anything it lacks.
         const map: Record<string, ClientInfo> = {}
         for (const b of (bookingsRes.data || [])) {
           if (b.event_id && b.contact_name) {
             map[b.event_id] = { name: b.contact_name, email: b.contact_email || undefined, phone: b.contact_phone || undefined }
+          }
+        }
+        for (const ev of realEvents) {
+          if (!ev.clientName && !ev.clientEmail && !ev.clientPhone) continue
+          const fromBooking = map[ev.id]
+          map[ev.id] = {
+            name: ev.clientName || fromBooking?.name || '',
+            email: ev.clientEmail || fromBooking?.email || undefined,
+            phone: ev.clientPhone || fromBooking?.phone || undefined,
           }
         }
         // Also add intake-form contact info
@@ -198,6 +212,8 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
   const handleEventSelect = (eventId: string) => {
     const ev = events.find(e => e.id === eventId)
     const client = eventClientMap[eventId]
+    // Read before the state update runs, which happens after this function has set the new auto-fill.
+    const previousAutoFill = lastAutoFill.current
     if (ev) {
       // Strip the 'intake-' prefix for display — we don't send it to the API
       const isIntake = eventId.startsWith('intake-')
@@ -210,10 +226,11 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
         endTime: ev.endTime || '',
         venueName: (ev.venueId ? venues.find((v: any) => v.id === ev.venueId)?.name : null) || ev.venue || '',
         venueAddress: ev.location || '',
-        clientName: client?.name || prev.clientName,
-        clientEmail: client?.email || prev.clientEmail,
-        clientPhone: client?.phone || prev.clientPhone,
+        clientName: pickClientValue(prev.clientName, previousAutoFill.name, client?.name),
+        clientEmail: pickClientValue(prev.clientEmail, previousAutoFill.email, client?.email),
+        clientPhone: pickClientValue(prev.clientPhone, previousAutoFill.phone, client?.phone),
       }))
+      lastAutoFill.current = { name: client?.name ?? '', email: client?.email ?? '', phone: client?.phone ?? '' }
       // For intake form entries the name already contains the client name; keep it clean
       if (isIntake && client?.name) {
         // name is already "Event Type — Client Name", no extra change needed
@@ -222,6 +239,11 @@ export default function OwnerVendorProfile({ params }: { params: { id: string } 
       setForm(prev => ({ ...prev, eventId: '' }))
     }
   }
+
+  // What was last filled in automatically, so picking another event replaces it but never overwrites typing.
+  const lastAutoFill = useRef({ name: '', email: '', phone: '' })
+  const pickClientValue = (current: string, autoFilled: string, fromEvent?: string) =>
+    !current || current === autoFilled ? (fromEvent ?? '') : current
 
   const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

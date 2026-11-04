@@ -7,6 +7,7 @@ import {
   Body,
   Param,
   Headers,
+  Query,
   UnauthorizedException,
   BadRequestException,
 } from '@nestjs/common';
@@ -153,6 +154,28 @@ export class RsvpController {
   ) {
     const actor = await this.requireSession(headers);
     return this.rsvpService.sendAllInvites(intakeFormId, actor);
+  }
+
+  /** How many guests a message to this group would reach. */
+  @Get('message/:intakeFormId/audience')
+  async previewGuestMessage(
+    @Headers() headers: RsvpHeaders,
+    @Param('intakeFormId') intakeFormId: string,
+    @Query('audience') audience: string,
+  ) {
+    const actor = await this.requireSession(headers);
+    return this.rsvpService.previewGuestMessage(intakeFormId, actor, audience);
+  }
+
+  /** Send a message to everyone in a group of RSVP guests (attending, pending, declined or all). */
+  @Post('message/:intakeFormId')
+  async sendGuestMessage(
+    @Headers() headers: RsvpHeaders,
+    @Param('intakeFormId') intakeFormId: string,
+    @Body() body: { audience?: string; message?: string },
+  ) {
+    const actor = await this.requireSession(headers);
+    return this.rsvpService.sendGuestMessage(intakeFormId, actor, body);
   }
 
   // ── Public (token-gated, no auth required) ────────────────────────────────

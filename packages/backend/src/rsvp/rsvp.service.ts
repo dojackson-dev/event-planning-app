@@ -4,6 +4,8 @@ import {
   UnauthorizedException,
   BadRequestException,
   ConflictException,
+  HttpException,
+  Logger,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
@@ -15,6 +17,16 @@ import {
   sharedContact,
 } from './rsvp-duplicates';
 import type { GuestContact } from './rsvp-duplicates';
+import {
+  buildSmsBody,
+  cleanMessage,
+  MAX_BROADCASTS_PER_DAY,
+  MAX_RECIPIENTS,
+  mapWithConcurrency,
+  parseAudience,
+  planRecipients,
+} from './guest-message';
+import type { MessageGuest } from './guest-message';
 
 export type RsvpActor = string | { ownerId: string };
 
@@ -37,6 +49,8 @@ function buildPhoneVariants(phone: string): string[] {
 
 @Injectable()
 export class RsvpService {
+  private readonly logger = new Logger(RsvpService.name);
+
   constructor(
     private readonly supabaseService: SupabaseService,
     private readonly smsNotifications: SmsNotificationsService,
@@ -54,7 +68,9 @@ export class RsvpService {
     const admin = this.supabaseService.getAdminClient();
     const { data: form } = await admin
       .from('intake_forms')
-      .select('id, user_id, contact_name, contact_phone, event_id')
+      .select(
+        'id, user_id, contact_name, contact_phone, contact_email, event_id',
+      )
       .eq('id', intakeFormId)
       .single();
     if (!form) throw new NotFoundException('Event not found');
@@ -617,6 +633,177 @@ export class RsvpService {
     }
 
     return { sent, skipped, duplicates };
+  }
+
+  // ── Message the guests ───────────────────────────────────────────────────
+
+  private async loadMessageGuests(
+    intakeFormId: string,
+  ): Promise<MessageGuest[]> {
+    const { data } = await this.supabaseService
+      .getAdminClient()
+      .from('rsvp_guests')
+      .select(
+        'id, guest_name, guest_phone, guest_email, status, sms_sent_at, responded_at',
+      )
+      .eq('intake_form_id', intakeFormId)
+      .order('created_at', { ascending: true });
+    return (data ?? []) as MessageGuest[];
+  }
+
+  /** How many people a message to this group would reach, so the sender can check before sending. */
+  async previewGuestMessage(
+    intakeFormId: string,
+    actor: RsvpActor,
+    audienceRaw: unknown,
+  ) {
+    await this.verifyClientOwnsForm(intakeFormId, actor);
+    const audience = parseAudience(audienceRaw);
+    const plan = planRecipients(
+      await this.loadMessageGuests(intakeFormId),
+      audience,
+    );
+    return {
+      audience,
+      recipients: plan.recipients.length,
+      sms: plan.smsCount,
+      email: plan.emailCount,
+      skipped: plan.skipped,
+      maxRecipients: MAX_RECIPIENTS,
+    };
+  }
+
+  /** Sends one message by text and email to a group of guests (attending, pending, declined or all). */
+  async sendGuestMessage(
+    intakeFormId: string,
+    actor: RsvpActor,
+    dto: { audience?: unknown; message?: unknown },
+  ) {
+    const form = await this.verifyClientOwnsForm(intakeFormId, actor);
+    const audience = parseAudience(dto?.audience);
+    const message = cleanMessage(dto?.message);
+
+    const plan = planRecipients(
+      await this.loadMessageGuests(intakeFormId),
+      audience,
+    );
+    if (plan.recipients.length === 0) {
+      throw new BadRequestException(
+        'There is nobody in that group to message yet. Guests need an invitation or a reply, and a phone number or email.',
+      );
+    }
+    if (plan.recipients.length > MAX_RECIPIENTS) {
+      throw new BadRequestException(
+        `That group has ${plan.recipients.length} people. Messages are limited to ${MAX_RECIPIENTS} at a time, so pick a smaller group.`,
+      );
+    }
+    await this.assertBroadcastAllowed(intakeFormId);
+
+    const ev = await this.findEventForForm(form).catch(() => null);
+    const eventName: string = ev?.name ?? 'your event';
+    const eventDate: string | null = ev?.date
+      ? new Date(`${ev.date}T12:00:00`).toLocaleDateString('en-US', {
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+        })
+      : null;
+    const senderName = await this.senderNameFor(form, actor);
+    const smsBody = buildSmsBody(senderName, eventName, message);
+    const replyTo: string | null =
+      typeof actor === 'string' ? (form.contact_email ?? null) : null;
+
+    const outcomes = await mapWithConcurrency(plan.recipients, 8, async (r) => {
+      const smsOk = r.sms
+        ? await this.smsNotifications.sendOne(r.guest.guest_phone, smsBody)
+        : false;
+      const emailOk = r.email
+        ? await this.mailService.sendGuestMessage({
+            toEmail: r.guest.guest_email as string,
+            guestName: r.guest.guest_name,
+            senderName,
+            eventName,
+            eventDate,
+            message,
+            replyTo,
+          })
+        : false;
+      return { smsOk, emailOk, reached: smsOk || emailOk };
+    });
+
+    const result = {
+      recipients: plan.recipients.length,
+      smsSent: outcomes.filter((o) => o.smsOk).length,
+      emailSent: outcomes.filter((o) => o.emailOk).length,
+      reached: outcomes.filter((o) => o.reached).length,
+      failed: outcomes.filter((o) => !o.reached).length,
+      skipped: plan.skipped,
+    };
+    await this.recordBroadcast(intakeFormId, actor, audience, message, result);
+    return result;
+  }
+
+  private async senderNameFor(form: any, actor: RsvpActor): Promise<string> {
+    if (typeof actor === 'string') return form.contact_name || 'Your host';
+    const { data } = await this.supabaseService
+      .getAdminClient()
+      .from('owner_accounts')
+      .select('business_name')
+      .eq('primary_owner_id', actor.ownerId)
+      .maybeSingle();
+    return data?.business_name || 'The venue';
+  }
+
+  /** At most a few broadcasts per event per day. If the log table is missing the limit is skipped, not fatal. */
+  private async assertBroadcastAllowed(intakeFormId: string): Promise<void> {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { count, error } = await this.supabaseService
+      .getAdminClient()
+      .from('rsvp_broadcasts')
+      .select('id', { count: 'exact', head: true })
+      .eq('intake_form_id', intakeFormId)
+      .gte('created_at', since);
+    if (error) {
+      this.logger.warn(`Broadcast limit not checked: ${error.message}`);
+      return;
+    }
+    if ((count ?? 0) >= MAX_BROADCASTS_PER_DAY) {
+      throw new HttpException(
+        `You can send up to ${MAX_BROADCASTS_PER_DAY} messages per event each day. Please try again tomorrow.`,
+        429,
+      );
+    }
+  }
+
+  private async recordBroadcast(
+    intakeFormId: string,
+    actor: RsvpActor,
+    audience: string,
+    message: string,
+    result: {
+      recipients: number;
+      smsSent: number;
+      emailSent: number;
+      failed: number;
+    },
+  ): Promise<void> {
+    const { error } = await this.supabaseService
+      .getAdminClient()
+      .from('rsvp_broadcasts')
+      .insert({
+        intake_form_id: intakeFormId,
+        sent_by:
+          typeof actor === 'string'
+            ? `client:${actor}`
+            : `owner:${actor.ownerId}`,
+        audience,
+        message,
+        recipients: result.recipients,
+        sms_sent: result.smsSent,
+        email_sent: result.emailSent,
+        failed: result.failed,
+      });
+    if (error) this.logger.warn(`Broadcast not logged: ${error.message}`);
   }
 
   private async doSendInvite(guest: any, form: any): Promise<void> {

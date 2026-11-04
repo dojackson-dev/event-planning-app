@@ -6,8 +6,9 @@ import api from '@/lib/api'
 import {
   Users, Plus, Trash2, Send, CheckCircle2, XCircle, Clock,
   ChevronDown, ChevronUp, Loader2, Mail, Phone, Table2, Copy, Check,
-  ImageIcon, Upload, X, RefreshCw,
+  ImageIcon, Upload, X, RefreshCw, MessageSquare,
 } from 'lucide-react'
+import GuestMessageModal from '@/components/GuestMessageModal'
 
 function requestOptions() {
   if (typeof window !== 'undefined' && window.location.pathname.startsWith('/client-portal/')) {
@@ -69,6 +70,7 @@ export default function ClientRsvpPage() {
   const [loading, setLoading] = useState(true)
   const [guestsLoading, setGuestsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showMessage, setShowMessage] = useState(false)
 
   // Add guest form
   const [showAdd, setShowAdd] = useState(false)
@@ -482,6 +484,14 @@ export default function ClientRsvpPage() {
         >
           <Plus className="h-4 w-4" /> Bulk Add
         </button>
+        {guests.length > 0 && (
+          <button
+            onClick={() => setShowMessage(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-indigo-300 text-indigo-700 text-sm font-medium rounded-lg hover:bg-indigo-50"
+          >
+            <MessageSquare className="h-4 w-4" /> Message Guests
+          </button>
+        )}
         {unsentCount > 0 && (
           <button
             onClick={handleSendAll}
@@ -493,6 +503,16 @@ export default function ClientRsvpPage() {
           </button>
         )}
       </div>
+
+      {showMessage && selectedEvent && (
+        <GuestMessageModal
+          intakeFormId={selectedEvent.intake_form_id}
+          eventName={selectedEvent.event_name ?? 'Your event'}
+          counts={{ attending: summary.attending, declined: summary.declined, pending: summary.pending, total: summary.total }}
+          api={rsvpApi}
+          onClose={() => setShowMessage(false)}
+        />
+      )}
 
       {/* Add single guest form */}
       {showAdd && (

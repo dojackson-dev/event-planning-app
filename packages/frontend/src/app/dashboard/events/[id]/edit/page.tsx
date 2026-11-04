@@ -34,6 +34,10 @@ export default function EditEventPage() {
   const [showConflictWarning, setShowConflictWarning] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [conflictingEvents, setConflictingEvents] = useState<Event[]>([])
+  // An event whose client is missing or was deleted can be linked to one of your clients here.
+  const [hasClient, setHasClient] = useState(true)
+  const [clients, setClients] = useState<Array<{ id: string; contact_name: string; contact_phone?: string | null }>>([])
+  const [clientId, setClientId] = useState('')
   
   const [formData, setFormData] = useState({
     name: '',
@@ -76,6 +80,13 @@ export default function EditEventPage() {
         status: event.status,
         venueId: (event as any).venueId ?? null,
       })
+      const linked = Boolean((event as any).clientName)
+      setHasClient(linked)
+      if (!linked) {
+        api.get('/intake-forms')
+          .then(res => setClients(res.data || []))
+          .catch(() => setClients([]))
+      }
     } catch (err: any) {
       setError('Failed to load event')
       console.error(err)
@@ -137,6 +148,7 @@ export default function EditEventPage() {
         maxGuests: formData.maxGuests ? parseInt(formData.maxGuests) : null,
         budget: formData.budget ? parseInt(formData.budget) : null,
         venueId: formData.venueId,
+        ...(clientId ? { clientId } : {}),
       }
 
       await api.patch(`/events/${eventId}`, payload)
@@ -181,6 +193,30 @@ export default function EditEventPage() {
           <div>
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {!hasClient && (
+                <div className="md:col-span-2 rounded-md border border-amber-200 bg-amber-50 p-4">
+                  <label htmlFor="link-client" className="block text-sm font-medium text-amber-900 mb-1">
+                    Link a client
+                  </label>
+                  <p className="text-xs text-amber-800 mb-2">
+                    No client is linked to this event. Pick one so their name, email and phone fill in when you book vendors and send messages.
+                  </p>
+                  <select
+                    id="link-client"
+                    value={clientId}
+                    onChange={e => setClientId(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:ring-primary-500 focus:border-primary-500"
+                  >
+                    <option value="">-- Select a client --</option>
+                    {clients.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.contact_name}{c.contact_phone ? ` · ${c.contact_phone}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Event Name *

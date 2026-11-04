@@ -360,7 +360,7 @@ function MockBrowser({ url, children }: { url: string; children: React.ReactNode
           <div className="w-3 h-3 rounded-full bg-green-400" />
         </div>
         <div className="flex-1 bg-white rounded-md px-3 py-1 text-[11px] text-gray-400 border border-gray-200 font-mono truncate">
-          eventecos.com{url}
+          www.eventecos.com{url}
         </div>
       </div>
       <div className="bg-white overflow-hidden">{children}</div>

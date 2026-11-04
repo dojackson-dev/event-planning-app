@@ -167,7 +167,7 @@ export class TeamService {
     if (inviteError) throw new BadRequestException(inviteError.message);
 
     // Send invite email
-    const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://www.eventecos.com';
     const inviteUrl = `${frontendUrl}/team/accept?token=${token}`;
     const ownerName =
       [owner?.first_name, owner?.last_name].filter(Boolean).join(' ') ||
@@ -423,7 +423,7 @@ export class TeamService {
       .eq('id', ownerAccountId)
       .single();
 
-    const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://www.eventecos.com';
     const inviteUrl = `${frontendUrl}/team/accept?token=${invite.token}`;
     const ownerName =
       [owner?.first_name, owner?.last_name].filter(Boolean).join(' ') ||

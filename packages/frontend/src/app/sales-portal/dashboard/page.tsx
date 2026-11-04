@@ -107,7 +107,7 @@ interface ManagerAffiliate {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://eventecos.com'
+const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://www.eventecos.com'
 
 const SUB_STATUS_LABELS: Record<string, string> = {
   active:    'Active',

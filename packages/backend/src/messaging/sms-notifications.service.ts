@@ -24,7 +24,7 @@ export class SmsNotificationsService {
   ) {
     this.frontendUrl = this.configService.get<string>(
       'FRONTEND_URL',
-      'https://eventecos.com',
+      'https://www.eventecos.com',
     );
   }
 

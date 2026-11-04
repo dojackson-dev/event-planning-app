@@ -7,7 +7,7 @@ import SplashScreen from '@/components/SplashScreen'
 
 const poppins = Poppins({ subsets: ['latin'], weight: ['400', '500', '600', '700'] })
 
-const SITE_URL = 'https://eventecos.com'
+const SITE_URL = 'https://www.eventecos.com'
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

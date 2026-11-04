@@ -255,7 +255,7 @@ export class PromoterTeamService {
     const ownerName =
       [inviter?.first_name, inviter?.last_name].filter(Boolean).join(' ') ||
       'Your promoter';
-    const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://www.eventecos.com';
 
     try {
       await this.mailService.sendTeamInvitation({

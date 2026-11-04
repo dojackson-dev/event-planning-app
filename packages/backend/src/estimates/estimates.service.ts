@@ -693,7 +693,7 @@ export class EstimatesService {
         if (email) {
           try {
             const frontendUrl =
-              process.env.FRONTEND_URL || 'https://eventecos.com';
+              process.env.FRONTEND_URL || 'https://www.eventecos.com';
             const estimateUrl = `${frontendUrl}/client-portal/estimates`;
 
             // Look up event type & date from intake form

@@ -407,7 +407,7 @@ export default function SendMessagePage() {
         return `EventEcos Support: We received your request and will respond shortly.${STOP_FOOTER}`
       case 'announcement':
         // Sample #4
-        return `EventEcos: New events are now available in your area. View at eventecos.com.${STOP_FOOTER}`
+        return `EventEcos: New events are now available in your area. View at www.eventecos.com.${STOP_FOOTER}`
       case 'invoice':
         return `EventEcos: Your invoice has been updated. For assistance, contact support@eventecos.com.${STOP_FOOTER}`
       case 'update':

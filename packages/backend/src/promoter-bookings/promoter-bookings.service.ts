@@ -343,7 +343,7 @@ export class PromoterBookingsService {
       (artistAccount as any).stage_name ||
       (artistAccount as any).artist_name ||
       'Artist';
-    const frontendUrl = process.env.FRONTEND_URL || 'https://eventecos.com';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://www.eventecos.com';
     const riderUrl = `${frontendUrl}/artists/${artistAccount.id}/rider`;
 
     try {

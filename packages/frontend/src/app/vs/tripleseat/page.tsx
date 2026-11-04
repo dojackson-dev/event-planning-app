@@ -60,7 +60,7 @@ export default function VsTripleseatPage() {
         </p>
 
         <Link
-          href="https://eventecos.com/signup"
+          href="https://www.eventecos.com/signup"
           className="inline-block mt-10 bg-accent-500 hover:bg-accent-600 text-white font-bold px-8 py-3 rounded-lg transition-colors"
         >
           Start free with EventEcos

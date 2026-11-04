@@ -9,6 +9,6 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ['/dashboard', '/admin', '/client-portal', '/vendors/dashboard', '/artist/dashboard'],
       },
     ],
-    sitemap: 'https://eventecos.com/sitemap.xml',
+    sitemap: 'https://www.eventecos.com/sitemap.xml',
   }
 }

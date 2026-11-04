@@ -36,6 +36,18 @@ export class SmsNotificationsService {
 
   // ─── Internal helper ──────────────────────────────────────────────────────
 
+  /** Sends one text and says whether it went out (failures and STOP opt-outs are logged, never thrown). */
+  async sendOne(to: string | null | undefined, body: string): Promise<boolean> {
+    if (!to) return false;
+    try {
+      await this.twilioService.sendSMS(to, body);
+      return true;
+    } catch (err: any) {
+      this.logger.warn(`SMS to ${to} not sent: ${err?.message ?? err}`);
+      return false;
+    }
+  }
+
   async trySend(to: string | null | undefined, body: string): Promise<void> {
     if (!to) return;
     try {

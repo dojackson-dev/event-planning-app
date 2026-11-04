@@ -177,7 +177,8 @@ export class MailService {
     venueName?: string;
   }): Promise<void> {
     try {
-      const frontendUrl = process.env.FRONTEND_URL || 'https://www.eventecos.com';
+      const frontendUrl =
+        process.env.FRONTEND_URL || 'https://www.eventecos.com';
       const inviteUrl = `${frontendUrl}/invite?token=${params.inviteToken}`;
       const displayName =
         params.venueName || params.ownerName || 'Your event coordinator';
@@ -282,7 +283,8 @@ export class MailService {
     venueName?: string;
   }): Promise<boolean> {
     try {
-      const frontendUrl = process.env.FRONTEND_URL || 'https://www.eventecos.com';
+      const frontendUrl =
+        process.env.FRONTEND_URL || 'https://www.eventecos.com';
       const portalUrl = `${frontendUrl}/client-login`;
       const esc = (value: string) =>
         value
@@ -1064,6 +1066,50 @@ export class MailService {
     }
   }
 
+  /** A host's note to an RSVP guest. Replies go to the host when a reply-to address is given. */
+  async sendGuestMessage(params: {
+    toEmail: string;
+    guestName: string;
+    senderName: string;
+    eventName: string;
+    eventDate?: string | null;
+    message: string;
+    replyTo?: string | null;
+  }): Promise<boolean> {
+    if (!process.env.RESEND_API_KEY) return false;
+    const body = this.escapeHtml(params.message).replace(/\n/g, '<br>');
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f9fafb;padding:32px 16px;">
+        <div style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+          ${this.getEmailHeader(this.escapeHtml(params.eventName), params.eventDate ? this.escapeHtml(params.eventDate) : 'A message from your host')}
+          <div style="padding:32px;color:#374151;font-size:15px;line-height:1.6;">
+            <p style="margin:0 0 16px;">Hi ${this.escapeHtml(params.guestName)},</p>
+            <p style="margin:0 0 24px;">${body}</p>
+            <p style="margin:0;color:#6b7280;font-size:13px;">Sent by ${this.escapeHtml(params.senderName)} through EventEcos.${params.replyTo ? ' Reply to this email to answer them.' : ''}</p>
+          </div>
+        </div>
+      </div>
+    `;
+    try {
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      const { error } = await resend.emails.send({
+        from: this.resendFrom,
+        to: params.toEmail,
+        subject: `Message about ${params.eventName}`,
+        html,
+        ...(params.replyTo ? { replyTo: params.replyTo } : {}),
+      });
+      if (error) {
+        this.logger.warn(`Guest message email failed: ${error.message}`);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      this.logger.warn(`Guest message email failed: ${(err as Error).message}`);
+      return false;
+    }
+  }
+
   async sendReminderEmail(params: {
     toEmail: string;
     toName: string;
@@ -1116,7 +1162,8 @@ export class MailService {
     sessionId?: string;
   }): Promise<void> {
     try {
-      const frontendUrl = process.env.FRONTEND_URL || 'https://www.eventecos.com';
+      const frontendUrl =
+        process.env.FRONTEND_URL || 'https://www.eventecos.com';
       const eventUrl = `${frontendUrl}/events/${params.eventId}`;
       const formattedDate = params.eventDate
         ? new Date(
@@ -1286,7 +1333,8 @@ export class MailService {
         .replace(/"/g, '&quot;');
     const usd = (n: number) => `$${n.toFixed(2)}`;
     try {
-      const frontendUrl = process.env.FRONTEND_URL || 'https://www.eventecos.com';
+      const frontendUrl =
+        process.env.FRONTEND_URL || 'https://www.eventecos.com';
       const org = params.orgName ? esc(params.orgName) : 'the organization';
       const ein = params.orgEin
         ? `${params.orgEin.slice(0, 2)}-${params.orgEin.slice(2)}`
@@ -1374,7 +1422,8 @@ export class MailService {
     qrCode: string;
   }): Promise<void> {
     try {
-      const frontendUrl = process.env.FRONTEND_URL || 'https://www.eventecos.com';
+      const frontendUrl =
+        process.env.FRONTEND_URL || 'https://www.eventecos.com';
       const eventUrl = `${frontendUrl}/events/${params.eventId}`;
       const formattedDate = params.eventDate
         ? new Date(
@@ -1624,7 +1673,8 @@ export class MailService {
     sessionId?: string;
   }): Promise<void> {
     try {
-      const frontendUrl = process.env.FRONTEND_URL || 'https://www.eventecos.com';
+      const frontendUrl =
+        process.env.FRONTEND_URL || 'https://www.eventecos.com';
       const eventUrl = `${frontendUrl}/events/${params.eventId}`;
       const formattedDate = params.eventDate
         ? new Date(
@@ -1971,7 +2021,8 @@ export class MailService {
       return;
     }
     try {
-      const frontendUrl = process.env.FRONTEND_URL || 'https://www.eventecos.com';
+      const frontendUrl =
+        process.env.FRONTEND_URL || 'https://www.eventecos.com';
       const eventUrl = `${frontendUrl}/events/${params.eventId}`;
       const formattedDate = params.eventDate
         ? new Date(
@@ -2174,7 +2225,8 @@ export class MailService {
           </div>`;
 
       const resend = new Resend(process.env.RESEND_API_KEY);
-      const frontendUrl = process.env.FRONTEND_URL || 'https://www.eventecos.com';
+      const frontendUrl =
+        process.env.FRONTEND_URL || 'https://www.eventecos.com';
       const dashboardUrl = `${frontendUrl}/dashboard`;
 
       const features = [

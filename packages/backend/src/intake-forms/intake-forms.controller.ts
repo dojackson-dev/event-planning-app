@@ -9,6 +9,7 @@ import {
   Headers,
   UnauthorizedException,
   NotFoundException,
+  Query,
 } from '@nestjs/common';
 import { IntakeFormsService } from './intake-forms.service';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -158,11 +159,17 @@ export class IntakeFormsController {
   async remove(
     @Headers('authorization') authorization: string,
     @Param('id') id: string,
+    @Query('force') force?: string,
   ) {
     const token = this.extractToken(authorization);
     const userId = await this.getUserId(authorization);
     const supabaseWithAuth = this.supabaseService.setAuthContext(token);
-    return this.intakeFormsService.remove(supabaseWithAuth, userId, id);
+    return this.intakeFormsService.remove(
+      supabaseWithAuth,
+      userId,
+      id,
+      force === 'true',
+    );
   }
 
   @Post(':id/convert-to-booking')

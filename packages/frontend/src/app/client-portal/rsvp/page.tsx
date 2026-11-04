@@ -484,14 +484,12 @@ export default function ClientRsvpPage() {
         >
           <Plus className="h-4 w-4" /> Bulk Add
         </button>
-        {guests.length > 0 && (
-          <button
-            onClick={() => setShowMessage(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-indigo-300 text-indigo-700 text-sm font-medium rounded-lg hover:bg-indigo-50"
-          >
-            <MessageSquare className="h-4 w-4" /> Message Guests
-          </button>
-        )}
+        <button
+          onClick={() => setShowMessage(true)}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-indigo-300 text-indigo-700 text-sm font-medium rounded-lg hover:bg-indigo-50"
+        >
+          <MessageSquare className="h-4 w-4" /> Message Guests
+        </button>
         {unsentCount > 0 && (
           <button
             onClick={handleSendAll}

@@ -362,7 +362,7 @@ export default function VendorPublicProfile({ params }: { params: { id: string }
 
       <div className="max-w-4xl mx-auto px-4 py-8">
         {vendor.cover_image_url && (
-          <div className="w-full h-40 sm:h-56 rounded-xl overflow-hidden mb-6">
+          <div className="w-full aspect-[3/1] rounded-xl overflow-hidden mb-6">
             <img src={vendor.cover_image_url} alt={`${vendor.business_name} banner`} className="w-full h-full object-cover" />
           </div>
         )}
@@ -373,7 +373,7 @@ export default function VendorPublicProfile({ params }: { params: { id: string }
             <div className="flex items-center gap-4 mb-4">
               <div className="w-20 h-20 rounded-full border-4 border-white bg-white shadow overflow-hidden flex-shrink-0">
                 {vendor.profile_image_url ? (
-                  <img src={vendor.profile_image_url} alt={vendor.business_name} className="w-full h-full object-cover object-top" />
+                  <img src={vendor.profile_image_url} alt={vendor.business_name} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full bg-primary-100 flex items-center justify-center text-3xl">
                     {CATEGORY_LABELS[vendor.category]?.split(' ')[0] || '🎪'}

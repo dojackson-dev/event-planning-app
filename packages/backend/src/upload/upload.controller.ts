@@ -22,6 +22,7 @@ interface MulterFile {
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const sharp = require('sharp') as typeof import('sharp');
 import { SupabaseService } from '../supabase/supabase.service';
+import { fitBanner } from './banner';
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 const MAX_VENDOR_LOGO_BYTES = 2 * 1024 * 1024; // 2 MB
@@ -211,7 +212,7 @@ export class UploadController {
   // ─────────────────────────────────────────────
   // POST /upload/owner-cover
   // Owner venue banner / cover image
-  // Recommended: 1200×400 px (3:1), max 5 MB
+  // Recommended: 1200×400 px (3:1), max 5 MB. Other shapes are fitted whole, never cropped.
   // ─────────────────────────────────────────────
   @Post('owner-cover')
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
@@ -229,10 +230,7 @@ export class UploadController {
     const admin = this.supabaseService.getAdminClient();
     await this.ensureBucket(admin, 'owner-images');
 
-    const processed = await sharp(file.buffer)
-      .resize(1200, 400, { fit: 'cover', position: 'centre' })
-      .webp({ quality: 85 })
-      .toBuffer();
+    const processed = await fitBanner(file.buffer);
 
     const path = `covers/${userId}-${Date.now()}.webp`;
     const { error: uploadError } = await admin.storage
@@ -250,7 +248,7 @@ export class UploadController {
   // ─────────────────────────────────────────────
   // POST /upload/vendor-cover
   // Vendor cover / banner photo
-  // Recommended: 1200×400 px (3:1), max 5 MB
+  // Recommended: 1200×400 px (3:1), max 5 MB. Other shapes are fitted whole, never cropped.
   // ─────────────────────────────────────────────
   @Post('vendor-cover')
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
@@ -268,10 +266,7 @@ export class UploadController {
     const admin = this.supabaseService.getAdminClient();
     await this.ensureBucket(admin, 'vendor-images');
 
-    const processed = await sharp(file.buffer)
-      .resize(1200, 400, { fit: 'cover', position: 'centre' })
-      .webp({ quality: 85 })
-      .toBuffer();
+    const processed = await fitBanner(file.buffer);
 
     const path = `covers/${userId}-${Date.now()}.webp`;
     const { error: uploadError } = await admin.storage

@@ -34,6 +34,7 @@ interface VendorProfile {
   state: string
   zip_code: string
   profile_image_url: string
+  cover_image_url?: string | null
   gallery_images?: string[]
   is_verified: boolean
   hourly_rate: number
@@ -360,13 +361,19 @@ export default function VendorPublicProfile({ params }: { params: { id: string }
       )}
 
       <div className="max-w-4xl mx-auto px-4 py-8">
+        {vendor.cover_image_url && (
+          <div className="w-full h-40 sm:h-56 rounded-xl overflow-hidden mb-6">
+            <img src={vendor.cover_image_url} alt={`${vendor.business_name} banner`} className="w-full h-full object-cover" />
+          </div>
+        )}
+
         {/* Hero Card */}
         <div className="bg-white rounded-xl shadow-sm overflow-hidden mb-6">
           <div className="px-6 pt-6 pb-6">
             <div className="flex items-center gap-4 mb-4">
               <div className="w-20 h-20 rounded-full border-4 border-white bg-white shadow overflow-hidden flex-shrink-0">
                 {vendor.profile_image_url ? (
-                  <img src={vendor.profile_image_url} alt={vendor.business_name} className="w-full h-full object-cover" />
+                  <img src={vendor.profile_image_url} alt={vendor.business_name} className="w-full h-full object-cover object-top" />
                 ) : (
                   <div className="w-full h-full bg-primary-100 flex items-center justify-center text-3xl">
                     {CATEGORY_LABELS[vendor.category]?.split(' ')[0] || '🎪'}

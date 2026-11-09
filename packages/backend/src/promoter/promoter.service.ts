@@ -21,6 +21,7 @@ export class PromoterService {
     userId: string,
     dto: CreatePromoterDto,
     ownerAccountId?: string | null,
+    options: { keepPrimaryRole?: boolean } = {},
   ) {
     const admin = this.supabaseService.getAdminClient();
 
@@ -57,10 +58,38 @@ export class PromoterService {
     if (error) throw new BadRequestException(error.message);
     this.logger.log(`Created promoter account ${data.id} for user ${userId}`);
 
-    // Ensure the user's role is set to 'promoter'
-    await admin.from('users').update({ role: 'promoter' }).eq('id', userId);
+    await this.grantPromoterRole(userId, options.keepPrimaryRole === true);
 
     return data;
+  }
+
+  /**
+   * Gives the user the promoter role. A venue owner turning on promoter mode keeps `role = 'owner'`
+   * (subscription and trial checks read it) and simply gains 'promoter' in `roles`.
+   */
+  private async grantPromoterRole(userId: string, keepPrimaryRole: boolean) {
+    const admin = this.supabaseService.getAdminClient();
+    if (!keepPrimaryRole) {
+      await admin.from('users').update({ role: 'promoter' }).eq('id', userId);
+      return;
+    }
+    const { data: user } = await admin
+      .from('users')
+      .select('role, roles')
+      .eq('id', userId)
+      .maybeSingle();
+    if (!user) return;
+    const current: string[] =
+      Array.isArray(user.roles) && user.roles.length > 0
+        ? user.roles
+        : user.role
+          ? [user.role]
+          : [];
+    if (current.includes('promoter')) return;
+    await admin
+      .from('users')
+      .update({ roles: [...current, 'promoter'] })
+      .eq('id', userId);
   }
 
   async getPromoterProfile(userId: string) {
@@ -240,6 +269,7 @@ export class PromoterService {
       userId,
       dto,
       ownerAccountId,
+      { keepPrimaryRole: true },
     );
     return { promoterAccount, alreadyExisted: false };
   }

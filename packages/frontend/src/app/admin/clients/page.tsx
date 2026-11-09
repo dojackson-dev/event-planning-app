@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+import CallClientButton from '@/components/calls/CallClientButton'
+import { adminTokenGetter } from '@/lib/calls'
 import {
   Search,
   Filter,
@@ -189,6 +191,12 @@ export default function ClientsPage() {
                         <div className="flex items-center gap-2 text-sm text-gray-600">
                           <Phone className="h-4 w-4" />
                           {client.phone_number}
+                          <CallClientButton
+                            source="client"
+                            id={client.id}
+                            name={`${client.first_name} ${client.last_name}`.trim() || client.email}
+                            getToken={adminTokenGetter}
+                          />
                         </div>
                       )}
                     </div>

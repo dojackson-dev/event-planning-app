@@ -36,6 +36,7 @@ import { SponsorshipCheckoutService } from '../nonprofit/sponsorship-checkout.se
 import { AuctionPaymentsService } from '../auction/payments/auction-payments.service';
 import { clientVisibleItems } from '../invoices/client-visible-items';
 import { analytics } from '../analytics/heycatch';
+import { findOwnersActiveConnect } from './promoter-owner-connect';
 
 export type ConnectRole = 'owner' | 'vendor' | 'artist' | 'promoter';
 
@@ -1882,7 +1883,29 @@ export class StripeService {
       .maybeSingle();
 
     let status = data?.stripe_connect_status ?? 'not_connected';
-    const connectId = data?.stripe_account_id ?? null;
+    let connectId = data?.stripe_account_id ?? null;
+
+    if (data && status !== 'active' && !connectId) {
+      const ownerConnect = await findOwnersActiveConnect(
+        admin,
+        this.stripe,
+        userId,
+      );
+      if (ownerConnect) {
+        await admin
+          .from('promoter_accounts')
+          .update({
+            stripe_account_id: ownerConnect,
+            stripe_connect_status: 'active',
+          })
+          .eq('id', data.id);
+        connectId = ownerConnect;
+        status = 'active';
+        this.logger.log(
+          `Promoter ${data.id} now uses the venue owner's Stripe account ${ownerConnect}`,
+        );
+      }
+    }
 
     if (status === 'pending' && connectId) {
       try {
@@ -2046,6 +2069,25 @@ export class StripeService {
     if (!promoter) throw new Error('Promoter account not found');
 
     let connectId = promoter.stripe_account_id;
+
+    // Someone who already finished Stripe as a venue owner is not asked to register again.
+    if (!connectId) {
+      const ownerConnect = await findOwnersActiveConnect(
+        admin,
+        this.stripe,
+        userId,
+      );
+      if (ownerConnect) {
+        await admin
+          .from('promoter_accounts')
+          .update({
+            stripe_account_id: ownerConnect,
+            stripe_connect_status: 'active',
+          })
+          .eq('id', promoter.id);
+        return `${this.frontendUrl}/dashboard/promoter?connect=success`;
+      }
+    }
 
     if (!connectId) {
       const account = await this.stripe.accounts.create({

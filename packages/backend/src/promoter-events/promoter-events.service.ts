@@ -11,6 +11,7 @@ import { MailService } from '../mail/mail.service';
 import { sanitizeSearchTerm } from '../common/search-term';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import Stripe from 'stripe';
+import { randomUUID } from 'crypto';
 import {
   assertNonprofitCanSell,
   isVerifiedNonprofit,
@@ -55,6 +56,8 @@ function haversineDistanceMiles(
 
 export const APP_FEE_RATE = 0.03; // 3% platform fee → goes to our account
 export const STRIPE_PCT = 0.029; // Stripe's % fee
+/** The most free tickets one email can hold for a single event. */
+export const MAX_FREE_TICKETS_PER_BUYER = 10;
 export const STRIPE_FIXED = 30; // Stripe's fixed fee in cents ($0.30)
 
 /** 1.5% for verified non-profits, otherwise the standard 3%. */
@@ -514,7 +517,22 @@ export class PromoterEventsService {
       throw new BadRequestException(`Only ${available} tickets remaining`);
 
     const promoter = event.promoter_accounts;
+    const unitAmount = Math.round(Number(tier.price) * 100);
+    const ticketTotal = unitAmount * quantity;
+
+    // Organizations whose sales are paused cannot hand out free tickets either.
     assertNonprofitCanSell(promoter);
+
+    // Free tickets never go through Stripe (it refuses totals under $0.50).
+    if (ticketTotal === 0) {
+      return this.createFreeOrder(event, [{ tier_id: tierId, quantity }], {
+        buyerEmail,
+        buyerPhone,
+        buyerName,
+        returnUrl,
+      });
+    }
+
     if (
       !promoter?.stripe_account_id ||
       promoter.stripe_connect_status !== 'active'
@@ -522,8 +540,6 @@ export class PromoterEventsService {
       throw new BadRequestException('Payments not enabled for this event');
     }
 
-    const unitAmount = Math.round(Number(tier.price) * 100);
-    const ticketTotal = unitAmount * quantity;
     const feeRate = platformFeeRate(promoter);
     const paymentMethodTypes = paymentMethodTypesFor(
       promoter?.enable_bnpl,
@@ -591,9 +607,81 @@ export class PromoterEventsService {
     return { url: session.url, sessionId: session.id };
   }
 
+  // ── FREE TICKETS ──────────────────────────────────────────────
+
+  /**
+   * Reserves free tickets immediately: no Stripe session, the tickets are created and sent right away.
+   * The returned URL is the same "you're in" page paid orders land on.
+   */
+  private async createFreeOrder(
+    event: { id: string },
+    items: { tier_id: string; quantity: number }[],
+    buyer: {
+      buyerEmail?: string;
+      buyerPhone?: string;
+      buyerName?: string;
+      returnUrl?: string;
+    },
+  ) {
+    const admin = this.supabaseService.getAdminClient();
+
+    const email = (buyer.buyerEmail ?? '').trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      throw new BadRequestException(
+        'Enter your email so we can send your free tickets.',
+      );
+    }
+    if (!items.every((i) => Number.isInteger(i.quantity) && i.quantity >= 1)) {
+      throw new BadRequestException('Choose at least one ticket.');
+    }
+    const requested = items.reduce((sum, i) => sum + i.quantity, 0);
+    const { count: alreadyHeld } = await admin
+      .from('tickets')
+      .select('id', { count: 'exact', head: true })
+      .eq('public_event_id', event.id)
+      .eq('buyer_email', email)
+      .eq('status', 'valid');
+    if ((alreadyHeld ?? 0) + requested > MAX_FREE_TICKETS_PER_BUYER) {
+      throw new BadRequestException(
+        `You can reserve up to ${MAX_FREE_TICKETS_PER_BUYER} free tickets per event.`,
+      );
+    }
+
+    const sessionId = `free_${randomUUID()}`;
+    await this.markMultiTierTicketsSold(
+      admin,
+      { id: sessionId, customer_email: email, amount_total: 0 } as any,
+      sessionId,
+      event.id,
+      JSON.stringify(items),
+      email,
+      buyer.buyerPhone || undefined,
+      buyer.buyerName || undefined,
+    );
+
+    const { data: created } = await admin
+      .from('tickets')
+      .select('id')
+      .eq('stripe_checkout_session_id', sessionId)
+      .limit(1);
+    if (!created || created.length === 0) {
+      throw new BadRequestException(
+        'We could not reserve your tickets. Please try again.',
+      );
+    }
+
+    const url = buyer.returnUrl
+      ? `${buyer.returnUrl}${buyer.returnUrl.includes('?') ? '&' : '?'}session_id=${sessionId}`
+      : `${this.frontendUrl}/events/${event.id}?paid=true&session_id=${sessionId}`;
+    return { url, sessionId, free: true };
+  }
+
   // ── WEBHOOK: mark tickets sold ────────────────────────────────
 
   async markTicketsSoldBySession(sessionId: string) {
+    // Free orders are completed when they are placed; there is nothing at Stripe to look up.
+    if (sessionId?.startsWith('free_')) return;
+
     const admin = this.supabaseService.getAdminClient();
 
     let session: Stripe.Checkout.Session;
@@ -1037,13 +1125,6 @@ export class PromoterEventsService {
     if (!event) throw new NotFoundException('Event not found');
 
     const promoter = event.promoter_accounts;
-    assertNonprofitCanSell(promoter);
-    if (
-      !promoter?.stripe_account_id ||
-      promoter.stripe_connect_status !== 'active'
-    ) {
-      throw new BadRequestException('Payments not enabled for this event');
-    }
 
     // Validate all tiers and build line items
     let ticketTotal = 0;
@@ -1080,6 +1161,26 @@ export class PromoterEventsService {
         },
         quantity: item.quantity,
       });
+    }
+
+    // Organizations whose sales are paused cannot hand out free tickets either.
+    assertNonprofitCanSell(promoter);
+
+    // Free tickets never go through Stripe (it refuses totals under $0.50).
+    if (ticketTotal === 0) {
+      return this.createFreeOrder(event, items, {
+        buyerEmail,
+        buyerPhone,
+        buyerName,
+        returnUrl,
+      });
+    }
+
+    if (
+      !promoter?.stripe_account_id ||
+      promoter.stripe_connect_status !== 'active'
+    ) {
+      throw new BadRequestException('Payments not enabled for this event');
     }
 
     const feeRate = platformFeeRate(promoter);

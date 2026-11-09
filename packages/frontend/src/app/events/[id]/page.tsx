@@ -193,7 +193,7 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
               <CheckCircle className="w-9 h-9 text-green-600" />
             </div>
             <h1 className="text-2xl font-bold text-gray-900 mb-2">You&apos;re in!</h1>
-            <p className="text-gray-600 mb-1">Payment confirmed.</p>
+            <p className="text-gray-600 mb-1">{successSession?.startsWith('free_') ? 'Your free tickets are reserved.' : 'Payment confirmed.'}</p>
             <p className="text-sm text-gray-500 mb-6">Check your email and phone for your tickets and QR codes.</p>
             <div className="space-y-3">
               <Link
@@ -552,9 +552,15 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
                     <button type="submit" disabled={purchasing || !buyerEmail}
                       className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white font-bold py-3 rounded-xl hover:bg-purple-700 disabled:opacity-60 mt-2">
                       {purchasing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ticket className="w-4 h-4" />}
-                      {purchasing ? 'Redirecting...' : `Buy ${totalTickets} Ticket${totalTickets !== 1 ? 's' : ''}`}
+                      {purchasing
+                        ? (faceValue === 0 ? 'Reserving...' : 'Redirecting...')
+                        : faceValue === 0
+                          ? `Get ${totalTickets} Free Ticket${totalTickets !== 1 ? 's' : ''}`
+                          : `Buy ${totalTickets} Ticket${totalTickets !== 1 ? 's' : ''}`}
                     </button>
-                    <p className="text-xs text-center text-gray-400 mt-2">Secure checkout via Stripe</p>
+                    <p className="text-xs text-center text-gray-400 mt-2">
+                      {faceValue === 0 ? 'No payment needed — your tickets are emailed right away' : 'Secure checkout via Stripe'}
+                    </p>
                   </div>
                 )}
               </form>

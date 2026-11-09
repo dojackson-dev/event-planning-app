@@ -19,7 +19,8 @@ import {
   FileText,
   BarChart3,
   UserX,
-  Rss
+  Rss,
+  Phone
 } from 'lucide-react'
 
 const navigation = [
@@ -33,6 +34,7 @@ const navigation = [
   { name: 'Revenue', href: '/admin/revenue', icon: DollarSign },
   { name: 'Free Trials', href: '/admin/trials', icon: Gift },
   { name: 'Unconverted', href: '/admin/unconverted', icon: UserX },
+  { name: 'Calls', href: '/admin/calls', icon: Phone },
   { name: 'User Activity', href: '/admin/activity', icon: Activity },
   { name: 'Settings', href: '/admin/settings', icon: Settings },
 ]

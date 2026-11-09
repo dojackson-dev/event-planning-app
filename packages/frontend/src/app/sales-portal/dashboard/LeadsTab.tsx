@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Loader2, Phone, RefreshCw } from 'lucide-react'
 import api from '@/lib/api'
+import CallClientButton from '@/components/calls/CallClientButton'
+import { salesTokenGetter } from '@/lib/calls'
 
 interface Lead {
   id: string
@@ -149,7 +151,10 @@ export default function LeadsTab({ isManager }: { isManager: boolean }) {
                     <p className="mt-0.5 flex items-center gap-1.5 text-sm text-gray-600">
                       <Phone className="w-3.5 h-3.5" aria-hidden="true" />
                       {lead.claimed_by_me || isManager ? (
-                        <a href={`tel:${lead.phone}`} className="text-indigo-600 hover:underline">{lead.phone}</a>
+                        <>
+                          <a href={`tel:${lead.phone}`} className="text-indigo-600 hover:underline">{lead.phone}</a>
+                          <CallClientButton source="lead" id={lead.id} name={lead.name} getToken={salesTokenGetter} />
+                        </>
                       ) : (
                         <span title="Claim this lead to see the full number">{lead.phone}</span>
                       )}

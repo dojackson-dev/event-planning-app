@@ -78,6 +78,75 @@ export class TwilioService {
     }
   }
 
+  // ── Voice (internal staff calling) ──────────────────────────────
+
+  /** The shared, voice-enabled business number used as caller ID. */
+  getBusinessNumber(): string | undefined {
+    return this.configService.get<string>('TWILIO_PHONE_NUMBER');
+  }
+
+  /** Places a call and returns its SID. Recording stays off. */
+  async createCall(params: {
+    to: string;
+    url: string;
+    statusCallback: string;
+    timeoutSeconds: number;
+  }): Promise<{ sid: string }> {
+    const from = this.getBusinessNumber();
+    if (!this.client || !from) {
+      throw new Error('Twilio voice is not configured');
+    }
+    const call = await this.client.calls.create({
+      to: params.to,
+      from,
+      url: params.url,
+      method: 'POST',
+      statusCallback: params.statusCallback,
+      statusCallbackMethod: 'POST',
+      statusCallbackEvent: ['answered', 'completed'],
+      timeout: params.timeoutSeconds,
+    });
+    return { sid: call.sid };
+  }
+
+  /** True when the signature proves the request really came from Twilio for this exact URL. */
+  validateWebhook(
+    signature: string | undefined,
+    url: string,
+    params: Record<string, unknown>,
+  ): boolean {
+    const authToken = this.configService.get<string>('TWILIO_AUTH_TOKEN');
+    if (!authToken || !signature) return false;
+    return twilio.validateRequest(
+      authToken,
+      signature,
+      url,
+      params as Record<string, string>,
+    );
+  }
+
+  /** Downloads a voicemail recording from Twilio (only Twilio-hosted recordings are fetched). */
+  async fetchRecordingAudio(recordingUrl: string): Promise<Buffer> {
+    const accountSid = this.configService.get<string>('TWILIO_ACCOUNT_SID');
+    const authToken = this.configService.get<string>('TWILIO_AUTH_TOKEN');
+    if (
+      !accountSid ||
+      !authToken ||
+      !recordingUrl.startsWith('https://api.twilio.com/')
+    ) {
+      throw new Error('Recording unavailable');
+    }
+    const res = await fetch(`${recordingUrl}.mp3`, {
+      headers: {
+        Authorization:
+          'Basic ' +
+          Buffer.from(`${accountSid}:${authToken}`).toString('base64'),
+      },
+    });
+    if (!res.ok) throw new Error(`Recording fetch failed (${res.status})`);
+    return Buffer.from(await res.arrayBuffer());
+  }
+
   async getMessageStatus(sid: string): Promise<string> {
     if (!this.client) {
       throw new Error('Twilio client not configured');

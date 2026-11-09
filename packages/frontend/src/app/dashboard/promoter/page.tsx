@@ -27,6 +27,15 @@ import {
   ExternalLink,
 } from 'lucide-react'
 
+function isVenueOwner(): boolean {
+  try {
+    const roles = JSON.parse(localStorage.getItem('user_roles') || '[]')
+    return Array.isArray(roles) && roles.includes('owner')
+  } catch {
+    return false
+  }
+}
+
 interface DashboardStats {
   totalEvents: number
   publishedEvents: number
@@ -72,8 +81,14 @@ function PromoterDashboardContent() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [profileRes, dashRes, connectRes] = await Promise.all([
-        api.get('/promoter/profile'),
+      let profileRes = await api.get('/promoter/profile')
+      // A venue owner who opens this page without having enabled promoter mode gets their promoter
+      // account set up now (it reuses their existing Stripe account), instead of an empty page.
+      if (!profileRes.data && isVenueOwner()) {
+        await api.post('/promoter/enable')
+        profileRes = await api.get('/promoter/profile')
+      }
+      const [dashRes, connectRes] = await Promise.all([
         api.get('/promoter/dashboard'),
         api.get('/stripe/connect/promoter/status'),
       ])

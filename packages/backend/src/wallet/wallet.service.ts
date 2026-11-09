@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
@@ -7,6 +8,19 @@ import {
 import { PKPass } from 'passkit-generator';
 import * as jwt from 'jsonwebtoken';
 import { SupabaseService } from '../supabase/supabase.service';
+import { WALLET_ASSETS } from './wallet-assets';
+
+/** PEM values pasted into a hosting dashboard often arrive with literal backslash-n instead of line breaks. */
+const pem = (value: string) => value.replace(/\\n/g, '\n');
+
+/** '19:30:00' -> '7:30 PM' */
+export function formatPassTime(time: string | null | undefined): string | null {
+  const match = /^(\d{1,2}):(\d{2})/.exec(time ?? '');
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const suffix = hours >= 12 ? 'PM' : 'AM';
+  return `${hours % 12 === 0 ? 12 : hours % 12}:${match[2]} ${suffix}`;
+}
 
 @Injectable()
 export class WalletService {
@@ -25,6 +39,24 @@ export class WalletService {
       .maybeSingle();
     if (error || !data) throw new NotFoundException('Ticket not found');
     return data;
+  }
+
+  /** Which wallets are set up on this server, so the ticket page only offers buttons that will work. */
+  status() {
+    return {
+      apple: !!(
+        process.env.APPLE_WALLET_WWDR_CERT &&
+        process.env.APPLE_WALLET_SIGNER_CERT &&
+        process.env.APPLE_WALLET_SIGNER_KEY &&
+        process.env.APPLE_WALLET_PASS_TYPE_ID &&
+        process.env.APPLE_WALLET_TEAM_ID
+      ),
+      google: !!(
+        process.env.GOOGLE_WALLET_ISSUER_ID &&
+        process.env.GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL &&
+        process.env.GOOGLE_WALLET_SERVICE_ACCOUNT_KEY
+      ),
+    };
   }
 
   async getAppleWalletPass(ticketId: string): Promise<Buffer> {
@@ -47,6 +79,11 @@ export class WalletService {
     }
 
     const ticket = await this.fetchTicketData(ticketId);
+    if (ticket.status !== 'valid') {
+      throw new BadRequestException(
+        'This ticket has already been used or is no longer valid.',
+      );
+    }
     const event = ticket.public_events as any;
     const tier = ticket.ticket_tiers as any;
 
@@ -64,12 +101,12 @@ export class WalletService {
       passTypeIdentifier,
       serialNumber: ticket.id,
       teamIdentifier,
-      organizationName: 'Eventecos',
+      organizationName: 'EventEcos',
       description: event?.title ?? 'Event Ticket',
-      foregroundColor: 'rgb(255, 255, 255)',
-      backgroundColor: 'rgb(124, 58, 237)',
-      labelColor: 'rgb(220, 200, 255)',
-      logoText: 'Eventecos',
+      foregroundColor: 'rgb(17, 24, 39)',
+      backgroundColor: 'rgb(255, 255, 255)',
+      labelColor: 'rgb(43, 52, 148)',
+      logoText: 'EventEcos',
       eventTicket: {
         primaryFields: [
           {
@@ -80,8 +117,14 @@ export class WalletService {
         ],
         secondaryFields: [
           { key: 'date', label: 'DATE', value: formattedDate },
-          ...(event?.start_time
-            ? [{ key: 'time', label: 'TIME', value: event.start_time }]
+          ...(formatPassTime(event?.start_time)
+            ? [
+                {
+                  key: 'time',
+                  label: 'TIME',
+                  value: formatPassTime(event.start_time),
+                },
+              ]
             : []),
         ],
         auxiliaryFields: [
@@ -104,36 +147,34 @@ export class WalletService {
           },
         ],
       },
-      barcode: {
-        message: ticket.id,
-        format: 'PKBarcodeFormatQR',
-        messageEncoding: 'iso-8859-1',
-        altText: ticket.id.substring(0, 8).toUpperCase(),
-      },
     };
 
-    // Minimal 1×1 white pixel PNG — replace with branded EventEcos icon assets when available
-    const minimalPng = Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg==',
-      'base64',
+    const images = Object.fromEntries(
+      Object.entries(WALLET_ASSETS).map(([name, data]) => [
+        name,
+        Buffer.from(data, 'base64'),
+      ]),
     );
 
     const pass = new PKPass(
+      { 'pass.json': Buffer.from(JSON.stringify(passJSON)), ...images },
       {
-        'pass.json': Buffer.from(JSON.stringify(passJSON)),
-        'icon.png': minimalPng,
-        'icon@2x.png': minimalPng,
-        'logo.png': minimalPng,
-        'logo@2x.png': minimalPng,
-      },
-      {
-        wwdr,
-        signerCert,
-        signerKey: signerKey.replace(/\\n/g, '\n'),
+        wwdr: pem(wwdr),
+        signerCert: pem(signerCert),
+        signerKey: pem(signerKey),
         signerKeyPassphrase:
           process.env.APPLE_WALLET_SIGNER_KEY_PASSPHRASE || undefined,
       },
     );
+
+    // The library drops a barcode written into pass.json, so it has to be set on the pass itself.
+    // The code is the same ticket id the ticket page shows, which is what the door scanner reads.
+    pass.setBarcodes({
+      message: ticket.id,
+      format: 'PKBarcodeFormatQR',
+      messageEncoding: 'iso-8859-1',
+      altText: ticket.id.substring(0, 8).toUpperCase(),
+    });
 
     return pass.getAsBuffer();
   }

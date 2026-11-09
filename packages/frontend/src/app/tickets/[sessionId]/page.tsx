@@ -5,6 +5,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import Link from 'next/link'
 import { CheckCircle, Calendar, MapPin, Ticket, Loader2, Send, X, Check, Phone, Mail, Copy, ExternalLink } from 'lucide-react'
 import api from '@/lib/api'
+import AddToWalletButtons from '@/components/AddToWalletButtons'
 
 interface TicketData {
   id: string
@@ -210,6 +211,7 @@ export default function TicketConfirmationPage({ params }: { params: { sessionId
               />
             </div>
             <p className="text-xs text-gray-400 font-mono break-all text-center">{ticket.id}</p>
+            {ticket.status === 'valid' && <AddToWalletButtons ticketId={ticket.id} />}
             <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
               ticket.status === 'valid' ? 'bg-green-100 text-green-700' :
               ticket.status === 'used' ? 'bg-gray-100 text-gray-500' :

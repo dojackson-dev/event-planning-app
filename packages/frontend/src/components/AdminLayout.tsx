@@ -39,25 +39,18 @@ const navigation = [
   { name: 'Settings', href: '/admin/settings', icon: Settings },
 ]
 
-// AUTH BYPASS: Set to false to re-enable admin authentication
-const BYPASS_ADMIN_AUTH = true
-
 function AdminLayoutContent({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
   const { session, loading, logout, isAuthenticated } = useAdmin()
 
   useEffect(() => {
-    // Skip redirect when auth is bypassed
-    if (BYPASS_ADMIN_AUTH) return
-    
     if (!loading && !isAuthenticated) {
       router.push('/admin-login')
     }
   }, [loading, isAuthenticated, router])
 
-  // Skip loading state when bypassed
-  if (!BYPASS_ADMIN_AUTH && loading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -68,7 +61,7 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
     )
   }
 
-  if (!BYPASS_ADMIN_AUTH && !isAuthenticated) {
+  if (!isAuthenticated) {
     return null
   }
 

@@ -4,9 +4,6 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
-// AUTH BYPASS: Set to false to re-enable admin authentication
-const BYPASS_ADMIN_AUTH = true
-
 const ADMIN_EMAIL = 'admin@eventecos.com'
 
 interface AdminSession {
@@ -31,46 +28,36 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname()
 
   useEffect(() => {
-    if (BYPASS_ADMIN_AUTH) {
-      // Create a mock admin session for dev mode
-      setSession({
-        user: { email: 'admin@demo.com' },
-        isAdmin: true,
-        loginTime: new Date().toISOString()
-      })
-      setLoading(false)
-      return
-    }
     checkAdminSession()
   }, [])
 
+  // The signed-in Supabase user is the source of truth; the stored copy is only a convenience.
   const checkAdminSession = async () => {
+    const goToLogin = () => {
+      if (pathname?.startsWith('/admin') && pathname !== '/admin-login') {
+        router.push('/admin-login')
+      }
+    }
     try {
-      const stored = localStorage.getItem('admin_session')
-      if (stored) {
-        const parsed = JSON.parse(stored)
-        
-        // Verify with Supabase that session is still valid
-        const supabase = createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        
-        if (user && user.email?.toLowerCase() === ADMIN_EMAIL) {
-          setSession(parsed)
-        } else {
-          // Invalid session, clear it
-          localStorage.removeItem('admin_session')
-          if (pathname?.startsWith('/admin') && pathname !== '/admin-login') {
-            router.push('/admin-login')
-          }
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+
+      if (user && user.email?.toLowerCase() === ADMIN_EMAIL) {
+        let stored: AdminSession | null = null
+        try {
+          stored = JSON.parse(localStorage.getItem('admin_session') || 'null')
+        } catch {
+          stored = null
         }
+        setSession(stored ?? { user, isAdmin: true, loginTime: new Date().toISOString() })
       } else {
-        if (pathname?.startsWith('/admin') && pathname !== '/admin-login') {
-          router.push('/admin-login')
-        }
+        localStorage.removeItem('admin_session')
+        goToLogin()
       }
     } catch (error) {
       console.error('Error checking admin session:', error)
       localStorage.removeItem('admin_session')
+      goToLogin()
     } finally {
       setLoading(false)
     }
@@ -93,7 +80,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       session,
       loading,
       logout,
-      isAuthenticated: BYPASS_ADMIN_AUTH || !!session
+      isAuthenticated: !!session
     }}>
       {children}
     </AdminContext.Provider>

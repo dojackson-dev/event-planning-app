@@ -43,6 +43,7 @@ import { AssistantModule } from './assistant/assistant.module';
 import { AuditModule } from './audit/audit.module';
 import { RsvpModule } from './rsvp/rsvp.module';
 import { CallsModule } from './calls/calls.module';
+import { WalletModule } from './wallet/wallet.module';
 import { ContactModule } from './contact/contact.module';
 import { VipModule } from './vip/vip.module';
 import { EventNotesModule } from './event-notes/event-notes.module';
@@ -100,6 +101,7 @@ import { PromoterTeamModule } from './promoter-team/promoter-team.module';
     AuditModule,
     RsvpModule,
     CallsModule,
+    WalletModule,
     ContactModule,
     VipModule,
     EventNotesModule,

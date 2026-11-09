@@ -8,6 +8,12 @@ export class WalletController {
 
   constructor(private readonly walletService: WalletService) {}
 
+  /** Which wallets this server can issue passes for. */
+  @Get('status')
+  status() {
+    return this.walletService.status();
+  }
+
   /** Generates and downloads an Apple Wallet .pkpass for a ticket (public — no auth) */
   @Get('apple/:ticketId')
   async appleWallet(

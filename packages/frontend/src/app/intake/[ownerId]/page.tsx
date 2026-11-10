@@ -210,7 +210,12 @@ function PublicIntakeForm({ params }: { params: { ownerId: string } }) {
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
-        throw new Error(body.message || 'Failed to submit. Please try again.')
+        const detail = Array.isArray(body.message) ? body.message.join(' ') : body.message
+        throw new Error(
+          res.status >= 500 || !detail || detail === 'Internal server error'
+            ? 'Something went wrong on our side. Please try again in a minute, or contact the venue directly.'
+            : detail,
+        )
       }
 
       setSubmitted(true)
@@ -419,7 +424,7 @@ function PublicIntakeForm({ params }: { params: { ownerId: string } }) {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Preferred Event Date *</label>
-                  <input type="date" name="eventDate" required value={formData.eventDate} onChange={handleChange}
+                  <input type="date" name="eventDate" required min="2000-01-01" max="2100-12-31" value={formData.eventDate} onChange={handleChange}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
                 </div>
 
@@ -452,7 +457,7 @@ function PublicIntakeForm({ params }: { params: { ownerId: string } }) {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Estimated Guest Count *</label>
-                  <input type="number" name="estimatedGuests" required min="1" value={formData.estimatedGuests} onChange={handleChange}
+                  <input type="number" name="estimatedGuests" required min="1" max="100000" value={formData.estimatedGuests} onChange={handleChange}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
                 </div>
 

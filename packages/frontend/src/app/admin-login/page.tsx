@@ -177,7 +177,7 @@ export default function AdminLoginPage() {
           </form>
 
           <div className="mt-6 text-center">
-            <Link href="/" className="text-sm text-gray-600 hover:text-gray-900">
+            <Link href="/?portal=exit" className="text-sm text-gray-600 hover:text-gray-900">
               ← Back to main site
             </Link>
           </div>

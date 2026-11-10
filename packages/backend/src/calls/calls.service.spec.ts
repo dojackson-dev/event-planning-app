@@ -688,6 +688,29 @@ describe('CallsService phone verification', () => {
     expect(db.tables.call_staff[0].verify_code_hash).toBeNull();
   });
 
+  it('removes the saved and pending number so calling stops until a new one is verified', async () => {
+    const { db, service } = setup();
+    seedRep(db, {
+      pending_mobile_e164: '+15045550999',
+      verify_code_hash: 'abc',
+      receives_inbound: true,
+    });
+    const profile = await service.removeMobile(rep);
+    seedLead(db, rep.affiliateId);
+    expect(profile.mobileVerified).toBe(false);
+    expect(profile.mobile).toBeNull();
+    expect(profile.pendingMobile).toBeNull();
+    expect(db.tables.call_staff[0]).toMatchObject({
+      mobile_e164: null,
+      mobile_verified_at: null,
+      pending_mobile_e164: null,
+      verify_code_hash: null,
+    });
+    await expect(
+      service.startOutbound(rep, { source: 'lead', id: LEAD_ID }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
   it('limits guesses and resends', async () => {
     const { service } = setup();
     await service.startMobileVerification(rep, '5045550111');

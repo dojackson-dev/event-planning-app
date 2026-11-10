@@ -99,7 +99,7 @@ export class CallsApiError extends Error {
 
 export async function callsRequest<T>(
   getToken: TokenGetter,
-  method: 'get' | 'post' | 'patch' | 'put',
+  method: 'get' | 'post' | 'patch' | 'put' | 'delete',
   path: string,
   data?: unknown,
   responseType?: 'blob',

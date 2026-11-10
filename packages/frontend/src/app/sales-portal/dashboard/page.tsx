@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
 import { useAffiliateAuth } from '@/contexts/AffiliateAuthContext'
-import { Search, RefreshCw, Users, TrendingUp, CheckCircle, XCircle, X } from 'lucide-react'
+import { Search, RefreshCw, Users, TrendingUp, CheckCircle, XCircle, X, Mail } from 'lucide-react'
 import LeadsTab from './LeadsTab'
+import OutreachModal, { OutreachTarget } from './leads/OutreachModal'
 import CallsPanel from '@/components/calls/CallsPanel'
 import { salesTokenGetter } from '@/lib/calls'
 
@@ -190,6 +191,9 @@ export default function SalesPortalDashboard() {
   const [loadingUsers,    setLoadingUsers]   = useState(false)
   const [copied,          setCopied]         = useState(false)
   const [selectedUserId,  setSelectedUserId]  = useState<string | null>(null)
+  const [emailUserIds,    setEmailUserIds]    = useState<Set<string>>(new Set())
+  const [emailTargets,    setEmailTargets]    = useState<OutreachTarget[] | null>(null)
+  const [emailNotice,     setEmailNotice]     = useState('')
   const [userDetail,      setUserDetail]      = useState<ManagerUserDetail | null>(null)
   const [loadingDetail,   setLoadingDetail]   = useState(false)
 
@@ -722,6 +726,33 @@ export default function SalesPortalDashboard() {
                 </div>
               </div>
 
+              {/* Email selected users */}
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  disabled={emailUserIds.size === 0}
+                  onClick={() => setEmailTargets(
+                    managerUsers
+                      .filter(u => emailUserIds.has(u.id) && u.email)
+                      .map(u => ({
+                        type: 'user' as const,
+                        id: u.id,
+                        name: `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() || (u.email ?? ''),
+                        business: u.business_name,
+                        email: u.email,
+                      })),
+                  )}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  <Mail className="w-4 h-4" aria-hidden="true" /> Email selected ({emailUserIds.size})
+                </button>
+                {emailUserIds.size > 0 && (
+                  <button type="button" onClick={() => setEmailUserIds(new Set())} className="text-sm text-gray-600 underline">Clear selection</button>
+                )}
+                <p aria-live="polite" className="text-sm text-indigo-700">{emailNotice}</p>
+                <p className="text-xs text-gray-400">Up to 50 recipients per send.</p>
+              </div>
+
               {/* Table */}
               <div className="bg-white rounded-xl border overflow-hidden">
                 {loadingUsers ? (
@@ -734,6 +765,14 @@ export default function SalesPortalDashboard() {
                   <table className="min-w-full divide-y divide-gray-100 text-sm">
                     <thead className="bg-gray-50">
                       <tr>
+                        <th className="w-10 px-4 py-3">
+                          <input
+                            type="checkbox"
+                            aria-label="Select all users with an email"
+                            checked={managerUsers.filter(u => u.email).length > 0 && managerUsers.filter(u => u.email).every(u => emailUserIds.has(u.id))}
+                            onChange={e => setEmailUserIds(e.target.checked ? new Set(managerUsers.filter(u => u.email).slice(0, 50).map(u => u.id)) : new Set())}
+                          />
+                        </th>
                         {['User', 'Role', 'Business', 'Subscription', 'Signed Up', 'Last Login', 'Referred By'].map(h => (
                           <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             {h}
@@ -748,6 +787,20 @@ export default function SalesPortalDashboard() {
                           onClick={() => openUserDetail(u.id)}
                           className="hover:bg-gray-50 cursor-pointer"
                         >
+                          <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              aria-label={`Select ${u.email ?? 'user'}`}
+                              disabled={!u.email}
+                              checked={emailUserIds.has(u.id)}
+                              onChange={() => setEmailUserIds(prev => {
+                                const next = new Set(prev)
+                                if (next.has(u.id)) next.delete(u.id)
+                                else if (next.size < 50) next.add(u.id)
+                                return next
+                              })}
+                            />
+                          </td>
                           <td className="px-4 py-3">
                             <p className="font-medium text-gray-900">
                               {u.first_name || u.last_name
@@ -909,6 +962,18 @@ export default function SalesPortalDashboard() {
       </main>
 
       {/* ── User Detail Modal ─── */}
+      {emailTargets && (
+        <OutreachModal
+          targets={emailTargets}
+          onClose={() => setEmailTargets(null)}
+          onDone={message => {
+            setEmailTargets(null)
+            setEmailUserIds(new Set())
+            setEmailNotice(message)
+          }}
+        />
+      )}
+
       {selectedUserId && (
         <div
           className="fixed inset-0 bg-black/40 z-20 flex items-center justify-center p-4"

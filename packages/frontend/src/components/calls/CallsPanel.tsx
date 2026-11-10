@@ -69,6 +69,26 @@ function MobileSetup({
     }
   }
 
+  const remove = async () => {
+    if (!confirm('Remove your cell phone number? You will not be able to place or receive calls until you add and verify a number again.')) return
+    setBusy(true)
+    setError('')
+    setMessage('')
+    try {
+      const updated = await callsRequest<CallProfile>(getToken, 'delete', '/me/mobile')
+      clearCallProfileCache()
+      onChange(updated)
+      setCodeSent(false)
+      setPhone('')
+      setCode('')
+      setMessage('Your cell phone number was removed.')
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-5">
       <h2 className="text-base font-semibold text-gray-900">Your cell phone</h2>
@@ -118,6 +138,16 @@ function MobileSetup({
         >
           Text me a code
         </button>
+        {(profile.mobileVerified || profile.pendingMobile) && (
+          <button
+            type="button"
+            onClick={remove}
+            disabled={busy}
+            className="rounded-lg border border-red-300 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+          >
+            Remove my number
+          </button>
+        )}
       </div>
 
       {codeSent && (

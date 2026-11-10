@@ -349,6 +349,26 @@ export class CallsService {
     return this.profile(identity);
   }
 
+  /** Forgets the number (verified and pending) so it is no longer stored or rung. Calling stays off until a new one is verified. */
+  async removeMobile(identity: CallIdentity) {
+    await this.ensureStaff(identity);
+    const { error } = await this.db
+      .from('call_staff')
+      .update({
+        mobile_e164: null,
+        mobile_verified_at: null,
+        pending_mobile_e164: null,
+        verify_code_hash: null,
+        verify_expires_at: null,
+        verify_attempts: 0,
+        verify_sent_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', identity.userId);
+    if (error) this.fail('Removing number failed', error.message);
+    return this.profile(identity);
+  }
+
   // ── admin: staff list ─────────────────────────────────────────
 
   async listStaff() {

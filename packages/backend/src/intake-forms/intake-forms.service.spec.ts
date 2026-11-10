@@ -246,7 +246,7 @@ describe('IntakeFormsService – createPublic', () => {
         contact_phone: '6015550100',
         contact_address: '1 Main St, Jackson, MS 39201',
       }),
-    ).rejects.toThrow('Public intake form insert failed');
+    ).rejects.toThrow('We could not save your request');
   });
 
   it('omits event_description from extras when not provided', async () => {

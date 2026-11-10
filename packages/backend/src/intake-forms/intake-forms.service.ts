@@ -18,6 +18,54 @@ function normalizePhone(phone: string): string {
   return `+${digits}`;
 }
 
+const TEXT_LIMITS: Record<string, number> = {
+  event_type: 100,
+  event_name: 255,
+  venue_preference: 255,
+  contact_name: 255,
+  contact_phone: 50,
+  budget_range: 100,
+  how_did_you_hear: 255,
+};
+
+/** Keeps public form input inside the column limits so a long or odd entry never causes a 500. */
+export function sanitizePublicIntake(dto: Record<string, any>) {
+  const out: Record<string, any> = { ...dto };
+  for (const [key, max] of Object.entries(TEXT_LIMITS)) {
+    if (typeof out[key] === 'string') out[key] = out[key].trim().slice(0, max);
+  }
+  if (typeof out.contact_email === 'string') {
+    out.contact_email = out.contact_email.trim();
+    if (out.contact_email.length > 255) {
+      throw new BadRequestException('Please enter a valid email address.');
+    }
+  }
+  if (typeof out.contact_address === 'string') {
+    out.contact_address = out.contact_address.trim().slice(0, 500);
+  }
+
+  const date = String(out.event_date ?? '').trim();
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(date)
+    ? new Date(`${date}T12:00:00Z`)
+    : null;
+  const year = parsed ? parsed.getUTCFullYear() : 0;
+  if (
+    !parsed ||
+    Number.isNaN(parsed.getTime()) ||
+    parsed.toISOString().slice(0, 10) !== date ||
+    year < 2000 ||
+    year > 2100
+  ) {
+    throw new BadRequestException('Please enter a valid event date.');
+  }
+  out.event_date = date;
+
+  const guests = Number(out.guest_count);
+  out.guest_count =
+    Number.isInteger(guests) && guests > 0 ? Math.min(guests, 1_000_000) : null;
+  return out;
+}
+
 @Injectable()
 export class IntakeFormsService {
   constructor(
@@ -896,7 +944,7 @@ export class IntakeFormsService {
       event_description,
       contact_address,
       ...safeDto
-    } = dto;
+    } = sanitizePublicIntake({ ...dto });
     const venueId: string | null = venue_id || null;
 
     const missing = [
@@ -932,14 +980,26 @@ export class IntakeFormsService {
       .single();
 
     if (e1) {
+      console.warn(
+        '[IntakeFormsService.createPublic] Insert with extras failed:',
+        e1.message,
+      );
       // Fall back to base payload without optional columns
       const { data: d2, error: e2 } = await supabaseAdmin
         .from('intake_forms')
         .insert([{ ...safeDto, user_id: ownerId }])
         .select()
         .single();
-      if (e2)
-        throw new Error(`Public intake form insert failed: ${e2.message}`);
+      if (e2) {
+        console.error(
+          '[IntakeFormsService.createPublic] Insert failed:',
+          e2.message,
+          JSON.stringify({ ownerId, venueId, event_type: safeDto.event_type }),
+        );
+        throw new BadRequestException(
+          'We could not save your request. Please check your details and try again, or contact the venue directly.',
+        );
+      }
       data = d2;
     } else {
       data = d1;

@@ -155,12 +155,14 @@ function PublicIntakeForm({ params }: { params: { ownerId: string } }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    const contactError = validateClientContact(formData)
-    if (contactError) {
-      setError(contactError)
-      setCurrentStep(1)
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-      return
+    for (const step of [1, 2, 4]) {
+      const problem = stepError(step)
+      if (problem) {
+        setError(problem)
+        setCurrentStep(step)
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+        return
+      }
     }
     setLoading(true)
 
@@ -226,15 +228,25 @@ function PublicIntakeForm({ params }: { params: { ownerId: string } }) {
     }
   }
 
-  const nextStep = () => {
-    if (currentStep === 1) {
-      const contactError = validateClientContact(formData)
-      if (contactError) {
-        setError(contactError)
-        return
-      }
-      setError('')
+  // Fields marked required live on steps that are not mounted at submit time, so check them here.
+  const stepError = (step: number): string | null => {
+    if (step === 1) return validateClientContact(formData)
+    if (step === 2) {
+      if (!formData.eventDate) return 'Please choose the event date.'
+      if (!formData.startTime || !formData.endTime) return 'Please enter the event start and end time.'
+      if (!(parseInt(formData.estimatedGuests) > 0)) return 'Please enter the estimated number of guests.'
     }
+    if (step === 4 && !formData.estimatedBudget) return 'Please select an estimated budget range.'
+    return null
+  }
+
+  const nextStep = () => {
+    const problem = stepError(currentStep)
+    if (problem) {
+      setError(problem)
+      return
+    }
+    setError('')
     setCurrentStep(prev => Math.min(prev + 1, 5))
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }

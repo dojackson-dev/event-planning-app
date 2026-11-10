@@ -1110,6 +1110,55 @@ export class MailService {
     }
   }
 
+  /** Tells an owner that a client wrote to them, with a button to answer. */
+  async sendMessageAlert(params: {
+    toEmail: string;
+    ownerName?: string | null;
+    fromName: string;
+    /** "text" = a text reply, "chat" = a message from the client portal */
+    channel: 'text' | 'chat';
+    eventName?: string | null;
+    preview: string;
+    link: string;
+  }): Promise<boolean> {
+    if (!process.env.RESEND_API_KEY) return false;
+    const from = this.escapeHtml(params.fromName);
+    const kind = params.channel === 'text' ? 'text message' : 'message';
+    const about = params.eventName
+      ? ` about ${this.escapeHtml(params.eventName)}`
+      : '';
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f9fafb;padding:32px 16px;">
+        <div style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+          ${this.getEmailHeader('New message', from)}
+          <div style="padding:32px;color:#374151;font-size:15px;line-height:1.6;">
+            <p style="margin:0 0 16px;">Hi ${this.escapeHtml(params.ownerName || 'there')},</p>
+            <p style="margin:0 0 16px;"><strong>${from}</strong> sent you a ${kind}${about}:</p>
+            <blockquote style="margin:0 0 24px;padding:12px 16px;background:#f3f4f6;border-left:4px solid #6366f1;border-radius:4px;">${this.escapeHtml(params.preview).replace(/\n/g, '<br>')}</blockquote>
+            <a href="${this.escapeHtml(params.link)}" style="display:inline-block;background:#4f46e5;color:white;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:bold;">Read and reply</a>
+          </div>
+        </div>
+      </div>
+    `;
+    try {
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      const { error } = await resend.emails.send({
+        from: this.resendFrom,
+        to: params.toEmail,
+        subject: `New ${kind} from ${params.fromName}`,
+        html,
+      });
+      if (error) {
+        this.logger.warn(`Message alert email failed: ${error.message}`);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      this.logger.warn(`Message alert email failed: ${(err as Error).message}`);
+      return false;
+    }
+  }
+
   async sendReminderEmail(params: {
     toEmail: string;
     toName: string;

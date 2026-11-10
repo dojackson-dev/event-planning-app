@@ -1,6 +1,15 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  BadRequestException,
+  Optional,
+} from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service.js';
 import { TwilioService } from './twilio.service.js';
+import {
+  ALERT_QUIET_MINUTES,
+  MessageAlertsService,
+} from './message-alerts.service';
 import {
   buildConversations,
   directionOf,
@@ -25,6 +34,7 @@ export class MessagingService {
   constructor(
     private supabaseService: SupabaseService,
     private twilioService: TwilioService,
+    @Optional() private alerts?: MessageAlertsService,
   ) {}
 
   /** Converts a snake_case DB column name to camelCase (top-level only). */
@@ -379,6 +389,23 @@ export class MessagingService {
       return false;
     }
 
+    // Live replies alert the owner, once per burst. Replaying old replies (receivedAt) must stay silent.
+    let alreadyAlerted = true;
+    if (!receivedAt) {
+      const since = new Date(
+        Date.now() - ALERT_QUIET_MINUTES * 60_000,
+      ).toISOString();
+      const { count } = await adminSupabase
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('owner_id', owner.ownerId)
+        .in('recipient_phone', phoneVariants(from))
+        .eq('status', RECEIVED_STATUS)
+        .eq('read', false)
+        .gte('created_at', since);
+      alreadyAlerted = (count ?? 0) > 0;
+    }
+
     const { error } = await adminSupabase.from('messages').insert({
       owner_id: owner.ownerId,
       recipient_phone: from,
@@ -397,6 +424,17 @@ export class MessagingService {
     if (error) {
       this.logger.error(`Saving a text reply failed: ${error.message}`);
       return false;
+    }
+
+    if (!receivedAt) {
+      void this.alerts?.notifyOwner({
+        ownerId: owner.ownerId,
+        fromName: owner.name || from,
+        fromPhone: from,
+        text,
+        channel: 'text',
+        alreadyAlerted,
+      });
     }
     return true;
   }

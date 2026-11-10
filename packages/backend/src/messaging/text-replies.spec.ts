@@ -49,6 +49,10 @@ function fakeDb(tables: Record<string, Row[]>) {
         filters.push((r) => vs.includes(r[c]));
         return q;
       };
+      q.gte = (c: string, v: string) => {
+        filters.push((r) => String(r[c]) >= v);
+        return q;
+      };
       q.not = (c: string, _o: string, v: unknown) => {
         filters.push((r) => (r[c] ?? null) !== v);
         return q;
@@ -101,6 +105,7 @@ function fakeDb(tables: Record<string, Row[]>) {
 
 function setup(tables: Record<string, Row[]>) {
   const db = fakeDb(tables);
+  const alerts = { notifyOwner: jest.fn().mockResolvedValue(undefined) };
   const twilio = {
     parseInboundMessage: (body: string, from: string) => {
       const k = body.trim().toUpperCase();
@@ -113,8 +118,9 @@ function setup(tables: Record<string, Row[]>) {
   const service = new MessagingService(
     { getAdminClient: () => db } as any,
     twilio as any,
+    alerts as any,
   );
-  return { service, db, tables };
+  return { service, db, tables, alerts };
 }
 
 const sent = (over: Row = {}): Row => ({
@@ -373,5 +379,83 @@ describe('MessagingService text replies', () => {
     expect(tables.messages[0].read).toBe(true);
     expect(tables.messages[1].read).toBe(false);
     expect(await service.getClientInboxUnreadCount(OWNER)).toBe(1);
+  });
+});
+
+describe('alerts for new text replies', () => {
+  it('alerts the owner about a live reply, naming who wrote it', async () => {
+    const { service, tables, alerts } = setup({
+      messages: [sent()],
+      rsvp_guests: [],
+    });
+    await service.storeInboundReply(
+      fakeDb(tables),
+      'Yes! See you then',
+      '+16012183374',
+      'SMa1',
+    );
+    expect(alerts.notifyOwner).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ownerId: OWNER,
+        fromName: 'Shelton Chamber',
+        text: 'Yes! See you then',
+        channel: 'text',
+        alreadyAlerted: false,
+      }),
+    );
+  });
+
+  it('treats a quick run of replies as one alert', async () => {
+    const { service, tables, alerts } = setup({
+      messages: [sent()],
+      rsvp_guests: [],
+    });
+    const db = fakeDb(tables);
+    await service.storeInboundReply(db, 'one', '+16012183374', 'SMb1');
+    await service.storeInboundReply(db, 'two', '+16012183374', 'SMb2');
+    expect(
+      alerts.notifyOwner.mock.calls.map((c) => c[0].alreadyAlerted),
+    ).toEqual([false, true]);
+  });
+
+  it('alerts again once the owner has read the earlier reply', async () => {
+    const { service, tables, alerts } = setup({
+      messages: [sent()],
+      rsvp_guests: [],
+    });
+    const db = fakeDb(tables);
+    await service.storeInboundReply(db, 'one', '+16012183374', 'SMc1');
+    await service.markConversationRead(OWNER, '+16012183374');
+    await service.storeInboundReply(db, 'two', '+16012183374', 'SMc2');
+    expect(alerts.notifyOwner.mock.calls[1][0].alreadyAlerted).toBe(false);
+  });
+
+  it('stays silent when old replies are filed (backfill)', async () => {
+    const { service, tables, alerts } = setup({
+      messages: [sent()],
+      rsvp_guests: [],
+    });
+    await service.storeInboundReply(
+      fakeDb(tables),
+      'old reply',
+      '+16012183374',
+      'SMd1',
+      '2026-11-04T16:00:00Z',
+    );
+    expect(alerts.notifyOwner).not.toHaveBeenCalled();
+  });
+
+  it('does not alert for a text that matched nobody', async () => {
+    const { service, tables, alerts } = setup({
+      messages: [],
+      rsvp_guests: [],
+    });
+    await service.storeInboundReply(
+      fakeDb(tables),
+      'hi',
+      '+15005550006',
+      'SMe1',
+    );
+    expect(alerts.notifyOwner).not.toHaveBeenCalled();
   });
 });

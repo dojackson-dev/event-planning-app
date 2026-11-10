@@ -12,9 +12,11 @@ import {
   HttpCode,
   InternalServerErrorException,
   Logger,
+  UseGuards,
 } from '@nestjs/common';
 import { MessagingService } from './messaging.service.js';
 import { SupabaseService } from '../supabase/supabase.service.js';
+import { TwilioSignatureGuard } from '../calls/twilio-signature.guard';
 
 @Controller('messages')
 export class MessagingController {
@@ -125,6 +127,35 @@ export class MessagingController {
 
   // ── Individual SMS message (dynamic — must stay after all static routes) ──────────
 
+  // ── Text conversations — registered BEFORE @Get(':id') to prevent route shadowing ──
+
+  @Get('conversations')
+  async getConversations(@Headers('authorization') authHeader: string) {
+    const { ownerId } = await this.getAuth(authHeader);
+    return this.messagingService.getConversations(ownerId);
+  }
+
+  @Get('conversations/thread')
+  async getConversation(
+    @Query('phone') phone: string,
+    @Headers('authorization') authHeader: string,
+  ) {
+    const { ownerId } = await this.getAuth(authHeader);
+    return this.messagingService.getConversation(ownerId, phone ?? '');
+  }
+
+  @Patch('conversations/read')
+  async markConversationRead(
+    @Body() body: { phone?: string },
+    @Headers('authorization') authHeader: string,
+  ) {
+    const { ownerId } = await this.getAuth(authHeader);
+    return this.messagingService.markConversationRead(
+      ownerId,
+      body?.phone ?? '',
+    );
+  }
+
   @Get(':id')
   async findOne(
     @Param('id') id: string,
@@ -194,6 +225,7 @@ export class MessagingController {
    */
   @Post('webhook/inbound')
   @HttpCode(200)
+  @UseGuards(TwilioSignatureGuard)
   async handleInbound(@Body() body: Record<string, string>) {
     const messageBody = body?.Body ?? '';
     const from = body?.From ?? '';
@@ -204,6 +236,7 @@ export class MessagingController {
         adminSupabase,
         messageBody,
         from,
+        body?.MessageSid,
       );
     }
 

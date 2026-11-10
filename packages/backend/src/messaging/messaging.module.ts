@@ -7,6 +7,7 @@ import { SmsNotificationsService } from './sms-notifications.service';
 import { MessageTemplatesController } from './message-templates.controller';
 import { MessageTemplatesService } from './message-templates.service';
 import { SupabaseModule } from '../supabase/supabase.module.js';
+import { TwilioSignatureGuard } from '../calls/twilio-signature.guard';
 
 @Module({
   imports: [SupabaseModule, ConfigModule],
@@ -16,6 +17,7 @@ import { SupabaseModule } from '../supabase/supabase.module.js';
     TwilioService,
     SmsNotificationsService,
     MessageTemplatesService,
+    TwilioSignatureGuard,
   ],
   exports: [MessagingService, TwilioService, SmsNotificationsService],
 })

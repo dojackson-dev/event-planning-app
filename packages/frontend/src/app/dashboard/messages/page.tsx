@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
+import TextConversations from '@/components/messages/TextConversations'
 import { Message, Event } from '@/types'
 import { Plus, Search, MessageSquare, CheckCircle, XCircle, Clock, Filter, X, Send, Users, Calendar, ChevronRight, ArrowLeft } from 'lucide-react'
 
@@ -356,7 +357,8 @@ function ClientChatTab() {
 export default function MessagesPage() {
   const router = useRouter()
   const { user } = useAuth()
-  const [activeTab, setActiveTab] = useState<'sms' | 'chat'>('sms')
+  const [activeTab, setActiveTab] = useState<'texts' | 'sms' | 'chat'>('texts')
+  const [textUnread, setTextUnread] = useState(0)
   const [messages, setMessages] = useState<Message[]>([])
   const [events, setEvents] = useState<Event[]>([])
   const [stats, setStats] = useState({ total: 0, sent: 0, delivered: 0, failed: 0, pending: 0 })
@@ -491,7 +493,7 @@ export default function MessagesPage() {
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold text-gray-900">Messages</h1>
-          {activeTab === 'sms' && (
+          {(activeTab === 'sms' || activeTab === 'texts') && (
             <div className="flex items-center gap-2">
               <button
                 onClick={() => router.push('/dashboard/message-templates')}
@@ -511,6 +513,20 @@ export default function MessagesPage() {
         </div>
         {/* Tab switcher */}
         <div className="flex gap-1 p-1 bg-gray-100 rounded-lg w-fit">
+          <button
+            onClick={() => setActiveTab('texts')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === 'texts'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <MessageSquare className="h-4 w-4" />
+            Text Conversations
+            {textUnread > 0 && (
+              <span className="rounded-full bg-primary-600 px-2 py-0.5 text-xs font-semibold text-white">{textUnread}</span>
+            )}
+          </button>
           <button
             onClick={() => setActiveTab('sms')}
             className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
@@ -535,6 +551,9 @@ export default function MessagesPage() {
           </button>
         </div>
       </div>
+
+      {/* Text Conversations Tab */}
+      {activeTab === 'texts' && <TextConversations onUnreadChange={setTextUnread} />}
 
       {/* Client Chat Tab */}
       {activeTab === 'chat' && <ClientChatTab />}

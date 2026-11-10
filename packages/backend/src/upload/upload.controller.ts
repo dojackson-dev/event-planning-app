@@ -531,7 +531,8 @@ export class UploadController {
     await this.ensureBucket(admin, 'event-banners');
 
     const processed = await sharp(file.buffer)
-      .resize(1920, 1080, { fit: 'cover', position: 'centre' })
+      .rotate()
+      .resize(1920, 1920, { fit: 'inside', withoutEnlargement: true })
       .webp({ quality: 85 })
       .toBuffer();
 
@@ -643,7 +644,8 @@ export class UploadController {
 
     // Banner: 1200×630, cover crop centred (fills the full area)
     const banner = await sharp(file.buffer)
-      .resize(1200, 630, { fit: 'cover', position: 'centre' })
+      .rotate()
+      .resize(1600, 1600, { fit: 'inside', withoutEnlargement: true })
       .webp({ quality: 85 })
       .toBuffer();
 

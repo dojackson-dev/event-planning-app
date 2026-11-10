@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { Calendar, CalendarDays, Heart, MapPin, Ticket } from 'lucide-react'
+import FitImage from '@/components/FitImage'
 
 export interface EventListingCardProps {
   title: string
@@ -63,15 +64,14 @@ export default function EventListingCard(p: EventListingCardProps) {
     <article className="group relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition-shadow focus-within:ring-2 focus-within:ring-indigo-400 hover:shadow-md">
       <div className="relative h-44 overflow-hidden bg-gradient-to-br from-indigo-50 to-purple-100">
         {p.imageUrl && !imageFailed ? (
-          // Cropped toward the top so faces in tall portrait photos stay in frame.
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          // The whole flyer or photo is shown (never cropped), with a blurred fill around it.
+          <FitImage
             src={p.imageUrl}
             alt=""
             loading="lazy"
-            decoding="async"
             onError={() => setImageFailed(true)}
-            className="h-full w-full object-cover object-[center_20%] transition-transform duration-300 group-hover:scale-105"
+            className="h-full w-full"
+            imgClassName="transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
           <div className="flex h-full items-center justify-center">

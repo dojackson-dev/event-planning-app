@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { CheckCircle, Calendar, MapPin, Ticket, Loader2, Send, X, Check, Phone, Mail, Copy, ExternalLink } from 'lucide-react'
 import api from '@/lib/api'
 import AddToWalletButtons from '@/components/AddToWalletButtons'
+import FitImage from '@/components/FitImage'
 
 interface TicketData {
   id: string
@@ -162,7 +163,7 @@ export default function TicketConfirmationPage({ params }: { params: { sessionId
         {/* Event info */}
         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
           {event?.image_url && (
-            <img src={event.image_url} alt={event.title} className="w-full h-40 object-cover" />
+            <FitImage src={event.image_url} alt={event.title} className="w-full h-40" />
           )}
           <div className="p-5 space-y-3">
             <h1 className="text-xl font-bold text-gray-900">{event?.title}</h1>

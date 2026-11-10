@@ -1,6 +1,12 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service.js';
 import { TwilioService } from './twilio.service.js';
+import {
+  buildConversations,
+  directionOf,
+  phoneVariants,
+  RECEIVED_STATUS,
+} from './text-conversations';
 
 export type MessageType =
   | 'reminder'
@@ -256,39 +262,206 @@ export class MessagingService {
 
   /**
    * Processes an inbound Twilio webhook message.
-   * Handles STOP (opt-out) and START (opt-in) keywords by updating the
-   * sms_opt_in flag on the matching user record — using the admin Supabase
-   * client so the webhook can run without a user JWT.
+   * STOP (opt-out) and START (opt-in) keywords update the sms_opt_in flag on the matching user record.
+   * Anything else is a client's reply: it is saved into their conversation with the owner who texted them.
+   * Uses the admin Supabase client so the webhook can run without a user JWT.
    */
   async handleInboundMessage(
     adminSupabase: any,
     body: string,
     from: string,
+    messageSid?: string,
   ): Promise<void> {
     const { action } = this.twilioService.parseInboundMessage(body, from);
-    if (!action) return;
 
-    const optIn = action === 'start';
-    const updatePayload: Record<string, any> = { sms_opt_in: optIn };
-    if (optIn) {
-      updatePayload.sms_opt_in_at = new Date().toISOString();
-      updatePayload.sms_opt_out_at = null;
-    } else {
-      updatePayload.sms_opt_out_at = new Date().toISOString();
+    if (action) {
+      const optIn = action === 'start';
+      const updatePayload: Record<string, any> = { sms_opt_in: optIn };
+      if (optIn) {
+        updatePayload.sms_opt_in_at = new Date().toISOString();
+        updatePayload.sms_opt_out_at = null;
+      } else {
+        updatePayload.sms_opt_out_at = new Date().toISOString();
+      }
+
+      const { error } = await adminSupabase
+        .from('users')
+        .update(updatePayload)
+        .eq('phone', from);
+
+      if (error) {
+        this.logger.error(
+          `Failed to update opt-in for ${from}: ${error.message}`,
+        );
+      } else {
+        this.logger.log(
+          `SMS opt-${optIn ? 'in' : 'out'} processed for ${from}`,
+        );
+      }
     }
 
-    const { error } = await adminSupabase
-      .from('users')
-      .update(updatePayload)
-      .eq('phone', from);
+    // Every reply is kept, including "yes" and "stop", so the owner sees the whole conversation.
+    await this.storeInboundReply(adminSupabase, body, from, messageSid);
+  }
 
-    if (error) {
-      this.logger.error(
-        `Failed to update opt-in for ${from}: ${error.message}`,
+  /**
+   * The owner a text reply belongs to: whoever last texted this number, or invited them to an RSVP.
+   * Returns null when nobody on EventEcos has been in touch with the number.
+   */
+  async resolveOwnerForPhone(
+    adminSupabase: any,
+    phone: string,
+  ): Promise<{ ownerId: string; name: string | null } | null> {
+    const variants = phoneVariants(phone);
+    if (variants.length === 0) return null;
+
+    const [{ data: sent }, { data: invited }] = await Promise.all([
+      adminSupabase
+        .from('messages')
+        .select('owner_id, recipient_name, created_at')
+        .in('recipient_phone', variants)
+        .not('owner_id', 'is', null)
+        .neq('status', RECEIVED_STATUS)
+        .order('created_at', { ascending: false })
+        .limit(1),
+      adminSupabase
+        .from('rsvp_guests')
+        .select('owner_id, guest_name, created_at')
+        .in('guest_phone', variants)
+        .not('owner_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(1),
+    ]);
+
+    const candidates = [
+      ...((sent ?? []) as any[]).map((r) => ({
+        ownerId: r.owner_id as string,
+        name: (r.recipient_name as string | null) ?? null,
+        at: String(r.created_at),
+      })),
+      ...((invited ?? []) as any[]).map((r) => ({
+        ownerId: r.owner_id as string,
+        name: (r.guest_name as string | null) ?? null,
+        at: String(r.created_at),
+      })),
+    ].sort((a, b) => (a.at < b.at ? 1 : -1));
+
+    return candidates[0]
+      ? { ownerId: candidates[0].ownerId, name: candidates[0].name }
+      : null;
+  }
+
+  /** Saves a client's text reply as part of their conversation with the owner. */
+  async storeInboundReply(
+    adminSupabase: any,
+    body: string,
+    from: string,
+    messageSid?: string,
+    receivedAt?: string,
+  ): Promise<boolean> {
+    const text = (body ?? '').trim();
+    if (!text || !from) return false;
+
+    if (messageSid) {
+      const { data: existing } = await adminSupabase
+        .from('messages')
+        .select('id')
+        .eq('twilio_sid', messageSid)
+        .maybeSingle();
+      if (existing) return false;
+    }
+
+    const owner = await this.resolveOwnerForPhone(adminSupabase, from);
+    if (!owner) {
+      this.logger.warn(
+        `Text reply from ...${from.slice(-4)} did not match anyone on EventEcos`,
       );
-    } else {
-      this.logger.log(`SMS opt-${optIn ? 'in' : 'out'} processed for ${from}`);
+      return false;
     }
+
+    const { error } = await adminSupabase.from('messages').insert({
+      owner_id: owner.ownerId,
+      recipient_phone: from,
+      recipient_name: owner.name,
+      recipient_type: 'client',
+      message_type: 'reply',
+      // Older databases use "message", newer ones "content": write both.
+      message: text,
+      content: text,
+      status: RECEIVED_STATUS,
+      read: false,
+      twilio_sid: messageSid ?? null,
+      sent_at: receivedAt ?? new Date().toISOString(),
+      ...(receivedAt ? { created_at: receivedAt } : {}),
+    });
+    if (error) {
+      this.logger.error(`Saving a text reply failed: ${error.message}`);
+      return false;
+    }
+    return true;
+  }
+
+  // ── Text conversations (owner side) ───────────────────────────────────────
+
+  /** One entry per person the owner has texted or heard back from, newest first. */
+  async getConversations(ownerId: string) {
+    const supabase = this.supabaseService.getAdminClient();
+    const { data, error } = await supabase
+      .from('messages')
+      .select(
+        'id, recipient_phone, recipient_name, content, message, status, read, created_at',
+      )
+      .eq('owner_id', ownerId)
+      .not('recipient_phone', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(3000);
+    if (error) {
+      this.logger.error(`getConversations error: ${error.message}`);
+      return [];
+    }
+    return buildConversations((data ?? []) as any[]);
+  }
+
+  /** Every text to and from one person, oldest first, like a chat. */
+  async getConversation(ownerId: string, phone: string) {
+    const variants = phoneVariants(phone);
+    if (variants.length === 0) return [];
+    const supabase = this.supabaseService.getAdminClient();
+    const { data, error } = await supabase
+      .from('messages')
+      .select('id, content, message, status, created_at, error_message')
+      .eq('owner_id', ownerId)
+      .in('recipient_phone', variants)
+      .order('created_at', { ascending: true })
+      .limit(500);
+    if (error) {
+      this.logger.error(`getConversation error: ${error.message}`);
+      return [];
+    }
+    return ((data ?? []) as any[]).map((m) => ({
+      id: m.id as string,
+      direction: directionOf(m),
+      content: (m.content ?? m.message ?? '') as string,
+      status: m.status as string,
+      createdAt: m.created_at as string,
+      error: (m.error_message as string | null) ?? null,
+    }));
+  }
+
+  async markConversationRead(ownerId: string, phone: string) {
+    const variants = phoneVariants(phone);
+    if (variants.length === 0) return { ok: true };
+    const supabase = this.supabaseService.getAdminClient();
+    const { error } = await supabase
+      .from('messages')
+      .update({ read: true, read_at: new Date().toISOString() })
+      .eq('owner_id', ownerId)
+      .in('recipient_phone', variants)
+      .eq('status', RECEIVED_STATUS)
+      .eq('read', false);
+    if (error)
+      this.logger.error(`markConversationRead error: ${error.message}`);
+    return { ok: true };
   }
 
   // ── Client Chat Inbox (owner side) ────────────────────────────────────────
@@ -530,6 +703,14 @@ export class MessagingService {
       this.logger.error('getClientInboxUnreadCount error', error.message);
       return 0;
     }
-    return count || 0;
+
+    const { count: textReplies } = await supabase
+      .from('messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('owner_id', ownerId)
+      .eq('status', RECEIVED_STATUS)
+      .eq('read', false);
+
+    return (count || 0) + (textReplies || 0);
   }
 }

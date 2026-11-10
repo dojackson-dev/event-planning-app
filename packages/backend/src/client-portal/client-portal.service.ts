@@ -1433,28 +1433,53 @@ export class ClientPortalService {
     const supabase = this.supabaseService.getAdminClient();
     const phoneVariants = buildPhoneVariants(clientPhone);
     const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
+    // Team members added to an event can message its owner too.
+    const teamEventIds = await this.getTeamEventIds(supabase, phoneVariants);
 
-    if (!intakeFormIds.length) return [];
+    if (!intakeFormIds.length && !teamEventIds.length) return [];
 
-    // Fetch all events linked to this client's intake forms
-    const { data: events, error: evError } = await supabase
-      .from('event')
-      .select('id, name, date, owner_id, intake_form_id')
-      .in('intake_form_id', intakeFormIds)
-      .order('date', { ascending: false });
+    // Fetch every event linked to this person's intake forms or team memberships
+    const eventSelect = 'id, name, date, owner_id, intake_form_id';
+    const [byForm, byTeam] = await Promise.all([
+      intakeFormIds.length
+        ? supabase
+            .from('event')
+            .select(eventSelect)
+            .in('intake_form_id', intakeFormIds)
+        : Promise.resolve({ data: [], error: null }),
+      teamEventIds.length
+        ? supabase.from('event').select(eventSelect).in('id', teamEventIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
 
-    if (evError) {
-      this.logger.error('getContacts: event query error', evError);
+    if (byForm.error || byTeam.error) {
+      this.logger.error(
+        'getContacts: event query error',
+        byForm.error ?? byTeam.error,
+      );
       return [];
     }
 
-    if (!events || events.length === 0) return [];
+    const merged = new Map<string, any>();
+    for (const ev of [...(byForm.data || []), ...(byTeam.data || [])]) {
+      merged.set(ev.id, ev);
+    }
+    const events = [...merged.values()].sort((a, b) =>
+      String(b.date ?? '').localeCompare(String(a.date ?? '')),
+    );
 
-    // Fetch client name from intake forms
+    if (events.length === 0) return [];
+
+    // Fetch client name from the intake forms of all these events
+    const nameFormIds = [
+      ...new Set<string>(
+        events.map((e: any) => e.intake_form_id).filter(Boolean),
+      ),
+    ];
     const { data: intakeForms } = await supabase
       .from('intake_forms')
       .select('id, contact_name')
-      .in('id', intakeFormIds);
+      .in('id', nameFormIds);
     const intakeFormNameMap: Record<string, string> = {};
     for (const f of intakeForms || []) {
       intakeFormNameMap[f.id] = f.contact_name || '';
@@ -1462,7 +1487,7 @@ export class ClientPortalService {
 
     // Deduplicate owner_ids
     const ownerIds = [
-      ...new Set((events as any[]).map((e: any) => e.owner_id).filter(Boolean)),
+      ...new Set(events.map((e: any) => e.owner_id).filter(Boolean)),
     ];
 
     // Fetch owner account info (business_name, logo_url)
@@ -1483,7 +1508,7 @@ export class ClientPortalService {
     }
 
     // Fetch last message + unread count per event thread
-    const eventIds = (events as any[]).map((e: any) => e.id);
+    const eventIds = events.map((e: any) => e.id);
     const { data: lastMsgs } = await supabase
       .from('client_messages')
       .select('event_id, content, sender_type, is_read, created_at')
@@ -1501,7 +1526,7 @@ export class ClientPortalService {
       }
     }
 
-    return (events as any[]).map((ev: any) => {
+    return events.map((ev: any) => {
       const owner = ownerMap[ev.owner_id] || {
         businessName: 'Event Organizer',
         logoUrl: null,
@@ -1577,22 +1602,50 @@ export class ClientPortalService {
     if (!eventId) throw new Error('eventId is required to send a message.');
     const supabase = this.supabaseService.getAdminClient();
 
-    // Verify this event belongs to the stated owner and the client is linked to it
+    // Verify this event belongs to the stated owner and this person is linked to it:
+    // either as the booked client or as a member of the event's team.
     const phoneVariants = buildPhoneVariants(clientPhone);
     const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
 
-    const { data: evData } = await supabase
-      .from('event')
-      .select('id, owner_id')
-      .eq('id', eventId)
-      .in('intake_form_id', intakeFormIds)
-      .maybeSingle();
+    const { data: evData } = intakeFormIds.length
+      ? await supabase
+          .from('event')
+          .select('id, owner_id')
+          .eq('id', eventId)
+          .in('intake_form_id', intakeFormIds)
+          .maybeSingle()
+      : { data: null };
 
-    if (!evData || evData.owner_id !== ownerId) {
+    let teamName: string | null = null;
+    let allowed = !!evData && evData.owner_id === ownerId;
+    if (!allowed) {
+      const { data: member } = await supabase
+        .from('event_team_members')
+        .select('name')
+        .eq('event_id', eventId)
+        .in('phone', phoneVariants)
+        .limit(1)
+        .maybeSingle();
+      if (member) {
+        const { data: teamEvent } = await supabase
+          .from('event')
+          .select('id, owner_id')
+          .eq('id', eventId)
+          .maybeSingle();
+        if (teamEvent && teamEvent.owner_id === ownerId) {
+          allowed = true;
+          teamName = member.name || 'Team member';
+        }
+      }
+    }
+
+    if (!allowed) {
       throw new Error(
         'You can only message the owner of an event you are booked with.',
       );
     }
+    // The owner sees one thread per event, so say who a team member's message is from.
+    const text = teamName ? `[${teamName}, event team] ${content}` : content;
 
     const { data, error } = await supabase
       .from('client_messages')
@@ -1602,7 +1655,7 @@ export class ClientPortalService {
           owner_id: ownerId,
           client_id: clientId,
           sender_type: 'client',
-          content,
+          content: text,
         },
       ])
       .select()

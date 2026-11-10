@@ -2413,4 +2413,46 @@ export class MailService {
       console.error('[MailService] Welcome email failed:', error);
     }
   }
+
+  /**
+   * Sends sales outreach emails in one Resend batch. Never throws: each message
+   * gets its own result so the caller can record what was sent and what failed.
+   */
+  async sendOutreachBatch(
+    messages: Array<{
+      from: string;
+      to: string;
+      replyTo: string;
+      subject: string;
+      html: string;
+      text: string;
+      headers: Record<string, string>;
+    }>,
+  ): Promise<Array<{ id: string | null; error: string | null }>> {
+    const failAll = (error: string) =>
+      messages.map(() => ({ id: null, error }));
+    if (!process.env.RESEND_API_KEY) {
+      return failAll('Email sending is not configured.');
+    }
+    try {
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      const { data, error } = await resend.batch.send(messages);
+      if (error || !data) {
+        return failAll(
+          error?.message ?? 'The email provider rejected the batch.',
+        );
+      }
+      return messages.map((_, index) => ({
+        id: data.data[index]?.id ?? null,
+        error: data.data[index]?.id
+          ? null
+          : 'No confirmation from the email provider.',
+      }));
+    } catch (error) {
+      this.logger.error(
+        `Outreach batch failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return failAll('Could not reach the email provider.');
+    }
+  }
 }

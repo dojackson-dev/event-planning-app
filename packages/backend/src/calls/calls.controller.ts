@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   Header,
@@ -42,6 +43,11 @@ export class CallsController {
   @Post('me/mobile/verify')
   verifyMobile(@Req() req: StaffRequest, @Body() body: { code?: string }) {
     return this.calls.confirmMobile(req.callStaff, body?.code);
+  }
+
+  @Delete('me/mobile')
+  removeMobile(@Req() req: StaffRequest) {
+    return this.calls.removeMobile(req.callStaff);
   }
 
   @Post('outbound')

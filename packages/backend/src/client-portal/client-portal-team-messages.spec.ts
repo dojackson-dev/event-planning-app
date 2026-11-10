@@ -22,7 +22,11 @@ function fakeDb(tables: Record<string, Row[]>) {
       let asc = true;
       let max = Infinity;
       const q: any = {};
-      q.select = () => q;
+      let countOnly = false;
+      q.select = (_c?: string, o?: { head?: boolean }) => {
+        if (op === 'select') countOnly = !!o?.head;
+        return q;
+      };
       q.insert = (rows: Row | Row[]) => {
         op = 'insert';
         payload = Array.isArray(rows) ? rows : [rows];
@@ -34,6 +38,10 @@ function fakeDb(tables: Record<string, Row[]>) {
       };
       q.in = (c: string, vs: unknown[]) => {
         filters.push((r) => vs.includes(r[c]));
+        return q;
+      };
+      q.gte = (c: string, v: string) => {
+        filters.push((r) => String(r[c]) >= v);
         return q;
       };
       q.order = (c: string, o?: { ascending?: boolean }) => {
@@ -50,7 +58,9 @@ function fakeDb(tables: Record<string, Row[]>) {
         if (op === 'insert') {
           const added = payload.map((p) => ({
             id: `${table}-${++seq}`,
-            created_at: '2026-11-10T00:00:00Z',
+            created_at: new Date().toISOString(),
+            // the database defaults new messages to unread
+            ...(table === 'client_messages' ? { is_read: false } : {}),
             ...p,
           }));
           rows.push(...added);
@@ -60,6 +70,13 @@ function fakeDb(tables: Record<string, Row[]>) {
           });
         }
         let hit = rows.filter((r) => filters.every((f) => f(r)));
+        if (countOnly) {
+          return Promise.resolve({
+            data: null,
+            count: hit.length,
+            error: null,
+          });
+        }
         if (sortCol) {
           const c = sortCol;
           hit = [...hit].sort((a, b) =>
@@ -81,6 +98,7 @@ function fakeDb(tables: Record<string, Row[]>) {
 }
 
 function setup(extra: Record<string, Row[]> = {}) {
+  const alerts = { notifyOwner: jest.fn().mockResolvedValue(undefined) };
   const tables: Record<string, Row[]> = {
     event: [
       {
@@ -116,8 +134,9 @@ function setup(extra: Record<string, Row[]> = {}) {
     {} as any,
     {} as any,
     {} as any,
+    alerts as any,
   );
-  return { service, tables };
+  return { service, tables, alerts };
 }
 
 describe('client portal messages for event team members', () => {
@@ -196,5 +215,68 @@ describe('client portal messages for event team members', () => {
       service.sendMessage('team-user', TEAM_PHONE, OTHER_OWNER, 'hi', EVENT),
     ).rejects.toThrow('only message the owner');
     expect(tables.client_messages).toHaveLength(0);
+  });
+});
+
+describe('alerts for client-portal messages', () => {
+  const flush = () => new Promise((r) => setImmediate(r));
+
+  it('alerts the owner when the booked client writes, naming the client and event', async () => {
+    const { service, alerts } = setup();
+    await service.sendMessage(
+      'client-user',
+      CLIENT_PHONE,
+      OWNER,
+      'Thanks!',
+      EVENT,
+    );
+    await flush();
+    expect(alerts.notifyOwner).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ownerId: OWNER,
+        fromName: 'Shelton Chamber',
+        text: 'Thanks!',
+        channel: 'chat',
+        eventName: 'POSM Christmas Party',
+        alreadyAlerted: false,
+      }),
+    );
+  });
+
+  it('names a team member, and quotes their message without the tag', async () => {
+    const { service, alerts } = setup();
+    await service.sendMessage(
+      'team-user',
+      TEAM_PHONE,
+      OWNER,
+      'More chairs?',
+      EVENT,
+    );
+    await flush();
+    expect(alerts.notifyOwner).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fromName: 'Larry Nixon (event team)',
+        text: 'More chairs?',
+      }),
+    );
+  });
+
+  it('sends one alert for a quick run of messages from the same person', async () => {
+    const { service, alerts } = setup();
+    await service.sendMessage('client-user', CLIENT_PHONE, OWNER, 'one', EVENT);
+    await service.sendMessage('client-user', CLIENT_PHONE, OWNER, 'two', EVENT);
+    await flush();
+    expect(
+      alerts.notifyOwner.mock.calls.map((c) => c[0].alreadyAlerted),
+    ).toEqual([false, true]);
+  });
+
+  it('does not alert for a message that was refused', async () => {
+    const { service, alerts } = setup();
+    await expect(
+      service.sendMessage('x', '+16015550199', OWNER, 'hi', EVENT),
+    ).rejects.toThrow();
+    await flush();
+    expect(alerts.notifyOwner).not.toHaveBeenCalled();
   });
 });

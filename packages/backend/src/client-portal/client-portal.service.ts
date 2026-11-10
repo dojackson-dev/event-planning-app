@@ -4,11 +4,16 @@ import {
   NotFoundException,
   BadRequestException,
   UnauthorizedException,
+  Optional,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { StripeService } from '../stripe/stripe.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import { MailService } from '../mail/mail.service';
+import {
+  ALERT_QUIET_MINUTES,
+  MessageAlertsService,
+} from '../messaging/message-alerts.service';
 import { clientVisibleItems } from '../invoices/client-visible-items';
 
 /** Returns all likely phone formats for a given phone string so we can query any format stored in the DB. */
@@ -33,6 +38,7 @@ export class ClientPortalService {
     private readonly stripeService: StripeService,
     private readonly smsNotifications: SmsNotificationsService,
     private readonly mailService: MailService,
+    @Optional() private readonly alerts?: MessageAlertsService,
   ) {}
 
   /** Helper: returns intake form IDs linked to any of the client's phone variants */
@@ -1591,6 +1597,47 @@ export class ClientPortalService {
     return { ok: true };
   }
 
+  /** Emails and texts the owner about a new client message. Never throws. */
+  private async alertOwnerOfClientMessage(p: {
+    ownerId: string;
+    eventId: string;
+    clientPhone: string;
+    teamName: string | null;
+    text: string;
+    alreadyAlerted: boolean;
+  }): Promise<void> {
+    try {
+      const supabase = this.supabaseService.getAdminClient();
+      const { data: ev } = await supabase
+        .from('event')
+        .select('name, intake_form_id')
+        .eq('id', p.eventId)
+        .maybeSingle();
+      let fromName = p.teamName ? `${p.teamName} (event team)` : '';
+      if (!fromName && ev?.intake_form_id) {
+        const { data: form } = await supabase
+          .from('intake_forms')
+          .select('contact_name')
+          .eq('id', ev.intake_form_id)
+          .maybeSingle();
+        fromName = form?.contact_name || '';
+      }
+      await this.alerts?.notifyOwner({
+        ownerId: p.ownerId,
+        fromName: fromName || 'A client',
+        fromPhone: p.clientPhone,
+        text: p.text,
+        channel: 'chat',
+        eventName: ev?.name ?? null,
+        alreadyAlerted: p.alreadyAlerted,
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Client message alert failed: ${(err as Error).message}`,
+      );
+    }
+  }
+
   /** Send a message from the client to the event owner */
   async sendMessage(
     clientId: string,
@@ -1647,6 +1694,20 @@ export class ClientPortalService {
     // The owner sees one thread per event, so say who a team member's message is from.
     const text = teamName ? `[${teamName}, event team] ${content}` : content;
 
+    // One alert per burst: skip it when the owner has unread messages from this person just before.
+    const { count: recentUnread } = await supabase
+      .from('client_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('owner_id', ownerId)
+      .eq('event_id', eventId)
+      .eq('client_id', clientId)
+      .eq('sender_type', 'client')
+      .eq('is_read', false)
+      .gte(
+        'created_at',
+        new Date(Date.now() - ALERT_QUIET_MINUTES * 60_000).toISOString(),
+      );
+
     const { data, error } = await supabase
       .from('client_messages')
       .insert([
@@ -1664,6 +1725,17 @@ export class ClientPortalService {
     if (error) {
       this.logger.error('sendMessage error', error);
       throw new Error('Failed to send message.');
+    }
+
+    if (this.alerts) {
+      void this.alertOwnerOfClientMessage({
+        ownerId,
+        eventId,
+        clientPhone,
+        teamName,
+        text: content,
+        alreadyAlerted: (recentUnread ?? 0) > 0,
+      });
     }
     return data;
   }

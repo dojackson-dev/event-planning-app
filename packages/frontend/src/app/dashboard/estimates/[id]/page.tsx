@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { Estimate, EstimateStatus, DiscountType } from '@/types'
 import { Eye } from 'lucide-react'
+import ItemPicker, { PickableItem, itemPrice } from '@/components/estimates/ItemPicker'
 
 type EditItem = {
   id: string
@@ -36,6 +37,9 @@ export default function EstimateDetailPage() {
   const [editItems, setEditItems] = useState<EditItem[]>([])
   const [deletedItemIds, setDeletedItemIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
+  const [catalog, setCatalog] = useState<PickableItem[]>([])
+  const [catalogLoading, setCatalogLoading] = useState(false)
+  const [catalogFailed, setCatalogFailed] = useState(false)
   const [toast, setToast] = useState('')
 
   const showToast = (msg: string) => {
@@ -115,6 +119,7 @@ export default function EstimateDetailPage() {
       }
       return
     }
+    loadCatalog()
     setEditData({
       client_name: (estimate as any).client_name || '',
       client_phone: (estimate as any).client_phone || '',
@@ -157,6 +162,25 @@ export default function EstimateDetailPage() {
       )
       return updated
     }))
+  }
+
+  const loadCatalog = async () => {
+    setCatalogLoading(true)
+    setCatalogFailed(false)
+    try {
+      const res = await api.get<PickableItem[]>('/service-items')
+      setCatalog(Array.isArray(res.data) ? res.data : [])
+    } catch {
+      setCatalog([])
+      setCatalogFailed(true)
+    } finally {
+      setCatalogLoading(false)
+    }
+  }
+
+  const addCatalogItem = (item: PickableItem) => {
+    const price = itemPrice(item)
+    setEditItems(prev => [...prev, { id: `new-${Date.now()}-${prev.length}`, description: item.name, quantity: 1, unit_price: price, discount_type: DiscountType.NONE, discount_value: 0, amount: price }])
   }
 
   const addEditItem = () => {
@@ -325,10 +349,10 @@ export default function EstimateDetailPage() {
 
           {/* Line Items */}
           <div className="mb-6">
+            <ItemPicker items={catalog} loading={catalogLoading} error={catalogFailed}
+              onPick={addCatalogItem} onCustom={addEditItem} />
             <div className="flex items-center justify-between mb-3">
               <label className="text-sm font-semibold text-gray-700">Line Items</label>
-              <button type="button" onClick={addEditItem}
-                className="text-sm px-3 py-1.5 bg-primary-600 text-white rounded-md hover:bg-primary-700">+ Add Item</button>
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">

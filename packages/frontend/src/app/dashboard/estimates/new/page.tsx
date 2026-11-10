@@ -6,7 +6,8 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/lib/api'
-import { ServiceItem, ServiceItemCategory, DiscountType } from '@/types'
+import { ServiceItem, DiscountType } from '@/types'
+import ItemPicker from '@/components/estimates/ItemPicker'
 
 interface EstimateLineItem {
   id: string
@@ -28,6 +29,8 @@ function NewEstimatePageInner() {
   const { user } = useAuth()
   const [events, setEvents] = useState<any[]>([])
   const [serviceItems, setServiceItems] = useState<ServiceItem[]>([])
+  const [itemsLoading, setItemsLoading] = useState(true)
+  const [itemsFailed, setItemsFailed] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState('')
   const [lockedEvent, setLockedEvent] = useState<{ id: string; name: string; date: string } | null>(null)
   const [clientName, setClientName] = useState('')
@@ -194,22 +197,16 @@ function NewEstimatePageInner() {
   }
 
   const fetchServiceItems = async () => {
+    setItemsLoading(true)
+    setItemsFailed(false)
     try {
       const res = await api.get<ServiceItem[]>('/service-items')
-      setServiceItems(res.data)
+      setServiceItems(Array.isArray(res.data) ? res.data : [])
     } catch {
-      setServiceItems([
-        { id: '1', name: 'Facility Rental', description: 'Venue rental fee', category: ServiceItemCategory.FACILITY_RENTAL, defaultPrice: 2500, isActive: true, sortOrder: 1, createdAt: '', updatedAt: '' },
-        { id: '2', name: 'Security Deposit', description: 'Refundable security deposit', category: ServiceItemCategory.SECURITY_DEPOSIT, defaultPrice: 500, isActive: true, sortOrder: 2, createdAt: '', updatedAt: '' },
-        { id: '3', name: 'Sound System', description: 'Professional sound system', category: ServiceItemCategory.SOUND_SYSTEM, defaultPrice: 500, isActive: true, sortOrder: 3, createdAt: '', updatedAt: '' },
-        { id: '4', name: 'A/V Equipment', description: 'Audio/visual equipment', category: ServiceItemCategory.AV_EQUIPMENT, defaultPrice: 750, isActive: true, sortOrder: 4, createdAt: '', updatedAt: '' },
-        { id: '5', name: 'Planning Services', description: 'Event planning and coordination', category: ServiceItemCategory.PLANNING_SERVICES, defaultPrice: 1000, isActive: true, sortOrder: 5, createdAt: '', updatedAt: '' },
-        { id: '6', name: 'Additional Time', description: 'Extended rental time per hour', category: ServiceItemCategory.ADDITIONAL_TIME, defaultPrice: 250, isActive: true, sortOrder: 6, createdAt: '', updatedAt: '' },
-        { id: '7', name: 'Hosting Services', description: 'Professional event hosting', category: ServiceItemCategory.HOSTING_SERVICES, defaultPrice: 500, isActive: true, sortOrder: 7, createdAt: '', updatedAt: '' },
-        { id: '8', name: 'Catering', description: 'Food and beverage services', category: ServiceItemCategory.CATERING, defaultPrice: 0, isActive: true, sortOrder: 8, createdAt: '', updatedAt: '' },
-        { id: '9', name: 'Bar Services', description: 'Bar setup and service', category: ServiceItemCategory.BAR_SERVICES, defaultPrice: 0, isActive: true, sortOrder: 9, createdAt: '', updatedAt: '' },
-        { id: '14', name: 'Miscellaneous', description: 'Other charges', category: ServiceItemCategory.MISC, defaultPrice: 0, isActive: true, sortOrder: 14, createdAt: '', updatedAt: '' },
-      ])
+      setServiceItems([])
+      setItemsFailed(true)
+    } finally {
+      setItemsLoading(false)
     }
   }
 
@@ -476,26 +473,14 @@ function NewEstimatePageInner() {
           </div>
         )}
 
-        {/* Quick Add Service Items */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Quick Add Service Items</label>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-4">
-            {serviceItems.map((item: any) => {
-              const price = Number(item.default_price ?? item.defaultPrice) || 0
-              return (
-                <button key={item.id} type="button" onClick={() => addServiceItem(item)}
-                  className="flex flex-col items-start p-3 text-sm bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg text-left transition-colors">
-                  <span className="font-medium text-gray-900">{item.name}</span>
-                  <span className="text-xs text-blue-600 mt-1">${price.toFixed(2)}</span>
-                </button>
-              )
-            })}
-          </div>
-          <button type="button" onClick={addCustomItem}
-            className="px-4 py-2 text-sm bg-primary-600 text-white rounded-md hover:bg-primary-700">
-            + Add Custom Item
-          </button>
-        </div>
+        {/* Items & packages from your catalog, or a custom line */}
+        <ItemPicker
+          items={serviceItems as any[]}
+          loading={itemsLoading}
+          error={itemsFailed}
+          onPick={addServiceItem}
+          onCustom={addCustomItem}
+        />
 
         {/* Line Items */}
         <div className="mb-6">

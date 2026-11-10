@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
+import FitImage from '@/components/FitImage'
 import NonprofitBadge from '@/components/NonprofitBadge'
 import PayMethodToggle, { ticketPricingDollars, type PayMethod } from '@/components/PayMethodToggle'
 import {
@@ -258,25 +259,18 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
 
       {/* Hero */}
       <div className="bg-gradient-to-br from-purple-700 to-pink-600 text-white">
-        {event.image_url ? (
-          <div className="relative h-64 md:h-80 overflow-hidden">
-            <img src={event.image_url} alt={event.title}
-              className="w-full h-full object-cover opacity-40" />
-            <div className="absolute inset-0 flex items-end">
-              <div className="max-w-4xl mx-auto px-4 pb-6 w-full">
-                <h1 className="text-3xl md:text-4xl font-bold">{event.title}</h1>
-                {promoterName && <p className="text-purple-200 mt-1">By {promoterName}</p>}
-                <NonprofitBadge promoter={event.promoter_accounts} tone="dark" className="mt-2" />
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="max-w-4xl mx-auto px-4 py-10">
-            <h1 className="text-3xl md:text-4xl font-bold">{event.title}</h1>
-            {promoterName && <p className="text-purple-200 mt-1">By {promoterName}</p>}
-            <NonprofitBadge promoter={event.promoter_accounts} tone="dark" className="mt-2" />
-          </div>
+        {event.image_url && (
+          <FitImage
+            src={event.image_url}
+            alt={event.title}
+            className="h-64 sm:h-80 md:h-[28rem] w-full"
+          />
         )}
+        <div className="max-w-4xl mx-auto px-4 py-8 md:py-10">
+          <h1 className="text-3xl md:text-4xl font-bold">{event.title}</h1>
+          {promoterName && <p className="text-purple-200 mt-1">By {promoterName}</p>}
+          <NonprofitBadge promoter={event.promoter_accounts} tone="dark" className="mt-2" />
+        </div>
       </div>
 
       <div className="max-w-4xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8">

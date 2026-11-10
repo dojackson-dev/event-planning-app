@@ -83,7 +83,7 @@ const SPECS: Record<UploadType, { label: string; size: string; dims: string; max
   'event-image': {
     label: 'Event Flyer / Banner',
     size: 'Max 8 MB',
-    dims: '1200 × 630 px recommended (16:9)',
+    dims: 'Any shape works — your whole flyer is shown, never cropped',
     maxMB: 8,
     accept: 'image/jpeg,image/png,image/webp',
   },

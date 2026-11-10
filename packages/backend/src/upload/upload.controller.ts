@@ -491,7 +491,7 @@ export class UploadController {
 
   // ─────────────────────────────────────────────
   // POST /upload/event-banner
-  // Public event banner / hero image (1920×1080)
+  // Public event banner / hero image, any shape, scaled to fit 1920×1920 (never cropped)
   // Recommended: 1920×1080 px (16:9), max 5 MB
   // ─────────────────────────────────────────────
   @Post('event-banner')
@@ -511,7 +511,8 @@ export class UploadController {
     await this.ensureBucket(admin, 'event-banners');
 
     const processed = await sharp(file.buffer)
-      .resize(1920, 1080, { fit: 'cover', position: 'centre' })
+      .rotate()
+      .resize(1920, 1920, { fit: 'inside', withoutEnlargement: true })
       .webp({ quality: 85 })
       .toBuffer();
 
@@ -598,7 +599,7 @@ export class UploadController {
   // POST /upload/event-image
   // Event flyer / banner image
   // Produces two sizes stored side-by-side:
-  //   banner   — 1200 × 630 px (16:9 OG share)
+  //   banner   — whole image, scaled to fit 1600 × 1600 (never cropped)
   //   thumb    — 600  × 400 px (4:3 card thumbnail)
   // Max 8 MB, JPEG/PNG/WebP → converted to WebP
   // Returns: { url, thumbUrl }
@@ -621,9 +622,10 @@ export class UploadController {
 
     const stamp = Date.now();
 
-    // Banner: 1200×630, cover crop centred (fills the full area)
+    // Banner: the whole flyer, scaled down to fit 1600×1600. Never cropped, so text along the edges stays.
     const banner = await sharp(file.buffer)
-      .resize(1200, 630, { fit: 'cover', position: 'centre' })
+      .rotate()
+      .resize(1600, 1600, { fit: 'inside', withoutEnlargement: true })
       .webp({ quality: 85 })
       .toBuffer();
 

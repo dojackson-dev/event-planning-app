@@ -51,6 +51,8 @@ export interface CatalogItemFields {
   unit?: CatalogUnit;
   price?: number;
   hide_price?: boolean;
+  /** false keeps the item for the vendor's own estimates but off the client menu */
+  visible_to_clients?: boolean;
   image_url?: string | null;
   is_active?: boolean;
   sort_order?: number;
@@ -130,7 +132,11 @@ export function sanitizeCatalogItem(
     out.price = round2(price);
   }
 
-  for (const key of ['hide_price', 'is_active'] as const) {
+  for (const key of [
+    'hide_price',
+    'is_active',
+    'visible_to_clients',
+  ] as const) {
     if (input[key] !== undefined) {
       if (typeof input[key] !== 'boolean') {
         throw new BadRequestException(`${key} must be true or false.`);

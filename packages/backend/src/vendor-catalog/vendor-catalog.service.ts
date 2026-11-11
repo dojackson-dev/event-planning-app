@@ -190,6 +190,7 @@ export class VendorCatalogService {
         unit: 'each',
         price: 0,
         hide_price: false,
+        visible_to_clients: true,
         is_active: true,
         sort_order: 0,
         ...fields,
@@ -276,7 +277,8 @@ export class VendorCatalogService {
       .from('vendor_items')
       .select('*')
       .eq('vendor_account_id', vendorId)
-      .eq('is_active', true);
+      .eq('is_active', true)
+      .eq('visible_to_clients', true);
     const items = await this.withIncludes(
       (data ?? []).sort(bySectionThenOrder),
     );
@@ -348,6 +350,7 @@ export class VendorCatalogService {
       .select('*')
       .eq('vendor_account_id', vendorAccountId)
       .eq('is_active', true)
+      .eq('visible_to_clients', true)
       .in(
         'id',
         picks.map((p) => p.item_id),

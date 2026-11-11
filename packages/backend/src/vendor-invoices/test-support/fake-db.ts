@@ -112,6 +112,10 @@ class FakeQuery {
     this.filters.push((r) => r[key] !== value);
     return this;
   }
+  is(key: string, value: null) {
+    this.filters.push((r) => (r[key] ?? null) === value);
+    return this;
+  }
   in(key: string, values: unknown[]) {
     this.filters.push((r) => values.includes(r[key]));
     return this;

@@ -392,6 +392,18 @@ export class SmsNotificationsService {
     );
   }
 
+  /** Nudges a vendor to add the profile photo and banner that are missing; says whether it went out. */
+  async vendorProfileReminder(
+    phone: string | null | undefined,
+    businessName: string,
+    link: string,
+  ): Promise<boolean> {
+    return this.sendOne(
+      phone,
+      `EventEcos: ${businessName}, add your profile photo and banner so your page, estimates and invoices look professional. It takes 2 minutes: ${link}`,
+    );
+  }
+
   async vendorEstimateSent(
     phone: string | null | undefined,
     clientName: string,

@@ -1159,6 +1159,56 @@ export class MailService {
     }
   }
 
+  /** Asks a vendor to add the profile photo and banner that are still missing, for better branding. */
+  async sendVendorProfileReminder(params: {
+    toEmail: string;
+    businessName: string;
+    /** Human labels of what is missing, e.g. ["profile photo", "banner"] */
+    missing: string[];
+    link: string;
+  }): Promise<boolean> {
+    if (!process.env.RESEND_API_KEY) return false;
+    const business = this.escapeHtml(params.businessName);
+    const missing = params.missing.join(' and ');
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f9fafb;padding:32px 16px;">
+        <div style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+          ${this.getEmailHeader('Finish your profile', business)}
+          <div style="padding:32px;color:#374151;font-size:15px;line-height:1.6;">
+            <p style="margin:0 0 16px;">Hi ${business},</p>
+            <p style="margin:0 0 16px;">Your EventEcos profile is missing your <strong>${this.escapeHtml(missing)}</strong>. Clients choose quickly, and a photo and banner make <strong>${business}</strong> look professional everywhere clients see you: your public page, your estimates and your invoices.</p>
+            <ul style="margin:0 0 24px;padding-left:20px;">
+              <li><strong>Profile photo:</strong> your logo or a clear headshot.</li>
+              <li><strong>Banner:</strong> a wide photo of your work or your brand. It is shown in full and never cropped.</li>
+              <li><strong>Gallery:</strong> a few of your best photos.</li>
+            </ul>
+            <a href="${this.escapeHtml(params.link)}" style="display:inline-block;background:#4f46e5;color:white;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:bold;">Update my profile</a>
+            <p style="margin:24px 0 0;color:#6b7280;font-size:13px;">It takes about two minutes. Reply to this email if you need help.</p>
+          </div>
+        </div>
+      </div>
+    `;
+    try {
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      const { error } = await resend.emails.send({
+        from: this.resendFrom,
+        to: params.toEmail,
+        subject: `Add your ${missing} to stand out on EventEcos`,
+        html,
+      });
+      if (error) {
+        this.logger.warn(`Vendor profile reminder failed: ${error.message}`);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      this.logger.warn(
+        `Vendor profile reminder failed: ${(err as Error).message}`,
+      );
+      return false;
+    }
+  }
+
   async sendReminderEmail(params: {
     toEmail: string;
     toName: string;

@@ -32,6 +32,7 @@ const VENDOR_CATEGORIES = [
   { value: 'security', label: 'Security' },
   { value: 'furniture', label: 'Furniture' },
   { value: 'photographer', label: 'Photographer' },
+  { value: 'caterer', label: 'Caterer' },
   { value: 'musicians', label: 'Musicians' },
   { value: 'mc_host', label: 'MC/Host' },
   { value: 'other', label: 'Other' },

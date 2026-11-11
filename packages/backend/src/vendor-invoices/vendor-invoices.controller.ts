@@ -107,6 +107,13 @@ export class VendorInvoicesController {
     return this.vendorInvoicesService.createInvoice(userId, dto);
   }
 
+  /** GET /vendor-invoices/clients — Distinct clients from bookings, requests, invoices and estimates */
+  @Get('clients')
+  async listClients(@Headers('authorization') auth: string) {
+    const userId = await this.getUserId(auth);
+    return this.vendorInvoicesService.listClients(userId);
+  }
+
   /** GET /vendor-invoices/mine — List all invoices for this vendor */
   @Get('mine')
   async listInvoices(@Headers('authorization') auth: string) {

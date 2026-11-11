@@ -29,6 +29,7 @@ import {
   stripeRegistrationRequired,
 } from '../common/stripe-connect-guard';
 import * as nodemailer from 'nodemailer';
+import { mergeVendorClients } from './vendor-clients';
 import {
   CreateVendorInvoiceDto,
   ReplaceVendorInvoiceDto,
@@ -197,6 +198,36 @@ export class VendorInvoicesService {
     }
 
     return this.getInvoice(userId, invoice.id);
+  }
+
+  /** Everyone this vendor has worked with, for the client picker on invoices and estimates. */
+  async listClients(userId: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const vendorAccountId = await this.getVendorAccountId(userId);
+
+    const pull = async (table: string) => {
+      const { data } = await admin
+        .from(table)
+        .select('*')
+        .eq('vendor_account_id', vendorAccountId)
+        .order('created_at', { ascending: false })
+        .limit(500);
+      return (data ?? []) as any[];
+    };
+
+    const [bookings, requests, invoices, estimates] = await Promise.all([
+      pull('vendor_bookings'),
+      pull('vendor_booking_requests'),
+      pull('vendor_invoices'),
+      pull('vendor_estimates'),
+    ]);
+
+    return mergeVendorClients([
+      ...bookings.filter((b) => b.status !== 'cancelled'),
+      ...requests.filter((r) => !['declined', 'cancelled'].includes(r.status)),
+      ...invoices,
+      ...estimates,
+    ]);
   }
 
   async listInvoices(userId: string) {

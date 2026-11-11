@@ -35,3 +35,24 @@ export class UpdateVendorInvoiceDto {
   terms?: string;
   status?: 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue' | 'cancelled';
 }
+
+export class ReplaceVendorInvoiceItemDto extends VendorInvoiceItemDto {
+  /** Present for a line that already exists; omitted for a new line. */
+  id?: string;
+}
+
+/** Everything the edit screen can change, saved together so the invoice is validated once. */
+export class ReplaceVendorInvoiceDto {
+  client_name?: string;
+  client_email?: string;
+  client_phone?: string | null;
+  issue_date?: string;
+  due_date?: string;
+  deposit_amount?: number | null;
+  balance_due_date?: string | null;
+  tax_rate?: number;
+  discount_amount?: number;
+  notes?: string | null;
+  terms?: string | null;
+  items!: ReplaceVendorInvoiceItemDto[];
+}

@@ -105,6 +105,7 @@ export default function VendorDashboard() {
     { href: '/vendor-portal/booking-requests', label: `📩 Requests${pendingRequests > 0 ? ` (${pendingRequests})` : ''}` },
     { href: '/vendors/dashboard/calendar',  label: '📆 Calendar' },
     { href: '/vendors/dashboard/earnings',  label: '💰 Earnings' },
+    { href: '/vendors/dashboard/estimates', label: '📝 Estimates' },
     { href: '/vendors/dashboard/invoices',  label: '🧾 Invoices' },
     { href: '/vendors/dashboard/contracts', label: '📄 Contracts' },
     { href: '/vendors/dashboard/reviews',   label: '⭐ Reviews' },

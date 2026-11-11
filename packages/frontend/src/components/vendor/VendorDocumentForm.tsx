@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { Loader2, Save } from 'lucide-react'
+import ClientPicker from './ClientPicker'
 import LineItemsEditor, {
   type EditableLine,
   linesSubtotal,
@@ -166,6 +167,16 @@ export default function VendorDocumentForm({
 
       <section className="bg-white rounded-xl border border-gray-200 p-5 sm:p-6 shadow-sm">
         <h2 className="font-semibold text-gray-700 mb-4">Client</h2>
+        <ClientPicker
+          onPick={client =>
+            setValues(prev => ({
+              ...prev,
+              client_name: client ? client.name : '',
+              client_email: client ? client.email : '',
+              client_phone: client ? client.phone : '',
+            }))
+          }
+        />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className={labelClass}>Client name *</label>

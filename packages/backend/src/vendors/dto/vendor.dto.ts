@@ -4,6 +4,7 @@ export type VendorCategory =
   | 'planner_coordinator'
   | 'furniture'
   | 'photographer'
+  | 'caterer'
   | 'musicians'
   | 'mc_host'
   | 'graphic_designer'
@@ -16,6 +17,7 @@ export const VENDOR_CATEGORIES: { value: VendorCategory; label: string }[] = [
   { value: 'planner_coordinator', label: 'Planner / Coordinator' },
   { value: 'furniture', label: 'Furniture' },
   { value: 'photographer', label: 'Photographer' },
+  { value: 'caterer', label: 'Caterer' },
   { value: 'musicians', label: 'Musicians' },
   { value: 'mc_host', label: 'MC / Host' },
   { value: 'graphic_designer', label: 'Graphic Designer' },

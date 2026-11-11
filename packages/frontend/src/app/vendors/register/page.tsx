@@ -15,6 +15,7 @@ const CATEGORIES = [
   { value: 'security', label: 'Security', icon: '🛡️', desc: 'Event security & door staff' },
   { value: 'furniture', label: 'Furniture', icon: '🪑', desc: 'Rentals, tables, chairs, and more' },
   { value: 'photographer', label: 'Photographer', icon: '📷', desc: 'Photo & video services' },
+  { value: 'caterer', label: 'Caterer', icon: '🍽️', desc: 'Catering & food service' },
   { value: 'musicians', label: 'Musicians', icon: '🎵', desc: 'Live music bands & performers' },
   { value: 'mc_host', label: 'MC / Host', icon: '🎤', desc: 'Master of ceremonies & hosting' },
   { value: 'other', label: 'Other', icon: '⭐', desc: 'Other event services' },

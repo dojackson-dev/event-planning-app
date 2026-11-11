@@ -20,6 +20,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   security: 'Security',
   furniture: 'Furniture',
   photographer: 'Photographer',
+  caterer: 'Caterer',
   musicians: 'Musicians',
   mc_host: 'MC / Host',
   graphic_designer: 'Graphic Designer',

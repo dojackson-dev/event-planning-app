@@ -4,8 +4,10 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { Loader2, Save } from 'lucide-react'
 import ClientPicker from './ClientPicker'
+import CatalogPicker from './CatalogPicker'
 import LineItemsEditor, {
   type EditableLine,
+  newLine,
   linesSubtotal,
   toPayloadItems,
   validateLines,
@@ -236,6 +238,15 @@ export default function VendorDocumentForm({
 
       <section className="bg-white rounded-xl border border-gray-200 p-5 sm:p-6 shadow-sm">
         <h2 className="font-semibold text-gray-700 mb-4">Line items</h2>
+        <CatalogPicker
+          onPick={line =>
+            setValues(prev => {
+              const blank = prev.lines.length === 1 && !prev.lines[0].description.trim() && !prev.lines[0].unit_price.trim()
+              const added = newLine(line)
+              return { ...prev, lines: blank ? [added] : [...prev.lines, added] }
+            })
+          }
+        />
         <LineItemsEditor lines={values.lines} onChange={lines => set('lines', lines)} />
       </section>
 

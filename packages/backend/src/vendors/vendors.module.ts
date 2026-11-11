@@ -6,9 +6,16 @@ import { SupabaseModule } from '../supabase/supabase.module';
 import { MessagingModule } from '../messaging/messaging.module';
 import { MailModule } from '../mail/mail.module';
 import { ListingPhotosModule } from '../listing-photos/listing-photos.module';
+import { VendorCatalogModule } from '../vendor-catalog/vendor-catalog.module';
 
 @Module({
-  imports: [SupabaseModule, MessagingModule, MailModule, ListingPhotosModule],
+  imports: [
+    SupabaseModule,
+    MessagingModule,
+    MailModule,
+    ListingPhotosModule,
+    VendorCatalogModule,
+  ],
   controllers: [VendorsController],
   providers: [VendorsService, VendorProfileReminderService],
   exports: [VendorsService],

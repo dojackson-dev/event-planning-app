@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
+import { formatMoney, lineDescription, type RequestedItem } from '@/lib/vendorCatalog'
 import { formatTime } from '@/lib/dateUtils'
 import {
-  Calendar, User, Mail, Phone, MapPin, Clock,
+  Calendar, User, Mail, Phone, MapPin, Clock, ClipboardCheck, Boxes,
   CheckCircle2, XCircle, AlertCircle, Loader2, ChevronDown, DollarSign, FileText, MessageSquare, Search,
 } from 'lucide-react'
 
@@ -25,6 +27,9 @@ interface BookingRequest {
   quoted_amount: number | null
   sms_opt_in: boolean
   created_at: string
+  /** Items the client picked from the vendor's menu (a snapshot from request time). */
+  requested_items?: RequestedItem[] | null
+  estimate_id?: string | null
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
@@ -35,6 +40,9 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
 }
 
 export default function BookingRequestsPage() {
+  const router = useRouter()
+  const [estimateBusyId, setEstimateBusyId] = useState<string | null>(null)
+  const [estimateError, setEstimateError] = useState<{ id: string; text: string } | null>(null)
   const [requests, setRequests] = useState<BookingRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [respondingId, setRespondingId] = useState<string | null>(null)
@@ -57,6 +65,19 @@ export default function BookingRequestsPage() {
       console.error('Failed to load booking requests:', err?.response?.data || err?.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const createEstimate = async (id: string) => {
+    setEstimateBusyId(id)
+    setEstimateError(null)
+    try {
+      const res = await api.post(`/vendor-estimates/from-request/${id}`, {}, { timeout: 45000 })
+      router.push(`/vendor-portal/estimates/${res.data.estimate_id}`)
+    } catch (err: any) {
+      const detail = err?.response?.data?.message
+      setEstimateError({ id, text: (Array.isArray(detail) ? detail.join(' ') : detail) || 'We could not create the estimate. Please try again.' })
+      setEstimateBusyId(null)
     }
   }
 
@@ -224,6 +245,26 @@ export default function BookingRequestsPage() {
                         <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-600">{req.notes}</div>
                       )}
 
+                      {Array.isArray(req.requested_items) && req.requested_items.length > 0 && (
+                        <div className="rounded-lg border border-indigo-100 bg-indigo-50/50 p-3">
+                          <p className="text-sm font-semibold text-gray-800 flex items-center gap-2 mb-2">
+                            <Boxes className="w-4 h-4 text-indigo-600" /> Items the client picked
+                          </p>
+                          <ul className="divide-y divide-indigo-100 text-sm">
+                            {req.requested_items.map(item => (
+                              <li key={item.item_id} className="py-1.5 flex items-start justify-between gap-3">
+                                <span className="text-gray-800">
+                                  {item.quantity} × {lineDescription(item)}
+                                </span>
+                                <span className="text-gray-600 whitespace-nowrap">
+                                  {item.unit_price === null ? 'Quote needed' : formatMoney(item.unit_price * item.quantity)}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
                       {/* Actions for pending requests */}
                       {isPending && (
                         <div className="flex flex-col sm:flex-row gap-3 pt-2">
@@ -269,7 +310,18 @@ export default function BookingRequestsPage() {
 
                       {/* Send Invoice button — available on all non-cancelled/declined requests */}
                       {req.status !== 'declined' && req.status !== 'cancelled' && (
-                        <div className="pt-2 border-t border-gray-100">
+                        <div className="pt-2 border-t border-gray-100 flex flex-wrap items-center gap-2">
+                          {Array.isArray(req.requested_items) && req.requested_items.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => createEstimate(req.id)}
+                              disabled={estimateBusyId === req.id}
+                              className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-60"
+                            >
+                              {estimateBusyId === req.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ClipboardCheck className="w-3.5 h-3.5" />}
+                              {req.estimate_id ? 'Open Estimate' : 'Create Estimate from Items'}
+                            </button>
+                          )}
                           <Link
                             href={`/vendor-portal/invoices/new?clientName=${encodeURIComponent(req.client_name)}&clientEmail=${encodeURIComponent(req.client_email)}&clientPhone=${encodeURIComponent(req.client_phone || '')}&bookingId=${req.id}&eventName=${encodeURIComponent(req.event_name || '')}`}
                             className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-primary-50 border border-primary-200 text-primary-700 text-sm font-medium rounded-lg hover:bg-primary-100 transition-colors"
@@ -277,6 +329,9 @@ export default function BookingRequestsPage() {
                             <FileText className="w-3.5 h-3.5" />
                             Send Invoice
                           </Link>
+                          {estimateError?.id === req.id && (
+                            <p role="alert" className="basis-full text-sm text-red-600">{estimateError.text}</p>
+                          )}
                         </div>
                       )}
                     </div>

@@ -15,6 +15,7 @@ import {
   MessageAlertsService,
 } from '../messaging/message-alerts.service';
 import { clientVisibleItems } from '../invoices/client-visible-items';
+import { VendorCatalogService } from '../vendor-catalog/vendor-catalog.service';
 
 /** Returns all likely phone formats for a given phone string so we can query any format stored in the DB. */
 function buildPhoneVariants(phone: string): string[] {
@@ -39,6 +40,7 @@ export class ClientPortalService {
     private readonly smsNotifications: SmsNotificationsService,
     private readonly mailService: MailService,
     @Optional() private readonly alerts?: MessageAlertsService,
+    @Optional() private readonly catalog?: VendorCatalogService,
   ) {}
 
   /** Helper: returns intake form IDs linked to any of the client's phone variants */
@@ -852,6 +854,7 @@ export class ClientPortalService {
       venueName?: string;
       venueAddress?: string;
       notes?: string;
+      items?: unknown;
     },
   ) {
     const supabase = this.supabaseService.getAdminClient();
@@ -864,6 +867,13 @@ export class ClientPortalService {
       .single();
 
     if (!vendor) throw new NotFoundException('Vendor not found');
+    const picked =
+      this.catalog && dto.items !== undefined && dto.items !== null
+        ? await this.catalog.snapshotRequestedItems(
+            dto.vendorAccountId,
+            dto.items,
+          )
+        : [];
 
     const { data, error } = await supabase
       .from('vendor_booking_requests')
@@ -880,6 +890,7 @@ export class ClientPortalService {
         venue_address: dto.venueAddress ?? null,
         notes: dto.notes ?? null,
         sms_opt_in: true,
+        requested_items: picked.length > 0 ? picked : null,
         status: 'pending',
       })
       .select()

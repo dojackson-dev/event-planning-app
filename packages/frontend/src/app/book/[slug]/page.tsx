@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Calendar, User, Mail, Phone, MapPin, Clock, CheckCircle2, AlertCircle, Loader2, Building2, Send, MessageSquare, ArrowRight } from 'lucide-react'
+import CatalogMenu from '@/components/vendor/CatalogMenu'
+import { selectionToPayload, type CatalogSelection } from '@/lib/vendorCatalog'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
@@ -61,6 +63,7 @@ export default function PublicBookingPage() {
   const [venueName, setVenueName] = useState('')
   const [venueAddress, setVenueAddress] = useState('')
   const [notes, setNotes] = useState('')
+  const [selection, setSelection] = useState<CatalogSelection>({})
 
   useEffect(() => {
     const fetchLink = async () => {
@@ -108,6 +111,7 @@ export default function PublicBookingPage() {
           venueName: venueName || undefined,
           venueAddress: venueAddress || undefined,
           notes: notes || undefined,
+          items: Object.keys(selection).length > 0 ? selectionToPayload(selection) : undefined,
         }),
       })
       if (!res.ok) {
@@ -381,6 +385,9 @@ export default function PublicBookingPage() {
                 </div>
               </div>
             </div>
+
+            {/* Items & packages the vendor lets clients pick from (renders nothing if the vendor has none) */}
+            <CatalogMenu slug={slug} selection={selection} onChange={setSelection} />
 
             {/* Notes */}
             <div>

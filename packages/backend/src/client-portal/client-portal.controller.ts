@@ -173,6 +173,7 @@ export class ClientPortalController {
       venueName?: string;
       venueAddress?: string;
       notes?: string;
+      items?: unknown;
     },
   ) {
     const session = this.requireSession(token);

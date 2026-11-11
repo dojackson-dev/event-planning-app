@@ -8,6 +8,8 @@ import api from '@/lib/api'
 import clientApi from '@/lib/clientApi'
 import DashboardReturnButton from '@/components/DashboardReturnButton'
 import { Phone, Mail, User, MessageSquare, LogIn } from 'lucide-react'
+import CatalogMenu from '@/components/vendor/CatalogMenu'
+import { selectionToPayload, type CatalogSelection } from '@/lib/vendorCatalog'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
@@ -76,6 +78,8 @@ export default function VendorPublicProfile({ params }: { params: { id: string }
   const [reviews, setReviews] = useState<Review[]>([])
   const [loading, setLoading] = useState(true)
   const [bookingOpen, setBookingOpen] = useState(false)
+  const [selection, setSelection] = useState<CatalogSelection>({})
+  const pickedItems = selectionToPayload(selection)
   const [bookingForm, setBookingForm] = useState<BookingForm>({
     clientName: '', clientEmail: '', clientPhone: '', smsOptIn: true,
     eventName: '', eventDate: '', startTime: '', endTime: '', notes: '', agreedAmount: '',
@@ -147,6 +151,7 @@ export default function VendorPublicProfile({ params }: { params: { id: string }
           startTime: bookingForm.startTime || undefined,
           endTime: bookingForm.endTime || undefined,
           notes: bookingForm.notes || undefined,
+          items: pickedItems.length > 0 ? pickedItems : undefined,
         })
       } else {
         // Anonymous path — uses public inquiry endpoint (no auth required)
@@ -161,11 +166,13 @@ export default function VendorPublicProfile({ params }: { params: { id: string }
           endTime: bookingForm.endTime || undefined,
           notes: bookingForm.notes || undefined,
           agreedAmount: bookingForm.agreedAmount ? parseFloat(bookingForm.agreedAmount) : undefined,
+          items: pickedItems.length > 0 ? pickedItems : undefined,
         })
       }
       setSubmittedPhone('')
       setSubmittedName(bookingForm.clientName || (clientSession ? [clientSession.firstName, clientSession.lastName].filter(Boolean).join(' ') : ''))
       setBookingOpen(false)
+      setSelection({})
       setBookingForm({ clientName: '', clientEmail: '', clientPhone: '', smsOptIn: true, eventName: '', eventDate: '', startTime: '', endTime: '', notes: '', agreedAmount: '' })
       setBookingSuccess(true)
     } catch (err: any) {
@@ -459,6 +466,24 @@ export default function VendorPublicProfile({ params }: { params: { id: string }
           </div>
         )}
 
+        {/* Items & packages (only when the vendor chose to show them to clients) */}
+        <CatalogMenu
+          vendorId={id}
+          selection={selection}
+          onChange={setSelection}
+          title={`Menu & packages from ${vendor.business_name}`}
+          className="bg-white rounded-xl shadow-sm p-6 mb-6"
+          action={
+            <button
+              type="button"
+              onClick={() => setBookingOpen(true)}
+              className="rounded-lg bg-indigo-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-indigo-700"
+            >
+              Request these items
+            </button>
+          }
+        />
+
         {/* Book CTA */}
         <div className="bg-gradient-to-r from-primary-500 to-purple-600 rounded-xl p-6 mb-6 text-white text-center">
           <h2 className="text-xl font-bold mb-2">Ready to book {vendor.business_name}?</h2>
@@ -719,6 +744,16 @@ export default function VendorPublicProfile({ params }: { params: { id: string }
                     placeholder="0.00"
                   />
                 </div>
+                {pickedItems.length > 0 && (
+                  <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-900">
+                    <p className="font-semibold">
+                      {pickedItems.length} item{pickedItems.length === 1 ? '' : 's'} included with your request
+                    </p>
+                    <p className="text-xs text-indigo-800">
+                      The vendor will review them and send you an estimate. You can change your picks in the menu behind this form.
+                    </p>
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Notes / Special Requests</label>
                   <textarea

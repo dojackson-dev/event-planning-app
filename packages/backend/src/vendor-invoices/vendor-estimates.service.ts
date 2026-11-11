@@ -10,6 +10,7 @@ import * as nodemailer from 'nodemailer';
 import { SupabaseService } from '../supabase/supabase.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import { VendorInvoicesService } from './vendor-invoices.service';
+import { lineDescription } from '../vendor-catalog/vendor-catalog-helpers';
 import {
   ConvertVendorEstimateDto,
   CreateVendorEstimateDto,
@@ -262,6 +263,11 @@ export class VendorEstimatesService {
       );
     }
     await this.admin.from('vendor_estimates').delete().eq('id', estimateId);
+    // A booking request built from this estimate can make a fresh one again.
+    await this.admin
+      .from('vendor_booking_requests')
+      .update({ estimate_id: null })
+      .eq('estimate_id', estimateId);
     return { success: true };
   }
 
@@ -463,6 +469,121 @@ export class VendorEstimatesService {
       );
     }
     return { status };
+  }
+
+  // ─── From a client's booking request ───────────────────────────────────────
+
+  /**
+   * Builds a draft estimate from the items a client picked on a booking request.
+   * Prices come from the snapshot taken at request time; items whose price was hidden
+   * from the client use the vendor's current catalog price.
+   */
+  async createFromRequest(userId: string, requestId: string) {
+    const vendorAccountId = await this.invoices.getVendorAccountId(userId);
+    const { data: request } = await this.admin
+      .from('vendor_booking_requests')
+      .select('*')
+      .eq('id', requestId)
+      .eq('vendor_account_id', vendorAccountId)
+      .maybeSingle();
+    if (!request) throw new NotFoundException('Booking request not found');
+
+    if (request.estimate_id) {
+      const { data: existing } = await this.admin
+        .from('vendor_estimates')
+        .select('id')
+        .eq('id', request.estimate_id)
+        .eq('vendor_account_id', vendorAccountId)
+        .maybeSingle();
+      if (existing)
+        return { estimate_id: existing.id as string, already: true };
+      // The estimate it pointed to is gone, so free the request to make a new one.
+      await this.admin
+        .from('vendor_booking_requests')
+        .update({ estimate_id: null })
+        .eq('id', requestId);
+    }
+    if (['declined', 'cancelled'].includes(request.status)) {
+      throw new BadRequestException(
+        `A ${request.status} request cannot become an estimate.`,
+      );
+    }
+
+    const picked: any[] = Array.isArray(request.requested_items)
+      ? request.requested_items
+      : [];
+    if (picked.length === 0) {
+      throw new BadRequestException(
+        'This request has no selected items to build an estimate from.',
+      );
+    }
+
+    const hiddenIds = picked
+      .filter((i) => i.unit_price === null || i.unit_price === undefined)
+      .map((i) => i.item_id as string);
+    const currentPrice = new Map<string, number>();
+    if (hiddenIds.length > 0) {
+      const { data } = await this.admin
+        .from('vendor_items')
+        .select('id, price')
+        .eq('vendor_account_id', vendorAccountId)
+        .in('id', hiddenIds);
+      for (const row of (data ?? []) as any[]) {
+        currentPrice.set(row.id, Number(row.price));
+      }
+    }
+
+    const items = picked.map((i) => ({
+      description: lineDescription({
+        name: String(i.name),
+        kind: i.kind,
+        unit: i.unit,
+        includes: Array.isArray(i.includes) ? i.includes : [],
+      }),
+      quantity: Number(i.quantity),
+      unit_price:
+        i.unit_price === null || i.unit_price === undefined
+          ? (currentPrice.get(i.item_id) ?? 0)
+          : Number(i.unit_price),
+    }));
+
+    const notes = String(request.notes ?? '').trim();
+    const estimate = await this.create(userId, {
+      client_name: String(request.client_name ?? '').trim() || 'Client',
+      client_email: request.client_email || undefined,
+      client_phone: request.client_phone || undefined,
+      issue_date: new Date().toISOString().slice(0, 10),
+      expiration_date: addDays(30),
+      notes: notes ? `Client notes: ${notes}` : undefined,
+      items,
+    });
+
+    // Link both ways; if another click got there first, keep theirs and drop this one.
+    const { data: claimed } = await this.admin
+      .from('vendor_booking_requests')
+      .update({ estimate_id: estimate.id })
+      .eq('id', requestId)
+      .is('estimate_id', null)
+      .select('id');
+    if (!claimed?.length) {
+      await this.admin.from('vendor_estimates').delete().eq('id', estimate.id);
+      const { data: winner } = await this.admin
+        .from('vendor_booking_requests')
+        .select('estimate_id')
+        .eq('id', requestId)
+        .maybeSingle();
+      return { estimate_id: winner?.estimate_id as string, already: true };
+    }
+    await this.admin
+      .from('vendor_estimates')
+      .update({ booking_request_id: requestId })
+      .eq('id', estimate.id);
+
+    return {
+      estimate_id: estimate.id as string,
+      already: false,
+      needs_pricing: items.filter((i) => i.unit_price === 0).length,
+    };
   }
 
   // ─── Convert to invoice ─────────────────────────────────────────────────────

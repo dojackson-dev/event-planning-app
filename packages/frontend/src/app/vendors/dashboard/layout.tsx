@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   Store, Home, Calendar, CalendarDays, FileText, Star,
-  DollarSign, Settings, Menu, X, LogOut, Receipt, ClipboardList, ClipboardCheck, ShieldCheck,
+  DollarSign, Settings, Menu, X, LogOut, Receipt, ClipboardList, ClipboardCheck, Boxes, ShieldCheck,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import RoleSwitcher from '@/components/RoleSwitcher'
@@ -45,6 +45,7 @@ export default function VendorDashboardLayout({ children }: { children: React.Re
     { href: '/vendors/dashboard',           label: 'Dashboard',  icon: <Home className="h-5 w-5" /> },
     { href: '/vendors/dashboard/bookings',  label: 'Bookings',   icon: <Calendar className="h-5 w-5" /> },
     ...(isSecurity ? [{ href: '/vendors/dashboard/door-list', label: 'Door List', icon: <ShieldCheck className="h-5 w-5" /> }] : []),
+    { href: '/vendors/dashboard/catalog',   label: 'Items & Packages', icon: <Boxes className="h-5 w-5" /> },
     { href: '/vendors/dashboard/estimates', label: 'Estimates',  icon: <ClipboardCheck className="h-5 w-5" /> },
     { href: '/vendors/dashboard/invoices',  label: 'Invoices',   icon: <Receipt className="h-5 w-5" /> },
     { href: '/vendors/dashboard/contracts', label: 'Contracts',  icon: <ClipboardList className="h-5 w-5" /> },

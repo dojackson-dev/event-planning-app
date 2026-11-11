@@ -71,6 +71,17 @@ export class VendorEstimatesController {
     return this.estimates.create(await this.getUserId(auth), dto);
   }
 
+  @Post('from-request/:requestId')
+  async fromRequest(
+    @Headers('authorization') auth: string,
+    @Param('requestId') requestId: string,
+  ) {
+    return this.estimates.createFromRequest(
+      await this.getUserId(auth),
+      requestId,
+    );
+  }
+
   @Get('mine')
   async list(@Headers('authorization') auth: string) {
     return this.estimates.list(await this.getUserId(auth));

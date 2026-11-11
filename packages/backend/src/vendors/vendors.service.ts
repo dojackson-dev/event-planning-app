@@ -3,10 +3,12 @@ import {
   NotFoundException,
   BadRequestException,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import { MailService } from '../mail/mail.service';
+import { VendorCatalogService } from '../vendor-catalog/vendor-catalog.service';
 import {
   CreateVendorDto,
   UpdateVendorDto,
@@ -44,6 +46,7 @@ export class VendorsService {
     private readonly supabaseService: SupabaseService,
     private readonly smsNotifications: SmsNotificationsService,
     private readonly mailService: MailService,
+    @Optional() private readonly catalog?: VendorCatalogService,
   ) {}
 
   // ─────────────────────────────────────────────
@@ -1241,6 +1244,7 @@ export class VendorsService {
       endTime?: string;
       notes?: string;
       agreedAmount?: number;
+      items?: unknown;
     },
   ) {
     const admin = this.supabaseService.getAdminClient();
@@ -1253,6 +1257,7 @@ export class VendorsService {
       .single();
 
     if (!vendor) throw new NotFoundException('Vendor not found');
+    const requestedItems = await this.snapshotItems(vendorId, dto.items);
 
     const { data: request, error } = await admin
       .from('vendor_booking_requests')
@@ -1268,6 +1273,7 @@ export class VendorsService {
         notes: dto.notes ?? null,
         sms_opt_in: dto.smsOptIn ?? false,
         quoted_amount: dto.agreedAmount ?? null,
+        requested_items: requestedItems,
         status: 'pending',
       })
       .select()
@@ -1303,6 +1309,13 @@ export class VendorsService {
     return request;
   }
 
+  /** Checks the items a client picked against the vendor's menu; null when nothing was picked. */
+  private async snapshotItems(vendorId: string, items: unknown) {
+    if (!this.catalog || items === undefined || items === null) return null;
+    const snapshot = await this.catalog.snapshotRequestedItems(vendorId, items);
+    return snapshot.length > 0 ? snapshot : null;
+  }
+
   /** Public: submit a booking request via a booking link. */
   async submitBookingRequest(slug: string, dto: SubmitBookingRequestDto) {
     const admin = this.supabaseService.getAdminClient();
@@ -1316,6 +1329,10 @@ export class VendorsService {
 
     if (!link)
       throw new NotFoundException('Booking link not found or inactive');
+    const requestedItems = await this.snapshotItems(
+      link.vendor_account_id as string,
+      dto.items,
+    );
 
     const { data: request, error } = await admin
       .from('vendor_booking_requests')
@@ -1333,6 +1350,7 @@ export class VendorsService {
         venue_address: dto.venueAddress ?? null,
         notes: dto.notes ?? null,
         sms_opt_in: dto.smsOptIn ?? false,
+        requested_items: requestedItems,
         status: 'pending',
       })
       .select()

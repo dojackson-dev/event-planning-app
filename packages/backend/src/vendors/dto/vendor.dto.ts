@@ -131,6 +131,8 @@ export class SubmitBookingRequestDto {
   venueAddress?: string;
   notes?: string;
   smsOptIn?: boolean;
+  /** Catalog picks: [{ item_id, quantity }], checked against the vendor's menu. */
+  items?: unknown;
 }
 
 export class UpdateBookingRequestDto {

@@ -11,6 +11,7 @@ interface TeamMember {
   phone: string
   name: string | null
   created_at: string
+  can_manage_billing: boolean
 }
 
 function ManageTeamPageContent() {
@@ -24,6 +25,8 @@ function ManageTeamPageContent() {
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
   const [removingId, setRemovingId] = useState<string | null>(null)
+  const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [canManageBilling, setCanManageBilling] = useState(false)
   const [error, setError] = useState('')
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
@@ -44,14 +47,28 @@ function ManageTeamPageContent() {
 
     setAdding(true)
     try {
-      await clientApi.post(`/events/${eventId}/team`, { phone: phone.trim(), name: name.trim() || undefined })
+      await clientApi.post(`/events/${eventId}/team`, { phone: phone.trim(), name: name.trim() || undefined, can_manage_billing: canManageBilling })
       setName('')
       setPhone('')
+      setCanManageBilling(false)
       fetchMembers()
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to add team member.')
     } finally {
       setAdding(false)
+    }
+  }
+
+  const toggleBilling = async (member: TeamMember) => {
+    setUpdatingId(member.id)
+    setError('')
+    try {
+      await clientApi.put(`/events/${eventId}/team/${member.id}`, { can_manage_billing: !member.can_manage_billing })
+      setMembers(prev => prev.map(m => (m.id === member.id ? { ...m, can_manage_billing: !m.can_manage_billing } : m)))
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to update this team member.')
+    } finally {
+      setUpdatingId(null)
     }
   }
 
@@ -116,6 +133,20 @@ function ManageTeamPageContent() {
             />
           </div>
         </div>
+        <label className="flex items-start gap-2 text-sm text-gray-700">
+          <input
+            type="checkbox"
+            checked={canManageBilling}
+            onChange={e => setCanManageBilling(e.target.checked)}
+            className="mt-1 rounded border-gray-300"
+          />
+          <span>
+            Allow them to approve estimates and pay invoices
+            <span className="block text-xs text-gray-500">
+              Team members can always view this event&apos;s estimates and invoices. Leave this off if they should only look.
+            </span>
+          </span>
+        </label>
         <button
           type="submit"
           disabled={adding}
@@ -144,6 +175,17 @@ function ManageTeamPageContent() {
                     <Phone className="h-3 w-3" /> {m.phone}
                   </p>
                 </div>
+                <label className="ml-auto mr-4 flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={m.can_manage_billing}
+                    disabled={updatingId === m.id}
+                    onChange={() => toggleBilling(m)}
+                    aria-label={`Allow ${m.name || m.phone} to approve estimates and pay invoices`}
+                    className="rounded border-gray-300"
+                  />
+                  Can approve &amp; pay
+                </label>
                 <button
                   onClick={() => handleRemove(m.id)}
                   disabled={removingId === m.id}

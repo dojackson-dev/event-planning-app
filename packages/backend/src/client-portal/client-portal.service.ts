@@ -4,6 +4,7 @@ import {
   NotFoundException,
   BadRequestException,
   UnauthorizedException,
+  ForbiddenException,
   Optional,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -86,6 +87,34 @@ export class ClientPortalService {
       .in('phone', phoneVariants);
     if (error) return [];
     return [...new Set<string>((data || []).map((r: any) => r.event_id))];
+  }
+
+  /**
+   * Events this phone was added to as a team member, mapped to whether they may approve
+   * estimates and pay invoices. Falls back to view-only if the permission column is missing.
+   */
+  private async getTeamBillingAccess(
+    supabase: any,
+    phoneVariants: string[],
+  ): Promise<Map<string, boolean>> {
+    const access = new Map<string, boolean>();
+    const { data, error } = await supabase
+      .from('event_team_members')
+      .select('event_id, can_manage_billing')
+      .in('phone', phoneVariants);
+    if (error) {
+      for (const id of await this.getTeamEventIds(supabase, phoneVariants)) {
+        access.set(id, false);
+      }
+      return access;
+    }
+    for (const row of data || []) {
+      access.set(
+        row.event_id,
+        (access.get(row.event_id) ?? false) || !!row.can_manage_billing,
+      );
+    }
+    return access;
   }
 
   /** Verifies the given phone has access to this event (original contact, invoice, or team member) */
@@ -175,11 +204,17 @@ export class ClientPortalService {
 
     const { data, error } = await supabase
       .from('event_team_members')
-      .select('id, phone, name, created_at')
+      .select('*')
       .eq('event_id', eventId)
       .order('created_at', { ascending: true });
     if (error) throw new BadRequestException(error.message);
-    return data || [];
+    return (data || []).map((m: any) => ({
+      id: m.id,
+      phone: m.phone,
+      name: m.name,
+      created_at: m.created_at,
+      can_manage_billing: !!m.can_manage_billing,
+    }));
   }
 
   /** Add a team member (by phone number) who can also access and help manage this event.
@@ -190,6 +225,7 @@ export class ClientPortalService {
     memberPhone: string,
     memberName?: string,
     addedByName?: string,
+    canManageBilling = false,
   ) {
     const supabase = this.supabaseService.getAdminClient();
     const phoneVariants = buildPhoneVariants(clientPhone);
@@ -203,6 +239,8 @@ export class ClientPortalService {
         phone: normalizedMemberPhone,
         name: memberName?.trim() || null,
         added_by_phone: clientPhone,
+        // Only written when granted, so the insert still works before the column exists.
+        ...(canManageBilling ? { can_manage_billing: true } : {}),
       })
       .select()
       .single();
@@ -228,6 +266,28 @@ export class ClientPortalService {
     );
 
     return data;
+  }
+
+  /** Change whether a team member may approve estimates and pay invoices. Original contact only. */
+  async updateTeamMember(
+    eventId: string,
+    clientPhone: string,
+    memberId: string,
+    canManageBilling: boolean,
+  ) {
+    const supabase = this.supabaseService.getAdminClient();
+    const phoneVariants = buildPhoneVariants(clientPhone);
+    await this.assertClientIsOriginalContact(supabase, eventId, phoneVariants);
+
+    const { data, error } = await supabase
+      .from('event_team_members')
+      .update({ can_manage_billing: canManageBilling })
+      .eq('id', memberId)
+      .eq('event_id', eventId)
+      .select('id');
+    if (error) throw new BadRequestException(error.message);
+    if (!data?.length) throw new NotFoundException('Team member not found');
+    return { success: true, can_manage_billing: canManageBilling };
   }
 
   /** Remove a team member from an event. Only the original client contact may remove team members. */
@@ -1070,6 +1130,7 @@ export class ClientPortalService {
     const supabase = this.supabaseService.getAdminClient();
     const phoneVariants = buildPhoneVariants(clientPhone);
     const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
+    const teamAccess = await this.getTeamBillingAccess(supabase, phoneVariants);
 
     const estimateSelect = `*, items:estimate_items(*), intake_form:intake_forms(contact_name)`;
     const queries: any[] = [
@@ -1093,12 +1154,32 @@ export class ClientPortalService {
       );
     }
 
+    // Team members also see the estimates for events they were added to.
+    const teamQueryIndex = queries.length;
+    if (teamAccess.size) {
+      queries.push(
+        supabase
+          .from('estimates')
+          .select(estimateSelect)
+          .in('event_id', [...teamAccess.keys()])
+          .neq('status', 'draft')
+          .order('created_at', { ascending: false }),
+      );
+    }
+
     const results = await Promise.all(queries);
     const seen = new Set<string>();
     return results
-      .flatMap((r: any) => {
+      .flatMap((r: any, index: number) => {
         if (r.error) this.logger.error('getEstimates error', r.error);
-        return r.data || [];
+        // The original client can always respond; a team member only if they were given that right.
+        return (r.data || []).map((e: any) => ({
+          ...e,
+          can_respond:
+            index === teamQueryIndex && teamAccess.size
+              ? !!teamAccess.get(e.event_id)
+              : true,
+        }));
       })
       .filter((e: any) => {
         if (seen.has(e.id)) return false;
@@ -1131,8 +1212,13 @@ export class ClientPortalService {
     const hasAccess =
       phoneVariants.includes(data.client_phone ?? '') ||
       (data.intake_form_id && intakeFormIds.includes(data.intake_form_id));
-    if (!hasAccess) throw new NotFoundException('Estimate not found');
-    return data;
+    if (hasAccess) return { ...data, can_respond: true };
+
+    const teamAccess = await this.getTeamBillingAccess(supabase, phoneVariants);
+    if (data.event_id && teamAccess.has(data.event_id)) {
+      return { ...data, can_respond: !!teamAccess.get(data.event_id) };
+    }
+    throw new NotFoundException('Estimate not found');
   }
 
   /** Mark a contract or estimate as viewed (first open only — does not overwrite existing viewed_at) */
@@ -1162,7 +1248,7 @@ export class ClientPortalService {
     // Verify client has access to this estimate
     const { data, error } = await supabase
       .from('estimates')
-      .select('id, client_phone, intake_form_id, owner_id')
+      .select('id, client_phone, intake_form_id, owner_id, event_id')
       .eq('id', id)
       .single();
     if (error) {
@@ -1200,6 +1286,21 @@ export class ClientPortalService {
         this.logger.log(
           `[respondToEstimate] Found related events, granting access`,
         );
+        hasAccess = true;
+      }
+    }
+
+    if (!hasAccess && data.event_id) {
+      const teamAccess = await this.getTeamBillingAccess(
+        supabase,
+        phoneVariants,
+      );
+      if (teamAccess.has(data.event_id)) {
+        if (!teamAccess.get(data.event_id)) {
+          throw new ForbiddenException(
+            'You can view this estimate, but the person who added you has to approve it.',
+          );
+        }
         hasAccess = true;
       }
     }
@@ -1247,9 +1348,10 @@ export class ClientPortalService {
     const supabase = this.supabaseService.getAdminClient();
     const phoneVariants = buildPhoneVariants(clientPhone);
     const intakeFormIds = await this.getIntakeFormIds(supabase, phoneVariants);
+    const teamAccess = await this.getTeamBillingAccess(supabase, phoneVariants);
 
     const invoiceSelect = `
-      id, invoice_number, status, total_amount, amount_due, amount_paid,
+      id, event_id, invoice_number, status, total_amount, amount_due, amount_paid,
       due_date, issue_date, paid_date, created_at, client_name, notes, owner_id, deposit_percentage,
       items:invoice_items(id, description, quantity, unit_price, amount, item_type)
     `;
@@ -1275,12 +1377,32 @@ export class ClientPortalService {
       );
     }
 
+    // Team members also see the invoices for events they were added to.
+    const teamQueryIndex = queries.length;
+    if (teamAccess.size) {
+      queries.push(
+        supabase
+          .from('invoices')
+          .select(invoiceSelect)
+          .in('event_id', [...teamAccess.keys()])
+          .neq('status', 'draft')
+          .order('created_at', { ascending: false }),
+      );
+    }
+
     const results = await Promise.all(queries);
     const seen = new Set<string>();
     const invoices = results
-      .flatMap((r: any) => {
+      .flatMap((r: any, index: number) => {
         if (r.error) this.logger.error('getInvoices error', r.error);
-        return r.data || [];
+        // The original client can always pay; a team member only if they were given that right.
+        return (r.data || []).map((i: any) => ({
+          ...i,
+          can_pay:
+            index === teamQueryIndex && teamAccess.size
+              ? !!teamAccess.get(i.event_id)
+              : true,
+        }));
       })
       .filter((i: any) => {
         if (seen.has(i.id)) return false;
@@ -1361,6 +1483,7 @@ export class ClientPortalService {
         owner_id: null,
         items: [],
         from_name: i.vendor_accounts?.business_name ?? null,
+        can_pay: true,
         _type: 'vendor_invoice',
       }));
 
@@ -1393,7 +1516,7 @@ export class ClientPortalService {
 
     // Verify the invoice belongs to this client before creating a checkout
     const invoiceSelect =
-      'id, client_phone, amount_due, status, booking_id, intake_form_id';
+      'id, client_phone, amount_due, status, booking_id, intake_form_id, event_id';
     const queries: any[] = phoneVariants.map((p) =>
       supabase
         .from('invoices')
@@ -1425,6 +1548,30 @@ export class ClientPortalService {
           .in('intake_form_id', intakeFormIds)
           .maybeSingle();
         invoice = data ?? null;
+      }
+    }
+
+    // A team member may pay only if the original client gave them that right.
+    if (!invoice) {
+      const teamAccess = await this.getTeamBillingAccess(
+        supabase,
+        phoneVariants,
+      );
+      if (teamAccess.size) {
+        const { data } = await supabase
+          .from('invoices')
+          .select(invoiceSelect)
+          .eq('id', invoiceId)
+          .in('event_id', [...teamAccess.keys()])
+          .maybeSingle();
+        if (data) {
+          if (!teamAccess.get(data.event_id)) {
+            throw new ForbiddenException(
+              'You can view this invoice, but the person who added you has to pay it.',
+            );
+          }
+          invoice = data;
+        }
       }
     }
 

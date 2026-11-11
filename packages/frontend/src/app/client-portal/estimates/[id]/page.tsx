@@ -64,7 +64,9 @@ export default function ClientEstimateDetailPage() {
 
   const cfg = STATUS_CONFIG[estimate.status] ?? STATUS_CONFIG.draft
   const items: any[] = estimate.items || []
-  const canRespond = estimate.status === 'sent'
+  // can_respond is false for a team member who was not given the right to approve.
+  const viewOnly = estimate.can_respond === false
+  const canRespond = estimate.status === 'sent' && !viewOnly
 
   const fmtDate = (d: string | null | undefined) =>
     d ? new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
@@ -195,6 +197,12 @@ export default function ClientEstimateDetailPage() {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
           <h2 className="font-semibold text-gray-800 mb-2">Terms</h2>
           <p className="text-sm text-gray-600 whitespace-pre-line">{estimate.terms}</p>
+        </div>
+      )}
+
+      {estimate.status === 'sent' && viewOnly && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-900 rounded-xl p-4 text-sm">
+          You can review this estimate. The person who added you to the team needs to approve or decline it, or give you permission on the Manage Team page.
         </div>
       )}
 

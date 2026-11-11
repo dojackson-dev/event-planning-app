@@ -18,6 +18,7 @@ function isExpiringSoon(estimate: any): boolean {
   if (!estimate.expiration_date) return false
   const status = estimate.status
   if (status !== 'sent' && status !== 'draft') return false
+  if (estimate.can_respond === false) return false
   const days = (new Date(estimate.expiration_date + 'T12:00:00').getTime() - Date.now()) / 86_400_000
   return days >= 0 && days <= 7
 }

@@ -387,8 +387,14 @@ function ClientInvoicesContent() {
                     <p className="mt-3 text-xs text-gray-500 italic border-t border-gray-100 pt-3">{invoice.notes}</p>
                   )}
 
+                  {invoice.status !== 'paid' && invoice.status !== 'cancelled' && invoice.can_pay === false && (
+                    <p className="mt-4 pt-4 border-t border-gray-100 text-sm text-blue-800 bg-blue-50 rounded-lg px-3 py-2">
+                      You can view this invoice. The person who added you to the team pays it, or can give you permission on the Manage Team page.
+                    </p>
+                  )}
+
                   {/* CTA: Pay now */}
-                  {invoice.status !== 'paid' && invoice.status !== 'cancelled' && (
+                  {invoice.status !== 'paid' && invoice.status !== 'cancelled' && invoice.can_pay !== false && (
                     <div className="mt-4 pt-4 border-t border-gray-100">
                       {invoice._type !== 'vendor_invoice' && Number(invoice.deposit_percentage) > 0 && Number(invoice.amount_paid ?? 0) === 0 && (
                         <button

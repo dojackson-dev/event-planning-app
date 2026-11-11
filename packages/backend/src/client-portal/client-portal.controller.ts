@@ -119,7 +119,8 @@ export class ClientPortalController {
   async addTeamMember(
     @Headers('x-client-token') token: string,
     @Param('eventId') eventId: string,
-    @Body() body: { phone: string; name?: string },
+    @Body()
+    body: { phone: string; name?: string; can_manage_billing?: boolean },
   ) {
     const session = this.requireSession(token);
     if (!body?.phone) throw new BadRequestException('phone is required');
@@ -132,6 +133,26 @@ export class ClientPortalController {
       body.phone,
       body.name,
       addedByName,
+      body.can_manage_billing === true,
+    );
+  }
+
+  @Put('events/:eventId/team/:memberId')
+  async updateTeamMember(
+    @Headers('x-client-token') token: string,
+    @Param('eventId') eventId: string,
+    @Param('memberId') memberId: string,
+    @Body() body: { can_manage_billing?: unknown },
+  ) {
+    const session = this.requireSession(token);
+    if (typeof body?.can_manage_billing !== 'boolean') {
+      throw new BadRequestException('can_manage_billing must be true or false');
+    }
+    return this.clientPortalService.updateTeamMember(
+      eventId,
+      session.phone,
+      memberId,
+      body.can_manage_billing,
     );
   }
 

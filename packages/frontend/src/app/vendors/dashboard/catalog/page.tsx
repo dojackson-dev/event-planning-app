@@ -24,6 +24,7 @@ interface FormState {
   unit: CatalogUnit
   price: string
   hide_price: boolean
+  visible_to_clients: boolean
   image_url: string
   is_active: boolean
   includes: Record<string, string>
@@ -37,6 +38,7 @@ const emptyForm = (kind: CatalogKind): FormState => ({
   unit: kind === 'package' ? 'flat' : 'each',
   price: '',
   hide_price: false,
+  visible_to_clients: true,
   image_url: '',
   is_active: true,
   includes: {},
@@ -92,7 +94,7 @@ export default function VendorCatalogPage() {
     [items],
   )
   const plainItems = items.filter(i => i.kind === 'item')
-  const activeCount = items.filter(i => i.is_active).length
+  const activeCount = items.filter(i => i.is_active && i.visible_to_clients !== false).length
 
   const errorText = (err: any, fallback: string) => {
     const detail = err?.response?.data?.message
@@ -122,6 +124,7 @@ export default function VendorCatalogPage() {
       unit: item.unit,
       price: String(item.price),
       hide_price: item.hide_price,
+      visible_to_clients: item.visible_to_clients !== false,
       image_url: item.image_url ?? '',
       is_active: item.is_active,
       includes: Object.fromEntries((item.includes ?? []).map(i => [i.item_id as string, String(i.quantity)])),
@@ -150,6 +153,7 @@ export default function VendorCatalogPage() {
       unit: form.unit,
       price: Number.isFinite(price) ? price : 0,
       hide_price: form.hide_price,
+      visible_to_clients: form.visible_to_clients,
       image_url: form.image_url || null,
       is_active: form.is_active,
     }
@@ -295,6 +299,9 @@ export default function VendorCatalogPage() {
                           {item.kind === 'package' && (
                             <span className="ml-2 align-middle text-[10px] font-medium bg-purple-100 text-purple-700 rounded-full px-2 py-0.5">Package</span>
                           )}
+                          {item.visible_to_clients === false && (
+                            <span className="ml-2 align-middle text-[10px] font-medium bg-gray-200 text-gray-700 rounded-full px-2 py-0.5">Private</span>
+                          )}
                         </p>
                         <p className="text-sm font-bold text-gray-900 whitespace-nowrap">
                           {item.hide_price ? 'Quote' : formatMoney(Number(item.price))}
@@ -382,6 +389,17 @@ export default function VendorCatalogPage() {
                   <input className={inputClass} inputMode="decimal" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} placeholder="0.00" />
                 </div>
               </div>
+
+              <label className="flex items-start gap-2 text-sm text-gray-700">
+                <input type="checkbox" className="mt-1 rounded border-gray-300" checked={form.visible_to_clients} onChange={e => setForm({ ...form, visible_to_clients: e.target.checked })} />
+                <span>
+                  Show on the client menu
+                  <span className="block text-xs text-gray-500">
+                    Turn this off to keep the item private. You can still add it to your own estimates and invoices.
+                    {!showToClients && ' Clients only see a menu while "Show my items to clients" is on.'}
+                  </span>
+                </span>
+              </label>
 
               <label className="flex items-start gap-2 text-sm text-gray-700">
                 <input type="checkbox" className="mt-1 rounded border-gray-300" checked={form.hide_price} onChange={e => setForm({ ...form, hide_price: e.target.checked })} />

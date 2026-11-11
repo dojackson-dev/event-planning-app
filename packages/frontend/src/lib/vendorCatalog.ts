@@ -26,6 +26,7 @@ export interface CatalogItem {
   unit: CatalogUnit
   price: number
   hide_price: boolean
+  visible_to_clients: boolean
   image_url: string | null
   is_active: boolean
   sort_order: number

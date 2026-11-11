@@ -30,6 +30,10 @@ CREATE TABLE IF NOT EXISTS public.vendor_package_items (
   PRIMARY KEY (package_id, item_id)
 );
 
+-- An item can be kept off the client menu while still available for the vendor's own estimates.
+ALTER TABLE public.vendor_items
+  ADD COLUMN IF NOT EXISTS visible_to_clients boolean NOT NULL DEFAULT true;
+
 -- The vendor decides whether clients see the catalog at all.
 ALTER TABLE public.vendor_accounts
   ADD COLUMN IF NOT EXISTS show_catalog_to_clients boolean NOT NULL DEFAULT false;

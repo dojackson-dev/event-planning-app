@@ -40,6 +40,7 @@ function setup(extra: Record<string, Record<string, unknown>[]> = {}) {
         price: 18,
         hide_price: false,
         is_active: true,
+        visible_to_clients: true,
         sort_order: 0,
         description: 'Slow smoked',
         image_url: null,
@@ -55,6 +56,7 @@ function setup(extra: Record<string, Record<string, unknown>[]> = {}) {
         price: 4,
         hide_price: false,
         is_active: true,
+        visible_to_clients: true,
         sort_order: 0,
         created_at: '2026-01-02',
       },
@@ -68,6 +70,7 @@ function setup(extra: Record<string, Record<string, unknown>[]> = {}) {
         price: 35,
         hide_price: true,
         is_active: true,
+        visible_to_clients: true,
         sort_order: 0,
         created_at: '2026-01-03',
       },
@@ -81,6 +84,7 @@ function setup(extra: Record<string, Record<string, unknown>[]> = {}) {
         price: 9,
         hide_price: false,
         is_active: false,
+        visible_to_clients: true,
         sort_order: 0,
         created_at: '2026-01-04',
       },
@@ -94,6 +98,7 @@ function setup(extra: Record<string, Record<string, unknown>[]> = {}) {
         price: 500,
         hide_price: false,
         is_active: true,
+        visible_to_clients: true,
         sort_order: 0,
         created_at: '2026-01-05',
       },
@@ -107,8 +112,23 @@ function setup(extra: Record<string, Record<string, unknown>[]> = {}) {
         price: 5,
         hide_price: false,
         is_active: true,
+        visible_to_clients: true,
         sort_order: 0,
         created_at: '2026-01-06',
+      },
+      {
+        id: 'secret',
+        vendor_account_id: 'v1',
+        name: 'Staff meal',
+        section: 'Entrees',
+        kind: 'item',
+        unit: 'each',
+        price: 7,
+        hide_price: false,
+        visible_to_clients: false,
+        is_active: true,
+        sort_order: 0,
+        created_at: '2026-01-07',
       },
     ],
     vendor_package_items: [
@@ -133,6 +153,7 @@ describe('vendor catalog (vendor side)', () => {
     expect(result.items.map((i) => i.name)).toEqual([
       'Brisket',
       'Retired dish',
+      'Staff meal',
       'Feast package',
       'Mac & cheese',
       'Server',
@@ -440,5 +461,55 @@ describe('client request paths store the snapshot', () => {
       }),
     ).rejects.toThrow('no longer available');
     expect(db.rows('vendor_booking_requests')).toHaveLength(1);
+  });
+});
+
+describe('keeping an item private from clients', () => {
+  it('still lists a private item for the vendor and defaults new items to visible', async () => {
+    const { service } = setup();
+    const mine = await service.list('u1');
+    expect(mine.items.find((i) => i.id === 'secret')).toMatchObject({
+      visible_to_clients: false,
+    });
+    const created = await service.create('u1', { name: 'New thing', price: 3 });
+    expect(created.visible_to_clients).toBe(true);
+  });
+
+  it('leaves a private item off the public menu', async () => {
+    const { service } = setup();
+    const menu = await service.getPublicByVendor('v1');
+    const names = menu.sections.flatMap((s: any) =>
+      s.items.map((i: any) => i.name),
+    );
+    expect(names).not.toContain('Staff meal');
+    expect(names).toContain('Brisket');
+  });
+
+  it('refuses a request for a private item even if the client guesses its id', async () => {
+    const { service } = setup();
+    await expect(
+      service.snapshotRequestedItems('v1', [
+        { item_id: 'secret', quantity: 1 },
+      ]),
+    ).rejects.toThrow('no longer available');
+  });
+
+  it('can be switched on and off by the vendor, and only with true or false', async () => {
+    const { service } = setup();
+    await service.update('u1', 'brisket', { visible_to_clients: false });
+    const hidden = await service.getPublicByVendor('v1');
+    expect(
+      hidden.sections.flatMap((s: any) => s.items.map((i: any) => i.name)),
+    ).not.toContain('Brisket');
+
+    await service.update('u1', 'secret', { visible_to_clients: true });
+    const shown = await service.getPublicByVendor('v1');
+    expect(
+      shown.sections.flatMap((s: any) => s.items.map((i: any) => i.name)),
+    ).toContain('Staff meal');
+
+    await expect(
+      service.update('u1', 'brisket', { visible_to_clients: 'no' }),
+    ).rejects.toThrow('visible_to_clients');
   });
 });

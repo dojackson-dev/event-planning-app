@@ -14,6 +14,7 @@ import { VendorInvoicesService } from './vendor-invoices.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
   CreateVendorInvoiceDto,
+  ReplaceVendorInvoiceDto,
   UpdateVendorInvoiceDto,
   VendorInvoiceItemDto,
 } from './dto/vendor-invoice.dto';
@@ -168,6 +169,17 @@ export class VendorInvoicesController {
   ) {
     const userId = await this.getUserId(auth);
     return this.vendorInvoicesService.updateInvoice(userId, id, dto);
+  }
+
+  /** PUT /vendor-invoices/:id/contents — Save invoice fields and all line items together */
+  @Put(':id/contents')
+  async replaceContents(
+    @Headers('authorization') auth: string,
+    @Param('id') id: string,
+    @Body() dto: ReplaceVendorInvoiceDto,
+  ) {
+    const userId = await this.getUserId(auth);
+    return this.vendorInvoicesService.replaceContents(userId, id, dto);
   }
 
   /** DELETE /vendor-invoices/:id — Delete invoice */

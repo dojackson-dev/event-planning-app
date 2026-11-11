@@ -31,12 +31,16 @@ import {
 import * as nodemailer from 'nodemailer';
 import {
   CreateVendorInvoiceDto,
+  ReplaceVendorInvoiceDto,
   UpdateVendorInvoiceDto,
   VendorInvoiceItemDto,
 } from './dto/vendor-invoice.dto';
 
 const APP_FEE_RATE = 0.03; // 3% platform fee — vendor-to-client invoices
 const OWNER_BOOKING_FEE_RATE = 0.03; // 3% platform fee — owner-to-vendor invoices (waived for Pro/Premium subscribers)
+
+/** An invoice stays editable until money is moving or it is closed. */
+export const EDITABLE_INVOICE_STATUSES = ['draft', 'sent', 'viewed', 'overdue'];
 
 @Injectable()
 export class VendorInvoicesService {
@@ -111,6 +115,21 @@ export class VendorInvoicesService {
 
   async createInvoice(userId: string, dto: CreateVendorInvoiceDto) {
     const admin = this.supabaseService.getAdminClient();
+    if (!String(dto.client_name ?? '').trim()) {
+      throw new BadRequestException('Enter the client name.');
+    }
+    if (!dto.issue_date || !dto.due_date) {
+      throw new BadRequestException('Choose the issue date and the due date.');
+    }
+    if (!Array.isArray(dto.items) || dto.items.length === 0) {
+      throw new BadRequestException('Add at least one line item.');
+    }
+    for (const item of dto.items) {
+      if (!String(item.description ?? '').trim()) {
+        throw new BadRequestException('Each line item needs a description.');
+      }
+      this.assertItemValues(item);
+    }
     const vendorAccountId = await this.getVendorAccountId(userId);
     const invoiceNumber = await this.generateInvoiceNumber();
     const taxRate = dto.tax_rate ?? 0;
@@ -402,28 +421,156 @@ export class VendorInvoicesService {
     return data;
   }
 
+  /** Loads the vendor's own invoice or throws. */
+  private async getOwnedInvoice(userId: string, invoiceId: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const vendorAccountId = await this.getVendorAccountId(userId);
+    const { data } = await admin
+      .from('vendor_invoices')
+      .select('*')
+      .eq('id', invoiceId)
+      .eq('vendor_account_id', vendorAccountId)
+      .maybeSingle();
+    if (!data) throw new NotFoundException('Invoice not found');
+    return data;
+  }
+
+  /**
+   * Called before the amounts on an invoice change. A sent invoice can still be edited (to add items, say),
+   * but a checkout the client already opened at the old amount must not stay payable.
+   */
+  private async prepareAmountsEdit(invoice: any): Promise<void> {
+    if (!EDITABLE_INVOICE_STATUSES.includes(invoice.status)) {
+      throw new BadRequestException(
+        `This invoice can no longer be edited because it is ${invoice.status}.`,
+      );
+    }
+    if (invoice.status === 'draft' || !invoice.stripe_checkout_session_id)
+      return;
+
+    try {
+      const session = await this.stripe.checkout.sessions.retrieve(
+        invoice.stripe_checkout_session_id,
+      );
+      if (session?.status === 'complete' && session.payment_status === 'paid') {
+        throw new BadRequestException(
+          'A payment was just received for this invoice. Refresh the page before making changes.',
+        );
+      }
+    } catch (err) {
+      if (err instanceof BadRequestException) throw err;
+      // A lookup failure never blocks an edit; the checkout settlement below only acts on what Stripe confirms.
+    }
+
+    await settlePreviousCheckout(
+      this.stripe,
+      invoice.stripe_checkout_session_id,
+      (sessionId, paymentIntentId) =>
+        this.markInvoiceProcessing(sessionId, paymentIntentId, invoice.id),
+    );
+    await this.supabaseService
+      .getAdminClient()
+      .from('vendor_invoices')
+      .update({ stripe_checkout_session_id: null, pending_credit_cents: null })
+      .eq('id', invoice.id);
+  }
+
+  /** Rejects an edit whose resulting items would leave the invoice in an impossible state. */
+  private assertEditedTotalsValid(
+    invoice: any,
+    items: Pick<VendorInvoiceItemDto, 'quantity' | 'unit_price'>[],
+    taxRate: number,
+    discountAmount: number,
+  ) {
+    if (invoice.status !== 'draft' && items.length === 0) {
+      throw new BadRequestException(
+        'A sent invoice needs at least one line item.',
+      );
+    }
+    const { totalAmount } = this.calculateTotals(
+      items,
+      taxRate,
+      discountAmount,
+    );
+    if (invoice.status !== 'draft' && totalAmount <= 0) {
+      throw new BadRequestException(
+        'The invoice total must be greater than zero.',
+      );
+    }
+    if (totalAmount + 0.005 < Number(invoice.amount_paid ?? 0)) {
+      throw new BadRequestException(
+        'The new total cannot be less than the amount already paid.',
+      );
+    }
+    const depositError = validateDeposit({
+      deposit_amount: invoice.deposit_amount,
+      balance_due_date: invoice.balance_due_date,
+      due_date: invoice.due_date,
+      total_amount: totalAmount,
+    });
+    if (depositError) throw new BadRequestException(depositError);
+  }
+
+  private async currentItems(invoiceId: string) {
+    const { data } = await this.supabaseService
+      .getAdminClient()
+      .from('vendor_invoice_items')
+      .select('id, quantity, unit_price')
+      .eq('vendor_invoice_id', invoiceId);
+    return (data ?? []) as {
+      id: string;
+      quantity: number;
+      unit_price: number;
+    }[];
+  }
+
   async updateInvoice(
     userId: string,
     invoiceId: string,
     dto: UpdateVendorInvoiceDto,
   ) {
     const admin = this.supabaseService.getAdminClient();
-    const vendorAccountId = await this.getVendorAccountId(userId);
+    const existing = await this.getOwnedInvoice(userId, invoiceId);
 
-    const { data: existing } = await admin
-      .from('vendor_invoices')
-      .select('*')
-      .eq('id', invoiceId)
-      .eq('vendor_account_id', vendorAccountId)
-      .single();
+    const { status: newStatus, ...otherFields } = dto;
+    const changesAmounts =
+      dto.tax_rate !== undefined || dto.discount_amount !== undefined;
+    if (Object.keys(otherFields).length > 0) {
+      if (!EDITABLE_INVOICE_STATUSES.includes(existing.status)) {
+        throw new BadRequestException(
+          `This invoice can no longer be edited because it is ${existing.status}.`,
+        );
+      }
+    }
+    if (
+      newStatus &&
+      newStatus !== existing.status &&
+      ['paid', 'processing'].includes(existing.status)
+    ) {
+      throw new BadRequestException(
+        `The status of a ${existing.status} invoice cannot be changed.`,
+      );
+    }
 
-    if (!existing) throw new NotFoundException('Invoice not found');
+    const taxRate = dto.tax_rate ?? Number(existing.tax_rate ?? 0);
+    const discountAmount =
+      dto.discount_amount ?? Number(existing.discount_amount ?? 0);
+
+    if (changesAmounts) {
+      const items = await this.currentItems(invoiceId);
+      this.assertEditedTotalsValid(existing, items, taxRate, discountAmount);
+      await this.prepareAmountsEdit(existing);
+    }
 
     if (
       dto.deposit_amount !== undefined ||
       dto.balance_due_date !== undefined ||
       dto.due_date !== undefined
     ) {
+      const items = changesAmounts ? await this.currentItems(invoiceId) : null;
+      const total = items
+        ? this.calculateTotals(items, taxRate, discountAmount).totalAmount
+        : Number(existing.total_amount);
       const depositError = validateDeposit({
         deposit_amount:
           dto.deposit_amount !== undefined
@@ -434,7 +581,7 @@ export class VendorInvoicesService {
             ? dto.balance_due_date
             : existing.balance_due_date,
         due_date: dto.due_date ?? existing.due_date,
-        total_amount: Number(existing.total_amount),
+        total_amount: total,
       });
       if (depositError) throw new BadRequestException(depositError);
     }
@@ -445,6 +592,122 @@ export class VendorInvoicesService {
       .eq('id', invoiceId);
 
     if (error) throw new Error(error.message);
+    if (changesAmounts) {
+      await this.recalcAndSaveInvoiceTotals(invoiceId, taxRate, discountAmount);
+    }
+    return this.getInvoice(userId, invoiceId);
+  }
+
+  /**
+   * Saves the whole edit screen at once: invoice fields and the full list of line items.
+   * Works on a sent invoice too (unpaid statuses only), so vendors can add items after sending.
+   */
+  async replaceContents(
+    userId: string,
+    invoiceId: string,
+    dto: ReplaceVendorInvoiceDto,
+  ) {
+    const admin = this.supabaseService.getAdminClient();
+    const existing = await this.getOwnedInvoice(userId, invoiceId);
+    if (!Array.isArray(dto.items) || dto.items.length === 0) {
+      throw new BadRequestException('Add at least one line item.');
+    }
+    for (const item of dto.items) {
+      if (!String(item.description ?? '').trim()) {
+        throw new BadRequestException('Each line item needs a description.');
+      }
+      this.assertItemValues(item);
+    }
+
+    const taxRate = Number(dto.tax_rate ?? existing.tax_rate ?? 0);
+    const discountAmount = Number(
+      dto.discount_amount ?? existing.discount_amount ?? 0,
+    );
+    if (!(taxRate >= 0) || !(discountAmount >= 0)) {
+      throw new BadRequestException('Tax and discount cannot be negative.');
+    }
+
+    const current = await this.currentItems(invoiceId);
+    const currentIds = new Set(current.map((i) => i.id));
+    const keptIds = new Set<string>();
+    for (const item of dto.items) {
+      if (!item.id) continue;
+      if (!currentIds.has(item.id)) {
+        throw new BadRequestException('A line item no longer exists.');
+      }
+      keptIds.add(item.id);
+    }
+
+    const merged = {
+      ...existing,
+      due_date: dto.due_date ?? existing.due_date,
+      deposit_amount:
+        dto.deposit_amount !== undefined
+          ? dto.deposit_amount
+          : existing.deposit_amount,
+      balance_due_date:
+        dto.balance_due_date !== undefined
+          ? dto.balance_due_date
+          : existing.balance_due_date,
+    };
+    this.assertEditedTotalsValid(merged, dto.items, taxRate, discountAmount);
+    await this.prepareAmountsEdit(existing);
+
+    const fields: Record<string, unknown> = {};
+    for (const key of [
+      'client_name',
+      'client_email',
+      'client_phone',
+      'issue_date',
+      'due_date',
+      'deposit_amount',
+      'balance_due_date',
+      'notes',
+      'terms',
+    ] as const) {
+      if (dto[key] !== undefined) fields[key] = dto[key];
+    }
+    const { error: invErr } = await admin
+      .from('vendor_invoices')
+      .update({
+        ...fields,
+        tax_rate: taxRate,
+        discount_amount: discountAmount,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', invoiceId);
+    if (invErr) throw new BadRequestException(invErr.message);
+
+    const removed = [...currentIds].filter((id) => !keptIds.has(id));
+    if (removed.length > 0) {
+      await admin.from('vendor_invoice_items').delete().in('id', removed);
+    }
+    for (const item of dto.items.filter((i) => i.id)) {
+      await admin
+        .from('vendor_invoice_items')
+        .update({
+          description: item.description,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          amount: item.quantity * item.unit_price,
+        })
+        .eq('id', item.id!);
+    }
+    const added = dto.items.filter((i) => !i.id);
+    if (added.length > 0) {
+      const { error: addErr } = await admin.from('vendor_invoice_items').insert(
+        added.map((item) => ({
+          vendor_invoice_id: invoiceId,
+          description: item.description,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          amount: item.quantity * item.unit_price,
+        })),
+      );
+      if (addErr) throw new BadRequestException(addErr.message);
+    }
+
+    await this.recalcAndSaveInvoiceTotals(invoiceId, taxRate, discountAmount);
     return this.getInvoice(userId, invoiceId);
   }
 
@@ -466,15 +729,17 @@ export class VendorInvoicesService {
 
   async addItem(userId: string, invoiceId: string, item: VendorInvoiceItemDto) {
     const admin = this.supabaseService.getAdminClient();
-    const vendorAccountId = await this.getVendorAccountId(userId);
+    const invoice = await this.getOwnedInvoice(userId, invoiceId);
+    this.assertItemValues(item);
 
-    const { data: invoice } = await admin
-      .from('vendor_invoices')
-      .select('id, tax_rate, discount_amount')
-      .eq('id', invoiceId)
-      .eq('vendor_account_id', vendorAccountId)
-      .single();
-    if (!invoice) throw new NotFoundException('Invoice not found');
+    const items = await this.currentItems(invoiceId);
+    this.assertEditedTotalsValid(
+      invoice,
+      [...items, item],
+      Number(invoice.tax_rate ?? 0),
+      Number(invoice.discount_amount ?? 0),
+    );
+    await this.prepareAmountsEdit(invoice);
 
     const { error } = await admin.from('vendor_invoice_items').insert({
       vendor_invoice_id: invoiceId,
@@ -491,6 +756,21 @@ export class VendorInvoicesService {
       invoice.discount_amount,
     );
     return this.getInvoice(userId, invoiceId);
+  }
+
+  private assertItemValues(item: Partial<VendorInvoiceItemDto>) {
+    if (item.description !== undefined && !String(item.description).trim()) {
+      throw new BadRequestException('Each line item needs a description.');
+    }
+    for (const [label, value] of [
+      ['quantity', item.quantity],
+      ['unit price', item.unit_price],
+    ] as const) {
+      if (value === undefined) continue;
+      if (!Number.isFinite(Number(value)) || Number(value) < 0) {
+        throw new BadRequestException(`The ${label} must be a valid number.`);
+      }
+    }
   }
 
   async updateItem(
@@ -513,9 +793,25 @@ export class VendorInvoicesService {
     if (!existing || parentInvoice?.vendor_account_id !== vendorAccountId) {
       throw new NotFoundException('Item not found');
     }
+    this.assertItemValues(item);
 
     const qty = item.quantity ?? existing.quantity;
     const price = item.unit_price ?? existing.unit_price;
+
+    const invoice = await this.getOwnedInvoice(
+      userId,
+      existing.vendor_invoice_id,
+    );
+    const items = (await this.currentItems(invoice.id)).map((i) =>
+      i.id === itemId ? { ...i, quantity: qty, unit_price: price } : i,
+    );
+    this.assertEditedTotalsValid(
+      invoice,
+      items,
+      Number(invoice.tax_rate ?? 0),
+      Number(invoice.discount_amount ?? 0),
+    );
+    await this.prepareAmountsEdit(invoice);
 
     const { error } = await admin
       .from('vendor_invoice_items')
@@ -547,6 +843,21 @@ export class VendorInvoicesService {
     if (!existing || parentInvoice?.vendor_account_id !== vendorAccountId) {
       throw new NotFoundException('Item not found');
     }
+
+    const invoice = await this.getOwnedInvoice(
+      userId,
+      existing.vendor_invoice_id,
+    );
+    const remaining = (await this.currentItems(invoice.id)).filter(
+      (i) => i.id !== itemId,
+    );
+    this.assertEditedTotalsValid(
+      invoice,
+      remaining,
+      Number(invoice.tax_rate ?? 0),
+      Number(invoice.discount_amount ?? 0),
+    );
+    await this.prepareAmountsEdit(invoice);
 
     await admin.from('vendor_invoice_items').delete().eq('id', itemId);
     await this.recalcAndSaveInvoiceTotals(
@@ -689,6 +1000,9 @@ export class VendorInvoicesService {
       port: Number(this.configService.get<string>('SMTP_PORT', '587')),
       secure: false,
       auth: { user: smtpUser, pass: smtpPass },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 20000,
     });
 
     const amount = `$${Number(params.totalAmount).toFixed(2)}`;

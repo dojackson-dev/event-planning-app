@@ -392,6 +392,34 @@ export class SmsNotificationsService {
     );
   }
 
+  async vendorEstimateSent(
+    phone: string | null | undefined,
+    clientName: string,
+    vendorName: string,
+    amount: number,
+    viewUrl: string,
+  ): Promise<void> {
+    const amt = `$${Number(amount).toFixed(2)}`;
+    await this.trySend(
+      phone,
+      `EventEcos Vendor Estimate Message\nHi ${clientName}, ${vendorName} sent you an estimate for ${amt}. View it here: ${viewUrl}`,
+    );
+  }
+
+  async vendorEstimateResponded(
+    phone: string | null | undefined,
+    vendorName: string,
+    clientName: string,
+    approved: boolean,
+    amount: number,
+  ): Promise<void> {
+    const amt = `$${Number(amount).toFixed(2)}`;
+    await this.trySend(
+      phone,
+      `EventEcos Vendor Estimate Message\n${clientName} ${approved ? 'approved' : 'declined'} your ${amt} estimate. View estimates: ${this.url('/vendor-portal/estimates')} — ${vendorName}`,
+    );
+  }
+
   async vendorInvoiceUpdated(
     phone: string | null | undefined,
     clientName: string,

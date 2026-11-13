@@ -112,6 +112,19 @@ class FakeQuery {
     this.filters.push((r) => r[key] !== value);
     return this;
   }
+  ilike(key: string, pattern: string) {
+    const wanted = pattern.replace(/\\([%_])/g, '$1').toLowerCase();
+    this.filters.push((r) => String(r[key] ?? '').toLowerCase() === wanted);
+    return this;
+  }
+  not(key: string, op: string, value: unknown) {
+    if (op === 'is') this.filters.push((r) => (r[key] ?? null) !== value);
+    return this;
+  }
+  gt(key: string, value: number) {
+    this.filters.push((r) => Number(r[key]) > value);
+    return this;
+  }
   is(key: string, value: null) {
     this.filters.push((r) => (r[key] ?? null) === value);
     return this;

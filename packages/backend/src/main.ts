@@ -1,7 +1,16 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { applyFrontendUrl } from './common/public-url';
 
 async function bootstrap() {
+  // Texts and emails build their links from FRONTEND_URL; never let a hosted server point them at localhost.
+  const fixed = applyFrontendUrl(process.env);
+  if (fixed) {
+    console.warn(
+      `FRONTEND_URL was missing or pointed at localhost; using ${fixed} for links. Set FRONTEND_URL on the server to silence this.`,
+    );
+  }
+
   // rawBody: true is required for Stripe webhook signature verification
   const app = await NestFactory.create(AppModule, { rawBody: true });
 

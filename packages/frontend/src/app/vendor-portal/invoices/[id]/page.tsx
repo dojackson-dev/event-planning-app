@@ -79,8 +79,9 @@ function VendorInvoiceDetailPageContent() {
     try {
       await api.delete(`/vendor-invoices/${id}`)
       router.push('/vendor-portal/invoices')
-    } catch {
-      showToast('Failed to delete invoice.')
+    } catch (err: any) {
+      const detail = err?.response?.data?.message
+      showToast((Array.isArray(detail) ? detail.join(' ') : detail) || 'Failed to delete invoice.')
       setDeleting(false)
     }
   }

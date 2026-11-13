@@ -24,6 +24,7 @@ import {
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import Stripe from 'stripe';
 import { settlePreviousCheckout } from '../common/previous-checkout';
+import { assertNoPaymentOnInvoice } from '../common/invoice-delete-guard';
 import {
   isStripeReady,
   stripeRegistrationRequired,
@@ -544,7 +545,11 @@ export class VendorInvoicesService {
     }
     if (invoice.status === 'draft' || !invoice.stripe_checkout_session_id)
       return;
+    await this.settleOpenCheckout(invoice);
+  }
 
+  /** Blocks if the client's open checkout was just paid; otherwise expires it so it cannot be paid later. */
+  private async settleOpenCheckout(invoice: any): Promise<void> {
     try {
       const session = await this.stripe.checkout.sessions.retrieve(
         invoice.stripe_checkout_session_id,
@@ -811,6 +816,13 @@ export class VendorInvoicesService {
   async deleteInvoice(userId: string, invoiceId: string) {
     const admin = this.supabaseService.getAdminClient();
     const vendorAccountId = await this.getVendorAccountId(userId);
+
+    const invoice = await this.getOwnedInvoice(userId, invoiceId);
+    assertNoPaymentOnInvoice(invoice);
+    // A client who already opened the payment page must not be able to pay an invoice that is gone.
+    if (invoice.status !== 'draft' && invoice.stripe_checkout_session_id) {
+      await this.settleOpenCheckout(invoice);
+    }
 
     const { error } = await admin
       .from('vendor_invoices')

@@ -21,6 +21,7 @@ import {
   normalizePayAmount,
   validateDeposit,
 } from '../payments/invoice-deposit';
+import { assertNoPaymentOnInvoice } from '../common/invoice-delete-guard';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import Stripe from 'stripe';
 import { settlePreviousCheckout } from '../common/previous-checkout';
@@ -238,6 +239,15 @@ export class PromoterInvoicesService {
   async deleteInvoice(userId: string, invoiceId: string) {
     const admin = this.supabaseService.getAdminClient();
     const promoterAccountId = await this.getPromoterAccountId(userId);
+    const { data: existing } = await admin
+      .from('promoter_invoices')
+      .select('*')
+      .eq('id', invoiceId)
+      .eq('promoter_account_id', promoterAccountId)
+      .maybeSingle();
+    if (!existing) throw new NotFoundException('Invoice not found');
+    assertNoPaymentOnInvoice(existing);
+
     const { error } = await admin
       .from('promoter_invoices')
       .delete()

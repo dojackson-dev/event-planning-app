@@ -302,16 +302,82 @@ export class VendorInvoicesService {
     }
 
     // Return all owner_booking invoices for this owner
+    const select =
+      '*, vendor_invoice_items(*), vendor_accounts(business_name, email, phone), vendor_bookings(event_name, event_date, status)';
     const { data, error } = await admin
       .from('vendor_invoices')
-      .select(
-        '*, vendor_invoice_items(*), vendor_accounts(business_name, email, phone), vendor_bookings(event_name, event_date, status)',
-      )
+      .select(select)
       .eq('owner_account_id', ownerAccountId)
       .eq('invoice_type', 'owner_booking')
       .order('created_at', { ascending: false });
     if (error) throw new Error(error.message);
-    return data ?? [];
+
+    // Vendors also invoice the owner the same way they invoice a client (typing the owner's email or
+    // phone), which leaves no link to the owner account. Show those too, so every invoice the owner
+    // is texted or emailed about can be paid from the dashboard.
+    const addressed = await this.invoicesAddressedToOwner(
+      ownerAccountId,
+      select,
+    );
+    const seen = new Set((data ?? []).map((i: any) => i.id));
+    return [
+      ...(data ?? []),
+      ...addressed.filter((i: any) => !seen.has(i.id)),
+    ].sort((a: any, b: any) =>
+      String(b.created_at).localeCompare(String(a.created_at)),
+    );
+  }
+
+  /** Sent client-type vendor invoices whose email or phone is the owner's own. */
+  private async invoicesAddressedToOwner(
+    ownerAccountId: string,
+    select: string,
+  ): Promise<any[]> {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: account } = await admin
+      .from('owner_accounts')
+      .select('primary_owner_id')
+      .eq('id', ownerAccountId)
+      .maybeSingle();
+    if (!account?.primary_owner_id) return [];
+    const { data: owner } = await admin
+      .from('users')
+      .select('email, phone_number')
+      .eq('id', account.primary_owner_id)
+      .maybeSingle();
+
+    const email = String(owner?.email ?? '').trim();
+    const digits = String(owner?.phone_number ?? '').replace(/\D/g, '');
+    const phoneVariants =
+      digits.length >= 10
+        ? [
+            ...new Set([
+              digits.slice(-10),
+              `1${digits.slice(-10)}`,
+              `+1${digits.slice(-10)}`,
+            ]),
+          ]
+        : [];
+
+    const base = () =>
+      admin
+        .from('vendor_invoices')
+        .select(select)
+        .eq('invoice_type', 'client')
+        .neq('status', 'draft');
+    const [byEmail, byPhone] = await Promise.all([
+      email
+        ? base().ilike('client_email', email.replace(/[%_]/g, '\\$&'))
+        : Promise.resolve({ data: [] as any[] }),
+      phoneVariants.length
+        ? base().in('client_phone', phoneVariants)
+        : Promise.resolve({ data: [] as any[] }),
+    ]);
+    const merged = new Map<string, any>();
+    for (const row of [...(byEmail.data ?? []), ...(byPhone.data ?? [])]) {
+      merged.set(row.id, row);
+    }
+    return [...merged.values()];
   }
 
   private async autoCreateOwnerBookingInvoice(

@@ -7,6 +7,7 @@ import {
   Body,
   Param,
   Headers,
+  Query,
   UnauthorizedException,
   Logger,
 } from '@nestjs/common';
@@ -105,6 +106,16 @@ export class VendorInvoicesController {
   ) {
     const userId = await this.getUserId(auth);
     return this.vendorInvoicesService.createInvoice(userId, dto);
+  }
+
+  /** GET /vendor-invoices/venue-owners?q= — Venues the vendor can invoice (recent ones, or a name search) */
+  @Get('venue-owners')
+  async listVenueOwners(
+    @Headers('authorization') auth: string,
+    @Query('q') q?: string,
+  ) {
+    const userId = await this.getUserId(auth);
+    return this.vendorInvoicesService.listVenueOwners(userId, q);
   }
 
   /** GET /vendor-invoices/clients — Distinct clients from bookings, requests, invoices and estimates */

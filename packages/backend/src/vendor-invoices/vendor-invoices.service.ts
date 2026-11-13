@@ -41,6 +41,26 @@ import {
 const APP_FEE_RATE = 0.03; // 3% platform fee — vendor-to-client invoices
 const OWNER_BOOKING_FEE_RATE = 0.03; // 3% platform fee — owner-to-vendor invoices (waived for Pro/Premium subscribers)
 
+/** Contact fields that belong to the venue's account on an invoice addressed to a venue. */
+const VENUE_LOCKED_FIELDS: string[] = [
+  'client_name',
+  'client_email',
+  'client_phone',
+];
+
+const isVenueInvoice = (invoice: any) =>
+  invoice?.invoice_type === 'owner_booking' && !!invoice?.owner_account_id;
+
+function lockVenueContact<T extends Record<string, any>>(
+  invoice: any,
+  dto: T,
+): T {
+  if (!isVenueInvoice(invoice)) return dto;
+  const copy: Record<string, any> = { ...dto };
+  for (const key of VENUE_LOCKED_FIELDS) delete copy[key];
+  return copy as T;
+}
+
 /** An invoice stays editable until money is moving or it is closed. */
 export const EDITABLE_INVOICE_STATUSES = ['draft', 'sent', 'viewed', 'overdue'];
 
@@ -115,6 +135,123 @@ export class VendorInvoicesService {
 
   // ─── CRUD ──────────────────────────────────────────────────────────────────
 
+  /** The venue owner account and the contact details invoices to it must go to. */
+  private async resolveOwnerRecipient(ownerAccountId: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const { data: account } = await admin
+      .from('owner_accounts')
+      .select('id, business_name, primary_owner_id')
+      .eq('id', ownerAccountId)
+      .maybeSingle();
+    if (!account) {
+      throw new BadRequestException('Choose a venue from the list.');
+    }
+    const { data: owner } = await admin
+      .from('users')
+      .select('email, phone_number')
+      .eq('id', account.primary_owner_id)
+      .maybeSingle();
+    return {
+      id: account.id as string,
+      business_name: String(account.business_name ?? '').trim() || 'Venue',
+      email: (owner?.email as string | null) ?? null,
+      phone: (owner?.phone_number as string | null) ?? null,
+    };
+  }
+
+  /** A venue owner account whose login email or phone is exactly the one given, if any. */
+  async findOwnerByContact(email?: string | null, phone?: string | null) {
+    const admin = this.supabaseService.getAdminClient();
+    const cleanEmail = String(email ?? '').trim();
+    const digits = String(phone ?? '').replace(/\D/g, '');
+    const variants =
+      digits.length >= 10
+        ? [
+            ...new Set([
+              digits.slice(-10),
+              `1${digits.slice(-10)}`,
+              `+1${digits.slice(-10)}`,
+            ]),
+          ]
+        : [];
+    const ids = new Set<string>();
+    if (cleanEmail) {
+      const { data } = await admin
+        .from('users')
+        .select('id')
+        .ilike('email', cleanEmail.replace(/[%_]/g, '\\$&'));
+      for (const u of data ?? []) ids.add(u.id as string);
+    }
+    if (variants.length) {
+      const { data } = await admin
+        .from('users')
+        .select('id')
+        .in('phone_number', variants);
+      for (const u of data ?? []) ids.add(u.id as string);
+    }
+    if (ids.size === 0) return null;
+    const { data: accounts } = await admin
+      .from('owner_accounts')
+      .select('id, business_name')
+      .in('primary_owner_id', [...ids])
+      .limit(2);
+    // Two different venues share the contact: do not guess which one is meant.
+    return accounts?.length === 1
+      ? {
+          id: accounts[0].id as string,
+          business_name: accounts[0].business_name as string,
+        }
+      : null;
+  }
+
+  /** Venues a vendor can invoice: ones they already work with, or a search by business name. */
+  async listVenueOwners(userId: string, query?: string) {
+    const admin = this.supabaseService.getAdminClient();
+    const vendorAccountId = await this.getVendorAccountId(userId);
+    const term = String(query ?? '').trim();
+
+    if (term.length >= 2) {
+      const { data } = await admin
+        .from('owner_accounts')
+        .select('id, business_name, logo_url')
+        .ilike('business_name', `%${term.replace(/[%_]/g, '\\$&')}%`)
+        .limit(10);
+      return (data ?? []).filter((o: any) =>
+        String(o.business_name ?? '').trim(),
+      );
+    }
+
+    const [{ data: bookings }, { data: invoices }] = await Promise.all([
+      admin
+        .from('vendor_bookings')
+        .select('owner_account_id')
+        .eq('vendor_account_id', vendorAccountId)
+        .not('owner_account_id', 'is', null)
+        .limit(200),
+      admin
+        .from('vendor_invoices')
+        .select('owner_account_id')
+        .eq('vendor_account_id', vendorAccountId)
+        .not('owner_account_id', 'is', null)
+        .limit(200),
+    ]);
+    const ids = [
+      ...new Set(
+        [...(bookings ?? []), ...(invoices ?? [])]
+          .map((r: any) => r.owner_account_id as string)
+          .filter(Boolean),
+      ),
+    ];
+    if (ids.length === 0) return [];
+    const { data } = await admin
+      .from('owner_accounts')
+      .select('id, business_name, logo_url')
+      .in('id', ids);
+    return (data ?? []).filter((o: any) =>
+      String(o.business_name ?? '').trim(),
+    );
+  }
+
   async createInvoice(userId: string, dto: CreateVendorInvoiceDto) {
     const admin = this.supabaseService.getAdminClient();
     if (!String(dto.client_name ?? '').trim()) {
@@ -133,6 +270,27 @@ export class VendorInvoicesService {
       this.assertItemValues(item);
     }
     const vendorAccountId = await this.getVendorAccountId(userId);
+
+    // Invoicing a venue links the invoice to its account so it shows (and can be paid) on its dashboard.
+    // A typed contact that is exactly a venue owner's own login is linked the same way.
+    let owner: { id: string; business_name: string } | null = null;
+    if (dto.owner_account_id) {
+      const recipient = await this.resolveOwnerRecipient(dto.owner_account_id);
+      owner = recipient;
+      dto = {
+        ...dto,
+        client_name: recipient.business_name,
+        client_email: recipient.email ?? undefined,
+        client_phone: recipient.phone ?? undefined,
+      };
+      if (!recipient.email && !recipient.phone) {
+        throw new BadRequestException(
+          'That venue has no email or phone on its account, so the invoice cannot be delivered.',
+        );
+      }
+    } else {
+      owner = await this.findOwnerByContact(dto.client_email, dto.client_phone);
+    }
     const invoiceNumber = await this.generateInvoiceNumber();
     const taxRate = dto.tax_rate ?? 0;
     const discountAmount = dto.discount_amount ?? 0;
@@ -167,6 +325,9 @@ export class VendorInvoicesService {
         terms: dto.terms ?? null,
         status: 'draft',
         vendor_booking_id: dto.vendor_booking_id ?? null,
+        ...(owner
+          ? { invoice_type: 'owner_booking', owner_account_id: owner.id }
+          : {}),
         // Only written when a deposit is set so invoices without one never touch the new columns.
         ...(dto.deposit_amount != null
           ? {
@@ -310,6 +471,8 @@ export class VendorInvoicesService {
       .select(select)
       .eq('owner_account_id', ownerAccountId)
       .eq('invoice_type', 'owner_booking')
+      // A vendor's draft is theirs until they send it.
+      .neq('status', 'draft')
       .order('created_at', { ascending: false });
     if (error) throw new Error(error.message);
 
@@ -690,7 +853,10 @@ export class VendorInvoicesService {
 
     const { error } = await admin
       .from('vendor_invoices')
-      .update({ ...dto, updated_at: new Date().toISOString() })
+      .update({
+        ...lockVenueContact(existing, dto),
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', invoiceId);
 
     if (error) throw new Error(error.message);
@@ -767,7 +933,11 @@ export class VendorInvoicesService {
       'notes',
       'terms',
     ] as const) {
-      if (dto[key] !== undefined) fields[key] = dto[key];
+      if (dto[key] === undefined) continue;
+      // A venue invoice always goes to the venue's account contact, so it cannot be redirected.
+      if (VENUE_LOCKED_FIELDS.includes(key) && isVenueInvoice(existing))
+        continue;
+      fields[key] = dto[key];
     }
     const { error: invErr } = await admin
       .from('vendor_invoices')

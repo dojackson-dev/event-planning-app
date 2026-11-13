@@ -113,8 +113,16 @@ class FakeQuery {
     return this;
   }
   ilike(key: string, pattern: string) {
-    const wanted = pattern.replace(/\\([%_])/g, '$1').toLowerCase();
-    this.filters.push((r) => String(r[key] ?? '').toLowerCase() === wanted);
+    const body = pattern
+      .split(/(\\[%_]|%)/)
+      .map((part) =>
+        part === '%'
+          ? '.*'
+          : part.replace(/^\\/, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+      )
+      .join('');
+    const re = new RegExp(`^${body}$`, 'i');
+    this.filters.push((r) => re.test(String(r[key] ?? '')));
     return this;
   }
   not(key: string, op: string, value: unknown) {
@@ -175,9 +183,18 @@ class FakeQuery {
       this.db.tables[this.table] = table.filter((r) => !hit.includes(r));
       return { data: hit, error: null };
     }
-    let rows = matches().map((r) =>
-      this.db.attach(this.table, r, this.selectCols),
-    );
+    const plain = !/[*()]/.test(this.selectCols);
+    const columns = plain
+      ? this.selectCols
+          .split(',')
+          .map((c) => c.trim())
+          .filter(Boolean)
+      : null;
+    let rows = matches().map((r) => {
+      const full = this.db.attach(this.table, r, this.selectCols);
+      if (!columns) return full;
+      return Object.fromEntries(columns.map((c) => [c, full[c]]));
+    });
     if (this.orderKey) {
       const { key, asc } = this.orderKey;
       rows.sort(

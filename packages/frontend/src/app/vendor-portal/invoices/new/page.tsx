@@ -175,11 +175,13 @@ function NewVendorInvoicePageContent() {
           submitLabel="Create Invoice"
           savingLabel="Saving…"
           cancelHref="/vendor-portal/invoices"
+          allowVenue
           onSubmit={async p => {
             const res = await api.post(
               '/vendor-invoices',
               {
-                client_name: p.client_name,
+                ...(p.owner_account_id ? { owner_account_id: p.owner_account_id } : {}),
+                client_name: p.client_name || 'Venue',
                 client_email: p.client_email,
                 client_phone: p.client_phone ?? undefined,
                 issue_date: p.issue_date,

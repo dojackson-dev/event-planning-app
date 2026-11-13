@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { Loader2, Save } from 'lucide-react'
 import ClientPicker from './ClientPicker'
+import VenueOwnerPicker, { type VenueOption } from './VenueOwnerPicker'
+import { Building2 } from 'lucide-react'
 import CatalogPicker from './CatalogPicker'
 import LineItemsEditor, {
   type EditableLine,
@@ -28,6 +30,8 @@ export interface VendorDocumentValues {
 }
 
 export interface VendorDocumentPayload {
+  /** Set when the invoice is addressed to a venue's account (its contact details are filled in by the server). */
+  owner_account_id?: string
   client_name: string
   client_email: string
   client_phone: string | null
@@ -61,6 +65,10 @@ interface Props {
   onSubmit: (payload: VendorDocumentPayload) => Promise<void>
   /** Shown above the client section (booking picker, warnings). */
   top?: ReactNode
+  /** Invoices only: let the vendor address the invoice to a venue's account instead of typing a client. */
+  allowVenue?: boolean
+  /** Invoices already addressed to a venue: the recipient is fixed and shown instead of the client fields. */
+  lockedVenueName?: string
 }
 
 const inputClass =
@@ -79,8 +87,13 @@ export default function VendorDocumentForm({
   cancelHref,
   onSubmit,
   top,
+  allowVenue = false,
+  lockedVenueName,
 }: Props) {
   const [values, setValues] = useState(initial)
+  const [toVenue, setToVenue] = useState(false)
+  const [venue, setVenue] = useState<VenueOption | null>(null)
+  const venueMode = !!lockedVenueName || (allowVenue && toVenue)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const errorRef = useRef<HTMLDivElement>(null)
@@ -122,8 +135,11 @@ export default function VendorDocumentForm({
     if (saving) return
     setError('')
 
-    if (!values.client_name.trim()) return fail('Enter the client name.')
-    if (!/^\S+@\S+\.\S+$/.test(values.client_email.trim())) return fail('Enter a valid client email address.')
+    if (allowVenue && toVenue && !venue) return fail('Choose the venue to invoice.')
+    if (!venueMode) {
+      if (!values.client_name.trim()) return fail('Enter the client name.')
+      if (!/^\S+@\S+\.\S+$/.test(values.client_email.trim())) return fail('Enter a valid client email address.')
+    }
     if (!values.issue_date) return fail('Choose the issue date.')
     if (!values.end_date) return fail(`Choose the ${endLabel.toLowerCase()}.`)
     if (values.end_date < values.issue_date) return fail(`The ${endLabel.toLowerCase()} cannot be before the issue date.`)
@@ -134,6 +150,7 @@ export default function VendorDocumentForm({
     setSaving(true)
     try {
       await onSubmit({
+        ...(allowVenue && toVenue && venue ? { owner_account_id: venue.id } : {}),
         client_name: values.client_name.trim(),
         client_email: values.client_email.trim(),
         client_phone: values.client_phone.trim() || null,
@@ -168,7 +185,41 @@ export default function VendorDocumentForm({
       {top}
 
       <section className="bg-white rounded-xl border border-gray-200 p-5 sm:p-6 shadow-sm">
-        <h2 className="font-semibold text-gray-700 mb-4">Client</h2>
+        <h2 className="font-semibold text-gray-700 mb-4">{venueMode ? 'Venue' : 'Client'}</h2>
+        {allowVenue && !lockedVenueName && (
+          <div className="mb-4 inline-flex rounded-lg border border-gray-200 p-0.5 text-sm" role="group" aria-label="Who is this invoice for?">
+            <button
+              type="button"
+              onClick={() => setToVenue(false)}
+              aria-pressed={!toVenue}
+              className={`px-3 py-1.5 rounded-md ${!toVenue ? 'bg-primary-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+            >
+              A client
+            </button>
+            <button
+              type="button"
+              onClick={() => setToVenue(true)}
+              aria-pressed={toVenue}
+              className={`px-3 py-1.5 rounded-md ${toVenue ? 'bg-primary-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+            >
+              A venue
+            </button>
+          </div>
+        )}
+        {lockedVenueName ? (
+          <p className="flex items-center gap-2 text-sm text-gray-800">
+            <Building2 className="w-4 h-4 text-primary-600" /> <span className="font-medium">{lockedVenueName}</span>
+            <span className="text-xs text-gray-500">Sent to the venue&apos;s account contact, and shown in their Vendor Payments.</span>
+          </p>
+        ) : venueMode ? (
+          <>
+            <VenueOwnerPicker selected={venue} onSelect={setVenue} />
+            <p className="mt-2 text-xs text-gray-500">
+              The invoice goes to the venue&apos;s own account contact and appears in their Vendor Payments, so you do not need their email or phone.
+            </p>
+          </>
+        ) : (
+        <>
         <ClientPicker
           onPick={client =>
             setValues(prev => ({
@@ -210,6 +261,8 @@ export default function VendorDocumentForm({
             />
           </div>
         </div>
+        </>
+        )}
       </section>
 
       <section className="bg-white rounded-xl border border-gray-200 p-5 sm:p-6 shadow-sm">

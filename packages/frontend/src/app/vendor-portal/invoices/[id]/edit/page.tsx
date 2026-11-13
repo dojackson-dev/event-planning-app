@@ -56,6 +56,7 @@ export default function EditVendorInvoicePage() {
     )
   }
 
+  const isVenue = invoice.invoice_type === 'owner_booking' && !!invoice.owner_account_id
   const editable = EDITABLE.includes(invoice.status)
   const alreadySent = invoice.status !== 'draft'
   const amountPaid = Number(invoice.amount_paid) || 0
@@ -108,6 +109,7 @@ export default function EditVendorInvoicePage() {
             kind="invoice"
             initial={initial}
             top={notice}
+            lockedVenueName={isVenue ? (invoice.client_name || 'Venue') : undefined}
             submitLabel={alreadySent ? 'Save & Update Invoice' : 'Save Changes'}
             savingLabel="Saving…"
             cancelHref={`/vendor-portal/invoices/${id}`}

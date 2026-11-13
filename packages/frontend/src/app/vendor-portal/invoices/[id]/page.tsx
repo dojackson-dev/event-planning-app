@@ -155,6 +155,11 @@ function VendorInvoiceDetailPageContent() {
             <p className="text-xs font-semibold text-gray-400 uppercase mb-1.5">Bill To</p>
             <p className="font-medium text-gray-800">{invoice.client_name}</p>
             <p className="text-sm text-gray-500">{invoice.client_email}</p>
+            {invoice.invoice_type === 'owner_booking' && invoice.owner_account_id && (
+              <p className="mt-1 inline-block rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">
+                Venue account · shown in their Vendor Payments
+              </p>
+            )}
             {invoice.client_phone && <p className="text-sm text-gray-500">{invoice.client_phone}</p>}
           </div>
 

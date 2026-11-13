@@ -19,6 +19,8 @@ export class CreateVendorInvoiceDto {
   terms?: string;
   items!: VendorInvoiceItemDto[];
   vendor_booking_id?: string;
+  /** Invoice a venue owner's account directly; their contact details come from the account, not the form. */
+  owner_account_id?: string;
 }
 
 export class UpdateVendorInvoiceDto {

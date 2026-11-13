@@ -374,7 +374,7 @@ export class VendorInvoicesService {
         .eq('vendor_account_id', vendorAccountId)
         .order('created_at', { ascending: false })
         .limit(500);
-      return (data ?? []) as any[];
+      return data ?? [];
     };
 
     const [bookings, requests, invoices, estimates] = await Promise.all([

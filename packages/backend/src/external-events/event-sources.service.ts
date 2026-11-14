@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { earliestLiveEventDate } from '../common/event-window';
 import { SupabaseService } from '../supabase/supabase.service';
 import { ConnectorFactory } from './connectors/connector-factory';
 import { NormalizerService } from './normalizer.service';
@@ -148,7 +149,7 @@ export class EventSourcesService {
               last_seen_at: new Date().toISOString(),
               expired_at:
                 normalized.event_date &&
-                normalized.event_date < new Date().toISOString().slice(0, 10)
+                normalized.event_date < earliestLiveEventDate()
                   ? new Date().toISOString()
                   : null,
             },

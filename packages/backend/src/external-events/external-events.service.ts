@@ -3,6 +3,7 @@ import * as zipcodes from 'zipcodes';
 import { SupabaseService } from '../supabase/supabase.service';
 
 import { sanitizeSearchTerm } from '../common/search-term';
+import { earliestLiveEventDate } from '../common/event-window';
 
 function haversineDistanceMiles(
   lat1: number,
@@ -93,6 +94,9 @@ export function collapseDuplicateEvents<
 // zones may briefly remain visible) but never over-filters a real upcoming
 // event.
 const MAX_US_UTC_OFFSET_HOURS = 10;
+// Listings carry a start time but no end time, so allow a typical event length before calling it over.
+// People can still buy tickets while an event is running.
+const ASSUMED_EVENT_HOURS = 4;
 
 function isDefinitelyPast(
   eventDate: string,
@@ -102,7 +106,11 @@ function isDefinitelyPast(
   if (!startTime) return false;
   const naiveUtcMs = Date.parse(`${eventDate}T${startTime}Z`);
   if (Number.isNaN(naiveUtcMs)) return false;
-  return naiveUtcMs + MAX_US_UTC_OFFSET_HOURS * 60 * 60 * 1000 < nowMs;
+  return (
+    naiveUtcMs +
+      (MAX_US_UTC_OFFSET_HOURS + ASSUMED_EVENT_HOURS) * 60 * 60 * 1000 <
+    nowMs
+  );
 }
 
 @Injectable()
@@ -130,7 +138,7 @@ export class ExternalEventsService {
     q?: string;
   }): Promise<PublicExternalEvent[]> {
     const admin = this.supabaseService.getAdminClient();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = earliestLiveEventDate();
     // A caller-provided date_from can be in the past (e.g. re-requesting the
     // current month) — never let it widen the range to before today.
     const from =

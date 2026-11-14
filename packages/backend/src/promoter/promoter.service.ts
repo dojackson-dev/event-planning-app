@@ -4,6 +4,7 @@ import {
   NotFoundException,
   Logger,
 } from '@nestjs/common';
+import { earliestLiveEventDate } from '../common/event-window';
 import { SupabaseService } from '../supabase/supabase.service';
 import { CreatePromoterDto, UpdatePromoterDto } from './dto/promoter.dto';
 
@@ -126,7 +127,7 @@ export class PromoterService {
       )
       .eq('promoter_account_id', promoterId)
       .eq('status', 'published')
-      .gte('event_date', new Date().toISOString().split('T')[0])
+      .gte('event_date', earliestLiveEventDate())
       .order('event_date', { ascending: true });
 
     return { profile, events: events || [] };

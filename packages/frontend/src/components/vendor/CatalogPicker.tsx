@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
-import { formatMoney, lineDescription, unitSuffix, type CatalogItem } from '@/lib/vendorCatalog'
+import { formatMoney, groupBySection, lineDescription, unitSuffix, type CatalogItem } from '@/lib/vendorCatalog'
 
 interface Props {
   onPick: (line: { description: string; quantity: string; unit_price: string }) => void
@@ -21,14 +21,7 @@ export default function CatalogPicker({ onPick }: Props) {
     return () => { cancelled = true }
   }, [])
 
-  const sections = useMemo(() => {
-    const groups = new Map<string, CatalogItem[]>()
-    for (const item of items ?? []) {
-      const key = item.section || 'Other'
-      groups.set(key, [...(groups.get(key) ?? []), item])
-    }
-    return [...groups.entries()]
-  }, [items])
+  const sections = useMemo(() => groupBySection(items ?? []), [items])
 
   if (items === null) return null
 

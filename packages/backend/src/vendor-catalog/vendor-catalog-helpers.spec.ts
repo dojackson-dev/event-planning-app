@@ -1,10 +1,61 @@
 import { BadRequestException } from '@nestjs/common';
 import {
+  effectiveSection,
   lineDescription,
   sanitizeCatalogItem,
   sanitizeIncludes,
   sanitizeRequestedInput,
+  sectionRank,
 } from './vendor-catalog-helpers';
+
+describe('menu section order', () => {
+  const order = (names: (string | null)[]) =>
+    [...names].sort((a, b) => sectionRank(a) - sectionRank(b));
+
+  it('runs Drinks, Apps, Salads, Entrees, Sides, Desserts, other sections, then Packages', () => {
+    expect(
+      order([
+        'Packages',
+        'Desserts',
+        'Sides',
+        'Late night',
+        'Entrees',
+        'Salads',
+        'Appetizers',
+        'Drinks',
+      ]),
+    ).toEqual([
+      'Drinks',
+      'Appetizers',
+      'Salads',
+      'Entrees',
+      'Sides',
+      'Desserts',
+      'Late night',
+      'Packages',
+    ]);
+  });
+
+  it('recognises common spellings', () => {
+    expect(sectionRank('Beverages')).toBe(sectionRank('Drinks'));
+    expect(sectionRank('Apps')).toBe(sectionRank('Appetizers'));
+    expect(sectionRank('Entrées')).toBe(sectionRank('entree'));
+    expect(sectionRank('Mains')).toBe(sectionRank('Entrees'));
+    expect(sectionRank('Deserts')).toBe(sectionRank('Desserts'));
+    expect(sectionRank(null)).toBeGreaterThan(sectionRank('Desserts'));
+    expect(sectionRank(null)).toBeLessThan(sectionRank('Packages'));
+  });
+
+  it('always puts packages in the Packages group, whatever section they were saved with', () => {
+    expect(effectiveSection({ kind: 'package', section: 'Entrees' })).toBe(
+      'Packages',
+    );
+    expect(effectiveSection({ kind: 'item', section: ' Sides ' })).toBe(
+      'Sides',
+    );
+    expect(effectiveSection({ kind: 'item', section: '' })).toBeNull();
+  });
+});
 
 describe('lineDescription', () => {
   it('uses the plain name for an each-priced item', () => {

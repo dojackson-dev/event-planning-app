@@ -11,9 +11,11 @@ import {
   RequestedItem,
   UNIT_SUFFIX,
   CatalogUnit,
+  effectiveSection,
   sanitizeCatalogItem,
   sanitizeIncludes,
   sanitizeRequestedInput,
+  sectionRank,
 } from './vendor-catalog-helpers';
 
 export interface CatalogItemRow extends CatalogItemFields {
@@ -29,10 +31,13 @@ export interface CatalogItemRow extends CatalogItemFields {
 }
 
 const bySectionThenOrder = (a: any, b: any) => {
-  const sa = a.section ?? '\uffff';
-  const sb = b.section ?? '\uffff';
+  const sa = effectiveSection(a);
+  const sb = effectiveSection(b);
   return (
-    String(sa).localeCompare(String(sb), undefined, { sensitivity: 'base' }) ||
+    sectionRank(sa) - sectionRank(sb) ||
+    String(sa ?? '').localeCompare(String(sb ?? ''), undefined, {
+      sensitivity: 'base',
+    }) ||
     (a.sort_order ?? 0) - (b.sort_order ?? 0) ||
     String(a.name).localeCompare(String(b.name), undefined, {
       sensitivity: 'base',
@@ -285,9 +290,10 @@ export class VendorCatalogService {
 
     const sections: { name: string | null; items: any[] }[] = [];
     for (const item of items) {
-      let section = sections.find((s) => s.name === (item.section ?? null));
+      const name = effectiveSection(item);
+      let section = sections.find((s) => s.name === name);
       if (!section) {
-        section = { name: item.section ?? null, items: [] };
+        section = { name, items: [] };
         sections.push(section);
       }
       section.items.push({

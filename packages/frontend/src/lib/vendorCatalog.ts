@@ -113,3 +113,43 @@ export interface RequestedItem {
   description: string | null
   includes: { name: string; quantity: number }[]
 }
+
+const SECTION_ORDER: RegExp[] = [
+  /^(drink|beverage|bar|cocktail)/,
+  /^(app|starter|hors|finger)/,
+  /^salad/,
+  /^(entr|main)/,
+  /^side/,
+  /^(dessert|desert|sweet)/,
+]
+
+/** Section names offered as suggestions, in menu order. */
+export const SECTION_SUGGESTIONS = ['Drinks', 'Appetizers', 'Salads', 'Entrees', 'Sides', 'Desserts']
+
+/** Packages always sit in their own group; everything else uses the section the vendor typed. */
+export const effectiveSection = (item: { kind?: string | null; section?: string | null }): string =>
+  item.kind === 'package' ? 'Packages' : item.section?.trim() || 'Other'
+
+/** Menu order: Drinks, Apps, Salads, Entrees, Sides, Desserts, any other section, then Packages (mirrors the server). */
+export function sectionRank(section: string | null | undefined): number {
+  const key = (section ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z]/g, '')
+  if (/^package/.test(key)) return SECTION_ORDER.length + 1
+  const rank = SECTION_ORDER.findIndex(re => re.test(key))
+  return rank === -1 ? SECTION_ORDER.length : rank
+}
+
+/** Groups items into menu sections in menu order, keeping each item's own order inside its section. */
+export function groupBySection<T extends { kind?: string | null; section?: string | null }>(items: T[]): [string, T[]][] {
+  const groups = new Map<string, T[]>()
+  for (const item of items) {
+    const key = effectiveSection(item)
+    groups.set(key, [...(groups.get(key) ?? []), item])
+  }
+  return [...groups.entries()].sort(
+    ([a], [b]) => sectionRank(a === 'Other' ? null : a) - sectionRank(b === 'Other' ? null : b) || a.localeCompare(b),
+  )
+}

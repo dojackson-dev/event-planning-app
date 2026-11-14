@@ -43,6 +43,39 @@ export function lineDescription(item: {
   return text;
 }
 
+/** The menu order clients see: Drinks, Apps, Salads, Entrees, Sides, Desserts, any other section, then Packages. */
+const SECTION_ORDER: RegExp[] = [
+  /^(drink|beverage|bar|cocktail)/,
+  /^(app|starter|hors|finger)/,
+  /^salad/,
+  /^(entr|main)/,
+  /^side/,
+  /^(dessert|desert|sweet)/,
+];
+const OTHER_RANK = SECTION_ORDER.length;
+const PACKAGES_RANK = OTHER_RANK + 1;
+
+/** Packages always sit in their own "Packages" group; items use the section the vendor typed. */
+export function effectiveSection(item: {
+  kind?: string | null;
+  section?: string | null;
+}): string | null {
+  if (item.kind === 'package') return 'Packages';
+  return item.section?.trim() || null;
+}
+
+/** Position of a section in the menu. "Entrées", "entree" and "Entrees" all count as Entrees. */
+export function sectionRank(section: string | null | undefined): number {
+  const key = (section ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z]/g, '');
+  if (/^package/.test(key)) return PACKAGES_RANK;
+  const rank = SECTION_ORDER.findIndex((re) => re.test(key));
+  return rank === -1 ? OTHER_RANK : rank;
+}
+
 export interface CatalogItemFields {
   name?: string;
   description?: string | null;

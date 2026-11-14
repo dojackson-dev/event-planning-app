@@ -154,9 +154,9 @@ describe('vendor catalog (vendor side)', () => {
       'Brisket',
       'Retired dish',
       'Staff meal',
-      'Feast package',
       'Mac & cheese',
       'Server',
+      'Feast package',
     ]);
     expect(result.items.find((i) => i.id === 'feast')?.includes).toEqual([
       { item_id: 'brisket', name: 'Brisket', quantity: 20 },
@@ -270,9 +270,9 @@ describe('vendor catalog (public menu)', () => {
     expect(menu.enabled).toBe(true);
     expect(menu.sections.map((s: any) => s.name)).toEqual([
       'Entrees',
-      'Packages',
       'Sides',
       null,
+      'Packages',
     ]);
     const all = menu.sections.flatMap((s: any) => s.items);
     expect(all.map((i: any) => i.name)).not.toContain('Retired dish');

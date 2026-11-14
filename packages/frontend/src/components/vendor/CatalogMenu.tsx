@@ -131,7 +131,7 @@ export default function CatalogMenu({ slug, vendorId, selection, onChange, title
   }
 
   return (
-    <section aria-label="Items and packages" className={`space-y-5 ${className}`}>
+    <section aria-label="Items and packages" className={`space-y-8 ${className}`}>
       <div>
         <h2 className="font-semibold text-gray-900 flex items-center gap-2">
           <Boxes className="w-5 h-5 text-indigo-600" /> {title}
@@ -142,11 +142,14 @@ export default function CatalogMenu({ slug, vendorId, selection, onChange, title
       </div>
 
       {catalog.sections.map(section => (
-        <div key={section.name ?? 'other'}>
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1">
-            {section.name === 'Packages' && <Package className="w-3.5 h-3.5" />}
-            {section.name ?? 'Other'}
-          </h3>
+        <div key={section.name ?? 'other'} className="pt-2" role="group" aria-label={section.name ?? 'Other'}>
+          <div className="flex items-center gap-3 mb-3 border-b-2 border-gray-300 pb-2">
+            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+              {section.name === 'Packages' && <Package className="w-4 h-4 text-purple-600" />}
+              {section.name ?? 'Other'}
+            </h3>
+            <span className="text-xs font-medium text-gray-500 bg-gray-100 rounded-full px-2 py-0.5">{section.items.length}</span>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{section.items.map(renderItem)}</div>
         </div>
       ))}

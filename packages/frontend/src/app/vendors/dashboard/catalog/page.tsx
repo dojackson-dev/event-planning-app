@@ -7,8 +7,10 @@ import api from '@/lib/api'
 import ImageUpload from '@/components/ImageUpload'
 import { Package, Plus, Pencil, Trash2, Eye, EyeOff, Loader2, X, Boxes } from 'lucide-react'
 import {
+  SECTION_SUGGESTIONS,
   UNIT_OPTIONS,
   formatMoney,
+  groupBySection,
   unitSuffix,
   type CatalogItem,
   type CatalogKind,
@@ -80,17 +82,10 @@ export default function VendorCatalogPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const sections = useMemo(() => {
-    const groups = new Map<string, CatalogItem[]>()
-    for (const item of items) {
-      const key = item.section || 'Other'
-      groups.set(key, [...(groups.get(key) ?? []), item])
-    }
-    return [...groups.entries()]
-  }, [items])
+  const sections = useMemo(() => groupBySection(items), [items])
 
   const existingSections = useMemo(
-    () => [...new Set(items.map(i => i.section).filter((s): s is string => !!s))],
+    () => [...new Set([...SECTION_SUGGESTIONS, ...items.filter(i => i.kind === 'item').map(i => i.section).filter((s): s is string => !!s)])],
     [items],
   )
   const plainItems = items.filter(i => i.kind === 'item')
@@ -276,8 +271,16 @@ export default function VendorCatalogPage() {
           </div>
         ) : (
           sections.map(([section, rows]) => (
-            <section key={section} className="mb-8">
-              <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">{section}</h2>
+            <section key={section} className="mb-10" aria-label={section}>
+              <div className="flex items-center gap-3 mb-4 border-b-2 border-gray-300 pb-2">
+                <h2 className="text-base font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                  {section === 'Packages' && <Package className="w-4 h-4 text-purple-600" />}
+                  {section}
+                </h2>
+                <span className="text-xs font-medium text-gray-500 bg-gray-100 rounded-full px-2 py-0.5">
+                  {rows.length} {rows.length === 1 ? 'item' : 'items'}
+                </span>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {rows.map(item => (
                   <div
@@ -364,13 +367,18 @@ export default function VendorCatalogPage() {
                 <input className={inputClass} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder={form.kind === 'package' ? 'e.g. Wedding Dessert Package' : 'e.g. Smoked brisket plate'} />
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Section</label>
-                <input className={inputClass} list="catalog-sections" value={form.section} onChange={e => setForm({ ...form, section: e.target.value })} placeholder="e.g. Entrees, Sides, Desserts" />
-                <datalist id="catalog-sections">
-                  {existingSections.map(s => <option key={s} value={s} />)}
-                </datalist>
-              </div>
+              {form.kind === 'item' ? (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Section</label>
+                  <input className={inputClass} list="catalog-sections" value={form.section} onChange={e => setForm({ ...form, section: e.target.value })} placeholder="e.g. Drinks, Appetizers, Salads, Entrees, Sides, Desserts" />
+                  <datalist id="catalog-sections">
+                    {existingSections.map(s => <option key={s} value={s} />)}
+                  </datalist>
+                  <p className="text-[11px] text-gray-400 mt-1">Menus list Drinks, Appetizers, Salads, Entrees, Sides and Desserts in that order, then your other sections.</p>
+                </div>
+              ) : (
+                <p className="text-[11px] text-gray-500">Packages are listed together under Packages, after everything else on the menu.</p>
+              )}
 
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>

@@ -5,7 +5,8 @@
  * Creates:
  *  - caterer login   (chef@democatering.com / Demo@2024!)
  *  - vendor account  (Demo Southern Table Catering, category caterer, menu shown to clients)
- *  - 12 menu items in 4 sections (one hidden from clients, one with a hidden price) and 2 packages
+ *  - 18 menu items across Drinks, Appetizers, Salads, Entrees, Sides, Desserts and Service & Extras (one hidden
+ *    from clients) and 2 packages (one with a hidden price)
  *  - booking link    (/book/demo-southern-table) so clients can pick menu items on a request
  *
  * Needs the catalog migration (packages/backend/migrations/create-vendor-catalog.sql) and the caterer
@@ -74,76 +75,27 @@ async function authUser() {
   return created.data.user.id;
 }
 
+// section, name, description, unit, price, extras. Menus show sections in a fixed order, whatever order these are in.
 const MENU = [
-  // section, name, description, unit, price, extras
-  [
-    "Entrées",
-    "Smoked Brisket",
-    "Slow-smoked 14 hours, sliced to order.",
-    "person",
-    18,
-  ],
-  [
-    "Entrées",
-    "Fried Chicken",
-    "Buttermilk-brined, hand-breaded, crispy.",
-    "person",
-    14,
-  ],
-  [
-    "Entrées",
-    "Shrimp & Grits",
-    "Gulf shrimp over stone-ground cheese grits.",
-    "person",
-    19,
-  ],
-  [
-    "Entrées",
-    "Vegetable Lasagna",
-    "Roasted seasonal vegetables, three cheeses.",
-    "person",
-    13,
-  ],
+  ["Drinks", "Sweet Tea & Lemonade Station", "Self-serve, refilled throughout.", "flat", 125],
+  ["Drinks", "Bottled Water & Soda", "Chilled in tubs with ice.", "person", 2.5],
+  ["Appetizers", "Deviled Eggs", "Smoked paprika, pickled jalapeño.", "each", 1.75],
+  ["Appetizers", "Chicken & Waffle Bites", "Maple-hot honey drizzle.", "each", 3],
+  ["Appetizers", "Pimento Cheese & Crackers", "House-made, served in cups.", "person", 3.5],
+  ["Salads", "Peach & Arugula Salad", "Goat cheese, pecans, honey vinaigrette.", "person", 5],
+  ["Salads", "Classic Garden Salad", "Mixed greens, cucumber, tomato, choice of dressing.", "person", 4],
+  ["Entrees", "Smoked Brisket", "Slow-smoked 14 hours, sliced to order.", "person", 18],
+  ["Entrees", "Fried Chicken", "Buttermilk-brined, hand-breaded, crispy.", "person", 14],
+  ["Entrees", "Shrimp & Grits", "Gulf shrimp over stone-ground cheese grits.", "person", 19],
+  ["Entrees", "Vegetable Lasagna", "Roasted seasonal vegetables, three cheeses.", "person", 13],
   ["Sides", "Mac & Cheese", "Baked, with a toasted crumb top.", "person", 4],
   ["Sides", "Collard Greens", "Simmered with smoked turkey.", "person", 3.5],
   ["Sides", "Cornbread Muffins", "Honey butter on the side.", "each", 1.5],
-  [
-    "Desserts",
-    "Banana Pudding",
-    "Layered with vanilla wafers and fresh whipped cream.",
-    "person",
-    4.5,
-  ],
-  [
-    "Desserts",
-    "Peach Cobbler",
-    "Warm, served with vanilla ice cream.",
-    "person",
-    5,
-  ],
-  [
-    "Drinks & Service",
-    "Sweet Tea & Lemonade Station",
-    "Self-serve, refilled throughout.",
-    "flat",
-    125,
-  ],
-  [
-    "Drinks & Service",
-    "Serving Staff",
-    "Uniformed servers for buffet service and cleanup.",
-    "hour",
-    35,
-  ],
+  ["Desserts", "Banana Pudding", "Layered with vanilla wafers and fresh whipped cream.", "person", 4.5],
+  ["Desserts", "Peach Cobbler", "Warm, served with vanilla ice cream.", "person", 5],
+  ["Service & Extras", "Serving Staff", "Uniformed servers for buffet service and cleanup.", "hour", 35],
   // Kept off the client menu on purpose: the vendor can still use it on their own estimates.
-  [
-    "Drinks & Service",
-    "Delivery & Setup (internal)",
-    "Travel, delivery and chafing dish setup. Added on the vendor’s estimate.",
-    "flat",
-    150,
-    { visible_to_clients: false },
-  ],
+  ["Service & Extras", "Delivery & Setup (internal)", "Travel, delivery and chafing dish setup. Added on the vendor's estimate.", "flat", 150, { visible_to_clients: false }],
 ];
 
 const PACKAGES = [

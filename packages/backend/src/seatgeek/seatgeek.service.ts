@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { earliestLiveEventDate } from '../common/event-window';
 import { ConfigService } from '@nestjs/config';
 
 export interface SeatGeekEvent {
@@ -74,7 +75,7 @@ export class SeatGeekService {
     if (params.keyword) query.set('q', params.keyword);
     query.set('per_page', String(params.size ?? 20));
     // Only future events
-    query.set('datetime_utc.gte', new Date().toISOString().split('T')[0]);
+    query.set('datetime_utc.gte', earliestLiveEventDate());
 
     try {
       const res = await fetch(`${this.baseUrl}?${query.toString()}`);

@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { earliestLiveEventDate } from '../common/event-window';
 import { ConfigService } from '@nestjs/config';
 
 export interface PredictHQEvent {
@@ -83,7 +84,7 @@ export class PredictHQService {
       sort: 'rank',
       limit: String(params.size ?? 20),
       // Only future events
-      'start.gte': new Date().toISOString().split('T')[0],
+      'start.gte': earliestLiveEventDate(),
     });
 
     if (params.zip_code) {

@@ -5,6 +5,7 @@ import {
   BadRequestException,
   Logger,
 } from '@nestjs/common';
+import { earliestLiveEventDate } from '../common/event-window';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
 import { MailService } from '../mail/mail.service';
@@ -393,7 +394,8 @@ export class PromoterEventsService {
     q?: string,
   ) {
     const admin = this.supabaseService.getAdminClient();
-    const today = new Date().toISOString().split('T')[0];
+    // Not the UTC date: that rolls over mid-evening in the US and would hide events still going on.
+    const today = earliestLiveEventDate();
     const from = dateFrom && dateFrom > today ? dateFrom : today;
     let query = admin
       .from('public_events')

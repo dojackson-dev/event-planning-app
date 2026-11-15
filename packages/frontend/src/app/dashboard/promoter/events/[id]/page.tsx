@@ -139,7 +139,7 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
   // Comp ticket modal
   const [showCompModal, setShowCompModal] = useState(false)
   const [compTierId, setCompTierId] = useState('')
-  const [compRecipientEmail, setCompRecipientEmail] = useState('')
+  const [compTexted, setCompTexted] = useState(true)
   const [compRecipientPhone, setCompRecipientPhone] = useState('')
   const [compRecipientName, setCompRecipientName] = useState('')
   const [sendingComp, setSendingComp] = useState(false)
@@ -301,16 +301,16 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
   const handleSendComp = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!compTierId) { setCompError('Please select a ticket tier'); return }
-    if (!compRecipientEmail) { setCompError('Recipient email is required'); return }
+    if (compRecipientPhone.replace(/\D/g, '').length < 10) { setCompError('Recipient mobile number is required'); return }
     setSendingComp(true)
     setCompError('')
     try {
-      await api.post(`/promoter-events/${id}/comp-ticket`, {
+      const compRes = await api.post(`/promoter-events/${id}/comp-ticket`, {
         tier_id: compTierId,
-        recipient_email: compRecipientEmail,
-        recipient_phone: compRecipientPhone || undefined,
+        recipient_phone: compRecipientPhone,
         recipient_name: compRecipientName || undefined,
       })
+      setCompTexted(compRes.data?.sms_sent !== false)
       setCompSuccess(true)
       // Refresh attendees list
       const res = await api.get(`/promoter-events/${id}/attendees`)
@@ -327,7 +327,6 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
     setCompSuccess(false)
     setCompError('')
     setCompTierId('')
-    setCompRecipientEmail('')
     setCompRecipientPhone('')
     setCompRecipientName('')
   }
@@ -827,7 +826,9 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
               </div>
               <p className="font-semibold text-gray-900 text-lg">Comp ticket sent!</p>
               <p className="text-gray-500 text-sm">
-                {compRecipientName ? `${compRecipientName} has` : compRecipientEmail} been sent a complimentary ticket via email{compRecipientPhone ? ' and SMS' : ''}.
+                {compTexted
+                  ? `${compRecipientName || compRecipientPhone} has been texted a link to their complimentary ticket.`
+                  : 'The ticket was created, but the text could not be sent. You can resend it from the attendee list or share the ticket link directly.'}
               </p>
               <button
                 onClick={closeCompModal}
@@ -871,26 +872,16 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Recipient Email <span className="text-red-500">*</span></label>
-                <input
-                  type="email"
-                  placeholder="jane@example.com"
-                  value={compRecipientEmail}
-                  onChange={e => setCompRecipientEmail(e.target.value)}
-                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Recipient Phone (optional SMS)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Recipient Mobile Number <span className="text-red-500">*</span></label>
                 <input
                   type="tel"
                   placeholder="+1 555 000 0000"
                   value={compRecipientPhone}
                   onChange={e => setCompRecipientPhone(e.target.value)}
                   className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                  required
                 />
+                <p className="text-xs text-gray-400 mt-1">We text them a link to their ticket.</p>
               </div>
 
               <div className="flex gap-3 pt-1">

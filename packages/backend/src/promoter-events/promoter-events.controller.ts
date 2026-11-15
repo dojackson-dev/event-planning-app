@@ -90,17 +90,13 @@ export class PromoterEventsController {
     return this.service.getTicketById(ticketId);
   }
 
-  /** Forward a ticket to a phone/email — generates an access code */
+  /** Forward a ticket to a phone number — generates an access code and texts the link */
   @Post('public/ticket/:ticketId/forward')
   forwardTicket(
     @Param('ticketId') ticketId: string,
-    @Body() body: { recipientPhone?: string; recipientEmail?: string },
+    @Body() body: { recipientPhone?: string },
   ) {
-    return this.service.forwardTicket(
-      ticketId,
-      body.recipientPhone,
-      body.recipientEmail,
-    );
+    return this.service.forwardTicket(ticketId, body.recipientPhone);
   }
 
   /** Claim a forwarded ticket using its access code */
@@ -275,9 +271,9 @@ export class PromoterEventsController {
     @Body()
     body: {
       tier_id: string;
-      recipient_email: string;
-      recipient_phone?: string;
+      recipient_phone: string;
       recipient_name?: string;
+      recipient_email?: string;
     },
   ) {
     const userId = await this.getUserId(auth, 'write');
@@ -285,9 +281,9 @@ export class PromoterEventsController {
       userId,
       eventId,
       body.tier_id,
-      body.recipient_email,
       body.recipient_phone,
       body.recipient_name,
+      body.recipient_email,
     );
   }
 }

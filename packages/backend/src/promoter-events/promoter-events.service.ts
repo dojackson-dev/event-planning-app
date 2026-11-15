@@ -6,6 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { earliestLiveEventDate } from '../common/event-window';
+import { extractScanCode } from '../common/scan-code';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
 import { MailService } from '../mail/mail.service';
@@ -1241,7 +1242,8 @@ export class PromoterEventsService {
 
   // ── DOOR SCAN ─────────────────────────────────────────────────
 
-  async scanTicket(userId: string, eventId: string, ticketId: string) {
+  async scanTicket(userId: string, eventId: string, scanned: string) {
+    const ticketId = extractScanCode(scanned);
     const admin = this.supabaseService.getAdminClient();
     const promoter = await this.getPromoterAccount(userId);
 

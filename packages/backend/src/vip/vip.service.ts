@@ -5,6 +5,7 @@ import {
   BadRequestException,
   Logger,
 } from '@nestjs/common';
+import { extractScanCode } from '../common/scan-code';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
 import Stripe from 'stripe';
@@ -934,9 +935,10 @@ export class VipService {
   /** Public scan using concierge access code — no promoter login required */
   async scanVipByAccessCode(
     accessCode: string,
-    qrCode: string,
+    scannedCode: string,
     checkInMode: 'single' | 'full' = 'single',
   ) {
+    const qrCode = extractScanCode(scannedCode);
     const admin = this.supabaseService.getAdminClient();
 
     // Validate the access code and get the event it belongs to
@@ -1019,7 +1021,8 @@ export class VipService {
     }
   }
 
-  async scanVip(userId: string, eventId: string, dto: ScanVipDto) {
+  async scanVip(userId: string, eventId: string, rawDto: ScanVipDto) {
+    const dto = { ...rawDto, qr_code: extractScanCode(rawDto.qr_code) };
     await this.assertEventOwner(userId, eventId);
     const admin = this.supabaseService.getAdminClient();
 

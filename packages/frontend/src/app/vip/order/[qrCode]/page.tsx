@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import Link from 'next/link'
-import { Crown, Calendar, MapPin, Loader2, CheckCircle, Clock, Users, Send, X, Phone, Mail, UserPlus } from 'lucide-react'
+import { Crown, Calendar, MapPin, Loader2, CheckCircle, Clock, Users, Send, X, Phone, UserPlus } from 'lucide-react'
 import api from '@/lib/api'
 
 interface VipOrder {
@@ -40,7 +40,8 @@ export default function VipOrderPage({ params }: { params: { qrCode: string } })
   const [error, setError] = useState('')
   const [retryCount, setRetryCount] = useState(0)
   const [showForward, setShowForward] = useState(false)
-  const [forwardEmail, setForwardEmail] = useState('')
+  const [forwardPhone, setForwardPhone] = useState('')
+  const [forwardTexted, setForwardTexted] = useState(true)
   const [forwardName, setForwardName] = useState('')
   const [forwardLoading, setForwardLoading] = useState(false)
   const [forwardDone, setForwardDone] = useState(false)
@@ -80,11 +81,11 @@ export default function VipOrderPage({ params }: { params: { qrCode: string } })
 
   const sendGuestPass = async (idx: number) => {
     const form = passAssign[idx] || { name: '', phone: '', email: '' }
-    if (!form.phone && !form.email) return
+    if (!form.phone) return
     setPassSent(prev => ({ ...prev, [idx]: 'sending' }))
     try {
       await api.post(`/vip/public/orders/qr/${encodeURIComponent(qrCode)}/passes/assign`, {
-        assignments: [{ pass_index: idx, guest_name: form.name || undefined, guest_phone: form.phone || undefined, guest_email: form.email || undefined }],
+        assignments: [{ pass_index: idx, guest_name: form.name || undefined, guest_phone: form.phone }],
       })
       setPassSent(prev => ({ ...prev, [idx]: 'sent' }))
       setPassExpanded(null)
@@ -95,16 +96,20 @@ export default function VipOrderPage({ params }: { params: { qrCode: string } })
 
   const handleForward = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!forwardEmail) return
+    if (forwardPhone.replace(/\D/g, '').length < 10) {
+      setForwardError('Enter the recipient’s mobile phone number')
+      return
+    }
     setForwardLoading(true)
     setForwardError('')
     try {
-      await api.post(`/vip/public/orders/qr/${encodeURIComponent(qrCode)}/transfer`, {
-        recipient_email: forwardEmail,
+      const res = await api.post(`/vip/public/orders/qr/${encodeURIComponent(qrCode)}/transfer`, {
+        recipient_phone: forwardPhone,
         recipient_name:  forwardName || undefined,
       })
+      setForwardTexted(res.data?.sms_sent !== false)
       setForwardDone(true)
-      setOrder(prev => prev ? { ...prev, buyer_email: forwardEmail, buyer_name: forwardName || null } : prev)
+      setOrder(prev => prev ? { ...prev, buyer_name: forwardName || null } : prev)
     } catch (err: any) {
       setForwardError(err.response?.data?.message || 'Transfer failed. Please try again.')
     } finally {
@@ -295,23 +300,13 @@ export default function VipOrderPage({ params }: { params: { qrCode: string } })
                             type="tel"
                             value={form.phone}
                             onChange={e => setPassAssign(p => ({ ...p, [idx]: { ...form, phone: e.target.value } }))}
-                            placeholder="+1 555 000 0000 (SMS — preferred)"
-                            className="w-full pl-8 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
-                          />
-                        </div>
-                        <div className="relative">
-                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-                          <input
-                            type="email"
-                            value={form.email}
-                            onChange={e => setPassAssign(p => ({ ...p, [idx]: { ...form, email: e.target.value } }))}
-                            placeholder="Email (optional)"
+                            placeholder="Mobile number (we will text the pass)"
                             className="w-full pl-8 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
                           />
                         </div>
                         <button
                           onClick={() => sendGuestPass(idx)}
-                          disabled={(!form.phone && !form.email) || status === 'sending'}
+                          disabled={!form.phone || status === 'sending'}
                           className="w-full py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center gap-2"
                         >
                           {status === 'sending'
@@ -369,7 +364,9 @@ export default function VipOrderPage({ params }: { params: { qrCode: string } })
             <div className="text-center py-6">
               <CheckCircle className="w-14 h-14 text-green-500 mx-auto mb-3" />
               <p className="font-semibold text-gray-900">Ticket Forwarded!</p>
-              <p className="text-sm text-gray-500 mt-1">A confirmation with the QR code was sent to {forwardEmail}.</p>
+              <p className="text-sm text-gray-500 mt-1">{forwardTexted
+                  ? `A text with the QR code was sent to ${forwardPhone}.`
+                  : 'The text could not be sent, so share this page’s link with them directly.'}</p>
               <button
                 onClick={() => setShowForward(false)}
                 className="mt-5 w-full py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200"
@@ -380,17 +377,17 @@ export default function VipOrderPage({ params }: { params: { qrCode: string } })
           ) : (
             <form onSubmit={handleForward} className="space-y-4">
               <p className="text-sm text-gray-500">
-                The recipient will receive an email with the QR code and event details.
+                We will text the recipient the QR code and event details.
                 <span className="block mt-1 text-amber-600 text-xs">Note: this action cannot be undone — you will lose access to this ticket.</span>
               </p>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Recipient Email *</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Recipient Mobile Number *</label>
                 <input
-                  type="email"
+                  type="tel"
                   required
-                  value={forwardEmail}
-                  onChange={e => setForwardEmail(e.target.value)}
-                  placeholder="friend@example.com"
+                  value={forwardPhone}
+                  onChange={e => setForwardPhone(e.target.value)}
+                  placeholder="+1 555 000 0000"
                   className="w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
               </div>
@@ -417,7 +414,7 @@ export default function VipOrderPage({ params }: { params: { qrCode: string } })
                 </button>
                 <button
                   type="submit"
-                  disabled={forwardLoading || !forwardEmail}
+                  disabled={forwardLoading || !forwardPhone}
                   className="flex-1 py-2.5 bg-purple-600 text-white rounded-xl text-sm font-medium hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {forwardLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}

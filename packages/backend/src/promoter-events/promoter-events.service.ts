@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { earliestLiveEventDate } from '../common/event-window';
 import { extractScanCode } from '../common/scan-code';
+import { normalizePhone } from '../calls/phone';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
 import { MailService } from '../mail/mail.service';
@@ -1037,15 +1038,17 @@ export class PromoterEventsService {
     return data;
   }
 
-  async forwardTicket(
-    ticketId: string,
-    recipientPhone?: string,
-    recipientEmail?: string,
-  ) {
+  /** Gives a ticket an access code and texts the recipient a link to it. Only a phone number is needed. */
+  async forwardTicket(ticketId: string, recipientPhone?: string) {
+    const phone = normalizePhone(recipientPhone);
+    if (!phone) {
+      throw new BadRequestException('Enter a valid mobile phone number');
+    }
+
     const admin = this.supabaseService.getAdminClient();
     const { data: ticket } = await admin
       .from('tickets')
-      .select('id, status')
+      .select('id, status, public_events(title, event_date)')
       .eq('id', ticketId)
       .maybeSingle();
     if (!ticket) throw new NotFoundException('Ticket not found');
@@ -1064,11 +1067,18 @@ export class PromoterEventsService {
     const { error } = await admin.from('ticket_forward_codes').insert({
       ticket_id: ticketId,
       code: forwardCode,
-      ...(recipientPhone ? { recipient_phone: recipientPhone } : {}),
-      ...(recipientEmail ? { recipient_email: recipientEmail } : {}),
+      recipient_phone: phone,
     });
     if (error) throw new BadRequestException(error.message);
-    return { forwardCode };
+
+    const event = (ticket as any).public_events;
+    const link = `${this.frontendUrl}/tickets/forward/${forwardCode}`;
+    const smsSent = await this.smsNotifications.sendOne(
+      phone,
+      `Eventecos Tickets\nYou were sent a ticket to ${event?.title ?? 'an event'}. Open it here: ${link}`,
+    );
+    // The page also shows the link, so the sender can share it by hand if the text did not go out.
+    return { code: forwardCode, forwardCode, sms_sent: smsSent };
   }
 
   async getTicketByForwardCode(code: string) {
@@ -1290,20 +1300,25 @@ export class PromoterEventsService {
 
   // ── COMP TICKETS ──────────────────────────────────────────────
 
+  /** Gives someone a free ticket and texts them the link to it. Only a phone number is needed. */
   async sendCompTicket(
     userId: string,
     eventId: string,
     tierId: string,
-    recipientEmail: string,
-    recipientPhone?: string,
+    recipientPhone: string,
     recipientName?: string,
+    recipientEmail?: string,
   ) {
+    const phone = normalizePhone(recipientPhone);
+    if (!phone) {
+      throw new BadRequestException('Enter a valid mobile phone number');
+    }
     const admin = this.supabaseService.getAdminClient();
     const promoter = await this.getPromoterAccount(userId);
 
     const { data: event } = await admin
       .from('public_events')
-      .select('id, title')
+      .select('id, title, event_date')
       .eq('id', eventId)
       .eq('promoter_account_id', promoter.id)
       .maybeSingle();
@@ -1322,8 +1337,8 @@ export class PromoterEventsService {
       .insert({
         public_event_id: eventId,
         ticket_tier_id: tierId,
-        buyer_email: recipientEmail,
-        ...(recipientPhone ? { buyer_phone: recipientPhone } : {}),
+        buyer_phone: phone,
+        ...(recipientEmail ? { buyer_email: recipientEmail } : {}),
         ...(recipientName ? { buyer_name: recipientName } : {}),
         amount_paid: 0,
         status: 'valid',
@@ -1333,7 +1348,13 @@ export class PromoterEventsService {
       .single();
     if (error) throw new BadRequestException(error.message);
 
-    return { success: true, ticket: newTicket };
+    const greeting = recipientName ? `Hi ${recipientName}, y` : 'Y';
+    const smsSent = await this.smsNotifications.sendOne(
+      phone,
+      `Eventecos Tickets\n${greeting}ou have a complimentary ${tier.name} ticket to ${event.title}${event.event_date ? ` on ${event.event_date}` : ''}. Show this QR code at the door: ${this.frontendUrl}/ticket/${newTicket.id}`,
+    );
+
+    return { success: true, ticket: newTicket, sms_sent: smsSent };
   }
 
   async resendTicketConfirmation(
@@ -1356,12 +1377,20 @@ export class PromoterEventsService {
     const { data: ticket } = await admin
       .from('tickets')
       .select(
-        'id, buyer_email, buyer_name, stripe_checkout_session_id, ticket_tiers(name, price), amount_paid',
+        'id, buyer_email, buyer_phone, buyer_name, stripe_checkout_session_id, ticket_tiers(name, price), amount_paid',
       )
       .eq('id', ticketId)
       .eq('public_event_id', eventId)
       .maybeSingle();
     if (!ticket) throw new NotFoundException('Ticket not found');
+
+    // A phone number is all a ticket needs, so text the link whenever there is one.
+    if (ticket.buyer_phone) {
+      await this.smsNotifications.sendOne(
+        ticket.buyer_phone,
+        `Eventecos Tickets\nHere is your ticket to ${event.title}${event.event_date ? ` on ${event.event_date}` : ''}. Show this QR code at the door: ${this.frontendUrl}/ticket/${ticket.id}`,
+      );
+    }
 
     const toEmail = ticket.buyer_email;
     if (!toEmail || !process.env.RESEND_API_KEY) {

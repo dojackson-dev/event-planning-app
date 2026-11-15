@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import Link from 'next/link'
-import { CheckCircle, Calendar, MapPin, Ticket, Loader2, Send, X, Check, Phone, Mail, Copy, ExternalLink } from 'lucide-react'
+import { CheckCircle, Calendar, MapPin, Ticket, Loader2, Send, X, Check, Phone, Copy, ExternalLink } from 'lucide-react'
 import api from '@/lib/api'
 import AddToWalletButtons from '@/components/AddToWalletButtons'
 import FitImage from '@/components/FitImage'
@@ -40,10 +40,10 @@ export default function TicketConfirmationPage({ params }: { params: { sessionId
   // Forward modal state
   const [forwardTicketId, setForwardTicketId] = useState<string | null>(null)
   const [recipientPhone, setRecipientPhone] = useState('')
-  const [recipientEmail, setRecipientEmail] = useState('')
   const [forwarding, setForwarding] = useState(false)
   const [forwardError, setForwardError] = useState('')
   const [forwardedCode, setForwardedCode] = useState<string | null>(null)
+  const [forwardTexted, setForwardTexted] = useState(false)
 
   useEffect(() => {
     if (!sessionId) return
@@ -79,7 +79,6 @@ export default function TicketConfirmationPage({ params }: { params: { sessionId
   const openForward = (ticketId: string) => {
     setForwardTicketId(ticketId)
     setRecipientPhone('')
-    setRecipientEmail('')
     setForwardError('')
     setForwardedCode(null)
   }
@@ -91,17 +90,17 @@ export default function TicketConfirmationPage({ params }: { params: { sessionId
 
   const handleForward = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!recipientPhone && !recipientEmail) {
-      setForwardError('Enter a phone number or email address')
+    if (recipientPhone.replace(/\D/g, '').length < 10) {
+      setForwardError('Enter the recipient’s mobile phone number')
       return
     }
     setForwarding(true); setForwardError('')
     try {
       const res = await api.post(`/promoter-events/public/ticket/${forwardTicketId}/forward`, {
-        recipientPhone: recipientPhone || undefined,
-        recipientEmail: recipientEmail || undefined,
+        recipientPhone,
       })
-      setForwardedCode(res.data.code)
+      setForwardedCode(res.data.code ?? res.data.forwardCode)
+      setForwardTexted(!!res.data.sms_sent)
     } catch (err: any) {
       setForwardError(err.response?.data?.message || 'Failed to forward ticket')
     } finally {
@@ -257,7 +256,11 @@ export default function TicketConfirmationPage({ params }: { params: { sessionId
                     <Check className="w-7 h-7 text-green-500" />
                   </div>
                   <p className="font-semibold text-gray-900">Ticket forwarded!</p>
-                  <p className="text-sm text-gray-500">Share this link with the recipient:</p>
+                  <p className="text-sm text-gray-500">
+                    {forwardTexted
+                      ? `We texted ${recipientPhone} a link to the ticket. You can also share it yourself:`
+                      : 'We could not send the text. Share this link with the recipient:'}
+                  </p>
                   <div
                     className="bg-purple-50 border border-purple-200 rounded-xl py-3 px-4 cursor-pointer hover:bg-purple-100 transition-colors group relative"
                     onClick={() => {
@@ -287,7 +290,7 @@ export default function TicketConfirmationPage({ params }: { params: { sessionId
                 </div>
               ) : (
                 <form onSubmit={handleForward} className="space-y-4">
-                  <p className="text-sm text-gray-500">Send an access code to the recipient so they can view this ticket.</p>
+                  <p className="text-sm text-gray-500">We will text the recipient a link to open this ticket. All we need is their mobile number.</p>
 
                   {forwardError && (
                     <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2 text-sm">{forwardError}</div>
@@ -295,24 +298,11 @@ export default function TicketConfirmationPage({ params }: { params: { sessionId
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" /> Phone number</span>
+                      <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" /> Mobile phone number</span>
                     </label>
                     <input
-                      type="tel" value={recipientPhone} onChange={e => setRecipientPhone(e.target.value)}
+                      type="tel" required autoFocus value={recipientPhone} onChange={e => setRecipientPhone(e.target.value)}
                       placeholder="+1 (555) 000-0000"
-                      className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    />
-                  </div>
-
-                  <div className="text-center text-xs text-gray-400">— or —</div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      <span className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" /> Email address</span>
-                    </label>
-                    <input
-                      type="email" value={recipientEmail} onChange={e => setRecipientEmail(e.target.value)}
-                      placeholder="recipient@email.com"
                       className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
                     />
                   </div>
@@ -320,7 +310,7 @@ export default function TicketConfirmationPage({ params }: { params: { sessionId
                   <button type="submit" disabled={forwarding}
                     className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white font-semibold py-3 rounded-xl hover:bg-purple-700 transition-colors disabled:opacity-60">
                     {forwarding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                    Send Access Code
+                    Text the Ticket
                   </button>
                 </form>
               )}

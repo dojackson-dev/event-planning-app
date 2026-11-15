@@ -6,6 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { extractScanCode } from '../common/scan-code';
+import { normalizePhone } from '../calls/phone';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
 import Stripe from 'stripe';
@@ -808,23 +809,22 @@ export class VipService {
 
   async transferVipOrder(
     qrCode: string,
-    recipientEmail: string,
+    recipientPhone: string,
     recipientName?: string,
   ) {
-    const admin = this.supabaseService.getAdminClient();
-
-    // Validate email format
-    if (!recipientEmail || !/^[^@]+@[^@]+\.[^@]+$/.test(recipientEmail)) {
-      throw new BadRequestException('Invalid recipient email address');
+    const phone = normalizePhone(recipientPhone);
+    if (!phone) {
+      throw new BadRequestException('Enter a valid mobile phone number');
     }
+    const admin = this.supabaseService.getAdminClient();
 
     const { data: order } = await admin
       .from('vip_orders')
       .select(
         `
-        id, qr_code, buyer_email, payment_status, check_in_status, public_event_id,
+        id, qr_code, payment_status, check_in_status, public_event_id,
         vip_packages(name),
-        public_events:public_event_id(title, event_date, start_time, venue_name)
+        public_events:public_event_id(title, event_date)
       `,
       )
       .eq('qr_code', qrCode)
@@ -838,42 +838,27 @@ export class VipService {
         'This ticket has already been used for check-in',
       );
 
-    // Update buyer info
+    // buyer_email stays as the original purchase record; the new holder is reached by phone.
     const { error: updateError } = await admin
       .from('vip_orders')
-      .update({
-        buyer_email: recipientEmail,
-        buyer_name: recipientName ?? null,
-      })
+      .update({ buyer_phone: phone, buyer_name: recipientName ?? null })
       .eq('qr_code', qrCode);
-
     if (updateError) throw new BadRequestException(updateError.message);
 
-    // Re-send VIP confirmation to new recipient
-    try {
-      const event = (order as any).public_events;
-      const pkg = (order as any).vip_packages;
-      await this.mailService.sendVipConfirmation({
-        toEmail: recipientEmail,
-        buyerName: recipientName ?? null,
-        eventTitle: event?.title ?? 'Your Event',
-        eventDate: event?.event_date ?? '',
-        eventTime: event?.start_time ?? null,
-        venueName: event?.venue_name ?? null,
-        packageName: pkg?.name ?? 'VIP Package',
-        totalAmount: 0,
-        qrCode,
-        orderId: order.id,
-        eventId: order.public_event_id,
-        promoterName: null,
-      });
-    } catch (e) {
-      this.logger.warn('VIP transfer email failed, order was updated', e);
-    }
+    const event = (order as any).public_events;
+    const pkg = (order as any).vip_packages;
+    const greeting = recipientName ? `Hi ${recipientName}, y` : 'Y';
+    const smsSent = await this.smsNotifications.sendOne(
+      phone,
+      `Eventecos VIP\n${greeting}ou were sent a VIP ticket (${pkg?.name ?? 'VIP'}) to ${event?.title ?? 'an event'}. Show the QR code at the door: ${this.frontendUrl}/vip/order/${encodeURIComponent(qrCode)}`,
+    );
 
     return {
       success: true,
-      message: 'Ticket transferred — confirmation sent to ' + recipientEmail,
+      sms_sent: smsSent,
+      message: smsSent
+        ? 'Ticket transferred — a text with the QR code was sent to ' + phone
+        : 'Ticket transferred, but the text could not be sent. Share the ticket link with them directly.',
     };
   }
 

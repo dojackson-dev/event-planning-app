@@ -65,9 +65,13 @@ export default function DoorScannerPage() {
             ticket: null,
           })
         } catch (vipErr: any) {
+          // The ticket lookup came first, so a 404 here means it is neither a ticket nor a VIP code for this event.
+          const notFound = vipErr.response?.status === 404
           setResult({
             valid: false,
-            reason: vipErr.response?.data?.message || 'QR code not recognized',
+            reason: notFound
+              ? 'Ticket not found for this event. Check that this scanner is open for the right event.'
+              : vipErr.response?.data?.message || 'QR code not recognized',
             ticket: null,
           })
         }

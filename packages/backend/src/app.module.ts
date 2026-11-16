@@ -28,6 +28,7 @@ import { MessagingModule } from './messaging/messaging.module.js';
 import { ClientPortalModule } from './client-portal/client-portal.module';
 import { VendorInvoicesModule } from './vendor-invoices/vendor-invoices.module';
 import { VendorCatalogModule } from './vendor-catalog/vendor-catalog.module';
+import { StaffPayModule } from './staff-pay/staff-pay.module';
 import { VendorDoorListsModule } from './vendor-door-lists/vendor-door-lists.module';
 import { VendorPayoutsModule } from './vendor-payouts/vendor-payouts.module';
 import { AffiliatesModule } from './affiliates/affiliates.module';
@@ -87,6 +88,7 @@ import { PromoterTeamModule } from './promoter-team/promoter-team.module';
     ClientPortalModule,
     VendorInvoicesModule,
     VendorCatalogModule,
+    StaffPayModule,
     VendorDoorListsModule,
     VendorPayoutsModule,
     AffiliatesModule,

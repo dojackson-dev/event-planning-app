@@ -33,6 +33,10 @@ const RELATIONS: Record<string, Record<string, Relation>> = {
   vendor_invoice_items: {
     vendor_invoices: { fk: 'vendor_invoice_id', many: false },
   },
+  staff_shifts: {
+    staff_members: { fk: 'staff_member_id', many: false },
+    events: { fk: 'event_id', many: false },
+  },
 };
 
 export class FakeDb {
@@ -129,6 +133,14 @@ class FakeQuery {
     if (op === 'is') this.filters.push((r) => (r[key] ?? null) !== value);
     return this;
   }
+  gte(key: string, value: unknown) {
+    this.filters.push((r) => String(r[key] ?? '') >= String(value));
+    return this;
+  }
+  lte(key: string, value: unknown) {
+    this.filters.push((r) => String(r[key] ?? '') <= String(value));
+    return this;
+  }
   gt(key: string, value: number) {
     this.filters.push((r) => Number(r[key]) > value);
     return this;
@@ -155,6 +167,13 @@ class FakeQuery {
     return this;
   }
 
+  /** Writes followed by .select('..., relation(..)') return the embedded rows too, like PostgREST. */
+  private embed(row: Row): Row {
+    return this.selectCols.includes('(')
+      ? this.db.attach(this.table, row, this.selectCols)
+      : row;
+  }
+
   private run(): { data: any; error: any } {
     const table = this.db.rows(this.table);
     const matches = () => table.filter((r) => this.filters.every((f) => f(r)));
@@ -171,12 +190,12 @@ class FakeQuery {
         table.push(row);
         return row;
       });
-      return { data: created, error: null };
+      return { data: created.map((r) => this.embed(r)), error: null };
     }
     if (this.op === 'update') {
       const hit = matches();
       hit.forEach((r) => Object.assign(r, this.payload));
-      return { data: hit.map((r) => ({ ...r })), error: null };
+      return { data: hit.map((r) => this.embed({ ...r })), error: null };
     }
     if (this.op === 'delete') {
       const hit = matches();

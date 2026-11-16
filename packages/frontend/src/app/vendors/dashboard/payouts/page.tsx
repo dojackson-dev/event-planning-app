@@ -49,7 +49,9 @@ export default function PayoutsPage() {
           <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-6">
             <h4 className="text-sm font-semibold text-blue-800 mb-2">💰 How vendor payouts work</h4>
             <ul className="text-sm text-blue-700 space-y-1">
-              <li>• Funds arrive in your bank within 2 business days</li>
+              <li>• Once your account is established, funds arrive in your bank within about 2 business days</li>
+              <li>• For faster pay, add a debit card as your payout account in Stripe and use Get paid now (about 30 minutes, small fee)</li>
+              <li>• Stripe holds the first payout on a new account for about 7 to 10 days while it verifies you</li>
               <li>• Stripe handles all payment compliance and security</li>
             </ul>
             <div className="mt-3 space-y-2">

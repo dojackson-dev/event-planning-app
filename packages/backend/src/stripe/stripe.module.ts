@@ -12,6 +12,7 @@ import { MailModule } from '../mail/mail.module';
 import { VipModule } from '../vip/vip.module';
 import { NonprofitModule } from '../nonprofit/nonprofit.module';
 import { AuctionPaymentsModule } from '../auction/payments/auction-payments.module';
+import { StaffPayModule } from '../staff-pay/staff-pay.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { AuctionPaymentsModule } from '../auction/payments/auction-payments.modu
     VipModule,
     NonprofitModule,
     AuctionPaymentsModule,
+    StaffPayModule,
   ],
   controllers: [StripeController],
   providers: [StripeService],

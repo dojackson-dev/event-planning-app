@@ -11,12 +11,14 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { StaffPayService } from './staff-pay.service';
+import { StaffPayoutsService } from './staff-payouts.service';
 import { SupabaseService } from '../supabase/supabase.service';
 
 @Controller('staff-pay')
 export class StaffPayController {
   constructor(
     private readonly staffPay: StaffPayService,
+    private readonly payouts: StaffPayoutsService,
     private readonly supabaseService: SupabaseService,
   ) {}
 
@@ -53,6 +55,18 @@ export class StaffPayController {
   @Post('public/shift/:token/clock-out')
   clockOut(@Param('token') token: string) {
     return this.staffPay.clockOut(token);
+  }
+
+  // ── Worker payout setup: public, the secret link is the credential ──
+
+  @Get('public/payout-setup/:token')
+  setupView(@Param('token') token: string) {
+    return this.payouts.setupView(token);
+  }
+
+  @Post('public/payout-setup/:token/start')
+  startSetup(@Param('token') token: string) {
+    return this.payouts.startSetup(token);
   }
 
   // ── Venue owner ──
@@ -147,5 +161,49 @@ export class StaffPayController {
     @Query('to') to?: string,
   ) {
     return this.staffPay.exportCsv(await this.getUserId(auth), from, to);
+  }
+
+  // ── Paying workers ──
+
+  @Post('members/:id/payout-setup')
+  async sendSetupLink(
+    @Headers('authorization') auth: string,
+    @Param('id') id: string,
+  ) {
+    return this.payouts.sendSetupLink(await this.getUserId(auth), id);
+  }
+
+  @Get('payouts/preview')
+  async payoutPreview(@Headers('authorization') auth: string) {
+    return this.payouts.preview(await this.getUserId(auth));
+  }
+
+  @Post('payouts/checkout')
+  async payoutCheckout(
+    @Headers('authorization') auth: string,
+    @Body() body: { method?: unknown },
+  ) {
+    return this.payouts.createCheckout(await this.getUserId(auth), body ?? {});
+  }
+
+  @Get('payouts')
+  async payoutList(@Headers('authorization') auth: string) {
+    return this.payouts.list(await this.getUserId(auth));
+  }
+
+  @Post('payouts/:id/cancel')
+  async payoutCancel(
+    @Headers('authorization') auth: string,
+    @Param('id') id: string,
+  ) {
+    return this.payouts.cancel(await this.getUserId(auth), id);
+  }
+
+  @Post('payouts/:id/retry')
+  async payoutRetry(
+    @Headers('authorization') auth: string,
+    @Param('id') id: string,
+  ) {
+    return this.payouts.retry(await this.getUserId(auth), id);
   }
 }

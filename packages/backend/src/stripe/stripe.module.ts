@@ -11,6 +11,7 @@ import { MessagingModule } from '../messaging/messaging.module';
 import { MailModule } from '../mail/mail.module';
 import { VipModule } from '../vip/vip.module';
 import { NonprofitModule } from '../nonprofit/nonprofit.module';
+import { StaffPayModule } from '../staff-pay/staff-pay.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { NonprofitModule } from '../nonprofit/nonprofit.module';
     MailModule,
     VipModule,
     NonprofitModule,
+    StaffPayModule,
   ],
   controllers: [StripeController],
   providers: [StripeService],

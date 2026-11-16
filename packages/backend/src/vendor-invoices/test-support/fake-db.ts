@@ -37,6 +37,13 @@ const RELATIONS: Record<string, Record<string, Relation>> = {
     staff_members: { fk: 'staff_member_id', many: false },
     events: { fk: 'event_id', many: false },
   },
+  staff_payouts: {
+    staff_payout_items: { fk: 'id', many: true, childFk: 'payout_id' },
+  },
+  staff_payout_items: {
+    staff_members: { fk: 'staff_member_id', many: false },
+    staff_shifts: { fk: 'shift_id', many: false },
+  },
 };
 
 export class FakeDb {

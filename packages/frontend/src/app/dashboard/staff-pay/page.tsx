@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import api from '@/lib/api'
-import { Plus, Loader2, X, Download, Send, Check, Copy, UserPlus, AlertTriangle, Users, Clock } from 'lucide-react'
+import { Plus, Loader2, X, Download, Send, Check, Copy, UserPlus, AlertTriangle, Users, Clock, Banknote, CreditCard, Landmark } from 'lucide-react'
 
 type PayType = 'hourly' | 'flat'
 type Status = 'scheduled' | 'clocked_in' | 'submitted' | 'approved' | 'paid' | 'cancelled'
@@ -17,6 +17,35 @@ interface Member {
   default_rate: number
   is_active: boolean
   ytd_earned: number
+  payout_status: 'not_connected' | 'pending' | 'ready'
+}
+
+interface PreviewWorker {
+  staff_member_id: string
+  name: string
+  ready: boolean
+  amount_cents: number
+  shifts: { id: string; title: string; shift_date: string; amount_cents: number }[]
+}
+
+interface Quote { payroll_cents: number; service_fee_cents: number; processing_fee_cents: number; total_cents: number }
+
+interface PayPreview {
+  workers: PreviewWorker[]
+  payable_cents: number
+  waiting_cents: number
+  quotes: { card: Quote | null; bank: Quote | null }
+  open_payouts: { id: string; status: string; total_cents: number; created_at: string }[]
+}
+
+interface Payout {
+  id: string
+  status: 'pending_payment' | 'processing' | 'transferring' | 'completed' | 'needs_attention' | 'cancelled'
+  pay_method: 'card' | 'bank'
+  payroll_cents: number
+  total_cents: number
+  created_at: string
+  staff_payout_items: { id: string; amount_cents: number; status: 'pending' | 'transferred' | 'failed'; error: string | null }[]
 }
 
 interface Shift {
@@ -42,6 +71,23 @@ interface Shift {
 interface EventOption { id: string; name: string; date?: string }
 
 const money = (n: number | null | undefined) => `$${Number(n ?? 0).toFixed(2)}`
+const cents = (c: number | null | undefined) => money(Number(c ?? 0) / 100)
+const PAYOUT_LABEL: Record<Payout['status'], string> = {
+  pending_payment: 'Waiting for your payment',
+  processing: 'Bank payment clearing',
+  transferring: 'Paying workers',
+  completed: 'Workers paid',
+  needs_attention: 'Needs attention',
+  cancelled: 'Cancelled',
+}
+const PAYOUT_STYLE: Record<Payout['status'], string> = {
+  pending_payment: 'bg-amber-100 text-amber-800',
+  processing: 'bg-blue-100 text-blue-700',
+  transferring: 'bg-blue-100 text-blue-700',
+  completed: 'bg-green-100 text-green-700',
+  needs_attention: 'bg-red-100 text-red-700',
+  cancelled: 'bg-gray-100 text-gray-500',
+}
 const hours = (m: number | null | undefined) => (m === null || m === undefined ? '' : `${(m / 60).toFixed(2)} h`)
 const fmtDate = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 const fmtTime = (t: string | null) => {
@@ -74,7 +120,10 @@ const STATUS_LABEL: Record<Status, string> = {
 const inputClass = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500'
 
 export default function StaffPayPage() {
-  const [tab, setTab] = useState<'shifts' | 'staff'>('shifts')
+  const [tab, setTab] = useState<'shifts' | 'staff' | 'payments'>('shifts')
+  const [preview, setPreview] = useState<PayPreview | null>(null)
+  const [payouts, setPayouts] = useState<Payout[]>([])
+  const [payModal, setPayModal] = useState(false)
   const [members, setMembers] = useState<Member[] | null>(null)
   const [shifts, setShifts] = useState<Shift[] | null>(null)
   const [events, setEvents] = useState<EventOption[]>([])
@@ -90,9 +139,16 @@ export default function StaffPayPage() {
 
   const load = useCallback(async () => {
     try {
-      const [m, s] = await Promise.all([api.get<Member[]>('/staff-pay/members'), api.get<Shift[]>('/staff-pay/shifts')])
+      const [m, s, pv, po] = await Promise.all([
+        api.get<Member[]>('/staff-pay/members'),
+        api.get<Shift[]>('/staff-pay/shifts'),
+        api.get<PayPreview>('/staff-pay/payouts/preview'),
+        api.get<Payout[]>('/staff-pay/payouts'),
+      ])
       setMembers(m.data)
       setShifts(s.data)
+      setPreview(pv.data)
+      setPayouts(po.data)
       setLoadError('')
     } catch (err) {
       setLoadError(errorText(err, 'We could not load staff pay. Please refresh to try again.'))
@@ -101,6 +157,9 @@ export default function StaffPayPage() {
 
   useEffect(() => {
     load()
+    const q = new URLSearchParams(window.location.search)
+    if (q.get('paid')) setNotice('Payment received. Your workers are being paid now; this page updates as each transfer goes through.')
+    else if (q.get('canceled')) setNotice('Payment canceled. Nothing was charged, and your approved shifts are still ready to pay.')
     api.get('/events').then(r => setEvents((r.data ?? []).filter((e: any) => e.status !== 'cancelled'))).catch(() => {})
   }, [load])
 
@@ -175,7 +234,17 @@ export default function StaffPayPage() {
             </div>
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <p className="text-xs text-gray-500">Approved, ready to pay</p>
-              <p className="text-2xl font-bold text-green-600">{money(approvedTotal)}</p>
+              <p className="text-2xl font-bold text-green-600">{cents(preview?.payable_cents ?? Math.round(approvedTotal * 100))}</p>
+              {(preview?.waiting_cents ?? 0) > 0 && (
+                <p className="text-xs text-amber-700">{cents(preview?.waiting_cents)} waiting on workers to connect a bank</p>
+              )}
+              <button
+                onClick={() => setPayModal(true)}
+                disabled={!preview || preview.payable_cents < 100}
+                className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-40"
+              >
+                <Banknote className="w-3.5 h-3.5" /> Pay workers
+              </button>
             </div>
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <p className="text-xs text-gray-500 mb-2">Export approved shifts (CSV)</p>
@@ -190,9 +259,9 @@ export default function StaffPayPage() {
           </div>
 
           <div className="flex gap-1 border-b border-gray-200 mb-4">
-            {(['shifts', 'staff'] as const).map(t => (
+            {(['shifts', 'staff', 'payments'] as const).map(t => (
               <button key={t} onClick={() => setTab(t)} className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${tab === t ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-                {t === 'shifts' ? 'Shifts' : `Staff (${members?.length ?? 0})`}
+                {t === 'shifts' ? 'Shifts' : t === 'staff' ? `Staff (${members?.length ?? 0})` : 'Payments'}
               </button>
             ))}
           </div>
@@ -263,7 +332,7 @@ export default function StaffPayPage() {
               <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 text-xs text-gray-500 text-left">
-                    <tr><th className="px-4 py-2">Name</th><th className="px-4 py-2">Phone</th><th className="px-4 py-2">Default pay</th><th className="px-4 py-2 text-right">Earned this year</th><th className="px-4 py-2" /></tr>
+                    <tr><th className="px-4 py-2">Name</th><th className="px-4 py-2">Phone</th><th className="px-4 py-2">Default pay</th><th className="px-4 py-2">Bank</th><th className="px-4 py-2 text-right">Earned this year</th><th className="px-4 py-2" /></tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {(members ?? []).map(m => (
@@ -271,6 +340,18 @@ export default function StaffPayPage() {
                         <td className="px-4 py-2"><p className="font-medium text-gray-900">{m.name}</p>{m.job_title && <p className="text-xs text-gray-500">{m.job_title}</p>}</td>
                         <td className="px-4 py-2 text-gray-600">{m.phone}</td>
                         <td className="px-4 py-2 text-gray-600">{m.default_pay_type === 'hourly' ? `${money(m.default_rate)}/hr` : `${money(m.default_rate)} flat`}</td>
+                        <td className="px-4 py-2">
+                          {m.payout_status === 'ready' ? (
+                            <span className="text-xs font-medium text-green-700 bg-green-50 rounded-full px-2 py-0.5">Ready to be paid</span>
+                          ) : (
+                            <button
+                              onClick={() => act(async () => { const r = await api.post(`/staff-pay/members/${m.id}/payout-setup`); if (!r.data.texted) throw { response: { data: { message: 'The text could not be sent. Ask them to open this link: ' + r.data.link } } } }, 'Setup link texted.')}
+                              className="text-xs text-primary-600 hover:underline"
+                            >
+                              {m.payout_status === 'pending' ? 'Setup unfinished · text link again' : 'Text bank setup link'}
+                            </button>
+                          )}
+                        </td>
                         <td className="px-4 py-2 text-right font-medium">{money(m.ytd_earned)}</td>
                         <td className="px-4 py-2 text-right whitespace-nowrap">
                           <button onClick={() => setMemberModal(m)} className="text-xs text-primary-600 hover:underline mr-3">Edit</button>
@@ -286,6 +367,51 @@ export default function StaffPayPage() {
         </>
       )}
 
+      {tab === 'payments' && (
+        payouts.length === 0 ? (
+          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-500">
+            <Banknote className="w-10 h-10 mx-auto mb-3 opacity-30" />
+            <p className="font-medium">No payments yet</p>
+            <p className="text-sm text-gray-400 mt-1">Approved shifts can be paid with one payment. Workers receive their share automatically.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {payouts.map(po => {
+              const failed = po.staff_payout_items.filter(i => i.status === 'failed')
+              return (
+                <div key={po.id} className="bg-white rounded-xl border border-gray-200 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="font-semibold text-gray-900">{cents(po.payroll_cents)} to {po.staff_payout_items.length} shift{po.staff_payout_items.length === 1 ? '' : 's'}</p>
+                      <p className="text-xs text-gray-500">
+                        {new Date(po.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · you paid {cents(po.total_cents)} by {po.pay_method === 'bank' ? 'bank account' : 'card'}
+                      </p>
+                    </div>
+                    <span className={`text-xs font-medium rounded-full px-2.5 py-1 ${PAYOUT_STYLE[po.status]}`}>{PAYOUT_LABEL[po.status]}</span>
+                  </div>
+                  {failed.length > 0 && (
+                    <p className="mt-2 text-xs text-red-700 bg-red-50 rounded-lg px-3 py-2">
+                      {failed.length} transfer{failed.length === 1 ? '' : 's'} did not go through ({failed[0].error ?? 'unknown reason'}). Your payment is safe; retry once the worker&apos;s account is fixed.
+                    </p>
+                  )}
+                  <div className="mt-3 flex gap-2">
+                    {po.status === 'needs_attention' && (
+                      <button onClick={() => act(() => api.post(`/staff-pay/payouts/${po.id}/retry`), 'Retried.')} className="px-3 py-1.5 bg-gray-900 text-white rounded-lg text-xs hover:bg-gray-700">Retry failed transfers</button>
+                    )}
+                    {po.status === 'pending_payment' && (
+                      <button onClick={() => act(() => api.post(`/staff-pay/payouts/${po.id}/cancel`), 'Payment canceled.')} className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs hover:bg-gray-50">Cancel this payment</button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )
+      )}
+
+      {payModal && preview && (
+        <PayModal preview={preview} onClose={() => setPayModal(false)} onResend={(id) => act(async () => { const r = await api.post(`/staff-pay/members/${id}/payout-setup`); if (!r.data.texted) throw { response: { data: { message: 'The text could not be sent. Ask them to open this link: ' + r.data.link } } } }, 'Setup link texted.')} />
+      )}
       {shiftModal && members && (
         <ShiftModal members={members.filter(m => m.is_active)} events={events} onClose={() => setShiftModal(false)} onDone={(text) => { setShiftModal(false); flash(text); load() }} />
       )}
@@ -493,6 +619,82 @@ function ApproveModal({ shift, onClose, onDone }: { shift: Shift; onClose: () =>
         {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
         <button disabled={saving} className="w-full py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-60">{saving ? 'Approving…' : `Approve ${money(amount)}`}</button>
       </form>
+    </Modal>
+  )
+}
+
+function PayModal({ preview, onClose, onResend }: { preview: PayPreview; onClose: () => void; onResend: (memberId: string) => void }) {
+  const [method, setMethod] = useState<'card' | 'bank'>('card')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const quote = preview.quotes[method] ?? preview.quotes.card
+  const ready = preview.workers.filter(w => w.ready)
+  const waiting = preview.workers.filter(w => !w.ready)
+
+  const pay = async () => {
+    setBusy(true)
+    setError('')
+    try {
+      const res = await api.post<{ url: string }>('/staff-pay/payouts/checkout', { method })
+      window.location.href = res.data.url
+    } catch (err) {
+      setError(errorText(err, 'We could not start the payment. Nothing was charged.'))
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal title="Pay your workers" onClose={onClose}>
+      <div className="space-y-4">
+        <div>
+          <p className="text-xs font-medium text-gray-600 mb-1">Paying now</p>
+          <div className="border border-gray-200 rounded-lg divide-y divide-gray-100">
+            {ready.map(w => (
+              <div key={w.staff_member_id} className="flex items-center justify-between px-3 py-2 text-sm">
+                <span>{w.name} <span className="text-xs text-gray-400">· {w.shifts.length} shift{w.shifts.length === 1 ? '' : 's'}</span></span>
+                <span className="font-medium">{cents(w.amount_cents)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {waiting.length > 0 && (
+          <div>
+            <p className="text-xs font-medium text-amber-700 mb-1">Not included: they have not connected a bank yet</p>
+            <div className="border border-amber-200 bg-amber-50 rounded-lg divide-y divide-amber-100">
+              {waiting.map(w => (
+                <div key={w.staff_member_id} className="flex items-center justify-between px-3 py-2 text-sm">
+                  <span>{w.name} <span className="text-xs text-gray-500">· {cents(w.amount_cents)}</span></span>
+                  <button onClick={() => onResend(w.staff_member_id)} className="text-xs text-primary-700 hover:underline">Text setup link</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {quote && (
+          <>
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setMethod('card')} className={`flex items-center justify-center gap-2 border rounded-lg py-2 text-sm ${method === 'card' ? 'border-primary-600 bg-primary-50 text-primary-700' : 'border-gray-300'}`}><CreditCard className="w-4 h-4" /> Card</button>
+              <button type="button" onClick={() => setMethod('bank')} disabled={!preview.quotes.bank} title={preview.quotes.bank ? '' : 'Bank payment is not turned on for your account'} className={`flex items-center justify-center gap-2 border rounded-lg py-2 text-sm disabled:opacity-40 ${method === 'bank' ? 'border-primary-600 bg-primary-50 text-primary-700' : 'border-gray-300'}`}><Landmark className="w-4 h-4" /> Bank account</button>
+            </div>
+            <div className="text-sm space-y-1 border-t border-gray-100 pt-3">
+              <div className="flex justify-between"><span className="text-gray-600">Staff pay</span><span>{cents(quote.payroll_cents)}</span></div>
+              {quote.service_fee_cents > 0 && <div className="flex justify-between"><span className="text-gray-600">EventEcos service fee</span><span>{cents(quote.service_fee_cents)}</span></div>}
+              <div className="flex justify-between"><span className="text-gray-600">Payment processing</span><span>{cents(quote.processing_fee_cents)}</span></div>
+              <div className="flex justify-between font-semibold text-gray-900 pt-1 border-t border-gray-100"><span>You pay</span><span>{cents(quote.total_cents)}</span></div>
+            </div>
+            <p className="text-xs text-gray-500">
+              Workers receive the full amounts above, sent to their bank on Stripe&apos;s normal schedule. Bank payments take a few days to clear before workers are paid.
+            </p>
+          </>
+        )}
+
+        {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+        <button onClick={pay} disabled={busy || !quote} className="w-full py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-60 flex items-center justify-center gap-2">
+          {busy && <Loader2 className="w-4 h-4 animate-spin" />} {quote ? `Pay ${cents(quote.total_cents)}` : 'Nothing to pay'}
+        </button>
+      </div>
     </Modal>
   )
 }

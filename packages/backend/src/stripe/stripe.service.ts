@@ -6,6 +6,7 @@ import {
   forwardRef,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { StaffPayoutsService } from '../staff-pay/staff-payouts.service';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { syncEventAfterPayment } from '../payments/event-payment-sync';
@@ -60,6 +61,7 @@ export class StripeService {
     private readonly mailService: MailService,
     private readonly vipService: VipService,
     private readonly sponsorshipCheckout: SponsorshipCheckoutService,
+    private readonly staffPayouts: StaffPayoutsService,
   ) {
     const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (!secretKey) {
@@ -506,6 +508,10 @@ export class StripeService {
       case 'checkout.session.async_payment_failed':
         await this.handleAsyncPaymentFailed(event.data.object);
         break;
+      case 'checkout.session.expired':
+        if (event.data.object.metadata?.staff_payout_id)
+          await this.staffPayouts.onPaymentFailed(event.data.object);
+        break;
       case 'payment_intent.succeeded':
         await this.handlePaymentIntentSucceeded(event.data.object);
         break;
@@ -586,6 +592,10 @@ export class StripeService {
   private async handleCheckoutComplete(
     session: Stripe.Checkout.Session,
   ): Promise<void> {
+    if (session.metadata?.staff_payout_id) {
+      await this.staffPayouts.onCheckoutCompleted(session);
+      return;
+    }
     const invoiceId = session.metadata?.invoice_id;
     // ACH Direct Debit: payment_status is 'processing' until funds settle (3-5 days).
     // payment_intent.succeeded fires when ACH actually clears.
@@ -813,6 +823,10 @@ export class StripeService {
   private async handleAsyncPaymentSucceeded(
     session: Stripe.Checkout.Session,
   ): Promise<void> {
+    if (session.metadata?.staff_payout_id) {
+      await this.staffPayouts.onAsyncPaymentSucceeded(session);
+      return;
+    }
     const paymentIntentId =
       typeof session.payment_intent === 'string'
         ? session.payment_intent
@@ -866,6 +880,10 @@ export class StripeService {
     session: Stripe.Checkout.Session,
   ): Promise<void> {
     this.logger.warn(`Async payment failed — session ${session.id}`);
+    if (session.metadata?.staff_payout_id) {
+      await this.staffPayouts.onPaymentFailed(session);
+      return;
+    }
     const admin = this.supabaseService.getAdminClient();
 
     if (session.metadata?.invoice_id) {
@@ -2676,6 +2694,9 @@ export class StripeService {
    * Handle account.updated webhook — mark Connect account active when onboarding complete.
    */
   async handleConnectAccountUpdated(account: Stripe.Account): Promise<void> {
+    // A staff member's own connected account, set up through a payout link.
+    if (await this.staffPayouts.handleAccountUpdated(account)) return;
+
     const isActive =
       account.details_submitted &&
       account.charges_enabled &&

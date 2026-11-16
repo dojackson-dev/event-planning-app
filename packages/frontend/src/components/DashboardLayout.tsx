@@ -34,6 +34,7 @@ import {
   Megaphone,
   Music,
   ExternalLink,
+  Clock,
   Plus,
 } from 'lucide-react'
 
@@ -227,6 +228,7 @@ const ALL_NAV = [
   { name: 'Messages',       href: '/dashboard/messages',     icon: MessageSquare,   ownerOnly: false },
   { name: 'Vendors',        href: '/dashboard/vendors',      icon: Store,           ownerOnly: false },
   { name: 'Vendor Invoices', href: '/dashboard/vendor-invoices', icon: Receipt,     ownerOnly: false },
+  { name: 'Staff Pay',      href: '/dashboard/staff-pay',    icon: Clock,           ownerOnly: true  },
   { name: 'Team',           href: '/dashboard/team',         icon: Users,           ownerOnly: true  },
 ]
 

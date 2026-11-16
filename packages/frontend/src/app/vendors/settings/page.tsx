@@ -458,7 +458,9 @@ export default function VendorSettingsPage() {
                     <li>• Event owners pay you directly through EventEcos</li>
                     <li>• EventEcos collects a <strong>3% platform fee</strong> per transaction</li>
                     <li>• The payer covers payment processing (3.1% + 30¢ for cards, 6% + 30¢ for pay later)</li>
-                    <li>• Funds arrive in your bank within 2 business days after payout</li>
+                    <li>• Once your account is established, funds arrive in your bank within about 2 business days</li>
+                    <li>• <strong>Want it faster?</strong> Add a <strong>debit card</strong> as your payout account when Stripe asks, then use <strong>Get paid now</strong> on the Payouts page for money in about 30 minutes (small fee)</li>
+                    <li>• Stripe holds the first payout on every new account for about 7 to 10 days while it verifies you. EventEcos cannot shorten that hold, and instant payouts start once it clears</li>
                     <li>• All payment handling is secure and managed by Stripe</li>
                   </ul>
                 </div>

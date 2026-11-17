@@ -43,15 +43,22 @@ export function quotePayout(
   };
 }
 
-/** A worker can be paid once their Stripe account is set up and able to receive transfers. */
+/**
+ * A worker can be paid once their Stripe account is set up, can receive transfers, and has given the tax
+ * information needed to report their pay (the 1099 capability only turns active once Stripe has it).
+ */
 export function accountReadyForTransfers(account: {
   details_submitted?: boolean | null;
   payouts_enabled?: boolean | null;
-  capabilities?: { transfers?: string | null } | null;
+  capabilities?: {
+    transfers?: string | null;
+    tax_reporting_us_1099_misc?: string | null;
+  } | null;
 }): boolean {
   return (
     !!account.details_submitted &&
     !!account.payouts_enabled &&
-    account.capabilities?.transfers === 'active'
+    account.capabilities?.transfers === 'active' &&
+    account.capabilities?.tax_reporting_us_1099_misc === 'active'
   );
 }

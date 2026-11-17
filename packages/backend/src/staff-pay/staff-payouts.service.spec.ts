@@ -83,6 +83,7 @@ function setup(opts: { fee?: string; bank?: boolean } = {}) {
   const stripe: any = {
     accounts: {
       create: jest.fn().mockResolvedValue({ id: 'acct_new' }),
+      update: jest.fn().mockResolvedValue({}),
       retrieve: jest.fn(),
     },
     accountLinks: {
@@ -184,7 +185,10 @@ describe('worker payout setup', () => {
       id: 'acct_new',
       details_submitted: true,
       payouts_enabled: true,
-      capabilities: { transfers: 'active' },
+      capabilities: {
+        transfers: 'active',
+        tax_reporting_us_1099_misc: 'active',
+      },
     });
     const token = (await service.sendSetupLink(OWNER, M_NEW)).link
       .split('/')
@@ -196,6 +200,58 @@ describe('worker payout setup', () => {
     expect(db.rows('staff_members')[1].payout_status).toBe('ready');
   });
 
+  it('keeps the worker pending until Stripe has their tax details, so every payment can be reported', async () => {
+    const { service, stripe, db } = setup();
+    db.rows('staff_members')[1].stripe_account_id = 'acct_new';
+    db.rows('staff_members')[1].payout_status = 'pending';
+    stripe.accounts.retrieve.mockResolvedValue({
+      id: 'acct_new',
+      details_submitted: true,
+      payouts_enabled: true,
+      capabilities: {
+        transfers: 'active',
+        tax_reporting_us_1099_misc: 'inactive',
+      },
+    });
+    const token = (await service.sendSetupLink(OWNER, M_NEW)).link
+      .split('/')
+      .pop()!;
+    expect(await service.setupView(token)).toMatchObject({
+      status: 'pending',
+    });
+    expect(db.rows('staff_members')[1].payout_status).toBe('pending');
+  });
+
+  it('asks Stripe to collect tax details on new accounts and adds that to older ones', async () => {
+    const { service, stripe } = setup();
+    const token = (await service.sendSetupLink(OWNER, M_NEW)).link
+      .split('/')
+      .pop()!;
+    await service.startSetup(token);
+    expect(stripe.accounts.create.mock.calls[0][0].capabilities).toMatchObject({
+      transfers: { requested: true },
+      tax_reporting_us_1099_misc: { requested: true },
+    });
+    expect(stripe.accounts.update).not.toHaveBeenCalled();
+
+    await service.startSetup(token);
+    expect(stripe.accounts.update).toHaveBeenCalledWith('acct_new', {
+      capabilities: { tax_reporting_us_1099_misc: { requested: true } },
+    });
+  });
+
+  it('still opens the setup page if adding the capability to an older account fails', async () => {
+    const { service, stripe } = setup();
+    const token = (await service.sendSetupLink(OWNER, M_NEW)).link
+      .split('/')
+      .pop()!;
+    await service.startSetup(token);
+    stripe.accounts.update.mockRejectedValue(new Error('nope'));
+    expect((await service.startSetup(token)).url).toContain(
+      'connect.stripe.com',
+    );
+  });
+
   it('updates from the account.updated webhook, but only for a matching worker account', async () => {
     const { service, db } = setup();
     const ready = {
@@ -203,7 +259,10 @@ describe('worker payout setup', () => {
       metadata: { staff_member_id: M_READY },
       details_submitted: true,
       payouts_enabled: false,
-      capabilities: { transfers: 'active' },
+      capabilities: {
+        transfers: 'active',
+        tax_reporting_us_1099_misc: 'active',
+      },
     } as any;
     expect(await service.handleAccountUpdated(ready)).toBe(true);
     expect(db.rows('staff_members')[0].payout_status).toBe('pending');

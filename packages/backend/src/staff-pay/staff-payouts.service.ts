@@ -182,6 +182,8 @@ export class StaffPayoutsService {
           capabilities: {
             card_payments: { requested: true },
             transfers: { requested: true },
+            // Makes Stripe collect the tax ID and details needed to report the worker's pay on a 1099.
+            tax_reporting_us_1099_misc: { requested: true },
           },
           business_profile: {
             url: this.frontendUrl,
@@ -200,6 +202,17 @@ export class StaffPayoutsService {
           updated_at: new Date().toISOString(),
         })
         .eq('id', member.id);
+    } else {
+      // Accounts made before tax reporting was added get the capability the next time they open the link.
+      await this.client.accounts
+        .update(accountId, {
+          capabilities: { tax_reporting_us_1099_misc: { requested: true } },
+        })
+        .catch((err: Error) =>
+          this.logger.warn(
+            `Could not request tax reporting for ${accountId}: ${err.message}`,
+          ),
+        );
     }
     const back = `${this.frontendUrl}/payout-setup/${token}`;
     const link = await this.client.accountLinks.create({

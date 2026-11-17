@@ -54,21 +54,38 @@ describe('parseServiceFeePercent', () => {
 });
 
 describe('accountReadyForTransfers', () => {
-  it('needs details submitted, payouts enabled and the transfers capability active', () => {
+  const ready = {
+    details_submitted: true,
+    payouts_enabled: true,
+    capabilities: { transfers: 'active', tax_reporting_us_1099_misc: 'active' },
+  };
+
+  it('needs details, payouts, transfers and the 1099 capability all active', () => {
+    expect(accountReadyForTransfers(ready)).toBe(true);
     expect(
       accountReadyForTransfers({
-        details_submitted: true,
-        payouts_enabled: true,
-        capabilities: { transfers: 'active' },
-      }),
-    ).toBe(true);
-    expect(
-      accountReadyForTransfers({
-        details_submitted: true,
-        payouts_enabled: true,
-        capabilities: { transfers: 'inactive' },
+        ...ready,
+        capabilities: { ...ready.capabilities, transfers: 'inactive' },
       }),
     ).toBe(false);
     expect(accountReadyForTransfers({ details_submitted: false })).toBe(false);
+  });
+
+  it('does not count a worker whose tax details Stripe does not have yet', () => {
+    expect(
+      accountReadyForTransfers({
+        ...ready,
+        capabilities: {
+          transfers: 'active',
+          tax_reporting_us_1099_misc: 'inactive',
+        },
+      }),
+    ).toBe(false);
+    expect(
+      accountReadyForTransfers({
+        ...ready,
+        capabilities: { transfers: 'active' },
+      }),
+    ).toBe(false);
   });
 });

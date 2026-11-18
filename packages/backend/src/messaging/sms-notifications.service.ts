@@ -243,11 +243,18 @@ export class SmsNotificationsService {
     eventName: string,
     date: string,
     location?: string,
-  ): Promise<void> {
+    extra?: { reportTime?: string; post?: string; checkInUrl?: string },
+  ): Promise<boolean> {
     const loc = location ? ` at ${location}` : '';
-    await this.trySend(
+    const when = extra?.reportTime ? `, report at ${extra.reportTime}` : '';
+    const post = extra?.post ? ` Your post: ${extra.post}.` : '';
+    // Guards have no login, so they get a personal link that checks them in when they arrive.
+    const action = extra?.checkInUrl
+      ? ` When you arrive, tap to check in: ${extra.checkInUrl}`
+      : ` Please confirm your availability. Log in: ${this.url('/vendor-portal/login')}`;
+    return this.sendOne(
       phone,
-      `EventEcos Security Message\nHi ${name}, you have been assigned to security for "${eventName}" on ${date}${loc}. Please confirm your availability. Log in: ${this.url('/vendor-portal/login')}`,
+      `EventEcos Security Message\nHi ${name}, you have been assigned to security for "${eventName}" on ${date}${loc}${when}.${post}${action}`,
     );
   }
 

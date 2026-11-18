@@ -2,6 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service.js';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
+import { randomBytes } from 'crypto';
+import { resolveFrontendUrl } from '../common/public-url';
+import { fmtTime } from './security-rules';
 
 @Injectable()
 export class SecurityService {
@@ -60,6 +63,7 @@ export class SecurityService {
     const row: any = {
       ...rest,
       owner_id: ownerId,
+      check_in_token: randomBytes(16).toString('hex'),
       ...(eventId !== undefined && { event_id: eventId }),
       ...(arrivalTime !== undefined && { arrival_time: arrivalTime }),
     };
@@ -104,6 +108,13 @@ export class SecurityService {
         eventName,
         eventDate,
         location,
+        {
+          reportTime: fmtTime(data.report_time) || undefined,
+          post: data.post ?? undefined,
+          checkInUrl: data.check_in_token
+            ? `${resolveFrontendUrl(process.env) ?? 'https://www.eventecos.com'}/security/check-in/${data.check_in_token}`
+            : undefined,
+        },
       );
     } catch {
       // SMS errors must never break security creation
@@ -155,7 +166,10 @@ export class SecurityService {
   ): Promise<any> {
     const { data, error } = await supabase
       .from('security')
-      .update({ arrival_time: new Date().toISOString() })
+      .update({
+        arrival_time: new Date().toISOString(),
+        arrival_source: 'manager',
+      })
       .eq('id', id)
       .eq('owner_id', ownerId)
       .select('*, event:event(*)')

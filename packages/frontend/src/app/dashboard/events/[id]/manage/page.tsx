@@ -39,6 +39,7 @@ import {
   MessageSquare
 } from 'lucide-react';
 import EventSecurity from '@/components/events/EventSecurity';
+import EventStaff from '@/components/staffpay/EventStaff';
 import api from '@/lib/api';
 import { Event, EventType, ClientStatus, ContractStatus, InsuranceStatus } from '@/types';
 import EventNotes from '@/components/events/EventNotes';
@@ -1940,6 +1941,15 @@ export default function EventManagementPage() {
                   </>
                 )}
               </div>
+            </div>
+
+            {/* Staff */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
+                <Users className="h-5 w-5 mr-2 text-primary-600" />
+                Staff
+              </h2>
+              <EventStaff event={{ id: eventId, name: formData.eventName || 'this event', date: formData.eventDate, startTime: formData.startTime, endTime: formData.endTime }} />
             </div>
 
             {/* Door List */}

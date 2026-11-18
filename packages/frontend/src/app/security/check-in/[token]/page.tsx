@@ -15,6 +15,9 @@ interface Assignment {
   notes: string | null
   arrived: boolean
   arrival_time: string | null
+  paid: boolean
+  left: boolean
+  left_time: string | null
 }
 
 const fmtDate = (d: string) =>
@@ -48,11 +51,11 @@ export default function SecurityCheckInPage() {
 
   useEffect(() => { load() }, [load])
 
-  const arrive = async () => {
+  const arrive = async (action: 'arrive' | 'leave' = 'arrive') => {
     setBusy(true)
     setActionError('')
     try {
-      const res = await fetch(`${API_URL}/security/public/check-in/${token}/arrive`, { method: 'POST' })
+      const res = await fetch(`${API_URL}/security/public/check-in/${token}/${action}`, { method: 'POST' })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(body.message || 'That did not work. Please try again.')
       setA(body)
@@ -99,14 +102,24 @@ export default function SecurityCheckInPage() {
           {a.arrived ? (
             <div className="text-center">
               <CheckCircle2 className="w-12 h-12 text-green-600 mx-auto mb-2" />
-              <p className="font-semibold text-gray-900">You are checked in</p>
-              {a.arrival_time && <p className="text-sm text-gray-500">Arrived at {fmtStamp(a.arrival_time)}</p>}
+              <p className="font-semibold text-gray-900">{a.left ? 'Thanks, your hours were sent' : 'You are checked in'}</p>
+              {a.arrival_time && <p className="text-sm text-gray-500">Arrived at {fmtStamp(a.arrival_time)}{a.left && a.left_time ? ` · left at ${fmtStamp(a.left_time)}` : ''}</p>}
+              {a.left && <p className="text-xs text-gray-400 mt-2">Your manager approves your hours before you are paid.</p>}
+              {a.paid && !a.left && (
+                <button
+                  onClick={() => arrive('leave')}
+                  disabled={busy}
+                  className="mt-4 w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white font-semibold text-lg py-4 rounded-xl disabled:opacity-60"
+                >
+                  {busy && <Loader2 className="w-5 h-5 animate-spin" />} I am leaving (end my shift)
+                </button>
+              )}
             </div>
           ) : (
             <>
               <p className="text-sm text-gray-500 text-center mb-3">Tap when you arrive so your manager knows you are on site.</p>
               <button
-                onClick={arrive}
+                onClick={() => arrive('arrive')}
                 disabled={busy}
                 className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold text-lg py-4 rounded-xl disabled:opacity-60"
               >

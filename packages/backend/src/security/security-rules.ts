@@ -77,3 +77,30 @@ export const fmtEventDate = (d?: string | null): string =>
         { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' },
       )
     : '';
+
+export interface GuardPay {
+  pay_type: 'hourly' | 'flat';
+  rate: number;
+}
+
+/** What each guard in a request is paid, or null when the guards are not being paid through EventEcos. */
+export function sanitizePay(input: unknown): GuardPay | null {
+  if (input === undefined || input === null) return null;
+  const p = input as Record<string, unknown>;
+  if (p.pay_type !== 'hourly' && p.pay_type !== 'flat')
+    throw new BadRequestException('Choose hourly or flat pay.');
+  const rate =
+    typeof p.rate === 'string' && p.rate.trim() !== ''
+      ? Number(p.rate)
+      : p.rate;
+  if (
+    typeof rate !== 'number' ||
+    !Number.isFinite(rate) ||
+    rate <= 0 ||
+    rate > 100_000
+  )
+    throw new BadRequestException(
+      'Enter what each guard is paid (more than $0).',
+    );
+  return { pay_type: p.pay_type, rate: Math.round(rate * 100) / 100 };
+}

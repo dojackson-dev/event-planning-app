@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Delete,
   Param,
   Post,
   Headers,
@@ -45,6 +46,11 @@ export class SecurityEventsController {
   @Post('public/check-in/:token/arrive')
   publicArrive(@Param('token') token: string) {
     return this.security.publicArrive(token);
+  }
+
+  @Post('public/check-in/:token/leave')
+  publicLeave(@Param('token') token: string) {
+    return this.security.publicLeave(token);
   }
 
   // ── Venue owner, per event ──
@@ -97,5 +103,13 @@ export class SecurityEventsController {
       id,
       body?.arrived !== false,
     );
+  }
+
+  @Delete('guard/:id')
+  async remove(
+    @Headers('authorization') auth: string,
+    @Param('id') id: string,
+  ) {
+    return this.security.remove(await this.getUserId(auth), id);
   }
 }

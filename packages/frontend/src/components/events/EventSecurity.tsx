@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import api from '@/lib/api'
-import { Shield, Plus, X, Loader2, Send, Copy, Check, Trash2, UserPlus, Undo2 } from 'lucide-react'
+import Link from 'next/link'
+import { Shield, Plus, X, Loader2, Send, Copy, Check, Trash2, UserPlus, Undo2, Banknote } from 'lucide-react'
 
 interface Guard {
   id: string
@@ -14,7 +15,18 @@ interface Guard {
   arrival_time: string | null
   arrival_source: 'guard' | 'manager' | null
   check_in_link: string
+  shift: { id: string; status: 'scheduled' | 'clocked_in' | 'submitted' | 'approved' | 'paid' | 'cancelled'; pay_type: 'hourly' | 'flat'; rate: number; approved_amount: number | null } | null
 }
+
+const PAY_LABEL: Record<string, string> = {
+  scheduled: 'Pay set up',
+  clocked_in: 'Working',
+  submitted: 'Hours need approval',
+  approved: 'Approved, ready to pay',
+  paid: 'Paid',
+  cancelled: 'Shift cancelled',
+}
+const money = (n: number | null | undefined) => `$${Number(n ?? 0).toFixed(2)}`
 
 interface Person { name: string; phone: string }
 
@@ -91,6 +103,13 @@ export default function EventSecurity({ eventId, needed }: { eventId: string; ne
                   <p className="text-xs text-gray-500">
                     {g.phone}{g.report_time && ` · report ${fmtTime(g.report_time)}`}{g.post && ` · ${g.post}`}
                   </p>
+                  {g.shift && (
+                    <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
+                      <Banknote className="w-3 h-3 text-gray-400" />
+                      {g.shift.pay_type === 'hourly' ? `${money(g.shift.rate)}/hr` : `${money(g.shift.rate)} flat`} · {PAY_LABEL[g.shift.status] ?? g.shift.status}
+                      {g.shift.status === 'submitted' && <Link href="/dashboard/staff-pay" className="ml-1 text-primary-600 hover:underline">Approve in Staff Pay</Link>}
+                    </p>
+                  )}
                 </div>
                 {g.arrival_time ? (
                   <span className="text-xs font-medium text-green-700 bg-green-50 rounded-full px-2.5 py-1">
@@ -110,7 +129,7 @@ export default function EventSecurity({ eventId, needed }: { eventId: string; ne
                     <button type="button" onClick={() => { navigator.clipboard.writeText(g.check_in_link); flash('Link copied.') }} className="inline-flex items-center gap-1 text-xs text-gray-600 hover:bg-gray-100 rounded px-2 py-1"><Copy className="w-3 h-3" /> Copy link</button>
                   </>
                 )}
-                <button type="button" onClick={() => { if (confirm(`Remove ${g.name} from this event?`)) act(() => api.delete(`/security/${g.id}`), `${g.name} removed.`) }} className="inline-flex items-center gap-1 text-xs text-red-600 hover:bg-red-50 rounded px-2 py-1"><Trash2 className="w-3 h-3" /> Remove</button>
+                <button type="button" onClick={() => { if (confirm(`Remove ${g.name} from this event?`)) act(() => api.delete(`/security/guard/${g.id}`), `${g.name} removed.`) }} className="inline-flex items-center gap-1 text-xs text-red-600 hover:bg-red-50 rounded px-2 py-1"><Trash2 className="w-3 h-3" /> Remove</button>
               </div>
             </li>
           ))}
@@ -126,7 +145,7 @@ function AddGuardsModal({ eventId, onClose, onDone }: { eventId: string; onClose
   const [directory, setDirectory] = useState<Person[] | null>(null)
   const [picked, setPicked] = useState<string[]>([])
   const [typed, setTyped] = useState<Person[]>([{ name: '', phone: '' }])
-  const [form, setForm] = useState({ report_time: '', post: '', notes: '', send_text: true })
+  const [form, setForm] = useState({ report_time: '', post: '', notes: '', send_text: true, pay: true, pay_type: 'hourly' as 'hourly' | 'flat', rate: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -140,24 +159,28 @@ function AddGuardsModal({ eventId, onClose, onDone }: { eventId: string; onClose
     const fromTyped = typed.filter(t => t.name.trim() || t.phone.trim())
     const guards = [...fromDirectory, ...fromTyped]
     if (guards.length === 0) { setError('Choose or enter at least one guard.'); return }
+    if (form.pay && !(Number(form.rate) > 0)) { setError('Enter what each guard is paid, or turn pay off.'); return }
     setSaving(true)
     setError('')
     try {
-      const res = await api.post<{ guards: { name: string; texted: boolean }[]; skipped: string[] }>(`/security/event/${eventId}/assign`, {
+      const res = await api.post<{ guards: { name: string; texted: boolean; paid: boolean; pay_error: string | null }[]; skipped: string[] }>(`/security/event/${eventId}/assign`, {
         guards,
         report_time: form.report_time || null,
         post: form.post || null,
         notes: form.notes || null,
         send_text: form.send_text,
+        ...(form.pay ? { pay: { pay_type: form.pay_type, rate: Number(form.rate) } } : {}),
       })
       const failed = res.data.guards.filter(g => !g.texted).length
+      const payFailed = res.data.guards.filter(g => form.pay && !g.paid)
+      const payNote = payFailed.length ? ` Pay could not be set up for ${payFailed.map(g => g.name).join(', ')}: ${payFailed[0].pay_error ?? 'unknown reason'}.` : form.pay ? ' Pay is set up in Staff Pay.' : ''
       const skipped = res.data.skipped.length ? ` ${res.data.skipped.join(', ')} ${res.data.skipped.length === 1 ? 'was' : 'were'} already on this event.` : ''
       onDone(
         (!form.send_text
           ? `Added ${res.data.guards.length}. Use "Copy link" on each guard to share their check-in link.`
           : failed
             ? `Added ${res.data.guards.length}, but ${failed} text${failed === 1 ? '' : 's'} could not be sent. Use "Copy link" on those guards.`
-            : `Added ${res.data.guards.length} and texted ${res.data.guards.length === 1 ? 'their' : 'each'} post and check-in link.`) + skipped,
+            : `Added ${res.data.guards.length} and texted ${res.data.guards.length === 1 ? 'their' : 'each'} post and check-in link.`) + payNote + skipped,
       )
     } catch (err) {
       setError(errorText(err, 'Could not add the guards. Please try again.'))
@@ -207,6 +230,18 @@ function AddGuardsModal({ eventId, onClose, onDone }: { eventId: string; onClose
             <div><label className="block text-xs font-medium text-gray-600 mb-1">Post / location</label><input className={inputClass} placeholder="Front door, parking…" value={form.post} onChange={e => setForm({ ...form, post: e.target.value })} /></div>
           </div>
           <div><label className="block text-xs font-medium text-gray-600 mb-1">Instructions (optional)</label><textarea rows={2} className={`${inputClass} resize-none`} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Check IDs, no re-entry after 11pm…" /></div>
+          <div className="border border-gray-200 rounded-lg p-3 space-y-2">
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-800"><input type="checkbox" checked={form.pay} onChange={e => setForm({ ...form, pay: e.target.checked })} /> Pay guards through EventEcos (Stripe)</label>
+            {form.pay && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <select className={inputClass} value={form.pay_type} onChange={e => setForm({ ...form, pay_type: e.target.value as 'hourly' | 'flat' })} aria-label="Pay type"><option value="hourly">Hourly</option><option value="flat">Flat fee</option></select>
+                  <input className={inputClass} inputMode="decimal" value={form.rate} onChange={e => setForm({ ...form, rate: e.target.value })} placeholder={form.pay_type === 'flat' ? 'Flat fee ($)' : 'Rate ($/hr)'} aria-label="Pay rate" />
+                </div>
+                <p className="text-xs text-gray-500">Each guard is added to your Staff list and texted a link to sign up with Stripe. A guard who already has an EventEcos vendor account keeps it. Their hours start when they check in; you approve and pay them in Staff Pay.</p>
+              </>
+            )}
+          </div>
           <label className="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={form.send_text} onChange={e => setForm({ ...form, send_text: e.target.checked })} /> Text them their post and check-in link now</label>
 
           {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}

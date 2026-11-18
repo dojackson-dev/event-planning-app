@@ -465,7 +465,6 @@ function MemberModal({ initial, onClose, onDone }: { initial: Partial<Member>; o
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [sendSetup, setSendSetup] = useState(true)
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -478,20 +477,10 @@ function MemberModal({ initial, onClose, onDone }: { initial: Partial<Member>; o
         onDone('Saved.')
         return
       }
-      const created = await api.post<{ id: string }>('/staff-pay/members', payload)
-      if (!sendSetup) {
-        onDone('Saved. Use "Text bank setup link" on the Staff tab when you want them to connect a bank.')
-        return
-      }
-      // The worker is saved either way; a failed text only means the manager resends it from the Staff tab.
-      try {
-        const r = await api.post<{ texted: boolean }>(`/staff-pay/members/${created.data.id}/payout-setup`)
-        onDone(r.data.texted
-          ? `Saved. ${form.name.split(' ')[0]} was texted a link to sign up with Stripe so they can receive pay.`
-          : 'Saved, but the sign-up text could not be sent. Use "Text bank setup link" on the Staff tab.')
-      } catch {
-        onDone('Saved, but the sign-up text could not be sent. Use "Text bank setup link" on the Staff tab.')
-      }
+      const created = await api.post<{ setup_texted: boolean }>('/staff-pay/members', payload)
+      onDone(created.data.setup_texted
+        ? `Saved. ${form.name.split(' ')[0]} was texted a link to sign up with Stripe so they can receive pay.`
+        : 'Saved, but the sign-up text could not be sent. Use "Text bank setup link" on the Staff tab.')
     } catch (err) {
       setError(errorText(err, 'Could not save. Please try again.'))
     } finally {
@@ -508,13 +497,12 @@ function MemberModal({ initial, onClose, onDone }: { initial: Partial<Member>; o
         <div><label className="block text-xs font-medium text-gray-600 mb-1">Email (optional)</label><input className={inputClass} type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></div>
         <PayFields payType={form.default_pay_type} rate={form.default_rate} onType={t => setForm({ ...form, default_pay_type: t })} onRate={r => setForm({ ...form, default_rate: r })} />
         {!initial.id && (
-          <label className="flex items-start gap-2 text-sm text-gray-700 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
-            <input type="checkbox" className="mt-0.5" checked={sendSetup} onChange={e => setSendSetup(e.target.checked)} />
-            <span>Text them a link to sign up with Stripe so they can receive pay <span className="block text-xs text-gray-500">Takes them about 3 minutes. Stripe collects their ID, tax ID and bank. You never see their bank details.</span></span>
-          </label>
+          <p className="text-xs text-gray-600 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+            We will text them a link to sign up with Stripe so they can receive pay. It takes about 3 minutes, and you never see their bank details.
+          </p>
         )}
         {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
-        <button disabled={saving} className="w-full py-2.5 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 disabled:opacity-60">{saving ? 'Saving…' : initial.id ? 'Save' : sendSetup ? 'Add and text sign-up link' : 'Add'}</button>
+        <button disabled={saving} className="w-full py-2.5 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 disabled:opacity-60">{saving ? 'Saving…' : initial.id ? 'Save' : 'Add and text sign-up link'}</button>
       </form>
     </Modal>
   )

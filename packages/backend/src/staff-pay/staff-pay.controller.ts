@@ -76,12 +76,19 @@ export class StaffPayController {
     return this.staffPay.listMembers(await this.getUserId(auth));
   }
 
+  /** Adds a worker and texts them the link to sign up with Stripe so they can receive pay. */
   @Post('members')
   async createMember(
     @Headers('authorization') auth: string,
     @Body() body: Record<string, unknown>,
   ) {
-    return this.staffPay.createMember(await this.getUserId(auth), body);
+    const userId = await this.getUserId(auth);
+    const member = await this.staffPay.createMember(userId, body);
+    // The worker is saved either way; a failed text is reported so it can be resent from the Staff tab.
+    const setup = await this.payouts
+      .sendSetupLink(userId, member.id)
+      .catch(() => null);
+    return { ...member, setup_texted: setup?.texted ?? false };
   }
 
   @Put('members/:id')

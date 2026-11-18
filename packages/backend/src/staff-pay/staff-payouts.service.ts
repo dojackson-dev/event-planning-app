@@ -139,18 +139,46 @@ export class StaffPayoutsService {
     return status;
   }
 
-  /** account.updated webhook for a worker's connected account. Returns false if it is not a worker's. */
+  /**
+   * account.updated webhook: refreshes every staff row paid through this account. Returns true only for
+   * an account the staff flow created itself; a vendor's account that staff pay reuses still needs the
+   * vendor handler to run as well.
+   */
   async handleAccountUpdated(account: Stripe.Account): Promise<boolean> {
-    const memberId = account.metadata?.staff_member_id;
-    if (!memberId || !UUID_RE.test(memberId)) return false;
-    const { data: member } = await this.admin
+    const { data: members } = await this.admin
       .from('staff_members')
-      .select('id, payout_status, stripe_account_id')
-      .eq('id', memberId)
-      .maybeSingle();
-    if (!member || member.stripe_account_id !== account.id) return false;
-    await this.applyAccount(member.id, member.payout_status, account);
-    return true;
+      .select('id, payout_status')
+      .eq('stripe_account_id', account.id);
+    for (const m of members ?? []) {
+      await this.applyAccount(m.id, m.payout_status, account);
+    }
+    const ownId = account.metadata?.staff_member_id;
+    return !!ownId && UUID_RE.test(ownId) && (members ?? []).length > 0;
+  }
+
+  /**
+   * An account this person already has: another venue's staff row for the same mobile number, or a vendor
+   * account with that number. The worker proves the number is theirs by opening the text we sent it.
+   */
+  private async reusableAccount(member: any): Promise<string | null> {
+    const { data: others } = await this.admin
+      .from('staff_members')
+      .select('stripe_account_id')
+      .eq('phone', member.phone)
+      .neq('id', member.id)
+      .not('stripe_account_id', 'is', null)
+      .limit(1);
+    if (others?.[0]?.stripe_account_id) return others[0].stripe_account_id;
+
+    const { data: vendors } = await this.admin
+      .from('vendor_accounts')
+      .select('stripe_account_id')
+      .eq('phone', member.phone)
+      .eq('is_active', true)
+      .not('stripe_account_id', 'is', null)
+      .limit(2);
+    // Two vendors on one number is ambiguous, so start fresh rather than guess.
+    return vendors?.length === 1 ? vendors[0].stripe_account_id : null;
   }
 
   async setupView(token: string) {
@@ -166,6 +194,9 @@ export class StaffPayoutsService {
     return {
       worker_first_name: String(member.name).split(' ')[0],
       status,
+      // True when this person already has a Stripe account with us, so they only add what is missing.
+      has_existing_account:
+        !!member.stripe_account_id || !!(await this.reusableAccount(member)),
     };
   }
 
@@ -173,6 +204,20 @@ export class StaffPayoutsService {
   async startSetup(token: string) {
     const member = await this.memberByToken(token);
     let accountId: string | null = member.stripe_account_id;
+    if (!accountId) {
+      const existing = await this.reusableAccount(member);
+      if (existing) {
+        accountId = existing;
+        await this.admin
+          .from('staff_members')
+          .update({
+            stripe_account_id: existing,
+            payout_status: 'pending',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', member.id);
+      }
+    }
     if (!accountId) {
       const account = await this.client.accounts.create(
         {
@@ -214,6 +259,18 @@ export class StaffPayoutsService {
           ),
         );
     }
+    // An existing account may already have everything Stripe needs, so skip the signup pages if so.
+    try {
+      const current = await this.client.accounts.retrieve(accountId);
+      if (accountReadyForTransfers(current)) {
+        await this.applyAccount(member.id, member.payout_status, current);
+        return { url: null, ready: true };
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Could not check account ${accountId} before onboarding: ${(err as Error).message}`,
+      );
+    }
     const back = `${this.frontendUrl}/payout-setup/${token}`;
     const link = await this.client.accountLinks.create({
       account: accountId,
@@ -221,7 +278,7 @@ export class StaffPayoutsService {
       return_url: `${back}?returned=1`,
       type: 'account_onboarding',
     });
-    return { url: link.url };
+    return { url: link.url, ready: false };
   }
 
   // ── Paying approved shifts ─────────────────────────────────────

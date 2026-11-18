@@ -100,7 +100,7 @@ export class StaffPayService {
     const fields = sanitizeMember(input ?? {}, { creating: true });
     const { data, error } = await this.admin
       .from('staff_members')
-      .insert({ ...fields, owner_id: ownerId })
+      .insert({ is_active: true, ...fields, owner_id: ownerId })
       .select('*')
       .single();
     if (error) {
@@ -111,6 +111,32 @@ export class StaffPayService {
       throw new BadRequestException(error.message);
     }
     return data;
+  }
+
+  /** The staff record for this mobile number, created on the spot if the venue has not added them yet. */
+  async ensureMember(ownerId: string, input: Record<string, unknown>) {
+    const fields = sanitizeMember(input ?? {}, { creating: true });
+    const find = async () => {
+      const { data } = await this.admin
+        .from('staff_members')
+        .select('*')
+        .eq('owner_id', ownerId)
+        .eq('phone', fields.phone)
+        .maybeSingle();
+      return data;
+    };
+    const existing = await find();
+    if (existing) return existing;
+    try {
+      return await this.createMember(ownerId, input);
+    } catch (err) {
+      // Someone added the same number a moment ago; use theirs.
+      if (err instanceof ConflictException) {
+        const again = await find();
+        if (again) return again;
+      }
+      throw err;
+    }
   }
 
   async updateMember(

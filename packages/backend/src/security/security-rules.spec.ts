@@ -4,6 +4,7 @@ import {
   fmtTime,
   sanitizeAssignmentDetails,
   sanitizeGuard,
+  sanitizePay,
   withinCheckInWindow,
 } from './security-rules';
 
@@ -70,5 +71,29 @@ describe('formatting', () => {
     expect(fmtTime('17:30:00')).toBe('5:30 PM');
     expect(fmtTime(null)).toBe('');
     expect(fmtEventDate('2026-11-21')).toBe('Sat, Nov 21');
+  });
+});
+
+describe('sanitizePay', () => {
+  it('is null when no pay is given, and otherwise needs a type and a positive rate', () => {
+    expect(sanitizePay(undefined)).toBeNull();
+    expect(sanitizePay(null)).toBeNull();
+    expect(sanitizePay({ pay_type: 'hourly', rate: '22.5' })).toEqual({
+      pay_type: 'hourly',
+      rate: 22.5,
+    });
+    expect(sanitizePay({ pay_type: 'flat', rate: 150 })).toEqual({
+      pay_type: 'flat',
+      rate: 150,
+    });
+    expect(() => sanitizePay({ pay_type: 'hourly', rate: 0 })).toThrow(
+      BadRequestException,
+    );
+    expect(() => sanitizePay({ pay_type: 'hourly', rate: 999999 })).toThrow(
+      BadRequestException,
+    );
+    expect(() => sanitizePay({ pay_type: 'daily', rate: 5 })).toThrow(
+      'hourly or flat',
+    );
   });
 });

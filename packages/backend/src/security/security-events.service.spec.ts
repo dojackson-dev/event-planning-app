@@ -16,7 +16,7 @@ const THEIR_EVENT = randomUUID();
 
 function setup() {
   const db = new FakeDb({
-    events: [
+    event: [
       { id: EVENT, owner_id: OWNER, name: 'Gala', date: '2026-11-21' },
       { id: OTHER_EVENT, owner_id: OWNER, name: 'Wedding', date: '2026-10-01' },
       { id: THEIR_EVENT, owner_id: OTHER, name: 'Theirs', date: '2026-11-21' },

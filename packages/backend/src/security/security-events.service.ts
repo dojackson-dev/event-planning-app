@@ -52,7 +52,7 @@ export class SecurityEventsService {
   private async ownEvent(ownerId: string, eventId: string) {
     if (!UUID_RE.test(eventId)) throw new NotFoundException('Event not found');
     const { data } = await this.admin
-      .from('events')
+      .from('event')
       .select('id, name, date')
       .eq('id', eventId)
       .eq('owner_id', ownerId)
@@ -350,7 +350,7 @@ export class SecurityEventsService {
     let event: { name: string; date: string } | null = null;
     if (row.event_id) {
       const { data } = await this.admin
-        .from('events')
+        .from('event')
         .select('name, date')
         .eq('id', row.event_id)
         .maybeSingle();

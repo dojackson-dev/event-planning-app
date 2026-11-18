@@ -48,7 +48,7 @@ function setup() {
       },
     ],
     staff_shifts: [],
-    events: [{ id: EVENT, owner_id: OWNER, name: 'Gala', date: '2026-12-01' }],
+    event: [{ id: EVENT, owner_id: OWNER, name: 'Gala', date: '2026-12-01' }],
   });
   db.nextId = () => randomUUID();
   const sms = { sendOne: jest.fn().mockResolvedValue(true) };

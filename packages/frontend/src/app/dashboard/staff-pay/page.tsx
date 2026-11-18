@@ -65,7 +65,7 @@ interface Shift {
   needs_review: boolean
   clock_link: string
   staff_members: { id: string; name: string; phone: string; job_title: string | null } | null
-  events: { id: string; name: string } | null
+  event: { id: string; name: string } | null
 }
 
 interface EventOption { id: string; name: string; date?: string }
@@ -289,7 +289,7 @@ export default function StaffPayPage() {
                           <p className="font-semibold text-gray-900">{s.staff_members?.name ?? 'Staff'} <span className="font-normal text-gray-500">· {s.title}</span></p>
                           <p className="text-xs text-gray-500">
                             {fmtDate(s.shift_date)}{s.start_time && ` · ${fmtTime(s.start_time)}`}{s.end_time && ` – ${fmtTime(s.end_time)}`}
-                            {s.events && ` · ${s.events.name}`}
+                            {s.event && ` · ${s.event.name}`}
                           </p>
                         </div>
                         <span className={`text-xs font-medium rounded-full px-2.5 py-1 ${STATUS_STYLE[s.status]}`}>{STATUS_LABEL[s.status]}</span>

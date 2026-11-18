@@ -5,10 +5,11 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
 import { Event } from '@/types'
-import { Calendar, Clock, MapPin, Users, ArrowLeft, Edit, Trash2, MessageSquare } from 'lucide-react'
+import { Calendar, Clock, MapPin, Users, ArrowLeft, Edit, Trash2, MessageSquare, Shield } from 'lucide-react'
 import { format } from 'date-fns'
 import { parseLocalDate } from '@/lib/dateUtils'
 import EventNotes from '@/components/events/EventNotes'
+import EventSecurity from '@/components/events/EventSecurity'
 import CancelEventControl from '@/components/events/CancelEventControl'
 
 const formatTime = (timeString: string | undefined): string => {
@@ -197,6 +198,14 @@ export default function EventDetailsPage() {
               <p className="text-gray-900">{event.description}</p>
             </div>
           )}
+        </div>
+
+        {/* Security */}
+        <div className="mt-8 pt-8 border-t">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <Shield className="h-6 w-6 text-primary-600" /> Security
+          </h2>
+          <EventSecurity eventId={eventId} />
         </div>
 
         {/* Services Section */}

@@ -1853,6 +1853,8 @@ export default function EventManagementPage() {
               </h2>
 
               <div className="space-y-4">
+                <EventSecurity eventId={eventId} needed={Number(formData.numberOfSecurityStaff) || undefined} />
+
                 <label className="flex items-center">
                   {isEditing ? (
                     <input
@@ -1876,8 +1878,6 @@ export default function EventManagementPage() {
 
                 {formData.securityRequired && (
                   <>
-                    <EventSecurity eventId={eventId} needed={Number(formData.numberOfSecurityStaff) || undefined} />
-
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Security Company</label>
                       {isEditing ? (

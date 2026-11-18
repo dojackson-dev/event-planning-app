@@ -75,6 +75,7 @@ function setup(opts: { fee?: string; bank?: boolean } = {}) {
       shift(S3, M_NEW, 100),
       shift(randomUUID(), M_READY, 80, { status: 'submitted' }),
     ],
+    vendor_accounts: [],
     staff_payouts: [],
     staff_payout_items: [],
   });
@@ -84,7 +85,9 @@ function setup(opts: { fee?: string; bank?: boolean } = {}) {
     accounts: {
       create: jest.fn().mockResolvedValue({ id: 'acct_new' }),
       update: jest.fn().mockResolvedValue({}),
-      retrieve: jest.fn(),
+      retrieve: jest
+        .fn()
+        .mockResolvedValue({ id: 'acct', details_submitted: false }),
     },
     accountLinks: {
       create: jest
@@ -272,6 +275,122 @@ describe('worker payout setup', () => {
     expect(
       await service.handleAccountUpdated({ id: 'acct_v', metadata: {} } as any),
     ).toBe(false);
+  });
+});
+
+describe('reusing an account the worker already has', () => {
+  const READY_ACCOUNT = {
+    id: 'acct_vendor',
+    details_submitted: true,
+    payouts_enabled: true,
+    capabilities: { transfers: 'active', tax_reporting_us_1099_misc: 'active' },
+  };
+
+  async function tokenFor(service: StaffPayoutsService) {
+    return (await service.sendSetupLink(OWNER, M_NEW)).link.split('/').pop()!;
+  }
+
+  it("pays into the worker's vendor Stripe account when the mobile number matches", async () => {
+    const { service, stripe, db } = setup();
+    db.rows('vendor_accounts').push({
+      id: 'v1',
+      phone: '+16015550102',
+      is_active: true,
+      stripe_account_id: 'acct_vendor',
+    });
+    stripe.accounts.retrieve.mockResolvedValue({
+      ...READY_ACCOUNT,
+      details_submitted: false,
+    });
+    const token = await tokenFor(service);
+    expect(await service.setupView(token)).toMatchObject({
+      has_existing_account: true,
+    });
+
+    const out: any = await service.startSetup(token);
+    expect(out.url).toContain('connect.stripe.com');
+    expect(stripe.accounts.create).not.toHaveBeenCalled();
+    expect(stripe.accounts.update).toHaveBeenCalledWith('acct_vendor', {
+      capabilities: { tax_reporting_us_1099_misc: { requested: true } },
+    });
+    expect(db.rows('staff_members').find((m) => m.id === M_NEW)).toMatchObject({
+      stripe_account_id: 'acct_vendor',
+      payout_status: 'pending',
+    });
+  });
+
+  it('skips the signup pages when that account already has everything Stripe needs', async () => {
+    const { service, stripe, db } = setup();
+    db.rows('vendor_accounts').push({
+      id: 'v1',
+      phone: '+16015550102',
+      is_active: true,
+      stripe_account_id: 'acct_vendor',
+    });
+    stripe.accounts.retrieve.mockResolvedValue(READY_ACCOUNT);
+    const out: any = await service.startSetup(await tokenFor(service));
+    expect(out).toEqual({ url: null, ready: true });
+    expect(stripe.accountLinks.create).not.toHaveBeenCalled();
+    expect(
+      db.rows('staff_members').find((m) => m.id === M_NEW)!.payout_status,
+    ).toBe('ready');
+  });
+
+  it('reuses the account the same person already set up with another venue', async () => {
+    const { service, stripe, db } = setup();
+    db.rows('staff_members').find((m) => m.id === M_NEW)!.phone =
+      '+16015550103';
+    await service.startSetup(await tokenFor(service));
+    expect(stripe.accounts.create).not.toHaveBeenCalled();
+    expect(
+      db.rows('staff_members').find((m) => m.id === M_NEW)!.stripe_account_id,
+    ).toBe('acct_x');
+  });
+
+  it('starts a fresh account when two vendors share the number, an inactive vendor matches, or none match', async () => {
+    const { service, stripe, db } = setup();
+    db.rows('vendor_accounts').push(
+      {
+        id: 'v1',
+        phone: '+16015550102',
+        is_active: true,
+        stripe_account_id: 'acct_a',
+      },
+      {
+        id: 'v2',
+        phone: '+16015550102',
+        is_active: true,
+        stripe_account_id: 'acct_b',
+      },
+      {
+        id: 'v3',
+        phone: '+16015550102',
+        is_active: false,
+        stripe_account_id: 'acct_c',
+      },
+    );
+    const token = await tokenFor(service);
+    expect(await service.setupView(token)).toMatchObject({
+      has_existing_account: false,
+    });
+    await service.startSetup(token);
+    expect(stripe.accounts.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a linked worker up to date from the vendor account's webhook, without claiming it", async () => {
+    const { service, db } = setup();
+    db.rows('staff_members').find((m) => m.id === M_NEW)!.stripe_account_id =
+      'acct_vendor';
+    db.rows('staff_members').find((m) => m.id === M_NEW)!.payout_status =
+      'pending';
+    const claimed = await service.handleAccountUpdated({
+      ...READY_ACCOUNT,
+      metadata: { vendor_account_id: 'v1' },
+    } as any);
+    expect(claimed).toBe(false);
+    expect(
+      db.rows('staff_members').find((m) => m.id === M_NEW)!.payout_status,
+    ).toBe('ready');
   });
 });
 

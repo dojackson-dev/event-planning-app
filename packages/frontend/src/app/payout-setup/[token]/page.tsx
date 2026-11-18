@@ -9,6 +9,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 interface SetupView {
   worker_first_name: string
   status: 'not_connected' | 'pending' | 'ready'
+  has_existing_account?: boolean
 }
 
 export default function PayoutSetupPage() {
@@ -39,7 +40,13 @@ export default function PayoutSetupPage() {
     try {
       const res = await fetch(`${API_URL}/staff-pay/public/payout-setup/${token}/start`, { method: 'POST' })
       const body = await res.json().catch(() => ({}))
-      if (!res.ok || !body.url) throw new Error(body.message || 'We could not open the setup page. Please try again.')
+      if (!res.ok) throw new Error(body.message || 'We could not open the setup page. Please try again.')
+      if (body.ready) {
+        await load()
+        setBusy(false)
+        return
+      }
+      if (!body.url) throw new Error('We could not open the setup page. Please try again.')
       window.location.href = body.url
     } catch (e) {
       setActionError((e as Error).message)
@@ -85,7 +92,9 @@ export default function PayoutSetupPage() {
               <p className="text-sm text-gray-600 mb-1">
                 {view.status === 'pending'
                   ? 'Your setup is not finished yet. Pick up where you left off.'
-                  : 'It takes about 3 minutes. You will add your bank or debit card so your pay can be sent to you.'}
+                  : view.has_existing_account
+                    ? 'We found your existing EventEcos payout account, so you keep the same bank. You only need to confirm a few details.'
+                    : 'It takes about 3 minutes. You will add your bank or debit card so your pay can be sent to you.'}
               </p>
               <ul className="text-xs text-gray-500 text-left mt-4 mb-5 space-y-1.5">
                 <li className="flex gap-2"><ShieldCheck className="w-4 h-4 text-green-600 shrink-0" /> Handled securely by Stripe. Your manager never sees your bank details.</li>

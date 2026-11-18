@@ -415,7 +415,7 @@ export default function StaffPayPage() {
       {shiftModal && members && (
         <ShiftModal members={members.filter(m => m.is_active)} events={events} onClose={() => setShiftModal(false)} onDone={(text) => { setShiftModal(false); flash(text); load() }} />
       )}
-      {memberModal && <MemberModal initial={memberModal} onClose={() => setMemberModal(null)} onDone={() => { setMemberModal(null); flash('Saved.'); load() }} />}
+      {memberModal && <MemberModal initial={memberModal} onClose={() => setMemberModal(null)} onDone={(text) => { setMemberModal(null); flash(text); load() }} />}
       {approving && <ApproveModal shift={approving} onClose={() => setApproving(null)} onDone={() => { setApproving(null); flash('Approved.'); load() }} />}
     </div>
   )
@@ -454,7 +454,7 @@ function PayFields({ payType, rate, onType, onRate, rateOptional }: { payType: P
   )
 }
 
-function MemberModal({ initial, onClose, onDone }: { initial: Partial<Member>; onClose: () => void; onDone: () => void }) {
+function MemberModal({ initial, onClose, onDone }: { initial: Partial<Member>; onClose: () => void; onDone: (text: string) => void }) {
   const [form, setForm] = useState({
     name: initial.name ?? '',
     phone: initial.phone ?? '',
@@ -465,6 +465,7 @@ function MemberModal({ initial, onClose, onDone }: { initial: Partial<Member>; o
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [sendSetup, setSendSetup] = useState(true)
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -472,9 +473,25 @@ function MemberModal({ initial, onClose, onDone }: { initial: Partial<Member>; o
     setError('')
     const payload = { ...form, default_rate: form.default_rate === '' ? 0 : Number(form.default_rate) }
     try {
-      if (initial.id) await api.put(`/staff-pay/members/${initial.id}`, payload)
-      else await api.post('/staff-pay/members', payload)
-      onDone()
+      if (initial.id) {
+        await api.put(`/staff-pay/members/${initial.id}`, payload)
+        onDone('Saved.')
+        return
+      }
+      const created = await api.post<{ id: string }>('/staff-pay/members', payload)
+      if (!sendSetup) {
+        onDone('Saved. Use "Text bank setup link" on the Staff tab when you want them to connect a bank.')
+        return
+      }
+      // The worker is saved either way; a failed text only means the manager resends it from the Staff tab.
+      try {
+        const r = await api.post<{ texted: boolean }>(`/staff-pay/members/${created.data.id}/payout-setup`)
+        onDone(r.data.texted
+          ? `Saved. ${form.name.split(' ')[0]} was texted a link to sign up with Stripe so they can receive pay.`
+          : 'Saved, but the sign-up text could not be sent. Use "Text bank setup link" on the Staff tab.')
+      } catch {
+        onDone('Saved, but the sign-up text could not be sent. Use "Text bank setup link" on the Staff tab.')
+      }
     } catch (err) {
       setError(errorText(err, 'Could not save. Please try again.'))
     } finally {
@@ -490,8 +507,14 @@ function MemberModal({ initial, onClose, onDone }: { initial: Partial<Member>; o
         <div><label className="block text-xs font-medium text-gray-600 mb-1">Job title</label><input className={inputClass} value={form.job_title} onChange={e => setForm({ ...form, job_title: e.target.value })} placeholder="Bartender, setup crew…" /></div>
         <div><label className="block text-xs font-medium text-gray-600 mb-1">Email (optional)</label><input className={inputClass} type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></div>
         <PayFields payType={form.default_pay_type} rate={form.default_rate} onType={t => setForm({ ...form, default_pay_type: t })} onRate={r => setForm({ ...form, default_rate: r })} />
+        {!initial.id && (
+          <label className="flex items-start gap-2 text-sm text-gray-700 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+            <input type="checkbox" className="mt-0.5" checked={sendSetup} onChange={e => setSendSetup(e.target.checked)} />
+            <span>Text them a link to sign up with Stripe so they can receive pay <span className="block text-xs text-gray-500">Takes them about 3 minutes. Stripe collects their ID, tax ID and bank. You never see their bank details.</span></span>
+          </label>
+        )}
         {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
-        <button disabled={saving} className="w-full py-2.5 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 disabled:opacity-60">{saving ? 'Saving…' : 'Save'}</button>
+        <button disabled={saving} className="w-full py-2.5 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 disabled:opacity-60">{saving ? 'Saving…' : initial.id ? 'Save' : sendSetup ? 'Add and text sign-up link' : 'Add'}</button>
       </form>
     </Modal>
   )
@@ -544,7 +567,7 @@ function ShiftModal({ members, events, onClose, onDone }: { members: Member[]; e
             {members.map(m => (
               <label key={m.id} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-gray-50">
                 <input type="checkbox" checked={picked.includes(m.id)} onChange={e => setPicked(p => e.target.checked ? [...p, m.id] : p.filter(x => x !== m.id))} />
-                <span className="flex-1">{m.name}{m.job_title && <span className="text-gray-400"> · {m.job_title}</span>}</span>
+                <span className="flex-1">{m.name}{m.job_title && <span className="text-gray-400"> · {m.job_title}</span>}{m.payout_status !== 'ready' && <span className="ml-1 text-[10px] text-amber-700 bg-amber-50 rounded px-1">no bank yet</span>}</span>
                 <span className="text-xs text-gray-400">{m.default_pay_type === 'hourly' ? `${money(m.default_rate)}/hr` : `${money(m.default_rate)} flat`}</span>
               </label>
             ))}

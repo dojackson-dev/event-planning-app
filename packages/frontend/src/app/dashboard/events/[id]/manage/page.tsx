@@ -38,8 +38,9 @@ import {
   ChevronRight,
   MessageSquare
 } from 'lucide-react';
+import EventSecurity from '@/components/events/EventSecurity';
 import api from '@/lib/api';
-import { Event, EventType, ClientStatus, ContractStatus, InsuranceStatus, Security } from '@/types';
+import { Event, EventType, ClientStatus, ContractStatus, InsuranceStatus } from '@/types';
 import EventNotes from '@/components/events/EventNotes';
 import CancelEventControl from '@/components/events/CancelEventControl';
 import EventVendorRow, { EventVendorBooking } from '@/components/events/EventVendorRow';
@@ -225,10 +226,6 @@ export default function EventManagementPage() {
   const [vendorPickerList, setVendorPickerList] = useState<any[]>([]);
   const [vendorPickerSearch, setVendorPickerSearch] = useState('');
   const [vendorPickerLoading, setVendorPickerLoading] = useState(false);
-  const [showSecurityPicker, setShowSecurityPicker] = useState(false);
-  const [securityPickerList, setSecurityPickerList] = useState<Security[]>([]);
-  const [securityPickerSearch, setSecurityPickerSearch] = useState('');
-  const [securityPickerLoading, setSecurityPickerLoading] = useState(false);
 
   // Vendor booking (directory) state
   const [eventVendors, setEventVendors] = useState<EventVendorBooking[]>([]);
@@ -546,35 +543,6 @@ export default function EventManagementPage() {
     setShowVendorPicker(false);
   };
 
-  const openSecurityPicker = async () => {
-    setShowSecurityPicker(true);
-    setSecurityPickerSearch('');
-    setSecurityPickerLoading(true);
-    try {
-      const res = await api.get<Security[]>('/security');
-      setSecurityPickerList(res.data || []);
-    } catch {
-      setSecurityPickerList([]);
-    } finally {
-      setSecurityPickerLoading(false);
-    }
-  };
-
-  const pickSecurityPersonnel = async (s: Security) => {
-    setFormData(prev => ({
-      ...prev,
-      securityContactName: s.name,
-      securityContactPhone: s.phone,
-    }));
-    setShowSecurityPicker(false);
-    // Link the personnel record to this event so it shows as assigned on the Security directory
-    try {
-      await api.put(`/security/${s.id}`, { name: s.name, phone: s.phone, eventId });
-    } catch {
-      // non-blocking — the contact fields above are already filled in
-    }
-  };
-
   // ── Vendor booking (directory) functions ──────────────────────
   const fetchEventVendors = async (eventDate: string, evId: string) => {
     if (!eventDate) return;
@@ -748,12 +716,6 @@ export default function EventManagementPage() {
     (v.category || '').toLowerCase().includes(vendorPickerSearch.toLowerCase())
   );
 
-  const filteredSecurityPicker = securityPickerList.filter(s =>
-    !securityPickerSearch ||
-    (s.name || '').toLowerCase().includes(securityPickerSearch.toLowerCase()) ||
-    (s.phone || '').includes(securityPickerSearch)
-  );
-
   return (
     <div className="max-w-7xl mx-auto">
       {/* Vendor Directory Picker Modal */}
@@ -796,53 +758,6 @@ export default function EventManagementPage() {
         </div>
       )}
 
-      {/* Security Personnel Picker Modal */}
-      {showSecurityPicker && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 flex flex-col max-h-[80vh]">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="font-bold text-gray-900 text-lg">Select Security Personnel</h3>
-              <button onClick={() => setShowSecurityPicker(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
-            </div>
-            <div className="p-4 border-b">
-              <input
-                type="text"
-                placeholder="Search by name or phone..."
-                value={securityPickerSearch}
-                onChange={e => setSecurityPickerSearch(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                autoFocus
-              />
-            </div>
-            <div className="overflow-y-auto flex-1 p-2">
-              {securityPickerLoading ? (
-                <div className="text-center py-8 text-gray-400">Loading security personnel...</div>
-              ) : filteredSecurityPicker.length === 0 ? (
-                <div className="text-center py-8 text-gray-400">
-                  No security personnel found.<br />
-                  <button
-                    onClick={() => router.push(`/dashboard/security/new?eventId=${eventId}`)}
-                    className="text-primary-600 hover:text-primary-700 text-sm font-medium mt-2"
-                  >
-                    Add new security personnel
-                  </button>
-                </div>
-              ) : (
-                filteredSecurityPicker.map(s => (
-                  <button
-                    key={s.id}
-                    onClick={() => pickSecurityPersonnel(s)}
-                    className="w-full text-left px-4 py-3 rounded-lg hover:bg-primary-50 border border-transparent hover:border-primary-200 transition-colors mb-1"
-                  >
-                    <p className="font-semibold text-gray-900 text-sm">{s.name}</p>
-                    <p className="text-xs text-gray-500">{s.phone}{s.eventId && s.eventId !== eventId ? ' · Assigned to another event' : ''}</p>
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      )}
         {/* Header */}
         <div className="mb-6">
           <button
@@ -1961,15 +1876,7 @@ export default function EventManagementPage() {
 
                 {formData.securityRequired && (
                   <>
-                    {isEditing && (
-                      <button
-                        type="button"
-                        onClick={openSecurityPicker}
-                        className="text-xs bg-primary-600 text-white px-3 py-1.5 rounded-lg hover:bg-primary-700 font-medium"
-                      >
-                        + Select Personnel
-                      </button>
-                    )}
+                    <EventSecurity eventId={eventId} needed={Number(formData.numberOfSecurityStaff) || undefined} />
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Security Company</label>

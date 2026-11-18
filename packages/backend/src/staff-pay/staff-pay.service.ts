@@ -25,7 +25,7 @@ const UUID_RE = /^[0-9a-f-]{36}$/i;
 const MAX_WORKERS_PER_SHIFT = 50;
 
 const SHIFT_SELECT =
-  '*, staff_members(id, name, phone, job_title), events(id, name, date)';
+  '*, staff_members(id, name, phone, job_title), event(id, name, date)';
 
 const fmtDate = (d: string) =>
   new Date(`${d}T12:00:00Z`).toLocaleDateString('en-US', {
@@ -254,7 +254,7 @@ export class StaffPayService {
     let eventName: string | null = null;
     if (fields.event_id) {
       const { data: event } = await this.admin
-        .from('events')
+        .from('event')
         .select('id, name')
         .eq('id', fields.event_id)
         .eq('owner_id', ownerId)
@@ -302,7 +302,7 @@ export class StaffPayService {
     const when = [fmtDate(shift.shift_date), fmtTime(shift.start_time)]
       .filter(Boolean)
       .join(' ');
-    const where = eventName ?? shift.events?.name;
+    const where = eventName ?? shift.event?.name;
     return this.sms.sendOne(
       member?.phone,
       `Eventecos Shifts\nHi ${first}, you are scheduled: ${shift.title}${where ? ` (${where})` : ''}, ${when}. Clock in and out with this link: ${this.clockLink(shift.clock_token)}`,
@@ -336,7 +336,7 @@ export class StaffPayService {
       throw new BadRequestException('Nothing to change.');
     if (fields.event_id) {
       const { data: event } = await this.admin
-        .from('events')
+        .from('event')
         .select('id')
         .eq('id', fields.event_id)
         .eq('owner_id', ownerId)
@@ -447,7 +447,7 @@ export class StaffPayService {
         s.staff_members?.phone,
         s.staff_members?.job_title ?? '',
         s.shift_date,
-        s.events?.name ?? '',
+        s.event?.name ?? '',
         s.title,
         s.pay_type,
         Number(s.rate).toFixed(2),
@@ -494,7 +494,7 @@ export class StaffPayService {
     return {
       worker_first_name: String(shift.staff_members?.name ?? '').split(' ')[0],
       title: shift.title,
-      event_name: shift.events?.name ?? null,
+      event_name: shift.event?.name ?? null,
       shift_date: shift.shift_date,
       start_time: shift.start_time,
       end_time: shift.end_time,

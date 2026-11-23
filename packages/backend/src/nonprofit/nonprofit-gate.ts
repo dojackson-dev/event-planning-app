@@ -9,7 +9,7 @@ export const NONPROFIT_SALES_PAUSED_MESSAGE =
   "Ticket sales are paused until this organization's non-profit status is verified.";
 
 /** Platform fee for IRS-verified non-profit promoters (standard rate is 3%). */
-export const NONPROFIT_APP_FEE_RATE = 0.015;
+export const NONPROFIT_APP_FEE_RATE = 0.025;
 
 export function isVerifiedNonprofit(
   promoter: NonprofitFields | null | undefined,

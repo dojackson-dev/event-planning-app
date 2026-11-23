@@ -161,7 +161,7 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
     event.ticket_tiers.every(t => t.quantity_sold >= t.quantity)
 
   // Fee breakdown (mirrors backend grossUp)
-  const APP_FEE_RATE = event.promoter_accounts?.is_nonprofit && event.promoter_accounts?.nonprofit_status === 'verified' ? 0.015 : 0.03
+  const APP_FEE_RATE = event.promoter_accounts?.is_nonprofit && event.promoter_accounts?.nonprofit_status === 'verified' ? 0.025 : 0.03
   const activePayMethod: PayMethod = event.pay_later_available ? payMethod : 'card'
 
   const totalItems = Object.entries(tierQtys).filter(([, q]) => q > 0)

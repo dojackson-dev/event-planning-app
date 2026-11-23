@@ -92,7 +92,7 @@ export default function EventVipPage({ params }: { params: { id: string } }) {
         setPayLaterAvailable(!!vipRes.data.pay_later_available)
         setEventTitle(eventRes.data?.title || 'Event')
         const promoter = eventRes.data?.promoter_accounts
-        setFeeRate(promoter?.is_nonprofit && promoter?.nonprofit_status === 'verified' ? 0.015 : 0.03)
+        setFeeRate(promoter?.is_nonprofit && promoter?.nonprofit_status === 'verified' ? 0.025 : 0.03)
         setTaxRate(Number(eventRes.data?.sales_tax_rate) || 0)
       } finally {
         setLoading(false)

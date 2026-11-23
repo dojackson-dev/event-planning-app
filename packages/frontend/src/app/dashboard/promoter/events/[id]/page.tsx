@@ -9,6 +9,7 @@ import {
   Users, DollarSign, Tag, MapPin, Clock, ChevronDown, CheckCircle, QrCode, Gift, X, Send, Globe, Crown, HeartHandshake,
 } from 'lucide-react'
 import ImageUpload from '@/components/ImageUpload'
+import EventQrCode from '@/components/events/EventQrCode'
 
 interface TicketTier {
   id: string
@@ -410,18 +411,13 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
           </div>
         </div>
 
-        {/* Public link */}
-        <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-purple-800">Public event link</p>
-            <p className="text-xs text-purple-600 mt-0.5">{`${typeof window !== 'undefined' ? window.location.origin : ''}/events/${id}`}</p>
-          </div>
-          <button onClick={copyPublicLink}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white text-xs font-medium rounded-lg hover:bg-purple-700">
-            {copied ? <CheckCircle className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-            {copied ? 'Copied!' : 'Copy link'}
-          </button>
-        </div>
+        {/* Public link and QR code */}
+        <EventQrCode
+          url={`${typeof window !== 'undefined' ? window.location.origin : ''}/events/${id}`}
+          title={event.title}
+          subtitle={[eventDate && new Date(`${eventDate}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }), event.venue_name].filter(Boolean).join(' · ')}
+          published={status === 'published'}
+        />
 
         {/* VIP Quick Access */}
         <div className="grid grid-cols-2 gap-3">

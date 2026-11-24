@@ -6,9 +6,10 @@ import Link from 'next/link'
 import api from '@/lib/api'
 import {
   FileText, Send, Trash2, Loader2, CheckCircle2, Clock, Eye,
-  AlertCircle, XCircle, Copy, ExternalLink, DollarSign, Pencil,
+  AlertCircle, XCircle, Copy, ExternalLink, DollarSign, Pencil, Plus,
 } from 'lucide-react'
 import InvoiceManualPayments from '@/components/InvoiceManualPayments'
+import AdditionalChargesModal from '@/components/vendor/AdditionalChargesModal'
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   draft:     { label: 'Draft',     color: 'bg-gray-100 text-gray-600',      icon: <Clock className="w-4 h-4" /> },
@@ -32,6 +33,7 @@ function VendorInvoiceDetailPageContent() {
   const [deleting, setDeleting] = useState(false)
   const [copied, setCopied] = useState(false)
   const [toast, setToast] = useState('')
+  const [showCharge, setShowCharge] = useState(false)
 
   const justPaid = searchParams.get('paid') === 'true'
 
@@ -110,6 +112,8 @@ function VendorInvoiceDetailPageContent() {
   const canSend = ['draft', 'sent', 'viewed', 'overdue'].includes(invoice.status)
   const isPaid = invoice.status === 'paid'
   const canEdit = !['paid', 'cancelled', 'processing'].includes(invoice.status)
+  const canAddCharge = ['paid', 'sent', 'viewed', 'overdue'].includes(invoice.status)
+  const amountPaid = Number(invoice.amount_paid) || 0
   const hasStripe =
     invoice.vendor_accounts?.stripe_account_id &&
     invoice.vendor_accounts?.stripe_connect_status === 'active'
@@ -193,6 +197,15 @@ function VendorInvoiceDetailPageContent() {
                 </Link>
               )}
 
+              {canAddCharge && (
+                <button
+                  onClick={() => setShowCharge(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 border border-gray-200 text-sm font-medium rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
+                >
+                  <Plus className="w-4 h-4" /> Add additional charge
+                </button>
+              )}
+
               {/* Copy payment link */}
               <button
                 onClick={copyPaymentLink}
@@ -229,6 +242,14 @@ function VendorInvoiceDetailPageContent() {
                     Your net payout: <span className="text-green-700">${(Number(invoice.total_amount) * 0.95).toFixed(2)}</span>
                   </div>
                 </div>
+                {canAddCharge && (
+                  <button
+                    onClick={() => setShowCharge(true)}
+                    className="mt-2 inline-flex items-center justify-center gap-2 px-4 py-2 border border-gray-200 text-sm font-medium rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    <Plus className="w-4 h-4" /> Add additional charge
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -269,6 +290,18 @@ function VendorInvoiceDetailPageContent() {
               <span>Total</span>
               <span>${Number(invoice.total_amount).toFixed(2)}</span>
             </div>
+            {amountPaid > 0 && !isPaid && (
+              <>
+                <div className="flex justify-between text-gray-600">
+                  <span>Already paid</span>
+                  <span>-${amountPaid.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between font-semibold text-orange-600">
+                  <span>Balance due</span>
+                  <span>${Number(invoice.amount_due).toFixed(2)}</span>
+                </div>
+              </>
+            )}
             {!isPaid && (
               <div className="flex justify-between text-sm text-orange-600 pt-1">
                 <span>Platform fee (3%)</span>
@@ -310,6 +343,22 @@ function VendorInvoiceDetailPageContent() {
               </div>
             )}
           </div>
+        )}
+
+        {showCharge && (
+          <AdditionalChargesModal
+            invoiceId={invoice.id}
+            invoiceNumber={invoice.invoice_number}
+            amountPaid={amountPaid}
+            totalAmount={Number(invoice.total_amount)}
+            taxRate={Number(invoice.tax_rate) || 0}
+            onClose={() => setShowCharge(false)}
+            onAdded={async msg => {
+              setShowCharge(false)
+              await fetchInvoice()
+              showToast(msg)
+            }}
+          />
         )}
 
         {/* Danger zone */}

@@ -32,6 +32,7 @@ import {
 import * as nodemailer from 'nodemailer';
 import { mergeVendorClients } from './vendor-clients';
 import {
+  AddAdditionalChargesDto,
   CreateVendorInvoiceDto,
   ReplaceVendorInvoiceDto,
   UpdateVendorInvoiceDto,
@@ -63,6 +64,16 @@ function lockVenueContact<T extends Record<string, any>>(
 
 /** An invoice stays editable until money is moving or it is closed. */
 export const EDITABLE_INVOICE_STATUSES = ['draft', 'sent', 'viewed', 'overdue'];
+
+const MAX_ADDITIONAL_CHARGES = 10;
+const MAX_CHARGE_AMOUNT = 1_000_000;
+const round2 = (n: number) => Math.round(n * 100) / 100;
+const escapeHtml = (v: string) =>
+  v
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 
 @Injectable()
 export class VendorInvoicesService {
@@ -1037,6 +1048,157 @@ export class VendorInvoicesService {
     return this.getInvoice(userId, invoiceId);
   }
 
+  /**
+   * Adds charges that came up after invoicing (delivery, overtime, damages). Unlike an edit this also works on a
+   * paid invoice: what was paid stays credited and the new charges become a balance the client can pay.
+   */
+  async addAdditionalCharges(
+    userId: string,
+    invoiceId: string,
+    input: AddAdditionalChargesDto,
+  ) {
+    const admin = this.supabaseService.getAdminClient();
+    const invoice = await this.getOwnedInvoice(userId, invoiceId);
+    if (!['paid', ...EDITABLE_INVOICE_STATUSES].includes(invoice.status)) {
+      throw new BadRequestException(
+        `Charges cannot be added because this invoice is ${invoice.status}.`,
+      );
+    }
+    const charges = this.cleanCharges(input?.charges);
+    const wasPaid = invoice.status === 'paid';
+    // A paid invoice's checkout is already finished; only an unpaid one can have a page still open.
+    if (!wasPaid) await this.prepareAmountsEdit(invoice);
+
+    const { error } = await admin.from('vendor_invoice_items').insert(
+      charges.map((c) => ({
+        vendor_invoice_id: invoiceId,
+        description: c.description,
+        quantity: c.quantity,
+        unit_price: c.unit_price,
+        amount: round2(c.quantity * c.unit_price),
+      })),
+    );
+    if (error) throw new BadRequestException(error.message);
+
+    await this.recalcAndSaveInvoiceTotals(
+      invoiceId,
+      invoice.tax_rate,
+      invoice.discount_amount,
+    );
+    if (wasPaid) {
+      await admin
+        .from('vendor_invoices')
+        .update({
+          status: 'sent',
+          paid_at: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', invoiceId);
+    }
+
+    const updated = await this.getInvoice(userId, invoiceId);
+    if (input.notify_client !== false && updated.status !== 'draft') {
+      await this.notifyChargesAdded(updated, charges);
+    }
+    return updated;
+  }
+
+  private cleanCharges(raw: unknown) {
+    if (
+      !Array.isArray(raw) ||
+      raw.length === 0 ||
+      raw.length > MAX_ADDITIONAL_CHARGES
+    ) {
+      throw new BadRequestException(
+        `Add between 1 and ${MAX_ADDITIONAL_CHARGES} charges.`,
+      );
+    }
+    return raw.map((c: Record<string, unknown>) => {
+      const description =
+        typeof c?.description === 'string' ? c.description.trim() : '';
+      if (!description || description.length > 200) {
+        throw new BadRequestException(
+          'Each charge needs a description of up to 200 characters.',
+        );
+      }
+      const quantity = c?.quantity === undefined ? 1 : Number(c.quantity);
+      const unitPrice = Number(c?.unit_price);
+      if (!Number.isFinite(quantity) || quantity <= 0 || quantity > 10_000) {
+        throw new BadRequestException('Each charge needs a quantity above 0.');
+      }
+      if (
+        !Number.isFinite(unitPrice) ||
+        unitPrice <= 0 ||
+        unitPrice > MAX_CHARGE_AMOUNT
+      ) {
+        throw new BadRequestException('Each charge needs an amount above $0.');
+      }
+      return { description, quantity, unit_price: round2(unitPrice) };
+    });
+  }
+
+  /** Tells the client what was added and what they now owe. Never blocks saving the charges. */
+  private async notifyChargesAdded(
+    invoice: any,
+    charges: { description: string; quantity: number; unit_price: number }[],
+  ) {
+    const vendorName = invoice.vendor_accounts?.business_name ?? 'Your vendor';
+    const balance = Number(invoice.amount_due ?? 0).toFixed(2);
+    const payUrl = `${this.frontendUrl}/pay/${invoice.public_token}`;
+    const what = charges.length === 1 ? 'a charge' : 'charges';
+
+    try {
+      await this.smsNotifications.sendOne(
+        invoice.client_phone,
+        `${vendorName} added ${what} to invoice ${invoice.invoice_number}. Balance due: $${balance}. View and pay: ${payUrl}`,
+      );
+    } catch (err) {
+      this.logger.warn(`Charge SMS failed: ${(err as Error).message}`);
+    }
+
+    const smtpHost = this.configService.get<string>('SMTP_HOST');
+    const smtpUser = this.configService.get<string>('SMTP_USER');
+    const smtpPass = this.configService.get<string>('SMTP_PASS');
+    if (!invoice.client_email || !smtpHost || !smtpUser || !smtpPass) return;
+    const rows = charges
+      .map(
+        (c) =>
+          `<li>${escapeHtml(c.description)}: $${round2(c.quantity * c.unit_price).toFixed(2)}</li>`,
+      )
+      .join('');
+    try {
+      await nodemailer
+        .createTransport({
+          host: smtpHost,
+          port: Number(this.configService.get<string>('SMTP_PORT', '587')),
+          secure: false,
+          auth: { user: smtpUser, pass: smtpPass },
+          connectionTimeout: 10000,
+          greetingTimeout: 10000,
+          socketTimeout: 20000,
+        })
+        .sendMail({
+          from: `"${vendorName.replace(/"/g, '')}" <${this.configService.get<string>('SMTP_FROM', smtpUser)}>`,
+          to: invoice.client_email,
+          subject: `Updated invoice ${invoice.invoice_number} from ${vendorName}: $${balance} due`,
+          html: `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;">
+        <h2 style="color:#4f46e5;">Invoice updated</h2>
+        <p>Hi ${escapeHtml(String(invoice.client_name ?? ''))},</p>
+        <p>${escapeHtml(vendorName)} added ${what} to invoice <strong>${escapeHtml(String(invoice.invoice_number))}</strong>:</p>
+        <ul>${rows}</ul>
+        <p>Balance due: <strong>$${balance}</strong></p>
+        <p style="margin:24px 0;">
+          <a href="${payUrl}" style="background:#4f46e5;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-size:16px;">View &amp; Pay Invoice</a>
+        </p>
+        <p style="color:#666;font-size:13px;">Powered by EventEcos</p>
+      </div>`,
+        });
+    } catch (err) {
+      this.logger.warn(`Charge email failed: ${(err as Error).message}`);
+    }
+  }
+
   private assertItemValues(item: Partial<VendorInvoiceItemDto>) {
     if (item.description !== undefined && !String(item.description).trim()) {
       throw new BadRequestException('Each line item needs a description.');
@@ -1163,12 +1325,11 @@ export class VendorInvoicesService {
       .eq('id', invoiceId)
       .maybeSingle();
 
-    const { subtotal, taxAmount, totalAmount, amountDue } =
-      this.calculateTotals(
-        (items ?? []) as { quantity: number; unit_price: number }[],
-        Number(taxRate),
-        Number(discountAmount),
-      );
+    const { subtotal, taxAmount, totalAmount } = this.calculateTotals(
+      (items ?? []) as { quantity: number; unit_price: number }[],
+      Number(taxRate),
+      Number(discountAmount),
+    );
 
     await admin
       .from('vendor_invoices')
@@ -1176,11 +1337,11 @@ export class VendorInvoicesService {
         subtotal,
         tax_amount: taxAmount,
         total_amount: totalAmount,
-        // With a deposit, payments already received stay credited when items change.
-        amount_due:
-          current?.deposit_amount != null
-            ? Math.max(0, totalAmount - Number(current.amount_paid ?? 0))
-            : amountDue,
+        // Anything already paid (a deposit or a manual payment) stays credited when the total changes.
+        amount_due: Math.max(
+          0,
+          totalAmount - Number(current?.amount_paid ?? 0),
+        ),
         updated_at: new Date().toISOString(),
       })
       .eq('id', invoiceId);

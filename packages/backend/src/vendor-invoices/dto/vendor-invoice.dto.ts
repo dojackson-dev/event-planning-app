@@ -4,6 +4,20 @@ export class VendorInvoiceItemDto {
   unit_price!: number;
 }
 
+export class AdditionalChargeDto {
+  description!: string;
+  /** Defaults to 1. */
+  quantity?: number;
+  unit_price!: number;
+}
+
+/** Charges added after the invoice went out; allowed on a paid invoice too. */
+export class AddAdditionalChargesDto {
+  charges!: AdditionalChargeDto[];
+  /** Email and text the client the new balance. Defaults to true. */
+  notify_client?: boolean;
+}
+
 export class CreateVendorInvoiceDto {
   client_name!: string;
   client_email?: string;

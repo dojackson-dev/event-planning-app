@@ -36,6 +36,7 @@ interface PromoterEvent {
   title: string
   description: string | null
   event_date: string
+  end_date?: string | null
   start_time: string | null
   end_time: string | null
   venue_name: string | null
@@ -113,6 +114,7 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [eventDate, setEventDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [startTime, setStartTime] = useState('')
   const [endTime, setEndTime] = useState('')
   const [venueName, setVenueName] = useState('')
@@ -126,6 +128,8 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
   const [salesTaxRate, setSalesTaxRate] = useState('')
   // Only send the field when it matters so saving works before the sales_tax_rate migration is run
   const salesTaxPayload = salesTaxRate === '' ? (event?.sales_tax_rate ? 0 : undefined) : Number(salesTaxRate)
+  // Same for end_date: only sent when changed, and null turns a multi-day event back into a one-day event
+  const endDatePayload = endDate === (event?.end_date ?? '') ? undefined : (endDate || null)
   const [imageUrl, setImageUrl] = useState('')
   const [status, setStatus] = useState<'draft' | 'published' | 'cancelled'>('draft')
 
@@ -159,6 +163,7 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
       setTitle(ev.title)
       setDescription(ev.description || '')
       setEventDate(ev.event_date)
+      setEndDate(ev.end_date || '')
       setStartTime(ev.start_time || '')
       setEndTime(ev.end_time || '')
       setVenueName(ev.venue_name || '')
@@ -191,6 +196,7 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
         venue_type: venueType || undefined,
         age_restriction: ageRestriction || undefined, image_url: imageUrl || undefined,
         sales_tax_rate: salesTaxPayload,
+        end_date: endDatePayload,
         status,
       })
       setEvent(prev => ({ ...res.data, ticket_tiers: prev?.ticket_tiers ?? [] }))
@@ -261,6 +267,7 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
         category: category || undefined, venue_type: venueType || undefined,
         age_restriction: ageRestriction || undefined, image_url: imageUrl || undefined,
         sales_tax_rate: salesTaxPayload,
+        end_date: endDatePayload,
         status: 'published',
       })
       setStatus('published')
@@ -286,6 +293,7 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
         category: category || undefined, venue_type: venueType || undefined,
         age_restriction: ageRestriction || undefined, image_url: imageUrl || undefined,
         sales_tax_rate: salesTaxPayload,
+        end_date: endDatePayload,
         status: 'draft',
       })
       setStatus('draft')
@@ -415,7 +423,7 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
         <EventQrCode
           url={`${typeof window !== 'undefined' ? window.location.origin : ''}/events/${id}`}
           title={event.title}
-          subtitle={[eventDate && new Date(`${eventDate}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }), event.venue_name].filter(Boolean).join(' · ')}
+          subtitle={[eventDate && `${new Date(`${eventDate}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}${endDate && endDate > eventDate ? ` – ${new Date(`${endDate}T12:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}` : ''}`, event.venue_name].filter(Boolean).join(' · ')}
           published={status === 'published'}
         />
 
@@ -479,6 +487,14 @@ export default function PromoterEventDetailPage({ params }: { params: { id: stri
                   <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)}
                     className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">End date (multi-day events)</label>
+                <input type="date" value={endDate} min={eventDate || undefined} onChange={e => setEndDate(e.target.value)}
+                  className="w-full sm:w-1/3 border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                <p className="text-xs text-gray-500 mt-1">
+                  Leave blank for a one-day event. Each ticket works on every day and is scanned once per day, using the time zone of the event&apos;s state.
+                </p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

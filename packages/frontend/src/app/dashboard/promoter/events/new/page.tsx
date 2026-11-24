@@ -57,6 +57,7 @@ export default function NewPromoterEventPage() {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [eventDate, setEventDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [startTime, setStartTime] = useState('')
   const [endTime, setEndTime] = useState('')
   const [venueName, setVenueName] = useState('')
@@ -161,6 +162,7 @@ export default function NewPromoterEventPage() {
         title,
         description: description || undefined,
         event_date: eventDate,
+        end_date: endDate && endDate > eventDate ? endDate : undefined,
         start_time: startTime || undefined,
         end_time: endTime || undefined,
         venue_name: venueName || undefined,
@@ -226,6 +228,14 @@ export default function NewPromoterEventPage() {
               <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)}
                 className="w-full border border-gray-300 rounded-xl px-2 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
             </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">End date (multi-day events)</label>
+            <input type="date" value={endDate} min={eventDate || undefined} onChange={e => setEndDate(e.target.value)}
+              className="w-full sm:w-1/3 border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+            <p className="text-xs text-gray-500 mt-1">
+              Leave blank for a one-day event. Each ticket works on every day and is scanned once per day, using the time zone of the event&apos;s state.
+            </p>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>

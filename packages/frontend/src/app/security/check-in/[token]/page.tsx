@@ -10,6 +10,8 @@ interface Assignment {
   guard_first_name: string
   event_name: string
   event_date: string | null
+  event_end_date?: string | null
+  event_day?: { date: string; index: number; total: number } | null
   report_time: string | null
   post: string | null
   notes: string | null
@@ -90,7 +92,12 @@ export default function SecurityCheckInPage() {
       <div className="max-w-sm mx-auto">
         <p className="text-sm text-gray-500 text-center mb-1">Hi {a.guard_first_name}</p>
         <h1 className="text-xl font-bold text-gray-900 text-center">Security: {a.event_name}</h1>
-        {a.event_date && <p className="text-center text-sm text-gray-500 mt-1">{fmtDate(a.event_date)}</p>}
+        {a.event_date && (
+          <p className="text-center text-sm text-gray-500 mt-1">
+            {fmtDate(a.event_date)}{a.event_end_date && a.event_end_date > a.event_date ? ` – ${fmtDate(a.event_end_date)}` : ''}
+          </p>
+        )}
+        {a.event_day && <p className="text-center text-sm font-semibold text-primary-700 mt-1">Today is day {a.event_day.index} of {a.event_day.total}</p>}
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mt-6" aria-live="polite">
           <div className="space-y-2 text-sm text-gray-700 mb-5">

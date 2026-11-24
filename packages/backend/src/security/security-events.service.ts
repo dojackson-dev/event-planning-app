@@ -10,6 +10,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { SmsNotificationsService } from '../messaging/sms-notifications.service';
 import { StaffPayService } from '../staff-pay/staff-pay.service';
 import { StaffPayoutsService } from '../staff-pay/staff-payouts.service';
+import { DayEvent, isMultiDay, scanDay, ScanDay } from '../common/event-days';
 import {
   MAX_GUARDS_PER_REQUEST,
   fmtEventDate,
@@ -23,6 +24,15 @@ import {
 
 const TOKEN_RE = /^[0-9a-f]{32}$/;
 const UUID_RE = /^[0-9a-f-]{36}$/i;
+
+export interface EventDays {
+  id: string;
+  name: string;
+  date: string;
+  end_date: string | null;
+  start_time: string | null;
+  end_time: string | null;
+}
 
 @Injectable()
 export class SecurityEventsService {
@@ -51,14 +61,109 @@ export class SecurityEventsService {
 
   private async ownEvent(ownerId: string, eventId: string) {
     if (!UUID_RE.test(eventId)) throw new NotFoundException('Event not found');
+    // select('*') because end_date only exists once add-multi-day-events.sql has been run.
     const { data } = await this.admin
       .from('event')
-      .select('id, name, date')
+      .select('*')
       .eq('id', eventId)
       .eq('owner_id', ownerId)
       .maybeSingle();
     if (!data) throw new NotFoundException('Event not found');
-    return data;
+    return this.eventShape(data);
+  }
+
+  private eventShape(row: any): EventDays {
+    return {
+      id: row.id,
+      name: row.name,
+      date: row.date,
+      end_date: row.end_date ?? null,
+      start_time: row.start_time ?? null,
+      end_time: row.end_time ?? null,
+    };
+  }
+
+  private dayEvent(e: EventDays): DayEvent {
+    return {
+      event_date: String(e.date).slice(0, 10),
+      end_date: e.end_date,
+      start_time: e.start_time,
+      end_time: e.end_time,
+    };
+  }
+
+  /** The day the guards are working, or null for a single-day event. Throws outside a multi-day run. */
+  private currentDay(e: EventDays): ScanDay | null {
+    const de = this.dayEvent(e);
+    return isMultiDay(de) ? scanDay(de) : null;
+  }
+
+  /**
+   * On a multi-day event a guard arrives once per day. The rows the venue and the guard see carry today's
+   * arrival in place of the first one, so the same screens work for every day.
+   */
+  private async overlayDay(rows: any[], e: EventDays | null): Promise<any[]> {
+    if (!e || rows.length === 0 || !isMultiDay(this.dayEvent(e))) return rows;
+    let day: ScanDay | null = null;
+    try {
+      day = this.currentDay(e);
+    } catch {
+      // Outside the run nobody has arrived "today".
+    }
+    const byGuard = new Map<string, any>();
+    if (day) {
+      const { data } = await this.admin
+        .from('security_day_arrivals')
+        .select('security_id, arrival_time, source')
+        .in(
+          'security_id',
+          rows.map((r) => r.id),
+        )
+        .eq('arrival_date', day.date);
+      for (const a of data ?? []) byGuard.set(a.security_id, a);
+    }
+    return rows.map((r) => ({
+      ...r,
+      arrival_time: byGuard.get(r.id)?.arrival_time ?? null,
+      arrival_source: byGuard.get(r.id)?.source ?? null,
+      event_day: day
+        ? { date: day.date, index: day.index, total: day.total }
+        : null,
+    }));
+  }
+
+  /** Records today's arrival for a guard on a multi-day event and keeps the first one on the guard row. */
+  private async markDayArrival(
+    guard: any,
+    day: ScanDay,
+    source: 'guard' | 'manager',
+    nowMs: number,
+  ) {
+    const stamp = new Date(nowMs).toISOString();
+    const { data: existing } = await this.admin
+      .from('security_day_arrivals')
+      .select('id')
+      .eq('security_id', guard.id)
+      .eq('arrival_date', day.date)
+      .maybeSingle();
+    // A tap that raced this one hits the unique key and is ignored: the arrival is recorded either way.
+    if (!existing)
+      await this.admin.from('security_day_arrivals').insert({
+        security_id: guard.id,
+        arrival_date: day.date,
+        arrival_time: stamp,
+        source,
+      });
+    if (!guard.arrival_time)
+      await this.admin
+        .from('security')
+        .update({
+          arrival_time: stamp,
+          arrival_source: source,
+          updated_at: stamp,
+        })
+        .eq('id', guard.id)
+        .is('arrival_time', null);
   }
 
   private withLink(row: any) {
@@ -82,7 +187,8 @@ export class SecurityEventsService {
       .eq('event_id', eventId)
       .order('report_time', { ascending: true });
     if (error) throw new BadRequestException(error.message);
-    return { event, guards: (data ?? []).map((g: any) => this.withLink(g)) };
+    const guards = await this.overlayDay(data ?? [], event);
+    return { event, guards: guards.map((g: any) => this.withLink(g)) };
   }
 
   /** People the venue has used before who are not yet on this event, for one-tap adding. */
@@ -124,6 +230,10 @@ export class SecurityEventsService {
     );
     const details = sanitizeAssignmentDetails(input);
     const pay = sanitizePay(input?.pay);
+    if (pay && isMultiDay(this.dayEvent(event)))
+      throw new BadRequestException(
+        'Pay through EventEcos is set up one day at a time. Add the guards without pay, then add their shifts in Staff Pay.',
+      );
 
     const { data: existing } = await this.admin
       .from('security')
@@ -268,6 +378,24 @@ export class SecurityEventsService {
   /** The manager marks a guard arrived (or undoes it) for guards who did not tap their link. */
   async setArrival(ownerId: string, id: string, arrived: boolean) {
     const guard = await this.ownGuard(ownerId, id);
+    const event = guard.event_id
+      ? await this.ownEvent(ownerId, guard.event_id)
+      : null;
+    const day = event ? this.currentDay(event) : null;
+    if (event && day) {
+      if (arrived) await this.markDayArrival(guard, day, 'manager', Date.now());
+      else
+        await this.admin
+          .from('security_day_arrivals')
+          .delete()
+          .eq('security_id', id)
+          .eq('arrival_date', day.date);
+      const [row] = await this.overlayDay(
+        [await this.ownGuard(ownerId, id)],
+        event,
+      );
+      return this.withLink(row);
+    }
     const shift = await this.shiftOf(guard);
     if (
       !arrived &&
@@ -347,28 +475,34 @@ export class SecurityEventsService {
       .eq('check_in_token', token)
       .maybeSingle();
     if (!row) throw new NotFoundException('This link is not valid.');
-    let event: { name: string; date: string } | null = null;
+    let event: EventDays | null = null;
     if (row.event_id) {
       const { data } = await this.admin
         .from('event')
-        .select('name, date')
+        .select('*')
         .eq('id', row.event_id)
         .maybeSingle();
-      event = data ?? null;
+      event = data ? this.eventShape(data) : null;
     }
     const shift = await this.shiftOf(row);
-    return { row, event, shift };
+    const [today] = await this.overlayDay([row], event);
+    // `row` is what the guard sees for today; `raw` still holds their first arrival.
+    return { row: today, raw: row, event, shift };
   }
 
   private publicShape(
     row: any,
-    event: { name: string; date: string } | null,
+    event: EventDays | null,
     shift: { status: string; clock_out_at: string | null } | null,
   ) {
     return {
       guard_first_name: String(row.name).split(' ')[0],
       event_name: event?.name ?? 'the event',
       event_date: event?.date ? String(event.date).slice(0, 10) : null,
+      event_end_date: event?.end_date
+        ? String(event.end_date).slice(0, 10)
+        : null,
+      event_day: row.event_day ?? null,
       report_time: row.report_time ?? null,
       post: row.post ?? null,
       notes: row.notes ?? null,
@@ -387,10 +521,17 @@ export class SecurityEventsService {
   }
 
   async publicArrive(token: string, nowMs: number = Date.now()) {
-    const { row, event, shift } = await this.byToken(token);
+    const { row, raw, event, shift } = await this.byToken(token);
     if (row.arrival_time) return this.publicShape(row, event, shift);
     if (!event?.date)
       throw new BadRequestException('This assignment is not on an event yet.');
+    // On a multi-day event the guard arrives once a day, counted in the event's timezone.
+    const day = this.currentDay(event);
+    if (day) {
+      await this.markDayArrival(raw, day, 'guard', nowMs);
+      const next = await this.byToken(token);
+      return this.publicShape(next.row, event, next.shift);
+    }
     if (!withinCheckInWindow(event.date, nowMs))
       throw new BadRequestException(
         `You can check in around the event date (${fmtEventDate(event.date)}).`,

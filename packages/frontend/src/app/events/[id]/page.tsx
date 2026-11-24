@@ -47,6 +47,7 @@ interface PublicEvent {
   title: string
   description: string | null
   event_date: string
+  end_date?: string | null
   start_time: string | null
   end_time: string | null
   venue_name: string | null
@@ -150,7 +151,9 @@ export default function PublicEventDetailPage({ params }: { params: { id: string
   }
 
   const dateObj = new Date(event.event_date + 'T00:00:00')
-  const dateStr = dateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+  const dateStr = event.end_date && event.end_date > event.event_date
+    ? `${dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric' })} – ${new Date(event.end_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' })}`
+    : dateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
   const promoterName = event.promoter_accounts?.company_name || event.promoter_accounts?.contact_name
   const isSoldOut = event.ticket_tiers.length > 0 &&
     event.ticket_tiers.every(t => t.quantity_sold >= t.quantity)

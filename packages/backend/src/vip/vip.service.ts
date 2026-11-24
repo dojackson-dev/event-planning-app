@@ -6,6 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { extractScanCode } from '../common/scan-code';
+import { isMultiDay, scanDay, ScanDay } from '../common/event-days';
 import { normalizePhone } from '../calls/phone';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -869,12 +870,14 @@ export class VipService {
     admin: any,
     qrCode: string,
     eventId: string,
+    day: ScanDay | null = null,
   ): Promise<{
     success: boolean;
     guests_checked_in: number;
     total_capacity: number;
     message: string;
     guest_name?: string | null;
+    day?: { date: string; index: number; total: number };
   } | null> {
     const { data: pass } = await admin
       .from('vip_guest_passes')
@@ -887,6 +890,8 @@ export class VipService {
     if (!pass) return null;
     const parentOrder = pass.vip_order;
     if (!parentOrder || parentOrder.public_event_id !== eventId) return null;
+
+    if (day) return this.scanGuestPassForDay(admin, pass, parentOrder, day);
 
     if (pass.status === 'used')
       throw new BadRequestException(
@@ -917,6 +922,162 @@ export class VipService {
     };
   }
 
+  /** The day the door is working if the event runs more than one day, otherwise null (legacy check-in). */
+  private async getScanDay(
+    admin: any,
+    eventId: string,
+  ): Promise<ScanDay | null> {
+    const { data: event } = await admin
+      .from('public_events')
+      .select('*')
+      .eq('id', eventId)
+      .maybeSingle();
+    return event && isMultiDay(event) ? scanDay(event) : null;
+  }
+
+  private dayInfo(day: ScanDay) {
+    return { date: day.date, index: day.index, total: day.total };
+  }
+
+  /** Saves today's head count for an order (and the passes scanned) and mirrors it on the order row. */
+  private async recordDayCheckIn(
+    admin: any,
+    orderId: string,
+    day: ScanDay,
+    count: number,
+    capacity: number,
+    passIds: string[],
+  ) {
+    const { error } = await admin.from('vip_order_day_checkins').upsert(
+      {
+        vip_order_id: orderId,
+        scan_date: day.date,
+        guests_checked_in: count,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'vip_order_id,scan_date' },
+    );
+    if (error) throw new BadRequestException(error.message);
+    if (passIds.length) {
+      await admin.from('vip_pass_day_scans').upsert(
+        passIds.map((id) => ({
+          vip_guest_pass_id: id,
+          scan_date: day.date,
+        })),
+        { onConflict: 'vip_guest_pass_id,scan_date', ignoreDuplicates: true },
+      );
+    }
+    await admin
+      .from('vip_orders')
+      .update({
+        guests_checked_in: count,
+        check_in_status: count >= capacity ? 'checked_in' : 'partial',
+      })
+      .eq('id', orderId);
+  }
+
+  /** One guest pass, once per day of a multi-day event. */
+  private async scanGuestPassForDay(
+    admin: any,
+    pass: any,
+    parentOrder: any,
+    day: ScanDay,
+  ) {
+    const label = `Day ${day.index} of ${day.total}`;
+    const { error } = await admin
+      .from('vip_pass_day_scans')
+      .insert({ vip_guest_pass_id: pass.id, scan_date: day.date });
+    if (error) {
+      if (error.code === '23505')
+        throw new BadRequestException(
+          `${pass.guest_name || 'This guest'} has already checked in today (${label})`,
+        );
+      throw new BadRequestException(error.message);
+    }
+    const { data: row } = await admin
+      .from('vip_order_day_checkins')
+      .select('guests_checked_in')
+      .eq('vip_order_id', parentOrder.id)
+      .eq('scan_date', day.date)
+      .maybeSingle();
+    const newCount = (row?.guests_checked_in ?? 0) + 1;
+    const capacity = parentOrder.vip_packages?.capacity ?? 1;
+    await this.recordDayCheckIn(
+      admin,
+      parentOrder.id,
+      day,
+      newCount,
+      capacity,
+      [],
+    );
+    return {
+      success: true,
+      guests_checked_in: newCount,
+      total_capacity: capacity,
+      message: `${pass.guest_name || 'Guest'} checked in (${newCount} of ${capacity}) - ${label}`,
+      guest_name: pass.guest_name,
+      day: this.dayInfo(day),
+    };
+  }
+
+  /** A VIP order's group, counted separately for each day of a multi-day event. */
+  private async checkInOrderForDay(
+    admin: any,
+    order: any,
+    mode: 'single' | 'full',
+    day: ScanDay,
+  ) {
+    const label = `Day ${day.index} of ${day.total}`;
+    const capacity = order.vip_packages?.capacity ?? 1;
+    const { data: row } = await admin
+      .from('vip_order_day_checkins')
+      .select('guests_checked_in')
+      .eq('vip_order_id', order.id)
+      .eq('scan_date', day.date)
+      .maybeSingle();
+    const alreadyIn = row?.guests_checked_in ?? 0;
+    if (alreadyIn >= capacity)
+      throw new BadRequestException(
+        `All ${capacity} guests have already checked in today (${label})`,
+      );
+
+    const passIds: string[] = (order.vip_guest_passes ?? []).map(
+      (p: any) => p.id,
+    );
+    let scannedToday = new Set<string>();
+    if (passIds.length) {
+      const { data: scans } = await admin
+        .from('vip_pass_day_scans')
+        .select('vip_guest_pass_id')
+        .in('vip_guest_pass_id', passIds)
+        .eq('scan_date', day.date);
+      scannedToday = new Set(
+        (scans ?? []).map((s: any) => s.vip_guest_pass_id as string),
+      );
+    }
+    const open = passIds.filter((id) => !scannedToday.has(id));
+
+    const full = mode === 'full';
+    const newCount = full ? capacity : alreadyIn + 1;
+    await this.recordDayCheckIn(
+      admin,
+      order.id,
+      day,
+      newCount,
+      capacity,
+      full ? open : open.slice(0, 1),
+    );
+    return {
+      success: true,
+      guests_checked_in: newCount,
+      total_capacity: capacity,
+      message: full
+        ? `Full group checked in (${newCount}) - ${label}`
+        : `Guest checked in (${newCount} of ${capacity}) - ${label}`,
+      day: this.dayInfo(day),
+    };
+  }
+
   /** Public scan using concierge access code — no promoter login required */
   async scanVipByAccessCode(
     accessCode: string,
@@ -936,6 +1097,7 @@ export class VipService {
       throw new NotFoundException('Invalid concierge access code');
 
     const eventId = concierge.public_event_id;
+    const day = await this.getScanDay(admin, eventId);
 
     const { data: order } = await admin
       .from('vip_orders')
@@ -947,13 +1109,24 @@ export class VipService {
       .maybeSingle();
 
     if (!order) {
-      const passResult = await this.scanGuestPassQr(admin, qrCode, eventId);
+      const passResult = await this.scanGuestPassQr(
+        admin,
+        qrCode,
+        eventId,
+        day,
+      );
       if (!passResult)
         throw new NotFoundException('VIP QR code not found for this event');
       return passResult;
     }
     if (order.payment_status !== 'paid')
       throw new BadRequestException('VIP order not paid');
+
+    if (day)
+      return {
+        ...(await this.checkInOrderForDay(admin, order, checkInMode, day)),
+        order,
+      };
 
     const capacity = order.vip_packages?.capacity ?? 1;
     const alreadyIn = order.guests_checked_in ?? 0;
@@ -1010,6 +1183,7 @@ export class VipService {
     const dto = { ...rawDto, qr_code: extractScanCode(rawDto.qr_code) };
     await this.assertEventOwner(userId, eventId);
     const admin = this.supabaseService.getAdminClient();
+    const day = await this.getScanDay(admin, eventId);
 
     const { data: order } = await admin
       .from('vip_orders')
@@ -1025,6 +1199,7 @@ export class VipService {
         admin,
         dto.qr_code,
         eventId,
+        day,
       );
       if (!passResult)
         throw new NotFoundException('VIP QR code not found for this event');
@@ -1032,6 +1207,19 @@ export class VipService {
     }
     if (order.payment_status !== 'paid')
       throw new BadRequestException('VIP order not paid');
+
+    if (day) {
+      const result = await this.checkInOrderForDay(
+        admin,
+        order,
+        dto.check_in_mode === 'full' ? 'full' : 'single',
+        day,
+      );
+      this.notifyConciergesOnArrival(eventId, order).catch((err) =>
+        this.logger.error('Concierge SMS notification failed', err),
+      );
+      return result;
+    }
 
     const capacity = order.vip_packages?.capacity ?? 1;
     const alreadyIn = order.guests_checked_in ?? 0;

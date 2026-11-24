@@ -7,6 +7,13 @@ import {
 } from '@nestjs/common';
 import { earliestLiveEventDate } from '../common/event-window';
 import { extractScanCode } from '../common/scan-code';
+import {
+  assertValidDateRange,
+  eventTimezone,
+  isMultiDay,
+  isValidTimezone,
+  scanDay,
+} from '../common/event-days';
 import { normalizePhone } from '../calls/phone';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -135,6 +142,10 @@ export class PromoterEventsService {
     const admin = this.supabaseService.getAdminClient();
     const promoter = await this.getPromoterAccount(userId);
     if (dto.status === 'published') assertNonprofitCanSell(promoter);
+    const endDate = dto.end_date || null;
+    assertValidDateRange(dto.event_date, endDate);
+    if (dto.timezone && !isValidTimezone(dto.timezone))
+      throw new BadRequestException('Timezone is not valid.');
 
     const { data: event, error } = await admin
       .from('public_events')
@@ -143,6 +154,17 @@ export class PromoterEventsService {
         title: dto.title,
         description: dto.description ?? null,
         event_date: dto.event_date,
+        // Only sent for multi-day events so single-day events keep saving before the migration is run.
+        ...(endDate && endDate > dto.event_date
+          ? {
+              end_date: endDate,
+              timezone:
+                dto.timezone ??
+                eventTimezone({ event_date: dto.event_date, state: dto.state }),
+            }
+          : dto.timezone
+            ? { timezone: dto.timezone }
+            : {}),
         start_time: dto.start_time ?? null,
         end_time: dto.end_time ?? null,
         venue_name: dto.venue_name ?? null,
@@ -211,7 +233,7 @@ export class PromoterEventsService {
 
     const { data: existing } = await admin
       .from('public_events')
-      .select('id')
+      .select('*')
       .eq('id', eventId)
       .eq('promoter_account_id', promoter.id)
       .maybeSingle();
@@ -221,6 +243,26 @@ export class PromoterEventsService {
     if (dto.title !== undefined) updates.title = dto.title;
     if (dto.description !== undefined) updates.description = dto.description;
     if (dto.event_date !== undefined) updates.event_date = dto.event_date;
+    if (dto.timezone !== undefined) {
+      if (dto.timezone && !isValidTimezone(dto.timezone))
+        throw new BadRequestException('Timezone is not valid.');
+      updates.timezone = dto.timezone || null;
+    }
+    if (dto.end_date !== undefined || dto.event_date !== undefined) {
+      const endDate =
+        dto.end_date !== undefined
+          ? dto.end_date || null
+          : (existing.end_date ?? null);
+      assertValidDateRange(dto.event_date ?? existing.event_date, endDate);
+      if (dto.end_date !== undefined) {
+        updates.end_date = endDate;
+        if (endDate && updates.timezone === undefined && !existing.timezone)
+          updates.timezone = eventTimezone({
+            event_date: existing.event_date,
+            state: dto.state ?? existing.state,
+          });
+      }
+    }
     if (dto.start_time !== undefined) updates.start_time = dto.start_time;
     if (dto.end_time !== undefined) updates.end_time = dto.end_time;
     if (dto.venue_name !== undefined) updates.venue_name = dto.venue_name;
@@ -399,24 +441,7 @@ export class PromoterEventsService {
     // Not the UTC date: that rolls over mid-evening in the US and would hide events still going on.
     const today = earliestLiveEventDate();
     const from = dateFrom && dateFrom > today ? dateFrom : today;
-    let query = admin
-      .from('public_events')
-      .select(
-        '*, ticket_tiers(id, name, price, quantity, quantity_sold), promoter_accounts(company_name, contact_name, profile_image_url, is_nonprofit, nonprofit_status, nonprofit_legal_name)',
-      )
-      .eq('status', 'published')
-      .gte('event_date', from)
-      .order('event_date', { ascending: true })
-      .order('id', { ascending: true });
-
-    if (dateTo) query = query.lte('event_date', dateTo);
-    if (category) query = query.eq('category', category);
     const term = sanitizeSearchTerm(q);
-    if (term) {
-      query = query.or(
-        `title.ilike.%${term}%,venue_name.ilike.%${term}%,city.ilike.%${term}%`,
-      );
-    }
 
     // Declared non-profits stay out of public lists until IRS-verified.
     const { data: paused } = await admin
@@ -425,16 +450,43 @@ export class PromoterEventsService {
       .eq('is_nonprofit', true)
       .neq('nonprofit_status', 'verified');
     const pausedIds = (paused ?? []).map((p: { id: string }) => p.id);
-    if (pausedIds.length) {
-      query = query.not(
-        'promoter_account_id',
-        'in',
-        `(${pausedIds.join(',')})`,
-      );
-    }
-    if (!zipCode) query = query.range(offset, offset + limit - 1);
 
-    const { data, error } = await query;
+    // A multi-day event stays listed until its last day, not just its first.
+    const run = (withEndDate: boolean) => {
+      let query = admin
+        .from('public_events')
+        .select(
+          '*, ticket_tiers(id, name, price, quantity, quantity_sold), promoter_accounts(company_name, contact_name, profile_image_url, is_nonprofit, nonprofit_status, nonprofit_legal_name)',
+        )
+        .eq('status', 'published')
+        .order('event_date', { ascending: true })
+        .order('id', { ascending: true });
+      query = withEndDate
+        ? query.or(`event_date.gte.${from},end_date.gte.${from}`)
+        : query.gte('event_date', from);
+
+      if (dateTo) query = query.lte('event_date', dateTo);
+      if (category) query = query.eq('category', category);
+      if (term) {
+        query = query.or(
+          `title.ilike.%${term}%,venue_name.ilike.%${term}%,city.ilike.%${term}%`,
+        );
+      }
+      if (pausedIds.length) {
+        query = query.not(
+          'promoter_account_id',
+          'in',
+          `(${pausedIds.join(',')})`,
+        );
+      }
+      if (!zipCode) query = query.range(offset, offset + limit - 1);
+      return query;
+    };
+
+    let { data, error } = await run(true);
+    // end_date only exists once add-multi-day-events.sql has been run.
+    if (error && /end_date/.test(error.message))
+      ({ data, error } = await run(false));
     if (error) throw new BadRequestException(error.message);
     let events = data || [];
 
@@ -1027,14 +1079,31 @@ export class PromoterEventsService {
 
   async getTicketById(ticketId: string) {
     const admin = this.supabaseService.getAdminClient();
-    const { data, error } = await admin
-      .from('tickets')
-      .select(
-        '*, ticket_tiers(name, price), public_events(title, event_date, venue_name, city, state, promoter_accounts(company_name))',
-      )
-      .eq('id', ticketId)
-      .maybeSingle();
+    const find = (endDate: string) =>
+      admin
+        .from('tickets')
+        .select(
+          `*, ticket_tiers(name, price), public_events(title, event_date${endDate}, venue_name, city, state, promoter_accounts(company_name))`,
+        )
+        .eq('id', ticketId)
+        .maybeSingle();
+    let { data, error }: { data: any; error: any } = await find(', end_date');
+    // end_date only exists once add-multi-day-events.sql has been run.
+    if (error && /end_date/.test(error.message))
+      ({ data, error } = await find(''));
     if (error || !data) throw new NotFoundException('Ticket not found');
+
+    // Which days of a multi-day event this ticket has already been scanned on.
+    if (data.public_events?.end_date) {
+      const { data: scans } = await admin
+        .from('ticket_scans')
+        .select('scan_date')
+        .eq('ticket_id', ticketId)
+        .order('scan_date', { ascending: true });
+      data.scanned_days = (scans ?? []).map(
+        (s: { scan_date: string }) => s.scan_date,
+      );
+    }
     return data;
   }
 
@@ -1260,7 +1329,7 @@ export class PromoterEventsService {
     // Verify the event belongs to this promoter
     const { data: event } = await admin
       .from('public_events')
-      .select('id')
+      .select('*')
       .eq('id', eventId)
       .eq('promoter_account_id', promoter.id)
       .maybeSingle();
@@ -1269,12 +1338,15 @@ export class PromoterEventsService {
     const { data: ticket } = await admin
       .from('tickets')
       .select(
-        'id, status, public_event_id, buyer_phone, buyer_email, amount_paid, ticket_tiers(name)',
+        'id, status, public_event_id, scanned_at, buyer_phone, buyer_email, amount_paid, ticket_tiers(name)',
       )
       .eq('id', ticketId)
       .eq('public_event_id', eventId)
       .maybeSingle();
     if (!ticket) throw new NotFoundException('Ticket not found for this event');
+
+    if (isMultiDay(event)) return this.scanMultiDayTicket(admin, event, ticket);
+
     if (ticket.status === 'used')
       throw new BadRequestException('Ticket has already been scanned');
 
@@ -1290,6 +1362,56 @@ export class PromoterEventsService {
       ticket: {
         id: ticket.id,
         status: 'used',
+        buyer_phone: ticket.buyer_phone ?? null,
+        buyer_email: ticket.buyer_email ?? null,
+        amount_paid: ticket.amount_paid ?? 0,
+        ticket_tiers: ticket.ticket_tiers ?? null,
+      },
+    };
+  }
+
+  /** A ticket is good on every day of a multi-day event and is scanned once per day (event timezone). */
+  private async scanMultiDayTicket(admin: any, event: any, ticket: any) {
+    const day = scanDay(event);
+    const label = `Day ${day.index} of ${day.total}`;
+    if (ticket.status === 'used')
+      throw new BadRequestException(
+        `Ticket has already been scanned on every day (${day.total} of ${day.total})`,
+      );
+
+    const { error: scanError } = await admin
+      .from('ticket_scans')
+      .insert({ ticket_id: ticket.id, scan_date: day.date });
+    if (scanError) {
+      if (scanError.code === '23505')
+        throw new BadRequestException(
+          `Ticket has already been scanned for today (${label})`,
+        );
+      throw new BadRequestException(scanError.message);
+    }
+
+    const { count } = await admin
+      .from('ticket_scans')
+      .select('id', { count: 'exact', head: true })
+      .eq('ticket_id', ticket.id);
+    const allDays = (count ?? 0) >= day.total;
+    const stamp = new Date().toISOString();
+    const { error } = await admin
+      .from('tickets')
+      .update({
+        ...(allDays ? { status: 'used' } : {}),
+        ...(ticket.scanned_at ? {} : { scanned_at: stamp }),
+      })
+      .eq('id', ticket.id);
+    if (error) throw new BadRequestException(error.message);
+
+    return {
+      valid: true,
+      reason: `Ticket scanned successfully (${label})`,
+      day: { date: day.date, index: day.index, total: day.total },
+      ticket: {
+        id: ticket.id,
+        status: allDays ? 'used' : ticket.status,
         buyer_phone: ticket.buyer_phone ?? null,
         buyer_email: ticket.buyer_email ?? null,
         amount_paid: ticket.amount_paid ?? 0,

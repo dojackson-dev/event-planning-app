@@ -231,6 +231,18 @@ function PublicInvoicePayPageContent() {
                   <span>${chargeNow.toFixed(2)}</span>
                 </div>
               )}
+              {!info.has && info.paid > 0 && !isPaid && (
+                <>
+                  <div className="flex justify-between text-gray-600 pt-1">
+                    <span>Already paid</span>
+                    <span>-${info.paid.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between font-semibold text-gray-900">
+                    <span>Balance due</span>
+                    <span>${info.dueNow.toFixed(2)}</span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 

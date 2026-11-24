@@ -14,6 +14,7 @@ import {
 import { VendorInvoicesService } from './vendor-invoices.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
+  AddAdditionalChargesDto,
   CreateVendorInvoiceDto,
   ReplaceVendorInvoiceDto,
   UpdateVendorInvoiceDto,
@@ -229,6 +230,17 @@ export class VendorInvoicesController {
   ) {
     const userId = await this.getUserId(auth);
     return this.vendorInvoicesService.addItem(userId, id, item);
+  }
+
+  /** POST /vendor-invoices/:id/additional-charges — Add charges after invoicing, even to a paid invoice */
+  @Post(':id/additional-charges')
+  async addAdditionalCharges(
+    @Headers('authorization') auth: string,
+    @Param('id') id: string,
+    @Body() dto: AddAdditionalChargesDto,
+  ) {
+    const userId = await this.getUserId(auth);
+    return this.vendorInvoicesService.addAdditionalCharges(userId, id, dto);
   }
 
   /** PUT /vendor-invoices/items/:itemId — Update a line item */

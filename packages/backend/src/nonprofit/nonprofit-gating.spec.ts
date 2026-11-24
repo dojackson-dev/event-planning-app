@@ -18,7 +18,16 @@ function db(answers: Record<string, unknown>) {
   const ops: Array<{ table: string; op: string; arg?: unknown }> = [];
   const from = (table: string) => {
     const b: Record<string, jest.Mock> = {};
-    for (const m of ['select', 'eq', 'neq', 'order', 'range', 'gte', 'lte']) {
+    for (const m of [
+      'select',
+      'eq',
+      'neq',
+      'order',
+      'range',
+      'gte',
+      'lte',
+      'or',
+    ]) {
       b[m] = jest.fn().mockReturnValue(b);
     }
     for (const m of ['insert', 'update', 'delete']) {

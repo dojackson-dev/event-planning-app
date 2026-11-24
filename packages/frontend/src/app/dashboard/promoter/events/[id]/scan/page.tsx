@@ -8,6 +8,7 @@ import api from '@/lib/api'
 type ScanResult = {
   valid: boolean
   reason: string
+  day?: { date: string; index: number; total: number }
   ticket: {
     id: string
     status: string
@@ -62,6 +63,7 @@ export default function DoorScannerPage() {
           setResult({
             valid: true,
             reason: vipData.message || 'VIP guest checked in',
+            day: vipData.day,
             ticket: null,
           })
         } catch (vipErr: any) {
@@ -159,6 +161,9 @@ export default function DoorScannerPage() {
             }
             <p className="text-2xl font-bold">{result.valid ? 'VALID' : 'DENIED'}</p>
             <p className="text-base opacity-90">{result.reason}</p>
+            {result.day && (
+              <p className="text-sm font-semibold bg-white/20 rounded-full px-3 py-1">Day {result.day.index} of {result.day.total}</p>
+            )}
             {result.ticket && (
               <div className="bg-white/20 rounded-xl px-4 py-3 w-full text-sm space-y-1">
                 <p><span className="opacity-70">Tier: </span><span className="font-semibold">{result.ticket.ticket_tiers?.name ?? 'General'}</span></p>

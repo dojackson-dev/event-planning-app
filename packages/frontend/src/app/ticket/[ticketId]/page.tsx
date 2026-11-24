@@ -13,11 +13,13 @@ interface TicketData {
   buyer_phone: string | null
   buyer_email: string | null
   created_at: string
+  scanned_days?: string[]
   ticket_tiers: { name: string; price: number } | null
   public_events: {
     id: string
     title: string
     event_date: string
+    end_date?: string | null
     start_time: string | null
     venue_name: string | null
     venue_address: string | null
@@ -66,6 +68,13 @@ export default function SingleTicketPage({ params }: { params: { ticketId: strin
         weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
       })
     : ''
+  const multiDay = !!event?.end_date && !!event.event_date && event.end_date > event.event_date
+  const rangeStr = multiDay
+    ? `${new Date(event!.event_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} – ${new Date(event!.end_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}`
+    : ''
+  const scannedDays = (ticket.scanned_days ?? []).map(d =>
+    new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+  )
 
   const location = [event?.venue_name, event?.city, event?.state].filter(Boolean).join(', ')
 
@@ -90,7 +99,7 @@ export default function SingleTicketPage({ params }: { params: { ticketId: strin
             {dateStr && (
               <div className="flex items-start gap-2 text-sm text-gray-600">
                 <Calendar className="w-4 h-4 shrink-0 mt-0.5 text-purple-500" />
-                <span>{dateStr}{event?.start_time ? ` at ${event.start_time}` : ''}</span>
+                <span>{multiDay ? rangeStr : dateStr}{event?.start_time ? ` at ${event.start_time}` : ''}</span>
               </div>
             )}
             {location && (
@@ -122,10 +131,15 @@ export default function SingleTicketPage({ params }: { params: { ticketId: strin
             ticket.status === 'used' ? 'bg-gray-100 text-gray-500' :
             'bg-red-100 text-red-600'
           }`}>
-            {ticket.status === 'valid' ? '✓ Valid' : ticket.status === 'used' ? 'Already scanned' : 'Invalid'}
+            {ticket.status === 'valid' ? (multiDay ? '✓ Valid all days' : '✓ Valid') : ticket.status === 'used' ? (multiDay ? 'Scanned on every day' : 'Already scanned') : 'Invalid'}
           </span>
+          {multiDay && scannedDays.length > 0 && (
+            <p className="text-xs text-gray-500 text-center">Scanned: {scannedDays.join(', ')}</p>
+          )}
           <p className="text-xs text-gray-400 text-center">
-            Show this QR code at the door. It can only be scanned once.
+            {multiDay
+              ? 'Show this QR code at the door each day. It is scanned once per day.'
+              : 'Show this QR code at the door. It can only be scanned once.'}
           </p>
         </div>
 

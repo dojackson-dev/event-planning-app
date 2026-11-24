@@ -2,6 +2,8 @@ export class CreatePromoterEventDto {
   title!: string;
   description?: string;
   event_date!: string; // YYYY-MM-DD
+  end_date?: string; // YYYY-MM-DD, last day of a multi-day event
+  timezone?: string; // IANA, e.g. America/Chicago; defaults from the state
   start_time?: string; // HH:MM
   end_time?: string;
   venue_name?: string;
@@ -22,6 +24,8 @@ export class UpdatePromoterEventDto {
   title?: string;
   description?: string;
   event_date?: string;
+  end_date?: string | null; // null or '' makes it a single-day event
+  timezone?: string;
   start_time?: string;
   end_time?: string;
   venue_name?: string;
